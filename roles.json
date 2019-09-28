@@ -1,0 +1,62 @@
+[
+  {
+    "id": 0,
+    "host": "*",
+    "path": "**",
+    "method": "{GET}",
+    "authorized_roles": [
+      "*"
+    ],
+    "forbidden_roles": [
+      "black_user"
+    ],
+    "allow_anyone": false
+  },
+  {
+    "id": 1,
+    "host": "*",
+    "path": "**",
+    "method": "{POST,PUT}",
+    "authorized_roles": [
+      "admin",
+      "member"
+    ],
+    "forbidden_roles": [
+      "black_user"
+    ],
+    "allow_anyone": false
+  },
+  {
+    "id": 2,
+    "host": "*",
+    "path": "**",
+    "method": "{DELETE}",
+    "authorized_roles": [
+      "admin"
+    ],
+    "forbidden_roles": [],
+    "allow_anyone": false
+  },
+  {
+    "id": 3,
+    "host": "*",
+    "path": "/api/apps",
+    "method": "POST",
+    "authorized_roles": [
+      "admin"
+    ],
+    "forbidden_roles": [],
+    "allow_anyone": false
+  },
+  {
+    "id": 3,
+    "host": "*",
+    "path": "/api/apps/**",
+    "method": "PUT",
+    "authorized_roles": [
+      "admin"
+    ],
+    "forbidden_roles": [],
+    "allow_anyone": false
+  }
+]
