@@ -28,7 +28,7 @@ func NewFileResource(cloudEngine cloudengine.CE, bucketName string) Resource {
 func (rs *FileResource) Register(router *ginx.Router) {
 	router.POST("/files", rs.create)
 	router.GET("/files", rs.findAll)
-	router.DELETE("/files/:object", rs.delete)
+	router.DELETE("/files/:id", rs.delete)
 }
 
 func (rs *FileResource) findAll(c *gin.Context) error {
@@ -79,12 +79,25 @@ func (rs *FileResource) create(c *gin.Context) error {
 }
 
 func (rs *FileResource) delete(c *gin.Context) error {
-	objectKey := c.Param("object")
+	id := c.Param("id")
+	uid := c.GetInt64("uid")
 
-	err := rs.cloudEngine.DeleteObject(rs.bucketName, objectKey)
+	m := new(model.Matter)
+	exist, err := dao.DB.Id(id).Get(m)
 	if err != nil {
+		return ginx.Failed(err)
+	} else if !exist {
+		return ginx.Error(fmt.Errorf("file not exist."))
+	}
+
+	object := fmt.Sprintf("%d/%s", uid, m.Path)
+	if err := rs.cloudEngine.DeleteObject(rs.bucketName, object); err != nil {
 		return ginx.Failed(err)
 	}
 
-	return nil
+	if _, err := dao.DB.Id(id).Delete(m); err != nil {
+		return ginx.Failed(err)
+	}
+
+	return ginx.Ok(c)
 }

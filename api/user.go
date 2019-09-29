@@ -145,7 +145,7 @@ func (r *UserResource) Auth() ginx.HandlerFunc {
 		//	r.Forbidden(c, fmt.Errorf("您没有权限进行此操作，请联系管理员."))
 		//	return
 		//}
-
+		c.Set("uid", int64(10001))
 		return nil
 	}
 }

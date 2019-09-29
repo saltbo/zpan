@@ -62,6 +62,11 @@ type ListData struct {
 	TotalNum int64       `json:"total_num"`
 }
 
+func Ok(c *gin.Context) error {
+	c.JSON(http.StatusOK, RError(0, fmt.Errorf("ok")))
+	return nil
+}
+
 func Json(c *gin.Context, data interface{}) error {
 	c.JSON(http.StatusOK, RWithData(0, "ok", data))
 	return nil

@@ -35,8 +35,9 @@ func (rs *URLResource) signedURL(c *gin.Context) error {
 	if err := c.ShouldBindQuery(p); err != nil {
 		return ginx.Error(err)
 	}
-	uid := 10001
 
+	uid := c.GetInt64("uid")
+	fmt.Println(uid, 11231)
 	// valid parent_id
 	if exist, err := dao.DB.Where("uid=? and parent_id=?", uid, p.ParentId).Exist(&model.Matter{}); err != nil {
 		return ginx.Failed(err)
