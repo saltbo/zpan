@@ -2,8 +2,10 @@ package ginx
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
+	"log"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type HandlerFunc func(c *gin.Context) error
@@ -23,6 +25,7 @@ func (r *Router) wrapper(handler HandlerFunc) func(c *gin.Context) {
 			return
 		}
 
+		log.Println(err)
 		var ret *Result
 		if errors.As(err, &ret) {
 			c.AbortWithStatusJSON(ret.Code, ret)

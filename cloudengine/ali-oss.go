@@ -2,6 +2,8 @@ package cloudengine
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
@@ -14,11 +16,12 @@ func NewAliOss(endpoint, accessKeyID, accessKeySecret string, options ...oss.Cli
 	if err != nil {
 		return nil, err
 	}
+	cli.Config.LogLevel = oss.Debug
 
 	return &AliOss{cli: cli}, nil
 }
 
-func (ao *AliOss) SignURL(bucketName, objectKey, method, contentType string) (url string, err error) {
+func (ao *AliOss) SignURL(bucketName, objectKey, method, contentType, callback string) (url string, err error) {
 	bucket, err := ao.cli.Bucket(bucketName)
 	if err != nil {
 		return
@@ -26,8 +29,9 @@ func (ao *AliOss) SignURL(bucketName, objectKey, method, contentType string) (ur
 
 	options := []oss.Option{
 		oss.ContentType(contentType),
+		oss.Callback(callback),
 	}
-	url, err = bucket.SignURL(objectKey, oss.HTTPMethod(method), 30, options...)
+	url, err = bucket.SignURL(objectKey, oss.HTTPMethod(method), 60, options...)
 	return
 }
 
@@ -42,10 +46,14 @@ func (ao *AliOss) ListObject(bucketName, prefix, marker string, limit int) (Obje
 		return nil, "", err
 	}
 
-	fmt.Println(11, objectsResult.Delimiter, objectsResult.Marker, objectsResult.NextMarker, objectsResult.Prefix, objectsResult.XMLName)
 	objects := make(Objects, 0, len(objectsResult.Objects))
 	for _, v := range objectsResult.Objects {
-		objects = append(objects, Object{Key: v.Key, Type: v.Type, Size: v.Size, ETag: v.ETag, LastModified: v.LastModified})
+		obj := Object{Key: v.Key, Type: v.Type, Size: v.Size, ETag: v.ETag, LastModified: v.LastModified}
+		if v.Size == 0 && strings.HasSuffix(v.Key, "/") {
+			obj.Dir = true
+		}
+
+		objects = append(objects, obj)
 	}
 
 	return objects, objectsResult.NextMarker, nil

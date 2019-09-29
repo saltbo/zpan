@@ -23,11 +23,11 @@ type RestServer struct {
 	resources []Resource
 }
 
-func NewRest(ce cloudengine.CE) (*RestServer, error) {
+func NewRest(ce cloudengine.CE, bucketName string) (*RestServer, error) {
 	resources := []Resource{
 		NewUserResource(),
-		NewURLResource(ce),
-		NewFileResource(ce),
+		NewURLResource(ce, bucketName),
+		NewFileResource(ce, bucketName),
 	}
 
 	router := gin.New()
