@@ -2,6 +2,7 @@ package cloudengine
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
@@ -21,7 +22,7 @@ func NewAliOss(endpoint, accessKeyID, accessKeySecret string, options ...oss.Cli
 	return &AliOss{cli: cli}, nil
 }
 
-func (ao *AliOss) SignURL(bucketName, objectKey, method, contentType, callback string) (url string, err error) {
+func (ao *AliOss) UploadURL(bucketName, objectKey, contentType, callback string) (url string, err error) {
 	bucket, err := ao.cli.Bucket(bucketName)
 	if err != nil {
 		return
@@ -29,9 +30,21 @@ func (ao *AliOss) SignURL(bucketName, objectKey, method, contentType, callback s
 
 	options := []oss.Option{
 		oss.ContentType(contentType),
+		oss.ContentDisposition(fmt.Sprintf(`attachment;filename="%s"`, filepath.Base(bucketName))),
 		oss.Callback(callback),
 	}
-	url, err = bucket.SignURL(objectKey, oss.HTTPMethod(method), 60, options...)
+	url, err = bucket.SignURL(objectKey, oss.HTTPPut, 60, options...)
+	return
+}
+
+func (ao *AliOss) DownloadURL(bucketName, objectKey string) (url string, err error) {
+	bucket, err := ao.cli.Bucket(bucketName)
+	if err != nil {
+		return
+	}
+
+	options := []oss.Option{}
+	url, err = bucket.SignURL(objectKey, oss.HTTPGet, 60, options...)
 	return
 }
 

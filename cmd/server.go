@@ -23,7 +23,7 @@ func assertNoError(err error, msgAndArgs ...interface{}) {
 }
 
 func main() {
-	dao.Init("root:admin@tcp(127.0.0.1:3306)/zpan?charset=utf8&interpolateParams=true")
+	dao.Init("root:root@tcp(127.0.0.1:3306)/zpan?charset=utf8&interpolateParams=true")
 	ossOpt := dao.Option("oss")
 	Endpoint, err = ossOpt.Get("endpoint")
 	assertNoError(err)

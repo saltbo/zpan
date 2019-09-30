@@ -38,8 +38,10 @@ func (rs *FileResource) findAll(c *gin.Context) error {
 	}
 
 	list := make([]model.Matter, 0)
-	query := dao.DB.Where("parent_id=?", p.ParentId).Limit(p.Limit, p.Offset)
-	total, err := query.Desc("dir").Asc("id").FindAndCount(&list)
+	query := "uid=? and parent=?"
+	params := []interface{}{c.GetInt64("uid"), p.Parent}
+	sn := dao.DB.Where(query, params...).Limit(p.Limit, p.Offset)
+	total, err := sn.Desc("dir").Asc("id").FindAndCount(&list)
 	if err != nil {
 		return ginx.Error(err)
 	}
@@ -53,7 +55,11 @@ func (rs *FileResource) create(c *gin.Context) error {
 		return ginx.Error(err)
 	}
 
-	exist, err := dao.DB.Where("uid=? and parent_id=? and path=?", p.Uid, p.ParentId, p.Path).Exist(&model.Matter{})
+	if p.Uid == 0 {
+		p.Uid = c.GetInt64("uid")
+	}
+
+	exist, err := dao.DB.Where("uid=? and parent=? and path=?", p.Uid, p.Parent, p.Path).Exist(&model.Matter{})
 	if err != nil {
 		return ginx.Failed(err)
 	} else if exist {
@@ -61,12 +67,12 @@ func (rs *FileResource) create(c *gin.Context) error {
 	}
 
 	m := model.Matter{
-		Uid:      p.Uid,
-		Name:     filepath.Base(p.Path),
-		Path:     p.Path,
-		Type:     p.Type,
-		Size:     p.Size,
-		ParentId: p.ParentId,
+		Uid:    p.Uid,
+		Name:   filepath.Base(p.Path),
+		Path:   p.Path,
+		Type:   p.Type,
+		Size:   p.Size,
+		Parent: p.Parent,
 	}
 	if m.Size == 0 && strings.HasSuffix(m.Path, "/") {
 		m.Dir = true

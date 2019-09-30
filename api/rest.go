@@ -32,7 +32,7 @@ func NewRest(ce cloudengine.CE, bucketName string) (*RestServer, error) {
 
 	router := gin.New()
 	srv := &http.Server{
-		Addr:    ":8001",
+		Addr:    ":8081",
 		Handler: router,
 	}
 
@@ -79,7 +79,7 @@ func (rs *RestServer) setupPing() {
 }
 
 func (rs *RestServer) setupResource() {
-	resourceRouter := rs.router.Group("/v1")
+	resourceRouter := rs.router.Group("/api")
 	//resourceRouter.Use(LoggerHandler())
 	for _, resource := range rs.resources {
 		resource.Register(ginx.NewRouter(resourceRouter))

@@ -12,7 +12,7 @@ type QueryUser struct {
 
 type QueryFiles struct {
 	QueryPage
-	ParentId string `form:"parent_id"`
+	Parent string `form:"path"`
 }
 
 type BodyUser struct {
@@ -22,17 +22,17 @@ type BodyUser struct {
 }
 
 type QueryMatter struct {
-	Object   string `form:"object" binding:"required"`
-	Type     string `form:"type" binding:"required"`
-	ParentId int64  `form:"parent_id" binding:"required"`
+	Object string `form:"object" binding:"required"`
+	Type   string `form:"type" binding:"required"`
+	Parent string `form:"parent" binding:"exists"`
 }
 
 type BodyMatter struct {
-	Uid      int64  `json:"uid"`
-	Path     string `json:"path" binding:"required"`
-	Type     string `json:"type" binding:"required"`
-	Size     int64  `json:"size" binding:"required"`
-	ParentId int64  `json:"parent_id" binding:"required"`
+	Uid    int64  `json:"uid"`
+	Path   string `json:"path" binding:"required"`
+	Type   string `json:"type" binding:"exists"`
+	Size   int64  `json:"size" binding:"exists"`
+	Parent string `form:"parent" binding:"exists"`
 }
 
-//	bucket=callback-test&object=test.txt&etag=D8E8FCA2DC0F896FD7CB4CB0031BA249&size=5&mimeType=text%2Fplain&imageInfo.height=&imageInfo.width=&imageInfo.format=&x:var1=for-callback-test
+// 	bucket=callback-test&object=test.txt&etag=D8E8FCA2DC0F896FD7CB4CB0031BA249&size=5&mimeType=text%2Fplain&imageInfo.height=&imageInfo.width=&imageInfo.format=&x:var1=for-callback-test
