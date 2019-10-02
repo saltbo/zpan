@@ -3,20 +3,7 @@
     "id": 0,
     "host": "*",
     "path": "**",
-    "method": "{GET}",
-    "authorized_roles": [
-      "*"
-    ],
-    "forbidden_roles": [
-      "black_user"
-    ],
-    "allow_anyone": false
-  },
-  {
-    "id": 1,
-    "host": "*",
-    "path": "**",
-    "method": "{POST,PUT}",
+    "method": "*",
     "authorized_roles": [
       "admin",
       "member"
@@ -27,12 +14,12 @@
     "allow_anyone": false
   },
   {
-    "id": 2,
+    "id": 1,
     "host": "*",
-    "path": "**",
-    "method": "{DELETE}",
+    "path": "/api/files/callback",
+    "method": "{POST}",
     "authorized_roles": [
-      "admin"
+      "anonymous"
     ],
     "forbidden_roles": [],
     "allow_anyone": false
@@ -40,10 +27,10 @@
   {
     "id": 3,
     "host": "*",
-    "path": "/api/apps",
+    "path": "/api/users",
     "method": "POST",
     "authorized_roles": [
-      "admin"
+      "anonymous"
     ],
     "forbidden_roles": [],
     "allow_anyone": false
@@ -51,10 +38,10 @@
   {
     "id": 3,
     "host": "*",
-    "path": "/api/apps/**",
-    "method": "PUT",
+    "path": "/api/user/tokens",
+    "method": "POST",
     "authorized_roles": [
-      "admin"
+      "anonymous"
     ],
     "forbidden_roles": [],
     "allow_anyone": false

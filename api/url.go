@@ -14,14 +14,16 @@ import (
 )
 
 type URLResource struct {
-	cloudEngine cloudengine.CE
-	bucketName  string
+	cloudEngine  cloudengine.CE
+	bucketName   string
+	CallbackHost string
 }
 
 func NewURLResource(cloudEngine cloudengine.CE, bucketName string) Resource {
 	return &URLResource{
-		cloudEngine: cloudEngine,
-		bucketName:  bucketName,
+		cloudEngine:  cloudEngine,
+		bucketName:   bucketName,
+		CallbackHost: "http://zpan.it709.com",
 	}
 }
 
@@ -56,9 +58,11 @@ func (rs *URLResource) uploadURL(c *gin.Context) error {
 
 	object := fmt.Sprintf("%d/%s", uid, p.Object)
 	bodyFormat := `{"uid": %d, "path": "%s", "size": ${size}, "type": "%s","parent": "%s"}`
+	callbackUrl := rs.CallbackHost + "/api/files/callback"
+	fmt.Println(callbackUrl)
 	callbackBody := fmt.Sprintf(bodyFormat, uid, p.Object, p.Type, p.Parent)
 	callbackMap := map[string]string{
-		"callbackUrl":      "http://4380bb25.cpolar.io/api/files",
+		"callbackUrl":      callbackUrl,
 		"callbackBodyType": "application/json",
 		"callbackBody":     callbackBody,
 	}

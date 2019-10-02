@@ -30,7 +30,7 @@ func NewRest(ce cloudengine.CE, bucketName string) (*RestServer, error) {
 		NewFileResource(ce, bucketName),
 	}
 
-	router := gin.New()
+	router := gin.Default()
 	srv := &http.Server{
 		Addr:    ":8081",
 		Handler: router,

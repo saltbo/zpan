@@ -16,9 +16,8 @@ type QueryFiles struct {
 }
 
 type BodyUser struct {
-	Email string `json:"email"`
-	PwdR  string `json:"pwdr"`
-	PwdC  string `json:"pwdc"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type QueryMatter struct {

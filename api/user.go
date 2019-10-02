@@ -16,24 +16,35 @@ import (
 	"zpan/pkg/ginx"
 )
 
-const JWT_SECRET = "d52W5^bqTDMhEAwj1MK6ss%Rp7edT0#utzteGP!6tZwwAZtVSK367g4jd3g01c@E"
+const (
+	IN_TOKEN   = "intoken"
+	JWT_SECRET = "d52W5^bqTDMhEAwj1MK6ss%Rp7edT0#utzteGP!6tZwwAZtVSK367g4jd3g01c@E"
+
+	ROLE_ADMIN     = "admin"
+	ROLE_MEMBER    = "member"
+	ROLE_ANONYMOUS = "anonymous"
+)
 
 type RoleClaims struct {
 	jwt.StandardClaims
 
+	Uid   int64    `json:"uid"`
 	Roles []string `json:"roles"`
 }
 
 type UserResource struct {
+	jwtSecret []byte
 }
 
 func NewUserResource() Resource {
-	return &UserResource{}
+	return &UserResource{
+		jwtSecret: []byte(JWT_SECRET),
+	}
 }
 
 func (rs *UserResource) Register(router *ginx.Router) {
 	router.POST("/users", rs.signUp)
-	router.POST("/user/tokens/:uid", rs.signIn)
+	router.POST("/user/tokens", rs.signIn)
 	router.Use(rs.Auth())
 
 	router.GET("/users", rs.findAll)
@@ -61,11 +72,22 @@ func (rs *UserResource) signUp(c *gin.Context) error {
 		return ginx.Error(err)
 	}
 
-	if p.PwdC != p.PwdR {
-		return ginx.Error(fmt.Errorf("Inconsistent password"))
+	user := new(model.User)
+	if exist, err := dao.DB.Where("email = ?", p.Email).Get(user); err != nil {
+		return ginx.Failed(err)
+	} else if exist {
+		return ginx.Error(fmt.Errorf("user %s exist.", p.Email))
 	}
 
-	if _, err := dao.DB.Insert(p); err != nil {
+	pwdHash := md5.Sum([]byte(p.Password))
+	m := &model.User{
+		Email:      p.Email,
+		Password:   hex.EncodeToString(pwdHash[:]),
+		Nickname:   p.Email[:strings.Index(p.Email, "@")],
+		StorageMax: 1024 * 1024 * 50, // 50MB
+		Roles:      ROLE_MEMBER,
+	}
+	if _, err := dao.DB.Insert(m); err != nil {
 		return ginx.Failed(err)
 	}
 
@@ -85,7 +107,7 @@ func (rs *UserResource) signIn(c *gin.Context) error {
 		return ginx.Error(fmt.Errorf("user %s not exist.", p.Email))
 	}
 
-	pwdHash := md5.Sum([]byte(p.PwdR))
+	pwdHash := md5.Sum([]byte(p.Password))
 	if user.Password != hex.EncodeToString(pwdHash[:]) {
 		return ginx.Error(fmt.Errorf("invalid password"))
 	}
@@ -95,7 +117,7 @@ func (rs *UserResource) signIn(c *gin.Context) error {
 		return ginx.Failed(err)
 	}
 
-	ginx.Cookie(c, "token", token)
+	ginx.Cookie(c, IN_TOKEN, token)
 	ginx.Cookie(c, "nickname", user.Nickname)
 	return nil
 }
@@ -115,6 +137,7 @@ func (r *UserResource) buildToken(userId int64, userRole string) (token string, 
 			NotBefore: timeNow.Unix(),
 			Subject:   fmt.Sprint(userId),
 		},
+		Uid:   userId,
 		Roles: strings.Split(userRole, ","),
 	}
 	token, err = jwt.NewWithClaims(jwt.SigningMethodHS512, claims).SignedString([]byte(JWT_SECRET))
@@ -126,26 +149,46 @@ func (r *UserResource) Auth() ginx.HandlerFunc {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(rBac)
 
 	return func(c *gin.Context) error {
-		//roles, err := r.QueryRoles(c)
-		//if err != nil {
-		//	r.Unauthorized(c, err)
-		//	return
-		//}
-		//
-		//state, err := rbac.IsRequestGranted(c.Request, roles)
-		//if err != nil {
-		//	r.Failed(c, err)
-		//	return
-		//}
-		//
-		//if !state.IsGranted() {
-		//	r.Forbidden(c, fmt.Errorf("您没有权限进行此操作，请联系管理员."))
-		//	return
-		//}
-		c.Set("uid", int64(10001))
+		roles, err := r.queryRoles(c)
+		if err != nil {
+			roles = []string{ROLE_ANONYMOUS}
+		}
+
+		state, err := rBac.IsRequestGranted(c.Request, roles)
+		if err != nil {
+			return ginx.Failed(err)
+		}
+
+		if !state.IsGranted() {
+			return ginx.Forbidden(fmt.Errorf("您没有权限进行此操作，请联系管理员."))
+		}
+
 		return nil
 	}
+}
+
+func (r *UserResource) queryRoles(c *gin.Context) ([]string, error) {
+	jwtToken, err := c.Cookie(IN_TOKEN)
+	if err != nil {
+		return nil, err
+	}
+
+	validation := func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+
+		return r.jwtSecret, nil
+	}
+	token, err := jwt.ParseWithClaims(jwtToken, &RoleClaims{}, validation)
+	if err != nil {
+		return nil, fmt.Errorf("token valid failed: %s", err)
+	}
+
+	rc := token.Claims.(*RoleClaims)
+	c.Set("uid", rc.Uid)
+	fmt.Println(rc.Uid)
+	return rc.Roles, nil
 }

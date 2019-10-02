@@ -26,7 +26,8 @@ func NewFileResource(cloudEngine cloudengine.CE, bucketName string) Resource {
 }
 
 func (rs *FileResource) Register(router *ginx.Router) {
-	router.POST("/files", rs.create)
+	router.POST("/files/folders", rs.create)
+	router.POST("/files/callback", rs.create)
 	router.GET("/files", rs.findAll)
 	router.DELETE("/files/:id", rs.delete)
 }
