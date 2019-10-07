@@ -5,6 +5,9 @@ go:
 os:
   - linux
   - osx
+cache:
+  directories:
+    - $GOPATH/pkg/mod
 dist: trusty
 sudo: false
 install: true
