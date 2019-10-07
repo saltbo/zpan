@@ -77,6 +77,13 @@ func (rs *FileResource) create(c *gin.Context) error {
 		p.Uid = c.GetInt64("uid")
 	}
 
+	user := new(model.User)
+	if exist, err := dao.DB.Id(p.Uid).Get(user); err != nil {
+		return ginx.Failed(err)
+	} else if !exist {
+		return ginx.Error(fmt.Errorf("user not exist."))
+	}
+
 	exist, err := dao.DB.Where("uid=? and parent=? and path=?", p.Uid, p.Parent, p.Path).Exist(&model.Matter{})
 	if err != nil {
 		return ginx.Failed(err)
@@ -99,6 +106,12 @@ func (rs *FileResource) create(c *gin.Context) error {
 		return ginx.Failed(err)
 	}
 
+	// update the storage
+	user.StorageUsed += uint64(p.Size)
+	if _, err := dao.DB.Id(p.Uid).Update(user); err != nil {
+		return ginx.Error(err)
+	}
+
 	return ginx.Json(c, "")
 }
 
@@ -114,6 +127,13 @@ func (rs *FileResource) delete(c *gin.Context) error {
 		return ginx.Error(fmt.Errorf("file not exist."))
 	}
 
+	user := new(model.User)
+	if exist, err := dao.DB.Id(m.Uid).Get(user); err != nil {
+		return ginx.Failed(err)
+	} else if !exist {
+		return ginx.Error(fmt.Errorf("user not exist."))
+	}
+
 	object := fmt.Sprintf("%d/%s", uid, m.Path)
 	if err := rs.cloudEngine.DeleteObject(rs.bucketName, object); err != nil {
 		return ginx.Failed(err)
@@ -121,6 +141,12 @@ func (rs *FileResource) delete(c *gin.Context) error {
 
 	if _, err := dao.DB.Id(id).Delete(m); err != nil {
 		return ginx.Failed(err)
+	}
+
+	// update the storage
+	user.StorageUsed -= uint64(m.Size)
+	if _, err := dao.DB.Id(m.Uid).Update(user); err != nil {
+		return ginx.Error(err)
 	}
 
 	return ginx.Ok(c)

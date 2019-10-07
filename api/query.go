@@ -24,6 +24,7 @@ type BodyUser struct {
 type QueryMatter struct {
 	Object string `form:"object" binding:"required"`
 	Type   string `form:"type" binding:"required"`
+	Size   int64  `form:"size" binding:"exists"`
 	Parent string `form:"parent" binding:"exists"`
 }
 

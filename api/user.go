@@ -48,6 +48,7 @@ func (rs *UserResource) Register(router *ginx.Router) {
 	router.Use(rs.Auth())
 
 	router.GET("/users", rs.findAll)
+	router.GET("/users/:uid", rs.find)
 	router.PATCH("/user/tokens/:uid", rs.signOut)
 }
 
@@ -64,6 +65,18 @@ func (rs *UserResource) findAll(c *gin.Context) error {
 	}
 
 	return ginx.JsonList(c, list, total)
+}
+
+func (rs *UserResource) find(c *gin.Context) error {
+	userId := c.Param("uid")
+
+	user := new(model.User)
+	if _, err := dao.DB.Id(userId).Get(user); err != nil {
+		return ginx.Error(err)
+	}
+	user.Password = ""
+
+	return ginx.Json(c, user)
 }
 
 func (rs *UserResource) signUp(c *gin.Context) error {
@@ -118,7 +131,7 @@ func (rs *UserResource) signIn(c *gin.Context) error {
 	}
 
 	ginx.Cookie(c, IN_TOKEN, token)
-	ginx.Cookie(c, "nickname", user.Nickname)
+	ginx.Cookie(c, "uid", fmt.Sprint(user.Id))
 	return nil
 }
 
