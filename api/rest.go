@@ -2,25 +2,27 @@ package api
 
 import (
 	"context"
-	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/rakyll/statik/fs"
+
+	_ "zpan/assets"
 	"zpan/cloudengine"
 	"zpan/pkg/ginx"
-	"zpan/version"
 )
 
 type Resource interface {
 	Register(router *ginx.Router)
 }
 
-///
 type RestServer struct {
 	srv       *http.Server
 	router    *gin.Engine
 	resources []Resource
+	staticRs  http.FileSystem
 }
 
 func NewRest(ce cloudengine.CE, bucketName string) (*RestServer, error) {
@@ -28,6 +30,11 @@ func NewRest(ce cloudengine.CE, bucketName string) (*RestServer, error) {
 		NewUserResource(),
 		NewURLResource(ce, bucketName),
 		NewFileResource(ce, bucketName),
+	}
+
+	staticRs, err := fs.New()
+	if err != nil {
+		return nil, err
 	}
 
 	router := gin.Default()
@@ -40,6 +47,7 @@ func NewRest(ce cloudengine.CE, bucketName string) (*RestServer, error) {
 		srv:       srv,
 		router:    router,
 		resources: resources,
+		staticRs:  staticRs,
 	}, nil
 }
 
@@ -73,15 +81,34 @@ func (rs *RestServer) setupPing() {
 
 	rs.router.HEAD("/ping", pingHandler)
 	rs.router.GET("/ping", pingHandler)
-	rs.router.GET("/", func(c *gin.Context) {
-		c.JSON(http.StatusOK, "Service version - "+version.Long)
-	})
 }
 
 func (rs *RestServer) setupResource() {
+	rs.router.GET("/", rs.staticFS)
+	rs.router.GET("/js/*filepath", rs.staticFS)
+	rs.router.GET("/css/*filepath", rs.staticFS)
+	rs.router.GET("/fonts/*filepath", rs.staticFS)
+	rs.router.NoRoute(func(c *gin.Context) {
+		indexHtml, err := rs.staticRs.Open("/index.html")
+		if err != nil {
+			_ = c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+
+		fsInfo, _ := indexHtml.Stat()
+		contentType := "text/html"
+		extraHeaders := map[string]string{}
+		c.DataFromReader(http.StatusOK, fsInfo.Size(), contentType, indexHtml, extraHeaders)
+	})
+
 	resourceRouter := rs.router.Group("/api")
-	//resourceRouter.Use(LoggerHandler())
+	// resourceRouter.Use(LoggerHandler())
 	for _, resource := range rs.resources {
 		resource.Register(ginx.NewRouter(resourceRouter))
 	}
+}
+
+func (rs *RestServer) staticFS(c *gin.Context) {
+	fileServer := http.FileServer(rs.staticRs)
+	fileServer.ServeHTTP(c.Writer, c.Request)
 }
