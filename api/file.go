@@ -13,6 +13,16 @@ import (
 	"zpan/pkg/ginx"
 )
 
+var docTypes = []string{
+	"text/csv",
+	"application/msword",
+	"application/vnd.ms-excel",
+	"application/vnd.ms-powerpoint",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
 type FileResource struct {
 	cloudEngine cloudengine.CE
 	bucketName  string
@@ -40,7 +50,14 @@ func (rs *FileResource) findAll(c *gin.Context) error {
 
 	list := make([]model.Matter, 0)
 	query := "uid=? and parent=?"
-	params := []interface{}{c.GetInt64("uid"), p.Parent}
+	params := []interface{}{c.GetInt64("uid"), p.Path}
+	if p.Type == "doc" {
+		query += " and `type` in ('" + strings.Join(docTypes, "','") + "')"
+	} else if p.Type != "" {
+		query += " and type like ?"
+		params = append(params, p.Type+"%")
+	}
+	fmt.Println(params)
 	sn := dao.DB.Where(query, params...).Limit(p.Limit, p.Offset)
 	total, err := sn.Desc("dir").Asc("id").FindAndCount(&list)
 	if err != nil {

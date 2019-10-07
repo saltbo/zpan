@@ -12,7 +12,8 @@ type QueryUser struct {
 
 type QueryFiles struct {
 	QueryPage
-	Parent string `form:"path"`
+	Path string `form:"path"`
+	Type string `form:"type"`
 }
 
 type BodyUser struct {
