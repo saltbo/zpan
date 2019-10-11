@@ -37,9 +37,10 @@ type BodyMatter struct {
 }
 
 type BodyShare struct {
-	Id      int64 `json:"id"`
-	MId     int64 `json:"mid"`
-	Private bool  `json:"private"`
+	Id        int64 `json:"id"`
+	MId       int64 `json:"mid"`
+	Private   bool  `json:"private"`
+	ExpireSec int64 `json:"expire_sec"`
 }
 
 // 	bucket=callback-test&object=test.txt&etag=D8E8FCA2DC0F896FD7CB4CB0031BA249&size=5&mimeType=text%2Fplain&imageInfo.height=&imageInfo.width=&imageInfo.format=&x:var1=for-callback-test

@@ -2,8 +2,11 @@ package api
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"math/rand"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
 	"zpan/dao"
 	"zpan/model"
 	"zpan/pkg/ginx"
@@ -18,6 +21,7 @@ func NewShareResource() Resource {
 
 func (rs *ShareResource) Register(router *ginx.Router) {
 	router.GET("/shares/:alias", rs.find)
+	router.GET("/shares", rs.findAll)
 	router.POST("/shares", rs.create)
 	router.PATCH("/shares/:alias", rs.update)
 	router.DELETE("/shares/:alias", rs.delete)
@@ -31,8 +35,12 @@ func (rs *ShareResource) find(c *gin.Context) error {
 		return ginx.Failed(err)
 	} else if !exist {
 		return ginx.Error(fmt.Errorf("share not found."))
+	} else if secret == "" && share.Secret != "" {
+		return ginx.Json(c, map[string]string{"k": "please submit secret."})
 	} else if share.Secret != secret {
 		return ginx.Error(fmt.Errorf("invalid secret."))
+	} else if time.Now().After(share.ExpireAt) {
+		return ginx.Error(fmt.Errorf("share expired."))
 	}
 
 	matter := new(model.Matter)
@@ -43,6 +51,22 @@ func (rs *ShareResource) find(c *gin.Context) error {
 	}
 
 	return ginx.Json(c, matter)
+}
+
+func (rs *ShareResource) findAll(c *gin.Context) error {
+	p := new(QueryPage)
+	if err := c.BindQuery(p); err != nil {
+		return ginx.Error(err)
+	}
+
+	list := make([]model.Share, 0)
+	sn := dao.DB.Limit(p.Limit, p.Offset)
+	total, err := sn.FindAndCount(&list)
+	if err != nil {
+		return ginx.Error(err)
+	}
+
+	return ginx.JsonList(c, list, total)
 }
 
 func (rs *ShareResource) create(c *gin.Context) error {
@@ -59,12 +83,14 @@ func (rs *ShareResource) create(c *gin.Context) error {
 	}
 
 	m := model.Share{
-		Alias:    randomString(16),
+		Alias:    randomString(12),
 		Uid:      c.GetInt64("uid"),
 		MatterId: matter.Id,
+		Name:     matter.Name,
+		ExpireAt: time.Now().Add(time.Second * time.Duration(p.ExpireSec)),
 	}
 	if p.Private {
-		m.Secret = randomString(6)
+		m.Secret = randomString(5)
 	}
 	if _, err := dao.DB.Insert(m); err != nil {
 		return ginx.Failed(err)
@@ -87,7 +113,7 @@ func (rs *ShareResource) update(c *gin.Context) error {
 	}
 
 	if p.Private && share.Secret == "" {
-		share.Secret = randomString(6)
+		share.Secret = randomString(5)
 	}
 
 	if _, err := dao.DB.Id(share.Id).Update(share); err != nil {
