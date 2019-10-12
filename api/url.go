@@ -23,7 +23,7 @@ func NewURLResource(cloudEngine cloudengine.CE, bucketName string) Resource {
 	return &URLResource{
 		cloudEngine:  cloudEngine,
 		bucketName:   bucketName,
-		CallbackHost: "http://zpan.it709.com",
+		CallbackHost: "http://local.saltbo.cn:1080",
 	}
 }
 
@@ -39,6 +39,13 @@ func (rs *URLResource) uploadURL(c *gin.Context) error {
 	}
 
 	uid := c.GetInt64("uid")
+	user := new(model.User)
+	if _, err := dao.DB.Id(uid).Get(user); err != nil {
+		return ginx.Failed(err)
+	} else if user.StorageUsed+uint64(p.Size) >= user.StorageMax {
+		return ginx.Error(fmt.Errorf("storage not enough space"))
+	}
+
 	if p.Parent != "" {
 		// valid parent
 		if exist, err := dao.DB.Where("uid=? and path=?", uid, p.Parent).Exist(&model.Matter{}); err != nil {

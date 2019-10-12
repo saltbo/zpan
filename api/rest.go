@@ -30,6 +30,7 @@ func NewRest(ce cloudengine.CE, bucketName string) (*RestServer, error) {
 		NewUserResource(),
 		NewURLResource(ce, bucketName),
 		NewFileResource(ce, bucketName),
+		NewShareResource(),
 	}
 
 	staticRs, err := fs.New()

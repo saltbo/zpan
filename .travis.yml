@@ -13,6 +13,7 @@ install: true
 script:
   - make
   - make test
+  - make patch
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
@@ -21,7 +22,8 @@ deploy:
   - provider: releases
     api_key: $GITHUB_TOKEN
     skip_cleanup: true
+    file_glob: true
     file:
-      - build/zpan
+      - build/*.tar.gz
     on:
       tags: true

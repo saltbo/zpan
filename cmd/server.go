@@ -3,6 +3,9 @@ package main
 import (
 	"log"
 	"os"
+	"time"
+
+	"golang.org/x/exp/rand"
 
 	"zpan/api"
 	"zpan/cloudengine"
@@ -47,6 +50,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	rand.Seed(uint64(time.Now().Unix()))
 	rs, err := api.NewRest(ce, OSSBucket)
 	if err != nil {
 		log.Fatalln(err)

@@ -16,6 +16,7 @@ func Init(dsn string) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	db.ShowSQL(true)
 
 	models := []interface{}{
 		new(model.Option),
