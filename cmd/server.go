@@ -19,7 +19,8 @@ var (
 	Endpoint        string
 	AccessKeyID     string
 	AccessKeySecret string
-	OSSBucket       string
+	StorageBucket   string
+	CallbackHost    string
 )
 
 func assertNoError(err error, msgAndArgs ...interface{}) {
@@ -42,7 +43,9 @@ func main() {
 	assertNoError(err)
 	AccessKeySecret, err = ossOpt.Get("access_secret")
 	assertNoError(err)
-	OSSBucket, err = ossOpt.Get("bucket_name")
+	StorageBucket, err = ossOpt.Get("bucket_name")
+	assertNoError(err)
+	CallbackHost, err = ossOpt.Get("callback_host")
 	assertNoError(err)
 
 	ce, err := cloudengine.NewAliOss(Endpoint, AccessKeyID, AccessKeySecret)
@@ -51,7 +54,7 @@ func main() {
 	}
 
 	rand.Seed(uint64(time.Now().Unix()))
-	rs, err := api.NewRest(ce, OSSBucket)
+	rs, err := api.NewRest(ce, StorageBucket, CallbackHost)
 	if err != nil {
 		log.Fatalln(err)
 	}

@@ -25,10 +25,10 @@ type RestServer struct {
 	staticRs  http.FileSystem
 }
 
-func NewRest(ce cloudengine.CE, bucketName string) (*RestServer, error) {
+func NewRest(ce cloudengine.CE, bucketName, callbackHost string) (*RestServer, error) {
 	resources := []Resource{
 		NewUserResource(),
-		NewURLResource(ce, bucketName),
+		NewURLResource(ce, bucketName, callbackHost),
 		NewFileResource(ce, bucketName),
 		NewShareResource(),
 	}

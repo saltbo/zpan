@@ -19,11 +19,11 @@ type URLResource struct {
 	CallbackHost string
 }
 
-func NewURLResource(cloudEngine cloudengine.CE, bucketName string) Resource {
+func NewURLResource(cloudEngine cloudengine.CE, bucketName, callbackHost string) Resource {
 	return &URLResource{
 		cloudEngine:  cloudEngine,
 		bucketName:   bucketName,
-		CallbackHost: "http://local.saltbo.cn:1080",
+		CallbackHost: callbackHost,
 	}
 }
 
