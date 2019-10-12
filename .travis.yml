@@ -1,9 +1,6 @@
 language: go
 go:
   - 1.13.x
-os:
-  - linux
-  - osx
 cache:
   directories:
     - $GOPATH/pkg/mod
@@ -13,7 +10,7 @@ install: true
 script:
   - make
   - make test
-  - make patch
+  - make pack
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
