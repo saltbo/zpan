@@ -6,14 +6,14 @@ ZPan - Your Last disk on the cloud.
 [![Go Report Card](https://goreportcard.com/badge/github.com/saltbo/zpan)](https://goreportcard.com/report/github.com/saltbo/zpan)
 
 ## Features
--[x] File Manage
--[x] Folder Manage
--[x] File & Folder Share
--[x] Storage Capacity Control
--[ ] RecycleBin
--[x] Support AliOSS
--[ ] Support Upyun
--[ ] Support Qiniuyun
+- [x] File Manage
+- [x] Folder Manage
+- [x] File & Folder Share
+- [x] Storage Capacity Control
+- [ ] RecycleBin
+- [x] Support AliOSS
+- [ ] Support Upyun
+- [ ] Support Qiniuyun
 
 ## Run environment
 - Mac
