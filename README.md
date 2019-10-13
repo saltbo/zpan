@@ -30,7 +30,21 @@ ZPan - Your Last disk on the cloud.
 
 ## Install
 
-Download the appropriate binary for your platform from the [Releases](https://github.com/saltbo/zpan/releases) page, or:
+### Binary
+Download the appropriate binary for your platform from the [Releases](https://github.com/saltbo/zpan/releases) page
+
+### Source
+
+> depend on [Golang](https://golang.org/dl/) compiler environment
+
+```bash
+git clone https://github.com/saltbo/zpan.git
+cd zpan && make
+```
+or
+```bash
+go get github.com/saltbo/zpan
+```
 
 ## Usage
 
