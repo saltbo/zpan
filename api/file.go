@@ -49,8 +49,12 @@ func (rs *FileResource) findAll(c *gin.Context) error {
 	}
 
 	list := make([]model.Matter, 0)
-	query := "uid=? and parent=?"
-	params := []interface{}{c.GetInt64("uid"), p.Path}
+	query := "uid=?"
+	params := []interface{}{c.GetInt64("uid")}
+	if !p.Search {
+		query += " and parent=?"
+		params = append(params, p.Dir)
+	}
 	if p.Type == "doc" {
 		query += " and `type` in ('" + strings.Join(docTypes, "','") + "')"
 	} else if p.Type != "" {

@@ -5,11 +5,21 @@ ZPan - Your Last disk on the cloud.
 [![codebeat badge](https://codebeat.co/badges/e97d3305-de49-4a9c-9ead-1aca942b9e16)](https://codebeat.co/projects/github-com-saltbo-zpan-master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/saltbo/zpan)](https://goreportcard.com/report/github.com/saltbo/zpan)
 
+## Features
+- [x] File Manage
+- [x] Folder Manage
+- [x] File & Folder Share
+- [x] Storage Capacity Control
+- [ ] RecycleBin
+- [x] Support AliOSS
+- [ ] Support Upyun
+- [ ] Support Qiniuyun
+
 ## Run environment
 - Mac
 - Linux
 
-## Dependent libraries 
+## Dependent modules 
 - cli (github.com/urfave/cli) 
 - gin (github.com/gin-gonic/gin)
 - jwt-go (github.com/dgrijalva/jwt-go)
@@ -20,9 +30,19 @@ ZPan - Your Last disk on the cloud.
 
 ## Install
 
-Download the appropriate binary for your platform from the [Releases](https://github.com/saltbo/zpan/releases) page, or:
+### Binary
+Download the appropriate binary for your platform from the [Releases](https://github.com/saltbo/zpan/releases) page
 
-```sh
+### Source
+
+> depend on [Golang](https://golang.org/dl/) compiler environment
+
+```bash
+git clone https://github.com/saltbo/zpan.git
+cd zpan && make
+```
+or
+```bash
 go get github.com/saltbo/zpan
 ```
 

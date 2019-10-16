@@ -12,8 +12,10 @@ type QueryUser struct {
 
 type QueryFiles struct {
 	QueryPage
-	Path string `form:"path"`
-	Type string `form:"type"`
+	Dir     string `form:"dir"`
+	Type    string `form:"type"`
+	Search  bool   `form:"search"`
+	Keyword string `form:"keyword"`
 }
 
 type BodyUser struct {
