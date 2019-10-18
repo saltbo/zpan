@@ -11,6 +11,7 @@ type User struct {
 	Nickname    string    `json:"nickname" xorm:"varchar(32) notnull"`
 	Avatar      string    `json:"avatar" xorm:"varchar(255) notnull"`
 	Roles       string    `json:"roles" xorm:"varchar(64) notnull"`
+	Stoken      string    `json:"stoken" xorm:"varchar(64) notnull"`
 	StorageMax  uint64    `json:"storage_max" xorm:"notnull"`
 	StorageUsed uint64    `json:"storage_used" xorm:"notnull"`
 	Deleted     time.Time `json:"deleted" xorm:"notnull deleted"`

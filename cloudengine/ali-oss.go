@@ -22,6 +22,18 @@ func NewAliOss(endpoint, accessKeyID, accessKeySecret string, options ...oss.Cli
 	return &AliOss{cli: cli}, nil
 }
 
+func (ao *AliOss) SetLifecycle(bucketName string) error {
+	rule := oss.BuildLifecycleRuleByDays("zpan-recyclebin-auto-clean", "", true, 30)
+	rule.Tags = []oss.Tag{
+		{Key: "Zpan-Dt", Value: "deleted"},
+	}
+	rule.Transitions = []oss.LifecycleTransition{
+		{Days: 3, StorageClass: oss.StorageArchive},
+	}
+
+	return ao.cli.SetBucketLifecycle(bucketName, []oss.LifecycleRule{rule})
+}
+
 func (ao *AliOss) UploadURL(bucketName, objectKey, contentType, callback string) (url string, err error) {
 	bucket, err := ao.cli.Bucket(bucketName)
 	if err != nil {
@@ -70,6 +82,20 @@ func (ao *AliOss) ListObject(bucketName, prefix, marker string, limit int) (Obje
 	}
 
 	return objects, objectsResult.NextMarker, nil
+}
+
+func (ao *AliOss) TagDelObject(bucketName, objectKey string) error {
+	bucket, err := ao.cli.Bucket(bucketName)
+	if err != nil {
+		return err
+	}
+
+	tagging := oss.Tagging{
+		Tags: []oss.Tag{
+			{Key: "Zpan-Dt", Value: "deleted"},
+		},
+	}
+	return bucket.PutObjectTagging(objectKey, tagging)
 }
 
 func (ao *AliOss) DeleteObject(bucketName, objectKey string) error {

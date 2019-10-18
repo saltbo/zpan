@@ -21,6 +21,7 @@ type QueryFiles struct {
 type BodyUser struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Stoken   string `json:"stoken"`
 }
 
 type QueryMatter struct {

@@ -143,14 +143,24 @@ func (rs *FileResource) delete(c *gin.Context) error {
 		return ginx.Failed(err)
 	}
 
-	if _, err := dao.DB.Id(id).Delete(m); err != nil {
+	session := dao.DB.NewSession()
+	defer session.Close()
+
+	// tag delete for the list
+	if _, err := session.ID(id).Delete(m); err != nil {
+		_ = session.Rollback()
 		return ginx.Failed(err)
 	}
 
-	// update the storage
+	// update the user storage
 	user.StorageUsed -= uint64(m.Size)
-	if _, err := dao.DB.Id(m.Uid).Update(user); err != nil {
-		return ginx.Error(err)
+	if _, err := session.ID(m.Uid).Cols("storage_used").Update(user); err != nil {
+		_ = session.Rollback()
+		return ginx.Failed(err)
+	}
+
+	if err := session.Commit(); err != nil {
+		return ginx.Failed(err)
 	}
 
 	return ginx.Ok(c)

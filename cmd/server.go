@@ -2,10 +2,9 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"os"
 	"time"
-
-	"golang.org/x/exp/rand"
 
 	"zpan/api"
 	"zpan/cloudengine"
@@ -53,7 +52,11 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	rand.Seed(uint64(time.Now().Unix()))
+	if err := ce.SetLifecycle(StorageBucket); err != nil {
+		log.Fatalln(err)
+	}
+
+	rand.Seed(time.Now().UnixNano())
 	rs, err := api.NewRest(ce, StorageBucket, CallbackHost)
 	if err != nil {
 		log.Fatalln(err)
