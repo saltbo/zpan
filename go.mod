@@ -15,4 +15,5 @@ require (
 	golang.org/x/exp v0.0.0-20190121172915-509febef88a4
 	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect
 	golang.org/x/tools v0.0.0-20191010201905-e5ffc44a6fee // indirect
+	gopkg.in/yaml.v2 v2.2.2
 )

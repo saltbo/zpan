@@ -5,25 +5,26 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
 	"github.com/gin-gonic/gin"
 
-	"zpan/cloudengine"
 	"zpan/dao"
+	"zpan/disk"
 	"zpan/model"
 	"zpan/pkg/ginx"
 )
 
 type URLResource struct {
-	cloudEngine  cloudengine.CE
+	provider     disk.Provider
 	bucketName   string
 	CallbackHost string
 }
 
-func NewURLResource(cloudEngine cloudengine.CE, bucketName, callbackHost string) Resource {
+func NewURLResource(rs *RestServer) Resource {
 	return &URLResource{
-		cloudEngine:  cloudEngine,
-		bucketName:   bucketName,
-		CallbackHost: callbackHost,
+		provider:     rs.provider,
+		bucketName:   rs.conf.Provider.Bucket,
+		CallbackHost: rs.conf.Host,
 	}
 }
 
@@ -80,7 +81,7 @@ func (rs *URLResource) uploadURL(c *gin.Context) error {
 		return ginx.Failed(err)
 	}
 	callback := base64.StdEncoding.EncodeToString(callbackBuffer.Bytes())
-	url, err := rs.cloudEngine.UploadURL(rs.bucketName, object, p.Type, callback)
+	url, err := rs.provider.UploadURL(rs.bucketName, object, p.Type, callback)
 	if err != nil {
 		return ginx.Failed(err)
 	}
@@ -107,7 +108,7 @@ func (rs *URLResource) downloadURL(c *gin.Context) error {
 	}
 
 	object := fmt.Sprintf("%d/%s", uid, p.Object)
-	url, err := rs.cloudEngine.DownloadURL(rs.bucketName, object)
+	url, err := rs.provider.DownloadURL(rs.bucketName, object)
 	if err != nil {
 		return ginx.Failed(err)
 	}

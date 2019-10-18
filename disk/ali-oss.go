@@ -1,9 +1,10 @@
-package cloudengine
+package disk
 
 import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"zpan/config"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
@@ -12,8 +13,8 @@ type AliOss struct {
 	cli *oss.Client
 }
 
-func NewAliOss(endpoint, accessKeyID, accessKeySecret string, options ...oss.ClientOption) (*AliOss, error) {
-	cli, err := oss.New(endpoint, accessKeyID, accessKeySecret, options...)
+func NewAliOss(conf *config.Provider, options ...oss.ClientOption) (*AliOss, error) {
+	cli, err := oss.New(conf.Endpoint, conf.AccessKey, conf.AccessSecret, options...)
 	if err != nil {
 		return nil, err
 	}

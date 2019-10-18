@@ -10,7 +10,8 @@ import (
 	"github.com/rakyll/statik/fs"
 
 	_ "zpan/assets"
-	"zpan/cloudengine"
+	"zpan/config"
+	"zpan/disk"
 	"zpan/pkg/ginx"
 )
 
@@ -19,37 +20,41 @@ type Resource interface {
 }
 
 type RestServer struct {
+	conf *config.Config
+
 	srv       *http.Server
 	router    *gin.Engine
 	resources []Resource
 	staticRs  http.FileSystem
+	provider  disk.Provider
 }
 
-func NewRest(ce cloudengine.CE, bucketName, callbackHost string) (*RestServer, error) {
-	resources := []Resource{
-		NewUserResource(),
-		NewURLResource(ce, bucketName, callbackHost),
-		NewFileResource(ce, bucketName),
-		NewShareResource(),
-	}
-
+func NewRest(conf *config.Config) (*RestServer, error) {
 	staticRs, err := fs.New()
 	if err != nil {
 		return nil, err
 	}
 
 	router := gin.Default()
-	srv := &http.Server{
-		Addr:    ":8081",
-		Handler: router,
-	}
-
 	return &RestServer{
-		srv:       srv,
-		router:    router,
-		resources: resources,
-		staticRs:  staticRs,
+		srv: &http.Server{
+			Addr:    ":8081",
+			Handler: router,
+		},
+		conf:     conf,
+		router:   router,
+		staticRs: staticRs,
 	}, nil
+}
+
+func (rs *RestServer) SetupProvider(provider disk.Provider) {
+	rs.provider = provider
+	rs.resources = []Resource{
+		NewUserResource(),
+		NewURLResource(rs),
+		NewFileResource(rs),
+		NewShareResource(),
+	}
 }
 
 func (rs *RestServer) Run() error {
@@ -73,6 +78,10 @@ func (rs *RestServer) Stop() {
 	}
 
 	log.Printf("[rest server exited.]")
+}
+
+func (rs *RestServer) Provider() disk.Provider {
+	return rs.provider
 }
 
 func (rs *RestServer) setupPing() {

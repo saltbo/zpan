@@ -1,4 +1,4 @@
-package cloudengine
+package disk
 
 import (
 	"time"
@@ -14,7 +14,7 @@ type Object struct {
 }
 type Objects []Object
 
-type CE interface {
+type Provider interface {
 	SetLifecycle(bucketName string) error
 	UploadURL(bucketName, objectKey, contentType, callback string) (url string, err error)
 	DownloadURL(bucketName, objectKey string) (url string, err error)

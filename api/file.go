@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"zpan/cloudengine"
 	"zpan/dao"
+	"zpan/disk"
 	"zpan/model"
 	"zpan/pkg/ginx"
 )
@@ -24,14 +24,14 @@ var docTypes = []string{
 }
 
 type FileResource struct {
-	cloudEngine cloudengine.CE
-	bucketName  string
+	provider   disk.Provider
+	bucketName string
 }
 
-func NewFileResource(cloudEngine cloudengine.CE, bucketName string) Resource {
+func NewFileResource(rs *RestServer) Resource {
 	return &FileResource{
-		cloudEngine: cloudEngine,
-		bucketName:  bucketName,
+		provider:   rs.provider,
+		bucketName: rs.conf.Provider.Bucket,
 	}
 }
 
@@ -139,7 +139,7 @@ func (rs *FileResource) delete(c *gin.Context) error {
 	}
 
 	object := fmt.Sprintf("%d/%s", uid, m.Path)
-	if err := rs.cloudEngine.DeleteObject(rs.bucketName, object); err != nil {
+	if err := rs.provider.DeleteObject(rs.bucketName, object); err != nil {
 		return ginx.Failed(err)
 	}
 

@@ -3,65 +3,44 @@ package main
 import (
 	"log"
 	"math/rand"
-	"os"
 	"time"
-
 	"zpan/api"
-	"zpan/cloudengine"
+	"zpan/config"
 	"zpan/dao"
+	"zpan/disk"
 )
 
-const DEFAULT_MYSQL_DSN = "root:root@tcp(127.0.0.1:3306)/zpan?charset=utf8&interpolateParams=true"
-
-var (
-	err             error
-	Endpoint        string
-	AccessKeyID     string
-	AccessKeySecret string
-	StorageBucket   string
-	CallbackHost    string
+const (
+	// uploader configs
+	UPTOC_UPLOADER_OSS = "alioss"
 )
-
-func assertNoError(err error, msgAndArgs ...interface{}) {
-	if err != nil {
-		log.Fatalf(err.Error(), msgAndArgs...)
-	}
-}
 
 func main() {
-	dsn := os.Getenv("ZPAN_MYSQL_DSN")
-	if dsn == "" {
-		dsn = DEFAULT_MYSQL_DSN
-	}
-
-	dao.Init(dsn)
-	ossOpt := dao.Option("oss")
-	Endpoint, err = ossOpt.Get("endpoint")
-	assertNoError(err)
-	AccessKeyID, err = ossOpt.Get("access_key")
-	assertNoError(err)
-	AccessKeySecret, err = ossOpt.Get("access_secret")
-	assertNoError(err)
-	StorageBucket, err = ossOpt.Get("bucket_name")
-	assertNoError(err)
-	CallbackHost, err = ossOpt.Get("callback_host")
-	assertNoError(err)
-
-	ce, err := cloudengine.NewAliOss(Endpoint, AccessKeyID, AccessKeySecret)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	if err := ce.SetLifecycle(StorageBucket); err != nil {
-		log.Fatalln(err)
-	}
-
 	rand.Seed(time.Now().UnixNano())
-	rs, err := api.NewRest(ce, StorageBucket, CallbackHost)
+	conf := config.Parse("config.yaml")
+	dao.Init(conf.MySqlDSN)
+
+	// select provider
+	var provider disk.Provider
+	switch conf.Provider.Name {
+	case UPTOC_UPLOADER_OSS:
+		ossProvider, err := disk.NewAliOss(conf.Provider)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		provider = ossProvider
+	default:
+		log.Fatalf("provider %s not support.", conf.Provider.Name)
+	}
+
+	// init restServer
+	rs, err := api.NewRest(conf)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
+	rs.SetupProvider(provider)
 	if err := rs.Run(); err != nil {
 		log.Fatal(err)
 	}
