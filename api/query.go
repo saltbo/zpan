@@ -47,7 +47,7 @@ type BodyFile struct {
 
 type BodyFileOperation struct {
 	Id     int64  `json:"id" binding:"required"`
-	Dest   string `json:"dest" binding:"required"`
+	Dest   string `json:"dest" binding:"exists"`
 	Action int64  `json:"action" binding:"required"`
 }
 

@@ -56,8 +56,16 @@ func FileGet(uid int64, fileId interface{}) (*model.Matter, error) {
 	return m, nil
 }
 
-func FileInsert(file *model.Matter) error {
-	_, err := DB.Insert(file)
+func FileCopy(srcFile *model.Matter, dest string) error {
+	m := &model.Matter{
+		Uid:    srcFile.Uid,
+		Name:   srcFile.Name,
+		Type:   srcFile.Type,
+		Size:   srcFile.Size,
+		Parent: dest,
+		Object: srcFile.Object,
+	}
+	_, err := DB.Insert(m)
 	return err
 }
 
