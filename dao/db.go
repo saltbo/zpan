@@ -43,7 +43,7 @@ func DirExist(uid int64, dir string) bool {
 	return exist
 }
 
-func FileGet(uid int64, fileId string) (*model.Matter, error) {
+func FileGet(uid int64, fileId interface{}) (*model.Matter, error) {
 	m := new(model.Matter)
 	if exist, err := DB.Id(fileId).Get(m); err != nil {
 		return nil, err
@@ -54,4 +54,19 @@ func FileGet(uid int64, fileId string) (*model.Matter, error) {
 	}
 
 	return m, nil
+}
+
+func FileInsert(file *model.Matter) error {
+	_, err := DB.Insert(file)
+	return err
+}
+
+func FileMove(id int64, dest string) error {
+	_, err := DB.ID(id).Cols("parent").Update(&model.Matter{Parent: dest})
+	return err
+}
+
+func FileRename(id int64, name string) error {
+	_, err := DB.ID(id).Cols("name").Update(&model.Matter{Name: name})
+	return err
 }

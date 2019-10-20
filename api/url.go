@@ -33,9 +33,9 @@ func NewURLResource(rs *RestServer) Resource {
 }
 
 func (rs *URLResource) Register(router *ginx.Router) {
+	router.GET("/urls/store-host", rs.storeHost)
 	router.GET("/urls/upload", rs.uploadURL)
 	router.GET("/urls/download/:id", rs.downloadURL)
-	router.GET("/urls/store-host", rs.storeHost)
 }
 
 func (rs *URLResource) storeHost(c *gin.Context) error {
@@ -102,7 +102,7 @@ func (rs *URLResource) downloadURL(c *gin.Context) error {
 
 func (rs *URLResource) buildCallback(uid int64, filename, fileType, dir, object string) string {
 	bodyFormat := `{"uid": %d, "name": "%s", "size": ${size}, "type": "%s","dir": "%s", "object": "%s"}`
-	callbackUrl := rs.CallbackHost + "/api/files"
+	callbackUrl := rs.CallbackHost + "/api/files/callback"
 	callbackBody := fmt.Sprintf(bodyFormat, uid, filename, fileType, dir, object)
 	callbackMap := map[string]string{
 		"callbackUrl":      callbackUrl,

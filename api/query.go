@@ -45,6 +45,12 @@ type BodyFile struct {
 	Object string `json:"object" binding:"required"`
 }
 
+type BodyFileOperation struct {
+	Id     int64  `json:"id" binding:"required"`
+	Dest   string `json:"dest" binding:"required"`
+	Action int64  `json:"action" binding:"required"`
+}
+
 type BodyShare struct {
 	Id        int64 `json:"id"`
 	MId       int64 `json:"mid"`

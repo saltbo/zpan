@@ -22,6 +22,12 @@ var docTypes = []string{
 	"application/vnd.openxmlformats-officedocument.presentationml.presentation",
 }
 
+const (
+	FILE_OPERATION_COPY = iota + 1
+	FILE_OPERATION_MOVE
+	FILE_OPERATION_RENAME
+)
+
 type FileResource struct {
 	provider   disk.Provider
 	bucketName string
@@ -35,7 +41,8 @@ func NewFileResource(rs *RestServer) Resource {
 }
 
 func (f *FileResource) Register(router *ginx.Router) {
-	router.POST("/files", f.createFile)
+	router.POST("/files/callback", f.fileCallback)
+	router.POST("/files/operation", f.fileOperation)
 	router.POST("/folders", f.createFolder)
 
 	router.GET("/files", f.findAll)
@@ -96,7 +103,7 @@ func (f *FileResource) createFolder(c *gin.Context) error {
 	return ginx.Json(c, "")
 }
 
-func (f *FileResource) createFile(c *gin.Context) error {
+func (f *FileResource) fileCallback(c *gin.Context) error {
 	p := new(BodyFile)
 	if err := c.ShouldBindJSON(p); err != nil {
 		return ginx.Error(err)
@@ -140,6 +147,36 @@ func (f *FileResource) createFile(c *gin.Context) error {
 	}
 
 	if err := session.Commit(); err != nil {
+		return ginx.Failed(err)
+	}
+
+	return ginx.Json(c, "")
+}
+
+func (f *FileResource) fileOperation(c *gin.Context) error {
+	p := new(BodyFileOperation)
+	if err := c.ShouldBindJSON(p); err != nil {
+		return ginx.Error(err)
+	}
+
+	file, err := dao.FileGet(c.GetInt64("uid"), p.Id)
+	if err != nil {
+		return ginx.Error(err)
+	}
+
+	switch p.Action {
+	case FILE_OPERATION_COPY:
+		file.Parent = p.Dest
+		err = dao.FileInsert(file)
+	case FILE_OPERATION_MOVE:
+		err = dao.FileMove(file.Id, p.Dest)
+	case FILE_OPERATION_RENAME:
+		err = dao.FileRename(file.Id, p.Dest)
+	default:
+		err = fmt.Errorf("invalid operation")
+	}
+
+	if err != nil {
 		return ginx.Failed(err)
 	}
 
