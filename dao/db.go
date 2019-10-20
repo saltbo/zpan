@@ -69,8 +69,8 @@ func FileCopy(srcFile *model.Matter, dest string) error {
 	return err
 }
 
-func FileMove(srcFile *model.Matter, dest string) error {
-	_, err := DB.ID(srcFile.Id).Cols("parent").Update(&model.Matter{Parent: dest})
+func FileMove(id int64, dest string) error {
+	_, err := DB.ID(id).Cols("parent").Update(&model.Matter{Parent: dest})
 	return err
 }
 

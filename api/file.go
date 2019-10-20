@@ -165,10 +165,9 @@ func (f *FileResource) fileOperation(c *gin.Context) error {
 
 	switch p.Action {
 	case FILE_OPERATION_COPY:
-		file.Parent = p.Dest
 		err = dao.FileCopy(file, p.Dest)
 	case FILE_OPERATION_MOVE:
-		err = dao.FileMove(file, p.Dest)
+		err = dao.FileMove(file.Id, p.Dest)
 	case FILE_OPERATION_RENAME:
 		err = dao.FileRename(file.Id, p.Dest)
 	default:
