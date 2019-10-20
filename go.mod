@@ -10,7 +10,7 @@ require (
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/go-xorm/xorm v0.7.7
 	github.com/rakyll/statik v0.1.6
-	github.com/satori/go.uuid v1.2.0 // indirect
+	github.com/satori/go.uuid v1.2.0
 	github.com/storyicon/grbac v0.0.0-20190801030200-88ce5668903d
 	golang.org/x/exp v0.0.0-20190121172915-509febef88a4
 	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect

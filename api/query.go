@@ -25,18 +25,24 @@ type BodyUser struct {
 }
 
 type QueryMatter struct {
-	Object string `form:"object" binding:"required"`
-	Type   string `form:"type" binding:"required"`
-	Size   int64  `form:"size" binding:"exists"`
-	Parent string `form:"parent" binding:"exists"`
+	Name string `form:"name" binding:"required"`
+	Type string `form:"type" binding:"required"`
+	Size int64  `form:"size" binding:"exists"`
+	Dir  string `form:"dir" binding:"exists"`
 }
 
-type BodyMatter struct {
+type BodyFolder struct {
+	Name string `json:"name" binding:"required"`
+	Dir  string `json:"dir" binding:"exists"`
+}
+
+type BodyFile struct {
 	Uid    int64  `json:"uid"`
-	Path   string `json:"path" binding:"required"`
-	Type   string `json:"type" binding:"exists"`
-	Size   int64  `json:"size" binding:"exists"`
-	Parent string `form:"parent" binding:"exists"`
+	Name   string `json:"name" binding:"required"`
+	Type   string `json:"type" binding:"required"`
+	Size   int64  `json:"size" binding:"required"`
+	Dir    string `json:"dir" binding:"exists"`
+	Object string `json:"object" binding:"required"`
 }
 
 type BodyShare struct {

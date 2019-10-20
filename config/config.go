@@ -16,9 +16,10 @@ type Provider struct {
 }
 
 type Config struct {
-	Host     string    `yaml:"host"`
-	MySqlDSN string    `yaml:"mysqldsn"`
-	Provider *Provider `yaml:"provider"`
+	SiteHost  string    `yaml:"site_host"`
+	StoreHost string    `yaml:"store_host"`
+	MySqlDSN  string    `yaml:"mysqldsn"`
+	Provider  *Provider `yaml:"provider"`
 }
 
 func Parse(filename string) *Config {

@@ -2,7 +2,6 @@ package disk
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"zpan/config"
 
@@ -35,18 +34,31 @@ func (ao *AliOss) SetLifecycle(bucketName string) error {
 	return ao.cli.SetBucketLifecycle(bucketName, []oss.LifecycleRule{rule})
 }
 
-func (ao *AliOss) UploadURL(bucketName, objectKey, contentType, callback string) (url string, err error) {
+func (ao *AliOss) UploadURL(bucketName, filename, objectKey, contentType, callback string, publicRead bool) (url string, headers map[string]string, err error) {
 	bucket, err := ao.cli.Bucket(bucketName)
 	if err != nil {
 		return
 	}
 
+	objectACL := oss.ACLDefault
+	if publicRead {
+		objectACL = oss.ACLPublicRead
+	}
+
 	options := []oss.Option{
 		oss.ContentType(contentType),
-		oss.ContentDisposition(fmt.Sprintf(`attachment;filename="%s"`, filepath.Base(bucketName))),
 		oss.Callback(callback),
+		oss.ObjectACL(objectACL),
 	}
+
 	url, err = bucket.SignURL(objectKey, oss.HTTPPut, 60, options...)
+	headers = map[string]string{
+		"Content-Type":        contentType,
+		"Content-Disposition": fmt.Sprintf(`attachment;filename="%s"`, filename),
+		"X-Oss-Callback":      callback,
+		"X-Oss-Object-Acl":    string(objectACL),
+	}
+
 	return
 }
 

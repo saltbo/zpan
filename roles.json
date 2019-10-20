@@ -16,7 +16,7 @@
   {
     "id": 1,
     "host": "*",
-    "path": "/api/files/callback",
+    "path": "/api/files",
     "method": "{POST}",
     "authorized_roles": [
       "anonymous"
