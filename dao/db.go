@@ -2,10 +2,12 @@ package dao
 
 import (
 	"fmt"
+	"log"
+	"strings"
+	"zpan/model"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/go-xorm/xorm"
-	"log"
-	"zpan/model"
 )
 
 var DB *xorm.Engine
@@ -35,7 +37,10 @@ func DirExist(uid int64, dir string) bool {
 		return true
 	}
 
-	exist, err := DB.Where("uid=? and object=?", uid, dir).Exist(&model.Matter{})
+	items := strings.Split(dir, "/")
+	name := items[len(items)-2]
+	parent := strings.TrimSuffix(dir, name+"/")
+	exist, err := DB.Where("uid=? and name=? and parent=?", uid, name, parent).Exist(&model.Matter{})
 	if err != nil {
 		log.Panicln(err)
 	}

@@ -67,6 +67,10 @@ func (rs *URLResource) uploadURL(c *gin.Context) error {
 		publicRead = true
 	}
 
+	if p.Type == "" {
+		p.Type = "application/octet-stream"
+	}
+
 	object := fmt.Sprintf("%d/%s", uid, uuid.NewV4().String())
 	callback := rs.buildCallback(uid, p.Name, p.Type, p.Dir, object)
 	url, headers, err := rs.provider.UploadURL(rs.bucketName, p.Name, object, p.Type, callback, publicRead)

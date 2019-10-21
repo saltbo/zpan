@@ -26,7 +26,7 @@ type BodyUser struct {
 
 type QueryMatter struct {
 	Name string `form:"name" binding:"required"`
-	Type string `form:"type" binding:"required"`
+	Type string `form:"type" binding:"exists"`
 	Size int64  `form:"size" binding:"exists"`
 	Dir  string `form:"dir" binding:"exists"`
 }
