@@ -23,9 +23,14 @@ var docTypes = []string{
 }
 
 const (
-	FILE_OPERATION_COPY = iota + 1
-	FILE_OPERATION_MOVE
-	FILE_OPERATION_RENAME
+	DIRTYPE_SYS = iota + 1
+	DIRTYPE_USER
+)
+
+const (
+	OPERATION_COPY = iota + 1
+	OPERATION_MOVE
+	OPERATION_RENAME
 )
 
 type FileResource struct {
@@ -41,12 +46,13 @@ func NewFileResource(rs *RestServer) Resource {
 }
 
 func (f *FileResource) Register(router *ginx.Router) {
+	router.GET("/files", f.findAll)
 	router.POST("/files/callback", f.fileCallback)
 	router.POST("/files/operation", f.fileOperation)
-	router.POST("/folders", f.createFolder)
-
-	router.GET("/files", f.findAll)
 	router.DELETE("/files/:id", f.delete)
+
+	router.GET("/folders", f.findFolders)
+	router.POST("/folders", f.createFolder)
 }
 
 func (f *FileResource) findAll(c *gin.Context) error {
@@ -56,8 +62,8 @@ func (f *FileResource) findAll(c *gin.Context) error {
 	}
 
 	list := make([]model.Matter, 0)
-	query := "uid=?"
-	params := []interface{}{c.GetInt64("uid")}
+	query := "uid=? and dirtype!=?"
+	params := []interface{}{c.GetInt64("uid"), DIRTYPE_SYS}
 	if !p.Search {
 		query += " and parent=?"
 		params = append(params, p.Dir)
@@ -70,7 +76,24 @@ func (f *FileResource) findAll(c *gin.Context) error {
 	}
 	fmt.Println(params)
 	sn := dao.DB.Where(query, params...).Limit(p.Limit, p.Offset)
-	total, err := sn.Desc("dir").Asc("id").FindAndCount(&list)
+	total, err := sn.Desc("dirtype").Asc("id").FindAndCount(&list)
+	if err != nil {
+		return ginx.Error(err)
+	}
+
+	return ginx.JsonList(c, list, total)
+}
+
+func (f *FileResource) findFolders(c *gin.Context) error {
+	p := new(QueryFolder)
+	if err := c.BindQuery(p); err != nil {
+		return ginx.Error(err)
+	}
+
+	list := make([]model.Matter, 0)
+	query := "uid=? and dirtype=? and parent=?"
+	sn := dao.DB.Where(query, c.GetInt64("uid"), DIRTYPE_USER, p.Parent)
+	total, err := sn.Limit(p.Limit, p.Offset).FindAndCount(&list)
 	if err != nil {
 		return ginx.Error(err)
 	}
@@ -90,10 +113,10 @@ func (f *FileResource) createFolder(c *gin.Context) error {
 	}
 
 	m := model.Matter{
-		Uid:    uid,
-		Dir:    true,
-		Name:   p.Name,
-		Parent: p.Dir,
+		Uid:     uid,
+		Dirtype: DIRTYPE_USER,
+		Name:    p.Name,
+		Parent:  p.Dir,
 	}
 	if _, err := dao.DB.Insert(m); err != nil {
 		return ginx.Failed(err)
@@ -164,11 +187,11 @@ func (f *FileResource) fileOperation(c *gin.Context) error {
 	}
 
 	switch p.Action {
-	case FILE_OPERATION_COPY:
+	case OPERATION_COPY:
 		err = dao.FileCopy(file, p.Dest)
-	case FILE_OPERATION_MOVE:
+	case OPERATION_MOVE:
 		err = dao.FileMove(file.Id, p.Dest)
-	case FILE_OPERATION_RENAME:
+	case OPERATION_RENAME:
 		err = dao.FileRename(file.Id, p.Dest)
 	default:
 		err = fmt.Errorf("invalid operation")

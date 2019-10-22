@@ -18,6 +18,11 @@ type QueryFiles struct {
 	Keyword string `form:"keyword"`
 }
 
+type QueryFolder struct {
+	QueryPage
+	Parent string `form:"parent" binding:"exists"`
+}
+
 type BodyUser struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`

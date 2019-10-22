@@ -11,7 +11,7 @@ type Matter struct {
 	Type    string    `json:"type" xorm:"notnull"`
 	Size    int64     `json:"size" xorm:"notnull"`
 	Object  string    `json:"object" xorm:"notnull"`
-	Dir     bool      `json:"dir" xorm:"notnull"`
+	Dirtype int8      `json:"dirtype" xorm:"notnull"`
 	Parent  string    `json:"parent" xorm:"notnull"`
 	Deleted time.Time `json:"deleted" xorm:"notnull deleted"`
 	Created time.Time `json:"created" xorm:"notnull created"`
