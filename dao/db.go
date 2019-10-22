@@ -21,7 +21,6 @@ func Init(dsn string) {
 
 	models := []interface{}{
 		new(model.User),
-		new(model.Rtoken),
 		new(model.Share),
 		new(model.Matter),
 	}

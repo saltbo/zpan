@@ -23,10 +23,29 @@ type QueryFolder struct {
 	Parent string `form:"parent" binding:"exists"`
 }
 
-type BodyUser struct {
+type BodySignup struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	Stoken   string `json:"stoken"`
+}
+
+type BodyActivate struct {
+	Email  string `json:"email" binding:"required"`
+	Atoken string `json:"atoken" binding:"required"`
+}
+
+type BodySignin struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type BodySendRecoverMail struct {
+	Email string `json:"email" binding:"required"`
+}
+
+type BodyResetPassword struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	Rtoken   string `json:"rtoken" binding:"required"`
 }
 
 type QueryMatter struct {

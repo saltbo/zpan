@@ -47,8 +47,9 @@ func NewUserResource() Resource {
 func (rs *UserResource) Register(router *ginx.Router) {
 	router.POST("/users", rs.signUp)
 	router.POST("/user/tokens", rs.signIn)
+	router.PATCH("/user/resources", rs.activate)
 	router.POST("/user/recover-tokens", rs.sendRecoverMail)
-	router.PATCH("/users/password", rs.resetPassword)
+	router.PATCH("/user/password", rs.resetPassword)
 	router.Use(rs.Auth())
 
 	router.GET("/users", rs.findAll)
@@ -83,7 +84,7 @@ func (rs *UserResource) find(c *gin.Context) error {
 }
 
 func (rs *UserResource) signUp(c *gin.Context) error {
-	p := new(BodyUser)
+	p := new(BodySignup)
 	if err := c.ShouldBindJSON(p); err != nil {
 		return ginx.Error(err)
 	}
@@ -97,12 +98,12 @@ func (rs *UserResource) signUp(c *gin.Context) error {
 
 	pwdHash := md5.Sum([]byte(p.Password))
 	m := &model.User{
-		Email:      p.Email,
-		Password:   hex.EncodeToString(pwdHash[:]),
-		Nickname:   p.Email[:strings.Index(p.Email, "@")],
-		StorageMax: 1024 * 1024 * 50, // 50MB
-		Roles:      ROLE_MEMBER,
-		Stoken:     randomString(64),
+		Email:       p.Email,
+		Password:    hex.EncodeToString(pwdHash[:]),
+		Nickname:    p.Email[:strings.Index(p.Email, "@")],
+		StorageMax:  1024 * 1024 * 50, // 50MB
+		Roles:       ROLE_MEMBER,
+		ActiveToken: randomString(64),
 	}
 	if _, err := dao.DB.Insert(m); err != nil {
 		return ginx.Failed(err)
@@ -110,10 +111,10 @@ func (rs *UserResource) signUp(c *gin.Context) error {
 
 	body := `
         <h3>账户激活链接</h3>
-        <p><a href="http://localhost:8080/login?email=%s&stoken=%s">点击此处重置密码</a></p>
+        <p><a href="http://localhost:8080/login?email=%s&atoken=%s">点击此处重置密码</a></p>
 		<p>如果您没有进行账号注册请忽略！</p>
         `
-	body = fmt.Sprintf(body, p.Email, m.Stoken)
+	body = fmt.Sprintf(body, p.Email, m.ActiveToken)
 	if err := SendToMail("账号注册成功，请激活您的账户", body, p.Email); err != nil {
 		return ginx.Failed(err)
 	}
@@ -121,8 +122,44 @@ func (rs *UserResource) signUp(c *gin.Context) error {
 	return nil
 }
 
+func (rs *UserResource) activate(c *gin.Context) error {
+	p := new(BodyActivate)
+	if err := c.ShouldBindJSON(p); err != nil {
+		return ginx.Error(err)
+	}
+
+	user := new(model.User)
+	if exist, err := dao.DB.Where("email = ?", p.Email).Get(user); err != nil {
+		return ginx.Failed(err)
+	} else if !exist || user.ActiveToken != p.Atoken {
+		return ginx.Error(fmt.Errorf("invalid activate token.", p.Email))
+	}
+
+	session := dao.DB.NewSession()
+	defer session.Close()
+
+	// 初始化系统资源
+	picFolder := model.Matter{Uid: user.Id, Name: ".pics", Dirtype: DIRTYPE_SYS}
+	if _, err := session.Insert(picFolder); err != nil {
+		_ = session.Rollback()
+		return ginx.Failed(err)
+	}
+
+	// 标记激活成功
+	if _, err := session.ID(user.Id).Cols("active_token").Update(&model.User{ActiveToken: ""}); err != nil {
+		_ = session.Rollback()
+		return ginx.Failed(fmt.Errorf("active failed: %s", err))
+	}
+
+	if err := session.Commit(); err != nil {
+		return ginx.Failed(err)
+	}
+
+	return nil
+}
+
 func (rs *UserResource) signIn(c *gin.Context) error {
-	p := new(BodyUser)
+	p := new(BodySignin)
 	if err := c.ShouldBindJSON(p); err != nil {
 		return ginx.Error(err)
 	}
@@ -132,21 +169,13 @@ func (rs *UserResource) signIn(c *gin.Context) error {
 		return ginx.Failed(err)
 	} else if !exist {
 		return ginx.Error(fmt.Errorf("user %s not exist.", p.Email))
-	} else if user.Stoken != "" && p.Stoken == "" {
+	} else if user.ActiveToken != "" {
 		return ginx.Error(fmt.Errorf("email not activated!"))
-	} else if user.Stoken != p.Stoken {
-		return ginx.Forbidden(fmt.Errorf("illegal request"))
 	}
 
 	pwdHash := md5.Sum([]byte(p.Password))
 	if user.Password != hex.EncodeToString(pwdHash[:]) {
 		return ginx.Error(fmt.Errorf("invalid password"))
-	}
-
-	if user.Stoken != "" {
-		if _, err := dao.DB.ID(user.Id).Cols("stoken").Update(&model.User{Stoken: ""}); err != nil {
-			return ginx.Failed(fmt.Errorf("active failed: %s", err))
-		}
 	}
 
 	token, err := rs.buildToken(user.Id, user.Roles)
@@ -231,7 +260,7 @@ func (r *UserResource) queryRoles(c *gin.Context) ([]string, error) {
 }
 
 func (rs *UserResource) sendRecoverMail(c *gin.Context) error {
-	p := new(BodyUser)
+	p := new(BodySendRecoverMail)
 	if err := c.ShouldBindJSON(p); err != nil {
 		return ginx.Error(err)
 	}
@@ -243,12 +272,10 @@ func (rs *UserResource) sendRecoverMail(c *gin.Context) error {
 		return ginx.Error(fmt.Errorf("user %s not exist.", p.Email))
 	}
 
-	rToken := &model.Rtoken{
-		Uid:   user.Id,
-		Token: randomString(64),
-	}
-	if _, err := dao.DB.Insert(rToken); err != nil {
-		return ginx.Failed(err)
+	// 记录恢复令牌
+	u := &model.User{RecoverToken: randomString(64)}
+	if _, err := dao.DB.ID(user.Id).Cols("recover_token").Update(u); err != nil {
+		return ginx.Failed(fmt.Errorf("active failed: %s", err))
 	}
 
 	body := `
@@ -256,7 +283,7 @@ func (rs *UserResource) sendRecoverMail(c *gin.Context) error {
         <p><a href="http://localhost:8080/login/resetpwd?email=%s&rtoken=%s">点击此处重置密码</a></p>
 		<p>如果您没有申请重置密码请忽略！</p>
         `
-	body = fmt.Sprintf(body, p.Email, rToken.Token)
+	body = fmt.Sprintf(body, p.Email, u.RecoverToken)
 	if err := SendToMail("密码重置申请", body, p.Email); err != nil {
 		return ginx.Failed(err)
 	}
@@ -265,37 +292,22 @@ func (rs *UserResource) sendRecoverMail(c *gin.Context) error {
 }
 
 func (rs *UserResource) resetPassword(c *gin.Context) error {
-	p := new(BodyUser)
+	p := new(BodyResetPassword)
 	if err := c.ShouldBindJSON(p); err != nil {
 		return ginx.Error(err)
 	}
 
-	rToken := new(model.Rtoken)
-	if exist, err := dao.DB.Where("token = ?", p.Stoken).Get(rToken); err != nil {
+	user := new(model.User)
+	if exist, err := dao.DB.Where("email = ?", p.Email).Get(user); err != nil {
 		return ginx.Failed(err)
-	} else if !exist {
-		return ginx.Error(fmt.Errorf("token %s not exist.", p.Stoken))
+	} else if !exist || user.RecoverToken != p.Rtoken {
+		return ginx.Error(fmt.Errorf("invalid recover token."))
 	}
-
-	session := dao.DB.NewSession()
-	defer session.Close()
 
 	// update the new password
 	pwdHash := md5.Sum([]byte(p.Password))
-	user := &model.User{Password: hex.EncodeToString(pwdHash[:])}
-	_, err := session.ID(rToken.Uid).Cols("password").Update(user)
-	if err != nil {
-		_ = session.Rollback()
-		return ginx.Failed(err)
-	}
-
-	// clean the used recover token
-	if _, err := session.ID(rToken.Id).Unscoped().Delete(rToken); err != nil {
-		_ = session.Rollback()
-		return ginx.Failed(err)
-	}
-
-	if err := session.Commit(); err != nil {
+	u := &model.User{Password: hex.EncodeToString(pwdHash[:]), RecoverToken: ""}
+	if _, err := dao.DB.ID(user.Id).Cols("password", "recover_token").Update(u); err != nil {
 		return ginx.Failed(err)
 	}
 
