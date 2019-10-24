@@ -2,11 +2,14 @@ package disk
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"zpan/config"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
+
+var urlEncode = url.QueryEscape
 
 type AliOss struct {
 	cli *oss.Client
@@ -54,7 +57,7 @@ func (ao *AliOss) UploadURL(bucketName, filename, objectKey, contentType, callba
 	url, err = bucket.SignURL(objectKey, oss.HTTPPut, 60, options...)
 	headers = map[string]string{
 		"Content-Type":        contentType,
-		"Content-Disposition": fmt.Sprintf(`attachment;filename="%s"`, filename),
+		"Content-Disposition": fmt.Sprintf(`attachment;filename="%s"`, urlEncode(filename)),
 		"X-Oss-Callback":      callback,
 		"X-Oss-Object-Acl":    string(objectACL),
 	}
@@ -95,6 +98,17 @@ func (ao *AliOss) ListObject(bucketName, prefix, marker string, limit int) (Obje
 	}
 
 	return objects, objectsResult.NextMarker, nil
+}
+
+func (ao *AliOss) TagRename(bucketName, objectKey, filename string) (err error) {
+	bucket, err := ao.cli.Bucket(bucketName)
+	if err != nil {
+		return
+	}
+
+	disposition := fmt.Sprintf(`attachment;filename="%s"`, urlEncode(filename))
+	err = bucket.SetObjectMeta(objectKey, oss.ContentDisposition(disposition))
+	return
 }
 
 func (ao *AliOss) TagDelObject(bucketName, objectKey string) error {

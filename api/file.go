@@ -192,6 +192,18 @@ func (f *FileResource) fileOperation(c *gin.Context) error {
 	case OPERATION_MOVE:
 		err = dao.FileMove(file.Id, p.Dest)
 	case OPERATION_RENAME:
+		if file.Dirtype > 0 {
+			if err := dao.DirRename(file.Id, p.Dest); err != nil {
+				return ginx.Failed(err)
+			}
+
+			return ginx.Json(c, "")
+		}
+
+		err = f.provider.TagRename(f.bucketName, file.Object, p.Dest)
+		if err != nil {
+			return ginx.Failed(err)
+		}
 		err = dao.FileRename(file.Id, p.Dest)
 	default:
 		err = fmt.Errorf("invalid operation")

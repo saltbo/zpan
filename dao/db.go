@@ -82,3 +82,34 @@ func FileRename(id int64, name string) error {
 	_, err := DB.ID(id).Cols("name").Update(&model.Matter{Name: name})
 	return err
 }
+
+func DirRename(id int64, name string) error {
+	oldMatter := new(model.Matter)
+	if exist, _ := DB.Id(id).Get(oldMatter); !exist {
+		return fmt.Errorf("matter not exist.")
+	}
+
+	oldParent := fmt.Sprintf("%s%s/", oldMatter.Parent, oldMatter.Name)
+	newParent := fmt.Sprintf("%s%s/", oldMatter.Parent, name)
+	list := make([]model.Matter, 0)
+	_ = DB.Where("parent like '" + oldParent + "%'").Find(&list)
+
+	session := DB.NewSession()
+	defer session.Close()
+	for _, v := range list {
+		v.Parent = strings.Replace(v.Parent, oldParent, newParent, 1)
+		_, err := session.ID(v.Id).Cols("parent").Update(v)
+		if err != nil {
+			_ = session.Rollback()
+			return err
+		}
+	}
+
+	m := &model.Matter{Name: name}
+	if _, err := session.ID(id).Cols("name").Update(m); err != nil {
+		_ = session.Rollback()
+		return err
+	}
+
+	return session.Commit()
+}
