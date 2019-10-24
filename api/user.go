@@ -132,7 +132,7 @@ func (rs *UserResource) activate(c *gin.Context) error {
 	if exist, err := dao.DB.Where("email = ?", p.Email).Get(user); err != nil {
 		return ginx.Failed(err)
 	} else if !exist || user.ActiveToken != p.Atoken {
-		return ginx.Error(fmt.Errorf("invalid activate token.", p.Email))
+		return ginx.Error(fmt.Errorf("invalid activate token."))
 	}
 
 	session := dao.DB.NewSession()
