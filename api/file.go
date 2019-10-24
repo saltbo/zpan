@@ -2,13 +2,12 @@ package api
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
-	"zpan/cloudengine"
 	"zpan/dao"
+	"zpan/disk"
 	"zpan/model"
 	"zpan/pkg/ginx"
 )
@@ -23,34 +22,48 @@ var docTypes = []string{
 	"application/vnd.openxmlformats-officedocument.presentationml.presentation",
 }
 
+const (
+	DIRTYPE_SYS = iota + 1
+	DIRTYPE_USER
+)
+
+const (
+	OPERATION_COPY = iota + 1
+	OPERATION_MOVE
+	OPERATION_RENAME
+)
+
 type FileResource struct {
-	cloudEngine cloudengine.CE
-	bucketName  string
+	provider   disk.Provider
+	bucketName string
 }
 
-func NewFileResource(cloudEngine cloudengine.CE, bucketName string) Resource {
+func NewFileResource(rs *RestServer) Resource {
 	return &FileResource{
-		cloudEngine: cloudEngine,
-		bucketName:  bucketName,
+		provider:   rs.provider,
+		bucketName: rs.conf.Provider.Bucket,
 	}
 }
 
-func (rs *FileResource) Register(router *ginx.Router) {
-	router.POST("/files/folders", rs.create)
-	router.POST("/files/callback", rs.create)
-	router.GET("/files", rs.findAll)
-	router.DELETE("/files/:id", rs.delete)
+func (f *FileResource) Register(router *ginx.Router) {
+	router.GET("/files", f.findAll)
+	router.POST("/files/callback", f.fileCallback)
+	router.POST("/files/operation", f.fileOperation)
+	router.DELETE("/files/:id", f.delete)
+
+	router.GET("/folders", f.findFolders)
+	router.POST("/folders", f.createFolder)
 }
 
-func (rs *FileResource) findAll(c *gin.Context) error {
+func (f *FileResource) findAll(c *gin.Context) error {
 	p := new(QueryFiles)
 	if err := c.BindQuery(p); err != nil {
 		return ginx.Error(err)
 	}
 
 	list := make([]model.Matter, 0)
-	query := "uid=?"
-	params := []interface{}{c.GetInt64("uid")}
+	query := "uid=? and dirtype!=?"
+	params := []interface{}{c.GetInt64("uid"), DIRTYPE_SYS}
 	if !p.Search {
 		query += " and parent=?"
 		params = append(params, p.Dir)
@@ -63,7 +76,7 @@ func (rs *FileResource) findAll(c *gin.Context) error {
 	}
 	fmt.Println(params)
 	sn := dao.DB.Where(query, params...).Limit(p.Limit, p.Offset)
-	total, err := sn.Desc("dir").Asc("id").FindAndCount(&list)
+	total, err := sn.Desc("dirtype").Asc("id").FindAndCount(&list)
 	if err != nil {
 		return ginx.Error(err)
 	}
@@ -71,14 +84,51 @@ func (rs *FileResource) findAll(c *gin.Context) error {
 	return ginx.JsonList(c, list, total)
 }
 
-func (rs *FileResource) create(c *gin.Context) error {
-	p := new(BodyMatter)
+func (f *FileResource) findFolders(c *gin.Context) error {
+	p := new(QueryFolder)
+	if err := c.BindQuery(p); err != nil {
+		return ginx.Error(err)
+	}
+
+	list := make([]model.Matter, 0)
+	query := "uid=? and dirtype=? and parent=?"
+	sn := dao.DB.Where(query, c.GetInt64("uid"), DIRTYPE_USER, p.Parent)
+	total, err := sn.Limit(p.Limit, p.Offset).FindAndCount(&list)
+	if err != nil {
+		return ginx.Error(err)
+	}
+
+	return ginx.JsonList(c, list, total)
+}
+
+func (f *FileResource) createFolder(c *gin.Context) error {
+	p := new(BodyFolder)
 	if err := c.ShouldBindJSON(p); err != nil {
 		return ginx.Error(err)
 	}
 
-	if p.Uid == 0 {
-		p.Uid = c.GetInt64("uid")
+	uid := c.GetInt64("uid")
+	if !dao.DirExist(uid, p.Dir) {
+		return ginx.Error(fmt.Errorf("direction %s not exist.", p.Dir))
+	}
+
+	m := model.Matter{
+		Uid:     uid,
+		Dirtype: DIRTYPE_USER,
+		Name:    p.Name,
+		Parent:  p.Dir,
+	}
+	if _, err := dao.DB.Insert(m); err != nil {
+		return ginx.Failed(err)
+	}
+
+	return ginx.Json(c, "")
+}
+
+func (f *FileResource) fileCallback(c *gin.Context) error {
+	p := new(BodyFile)
+	if err := c.ShouldBindJSON(p); err != nil {
+		return ginx.Error(err)
 	}
 
 	user := new(model.User)
@@ -88,69 +138,120 @@ func (rs *FileResource) create(c *gin.Context) error {
 		return ginx.Error(fmt.Errorf("user not exist."))
 	}
 
-	exist, err := dao.DB.Where("uid=? and parent=? and path=?", p.Uid, p.Parent, p.Path).Exist(&model.Matter{})
+	exist, err := dao.DB.Where("object=?", p.Object).Exist(&model.Matter{})
 	if err != nil {
 		return ginx.Failed(err)
 	} else if exist {
-		return ginx.Error(fmt.Errorf("file %s already exist.", p.Path))
+		return ginx.Error(fmt.Errorf("object %s already exist.", p.Object))
 	}
+
+	session := dao.DB.NewSession()
+	defer session.Close()
 
 	m := model.Matter{
 		Uid:    p.Uid,
-		Name:   filepath.Base(p.Path),
-		Path:   p.Path,
+		Name:   p.Name,
 		Type:   p.Type,
 		Size:   p.Size,
-		Parent: p.Parent,
+		Parent: p.Dir,
+		Object: p.Object,
 	}
-	if m.Size == 0 && strings.HasSuffix(m.Path, "/") {
-		m.Dir = true
-	}
-	if _, err := dao.DB.Insert(m); err != nil {
+	if _, err := session.Insert(m); err != nil {
+		_ = session.Rollback()
 		return ginx.Failed(err)
 	}
 
 	// update the storage
 	user.StorageUsed += uint64(p.Size)
-	if _, err := dao.DB.Id(p.Uid).Update(user); err != nil {
+	if _, err := session.ID(p.Uid).Cols("storage_used").Update(user); err != nil {
+		_ = session.Rollback()
 		return ginx.Error(err)
+	}
+
+	if err := session.Commit(); err != nil {
+		return ginx.Failed(err)
 	}
 
 	return ginx.Json(c, "")
 }
 
-func (rs *FileResource) delete(c *gin.Context) error {
-	id := c.Param("id")
-	uid := c.GetInt64("uid")
+func (f *FileResource) fileOperation(c *gin.Context) error {
+	p := new(BodyFileOperation)
+	if err := c.ShouldBindJSON(p); err != nil {
+		return ginx.Error(err)
+	}
 
-	m := new(model.Matter)
-	exist, err := dao.DB.Id(id).Get(m)
+	file, err := dao.FileGet(c.GetInt64("uid"), p.Id)
+	if err != nil {
+		return ginx.Error(err)
+	}
+
+	switch p.Action {
+	case OPERATION_COPY:
+		err = dao.FileCopy(file, p.Dest)
+	case OPERATION_MOVE:
+		err = dao.FileMove(file.Id, p.Dest)
+	case OPERATION_RENAME:
+		if file.Dirtype > 0 {
+			if err := dao.DirRename(file.Id, p.Dest); err != nil {
+				return ginx.Failed(err)
+			}
+
+			return ginx.Json(c, "")
+		}
+
+		err = f.provider.TagRename(f.bucketName, file.Object, p.Dest)
+		if err != nil {
+			return ginx.Failed(err)
+		}
+		err = dao.FileRename(file.Id, p.Dest)
+	default:
+		err = fmt.Errorf("invalid operation")
+	}
+
 	if err != nil {
 		return ginx.Failed(err)
-	} else if !exist {
-		return ginx.Error(fmt.Errorf("file not exist."))
 	}
+
+	return ginx.Json(c, "")
+}
+
+func (f *FileResource) delete(c *gin.Context) error {
+	uid := c.GetInt64("uid")
+	fileId := c.Param("id")
 
 	user := new(model.User)
-	if exist, err := dao.DB.Id(m.Uid).Get(user); err != nil {
-		return ginx.Failed(err)
-	} else if !exist {
-		return ginx.Error(fmt.Errorf("user not exist."))
-	}
-
-	object := fmt.Sprintf("%d/%s", uid, m.Path)
-	if err := rs.cloudEngine.DeleteObject(rs.bucketName, object); err != nil {
+	if _, err := dao.DB.Id(uid).Get(user); err != nil {
 		return ginx.Failed(err)
 	}
 
-	if _, err := dao.DB.Id(id).Delete(m); err != nil {
-		return ginx.Failed(err)
-	}
-
-	// update the storage
-	user.StorageUsed -= uint64(m.Size)
-	if _, err := dao.DB.Id(m.Uid).Update(user); err != nil {
+	file, err := dao.FileGet(uid, fileId)
+	if err != nil {
 		return ginx.Error(err)
+	}
+
+	if err := f.provider.DeleteObject(f.bucketName, file.Object); err != nil {
+		return ginx.Failed(err)
+	}
+
+	session := dao.DB.NewSession()
+	defer session.Close()
+
+	// delete for the list
+	if _, err := session.ID(file.Id).Delete(file); err != nil {
+		_ = session.Rollback()
+		return ginx.Failed(err)
+	}
+
+	// update the user storage
+	user.StorageUsed -= uint64(file.Size)
+	if _, err := session.ID(file.Uid).Cols("storage_used").Update(user); err != nil {
+		_ = session.Rollback()
+		return ginx.Failed(err)
+	}
+
+	if err := session.Commit(); err != nil {
+		return ginx.Failed(err)
 	}
 
 	return ginx.Ok(c)

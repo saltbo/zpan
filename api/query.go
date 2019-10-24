@@ -18,24 +18,61 @@ type QueryFiles struct {
 	Keyword string `form:"keyword"`
 }
 
-type BodyUser struct {
+type QueryFolder struct {
+	QueryPage
+	Parent string `form:"parent" binding:"exists"`
+}
+
+type BodySignup struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-type QueryMatter struct {
-	Object string `form:"object" binding:"required"`
-	Type   string `form:"type" binding:"required"`
-	Size   int64  `form:"size" binding:"exists"`
-	Parent string `form:"parent" binding:"exists"`
+type BodyActivate struct {
+	Email  string `json:"email" binding:"required"`
+	Atoken string `json:"atoken" binding:"required"`
 }
 
-type BodyMatter struct {
+type BodySignin struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type BodySendRecoverMail struct {
+	Email string `json:"email" binding:"required"`
+}
+
+type BodyResetPassword struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	Rtoken   string `json:"rtoken" binding:"required"`
+}
+
+type QueryMatter struct {
+	Name string `form:"name" binding:"required"`
+	Type string `form:"type" binding:"exists"`
+	Size int64  `form:"size" binding:"exists"`
+	Dir  string `form:"dir" binding:"exists"`
+}
+
+type BodyFolder struct {
+	Name string `json:"name" binding:"required"`
+	Dir  string `json:"dir" binding:"exists"`
+}
+
+type BodyFile struct {
 	Uid    int64  `json:"uid"`
-	Path   string `json:"path" binding:"required"`
-	Type   string `json:"type" binding:"exists"`
-	Size   int64  `json:"size" binding:"exists"`
-	Parent string `form:"parent" binding:"exists"`
+	Name   string `json:"name" binding:"required"`
+	Type   string `json:"type" binding:"required"`
+	Size   int64  `json:"size" binding:"required"`
+	Dir    string `json:"dir" binding:"exists"`
+	Object string `json:"object" binding:"required"`
+}
+
+type BodyFileOperation struct {
+	Id     int64  `json:"id" binding:"required"`
+	Dest   string `json:"dest" binding:"exists"`
+	Action int64  `json:"action" binding:"required"`
 }
 
 type BodyShare struct {
