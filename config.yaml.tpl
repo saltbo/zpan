@@ -6,3 +6,8 @@ provider:
   endpoint: https://oss-cn-zhangjiakou.aliyuncs.com
   access_key: LTAI4FxxxxxxxxxxxxBXmS3
   access_secret: Vt1FZgXxxxxxxxxxxxxxxx380AI
+
+email:
+  host: smtpdm.aliyun.com:25
+  user: zpan@mail.saltbo.cn
+  password: SvNxxxxxxxxJZB
