@@ -14,6 +14,6 @@ var (
 	// COMMIT returns the short sha from git
 	commit = "unknown"
 
-	Short = fmt.Sprintf("zpan %s", release)
-	Long  = fmt.Sprintf("zpan release: %s, repo: %s, commit: %s", release, repo, commit)
+	Short = fmt.Sprintf("%s", release)
+	Long  = fmt.Sprintf("release: %s, repo: %s, commit: %s", release, repo, commit)
 )

@@ -50,7 +50,7 @@ func NewRest(conf *config.Config) (*RestServer, error) {
 func (rs *RestServer) SetupProvider(provider disk.Provider) {
 	rs.provider = provider
 	rs.resources = []Resource{
-		NewUserResource(),
+		NewUserResource(rs),
 		NewURLResource(rs),
 		NewFileResource(rs),
 		NewShareResource(),

@@ -15,11 +15,19 @@ type Provider struct {
 	AccessSecret string `yaml:"access_secret"`
 }
 
+// system send email
+type Email struct {
+	Host     string `yaml:"host"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+}
+
 type Config struct {
 	SiteHost  string    `yaml:"site_host"`
 	StoreHost string    `yaml:"store_host"`
 	MySqlDSN  string    `yaml:"mysqldsn"`
 	Provider  *Provider `yaml:"provider"`
+	Email     *Email    `yaml:"email"`
 }
 
 func Parse(filename string) *Config {

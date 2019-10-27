@@ -12,8 +12,8 @@ require (
 	github.com/rakyll/statik v0.1.6
 	github.com/satori/go.uuid v1.2.0
 	github.com/storyicon/grbac v0.0.0-20190801030200-88ce5668903d
-	golang.org/x/exp v0.0.0-20190121172915-509febef88a4
+	github.com/urfave/cli v1.22.1
+	golang.org/x/net v0.0.0-20190620200207-3b0461eec859 // indirect
 	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect
-	golang.org/x/tools v0.0.0-20191010201905-e5ffc44a6fee // indirect
 	gopkg.in/yaml.v2 v2.2.2
 )

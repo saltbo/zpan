@@ -36,11 +36,19 @@ type RoleClaims struct {
 
 type UserResource struct {
 	jwtSecret []byte
+	siteHost  string
+	mailHost  string
+	mailUser  string
+	mailPwd   string
 }
 
-func NewUserResource() Resource {
+func NewUserResource(rs *RestServer) Resource {
 	return &UserResource{
 		jwtSecret: []byte(JWT_SECRET),
+		siteHost:  rs.conf.SiteHost,
+		mailHost:  rs.conf.Email.Host,
+		mailUser:  rs.conf.Email.User,
+		mailPwd:   rs.conf.Email.Password,
 	}
 }
 
@@ -111,11 +119,11 @@ func (rs *UserResource) signUp(c *gin.Context) error {
 
 	body := `
         <h3>账户激活链接</h3>
-        <p><a href="http://localhost:8080/login?email=%s&atoken=%s">点击此处重置密码</a></p>
+        <p><a href="%s/login?email=%s&atoken=%s">点击此处重置密码</a></p>
 		<p>如果您没有进行账号注册请忽略！</p>
         `
-	body = fmt.Sprintf(body, p.Email, m.ActiveToken)
-	if err := SendToMail("账号注册成功，请激活您的账户", body, p.Email); err != nil {
+	body = fmt.Sprintf(body, rs.siteHost, p.Email, m.ActiveToken)
+	if err := rs.sendMail("账号注册成功，请激活您的账户", body, p.Email); err != nil {
 		return ginx.Failed(err)
 	}
 
@@ -280,11 +288,11 @@ func (rs *UserResource) sendRecoverMail(c *gin.Context) error {
 
 	body := `
         <h3>密码重置链接</h3>
-        <p><a href="http://localhost:8080/login/resetpwd?email=%s&rtoken=%s">点击此处重置密码</a></p>
+        <p><a href="%s/login/resetpwd?email=%s&rtoken=%s">点击此处重置密码</a></p>
 		<p>如果您没有申请重置密码请忽略！</p>
         `
-	body = fmt.Sprintf(body, p.Email, u.RecoverToken)
-	if err := SendToMail("密码重置申请", body, p.Email); err != nil {
+	body = fmt.Sprintf(body, rs.siteHost, p.Email, u.RecoverToken)
+	if err := rs.sendMail("密码重置申请", body, p.Email); err != nil {
 		return ginx.Failed(err)
 	}
 
@@ -314,17 +322,14 @@ func (rs *UserResource) resetPassword(c *gin.Context) error {
 	return nil
 }
 
-func SendToMail(subject, body, to string) error {
-	hostPort := "smtpdm.aliyun.com:25"
-	host, _, err := net.SplitHostPort(hostPort)
+func (rs *UserResource) sendMail(subject, body, to string) error {
+	host, _, err := net.SplitHostPort(rs.mailHost)
 	if err != nil {
 		return err
 	}
 
-	user := "zpan@mail.saltbo.cn"
-	password := "SvNKDti9033wBJZB"
-	auth := smtp.PlainAuth("", user, password, host)
+	auth := smtp.PlainAuth("", rs.mailUser, rs.mailPwd, host)
 	contentType := "Content-Type: text/html; charset=UTF-8"
-	msg := []byte("To: " + to + "\r\nFrom: " + user + "\r\nSubject: " + subject + "\r\n" + contentType + "\r\n\r\n" + body)
-	return smtp.SendMail(hostPort, auth, user, []string{to}, msg)
+	msg := []byte("To: " + to + "\r\nFrom: " + rs.mailUser + "\r\nSubject: " + subject + "\r\n" + contentType + "\r\n\r\n" + body)
+	return smtp.SendMail(rs.mailHost, auth, rs.mailUser, []string{to}, msg)
 }
