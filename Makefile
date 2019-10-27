@@ -1,27 +1,19 @@
 .PHONY: default install build fmt test vet docker clean
 
-BINARY=zpan
-MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
-MKFILE_DIR := $(dir $(MKFILE_PATH))
-
-TARGET_DIR=${MKFILE_DIR}build
-TARGET_PATH=${TARGET_DIR}/${BINARY}
-
-LDFLAGS="-s -w -X ${BINARY}/version.release=${RELEASE} -X ${BINARY}/version.commit=${COMMIT} -X ${BINARY}/version.repo=${GITREPO}"
-
-# git info
-COMMIT := git-$(shell git rev-parse --short HEAD)
-GITREPO := $(shell git config --get remote.origin.url)
-RELEASE := $(shell git describe --tags | awk -F '-' '{print $$1}')
-
-default: install build
-
-install:
-	go mod download
+default: build
 
 build:
-	GOOS=darwin GOARCH=amd64 go build -ldflags ${LDFLAGS} -o ${TARGET_PATH}-darwin-amd64/${BINARY} cmd/server.go
-	GOOS=linux GOARCH=amd64 go build -ldflags ${LDFLAGS} -o ${TARGET_PATH}-linux-amd64/${BINARY} cmd/server.go
+	GO_BUILD_FLAGS="-v" ./scripts/build.sh
+	./bin/zpan --version
+
+run:
+	./bin/zpan
+
+install:
+	./scripts/install.sh
+
+release:
+	./scripts/release.sh
 
 test:
 	go test -coverprofile=coverage.txt -covermode=atomic ./...
@@ -30,9 +22,6 @@ test:
 covhtml:
 	go tool cover -html=coverage.txt
 
-pack:
-	tar -C ${TARGET_DIR} -zvcf ${TARGET_PATH}-darwin-amd64.tar.gz ${BINARY}-darwin-amd64/${BINARY}
-	tar -C ${TARGET_DIR} -zvcf ${TARGET_PATH}-linux-amd64.tar.gz ${BINARY}-linux-amd64/${BINARY}
-
 clean:
-	rm -rf ${TARGET_DIR}
+	rm -rf bin
+	rm -rf build

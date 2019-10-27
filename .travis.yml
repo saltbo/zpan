@@ -10,7 +10,7 @@ install: true
 script:
   - make
   - make test
-  - make pack
+  - make release
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)

@@ -7,9 +7,11 @@
 
 # Test binary, build with `go test -c`
 *.test
+bin
 build
 coverage.txt
 config.yaml
+roles.json
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out

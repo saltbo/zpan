@@ -1,5 +1,6 @@
 host: http://local.frpx.saltbo.cn:1080
 mysqldsn: root:root@tcp(127.0.0.1:3306)/zpan?charset=utf8&interpolateParams=true
+
 provider:
   name: alioss
   bucket: saltbo-zpan-test

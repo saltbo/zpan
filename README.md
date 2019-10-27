@@ -9,6 +9,7 @@ ZPan - Your Last disk on the cloud.
 - [x] File Manage
 - [x] Folder Manage
 - [x] File & Folder Share
+- [x] Picture library
 - [x] Storage Capacity Control
 - [ ] RecycleBin
 - [x] Support AliOSS
@@ -33,20 +34,25 @@ ZPan - Your Last disk on the cloud.
 ### Binary
 Download the appropriate binary for your platform from the [Releases](https://github.com/saltbo/zpan/releases) page
 
+```bash
+cp config.yaml.tpl config.yaml
+vi config.yaml  #setup your configs
+./zpan
+```
+
 ### Source
 
 > depend on [Golang](https://golang.org/dl/) compiler environment
 
 ```bash
 git clone https://github.com/saltbo/zpan.git
-cd zpan && make
-```
-or
-```bash
-go get github.com/saltbo/zpan
+cd zpan && make && make install
 ```
 
 ## Usage
+```bash
+make run
+```
 
 
 ## Contact us
