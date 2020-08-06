@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"zpan/config"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
+
+	"github.com/saltbo/zpan/config"
 )
 
 var urlEncode = url.QueryEscape
@@ -15,8 +16,8 @@ type AliOss struct {
 	cli *oss.Client
 }
 
-func NewAliOss(conf *config.Provider, options ...oss.ClientOption) (*AliOss, error) {
-	cli, err := oss.New(conf.Endpoint, conf.AccessKey, conf.AccessSecret, options...)
+func newAliOss(conf *config.Provider) (*AliOss, error) {
+	cli, err := oss.New(conf.Endpoint, conf.AccessKey, conf.AccessSecret)
 	if err != nil {
 		return nil, err
 	}

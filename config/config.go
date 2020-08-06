@@ -1,9 +1,9 @@
 package config
 
 import (
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
 	"log"
+
+	"github.com/spf13/viper"
 )
 
 // CloudProvider
@@ -15,29 +15,16 @@ type Provider struct {
 	AccessSecret string `yaml:"access_secret"`
 }
 
-// system send email
-type Email struct {
-	Host     string `yaml:"host"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-}
-
 type Config struct {
 	SiteHost  string    `yaml:"site_host"`
 	StoreHost string    `yaml:"store_host"`
 	MySqlDSN  string    `yaml:"mysqldsn"`
 	Provider  *Provider `yaml:"provider"`
-	Email     *Email    `yaml:"email"`
 }
 
-func Parse(filename string) *Config {
-	buff, err := ioutil.ReadFile(filename)
-	if err != nil {
-		log.Fatalf("read config file failed: %v", err)
-	}
-
+func Parse() *Config {
 	conf := new(Config)
-	if err := yaml.Unmarshal(buff, conf); err != nil {
+	if err := viper.Unmarshal(conf); err != nil {
 		log.Fatalf("unmarshal yaml config failed: %v", err)
 	}
 

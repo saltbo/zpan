@@ -1,7 +1,10 @@
 package disk
 
 import (
+	"fmt"
 	"time"
+
+	"github.com/saltbo/zpan/config"
 )
 
 type Object struct {
@@ -12,6 +15,7 @@ type Object struct {
 	ETag         string    `json:"etag"`
 	LastModified time.Time `json:"last_modified"`
 }
+
 type Objects []Object
 
 type Provider interface {
@@ -23,4 +27,18 @@ type Provider interface {
 	TagDelObject(bucketName, objectKey string) error
 	DeleteObject(bucketName, objectKey string) error
 	DeleteObjects(bucketName string, objectKeys []string) error
+}
+
+type ProviderConstructor func(provider *config.Provider) (*AliOss, error)
+
+var providerConstructors = map[string]ProviderConstructor{
+	"alioss": newAliOss,
+}
+
+func New(provider *config.Provider) (Provider, error) {
+	if providerConstructor, ok := providerConstructors[provider.Name]; ok {
+		return providerConstructor(provider)
+	}
+
+	return nil, fmt.Errorf("provider %s not found", provider.Name)
 }

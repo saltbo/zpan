@@ -1,65 +1,48 @@
-ZPan - Your Last disk on the cloud. 
-=========================
-[![Build Status](https://travis-ci.org/saltbo/zpan.svg)](https://travis-ci.org/saltbo/zpan)
-[![codecov](https://codecov.io/gh/saltbo/zpan/branch/master/graph/badge.svg)](https://codecov.io/gh/saltbo/zpan)
-[![codebeat badge](https://codebeat.co/badges/e97d3305-de49-4a9c-9ead-1aca942b9e16)](https://codebeat.co/projects/github-com-saltbo-zpan-master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/saltbo/zpan)](https://goreportcard.com/report/github.com/saltbo/zpan)
+# zpan
 
-## Features
-- [x] File Manage
-- [x] Folder Manage
-- [x] File & Folder Share
-- [x] Picture library
-- [x] Storage Capacity Control
-- [ ] RecycleBin
-- [x] Support AliOSS
-- [ ] Support Upyun
-- [ ] Support Qiniuyun
+[![](https://github.com/saltbo/github.com/saltbo/zpan/workflows/build/badge.svg)](https://github.com/saltbo/github.com/saltbo/zpan/actions?query=workflow%3Abuild)
+[![](https://codecov.io/gh/saltbo/github.com/saltbo/zpan/branch/master/graph/badge.svg)](https://codecov.io/gh/saltbo/zpan)
+[![](https://wakatime.com/badge/github/saltbo/zpan.svg)](https://wakatime.com/badge/github/saltbo/zpan)
+[![](https://api.codacy.com/project/badge/Grade/88817db9b3b04c0293c9d001d574a5ef)](https://app.codacy.com/manual/saltbo/zpan?utm_source=github.com&utm_medium=referral&utm_content=saltbo/zpan&utm_campaign=Badge_Grade_Dashboard)
+[![](https://img.shields.io/github/v/release/saltbo/zpan.svg)](https://github.com/saltbo/github.com/saltbo/zpan/releases)
+[![](https://img.shields.io/github/license/saltbo/zpan.svg)](https://github.com/saltbo/github.com/saltbo/zpan/blob/master/LICENSE)
 
-## Run environment
-- Mac
-- Linux
+English | [🇨🇳中文](https://saltbo.cn/zpan)
 
-## Dependent modules 
-- cli (github.com/urfave/cli) 
-- gin (github.com/gin-gonic/gin)
-- jwt-go (github.com/dgrijalva/jwt-go)
-- xorm (github.com/go-xorm/xorm)
-- grbac (github.com/storyicon/grbac)
-- statik (github.com/rakyll/statik)
-- oss (github.com/aliyun/aliyun-oss-go-sdk/oss)
+## Install the pre-compiled binary
 
-## Install
-
-### Binary
-Download the appropriate binary for your platform from the [Releases](https://github.com/saltbo/zpan/releases) page
+**homebrew tap**:
 
 ```bash
-cp config.yaml.tpl config.yaml
-vi config.yaml  #setup your configs
-./zpan
+brew install saltbo/bin/uptoc
 ```
 
-### Source
-
-> depend on [Golang](https://golang.org/dl/) compiler environment
+**homebrew** (may not be the latest version):
 
 ```bash
-git clone https://github.com/saltbo/zpan.git
-cd zpan && make && make install
+brew install uptoc
 ```
+
+**deb/rpm**:
+
+Download the `.deb` or `.rpm` from the [releases page](https://github.com/saltbo/github.com/saltbo/zpan/releases) and
+install with `dpkg -i` and `rpm -i` respectively.
+
+**manually**:
+
+Download the pre-compiled binaries from the [releases page](https://github.com/saltbo/github.com/saltbo/zpan/releases) and
+copy to the desired location.
 
 ## Usage
-```bash
-make run
-```
 
+## Contributing
+See [CONTRIBUTING](CONTRIBUTING.md) for details on submitting patches and the contribution workflow.
 
 ## Contact us
 - [Author Blog](https://saltbo.cn).
 
 ## Author
-- [Saltbo](https://github.com/saltbo)
+- [saltbo](https://github.com/saltbo)
 
 ## License
-- [MIT](https://github.com/saltbo/zpan/blob/master/LICENSE)
+- [MIT](https://github.com/saltbo/github.com/saltbo/zpan/blob/master/LICENSE)

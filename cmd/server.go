@@ -1,76 +1,77 @@
-package main
+/*
+Copyright © 2020 Ambor <saltbo@foxmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+package cmd
 
 import (
 	"log"
-	"math/rand"
-	"os"
-	"time"
 
-	"github.com/urfave/cli"
+	"github.com/saltbo/gopkg/ginutil"
+	"github.com/spf13/cobra"
 
-	"zpan/api"
-	"zpan/config"
-	"zpan/dao"
-	"zpan/disk"
-	"zpan/version"
+	"github.com/saltbo/zpan/config"
+	"github.com/saltbo/zpan/dao"
+	"github.com/saltbo/zpan/disk"
+	"github.com/saltbo/zpan/rest"
 )
 
-const (
-	// uploader configs
-	UPTOC_UPLOADER_OSS = "alioss"
-)
-
-var (
-	appFlags = []cli.Flag{
-		cli.StringFlag{
-			Name:  "config,c",
-			Usage: "specify path of the config file. default: config.yaml",
-			Value: "config.yaml",
-		},
-	}
-)
-
-func main() {
-	app := cli.NewApp()
-	app.Name = "zpan"
-	app.Usage = "A cloud disk base on the cloud storage."
-	app.Copyright = "(c) 2019 zpan.saltbo.cn"
-	app.Compiled = time.Now()
-	app.Version = version.Short
-	app.Flags = appFlags
-	app.Action = serve
-	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func serve(c *cli.Context) {
-	rand.Seed(time.Now().UnixNano())
-	conf := config.Parse(c.String("config"))
-	dao.Init(conf.MySqlDSN)
-
-	// select provider
-	var provider disk.Provider
-	switch conf.Provider.Name {
-	case UPTOC_UPLOADER_OSS:
-		ossProvider, err := disk.NewAliOss(conf.Provider)
+// serverCmd represents the server command
+var serverCmd = &cobra.Command{
+	Use:   "server",
+	Short: "A cloud disk base on the cloud storage.",
+	Run: func(cmd *cobra.Command, args []string) {
+		conf := config.Parse()
+		dao.Init(conf.MySqlDSN)
+		rs, err := ginutil.NewServer(":8080")
 		if err != nil {
 			log.Fatalln(err)
 		}
 
-		provider = ossProvider
-	default:
-		log.Fatalf("provider %s not support.", conf.Provider.Name)
-	}
+		diskProvider, err := disk.New(conf.Provider)
+		if err != nil {
+			log.Fatalln(err)
+		}
 
-	// init restServer
-	rs, err := api.NewRest(conf)
-	if err != nil {
-		log.Fatalln(err)
-	}
+		rs.SetupResource("/api",
+			rest.NewFileResource(conf.Provider.Bucket, diskProvider),
+			rest.NewShareResource(),
+			rest.NewURLResource(conf, diskProvider),
+			rest.NewUserResource(),
+		)
+		if err := rs.Run(); err != nil {
+			log.Fatal(err)
+		}
+	},
+}
 
-	rs.SetupProvider(provider)
-	if err := rs.Run(); err != nil {
-		log.Fatal(err)
-	}
+func init() {
+	rootCmd.AddCommand(serverCmd)
+
+	// Here you will define your flags and configuration settings.
+
+	// Cobra supports Persistent Flags which will work for this command
+	// and all subcommands, e.g.:
+	// serverCmd.PersistentFlags().String("foo", "", "A help for foo")
+
+	// Cobra supports local flags which will only run when this command
+	// is called directly, e.g.:
+	// serverCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

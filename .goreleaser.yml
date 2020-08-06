@@ -1,0 +1,62 @@
+dist: ./build/release
+before:
+  hooks:
+    - go mod download
+builds:
+  - id: server
+    main: ./cmd/main.go
+    ldflags:
+      - -s -w -X cmd.release={{.Version}} -X cmd.commit={{.Commit}} -X cmd.repo={{.GitURL}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    replacements:
+      darwin: macos
+    format: tar.gz
+    format_overrides:  # archive as zip on Windows
+      - goos: windows
+        format: zip
+    files:
+      - none*
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: desc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+brews:
+  - github:
+      owner: saltbo
+      name: homebrew-bin
+    commit_author:
+      name: Ambor
+      email: saltbo@foxmail.com
+    folder: Formula
+    homepage: https://github.com/saltbo/goproject
+    description: Convenient static file deployment tool that supports multiple platforms
+    test: |
+      system "#{bin}/uptoc", "--version"
+nfpms:
+  - file_name_template: '{{ .ProjectName }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    homepage: https://github.com/saltbo/goproject
+    description: Convenient static file deployment tool that supports multiple platforms
+    maintainer: Ambor <saltbo@foxmail.com>
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    dependencies:
+      - git
+    recommends:
+      - golang
