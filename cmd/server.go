@@ -40,7 +40,7 @@ var serverCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := config.Parse()
 		dao.Init(conf.MySqlDSN)
-		rs, err := ginutil.NewServer(":8080")
+		rs, err := ginutil.NewServer(":8222")
 		if err != nil {
 			log.Fatalln(err)
 		}

@@ -20,7 +20,7 @@ type QueryFiles struct {
 
 type QueryFolder struct {
 	QueryPage
-	Parent string `form:"parent" binding:"exists"`
+	Parent string `form:"parent"`
 }
 
 type BodySignup struct {
@@ -50,14 +50,14 @@ type BodyResetPassword struct {
 
 type QueryMatter struct {
 	Name string `form:"name" binding:"required"`
-	Type string `form:"type" binding:"exists"`
-	Size int64  `form:"size" binding:"exists"`
-	Dir  string `form:"dir" binding:"exists"`
+	Type string `form:"type"`
+	Size int64  `form:"size"`
+	Dir  string `form:"dir"`
 }
 
 type BodyFolder struct {
 	Name string `json:"name" binding:"required"`
-	Dir  string `json:"dir" binding:"exists"`
+	Dir  string `json:"dir"`
 }
 
 type BodyFile struct {
@@ -65,13 +65,13 @@ type BodyFile struct {
 	Name   string `json:"name" binding:"required"`
 	Type   string `json:"type" binding:"required"`
 	Size   int64  `json:"size" binding:"required"`
-	Dir    string `json:"dir" binding:"exists"`
+	Dir    string `json:"dir"`
 	Object string `json:"object" binding:"required"`
 }
 
 type BodyFileOperation struct {
 	Id     int64  `json:"id" binding:"required"`
-	Dest   string `json:"dest" binding:"exists"`
+	Dest   string `json:"dest"`
 	Action int64  `json:"action" binding:"required"`
 }
 
