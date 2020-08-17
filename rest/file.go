@@ -5,11 +5,13 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jinzhu/gorm"
+	"github.com/saltbo/gopkg/gormutil"
 
 	"github.com/saltbo/gopkg/ginutil"
 
-	"github.com/saltbo/zpan/dao"
 	"github.com/saltbo/zpan/disk"
+	"github.com/saltbo/zpan/service"
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
@@ -78,10 +80,10 @@ func (f *FileResource) findAll(c *gin.Context) {
 		query += " and type like ?"
 		params = append(params, p.Type+"%")
 	}
-	fmt.Println(params)
-	sn := dao.DB.Where(query, params...).Limit(p.Limit, p.Offset)
-	total, err := sn.Desc("dirtype").Asc("id").FindAndCount(&list)
-	if err != nil {
+
+	var total int64
+	sn := gormutil.DB().Debug().Where(query, params...).Find(&list).Count(&total)
+	if err := sn.Order("dirtype desc, id asc").Limit(p.Limit).Offset(p.Offset).Error; err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -96,10 +98,11 @@ func (f *FileResource) findFolders(c *gin.Context) {
 		return
 	}
 
+	var total int64
 	list := make([]model.Matter, 0)
 	query := "uid=? and dirtype=? and parent=?"
-	sn := dao.DB.Where(query, c.GetInt64("uid"), DIRTYPE_USER, p.Parent)
-	total, err := sn.Limit(p.Limit, p.Offset).FindAndCount(&list)
+	sn := gormutil.DB().Where(query, c.GetInt64("uid"), DIRTYPE_USER, p.Parent).Find(&list).Count(&total)
+	err := sn.Limit(p.Limit).Offset(p.Offset).Error
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -116,18 +119,18 @@ func (f *FileResource) createFolder(c *gin.Context) {
 	}
 
 	uid := c.GetInt64("uid")
-	if !dao.DirExist(uid, p.Dir) {
+	if !service.DirExist(uid, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("direction %s not exist", p.Dir))
 		return
 	}
 
-	m := model.Matter{
+	m := &model.Matter{
 		Uid:     uid,
 		Dirtype: DIRTYPE_USER,
 		Name:    p.Name,
 		Parent:  p.Dir,
 	}
-	if _, err := dao.DB.Insert(m); err != nil {
+	if err := gormutil.DB().Create(m).Error; err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -142,50 +145,39 @@ func (f *FileResource) fileCallback(c *gin.Context) {
 		return
 	}
 
-	user := new(model.User)
-	if exist, err := dao.DB.Id(p.Uid).Get(user); err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	} else if !exist {
-		ginutil.JSONBadRequest(c, fmt.Errorf("user not exist"))
+	storage := new(model.Storage)
+	if gormutil.DB().First(storage, "user_id=?", p.Uid).RecordNotFound() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("storage not exist"))
 		return
 	}
 
-	exist, err := dao.DB.Where("object=?", p.Object).Exist(&model.Matter{})
-	if err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	} else if exist {
-		ginutil.JSONBadRequest(c, fmt.Errorf("object %s already exist.", p.Object))
+	if !gormutil.DB().First(&model.Matter{}, "object=?", p.Object).RecordNotFound() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("object %s already exist", p.Object))
 		return
 	}
 
-	session := dao.DB.NewSession()
-	defer session.Close()
+	fc := func(tx *gorm.DB) error {
+		m := &model.Matter{
+			Uid:    p.Uid,
+			Name:   p.Name,
+			Type:   p.Type,
+			Size:   p.Size,
+			Parent: p.Dir,
+			Object: p.Object,
+		}
+		if err := tx.Create(m).Error; err != nil {
+			return err
+		}
 
-	m := model.Matter{
-		Uid:    p.Uid,
-		Name:   p.Name,
-		Type:   p.Type,
-		Size:   p.Size,
-		Parent: p.Dir,
-		Object: p.Object,
-	}
-	if _, err := session.Insert(m); err != nil {
-		_ = session.Rollback()
-		ginutil.JSONServerError(c, err)
-		return
-	}
+		// update the service todo add lock for concurrent
+		storageUsed := storage.Used + uint64(p.Size)
+		if err := tx.Model(storage).Update("used", storageUsed).Error; err != nil {
+			return err
+		}
 
-	// update the storage
-	user.StorageUsed += uint64(p.Size)
-	if _, err := session.ID(p.Uid).Cols("storage_used").Update(user); err != nil {
-		_ = session.Rollback()
-		ginutil.JSONBadRequest(c, err)
-		return
+		return nil
 	}
-
-	if err := session.Commit(); err != nil {
+	if err := gormutil.DB().Transaction(fc); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -200,7 +192,7 @@ func (f *FileResource) fileOperation(c *gin.Context) {
 		return
 	}
 
-	file, err := dao.FileGet(c.GetInt64("uid"), p.Id)
+	file, err := service.FileGet(c.GetInt64("uid"), p.Id)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -208,12 +200,12 @@ func (f *FileResource) fileOperation(c *gin.Context) {
 
 	switch p.Action {
 	case OPERATION_COPY:
-		err = dao.FileCopy(file, p.Dest)
+		err = service.FileCopy(file, p.Dest)
 	case OPERATION_MOVE:
-		err = dao.FileMove(file.Id, p.Dest)
+		err = service.FileMove(file.Id, p.Dest)
 	case OPERATION_RENAME:
 		if file.Dirtype > 0 {
-			if err := dao.DirRename(file.Id, p.Dest); err != nil {
+			if err := service.DirRename(file.Id, p.Dest); err != nil {
 				ginutil.JSONServerError(c, err)
 				return
 			}
@@ -227,7 +219,7 @@ func (f *FileResource) fileOperation(c *gin.Context) {
 			ginutil.JSONServerError(c, err)
 			return
 		}
-		err = dao.FileRename(file.Id, p.Dest)
+		err = service.FileRename(file.Id, p.Dest)
 	default:
 		err = fmt.Errorf("invalid operation")
 	}
@@ -244,13 +236,13 @@ func (f *FileResource) delete(c *gin.Context) {
 	uid := c.GetInt64("uid")
 	fileId := c.Param("id")
 
-	user := new(model.User)
-	if _, err := dao.DB.Id(uid).Get(user); err != nil {
-		ginutil.JSONBadRequest(c, err)
+	storage := new(model.Storage)
+	if gormutil.DB().First(storage, "user_id=?", uid).RecordNotFound() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("storage not exist"))
 		return
 	}
 
-	file, err := dao.FileGet(uid, fileId)
+	file, err := service.FileGet(uid, fileId)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -261,25 +253,22 @@ func (f *FileResource) delete(c *gin.Context) {
 		return
 	}
 
-	session := dao.DB.NewSession()
-	defer session.Close()
+	fc := func(tx *gorm.DB) error {
+		// delete for the list
+		if err := tx.Delete(file).Error; err != nil {
+			return err
+		}
 
-	// delete for the list
-	if _, err := session.ID(file.Id).Delete(file); err != nil {
-		_ = session.Rollback()
-		ginutil.JSONServerError(c, err)
-		return
+		// update the user service todo add lock for concurrent
+		storageUsed := storage.Used - uint64(file.Size)
+		if err := tx.Model(storage).Update("used", storageUsed).Error; err != nil {
+			return err
+		}
+
+		return nil
 	}
 
-	// update the user storage
-	user.StorageUsed -= uint64(file.Size)
-	if _, err := session.ID(file.Uid).Cols("storage_used").Update(user); err != nil {
-		_ = session.Rollback()
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	if err := session.Commit(); err != nil {
+	if err := gormutil.DB().Transaction(fc); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

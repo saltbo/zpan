@@ -12,10 +12,9 @@ import (
 	uuid "github.com/satori/go.uuid"
 
 	"github.com/saltbo/zpan/config"
-	"github.com/saltbo/zpan/dao"
 	"github.com/saltbo/zpan/disk"
-	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
+	"github.com/saltbo/zpan/service"
 )
 
 type URLResource struct {
@@ -54,15 +53,12 @@ func (rs *URLResource) uploadURL(c *gin.Context) {
 	}
 
 	uid := c.GetInt64("uid")
-	user := new(model.User)
-	if _, err := dao.DB.Id(uid).Get(user); err != nil {
-		ginutil.JSONServerError(c, err)
+	if err := service.StorageQuotaVerify(uid, p.Size); err != nil {
+		ginutil.JSONBadRequest(c, err)
 		return
-	} else if user.StorageUsed+uint64(p.Size) >= user.StorageMax {
-		ginutil.JSONBadRequest(c, fmt.Errorf("storage not enough space"))
 	}
 
-	if !dao.DirExist(uid, p.Dir) {
+	if !service.DirExist(uid, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("direction %s not exist.", p.Dir))
 	}
 
@@ -94,7 +90,7 @@ func (rs *URLResource) downloadURL(c *gin.Context) {
 	uid := c.GetInt64("uid")
 	fileId := c.Param("id")
 
-	file, err := dao.FileGet(uid, fileId)
+	file, err := service.FileGet(uid, fileId)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return

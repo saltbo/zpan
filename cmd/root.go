@@ -36,7 +36,7 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "zpan",
-	Short: "zpan is a cloud disk base on the cloud storage.",
+	Short: "zpan is a cloud disk base on the cloud service.",
 	Long: `Zpan is a cloud disk server 
 built with love by saltbo and friends in Go.
 

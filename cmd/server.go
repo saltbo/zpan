@@ -22,39 +22,43 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/saltbo/gopkg/ginutil"
+	"github.com/saltbo/gopkg/gormutil"
 	"github.com/spf13/cobra"
 
 	"github.com/saltbo/zpan/config"
-	"github.com/saltbo/zpan/dao"
 	"github.com/saltbo/zpan/disk"
+	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest"
 )
 
 // serverCmd represents the server command
 var serverCmd = &cobra.Command{
 	Use:   "server",
-	Short: "A cloud disk base on the cloud storage.",
+	Short: "A cloud disk base on the cloud service.",
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := config.Parse()
-		dao.Init(conf.MySqlDSN)
-		rs, err := ginutil.NewServer(":8222")
-		if err != nil {
-			log.Fatalln(err)
-		}
+		gormutil.Init(conf.Database,
+			&model.Matter{},
+			&model.Share{},
+			&model.Storage{},
+		)
 
+		fmt.Println(conf.Provider)
 		diskProvider, err := disk.New(conf.Provider)
 		if err != nil {
 			log.Fatalln(err)
 		}
 
-		rs.SetupResource("/api",
+		rs := ginutil.NewServer(":8222")
+		rs.SetupGroupRS("/api",
 			rest.NewFileResource(conf.Provider.Bucket, diskProvider),
 			rest.NewShareResource(),
 			rest.NewURLResource(conf, diskProvider),
-			rest.NewUserResource(),
+			rest.NewStorageResource(),
 		)
 		if err := rs.Run(); err != nil {
 			log.Fatal(err)

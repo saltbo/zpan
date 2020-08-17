@@ -1,10 +1,12 @@
-host: http://local.frpx.saltbo.cn:1080
-mysqldsn: root:admin@tcp(127.0.0.1:3306)/zpan?charset=utf8&interpolateParams=true
+siteHost: http://inlets.saltbo.cn
+database:
+  driver: mysql
+  dsn: root:admin@tcp(127.0.0.1:3306)/zpan?charset=utf8&parseTime=True&loc=Local
 
 provider:
   name: alioss
   bucket: saltbo-zpan-test
   endpoint: https://oss-cn-zhangjiakou.aliyuncs.com
-  access_key: LTAI4FxxxxxxxxxxxxBXmS3
-  access_secret: Vt1FZgXxxxxxxxxxxxxxxx380AI
+  accessKey: LTAI4FxxxxxxxxxxxxBXmS3
+  accessSecret: Vt1FZgXxxxxxxxxxxxxxxx380AI
 

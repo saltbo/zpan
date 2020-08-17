@@ -6,9 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
+	"github.com/saltbo/gopkg/gormutil"
 	"github.com/saltbo/gopkg/randutil"
-
-	"github.com/saltbo/zpan/dao"
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
@@ -33,10 +32,7 @@ func (rs *ShareResource) find(c *gin.Context) {
 	secret := c.Query("secret")
 
 	share := new(model.Share)
-	if exist, err := dao.DB.Where("alias=?", c.Param("alias")).Get(share); err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	} else if !exist {
+	if gormutil.DB().First(share, "alias=?", c.Param("alias")).RecordNotFound() {
 		ginutil.JSONBadRequest(c, fmt.Errorf("share not found"))
 		return
 	} else if secret == "" && share.Secret != "" {
@@ -51,10 +47,7 @@ func (rs *ShareResource) find(c *gin.Context) {
 	}
 
 	matter := new(model.Matter)
-	if exist, err := dao.DB.Id(share.MatterId).Get(matter); err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	} else if !exist {
+	if gormutil.DB().First(matter, "id=?", share.MatterId).RecordNotFound() {
 		ginutil.JSONBadRequest(c, fmt.Errorf("matter not exist"))
 		return
 	}
@@ -69,10 +62,10 @@ func (rs *ShareResource) findAll(c *gin.Context) {
 		return
 	}
 
+	var total int64
 	list := make([]model.Share, 0)
-	sn := dao.DB.Limit(p.Limit, p.Offset)
-	total, err := sn.FindAndCount(&list)
-	if err != nil {
+	sn := gormutil.DB().Count(&total)
+	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
@@ -88,10 +81,7 @@ func (rs *ShareResource) create(c *gin.Context) {
 	}
 
 	matter := new(model.Matter)
-	if exist, err := dao.DB.Id(p.MId).Get(matter); err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	} else if !exist {
+	if gormutil.DB().First(matter, "id=?", p.MId).RecordNotFound() {
 		ginutil.JSONBadRequest(c, fmt.Errorf("matter not found"))
 		return
 	}
@@ -106,7 +96,7 @@ func (rs *ShareResource) create(c *gin.Context) {
 	if p.Private {
 		m.Secret = randutil.RandString(5)
 	}
-	if _, err := dao.DB.Insert(m); err != nil {
+	if err := gormutil.DB().Create(m).Error; err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -122,10 +112,7 @@ func (rs *ShareResource) update(c *gin.Context) {
 	}
 
 	share := new(model.Share)
-	if exist, err := dao.DB.Id(p.Id).Get(share); err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	} else if !exist {
+	if gormutil.DB().First(share, "id=?", p.Id).RecordNotFound() {
 		ginutil.JSONBadRequest(c, fmt.Errorf("share not found"))
 		return
 	}
@@ -134,7 +121,7 @@ func (rs *ShareResource) update(c *gin.Context) {
 		share.Secret = randutil.RandString(5)
 	}
 
-	if _, err := dao.DB.Id(share.Id).Update(share); err != nil {
+	if err := gormutil.DB().Update(share).Error; err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -146,14 +133,12 @@ func (rs *ShareResource) delete(c *gin.Context) {
 	alias := c.Param("alias")
 
 	share := new(model.Share)
-	if exist, err := dao.DB.Where("alias=?", alias).Get(share); err != nil {
-		ginutil.JSONBadRequest(c, err)
+	if gormutil.DB().First(share, "alias=?", alias).RecordNotFound() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("share not exist"))
 		return
-	} else if !exist {
-		ginutil.JSONBadRequest(c, fmt.Errorf("matter not found"))
 	}
 
-	if _, err := dao.DB.Id(share.Id).Delete(share); err != nil {
+	if err := gormutil.DB().Delete(share, "id=?", share.Id).Error; err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
