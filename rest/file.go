@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	"github.com/saltbo/gopkg/gormutil"
+	moreu "github.com/saltbo/moreu/client"
 
 	"github.com/saltbo/gopkg/ginutil"
 
@@ -69,7 +70,7 @@ func (f *FileResource) findAll(c *gin.Context) {
 
 	list := make([]model.Matter, 0)
 	query := "uid=? and dirtype!=?"
-	params := []interface{}{c.GetInt64("uid"), DIRTYPE_SYS}
+	params := []interface{}{moreu.GetUserId(c), DIRTYPE_SYS}
 	if !p.Search {
 		query += " and parent=?"
 		params = append(params, p.Dir)
@@ -101,7 +102,7 @@ func (f *FileResource) findFolders(c *gin.Context) {
 	var total int64
 	list := make([]model.Matter, 0)
 	query := "uid=? and dirtype=? and parent=?"
-	sn := gormutil.DB().Where(query, c.GetInt64("uid"), DIRTYPE_USER, p.Parent).Find(&list).Count(&total)
+	sn := gormutil.DB().Where(query, moreu.GetUserId(c), DIRTYPE_USER, p.Parent).Find(&list).Count(&total)
 	err := sn.Limit(p.Limit).Offset(p.Offset).Error
 	if err != nil {
 		ginutil.JSONServerError(c, err)
@@ -118,7 +119,7 @@ func (f *FileResource) createFolder(c *gin.Context) {
 		return
 	}
 
-	uid := c.GetInt64("uid")
+	uid := moreu.GetUserId(c)
 	if !service.DirExist(uid, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("direction %s not exist", p.Dir))
 		return
@@ -192,7 +193,7 @@ func (f *FileResource) fileOperation(c *gin.Context) {
 		return
 	}
 
-	file, err := service.FileGet(c.GetInt64("uid"), p.Id)
+	file, err := service.FileGet(moreu.GetUserId(c), p.Id)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -233,7 +234,7 @@ func (f *FileResource) fileOperation(c *gin.Context) {
 }
 
 func (f *FileResource) delete(c *gin.Context) {
-	uid := c.GetInt64("uid")
+	uid := moreu.GetUserId(c)
 	fileId := c.Param("id")
 
 	storage := new(model.Storage)

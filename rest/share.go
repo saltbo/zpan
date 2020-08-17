@@ -8,6 +8,7 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/saltbo/gopkg/randutil"
+	moreu "github.com/saltbo/moreu/client"
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
@@ -88,7 +89,7 @@ func (rs *ShareResource) create(c *gin.Context) {
 
 	m := model.Share{
 		Alias:    randutil.RandString(12),
-		Uid:      c.GetInt64("uid"),
+		Uid:      moreu.GetUserId(c),
 		MatterId: matter.Id,
 		Name:     matter.Name,
 		ExpireAt: time.Now().Add(time.Second * time.Duration(p.ExpireSec)),

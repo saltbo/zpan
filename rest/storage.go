@@ -4,9 +4,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
+	moreu "github.com/saltbo/moreu/client"
 
 	"github.com/saltbo/zpan/model"
 )
+
+const defaultSize = uint64(50 * 1024 * 1024)
 
 type StorageResource struct {
 }
@@ -16,15 +19,16 @@ func NewStorageResource() *StorageResource {
 }
 
 func (rs *StorageResource) Register(router *gin.RouterGroup) {
-	router.GET("/storage/:uid", rs.find)
+	router.GET("/storage", rs.find)
 }
 
 func (rs *StorageResource) find(c *gin.Context) {
-	userId := c.Param("uid")
-
-	storage := new(model.Storage)
-	if err := gormutil.DB().First(storage, "user_id=?", userId).Error; err != nil {
-		ginutil.JSONBadRequest(c, err)
+	storage := &model.Storage{
+		UserId: moreu.GetUserId(c),
+		Max:    defaultSize,
+	}
+	if err := gormutil.DB().FirstOrCreate(storage, "user_id=?", storage.UserId).Error; err != nil {
+		ginutil.JSONServerError(c, err)
 		return
 	}
 

@@ -1,4 +1,5 @@
 siteHost: http://inlets.saltbo.cn
+storeHost: http://dl.saltbo.cn
 database:
   driver: mysql
   dsn: root:admin@tcp(127.0.0.1:3306)/zpan?charset=utf8&parseTime=True&loc=Local
@@ -7,6 +8,6 @@ provider:
   name: alioss
   bucket: saltbo-zpan-test
   endpoint: https://oss-cn-zhangjiakou.aliyuncs.com
-  accessKey: LTAI4FxxxxxxxxxxxxBXmS3
-  accessSecret: Vt1FZgXxxxxxxxxxxxxxxx380AI
+  accessKey: LTAI4FbdK2wD1fe9nknL7YoV
+  accessSecret: PFGVwwpAFYaYz7la3vgckr472Rd09u
 

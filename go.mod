@@ -8,6 +8,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/saltbo/gopkg v0.0.0-20200817013558-116ba552a859
+	github.com/saltbo/moreu v0.0.0-20200817174342-1945e1cfc2cd
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.1

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
+	moreu "github.com/saltbo/moreu/client"
 	uuid "github.com/satori/go.uuid"
 
 	"github.com/saltbo/zpan/config"
@@ -52,7 +53,7 @@ func (rs *URLResource) uploadURL(c *gin.Context) {
 		return
 	}
 
-	uid := c.GetInt64("uid")
+	uid := moreu.GetUserId(c)
 	if err := service.StorageQuotaVerify(uid, p.Size); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -87,7 +88,7 @@ func (rs *URLResource) uploadURL(c *gin.Context) {
 }
 
 func (rs *URLResource) downloadURL(c *gin.Context) {
-	uid := c.GetInt64("uid")
+	uid := moreu.GetUserId(c)
 	fileId := c.Param("id")
 
 	file, err := service.FileGet(uid, fileId)
