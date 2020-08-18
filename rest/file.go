@@ -53,8 +53,8 @@ func NewFileResource(bucketName string, provider disk.Provider) ginutil.Resource
 
 func (f *FileResource) Register(router *gin.RouterGroup) {
 	router.GET("/files", f.findAll)
-	router.POST("/files/callback", f.fileCallback)
-	router.POST("/files/operation", f.fileOperation)
+	router.POST("/files", f.create)
+	router.PATCH("/files", f.patch) // todo 如何符合restful规范？
 	router.DELETE("/files/:id", f.delete)
 
 	router.GET("/folders", f.findFolders)
@@ -122,7 +122,7 @@ func (f *FileResource) createFolder(c *gin.Context) {
 	}
 
 	uid := moreu.GetUserId(c)
-	if !service.DirExist(uid, p.Dir) {
+	if service.DirNotExist(uid, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("direction %s not exist", p.Dir))
 		return
 	}
@@ -141,18 +141,13 @@ func (f *FileResource) createFolder(c *gin.Context) {
 	ginutil.JSON(c)
 }
 
-func (f *FileResource) fileCallback(c *gin.Context) {
+func (f *FileResource) create(c *gin.Context) {
 	p := new(bind.BodyFile)
 	if err := c.ShouldBindJSON(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
-
-	storage := new(model.Storage)
-	if gormutil.DB().First(storage, "user_id=?", p.Uid).RecordNotFound() {
-		ginutil.JSONBadRequest(c, fmt.Errorf("storage not exist"))
-		return
-	}
+	// todo add valid for the callback
 
 	if !gormutil.DB().First(&model.Matter{}, "object=?", p.Object).RecordNotFound() {
 		ginutil.JSONBadRequest(c, fmt.Errorf("object %s already exist", p.Object))
@@ -172,9 +167,13 @@ func (f *FileResource) fileCallback(c *gin.Context) {
 			return err
 		}
 
-		// update the service todo add lock for concurrent
-		storageUsed := storage.Used + uint64(p.Size)
-		if err := tx.Model(storage).Update("used", storageUsed).Error; err != nil {
+		// update the service
+		storage := new(model.Storage)
+		if gormutil.DB().First(storage, "user_id=?", p.Uid).RecordNotFound() {
+			return fmt.Errorf("storage not exist")
+		}
+
+		if err := tx.Model(storage).Update("used", gorm.Expr("used+?", p.Size)).Error; err != nil {
 			return err
 		}
 
@@ -188,14 +187,14 @@ func (f *FileResource) fileCallback(c *gin.Context) {
 	ginutil.JSON(c)
 }
 
-func (f *FileResource) fileOperation(c *gin.Context) {
+func (f *FileResource) patch(c *gin.Context) {
 	p := new(bind.BodyFileOperation)
 	if err := c.ShouldBindJSON(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	file, err := service.FileGet(moreu.GetUserId(c), p.Id)
+	file, err := service.UserFileGet(moreu.GetUserId(c), p.Id)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -239,13 +238,7 @@ func (f *FileResource) delete(c *gin.Context) {
 	uid := moreu.GetUserId(c)
 	fileId := c.Param("id")
 
-	storage := new(model.Storage)
-	if gormutil.DB().First(storage, "user_id=?", uid).RecordNotFound() {
-		ginutil.JSONBadRequest(c, fmt.Errorf("storage not exist"))
-		return
-	}
-
-	file, err := service.FileGet(uid, fileId)
+	file, err := service.UserFileGet(uid, fileId)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -262,9 +255,13 @@ func (f *FileResource) delete(c *gin.Context) {
 			return err
 		}
 
-		// update the user service todo add lock for concurrent
-		storageUsed := storage.Used - uint64(file.Size)
-		if err := tx.Model(storage).Update("used", storageUsed).Error; err != nil {
+		// update the user storage
+		storage := new(model.Storage)
+		if gormutil.DB().First(storage, "user_id=?", uid).RecordNotFound() {
+			return fmt.Errorf("BUG: storage not exist")
+		}
+
+		if err := tx.Model(storage).Update("used", gorm.Expr("used-?", file.Size)).Error; err != nil {
 			return err
 		}
 

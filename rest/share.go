@@ -65,7 +65,8 @@ func (rs *ShareResource) findAll(c *gin.Context) {
 
 	var total int64
 	list := make([]model.Share, 0)
-	sn := gormutil.DB().Count(&total)
+	sn := gormutil.DB()
+	sn.Model(model.Share{}).Count(&total)
 	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -87,7 +88,7 @@ func (rs *ShareResource) create(c *gin.Context) {
 		return
 	}
 
-	m := model.Share{
+	m := &model.Share{
 		Alias:    randutil.RandString(12),
 		Uid:      moreu.GetUserId(c),
 		MatterId: matter.Id,

@@ -1,7 +1,11 @@
 package disk
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 
@@ -14,6 +18,8 @@ var urlEncode = url.QueryEscape
 
 type AliOss struct {
 	cli *oss.Client
+
+	callback string
 }
 
 func newAliOss(conf *config.Provider) (*AliOss, error) {
@@ -36,6 +42,22 @@ func (ao *AliOss) SetLifecycle(bucketName string) error {
 	}
 
 	return ao.cli.SetBucketLifecycle(bucketName, []oss.LifecycleRule{rule})
+}
+
+func (ao *AliOss) BuildCallback(url, body string) string {
+	callbackMap := map[string]string{
+		"callbackUrl":      url,
+		"callbackBodyType": "application/json",
+		"callbackBody":     body,
+	}
+	callbackBuffer := bytes.NewBuffer([]byte{})
+	callbackEncoder := json.NewEncoder(callbackBuffer)
+	callbackEncoder.SetEscapeHTML(false) // do not encode '&' to "\u0026"
+	if err := callbackEncoder.Encode(callbackMap); err != nil {
+		log.Panic(err)
+	}
+
+	return base64.StdEncoding.EncodeToString(callbackBuffer.Bytes())
 }
 
 func (ao *AliOss) UploadURL(bucketName, filename, objectKey, contentType, callback string, publicRead bool) (url string, headers map[string]string, err error) {

@@ -1,11 +1,7 @@
 package rest
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
@@ -18,39 +14,35 @@ import (
 	"github.com/saltbo/zpan/service"
 )
 
-type URLResource struct {
-	provider     disk.Provider
-	bucketName   string
-	StorageHost  string
-	CallbackHost string
+type LinkResource struct {
+	provider   disk.Provider
+	bucketName string
+
+	storageHost  string
+	callbackHost string
 }
 
 func NewURLResource(conf *config.Config, provider disk.Provider) ginutil.Resource {
-	return &URLResource{
+	return &LinkResource{
 		provider:     provider,
 		bucketName:   conf.Provider.Bucket,
-		StorageHost:  conf.StoreHost,
-		CallbackHost: conf.SiteHost,
+		storageHost:  conf.StoreHost,
+		callbackHost: conf.SiteHost,
 	}
 }
 
-func (rs *URLResource) Register(router *gin.RouterGroup) {
-	router.GET("/urls/store-host", rs.storeHost)
-	router.GET("/urls/upload", rs.uploadURL)
-	router.GET("/urls/download/:id", rs.downloadURL)
+func (rs *LinkResource) Register(router *gin.RouterGroup) {
+	router.POST("/links/upload", rs.createUploadURL)
+	router.POST("/links/download", rs.createDownloadURL)
 }
 
-func (rs *URLResource) storeHost(c *gin.Context) {
-	ginutil.JSONData(c, gin.H{
-		"host": rs.StorageHost,
-	})
-}
-
-func (rs *URLResource) uploadURL(c *gin.Context) {
-	p := new(bind.QueryMatter)
-	if err := c.ShouldBindQuery(p); err != nil {
+func (rs *LinkResource) createUploadURL(c *gin.Context) {
+	p := new(bind.BodyUploadLink)
+	if err := c.ShouldBind(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
+	} else if p.Type == "" {
+		p.Type = "application/octet-stream"
 	}
 
 	uid := moreu.GetUserId(c)
@@ -59,8 +51,9 @@ func (rs *URLResource) uploadURL(c *gin.Context) {
 		return
 	}
 
-	if !service.DirExist(uid, p.Dir) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("direction %s not exist.", p.Dir))
+	if service.DirNotExist(uid, p.Dir) {
+		ginutil.JSONBadRequest(c, fmt.Errorf("direction %s not exist", p.Dir))
+		return
 	}
 
 	publicRead := false
@@ -68,12 +61,11 @@ func (rs *URLResource) uploadURL(c *gin.Context) {
 		publicRead = true
 	}
 
-	if p.Type == "" {
-		p.Type = "application/octet-stream"
-	}
-
 	object := fmt.Sprintf("%d/%s", uid, uuid.NewV4().String())
-	callback := rs.buildCallback(uid, p.Name, p.Type, p.Dir, object)
+	callbackUrl := rs.callbackHost + "/api/files"
+	bodyFormat := `{"uid": %d, "name": "%s", "size": ${size}, "type": "%s","dir": "%s", "object": "%s"}`
+	callbackBody := fmt.Sprintf(bodyFormat, uid, p.Name, p.Type, p.Dir, object)
+	callback := rs.provider.BuildCallback(callbackUrl, callbackBody)
 	url, headers, err := rs.provider.UploadURL(rs.bucketName, p.Name, object, p.Type, callback, publicRead)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
@@ -87,42 +79,26 @@ func (rs *URLResource) uploadURL(c *gin.Context) {
 	})
 }
 
-func (rs *URLResource) downloadURL(c *gin.Context) {
-	uid := moreu.GetUserId(c)
-	fileId := c.Param("id")
+func (rs *LinkResource) createDownloadURL(c *gin.Context) {
+	p := new(bind.BodyDownloadLink)
+	if err := c.ShouldBind(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
 
-	file, err := service.FileGet(uid, fileId)
+	file, err := service.FileGet(p.Id)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	url, err := rs.provider.DownloadURL(rs.bucketName, file.Object)
+	link, err := rs.provider.DownloadURL(rs.bucketName, file.Object)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
 	ginutil.JSONData(c, gin.H{
-		"url": url,
+		"link": link,
 	})
-}
-
-func (rs *URLResource) buildCallback(uid int64, filename, fileType, dir, object string) string {
-	bodyFormat := `{"uid": %d, "name": "%s", "size": ${size}, "type": "%s","dir": "%s", "object": "%s"}`
-	callbackUrl := rs.CallbackHost + "/api/files/callback"
-	callbackBody := fmt.Sprintf(bodyFormat, uid, filename, fileType, dir, object)
-	callbackMap := map[string]string{
-		"callbackUrl":      callbackUrl,
-		"callbackBodyType": "application/json",
-		"callbackBody":     callbackBody,
-	}
-	callbackBuffer := bytes.NewBuffer([]byte{})
-	callbackEncoder := json.NewEncoder(callbackBuffer)
-	callbackEncoder.SetEscapeHTML(false) // do not encode '&' to "\u0026"
-	if err := callbackEncoder.Encode(callbackMap); err != nil {
-		log.Panic(err)
-	}
-
-	return base64.StdEncoding.EncodeToString(callbackBuffer.Bytes())
 }

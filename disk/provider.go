@@ -20,6 +20,7 @@ type Objects []Object
 
 type Provider interface {
 	SetLifecycle(bucketName string) error
+	BuildCallback(url, body string) string
 	UploadURL(bucketName, filename, objectKey, contentType, callback string, publicRead bool) (url string, headers map[string]string, err error)
 	DownloadURL(bucketName, objectKey string) (url string, err error)
 	ListObject(bucketName, prefix, marker string, limit int) (objects Objects, nextMarker string, err error)

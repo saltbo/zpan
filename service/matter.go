@@ -10,21 +10,30 @@ import (
 	"github.com/saltbo/zpan/model"
 )
 
-func DirExist(uid int64, dir string) bool {
+func DirNotExist(uid int64, dir string) bool {
 	if dir == "" {
-		return true
+		return false
 	}
 
 	items := strings.Split(dir, "/")
 	name := items[len(items)-2]
 	parent := strings.TrimSuffix(dir, name+"/")
-	return !gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(&model.Matter{}).RecordNotFound()
+	return gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(&model.Matter{}).RecordNotFound()
 }
 
-func FileGet(uid int64, fileId interface{}) (*model.Matter, error) {
+func FileGet(id interface{}) (*model.Matter, error) {
 	m := new(model.Matter)
-	if gormutil.DB().First(m, "id=?", fileId).RecordNotFound() {
+	if gormutil.DB().First(m, "id=?", id).RecordNotFound() {
 		return nil, fmt.Errorf("file not exist")
+	}
+
+	return m, nil
+}
+
+func UserFileGet(uid int64, id interface{}) (*model.Matter, error) {
+	m, err := FileGet(id)
+	if err != nil {
+		return nil, err
 	} else if m.Uid != uid {
 		return nil, fmt.Errorf("file not belong to you")
 	}
