@@ -86,7 +86,7 @@ func (rs *LinkResource) createDownloadURL(c *gin.Context) {
 		return
 	}
 
-	file, err := service.FileGet(p.Id)
+	file, err := service.FileGet(p.Alias)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return

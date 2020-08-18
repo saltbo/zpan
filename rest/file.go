@@ -29,11 +29,6 @@ var docTypes = []string{
 }
 
 const (
-	DIRTYPE_SYS = iota + 1
-	DIRTYPE_USER
-)
-
-const (
 	OPERATION_COPY = iota + 1
 	OPERATION_MOVE
 	OPERATION_RENAME
@@ -55,7 +50,7 @@ func (f *FileResource) Register(router *gin.RouterGroup) {
 	router.GET("/files", f.findAll)
 	router.POST("/files", f.create)
 	router.PATCH("/files", f.patch) // todo 如何符合restful规范？
-	router.DELETE("/files/:id", f.delete)
+	router.DELETE("/files/:alias", f.delete)
 
 	router.GET("/folders", f.findFolders)
 	router.POST("/folders", f.createFolder)
@@ -70,7 +65,7 @@ func (f *FileResource) findAll(c *gin.Context) {
 
 	list := make([]model.Matter, 0)
 	query := "uid=? and dirtype!=?"
-	params := []interface{}{moreu.GetUserId(c), DIRTYPE_SYS}
+	params := []interface{}{moreu.GetUserId(c), model.DirTypeSys}
 	if !p.Search {
 		query += " and parent=?"
 		params = append(params, p.Dir)
@@ -83,7 +78,7 @@ func (f *FileResource) findAll(c *gin.Context) {
 	}
 
 	var total int64
-	sn := gormutil.DB().Debug().Where(query, params...)
+	sn := gormutil.DB().Where(query, params...)
 	sn.Model(model.Matter{}).Count(&total)
 	sn = sn.Order("dirtype desc")
 	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
@@ -104,7 +99,7 @@ func (f *FileResource) findFolders(c *gin.Context) {
 	var total int64
 	list := make([]model.Matter, 0)
 	query := "uid=? and dirtype=? and parent=?"
-	sn := gormutil.DB().Where(query, moreu.GetUserId(c), DIRTYPE_USER, p.Parent)
+	sn := gormutil.DB().Where(query, moreu.GetUserId(c), model.DirTypeUser, p.Parent)
 	sn.Model(model.Matter{}).Count(&total)
 	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
 		ginutil.JSONServerError(c, err)
@@ -127,13 +122,7 @@ func (f *FileResource) createFolder(c *gin.Context) {
 		return
 	}
 
-	m := &model.Matter{
-		Uid:     uid,
-		Dirtype: DIRTYPE_USER,
-		Name:    p.Name,
-		Parent:  p.Dir,
-	}
-	if err := gormutil.DB().Create(m).Error; err != nil {
+	if err := gormutil.DB().Create(p.ToMatter(uid)).Error; err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -155,15 +144,7 @@ func (f *FileResource) create(c *gin.Context) {
 	}
 
 	fc := func(tx *gorm.DB) error {
-		m := &model.Matter{
-			Uid:    p.Uid,
-			Name:   p.Name,
-			Type:   p.Type,
-			Size:   p.Size,
-			Parent: p.Dir,
-			Object: p.Object,
-		}
-		if err := tx.Create(m).Error; err != nil {
+		if err := tx.Create(p.ToMatter()).Error; err != nil {
 			return err
 		}
 
@@ -194,7 +175,7 @@ func (f *FileResource) patch(c *gin.Context) {
 		return
 	}
 
-	file, err := service.UserFileGet(moreu.GetUserId(c), p.Id)
+	file, err := service.UserFileGet(moreu.GetUserId(c), p.Alias)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -204,10 +185,10 @@ func (f *FileResource) patch(c *gin.Context) {
 	case OPERATION_COPY:
 		err = service.FileCopy(file, p.Dest)
 	case OPERATION_MOVE:
-		err = service.FileMove(file.Id, p.Dest)
+		err = service.FileMove(file, p.Dest)
 	case OPERATION_RENAME:
-		if file.Dirtype > 0 {
-			if err := service.DirRename(file.Id, p.Dest); err != nil {
+		if file.DirType > 0 {
+			if err := service.DirRename(file, p.Dest); err != nil {
 				ginutil.JSONServerError(c, err)
 				return
 			}
@@ -221,7 +202,7 @@ func (f *FileResource) patch(c *gin.Context) {
 			ginutil.JSONServerError(c, err)
 			return
 		}
-		err = service.FileRename(file.Id, p.Dest)
+		err = service.FileRename(file, p.Dest)
 	default:
 		err = fmt.Errorf("invalid operation")
 	}
@@ -236,9 +217,7 @@ func (f *FileResource) patch(c *gin.Context) {
 
 func (f *FileResource) delete(c *gin.Context) {
 	uid := moreu.GetUserId(c)
-	fileId := c.Param("id")
-
-	file, err := service.UserFileGet(uid, fileId)
+	file, err := service.UserFileGet(uid, c.Param("alias"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return

@@ -8,5 +8,5 @@ type BodyUploadLink struct {
 }
 
 type BodyDownloadLink struct {
-	Id int64 `json:"id" binding:"required"`
+	Alias string `json:"alias" binding:"required"`
 }

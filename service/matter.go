@@ -21,17 +21,17 @@ func DirNotExist(uid int64, dir string) bool {
 	return gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(&model.Matter{}).RecordNotFound()
 }
 
-func FileGet(id interface{}) (*model.Matter, error) {
+func FileGet(alias string) (*model.Matter, error) {
 	m := new(model.Matter)
-	if gormutil.DB().First(m, "id=?", id).RecordNotFound() {
+	if gormutil.DB().First(m, "alias=?", alias).RecordNotFound() {
 		return nil, fmt.Errorf("file not exist")
 	}
 
 	return m, nil
 }
 
-func UserFileGet(uid int64, id interface{}) (*model.Matter, error) {
-	m, err := FileGet(id)
+func UserFileGet(uid int64, alias string) (*model.Matter, error) {
+	m, err := FileGet(alias)
 	if err != nil {
 		return nil, err
 	} else if m.Uid != uid {
@@ -41,34 +41,23 @@ func UserFileGet(uid int64, id interface{}) (*model.Matter, error) {
 	return m, nil
 }
 
-func FileCopy(srcFile *model.Matter, dest string) error {
-	m := &model.Matter{
-		Uid:    srcFile.Uid,
-		Name:   srcFile.Name,
-		Type:   srcFile.Type,
-		Size:   srcFile.Size,
-		Parent: dest,
-		Object: srcFile.Object,
-	}
-	return gormutil.DB().Create(m).Error
+func FileCopy(src *model.Matter, dest string) error {
+	nm := src.Clone()
+	nm.Parent = dest
+	return gormutil.DB().Create(nm).Error
 }
 
-func FileMove(id int64, dest string) error {
-	return gormutil.DB().Model(model.Matter{Id: id}).Update("parent", dest).Error
+func FileMove(src *model.Matter, dest string) error {
+	return gormutil.DB().Model(src).Update("parent", dest).Error
 }
 
-func FileRename(id int64, name string) error {
-	return gormutil.DB().Model(model.Matter{Id: id}).Update("name", name).Error
+func FileRename(src *model.Matter, name string) error {
+	return gormutil.DB().Model(src).Update("name", name).Error
 }
 
-func DirRename(id int64, name string) error {
-	matter := new(model.Matter)
-	if gormutil.DB().First(matter, "id=?", id).RecordNotFound() {
-		return fmt.Errorf("matter not exist")
-	}
-
-	oldParent := fmt.Sprintf("%s%s/", matter.Parent, matter.Name)
-	newParent := fmt.Sprintf("%s%s/", matter.Parent, name)
+func DirRename(src *model.Matter, name string) error {
+	oldParent := fmt.Sprintf("%s%s/", src.Parent, src.Name)
+	newParent := fmt.Sprintf("%s%s/", src.Parent, name)
 	list := make([]model.Matter, 0)
 	gormutil.DB().Where("parent like '" + oldParent + "%'").Find(&list)
 
@@ -80,7 +69,7 @@ func DirRename(id int64, name string) error {
 			}
 		}
 
-		if err := tx.Model(matter).Update("name", name).Error; err != nil {
+		if err := tx.Model(src).Update("name", name).Error; err != nil {
 			return err
 		}
 
