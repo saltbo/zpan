@@ -83,8 +83,10 @@ func (f *FileResource) findAll(c *gin.Context) {
 	}
 
 	var total int64
-	sn := gormutil.DB().Debug().Where(query, params...).Find(&list).Count(&total)
-	if err := sn.Order("dirtype desc, id asc").Limit(p.Limit).Offset(p.Offset).Error; err != nil {
+	sn := gormutil.DB().Debug().Where(query, params...)
+	sn.Model(model.Matter{}).Count(&total)
+	sn = sn.Order("dirtype desc")
+	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -102,9 +104,9 @@ func (f *FileResource) findFolders(c *gin.Context) {
 	var total int64
 	list := make([]model.Matter, 0)
 	query := "uid=? and dirtype=? and parent=?"
-	sn := gormutil.DB().Where(query, moreu.GetUserId(c), DIRTYPE_USER, p.Parent).Find(&list).Count(&total)
-	err := sn.Limit(p.Limit).Offset(p.Offset).Error
-	if err != nil {
+	sn := gormutil.DB().Where(query, moreu.GetUserId(c), DIRTYPE_USER, p.Parent)
+	sn.Model(model.Matter{}).Count(&total)
+	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

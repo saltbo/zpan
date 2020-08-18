@@ -2,12 +2,7 @@ package bind
 
 type QueryPage struct {
 	Offset int `form:"offset"`
-	Limit  int `form:"limit"`
-}
-
-type QueryUser struct {
-	QueryPage
-	Name string `form:"name"`
+	Limit  int `form:"limit,default=20"`
 }
 
 type QueryFiles struct {
@@ -18,41 +13,16 @@ type QueryFiles struct {
 	Keyword string `form:"keyword"`
 }
 
-type QueryFolder struct {
-	QueryPage
-	Parent string `form:"parent"`
-}
-
-type BodySignup struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type BodyActivate struct {
-	Email  string `json:"email" binding:"required"`
-	Atoken string `json:"atoken" binding:"required"`
-}
-
-type BodySignin struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-type BodySendRecoverMail struct {
-	Email string `json:"email" binding:"required"`
-}
-
-type BodyResetPassword struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	Rtoken   string `json:"rtoken" binding:"required"`
-}
-
 type QueryMatter struct {
 	Name string `form:"name" binding:"required"`
 	Type string `form:"type"`
 	Size int64  `form:"size"`
 	Dir  string `form:"dir"`
+}
+
+type QueryFolder struct {
+	QueryPage
+	Parent string `form:"parent"`
 }
 
 type BodyFolder struct {
