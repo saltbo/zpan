@@ -66,14 +66,14 @@ func (rs *LinkResource) createUploadURL(c *gin.Context) {
 	bodyFormat := `{"uid": %d, "name": "%s", "size": ${size}, "type": "%s","dir": "%s", "object": "%s"}`
 	callbackBody := fmt.Sprintf(bodyFormat, uid, p.Name, p.Type, p.Dir, object)
 	callback := rs.provider.BuildCallback(callbackUrl, callbackBody)
-	url, headers, err := rs.provider.UploadURL(rs.bucketName, p.Name, object, p.Type, callback, publicRead)
+	link, headers, err := rs.provider.UploadURL(rs.bucketName, p.Name, object, p.Type, callback, publicRead)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
 	ginutil.JSONData(c, gin.H{
-		"url":     url,
+		"link":    link,
 		"object":  object,
 		"headers": headers,
 	})

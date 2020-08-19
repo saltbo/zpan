@@ -10,7 +10,7 @@ type Share struct {
 	Name      string    `json:"name" gorm:"not null"`
 	Alias     string    `json:"alias" gorm:"size:16;not null"`
 	Secret    string    `json:"secret" gorm:"size:16;not null"`
-	MatterId  int64     `json:"matter_id" gorm:"not null"`
+	Matter    string    `json:"matter" gorm:"not null"`
 	DownTimes int64     `json:"down_times" gorm:"not null"`
 	ViewTimes int64     `json:"view_times" gorm:"not null"`
 	ExpireAt  time.Time `json:"expire_at" gorm:"column:expire_at;not null"`

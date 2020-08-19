@@ -48,7 +48,7 @@ func (rs *ShareResource) find(c *gin.Context) {
 	}
 
 	matter := new(model.Matter)
-	if gormutil.DB().First(matter, "id=?", share.MatterId).RecordNotFound() {
+	if gormutil.DB().First(matter, "alias=?", share.Matter).RecordNotFound() {
 		ginutil.JSONBadRequest(c, fmt.Errorf("matter not exist"))
 		return
 	}
@@ -83,7 +83,7 @@ func (rs *ShareResource) create(c *gin.Context) {
 	}
 
 	matter := new(model.Matter)
-	if gormutil.DB().First(matter, "id=?", p.MId).RecordNotFound() {
+	if gormutil.DB().First(matter, "alias=?", p.Matter).RecordNotFound() {
 		ginutil.JSONBadRequest(c, fmt.Errorf("matter not found"))
 		return
 	}
@@ -91,8 +91,8 @@ func (rs *ShareResource) create(c *gin.Context) {
 	m := &model.Share{
 		Alias:    randutil.RandString(12),
 		Uid:      moreu.GetUserId(c),
-		MatterId: matter.Id,
 		Name:     matter.Name,
+		Matter:   matter.Alias,
 		ExpireAt: time.Now().Add(time.Second * time.Duration(p.ExpireSec)),
 	}
 	if p.Private {
