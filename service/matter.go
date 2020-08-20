@@ -41,6 +41,50 @@ func UserFileGet(uid int64, alias string) (*model.Matter, error) {
 	return m, nil
 }
 
+var docTypes = []string{
+	"text/csv",
+	"application/msword",
+	"application/vnd.ms-excel",
+	"application/vnd.ms-powerpoint",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+type Matter struct {
+	query  string
+	params []interface{}
+}
+
+func NewMatter(uid int64) *Matter {
+	return &Matter{
+		query:  "uid=? and dirtype!=?",
+		params: []interface{}{uid, model.DirTypeSys},
+	}
+}
+
+func (m *Matter) SetDir(dir string) {
+	m.query += " and parent=?"
+	m.params = append(m.params, dir)
+}
+
+func (m *Matter) SetType(mt string) {
+	if mt == "doc" {
+		m.query += " and `type` in ('" + strings.Join(docTypes, "','") + "')"
+	} else if mt != "" {
+		m.query += " and type like ?"
+		m.params = append(m.params, mt+"%")
+	}
+}
+
+func (m *Matter) Find(offset, limit int) (list []model.Matter, total int64, err error) {
+	sn := gormutil.DB().Where(m.query, m.params...).Debug()
+	sn.Model(model.Matter{}).Count(&total)
+	sn = sn.Order("dirtype desc")
+	err = sn.Offset(offset).Limit(limit).Find(&list).Error
+	return
+}
+
 func FileCopy(src *model.Matter, dest string) error {
 	nm := src.Clone()
 	nm.Parent = dest

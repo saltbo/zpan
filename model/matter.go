@@ -40,3 +40,7 @@ func (m *Matter) Clone() *Matter {
 	clone := *m
 	return &clone
 }
+
+func (m *Matter) IsDir() bool {
+	return m.DirType > 0
+}

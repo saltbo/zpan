@@ -12,6 +12,7 @@ import (
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
+	"github.com/saltbo/zpan/service"
 )
 
 type ShareResource struct {
@@ -30,20 +31,24 @@ func (rs *ShareResource) Register(router *gin.RouterGroup) {
 }
 
 func (rs *ShareResource) find(c *gin.Context) {
-	secret := c.Query("secret")
+	p := new(bind.QueryShare)
+	if err := c.BindQuery(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
 
 	share := new(model.Share)
 	if gormutil.DB().First(share, "alias=?", c.Param("alias")).RecordNotFound() {
 		ginutil.JSONBadRequest(c, fmt.Errorf("share not found"))
 		return
-	} else if secret == "" && share.Secret != "" {
-		ginutil.JSONData(c, gin.H{"k": "please submit secret."})
+	} else if p.Secret == "" && share.Secret != "" {
+		ginutil.JSONForbidden(c, fmt.Errorf("please submit secret"))
 		return
-	} else if share.Secret != secret {
-		ginutil.JSONBadRequest(c, fmt.Errorf("invalid secret"))
+	} else if share.Secret != p.Secret {
+		ginutil.JSONForbidden(c, fmt.Errorf("invalid secret"))
 		return
 	} else if time.Now().After(share.ExpireAt) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("share expired"))
+		ginutil.JSONForbidden(c, fmt.Errorf("share expired"))
 		return
 	}
 
@@ -53,7 +58,25 @@ func (rs *ShareResource) find(c *gin.Context) {
 		return
 	}
 
-	ginutil.JSONData(c, matter)
+	sm := service.NewMatter(share.Uid)
+	if matter.IsDir() {
+		sm.SetDir(fmt.Sprintf("%s/%s", matter.Name, p.Dir)) // 设置父级目录
+		list, total, err := sm.Find(p.Offset, p.Limit)
+		if err != nil {
+			ginutil.JSONServerError(c, err)
+			return
+		}
+		ginutil.JSONData(c, gin.H{
+			"matter": matter,
+			"list":   list,
+			"total":  total,
+		})
+		return
+	}
+
+	ginutil.JSONData(c, gin.H{
+		"matter": matter,
+	})
 }
 
 func (rs *ShareResource) findAll(c *gin.Context) {
@@ -65,7 +88,7 @@ func (rs *ShareResource) findAll(c *gin.Context) {
 
 	var total int64
 	list := make([]model.Share, 0)
-	sn := gormutil.DB()
+	sn := gormutil.DB().Where("uid=?", moreu.GetUserId(c))
 	sn.Model(model.Share{}).Count(&total)
 	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
 		ginutil.JSONBadRequest(c, err)

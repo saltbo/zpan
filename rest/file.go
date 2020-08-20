@@ -2,7 +2,6 @@ package rest
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
@@ -17,16 +16,6 @@ import (
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
 )
-
-var docTypes = []string{
-	"text/csv",
-	"application/msword",
-	"application/vnd.ms-excel",
-	"application/vnd.ms-powerpoint",
-	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-	"application/vnd.openxmlformats-officedocument.presentationml.presentation",
-}
 
 const (
 	OPERATION_COPY = iota + 1
@@ -63,25 +52,14 @@ func (f *FileResource) findAll(c *gin.Context) {
 		return
 	}
 
-	list := make([]model.Matter, 0)
-	query := "uid=? and dirtype!=?"
-	params := []interface{}{moreu.GetUserId(c), model.DirTypeSys}
+	sm := service.NewMatter(moreu.GetUserId(c))
 	if !p.Search {
-		query += " and parent=?"
-		params = append(params, p.Dir)
-	}
-	if p.Type == "doc" {
-		query += " and `type` in ('" + strings.Join(docTypes, "','") + "')"
+		sm.SetDir(p.Dir)
 	} else if p.Type != "" {
-		query += " and type like ?"
-		params = append(params, p.Type+"%")
+		sm.SetType(p.Type)
 	}
-
-	var total int64
-	sn := gormutil.DB().Where(query, params...)
-	sn.Model(model.Matter{}).Count(&total)
-	sn = sn.Order("dirtype desc")
-	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
+	list, total, err := sm.Find(p.Offset, p.Limit)
+	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
