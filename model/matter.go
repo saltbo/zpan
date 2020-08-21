@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"github.com/saltbo/gopkg/randutil"
+	"github.com/saltbo/gopkg/strutil"
 )
 
 const (
@@ -28,7 +28,7 @@ type Matter struct {
 
 func NewMatter() *Matter {
 	return &Matter{
-		Alias: randutil.RandString(32),
+		Alias: strutil.RandomText(32),
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
-	"github.com/saltbo/gopkg/randutil"
+	"github.com/saltbo/gopkg/strutil"
 	moreu "github.com/saltbo/moreu/client"
 
 	"github.com/saltbo/zpan/model"
@@ -112,14 +112,14 @@ func (rs *ShareResource) create(c *gin.Context) {
 	}
 
 	m := &model.Share{
-		Alias:    randutil.RandString(12),
+		Alias:    strutil.RandomText(12),
 		Uid:      moreu.GetUserId(c),
 		Name:     matter.Name,
 		Matter:   matter.Alias,
 		ExpireAt: time.Now().Add(time.Second * time.Duration(p.ExpireSec)),
 	}
 	if p.Private {
-		m.Secret = randutil.RandString(5)
+		m.Secret = strutil.RandomText(5)
 	}
 	if err := gormutil.DB().Create(m).Error; err != nil {
 		ginutil.JSONServerError(c, err)
@@ -143,7 +143,7 @@ func (rs *ShareResource) update(c *gin.Context) {
 	}
 
 	if p.Private && share.Secret == "" {
-		share.Secret = randutil.RandString(5)
+		share.Secret = strutil.RandomText(5)
 	}
 
 	if err := gormutil.DB().Update(share).Error; err != nil {
