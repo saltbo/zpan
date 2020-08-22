@@ -1,0 +1,22 @@
+host: http://inlets.saltbo.cn/
+moreu: /moreu/front
+secret: 1111
+
+email:
+  host: smtpdm.aliyun.com:25
+  sender: no-reply@saltbo.fun
+  username: Moreu
+  password: mG077URe2Wh9
+
+database:
+  driver: sqlite3
+  dsn: moreu.db
+
+routers:
+  - pattern: /api
+    upstream:
+      address: http://localhost:8222
+
+#statics:
+#  - pattern: /
+#    distDir: ../zpan-front/dist

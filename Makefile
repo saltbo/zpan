@@ -6,7 +6,7 @@ MAINFILE := main.go
 
 all: build
 
-dep: ## Get the dependencies
+mod: ## Get the dependencies
 	@go mod download
 
 lint: ## Lint Golang files
@@ -20,8 +20,8 @@ test: ## Run tests with coverage
 coverage-html: ## show coverage by the html
 	go tool cover -html=.coverprofile
 
-build: dep ## Build the binary file
-	@go build -o build/bin/$(PROJECT) $(MAINFILE)
+build: mod ## Build the binary file
+	@go build -v -o build/bin/$(PROJECT) $(MAINFILE)
 
 clean: ## Remove previous build
 	@rm -rf ./build

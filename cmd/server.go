@@ -25,10 +25,12 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/spf13/cobra"
 
+	_ "github.com/saltbo/zpan/assets"
 	"github.com/saltbo/zpan/config"
 	"github.com/saltbo/zpan/disk"
 	"github.com/saltbo/zpan/model"
@@ -53,16 +55,21 @@ var serverCmd = &cobra.Command{
 			log.Fatalln(err)
 		}
 
-		rs := ginutil.NewServer(":8222")
-		rs.SetupGroupRS("/api",
+		ge := gin.Default()
+		ginutil.SetupEmbedAssets(ge, "/css", "/js", "/fonts")
+
+		simpleRouter := ginutil.NewSimpleRouter()
+		simpleRouter.StaticFS("/", ginutil.EmbedFS())
+
+		ginutil.SetupResource(ge.Group("/api"),
 			rest.NewFileResource(conf.Provider.Bucket, diskProvider),
 			rest.NewShareResource(),
 			rest.NewURLResource(conf, diskProvider),
 			rest.NewStorageResource(),
 		)
-		if err := rs.Run(); err != nil {
-			log.Fatal(err)
-		}
+
+		ge.NoRoute(simpleRouter.Handler)
+		ginutil.Startup(ge, ":8222")
 	},
 }
 
