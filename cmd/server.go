@@ -56,7 +56,8 @@ var serverCmd = &cobra.Command{
 		}
 
 		ge := gin.Default()
-		ginutil.SetupEmbedAssets(ge, "/css", "/js", "/fonts")
+		ginutil.SetupEmbedAssets(ge.Group("/"),
+			"/css", "/js", "/fonts")
 
 		simpleRouter := ginutil.NewSimpleRouter()
 		simpleRouter.StaticFS("/", ginutil.EmbedFS())

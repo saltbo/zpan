@@ -336,6 +336,8 @@ github.com/saltbo/gopkg v0.0.0-20200822132230-ebe13a1e691c h1:FTUkJ4ZhzjtHi3xir0
 github.com/saltbo/gopkg v0.0.0-20200822132230-ebe13a1e691c/go.mod h1:XlRGt9E8qVHi0yMCOoIQBmK6YTJ03BazzIo7DTWgBhU=
 github.com/saltbo/gopkg v0.0.0-20200822175914-b423d3d057ad h1:Ei+eleW75QFIpfnlflBp/mGbCJnNqSrzETdBcveTKws=
 github.com/saltbo/gopkg v0.0.0-20200822175914-b423d3d057ad/go.mod h1:XlRGt9E8qVHi0yMCOoIQBmK6YTJ03BazzIo7DTWgBhU=
+github.com/saltbo/gopkg v0.0.0-20200822181128-2b954cd9e00d h1:YU0mibJM6jucGOcUOWcrooYuXC3ae9XnJ0vi2LezX/Y=
+github.com/saltbo/gopkg v0.0.0-20200822181128-2b954cd9e00d/go.mod h1:XlRGt9E8qVHi0yMCOoIQBmK6YTJ03BazzIo7DTWgBhU=
 github.com/saltbo/moreu v0.0.0-20200817013815-1b989059aee8 h1:qQ0At50HHvfsddUfaXMzRyCId6sagrAv3tzv/iIpAjA=
 github.com/saltbo/moreu v0.0.0-20200817013815-1b989059aee8/go.mod h1:pjDZmNmOo9oO1GO+ZnisFswOFwo7EyoCy6Q/m88tH9g=
 github.com/saltbo/moreu v0.0.0-20200817174342-1945e1cfc2cd h1:fffRZUFJdjGEkcRx1YW4Ev2ZCCPH2XWjpnlZ/RuxF3k=
