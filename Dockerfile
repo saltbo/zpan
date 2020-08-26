@@ -14,6 +14,9 @@ RUN make build
 # Runing environment
 FROM moreu:latest
 
+ENV APP_HOME /zpan
+WORKDIR $APP_HOME
+
 COPY deployments/ .
 COPY --from=builder /src/build/bin/zpan .
 
