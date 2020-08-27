@@ -5,22 +5,15 @@ import (
 
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/spf13/viper"
+
+	"github.com/saltbo/zpan/disk"
 )
 
-// CloudProvider
-type Provider struct {
-	Name         string
-	Bucket       string
-	Endpoint     string
-	AccessKey    string
-	AccessSecret string
-}
-
 type Config struct {
-	SiteHost  string
-	StoreHost string
-	Database  gormutil.Config
-	Provider  *Provider
+	Debug    bool
+	Storage  uint64
+	Database gormutil.Config
+	Provider disk.Config
 }
 
 func Parse() *Config {

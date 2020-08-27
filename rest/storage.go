@@ -9,13 +9,20 @@ import (
 	"github.com/saltbo/zpan/model"
 )
 
-const defaultSize = uint64(50 * 1024 * 1024)
+const defaultSize = 50 << 20
 
 type StorageResource struct {
+	defaultSize uint64
 }
 
-func NewStorageResource() *StorageResource {
-	return &StorageResource{}
+func NewStorageResource(initSize uint64) *StorageResource {
+	if initSize == 0 {
+		initSize = defaultSize
+	}
+
+	return &StorageResource{
+		defaultSize: initSize,
+	}
 }
 
 func (rs *StorageResource) Register(router *gin.RouterGroup) {
@@ -25,7 +32,7 @@ func (rs *StorageResource) Register(router *gin.RouterGroup) {
 func (rs *StorageResource) find(c *gin.Context) {
 	storage := &model.Storage{
 		UserId: moreu.GetUserId(c),
-		Max:    defaultSize,
+		Max:    rs.defaultSize,
 	}
 	if err := gormutil.DB().FirstOrCreate(storage, "user_id=?", storage.UserId).Error; err != nil {
 		ginutil.JSONServerError(c, err)

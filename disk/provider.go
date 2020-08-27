@@ -3,8 +3,6 @@ package disk
 import (
 	"fmt"
 	"time"
-
-	"github.com/saltbo/zpan/config"
 )
 
 type Object struct {
@@ -30,13 +28,21 @@ type Provider interface {
 	DeleteObjects(bucketName string, objectKeys []string) error
 }
 
-type ProviderConstructor func(provider *config.Provider) (*AliOss, error)
-
-var providerConstructors = map[string]ProviderConstructor{
-	"alioss": newAliOss,
+type Config struct {
+	Name         string
+	Bucket       string
+	Endpoint     string
+	AccessKey    string
+	AccessSecret string
 }
 
-func New(provider *config.Provider) (Provider, error) {
+type ProviderConstructor func(provider Config) (*AliOss, error)
+
+var providerConstructors = map[string]ProviderConstructor{
+	"ali-oss": newAliOss,
+}
+
+func New(provider Config) (Provider, error) {
 	if providerConstructor, ok := providerConstructors[provider.Name]; ok {
 		return providerConstructor(provider)
 	}

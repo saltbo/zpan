@@ -21,17 +21,12 @@ import (
 type LinkResource struct {
 	provider   disk.Provider
 	bucketName string
-
-	storageHost  string
-	callbackHost string
 }
 
 func NewURLResource(conf *config.Config, provider disk.Provider) ginutil.Resource {
 	return &LinkResource{
-		provider:     provider,
-		bucketName:   conf.Provider.Bucket,
-		storageHost:  conf.StoreHost,
-		callbackHost: conf.SiteHost,
+		provider:   provider,
+		bucketName: conf.Provider.Bucket,
 	}
 }
 
@@ -74,7 +69,7 @@ func (rs *LinkResource) createUploadURL(c *gin.Context) {
 	}
 
 	object := fmt.Sprintf("%d/%s", uid, uuid.NewV4().String())
-	callbackUrl := rs.callbackHost + "/api/files"
+	callbackUrl := ginutil.GetOrigin(c) + "/api/files"
 	bodyFormat := `{"uid": %d, "name": "%s", "size": ${size}, "type": "%s","dir": "%s", "object": "%s"}`
 	callbackBody := fmt.Sprintf(bodyFormat, uid, p.Name, p.Type, p.Dir, object)
 	callback := rs.provider.BuildCallback(callbackUrl, callbackBody)

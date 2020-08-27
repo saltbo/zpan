@@ -49,7 +49,9 @@ var serverCmd = &cobra.Command{
 			&model.Share{},
 			&model.Storage{},
 		)
-		gormutil.Debug()
+		if conf.Debug {
+			gormutil.Debug()
+		}
 
 		fmt.Println(conf.Provider)
 		diskProvider, err := disk.New(conf.Provider)
@@ -62,13 +64,13 @@ var serverCmd = &cobra.Command{
 			"/css", "/js", "/fonts")
 
 		simpleRouter := ginutil.NewSimpleRouter()
-		simpleRouter.StaticFS("/", ginutil.EmbedFS())
+		simpleRouter.StaticFsIndex("/", ginutil.EmbedFS())
 
 		ginutil.SetupResource(ge.Group("/api"),
 			rest.NewFileResource(conf.Provider.Bucket, diskProvider),
 			rest.NewShareResource(),
 			rest.NewURLResource(conf, diskProvider),
-			rest.NewStorageResource(),
+			rest.NewStorageResource(conf.Storage),
 		)
 
 		ge.NoRoute(simpleRouter.Handler)

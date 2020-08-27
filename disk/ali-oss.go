@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
-
-	"github.com/saltbo/zpan/config"
 )
 
 var urlEncode = url.QueryEscape
@@ -22,7 +20,7 @@ type AliOss struct {
 	callback string
 }
 
-func newAliOss(conf *config.Provider) (*AliOss, error) {
+func newAliOss(conf Config) (*AliOss, error) {
 	cli, err := oss.New(conf.Endpoint, conf.AccessKey, conf.AccessSecret)
 	if err != nil {
 		return nil, err
