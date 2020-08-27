@@ -20,6 +20,9 @@ test: ## Run tests with coverage
 coverage-html: ## show coverage by the html
 	go tool cover -html=.coverprofile
 
+generate:
+	go generate ./...
+
 build: mod ## Build the binary file
 	@go build -v -o build/bin/$(PROJECT) $(MAINFILE)
 
