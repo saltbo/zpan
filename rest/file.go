@@ -95,8 +95,14 @@ func (f *FileResource) createFolder(c *gin.Context) {
 	}
 
 	uid := moreu.GetUserId(c)
-	if service.DirNotExist(uid, p.Dir) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("direction %s not exist", p.Dir))
+	if !service.MatterParentExist(uid, p.Dir) {
+		ginutil.JSONBadRequest(c, fmt.Errorf("parent dir not exist"))
+		return
+	}
+
+	// matter exist
+	if service.MatterExist(uid, p.Name, p.Dir) {
+		ginutil.JSONBadRequest(c, fmt.Errorf("matter already exist"))
 		return
 	}
 

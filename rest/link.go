@@ -2,9 +2,13 @@ package rest
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
+	"github.com/saltbo/gopkg/timeutil"
 	moreu "github.com/saltbo/moreu/client"
 	uuid "github.com/satori/go.uuid"
 
@@ -51,9 +55,17 @@ func (rs *LinkResource) createUploadURL(c *gin.Context) {
 		return
 	}
 
-	if service.DirNotExist(uid, p.Dir) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("direction %s not exist", p.Dir))
+	if !service.MatterParentExist(uid, p.Dir) {
+		ginutil.JSONBadRequest(c, fmt.Errorf("parent dir not exist"))
 		return
+	}
+
+	//	auto append a suffix if matter exist
+	if service.MatterExist(uid, p.Name, p.Dir) {
+		ext := filepath.Ext(p.Name)
+		name := strings.TrimSuffix(p.Name, ext)
+		suffix := fmt.Sprintf("_%s", timeutil.Format(time.Now(), "YYYYMMDD_HHmmss"))
+		p.Name = name + suffix + ext
 	}
 
 	publicRead := false

@@ -49,6 +49,7 @@ var serverCmd = &cobra.Command{
 			&model.Share{},
 			&model.Storage{},
 		)
+		gormutil.Debug()
 
 		fmt.Println(conf.Provider)
 		diskProvider, err := disk.New(conf.Provider)

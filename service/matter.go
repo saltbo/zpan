@@ -10,15 +10,24 @@ import (
 	"github.com/saltbo/zpan/model"
 )
 
-func DirNotExist(uid int64, dir string) bool {
-	if dir == "" {
-		return false
+func MatterExist(uid int64, name, parent string) bool {
+	return !gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(&model.Matter{}).RecordNotFound()
+}
+
+func MatterParentExist(uid int64, parentDir string) bool {
+	if parentDir == "" {
+		return true
 	}
 
-	items := strings.Split(dir, "/")
-	name := items[len(items)-2]
-	parent := strings.TrimSuffix(dir, name+"/")
-	return gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(&model.Matter{}).RecordNotFound()
+	// parent matter exist, eg: test123/234/
+	items := strings.Split(parentDir, "/")
+	name := items[len(items)-2]                       // -> 234
+	parent := strings.TrimSuffix(parentDir, name+"/") // -> test123/
+	if MatterExist(uid, name, parent) {
+		return true
+	}
+
+	return false
 }
 
 func FileGet(alias string) (*model.Matter, error) {
@@ -78,7 +87,7 @@ func (m *Matter) SetType(mt string) {
 }
 
 func (m *Matter) Find(offset, limit int) (list []model.Matter, total int64, err error) {
-	sn := gormutil.DB().Where(m.query, m.params...).Debug()
+	sn := gormutil.DB().Where(m.query, m.params...)
 	sn.Model(model.Matter{}).Count(&total)
 	sn = sn.Order("dirtype desc")
 	err = sn.Offset(offset).Limit(limit).Find(&list).Error
