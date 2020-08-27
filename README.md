@@ -4,6 +4,7 @@ ZPan - Your Last disk on the cloud.
 [![codecov](https://codecov.io/gh/saltbo/zpan/branch/master/graph/badge.svg)](https://codecov.io/gh/saltbo/zpan)
 [![codebeat badge](https://codebeat.co/badges/e97d3305-de49-4a9c-9ead-1aca942b9e16)](https://codebeat.co/projects/github-com-saltbo-zpan-master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/saltbo/zpan)](https://goreportcard.com/report/github.com/saltbo/zpan)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan?ref=badge_shield)
 
 ## Features
 - [x] File Manage
@@ -63,3 +64,6 @@ make run
 
 ## License
 - [MIT](https://github.com/saltbo/zpan/blob/master/LICENSE)
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan?ref=badge_large)
