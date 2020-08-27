@@ -12,21 +12,18 @@ import (
 	moreu "github.com/saltbo/moreu/client"
 	uuid "github.com/satori/go.uuid"
 
-	"github.com/saltbo/zpan/config"
 	"github.com/saltbo/zpan/disk"
 	"github.com/saltbo/zpan/rest/bind"
 	"github.com/saltbo/zpan/service"
 )
 
 type LinkResource struct {
-	provider   disk.Provider
-	bucketName string
+	provider disk.Provider
 }
 
-func NewURLResource(conf *config.Config, provider disk.Provider) ginutil.Resource {
+func NewURLResource(provider disk.Provider) ginutil.Resource {
 	return &LinkResource{
-		provider:   provider,
-		bucketName: conf.Provider.Bucket,
+		provider: provider,
 	}
 }
 
@@ -73,7 +70,7 @@ func (rs *LinkResource) createUploadURL(c *gin.Context) {
 	bodyFormat := `{"uid": %d, "name": "%s", "size": ${size}, "type": "%s","dir": "%s", "object": "%s"}`
 	callbackBody := fmt.Sprintf(bodyFormat, uid, p.Name, p.Type, p.Dir, object)
 	callback := rs.provider.BuildCallback(callbackUrl, callbackBody)
-	link, headers, err := rs.provider.UploadURL(rs.bucketName, p.Name, object, p.Type, callback, publicRead)
+	link, headers, err := rs.provider.UploadURL(p.Name, object, p.Type, callback, publicRead)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -99,7 +96,7 @@ func (rs *LinkResource) createDownloadURL(c *gin.Context) {
 		return
 	}
 
-	link, err := rs.provider.DownloadURL(rs.bucketName, file.Object)
+	link, err := rs.provider.DownloadURL(file.Object)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return

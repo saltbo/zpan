@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"strings"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
@@ -15,9 +14,8 @@ import (
 var urlEncode = url.QueryEscape
 
 type AliOss struct {
-	cli *oss.Client
-
-	callback string
+	cli    *oss.Client
+	bucket *oss.Bucket
 }
 
 func newAliOss(conf Config) (*AliOss, error) {
@@ -25,9 +23,17 @@ func newAliOss(conf Config) (*AliOss, error) {
 	if err != nil {
 		return nil, err
 	}
-	cli.Config.LogLevel = oss.Debug
 
-	return &AliOss{cli: cli}, nil
+	cli.Config.LogLevel = oss.Debug
+	bucket, err := cli.Bucket(conf.Bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AliOss{
+		cli:    cli,
+		bucket: bucket,
+	}, nil
 }
 
 func (ao *AliOss) SetLifecycle(bucketName string) error {
@@ -58,12 +64,7 @@ func (ao *AliOss) BuildCallback(url, body string) string {
 	return base64.StdEncoding.EncodeToString(callbackBuffer.Bytes())
 }
 
-func (ao *AliOss) UploadURL(bucketName, filename, objectKey, contentType, callback string, publicRead bool) (url string, headers map[string]string, err error) {
-	bucket, err := ao.cli.Bucket(bucketName)
-	if err != nil {
-		return
-	}
-
+func (ao *AliOss) UploadURL(filename, objectKey, contentType, callback string, publicRead bool) (url string, headers map[string]string, err error) {
 	objectACL := oss.ACLDefault
 	if publicRead {
 		objectACL = oss.ACLPublicRead
@@ -74,8 +75,7 @@ func (ao *AliOss) UploadURL(bucketName, filename, objectKey, contentType, callba
 		oss.Callback(callback),
 		oss.ObjectACL(objectACL),
 	}
-
-	url, err = bucket.SignURL(objectKey, oss.HTTPPut, 60, options...)
+	url, err = ao.bucket.SignURL(objectKey, oss.HTTPPut, 60, options...)
 	headers = map[string]string{
 		"Content-Type":        contentType,
 		"Content-Disposition": fmt.Sprintf(`attachment;filename="%s"`, urlEncode(filename)),
@@ -86,82 +86,33 @@ func (ao *AliOss) UploadURL(bucketName, filename, objectKey, contentType, callba
 	return
 }
 
-func (ao *AliOss) DownloadURL(bucketName, objectKey string) (url string, err error) {
-	bucket, err := ao.cli.Bucket(bucketName)
-	if err != nil {
-		return
-	}
-
-	options := []oss.Option{}
-	url, err = bucket.SignURL(objectKey, oss.HTTPGet, 60, options...)
+func (ao *AliOss) DownloadURL(objectKey string) (url string, err error) {
+	var options []oss.Option
+	url, err = ao.bucket.SignURL(objectKey, oss.HTTPGet, 60, options...)
 	return
 }
 
-func (ao *AliOss) ListObject(bucketName, prefix, marker string, limit int) (Objects, string, error) {
-	bucket, err := ao.cli.Bucket(bucketName)
-	if err != nil {
-		return nil, "", err
-	}
-
-	objectsResult, err := bucket.ListObjects(oss.Prefix(prefix), oss.MaxKeys(limit), oss.Marker(marker))
-	if err != nil {
-		return nil, "", err
-	}
-
-	objects := make(Objects, 0, len(objectsResult.Objects))
-	for _, v := range objectsResult.Objects {
-		obj := Object{Key: v.Key, Type: v.Type, Size: v.Size, ETag: v.ETag, LastModified: v.LastModified}
-		if v.Size == 0 && strings.HasSuffix(v.Key, "/") {
-			obj.Dir = true
-		}
-
-		objects = append(objects, obj)
-	}
-
-	return objects, objectsResult.NextMarker, nil
-}
-
-func (ao *AliOss) TagRename(bucketName, objectKey, filename string) (err error) {
-	bucket, err := ao.cli.Bucket(bucketName)
-	if err != nil {
-		return
-	}
-
+func (ao *AliOss) ObjectRename(objectKey, filename string) (err error) {
 	disposition := fmt.Sprintf(`attachment;filename="%s"`, urlEncode(filename))
-	err = bucket.SetObjectMeta(objectKey, oss.ContentDisposition(disposition))
+	err = ao.bucket.SetObjectMeta(objectKey, oss.ContentDisposition(disposition))
 	return
 }
 
-func (ao *AliOss) TagDelObject(bucketName, objectKey string) error {
-	bucket, err := ao.cli.Bucket(bucketName)
-	if err != nil {
-		return err
-	}
-
+func (ao *AliOss) ObjectSoftDel(objectKey string) error {
 	tagging := oss.Tagging{
 		Tags: []oss.Tag{
 			{Key: "Zpan-Dt", Value: "deleted"},
 		},
 	}
-	return bucket.PutObjectTagging(objectKey, tagging)
+	return ao.bucket.PutObjectTagging(objectKey, tagging)
 }
 
-func (ao *AliOss) DeleteObject(bucketName, objectKey string) error {
-	bucket, err := ao.cli.Bucket(bucketName)
-	if err != nil {
-		return err
-	}
-
-	return bucket.DeleteObject(objectKey)
+func (ao *AliOss) ObjectDelete(objectKey string) error {
+	return ao.bucket.DeleteObject(objectKey)
 }
 
-func (ao *AliOss) DeleteObjects(bucketName string, objectKeys []string) error {
-	bucket, err := ao.cli.Bucket(bucketName)
-	if err != nil {
-		return err
-	}
-
-	dor, err := bucket.DeleteObjects(objectKeys)
+func (ao *AliOss) ObjectsDelete(objectKeys []string) error {
+	dor, err := ao.bucket.DeleteObjects(objectKeys)
 	if err != nil {
 		return nil
 	}

@@ -67,9 +67,9 @@ var serverCmd = &cobra.Command{
 		simpleRouter.StaticFsIndex("/", ginutil.EmbedFS())
 
 		ginutil.SetupResource(ge.Group("/api"),
-			rest.NewFileResource(conf.Provider.Bucket, diskProvider),
+			rest.NewFileResource(diskProvider),
 			rest.NewShareResource(),
-			rest.NewURLResource(conf, diskProvider),
+			rest.NewURLResource(diskProvider),
 			rest.NewStorageResource(conf.Storage),
 		)
 

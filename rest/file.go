@@ -24,14 +24,12 @@ const (
 )
 
 type FileResource struct {
-	bucketName string
-	provider   disk.Provider
+	provider disk.Provider
 }
 
-func NewFileResource(bucketName string, provider disk.Provider) ginutil.Resource {
+func NewFileResource(provider disk.Provider) ginutil.Resource {
 	return &FileResource{
-		bucketName: bucketName,
-		provider:   provider,
+		provider: provider,
 	}
 }
 
@@ -181,7 +179,7 @@ func (f *FileResource) patch(c *gin.Context) {
 			return
 		}
 
-		err = f.provider.TagRename(f.bucketName, file.Object, p.Dest)
+		err = f.provider.ObjectRename(file.Object, p.Dest)
 		if err != nil {
 			ginutil.JSONServerError(c, err)
 			return
@@ -207,7 +205,7 @@ func (f *FileResource) delete(c *gin.Context) {
 		return
 	}
 
-	if err := f.provider.DeleteObject(f.bucketName, file.Object); err != nil {
+	if err := f.provider.ObjectDelete(file.Object); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
