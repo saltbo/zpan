@@ -21,12 +21,6 @@ import (
 	"github.com/saltbo/zpan/rest/bind"
 )
 
-const (
-	OPERATION_COPY = iota + 1
-	OPERATION_MOVE
-	OPERATION_RENAME
-)
-
 type FileResource struct {
 	provider disk.Provider
 }
@@ -180,6 +174,11 @@ func (rs *FileResource) rename(c *gin.Context) {
 	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if file.IsDir() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("not support rename the dir"))
 		return
 	}
 

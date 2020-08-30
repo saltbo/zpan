@@ -23,6 +23,7 @@ func NewFolderResource() *FolderResource {
 func (rs *FolderResource) Register(router *gin.RouterGroup) {
 	router.GET("/folders", rs.findAll)
 	router.POST("/folders", rs.create)
+	router.PATCH("/folders/:alias", rs.rename)
 }
 
 func (rs *FolderResource) findAll(c *gin.Context) {
@@ -73,12 +74,22 @@ func (rs *FolderResource) create(c *gin.Context) {
 }
 
 func (rs *FolderResource) rename(c *gin.Context) {
+	p := new(bind.BodyFileRename)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
 
+	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
 
-	//if err := service.DirRename(file, p.Dest); err != nil {
-	//	ginutil.JSONServerError(c, err)
-	//	return
-	//}
+	if err := service.FolderRename(file, p.NewName); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
 
 	ginutil.JSON(c)
 }
