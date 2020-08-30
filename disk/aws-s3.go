@@ -1,4 +1,79 @@
 package disk
 
+import (
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+)
+
 type AwsS3 struct {
+	client *s3.S3
+	bucket string
+}
+
+func newAwsS3(conf Config, region string) (Provider, error) {
+	cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(conf.AccessKey, conf.AccessSecret, ""))
+	s, err := session.NewSession(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AwsS3{
+		client: s3.New(s, cfg.WithRegion(region), cfg.WithEndpoint(conf.Endpoint)),
+		bucket: conf.Bucket,
+	}, nil
+}
+
+func (p *AwsS3) PutPreSign(key, filetype string) (url string, headers http.Header, err error) {
+	input := &s3.PutObjectInput{
+		Bucket:      aws.String(p.bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(filetype),
+	}
+
+	req, _ := p.client.PutObjectRequest(input)
+	return req.PresignRequest(time.Minute * 5)
+}
+
+func (p *AwsS3) GetPreSign(key, filename string) (url string, err error) {
+	disposition := fmt.Sprintf(`attachment;filename="%s"`, urlEncode(filename))
+	input := &s3.GetObjectInput{
+		Bucket:                     aws.String(p.bucket),
+		Key:                        aws.String(key),
+		ResponseContentDisposition: aws.String(disposition),
+	}
+	req, _ := p.client.GetObjectRequest(input)
+	url, _, err = req.PresignRequest(time.Minute)
+	return
+}
+
+func (p *AwsS3) ObjectDelete(key string) error {
+	input := &s3.DeleteObjectInput{
+		Bucket: aws.String(p.bucket),
+		Key:    aws.String(key),
+	}
+	_, err := p.client.DeleteObject(input)
+	return err
+}
+
+func (p *AwsS3) ObjectsDelete(objectKeys []string) error {
+	objects := make([]*s3.ObjectIdentifier, 0, len(objectKeys))
+	for _, key := range objectKeys {
+		objects = append(objects, &s3.ObjectIdentifier{Key: aws.String(key)})
+	}
+
+	input := &s3.DeleteObjectsInput{
+		Bucket: aws.String(p.bucket),
+		Delete: &s3.Delete{
+			Objects: objects,
+			Quiet:   aws.Bool(false),
+		},
+	}
+	_, err := p.client.DeleteObjects(input)
+	return err
 }

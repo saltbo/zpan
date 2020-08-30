@@ -1,6 +1,10 @@
 package bind
 
-import "github.com/saltbo/zpan/model"
+import (
+	"fmt"
+
+	"github.com/saltbo/zpan/model"
+)
 
 type QueryFiles struct {
 	QueryPage
@@ -10,47 +14,35 @@ type QueryFiles struct {
 	Keyword string `form:"keyword"`
 }
 
-type QueryFolder struct {
-	QueryPage
-	Parent string `form:"parent"`
-}
-
-type BodyFolder struct {
+type BodyFile struct {
 	Name string `json:"name" binding:"required"`
+	Size int64  `json:"size" binding:"required"`
+	Type string `json:"type"`
 	Dir  string `json:"dir"`
 }
 
-func (p *BodyFolder) ToMatter(uid int64) *model.Matter {
-	m := model.NewMatter()
-	m.Uid = uid
-	m.Name = p.Name
-	m.Parent = p.Dir
-	m.DirType = model.DirTypeUser
-	return m
-}
+func (p *BodyFile) ToMatter(uid int64) *model.Matter {
+	if p.Type == "" {
+		p.Type = "application/octet-stream"
+	}
 
-type BodyFile struct {
-	Uid    int64  `json:"uid"`
-	Name   string `json:"name" binding:"required"`
-	Type   string `json:"type" binding:"required"`
-	Size   int64  `json:"size" binding:"required"`
-	Dir    string `json:"dir"`
-	Object string `json:"object" binding:"required"`
-}
-
-func (p *BodyFile) ToMatter() *model.Matter {
 	m := model.NewMatter()
-	m.Uid = p.Uid
 	m.Name = p.Name
 	m.Type = p.Type
 	m.Size = p.Size
 	m.Parent = p.Dir
-	m.Object = p.Object
+	m.Object = fmt.Sprintf("%d/%s", uid, m.Alias)
 	return m
 }
 
-type BodyFileOperation struct {
-	Alias  string `json:"alias" binding:"required"`
-	Dest   string `json:"dest"`
-	Action int64  `json:"action" binding:"required"`
+type BodyFileRename struct {
+	NewName string `json:"name" binding:"required"`
+}
+
+type BodyFileMove struct {
+	NewDir string `json:"dir"`
+}
+
+type BodyFileCopy struct {
+	NewPath string `json:"path" binding:"required"`
 }

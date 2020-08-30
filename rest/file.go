@@ -2,10 +2,14 @@ package rest
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	"github.com/saltbo/gopkg/gormutil"
+	"github.com/saltbo/gopkg/timeutil"
 	moreu "github.com/saltbo/moreu/client"
 
 	"github.com/saltbo/gopkg/ginutil"
@@ -33,17 +37,18 @@ func NewFileResource(provider disk.Provider) ginutil.Resource {
 	}
 }
 
-func (f *FileResource) Register(router *gin.RouterGroup) {
-	router.GET("/files", f.findAll)
-	router.POST("/files", f.create)
-	router.PATCH("/files", f.patch) // todo 如何符合restful规范？
-	router.DELETE("/files/:alias", f.delete)
-
-	router.GET("/folders", f.findFolders)
-	router.POST("/folders", f.createFolder)
+func (rs *FileResource) Register(router *gin.RouterGroup) {
+	router.POST("/files", rs.create)
+	router.GET("/files", rs.findAll)
+	router.GET("/files/:alias", rs.find)
+	router.PATCH("/files/:alias/uploaded", rs.uploaded)
+	router.PATCH("/files/:alias/name", rs.rename)
+	router.PATCH("/files/:alias/location", rs.move)
+	router.PATCH("/files/:alias/duplicate", rs.copy)
+	router.DELETE("/files/:alias", rs.delete)
 }
 
-func (f *FileResource) findAll(c *gin.Context) {
+func (rs *FileResource) findAll(c *gin.Context) {
 	p := new(bind.QueryFiles)
 	if err := c.BindQuery(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
@@ -65,74 +70,51 @@ func (f *FileResource) findAll(c *gin.Context) {
 	ginutil.JSONList(c, list, total)
 }
 
-func (f *FileResource) findFolders(c *gin.Context) {
-	p := new(bind.QueryFolder)
-	if err := c.BindQuery(p); err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	var total int64
-	list := make([]model.Matter, 0)
-	query := "uid=? and dirtype=? and parent=?"
-	sn := gormutil.DB().Where(query, moreu.GetUserId(c), model.DirTypeUser, p.Parent)
-	sn.Model(model.Matter{}).Count(&total)
-	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	ginutil.JSONList(c, list, total)
-}
-
-func (f *FileResource) createFolder(c *gin.Context) {
-	p := new(bind.BodyFolder)
+func (rs *FileResource) create(c *gin.Context) {
+	p := new(bind.BodyFile)
 	if err := c.ShouldBindJSON(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
 	uid := moreu.GetUserId(c)
+	if err := service.StorageQuotaVerify(uid, p.Size); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
 	if !service.MatterParentExist(uid, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("parent dir not exist"))
 		return
 	}
 
-	// matter exist
+	//	auto append a suffix if matter exist
 	if service.MatterExist(uid, p.Name, p.Dir) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("matter already exist"))
-		return
+		ext := filepath.Ext(p.Name)
+		name := strings.TrimSuffix(p.Name, ext)
+		suffix := fmt.Sprintf("_%s", timeutil.Format(time.Now(), "YYYYMMDD_HHmmss"))
+		p.Name = name + suffix + ext
 	}
 
-	if err := gormutil.DB().Create(p.ToMatter(uid)).Error; err != nil {
+	//publicRead := false
+	//if p.Dir == ".pics/" {
+	//	publicRead = true
+	//}
+	matter := p.ToMatter(uid)
+	link, headers, err := rs.provider.PutPreSign(matter.Object, p.Type)
+	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
-	ginutil.JSON(c)
-}
-
-func (f *FileResource) create(c *gin.Context) {
-	p := new(bind.BodyFile)
-	if err := c.ShouldBindJSON(p); err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-	// todo add valid for the callback
-
-	if !gormutil.DB().First(&model.Matter{}, "object=?", p.Object).RecordNotFound() {
-		ginutil.JSONBadRequest(c, fmt.Errorf("object %s already exist", p.Object))
-		return
-	}
-
 	fc := func(tx *gorm.DB) error {
-		if err := tx.Create(p.ToMatter()).Error; err != nil {
+		if err := tx.Create(matter).Error; err != nil {
 			return err
 		}
 
 		// update the service
 		storage := new(model.Storage)
-		if gormutil.DB().First(storage, "user_id=?", p.Uid).RecordNotFound() {
+		if gormutil.DB().First(storage, "user_id=?", uid).RecordNotFound() {
 			return fmt.Errorf("storage not exist")
 		}
 
@@ -147,49 +129,40 @@ func (f *FileResource) create(c *gin.Context) {
 		return
 	}
 
-	ginutil.JSON(c)
+	ginutil.JSONData(c, gin.H{
+		"alias":   matter.Alias,
+		"link":    link,
+		"object":  matter.Object,
+		"headers": headers,
+	})
 }
 
-func (f *FileResource) patch(c *gin.Context) {
-	p := new(bind.BodyFileOperation)
-	if err := c.ShouldBindJSON(p); err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	file, err := service.UserFileGet(moreu.GetUserId(c), p.Alias)
+func (rs *FileResource) find(c *gin.Context) {
+	file, err := service.FileGet(c.Param("alias"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	switch p.Action {
-	case OPERATION_COPY:
-		err = service.FileCopy(file, p.Dest)
-	case OPERATION_MOVE:
-		err = service.FileMove(file, p.Dest)
-	case OPERATION_RENAME:
-		if file.DirType > 0 {
-			if err := service.DirRename(file, p.Dest); err != nil {
-				ginutil.JSONServerError(c, err)
-				return
-			}
-
-			ginutil.JSON(c)
-			return
-		}
-
-		err = f.provider.ObjectRename(file.Object, p.Dest)
-		if err != nil {
-			ginutil.JSONServerError(c, err)
-			return
-		}
-		err = service.FileRename(file, p.Dest)
-	default:
-		err = fmt.Errorf("invalid operation")
+	link, err := rs.provider.GetPreSign(file.Object, file.Name)
+	if err != nil {
+		ginutil.JSONServerError(c, err)
+		return
 	}
 
+	ginutil.JSONData(c, gin.H{
+		"link": link,
+	})
+}
+
+func (rs *FileResource) uploaded(c *gin.Context) {
+	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
 	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err = service.FileUploaded(file); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -197,7 +170,70 @@ func (f *FileResource) patch(c *gin.Context) {
 	ginutil.JSON(c)
 }
 
-func (f *FileResource) delete(c *gin.Context) {
+func (rs *FileResource) rename(c *gin.Context) {
+	p := new(bind.BodyFileRename)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err = service.FileRename(file, p.NewName); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+func (rs *FileResource) move(c *gin.Context) {
+	p := new(bind.BodyFileMove)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err = service.FileMove(file, p.NewDir); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+func (rs *FileResource) copy(c *gin.Context) {
+	p := new(bind.BodyFileCopy)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err = service.FileCopy(file, p.NewPath); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+func (rs *FileResource) delete(c *gin.Context) {
 	uid := moreu.GetUserId(c)
 	file, err := service.UserFileGet(uid, c.Param("alias"))
 	if err != nil {
@@ -205,7 +241,7 @@ func (f *FileResource) delete(c *gin.Context) {
 		return
 	}
 
-	if err := f.provider.ObjectDelete(file.Object); err != nil {
+	if err := rs.provider.ObjectDelete(file.Object); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

@@ -2,17 +2,18 @@ package disk
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
+	"regexp"
 )
 
+var urlEncode = url.QueryEscape
+
 type Provider interface {
-	SetLifecycle(bucketName string) error
-	BuildCallback(url, body string) string
-	UploadURL(filename, objectKey, contentType, callback string, publicRead bool) (url string, headers map[string]string, err error)
-	DownloadURL(objectKey string) (url string, err error)
-	ObjectRename(objectKey, filename string) error
-	ObjectSoftDel(objectKey string) error
-	ObjectDelete(objectKey string) error
-	ObjectsDelete(objectKeys []string) error
+	PutPreSign(key, filetype string) (url string, headers http.Header, err error)
+	GetPreSign(key, filename string) (url string, err error)
+	ObjectDelete(key string) error
+	ObjectsDelete(keys []string) error
 }
 
 type Config struct {
@@ -24,16 +25,24 @@ type Config struct {
 	AccessSecret string
 }
 
-type ProviderConstructor func(provider Config) (*AliOss, error)
+type ProviderConstructor func(provider Config) (Provider, error)
 
-var providerConstructors = map[string]ProviderConstructor{
-	"ali-oss": newAliOss,
+var supportDrivers = map[string]string{
+	"cos":  "cos.(.*).myqcloud.com",
+	"oss":  `oss.(.*).aliyuncs.com`,
+	"kodo": "s3-(.*).qiniucs.com",
 }
 
 func New(provider Config) (Provider, error) {
-	if providerConstructor, ok := providerConstructors[provider.Name]; ok {
-		return providerConstructor(provider)
+	expr, ok := supportDrivers[provider.Name]
+	if !ok {
+		return nil, fmt.Errorf("provider %s not found", provider.Name)
 	}
 
-	return nil, fmt.Errorf("provider %s not found", provider.Name)
+	exp, err := regexp.Compile(expr)
+	if err != nil {
+		return nil, err
+	}
+
+	return newAwsS3(provider, exp.FindString(provider.Endpoint))
 }

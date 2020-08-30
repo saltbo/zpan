@@ -65,15 +65,15 @@ var serverCmd = &cobra.Command{
 
 		simpleRouter := ginutil.NewSimpleRouter()
 		simpleRouter.StaticFsIndex("/", ginutil.EmbedFS())
+		ge.NoRoute(simpleRouter.Handler)
 
 		ginutil.SetupResource(ge.Group("/api"),
-			rest.NewFileResource(diskProvider),
-			rest.NewShareResource(),
-			rest.NewURLResource(diskProvider),
 			rest.NewStorageResource(conf.Storage),
+			rest.NewFileResource(diskProvider),
+			rest.NewFolderResource(),
+			rest.NewShareResource(),
 		)
 
-		ge.NoRoute(simpleRouter.Handler)
 		ginutil.Startup(ge, ":8222")
 	},
 }

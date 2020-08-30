@@ -67,7 +67,7 @@ type Matter struct {
 
 func NewMatter(uid int64) *Matter {
 	return &Matter{
-		query:  "uid=? and dirtype!=?",
+		query:  "uid=? and dirtype!=? and uploaded != 0",
 		params: []interface{}{uid, model.DirTypeSys},
 	}
 }
@@ -92,20 +92,6 @@ func (m *Matter) Find(offset, limit int) (list []model.Matter, total int64, err 
 	sn = sn.Order("dirtype desc")
 	err = sn.Offset(offset).Limit(limit).Find(&list).Error
 	return
-}
-
-func FileCopy(src *model.Matter, dest string) error {
-	nm := src.Clone()
-	nm.Parent = dest
-	return gormutil.DB().Create(nm).Error
-}
-
-func FileMove(src *model.Matter, dest string) error {
-	return gormutil.DB().Model(src).Update("parent", dest).Error
-}
-
-func FileRename(src *model.Matter, name string) error {
-	return gormutil.DB().Model(src).Update("name", name).Error
 }
 
 func DirRename(src *model.Matter, name string) error {
