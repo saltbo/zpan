@@ -36,6 +36,7 @@ import (
 	"github.com/saltbo/zpan/disk"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest"
+	"github.com/saltbo/zpan/service"
 )
 
 // serverCmd represents the server command
@@ -47,7 +48,7 @@ var serverCmd = &cobra.Command{
 		gormutil.Init(conf.Database,
 			&model.Matter{},
 			&model.Share{},
-			&model.Storage{},
+			&model.User{},
 		)
 		if conf.Debug {
 			gormutil.Debug()
@@ -67,8 +68,10 @@ var serverCmd = &cobra.Command{
 		simpleRouter.StaticFsIndex("/", ginutil.EmbedFS())
 		ge.NoRoute(simpleRouter.Handler)
 
+		ge.Use(rest.UserInjector())
+		service.UserStorageInit(conf.Storage)
 		ginutil.SetupResource(ge.Group("/api"),
-			rest.NewStorageResource(conf.Storage),
+			rest.NewUserResource(),
 			rest.NewFileResource(diskProvider),
 			rest.NewFolderResource(),
 			rest.NewShareResource(),

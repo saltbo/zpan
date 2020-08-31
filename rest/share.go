@@ -8,7 +8,6 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/saltbo/gopkg/strutil"
-	moreu "github.com/saltbo/moreu/client"
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
@@ -88,7 +87,7 @@ func (rs *ShareResource) findAll(c *gin.Context) {
 
 	var total int64
 	list := make([]model.Share, 0)
-	sn := gormutil.DB().Where("uid=?", moreu.GetUserId(c))
+	sn := gormutil.DB().Where("uid=?", userIdGet(c))
 	sn.Model(model.Share{}).Count(&total)
 	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
 		ginutil.JSONBadRequest(c, err)
@@ -113,7 +112,7 @@ func (rs *ShareResource) create(c *gin.Context) {
 
 	m := &model.Share{
 		Alias:    strutil.RandomText(12),
-		Uid:      moreu.GetUserId(c),
+		Uid:      userIdGet(c),
 		Name:     matter.Name,
 		Matter:   matter.Alias,
 		ExpireAt: time.Now().Add(time.Second * time.Duration(p.ExpireSec)),

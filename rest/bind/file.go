@@ -27,6 +27,7 @@ func (p *BodyFile) ToMatter(uid int64) *model.Matter {
 	}
 
 	m := model.NewMatter()
+	m.Uid = uid
 	m.Name = p.Name
 	m.Type = p.Type
 	m.Size = p.Size

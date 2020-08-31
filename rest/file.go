@@ -8,17 +8,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
+	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/saltbo/gopkg/timeutil"
-	moreu "github.com/saltbo/moreu/client"
-
-	"github.com/saltbo/gopkg/ginutil"
 
 	"github.com/saltbo/zpan/disk"
-	"github.com/saltbo/zpan/service"
-
-	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
+	"github.com/saltbo/zpan/service"
 )
 
 type FileResource struct {
@@ -49,7 +45,7 @@ func (rs *FileResource) findAll(c *gin.Context) {
 		return
 	}
 
-	sm := service.NewMatter(moreu.GetUserId(c))
+	sm := service.NewMatter(userIdGet(c))
 	if !p.Search {
 		sm.SetDir(p.Dir)
 	} else if p.Type != "" {
@@ -71,19 +67,19 @@ func (rs *FileResource) create(c *gin.Context) {
 		return
 	}
 
-	uid := moreu.GetUserId(c)
-	if err := service.StorageQuotaVerify(uid, p.Size); err != nil {
-		ginutil.JSONBadRequest(c, err)
+	user := userGet(c)
+	if user.StorageOverflowed(p.Size) {
+		ginutil.JSONBadRequest(c, fmt.Errorf("service not enough space"))
 		return
 	}
 
-	if !service.MatterParentExist(uid, p.Dir) {
+	if !service.MatterParentExist(user.Id, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("parent dir not exist"))
 		return
 	}
 
 	//	auto append a suffix if matter exist
-	if service.MatterExist(uid, p.Name, p.Dir) {
+	if service.MatterExist(user.Id, p.Name, p.Dir) {
 		ext := filepath.Ext(p.Name)
 		name := strings.TrimSuffix(p.Name, ext)
 		suffix := fmt.Sprintf("_%s", timeutil.Format(time.Now(), "YYYYMMDD_HHmmss"))
@@ -94,7 +90,7 @@ func (rs *FileResource) create(c *gin.Context) {
 	//if p.Dir == ".pics/" {
 	//	publicRead = true
 	//}
-	matter := p.ToMatter(uid)
+	matter := p.ToMatter(user.Id)
 	link, headers, err := rs.provider.PutPreSign(matter.Object, p.Type)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
@@ -107,12 +103,8 @@ func (rs *FileResource) create(c *gin.Context) {
 		}
 
 		// update the service
-		storage := new(model.Storage)
-		if gormutil.DB().First(storage, "user_id=?", uid).RecordNotFound() {
-			return fmt.Errorf("storage not exist")
-		}
-
-		if err := tx.Model(storage).Update("used", gorm.Expr("used+?", p.Size)).Error; err != nil {
+		expr := gorm.Expr("storage_used+?", p.Size)
+		if err := tx.Model(user).Update("storage_used", expr).Error; err != nil {
 			return err
 		}
 
@@ -150,7 +142,7 @@ func (rs *FileResource) find(c *gin.Context) {
 }
 
 func (rs *FileResource) uploaded(c *gin.Context) {
-	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
+	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -171,7 +163,7 @@ func (rs *FileResource) rename(c *gin.Context) {
 		return
 	}
 
-	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
+	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -197,7 +189,7 @@ func (rs *FileResource) move(c *gin.Context) {
 		return
 	}
 
-	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
+	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -218,7 +210,7 @@ func (rs *FileResource) copy(c *gin.Context) {
 		return
 	}
 
-	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
+	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -233,8 +225,8 @@ func (rs *FileResource) copy(c *gin.Context) {
 }
 
 func (rs *FileResource) delete(c *gin.Context) {
-	uid := moreu.GetUserId(c)
-	file, err := service.UserFileGet(uid, c.Param("alias"))
+	user := userGet(c)
+	file, err := service.UserFileGet(user.Id, c.Param("alias"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -252,12 +244,8 @@ func (rs *FileResource) delete(c *gin.Context) {
 		}
 
 		// update the user storage
-		storage := new(model.Storage)
-		if gormutil.DB().First(storage, "user_id=?", uid).RecordNotFound() {
-			return fmt.Errorf("BUG: storage not exist")
-		}
-
-		if err := tx.Model(storage).Update("used", gorm.Expr("used-?", file.Size)).Error; err != nil {
+		expr := gorm.Expr("storage_used-?", file.Size)
+		if err := tx.Model(user).Update("storage_used", expr).Error; err != nil {
 			return err
 		}
 

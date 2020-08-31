@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
-	moreu "github.com/saltbo/moreu/client"
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
@@ -36,7 +35,7 @@ func (rs *FolderResource) findAll(c *gin.Context) {
 	var total int64
 	list := make([]model.Matter, 0)
 	query := "uid=? and dirtype=? and parent=?"
-	sn := gormutil.DB().Where(query, moreu.GetUserId(c), model.DirTypeUser, p.Parent)
+	sn := gormutil.DB().Where(query, userIdGet(c), model.DirTypeUser, p.Parent)
 	sn.Model(model.Matter{}).Count(&total)
 	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
 		ginutil.JSONServerError(c, err)
@@ -53,7 +52,7 @@ func (rs *FolderResource) create(c *gin.Context) {
 		return
 	}
 
-	uid := moreu.GetUserId(c)
+	uid := userIdGet(c)
 	if !service.MatterParentExist(uid, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("parent dir not exist"))
 		return
@@ -80,7 +79,7 @@ func (rs *FolderResource) rename(c *gin.Context) {
 		return
 	}
 
-	file, err := service.UserFileGet(moreu.GetUserId(c), c.Param("alias"))
+	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
