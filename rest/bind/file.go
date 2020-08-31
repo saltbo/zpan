@@ -2,6 +2,7 @@ package bind
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/saltbo/zpan/model"
 )
@@ -32,7 +33,7 @@ func (p *BodyFile) ToMatter(uid int64) *model.Matter {
 	m.Type = p.Type
 	m.Size = p.Size
 	m.Parent = p.Dir
-	m.Object = fmt.Sprintf("%d/%s", uid, m.Alias)
+	m.Object = fmt.Sprintf("%d/%s%s", uid, m.Alias, filepath.Ext(p.Name))
 	if p.Public {
 		m.ACL = model.AclPublic
 	}
