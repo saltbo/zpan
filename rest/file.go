@@ -57,6 +57,11 @@ func (rs *FileResource) findAll(c *gin.Context) {
 		return
 	}
 
+	// inject the url for the public object
+	for idx := range list {
+		list[idx].SetURL(rs.provider.PublicURL)
+	}
+
 	ginutil.JSONList(c, list, total)
 }
 
@@ -91,7 +96,7 @@ func (rs *FileResource) create(c *gin.Context) {
 	//	publicRead = true
 	//}
 	matter := p.ToMatter(user.Id)
-	link, headers, err := rs.provider.PutPreSign(matter.Object, p.Type)
+	link, headers, err := rs.provider.SignedPutURL(matter.Object, p.Type, p.Public)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -130,7 +135,7 @@ func (rs *FileResource) find(c *gin.Context) {
 		return
 	}
 
-	link, err := rs.provider.GetPreSign(file.Object, file.Name)
+	link, err := rs.provider.SignedGetURL(file.Object, file.Name)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -153,7 +158,8 @@ func (rs *FileResource) uploaded(c *gin.Context) {
 		return
 	}
 
-	ginutil.JSON(c)
+	file.SetURL(rs.provider.PublicURL)
+	ginutil.JSONData(c, file)
 }
 
 func (rs *FileResource) rename(c *gin.Context) {

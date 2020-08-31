@@ -3,10 +3,19 @@ package service
 import (
 	"strings"
 
+	"github.com/jinzhu/gorm"
 	"github.com/saltbo/gopkg/gormutil"
 
 	"github.com/saltbo/zpan/model"
 )
+
+func MatterSysInit(tx *gorm.DB, uid int64, name string) error {
+	matter := model.NewMatter()
+	matter.Uid = uid
+	matter.Name = name
+	matter.DirType = model.DirTypeSys
+	return tx.Create(matter).Error
+}
 
 func MatterExist(uid int64, name, parent string) bool {
 	return !gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(&model.Matter{}).RecordNotFound()

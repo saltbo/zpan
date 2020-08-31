@@ -3,10 +3,12 @@ package disk
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
@@ -23,24 +25,42 @@ func newAwsS3(conf Config, region string) (Provider, error) {
 		return nil, err
 	}
 
+	client := s3.New(s, cfg.WithRegion(region), cfg.WithEndpoint(conf.Endpoint))
+	if conf.CustomHost != "" {
+		cURL, err := url.Parse(conf.CustomHost)
+		if err != nil {
+			return nil, err
+		}
+
+		client.Handlers.Sign.PushFront(func(r *request.Request) {
+			r.HTTPRequest.URL.Scheme = cURL.Scheme
+			r.HTTPRequest.URL.Host = cURL.Host
+		})
+	}
+
 	return &AwsS3{
-		client: s3.New(s, cfg.WithRegion(region), cfg.WithEndpoint(conf.Endpoint)),
+		client: client,
 		bucket: conf.Bucket,
 	}, nil
 }
 
-func (p *AwsS3) PutPreSign(key, filetype string) (url string, headers http.Header, err error) {
+func (p *AwsS3) SignedPutURL(key, filetype string, public bool) (string, http.Header, error) {
+	acl := s3.ObjectCannedACLAuthenticatedRead
+	if public {
+		acl = s3.ObjectCannedACLPublicRead
+	}
+
 	input := &s3.PutObjectInput{
 		Bucket:      aws.String(p.bucket),
 		Key:         aws.String(key),
+		ACL:         aws.String(acl),
 		ContentType: aws.String(filetype),
 	}
-
 	req, _ := p.client.PutObjectRequest(input)
 	return req.PresignRequest(time.Minute * 5)
 }
 
-func (p *AwsS3) GetPreSign(key, filename string) (url string, err error) {
+func (p *AwsS3) SignedGetURL(key, filename string) (string, error) {
 	disposition := fmt.Sprintf(`attachment;filename="%s"`, urlEncode(filename))
 	input := &s3.GetObjectInput{
 		Bucket:                     aws.String(p.bucket),
@@ -48,8 +68,17 @@ func (p *AwsS3) GetPreSign(key, filename string) (url string, err error) {
 		ResponseContentDisposition: aws.String(disposition),
 	}
 	req, _ := p.client.GetObjectRequest(input)
-	url, _, err = req.PresignRequest(time.Minute)
-	return
+	return req.Presign(time.Minute)
+}
+
+func (p *AwsS3) PublicURL(key string) string {
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(p.bucket),
+		Key:    aws.String(key),
+	}
+	req, _ := p.client.GetObjectRequest(input)
+	_ = req.Build()
+	return req.HTTPRequest.URL.String()
 }
 
 func (p *AwsS3) ObjectDelete(key string) error {

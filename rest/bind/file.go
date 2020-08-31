@@ -15,17 +15,17 @@ type QueryFiles struct {
 }
 
 type BodyFile struct {
-	Name string `json:"name" binding:"required"`
-	Size int64  `json:"size" binding:"required"`
-	Type string `json:"type"`
-	Dir  string `json:"dir"`
+	Name   string `json:"name" binding:"required"`
+	Size   int64  `json:"size" binding:"required"`
+	Type   string `json:"type"`
+	Dir    string `json:"dir"`
+	Public bool   `json:"public"`
 }
 
 func (p *BodyFile) ToMatter(uid int64) *model.Matter {
 	if p.Type == "" {
 		p.Type = "application/octet-stream"
 	}
-
 	m := model.NewMatter()
 	m.Uid = uid
 	m.Name = p.Name
@@ -33,6 +33,10 @@ func (p *BodyFile) ToMatter(uid int64) *model.Matter {
 	m.Size = p.Size
 	m.Parent = p.Dir
 	m.Object = fmt.Sprintf("%d/%s", uid, m.Alias)
+	if p.Public {
+		m.ACL = model.AclPublic
+	}
+
 	return m
 }
 

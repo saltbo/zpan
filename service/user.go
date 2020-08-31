@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/jinzhu/gorm"
 	"github.com/saltbo/gopkg/gormutil"
 
 	"github.com/saltbo/zpan/model"
@@ -15,13 +16,27 @@ func UserStorageInit(storage uint64) {
 }
 
 func UserFind(ux string) (*model.User, error) {
+	user := &model.User{Ux: ux}
+	if gormutil.DB().First(user).RecordNotFound() {
+		return userCreate(ux)
+	}
+
+	return user, nil
+}
+
+func userCreate(ux string) (*model.User, error) {
 	user := &model.User{
 		Ux:         ux,
 		StorageMax: iss,
 	}
-	if err := gormutil.DB().FirstOrCreate(user, "ux=?", user.Ux).Error; err != nil {
-		return nil, err
+
+	fc := func(tx *gorm.DB) error {
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+
+		return MatterSysInit(tx, user.Id, ".pics")
 	}
 
-	return user, nil
+	return user, gormutil.DB().Transaction(fc)
 }

@@ -10,8 +10,9 @@ import (
 var urlEncode = url.QueryEscape
 
 type Provider interface {
-	PutPreSign(key, filetype string) (url string, headers http.Header, err error)
-	GetPreSign(key, filename string) (url string, err error)
+	SignedPutURL(key, filetype string, public bool) (url string, headers http.Header, err error)
+	SignedGetURL(key, filename string) (url string, err error)
+	PublicURL(key string) (url string)
 	ObjectDelete(key string) error
 	ObjectsDelete(keys []string) error
 }
@@ -33,10 +34,10 @@ var supportDrivers = map[string]string{
 	"kodo": "s3-(.*).qiniucs.com",
 }
 
-func New(provider Config) (Provider, error) {
-	expr, ok := supportDrivers[provider.Name]
+func New(conf Config) (Provider, error) {
+	expr, ok := supportDrivers[conf.Name]
 	if !ok {
-		return nil, fmt.Errorf("provider %s not found", provider.Name)
+		return nil, fmt.Errorf("provider %s not found", conf.Name)
 	}
 
 	exp, err := regexp.Compile(expr)
@@ -44,5 +45,5 @@ func New(provider Config) (Provider, error) {
 		return nil, err
 	}
 
-	return newAwsS3(provider, exp.FindString(provider.Endpoint))
+	return newAwsS3(conf, exp.FindString(conf.Endpoint))
 }
