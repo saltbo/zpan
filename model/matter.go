@@ -34,9 +34,11 @@ type Matter struct {
 	Deleted  *time.Time `json:"-" gorm:"column:deleted_at"`
 }
 
-func NewMatter() *Matter {
+func NewMatter(uid int64, name string) *Matter {
 	return &Matter{
-		Alias: strutil.RandomText(32),
+		Uid:   uid,
+		Alias: strutil.RandomText(16),
+		Name:  name,
 		ACL:   AclProtected,
 	}
 }

@@ -10,9 +10,7 @@ import (
 )
 
 func MatterSysInit(tx *gorm.DB, uid int64, name string) error {
-	matter := model.NewMatter()
-	matter.Uid = uid
-	matter.Name = name
+	matter := model.NewMatter(uid, name)
 	matter.DirType = model.DirTypeSys
 	return tx.Create(matter).Error
 }

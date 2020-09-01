@@ -3,6 +3,9 @@ package bind
 import (
 	"fmt"
 	"path/filepath"
+	"time"
+
+	"github.com/saltbo/gopkg/timeutil"
 
 	"github.com/saltbo/zpan/model"
 )
@@ -27,13 +30,13 @@ func (p *BodyFile) ToMatter(uid int64) *model.Matter {
 	if p.Type == "" {
 		p.Type = "application/octet-stream"
 	}
-	m := model.NewMatter()
-	m.Uid = uid
-	m.Name = p.Name
+	m := model.NewMatter(uid, p.Name)
 	m.Type = p.Type
 	m.Size = p.Size
 	m.Parent = p.Dir
-	m.Object = fmt.Sprintf("%d/%s%s", uid, m.Alias, filepath.Ext(p.Name))
+
+	prefix := timeutil.Format(time.Now(), "YYYYMMDD")
+	m.Object = fmt.Sprintf("%s/%s%s", prefix, m.Alias, filepath.Ext(p.Name))
 	if p.Public {
 		m.ACL = model.AclPublic
 	}
