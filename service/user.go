@@ -16,8 +16,8 @@ func UserStorageInit(storage uint64) {
 }
 
 func UserFind(ux string) (*model.User, error) {
-	user := &model.User{Ux: ux}
-	if gormutil.DB().First(user).RecordNotFound() {
+	user := new(model.User)
+	if gormutil.DB().First(user, "ux=?", ux).RecordNotFound() {
 		return userCreate(ux)
 	}
 
