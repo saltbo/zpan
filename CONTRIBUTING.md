@@ -4,17 +4,17 @@ By participating to this project, you agree to abide our [code of conduct](/CODE
 
 ## Setup your machine
 
-`uptoc` is written in [Go](https://golang.org/).
+`zpan` is written in [Go](https://golang.org/).
 
 Prerequisites:
 
 - `make`
 - [Go 1.13+](https://golang.org/doc/install)
 
-Clone `uptoc` anywhere:
+Clone `zpan` anywhere:
 
 ```sh
-$ git clone git@github.com:saltbo/uptoc.git
+$ git clone git@github.com:saltbo/zpan.git
 ```
 
 Install the build and lint dependencies:
@@ -49,7 +49,7 @@ You can follow the documentation on
 
 ## Submit a pull request
 
-Push your branch to your `uptoc` fork and open a pull request against the
+Push your branch to your `zpan` fork and open a pull request against the
 master branch.
 
 ## Financial contributions
@@ -61,7 +61,7 @@ Anyone can file an expense. If the expense makes sense for the development of th
 
 ### Contributors
 
-Thank you to all the people who have already contributed to Uptoc!
+Thank you to all the people who have already contributed to zpan!
 <a href="graphs/contributors"><img src="https://opencollective.com/saltbo/contributors.svg?width=890" /></a>
 
 ### Backers

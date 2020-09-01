@@ -16,45 +16,21 @@ English | [🇨🇳中文](https://saltbo.cn/zpan)
 - [x] File & Folder Share
 - [x] Picture library
 - [x] Storage Capacity Control
-- [ ] RecycleBin
-- [x] Support AliOSS
-- [ ] Support Upyun
-- [ ] Support Qiniuyun
+- [x] Support AwsS3,GoogleStorage,AliOSS,TencentCOS,QiniuKodo
 
-## Run environment
-- Mac
-- Linux
-
-## Dependent modules 
-- cli (github.com/urfave/cli) 
-- gin (github.com/gin-gonic/gin)
-- jwt-go (github.com/dgrijalva/jwt-go)
-- xorm (github.com/go-xorm/xorm)
-- grbac (github.com/storyicon/grbac)
-- statik (github.com/rakyll/statik)
-- oss (github.com/aliyun/aliyun-oss-go-sdk/oss)
-
-## Install the pre-compiled binary
-
-**homebrew**:
-
+## Install
 ```bash
-brew cask install zpan
+curl -sSf https://dl.saltbo.cn/install.sh?k=zpan | sh
 ```
 
-**deb/rpm**:
-
-Download the `.deb` or `.rpm` from the [releases page](https://github.com/saltbo/github.com/saltbo/zpan/releases) and
-install with `dpkg -i` and `rpm -i` respectively.
-
-**manually**:
-
-Download the pre-compiled binaries from the [releases page](https://github.com/saltbo/github.com/saltbo/zpan/releases) and
-copy to the desired location.
-
-## Usage
+## QuickStart
 ```bash
-make run
+zpan start
+```
+
+## Docker
+```bash
+docker run -p 80:8081 -v /etc/zpan:/root -it saltbo/zpan:latest
 ```
 
 ## Contributing
