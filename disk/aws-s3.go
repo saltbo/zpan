@@ -32,7 +32,7 @@ func newAwsS3(conf Config, region string) (Provider, error) {
 			return nil, err
 		}
 
-		client.Handlers.Sign.PushFront(func(r *request.Request) {
+		client.Handlers.Build.PushBack(func(r *request.Request) {
 			r.HTTPRequest.URL.Scheme = cURL.Scheme
 			r.HTTPRequest.URL.Host = cURL.Host
 		})
