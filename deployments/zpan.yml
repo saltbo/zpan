@@ -1,0 +1,14 @@
+debug: false
+storage: 104857600 # 100M for per user
+
+database:
+  driver: mysql
+  dsn: root:admin@tcp(127.0.0.1:3306)/zpan?charset=utf8&parseTime=True&loc=Local
+
+provider:
+  name: oss
+  bucket: saltbo-zpan-test
+  endpoint: https://oss-cn-zhangjiakou.aliyuncs.com
+  accessKey: LTAIxxxxxxxxxxxxxxx7YoV
+  accessSecret: PFGVwxxxxxxxxxxxxxxxxRd09u
+

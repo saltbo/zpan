@@ -1,27 +1,37 @@
-.PHONY: default install build fmt test vet docker clean
+.PHONY: all dep lint vet test test-coverage build clean
 
-default: build
+# custom define
+PROJECT := zpan
+MAINFILE := main.go
 
-build:
-	GO_BUILD_FLAGS="-v" ./scripts/build.sh
-	./bin/zpan --version
+all: build
 
-run:
-	./bin/zpan
+mod: ## Get the dependencies
+	@go mod download
+
+lint: ## Lint Golang files
+	@golangci-lint --version
+	@golangci-lint run -D errcheck
+
+test: ## Run tests with coverage
+	go test -coverprofile .coverprofile ./...
+	go tool cover --func=.coverprofile
+
+coverage-html: ## show coverage by the html
+	go tool cover -html=.coverprofile
+
+generate:
+	go generate ./...
+
+build: mod ## Build the binary file
+	@go build -v -o build/bin/$(PROJECT) $(MAINFILE)
 
 install:
-	./scripts/install.sh
+	# 复制二进制文件
+	# 复制默认配置文件
 
-release:
-	./scripts/release.sh
+clean: ## Remove previous build
+	@rm -rf ./build
 
-test:
-	go test -coverprofile=coverage.txt -covermode=atomic ./...
-    go tool cover --func=coverage.txt
-
-covhtml:
-	go tool cover -html=coverage.txt
-
-clean:
-	rm -rf bin
-	rm -rf build
+help: ## Display this help screen
+	@grep -h -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

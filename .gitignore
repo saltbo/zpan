@@ -5,13 +5,14 @@
 *.so
 *.dylib
 
-# Test binary, build with `go test -c`
+# Test binary, built with `go test -c`
 *.test
-bin
-build
-coverage.txt
-config.yaml
-roles.json
+.coverprofile
 
-# Output of the go coverage tool, specifically when used with LiteIDE
+# Output
+build
 *.out
+.zpan.yml
+
+# Dependency directories (remove the comment below to include it)
+# vendor/

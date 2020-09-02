@@ -1,0 +1,59 @@
+dist: ./build/release
+before:
+  hooks:
+    - go mod download
+builds:
+  - id: server
+    main: ./main.go
+    binary: bin/{{ .ProjectName }}
+    ldflags:
+      - -s -w
+      - -X github.com/saltbo/{{ .ProjectName }}/cmd.release={{.Version}}
+      - -X github.com/saltbo/{{ .ProjectName }}/cmd.commit={{.Commit}}
+      - -X github.com/saltbo/{{ .ProjectName }}/cmd.repo={{.GitURL}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    wrap_in_directory: true
+    replacements:
+      darwin: macos
+    format: tar.gz
+    format_overrides:  # archive as zip on Windows
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - deployments/*
+      - install.sh
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: desc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+nfpms:
+  - file_name_template: '{{ .ProjectName }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    homepage: https://github.com/saltbo/{{ .ProjectName }}
+    description: Convenient static file deployment tool that supports multiple platforms
+    maintainer: Ambor <saltbo@foxmail.com>
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    dependencies:
+      - git
+    recommends:
+      - golang

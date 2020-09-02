@@ -5,16 +5,20 @@ import (
 )
 
 type Share struct {
-	Id        int64     `json:"id"`
-	Uid       int64     `json:"uid" xorm:"notnull"`
-	Name      string    `json:"name" xorm:"notnull"`
-	Alias     string    `json:"alias" xorm:"varchar(16) notnull"`
-	Secret    string    `json:"secret" xorm:"varchar(16) notnull"`
-	MatterId  int64     `json:"matter_id" xorm:"notnull"`
-	DownTimes int64     `json:"down_times" xorm:"notnull"`
-	ViewTimes int64     `json:"view_times" xorm:"notnull"`
-	ExpireAt  time.Time `json:"expire_at" xorm:"notnull expire_at"`
-	Deleted   time.Time `json:"deleted" xorm:"notnull deleted"`
-	Created   time.Time `json:"created" xorm:"notnull created"`
-	Updated   time.Time `json:"updated" xorm:"notnull updated"`
+	Id        int64      `json:"id"`
+	Uid       int64      `json:"uid" gorm:"not null"`
+	Name      string     `json:"name" gorm:"not null"`
+	Alias     string     `json:"alias" gorm:"size:16;not null"`
+	Secret    string     `json:"secret" gorm:"size:16;not null"`
+	Matter    string     `json:"matter" gorm:"not null"`
+	DownTimes int64      `json:"down_times" gorm:"not null"`
+	ViewTimes int64      `json:"view_times" gorm:"not null"`
+	ExpireAt  time.Time  `json:"expire_at" gorm:"column:expire_at;not null"`
+	Created   time.Time  `json:"created" gorm:"column:created_at;not null"`
+	Updated   time.Time  `json:"updated" gorm:"column:updated_at;not null"`
+	Deleted   *time.Time `json:"-" gorm:"column:deleted_at"`
+}
+
+func (Share) TableName() string {
+	return "share"
 }
