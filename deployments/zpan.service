@@ -1,0 +1,18 @@
+[Unit]
+Description=Zpan
+Documentation=https://saltbo.cn/zpan
+After=network.target
+Wants=network.target
+
+[Service]
+WorkingDirectory=/usr/local/bin
+ExecStart=/usr/local/bin/zpan -c /etc/zpan/config.yml
+Restart=on-abnormal
+RestartSec=5s
+KillMode=mixed
+
+StandardOutput=null
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target

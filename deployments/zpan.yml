@@ -6,7 +6,7 @@ database:
   dsn: root:admin@tcp(127.0.0.1:3306)/zpan?charset=utf8&parseTime=True&loc=Local
 
 provider:
-  name: alioss
+  name: oss
   bucket: saltbo-zpan-test
   endpoint: https://oss-cn-zhangjiakou.aliyuncs.com
   accessKey: LTAIxxxxxxxxxxxxxxx7YoV

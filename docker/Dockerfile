@@ -7,7 +7,7 @@ COPY go.* $APP_HOME/
 ENV GOPROXY https://goproxy.cn,direct
 RUN go mod download
 
-COPY . .
+COPY .. .
 RUN make build
 
 
@@ -18,6 +18,7 @@ ENV APP_HOME /zpan
 WORKDIR $APP_HOME
 
 COPY deployments/ .
+COPY docker/entrypoint.sh .
 COPY --from=builder /src/build/bin/zpan .
 
 ENTRYPOINT ["./entrypoint.sh"]

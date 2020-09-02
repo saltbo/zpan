@@ -5,6 +5,7 @@ before:
 builds:
   - id: server
     main: ./main.go
+    binary: bin/{{ .ProjectName }}
     ldflags:
       - -s -w
       - -X github.com/saltbo/{{ .ProjectName }}/cmd.release={{.Version}}
@@ -20,6 +21,7 @@ builds:
       - amd64
 archives:
   - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    wrap_in_directory: true
     replacements:
       darwin: macos
     format: tar.gz
@@ -27,7 +29,11 @@ archives:
       - goos: windows
         format: zip
     files:
-      - none*
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - deployments/*
+      - install.sh
 checksum:
   name_template: 'checksums.txt'
 snapshot:

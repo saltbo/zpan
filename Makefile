@@ -26,6 +26,10 @@ generate:
 build: mod ## Build the binary file
 	@go build -v -o build/bin/$(PROJECT) $(MAINFILE)
 
+install:
+	# 复制二进制文件
+	# 复制默认配置文件
+
 clean: ## Remove previous build
 	@rm -rf ./build
 

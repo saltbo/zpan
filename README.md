@@ -18,17 +18,20 @@ English | [🇨🇳中文](https://saltbo.cn/zpan)
 - [x] Storage Capacity Control
 - [x] Support AwsS3,GoogleStorage,AliOSS,TencentCOS,QiniuKodo
 
-## Install
-```bash
-curl -sSf https://dl.saltbo.cn/install.sh?k=zpan | sh
-```
-
 ## QuickStart
+### Linux
 ```bash
-zpan start
+# 安装服务
+curl -sSf https://dl.saltbo.cn/install.sh?k=zpan | sh
+
+# 启动服务
+systemctl start zpan
+
+# 设置开机启动
+systemctl enable zpan
 ```
 
-## Docker
+### Docker
 ```bash
 docker run -p 80:8081 -v /etc/zpan:/root -it saltbo/zpan:latest
 ```
