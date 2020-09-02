@@ -1,6 +1,7 @@
 #!/bin/sh
 
-if [ ! -d "bin" ]; then
+shell_dir=$(cd "$(dirname "$0")" || exit;pwd)
+if [ ! -d shell_dir"/bin" ]; then
   exit
 fi
 
@@ -8,8 +9,8 @@ project="zpan"
 unameOut="$(uname -s)"
 config_dir="/etc/${project}"
 test ! -d "${config_dir}" && mkdir "${config_dir}"
-sudo cp bin/"${project}" /usr/local/bin
-sudo cp deployments/*.yml "${config_dir}"
+cp "${shell_dir}/bin/${project}" /usr/local/bin
+cp "${shell_dir}"/deployments/*.yml "${config_dir}"
 if [ "${unameOut}" = "Linux" ]; then
-    sudo cp deployments/"${project}".service /usr/lib/systemd/system
+    cp "${shell_dir}/deployments/${project}".service /usr/lib/systemd/system
 fi
