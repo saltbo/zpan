@@ -1,7 +1,7 @@
 #!/bin/sh
 
 shell_dir=$(cd "$(dirname "$0")" || exit;pwd)
-if [ ! -d shell_dir"/bin" ]; then
+if [ ! -d "${shell_dir}/bin" ]; then
   exit
 fi
 
