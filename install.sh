@@ -12,5 +12,5 @@ test ! -d "${config_dir}" && mkdir "${config_dir}"
 cp "${shell_dir}/bin/${project}" /usr/local/bin
 cp "${shell_dir}"/deployments/*.yml "${config_dir}"
 if [ "${unameOut}" = "Linux" ]; then
-    cp "${shell_dir}/deployments/${project}".service /usr/lib/systemd/system
+    cp "${shell_dir}/deployments/${project}".service /etc/systemd/system
 fi
