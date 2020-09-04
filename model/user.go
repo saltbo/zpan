@@ -14,10 +14,6 @@ type User struct {
 	Deleted     *time.Time `json:"-" gorm:"column:deleted_at"`
 }
 
-func (User) TableName() string {
-	return "user"
-}
-
 func (u *User) StorageOverflowed(addonSize int64) bool {
 	if u.StorageUsed+uint64(addonSize) >= u.StorageMax {
 		return true

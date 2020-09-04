@@ -1,0 +1,4 @@
+routers:
+  - pattern: /
+    upstream:
+      address: http://localhost:8222

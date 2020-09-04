@@ -19,21 +19,20 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
-//go:generate statik -src=../../zpan-front/dist -dest .. -p assets
 package cmd
 
 import (
-	"fmt"
 	"log"
+	"os"
+	"os/exec"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/spf13/cobra"
 
-	_ "github.com/saltbo/zpan/assets"
+	"github.com/saltbo/zpan/assets"
 	"github.com/saltbo/zpan/config"
-	"github.com/saltbo/zpan/disk"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest"
 	"github.com/saltbo/zpan/service"
@@ -44,53 +43,71 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "A cloud disk base on the cloud service.",
 	Run: func(cmd *cobra.Command, args []string) {
-		conf := config.Parse()
-		gormutil.Init(conf.Database,
-			&model.Matter{},
-			&model.Share{},
-			&model.User{},
-		)
-		if conf.Debug {
-			gormutil.Debug()
-		}
-
-		fmt.Println(conf.Provider)
-		diskProvider, err := disk.New(conf.Provider)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		ge := gin.Default()
-		ginutil.SetupEmbedAssets(ge.Group("/"),
-			"/css", "/js", "/fonts")
-
-		simpleRouter := ginutil.NewSimpleRouter()
-		simpleRouter.StaticFsIndex("/", ginutil.EmbedFS())
-		ge.NoRoute(simpleRouter.Handler)
-
-		ge.Use(rest.UserInjector())
-		service.UserStorageInit(conf.Storage)
-		ginutil.SetupResource(ge.Group("/api"),
-			rest.NewUserResource(),
-			rest.NewFileResource(diskProvider),
-			rest.NewFolderResource(),
-			rest.NewShareResource(),
-		)
-
-		ginutil.Startup(ge, ":8222")
+		c := config.Parse()
+		serverRun(c)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
+}
 
-	// Here you will define your flags and configuration settings.
+func serverRun(conf *config.Config) {
+	gin.SetMode(gin.ReleaseMode)
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// serverCmd.PersistentFlags().String("foo", "", "A help for foo")
+	ge := gin.Default()
+	ginutil.SetupEmbedAssets(ge.Group("/"), assets.EmbedFS(),
+		"/css", "/js", "/fonts")
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// serverCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	simpleRouter := ginutil.NewSimpleRouter()
+	simpleRouter.StaticFsIndex("/", assets.EmbedFS())
+	ge.NoRoute(simpleRouter.Handler)
+	ge.Use(rest.UserInjector())
+
+	gormutil.Init(conf.Database, conf.Debug)
+	gormutil.SetupPrefix("zp_")
+	gormutil.AutoMigrate(model.Tables())
+
+	service.UserStorageInit(conf.Storage)
+	ginutil.SetupResource(ge.Group("/api"),
+		rest.NewUserResource(),
+		rest.NewFileResource(conf.Provider),
+		rest.NewFolderResource(),
+		rest.NewShareResource(),
+	)
+
+	fc := func() {
+		go ginutil.Startup(ge, ":8222")
+	}
+
+	if err := moreuRun(conf, fc); err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func moreuRun(c *config.Config, callback func()) error {
+	oc := exec.Command("go",
+		"run",
+		"../moreu/main.go",
+		"server",
+		"--secret=123",
+		"--invitation=false",
+		"--db-driver", c.Database.Driver,
+		"--db-dsn", c.Database.DSN,
+		"--email-host", c.Email.Host,
+		"--email-sender", c.Email.Sender,
+		"--email-username", c.Email.Username,
+		"--email-password", c.Email.Password,
+		"--grbac-config", "deployments/moreu/roles.yml",
+		"--proxy-config", "deployments/moreu/routers.yml",
+	)
+
+	oc.Stdout = os.Stdout
+	oc.Stderr = os.Stderr
+	if err := oc.Start(); err != nil {
+		return err
+	}
+
+	callback()
+	return oc.Wait()
 }
