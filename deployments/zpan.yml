@@ -8,8 +8,8 @@ email:
   password: mGxxxxxxxxxxh9
 
 database:
-  driver: mysql
-  dsn: root:admin@tcp(127.0.0.1:3306)/zpan?charset=utf8&parseTime=True&loc=Local
+  driver: sqlite3
+  dsn: zpan.db
 
 provider:
   name: oss
