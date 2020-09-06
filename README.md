@@ -33,7 +33,7 @@ systemctl enable zpan
 
 ### Docker
 ```bash
-docker run -p 80:8081 -v /etc/zpan:/root -it saltbo/zpan:latest
+docker run -p 80:8081 -v /opt/dockerv/zpan:/zpan -it saltbo/zpan:latest
 ```
 
 ## Contributing

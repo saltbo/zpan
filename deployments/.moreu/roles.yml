@@ -4,6 +4,7 @@
   path: '**'
   method: '*'
   authorized_roles:
+    - 'admin'
     - 'member'
   forbidden_roles:
     - black_user
