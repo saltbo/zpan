@@ -12,11 +12,10 @@ builds:
       - -X github.com/saltbo/{{ .ProjectName }}/cmd.commit={{.Commit}}
       - -X github.com/saltbo/{{ .ProjectName }}/cmd.repo={{.GitURL}}
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
     goos:
       - linux
       - darwin
-      - windows
     goarch:
       - amd64
 archives:

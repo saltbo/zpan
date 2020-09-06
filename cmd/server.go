@@ -102,7 +102,7 @@ func moreuRun(c *config.Config, callback func()) error {
 
 	oc := exec.Command("moreu",
 		"server",
-		"--invitation", strconv.FormatBool(c.Invitation),
+		"--invitation="+strconv.FormatBool(c.Invitation),
 		"--db-driver", c.Database.Driver,
 		"--db-dsn", c.Database.DSN,
 		"--email-host", c.Email.Host,
