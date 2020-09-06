@@ -12,7 +12,7 @@
 # Output
 build
 *.out
-.zpan.yml
+zpan.yml
 
 # Dependency directories (remove the comment below to include it)
 # vendor/

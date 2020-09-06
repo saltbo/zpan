@@ -43,10 +43,6 @@ func NewMatter(uid int64, name string) *Matter {
 	}
 }
 
-func (Matter) TableName() string {
-	return "matter"
-}
-
 func (m *Matter) Clone() *Matter {
 	clone := *m
 	return &clone

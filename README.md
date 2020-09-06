@@ -22,7 +22,7 @@ English | [🇨🇳中文](https://saltbo.cn/zpan)
 ### Linux
 ```bash
 # 安装服务
-curl -sSf https://dl.saltbo.cn/install.sh | sh -s zpan
+curl -sSf https://dl.saltbo.cn/install.sh | sudo sh -s zpan
 
 # 启动服务
 systemctl start zpan

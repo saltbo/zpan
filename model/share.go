@@ -18,7 +18,3 @@ type Share struct {
 	Updated   time.Time  `json:"updated" gorm:"column:updated_at;not null"`
 	Deleted   *time.Time `json:"-" gorm:"column:deleted_at"`
 }
-
-func (Share) TableName() string {
-	return "share"
-}

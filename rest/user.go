@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
-	moreu "github.com/saltbo/moreu/client"
+	mc "github.com/saltbo/moreu/client"
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/service"
@@ -23,7 +23,7 @@ func (rs *UserResource) Register(router *gin.RouterGroup) {
 }
 
 func (rs *UserResource) me(c *gin.Context) {
-	user, err := service.UserFind(moreu.GetUx(c))
+	user, err := service.UserFind(mc.GetUx(c))
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -34,7 +34,7 @@ func (rs *UserResource) me(c *gin.Context) {
 
 func UserInjector() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		u, err := service.UserFind(moreu.GetUx(c))
+		u, err := service.UserFind(mc.GetUx(c))
 		if err != nil {
 			c.AbortWithError(http.StatusInternalServerError, err)
 			return

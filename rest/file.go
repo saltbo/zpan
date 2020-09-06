@@ -2,6 +2,7 @@ package rest
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,7 +22,12 @@ type FileResource struct {
 	provider disk.Provider
 }
 
-func NewFileResource(provider disk.Provider) ginutil.Resource {
+func NewFileResource(conf disk.Config) ginutil.Resource {
+	provider, err := disk.New(conf)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	return &FileResource{
 		provider: provider,
 	}

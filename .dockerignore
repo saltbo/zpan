@@ -1,0 +1,18 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+.coverprofile
+
+# Output
+build
+*.out
+.zpan.yml
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
