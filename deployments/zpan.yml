@@ -1,5 +1,11 @@
-debug: false
+invitation: true
 storage: 104857600 # 100M for per user
+
+email:
+  host: smtpdm.aliyun.com:25
+  sender: no-reply@saltbo.fun
+  username: Zpan
+  password: mGxxxxxxxxxxh9
 
 database:
   driver: mysql

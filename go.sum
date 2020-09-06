@@ -250,8 +250,14 @@ github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQD
 github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
 github.com/saltbo/gopkg v0.0.0-20200827161817-a4f845cbc9b2 h1:wjrU9Rh5+vdOpRi+cBnCuAftdCHt1/g9WVM0qIYAeKo=
 github.com/saltbo/gopkg v0.0.0-20200827161817-a4f845cbc9b2/go.mod h1:XlRGt9E8qVHi0yMCOoIQBmK6YTJ03BazzIo7DTWgBhU=
+github.com/saltbo/gopkg v0.0.0-20200904134901-c742eaa26c10 h1:aSpz8QHKd5qAhUVAAYttlwlykFapicwKOvBdyTDoAfk=
+github.com/saltbo/gopkg v0.0.0-20200904134901-c742eaa26c10/go.mod h1:XlRGt9E8qVHi0yMCOoIQBmK6YTJ03BazzIo7DTWgBhU=
+github.com/saltbo/gopkg v0.0.0-20200905151036-32195ea0b27b h1:r9EtqZBFtvhwewA2NAFsa22HHMvY5aMzT3s8H6eQ4ro=
+github.com/saltbo/gopkg v0.0.0-20200905151036-32195ea0b27b/go.mod h1:XlRGt9E8qVHi0yMCOoIQBmK6YTJ03BazzIo7DTWgBhU=
 github.com/saltbo/moreu v0.0.0-20200901140802-6416fd963285 h1:FXOtcWr42FcU9Y9F15asIHOER/13cg3uMezNQUddXo8=
 github.com/saltbo/moreu v0.0.0-20200901140802-6416fd963285/go.mod h1:fHnePL1fvBy9kiad587Nmzsaas6u3JqmyIDiETFwvXc=
+github.com/saltbo/moreu v0.0.0-20200904135240-c2b2c158d39d h1:NTYFCI6JZyEA9zAmK8PfExHerCI2T7lCPszgjA6GfY8=
+github.com/saltbo/moreu v0.0.0-20200904135240-c2b2c158d39d/go.mod h1:+9LF3eggPLWMQbEjSy5y5+DnP9BGDWUeXDWZAVdDIvM=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=

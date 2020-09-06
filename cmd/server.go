@@ -25,8 +25,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/saltbo/gopkg/fileutil"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/spf13/cobra"
@@ -53,7 +55,9 @@ func init() {
 }
 
 func serverRun(conf *config.Config) {
-	gin.SetMode(gin.ReleaseMode)
+	if !conf.Debug {
+		gin.SetMode(gin.ReleaseMode)
+	}
 
 	ge := gin.Default()
 	ginutil.SetupEmbedAssets(ge.Group("/"), assets.EmbedFS(),
@@ -86,20 +90,27 @@ func serverRun(conf *config.Config) {
 }
 
 func moreuRun(c *config.Config, callback func()) error {
-	oc := exec.Command("go",
-		"run",
-		"../moreu/main.go",
+	var moreuCfgDir string
+	dirs := []string{"deployments/.moreu/", "/etc/zpan/.moreu/"}
+	for _, dir := range dirs {
+		if fileutil.PathExist(dir) {
+			moreuCfgDir = dir
+			moreuCfgDir = dir
+			break
+		}
+	}
+
+	oc := exec.Command("moreu",
 		"server",
-		"--secret=123",
-		"--invitation=false",
+		"--invitation", strconv.FormatBool(c.Invitation),
 		"--db-driver", c.Database.Driver,
 		"--db-dsn", c.Database.DSN,
 		"--email-host", c.Email.Host,
 		"--email-sender", c.Email.Sender,
 		"--email-username", c.Email.Username,
 		"--email-password", c.Email.Password,
-		"--grbac-config", "deployments/moreu/roles.yml",
-		"--proxy-config", "deployments/moreu/routers.yml",
+		"--grbac-config", moreuCfgDir+"roles.yml",
+		"--proxy-config", moreuCfgDir+"routers.yml",
 	)
 
 	oc.Stdout = os.Stdout
