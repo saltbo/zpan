@@ -12,7 +12,7 @@ builds:
       - -X github.com/saltbo/{{ .ProjectName }}/cmd.commit={{.Commit}}
       - -X github.com/saltbo/{{ .ProjectName }}/cmd.repo={{.GitURL}}
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
