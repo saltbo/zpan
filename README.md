@@ -46,4 +46,4 @@ See [CONTRIBUTING](CONTRIBUTING.md) for details on submitting patches and the co
 - [saltbo](https://github.com/saltbo)
 
 ## License
-- [MIT](https://github.com/saltbo/github.com/saltbo/zpan/blob/master/LICENSE)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan?ref=badge_large)
