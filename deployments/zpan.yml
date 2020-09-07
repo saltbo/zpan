@@ -1,0 +1,20 @@
+invitation: true
+storage: 104857600 # 100M for per user
+
+email:
+  host: smtpdm.aliyun.com:25
+  sender: no-reply@saltbo.fun
+  username: Zpan
+  password: mGxxxxxxxxxxh9
+
+database:
+  driver: sqlite3
+  dsn: zpan.db
+
+provider:
+  name: oss
+  bucket: saltbo-zpan-test
+  endpoint: https://oss-cn-zhangjiakou.aliyuncs.com
+  accessKey: LTAIxxxxxxxxxxxxxxx7YoV
+  accessSecret: PFGVwxxxxxxxxxxxxxxxxRd09u
+

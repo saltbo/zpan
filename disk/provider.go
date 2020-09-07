@@ -1,26 +1,49 @@
 package disk
 
 import (
-	"time"
+	"fmt"
+	"net/http"
+	"net/url"
+	"regexp"
 )
 
-type Object struct {
-	Key          string    `json:"key"`
-	Dir          bool      `json:"dir"`
-	Type         string    `json:"type"`
-	Size         int64     `json:"size"`
-	ETag         string    `json:"etag"`
-	LastModified time.Time `json:"last_modified"`
-}
-type Objects []Object
+var urlEncode = url.QueryEscape
 
 type Provider interface {
-	SetLifecycle(bucketName string) error
-	UploadURL(bucketName, filename, objectKey, contentType, callback string, publicRead bool) (url string, headers map[string]string, err error)
-	DownloadURL(bucketName, objectKey string) (url string, err error)
-	ListObject(bucketName, prefix, marker string, limit int) (objects Objects, nextMarker string, err error)
-	TagRename(bucketName, objectKey, filename string) error
-	TagDelObject(bucketName, objectKey string) error
-	DeleteObject(bucketName, objectKey string) error
-	DeleteObjects(bucketName string, objectKeys []string) error
+	SignedPutURL(key, filetype string, public bool) (url string, headers http.Header, err error)
+	SignedGetURL(key, filename string) (url string, err error)
+	PublicURL(key string) (url string)
+	ObjectDelete(key string) error
+	ObjectsDelete(keys []string) error
+}
+
+type Config struct {
+	Name         string
+	Bucket       string
+	Endpoint     string
+	CustomHost   string
+	AccessKey    string
+	AccessSecret string
+}
+
+type ProviderConstructor func(provider Config) (Provider, error)
+
+var supportDrivers = map[string]string{
+	"cos":  "cos.(.*).myqcloud.com",
+	"oss":  `oss.(.*).aliyuncs.com`,
+	"kodo": "s3-(.*).qiniucs.com",
+}
+
+func New(conf Config) (Provider, error) {
+	expr, ok := supportDrivers[conf.Name]
+	if !ok {
+		return nil, fmt.Errorf("provider %s not found", conf.Name)
+	}
+
+	exp, err := regexp.Compile(expr)
+	if err != nil {
+		return nil, err
+	}
+
+	return newAwsS3(conf, exp.FindString(conf.Endpoint))
 }

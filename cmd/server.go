@@ -1,76 +1,124 @@
-package main
+/*
+Copyright © 2020 Ambor <saltbo@foxmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+package cmd
 
 import (
 	"log"
-	"math/rand"
 	"os"
-	"time"
+	"os/exec"
+	"strconv"
 
-	"github.com/urfave/cli"
+	"github.com/gin-gonic/gin"
+	"github.com/saltbo/gopkg/fileutil"
+	"github.com/saltbo/gopkg/ginutil"
+	"github.com/saltbo/gopkg/gormutil"
+	"github.com/spf13/cobra"
 
-	"zpan/api"
-	"zpan/config"
-	"zpan/dao"
-	"zpan/disk"
-	"zpan/version"
+	"github.com/saltbo/zpan/assets"
+	"github.com/saltbo/zpan/config"
+	"github.com/saltbo/zpan/model"
+	"github.com/saltbo/zpan/rest"
+	"github.com/saltbo/zpan/service"
 )
 
-const (
-	// uploader configs
-	UPTOC_UPLOADER_OSS = "alioss"
-)
+// serverCmd represents the server command
+var serverCmd = &cobra.Command{
+	Use:   "server",
+	Short: "A cloud disk base on the cloud service.",
+	Run: func(cmd *cobra.Command, args []string) {
+		c := config.Parse()
+		serverRun(c)
+	},
+}
 
-var (
-	appFlags = []cli.Flag{
-		cli.StringFlag{
-			Name:  "config,c",
-			Usage: "specify path of the config file. default: config.yaml",
-			Value: "config.yaml",
-		},
+func init() {
+	rootCmd.AddCommand(serverCmd)
+}
+
+func serverRun(conf *config.Config) {
+	if !conf.Debug {
+		gin.SetMode(gin.ReleaseMode)
 	}
-)
 
-func main() {
-	app := cli.NewApp()
-	app.Name = "zpan"
-	app.Usage = "A cloud disk base on the cloud storage."
-	app.Copyright = "(c) 2019 zpan.saltbo.cn"
-	app.Compiled = time.Now()
-	app.Version = version.Short
-	app.Flags = appFlags
-	app.Action = serve
-	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
+	ge := gin.Default()
+	ginutil.SetupEmbedAssets(ge.Group("/"), assets.EmbedFS(),
+		"/css", "/js", "/fonts")
+
+	simpleRouter := ginutil.NewSimpleRouter()
+	simpleRouter.StaticFsIndex("/", assets.EmbedFS())
+	ge.NoRoute(simpleRouter.Handler)
+	ge.Use(rest.UserInjector())
+
+	gormutil.Init(conf.Database, conf.Debug)
+	gormutil.SetupPrefix("zp_")
+	gormutil.AutoMigrate(model.Tables())
+
+	service.UserStorageInit(conf.Storage)
+	ginutil.SetupResource(ge.Group("/api"),
+		rest.NewUserResource(),
+		rest.NewFileResource(conf.Provider),
+		rest.NewFolderResource(),
+		rest.NewShareResource(),
+	)
+
+	fc := func() {
+		go ginutil.Startup(ge, ":8222")
+	}
+
+	if err := moreuRun(conf, fc); err != nil {
+		log.Fatalln(err)
 	}
 }
 
-func serve(c *cli.Context) {
-	rand.Seed(time.Now().UnixNano())
-	conf := config.Parse(c.String("config"))
-	dao.Init(conf.MySqlDSN)
-
-	// select provider
-	var provider disk.Provider
-	switch conf.Provider.Name {
-	case UPTOC_UPLOADER_OSS:
-		ossProvider, err := disk.NewAliOss(conf.Provider)
-		if err != nil {
-			log.Fatalln(err)
+func moreuRun(c *config.Config, callback func()) error {
+	var moreuCfgDir string
+	dirs := []string{"deployments/.moreu/", "/etc/zpan/.moreu/"}
+	for _, dir := range dirs {
+		if fileutil.PathExist(dir) {
+			moreuCfgDir = dir
+			moreuCfgDir = dir
+			break
 		}
-
-		provider = ossProvider
-	default:
-		log.Fatalf("provider %s not support.", conf.Provider.Name)
 	}
 
-	// init restServer
-	rs, err := api.NewRest(conf)
-	if err != nil {
-		log.Fatalln(err)
+	oc := exec.Command("moreu",
+		"server",
+		"--invitation="+strconv.FormatBool(c.Invitation),
+		"--db-driver", c.Database.Driver,
+		"--db-dsn", c.Database.DSN,
+		"--email-host", c.Email.Host,
+		"--email-sender", c.Email.Sender,
+		"--email-username", c.Email.Username,
+		"--email-password", c.Email.Password,
+		"--grbac-config", moreuCfgDir+"roles.yml",
+		"--proxy-config", moreuCfgDir+"routers.yml",
+	)
+
+	oc.Stdout = os.Stdout
+	oc.Stderr = os.Stderr
+	if err := oc.Start(); err != nil {
+		return err
 	}
 
-	rs.SetupProvider(provider)
-	if err := rs.Run(); err != nil {
-		log.Fatal(err)
-	}
+	callback()
+	return oc.Wait()
 }

@@ -1,10 +1,14 @@
 ZPan - Your Last disk on the cloud. 
 =========================
-[![Build Status](https://travis-ci.org/saltbo/zpan.svg)](https://travis-ci.org/saltbo/zpan)
-[![codecov](https://codecov.io/gh/saltbo/zpan/branch/master/graph/badge.svg)](https://codecov.io/gh/saltbo/zpan)
-[![codebeat badge](https://codebeat.co/badges/e97d3305-de49-4a9c-9ead-1aca942b9e16)](https://codebeat.co/projects/github-com-saltbo-zpan-master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/saltbo/zpan)](https://goreportcard.com/report/github.com/saltbo/zpan)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan?ref=badge_shield)
+
+[![](https://github.com/saltbo/zpan/workflows/build/badge.svg)](https://github.com/saltbo/zpan/actions?query=workflow%3Abuild)
+[![](https://codecov.io/gh/saltbo/zpan/branch/master/graph/badge.svg)](https://codecov.io/gh/saltbo/zpan)
+[![](https://wakatime.com/badge/github/saltbo/zpan.svg)](https://wakatime.com/badge/github/saltbo/zpan)
+[![](https://api.codacy.com/project/badge/Grade/88817db9b3b04c0293c9d001d574a5ef)](https://app.codacy.com/manual/saltbo/zpan?utm_source=github.com&utm_medium=referral&utm_content=saltbo/zpan&utm_campaign=Badge_Grade_Dashboard)
+[![](https://img.shields.io/github/v/release/saltbo/zpan.svg)](https://github.com/saltbo/github.com/saltbo/zpan/releases)
+[![](https://img.shields.io/github/license/saltbo/zpan.svg)](https://github.com/saltbo/github.com/saltbo/zpan/blob/master/LICENSE)
+
+English | [🇨🇳中文](https://saltbo.cn/zpan)
 
 ## Features
 - [x] File Manage
@@ -12,58 +16,34 @@ ZPan - Your Last disk on the cloud.
 - [x] File & Folder Share
 - [x] Picture library
 - [x] Storage Capacity Control
-- [ ] RecycleBin
-- [x] Support AliOSS
-- [ ] Support Upyun
-- [ ] Support Qiniuyun
+- [x] Support AwsS3,GoogleStorage,AliOSS,TencentCOS,QiniuKodo
 
-## Run environment
-- Mac
-- Linux
-
-## Dependent modules 
-- cli (github.com/urfave/cli) 
-- gin (github.com/gin-gonic/gin)
-- jwt-go (github.com/dgrijalva/jwt-go)
-- xorm (github.com/go-xorm/xorm)
-- grbac (github.com/storyicon/grbac)
-- statik (github.com/rakyll/statik)
-- oss (github.com/aliyun/aliyun-oss-go-sdk/oss)
-
-## Install
-
-### Binary
-Download the appropriate binary for your platform from the [Releases](https://github.com/saltbo/zpan/releases) page
-
+## QuickStart
+### Linux
 ```bash
-cp config.yaml.tpl config.yaml
-vi config.yaml  #setup your configs
-./zpan
+# 安装服务
+curl -sSf https://dl.saltbo.cn/install.sh | sudo sh -s zpan
+
+# 启动服务
+systemctl start zpan
+
+# 设置开机启动
+systemctl enable zpan
 ```
 
-### Source
-
-> depend on [Golang](https://golang.org/dl/) compiler environment
-
+### Docker
 ```bash
-git clone https://github.com/saltbo/zpan.git
-cd zpan && make && make install
+docker run -p 80:8081 -v /opt/dockerv/zpan:/zpan -it saltbo/zpan:latest
 ```
 
-## Usage
-```bash
-make run
-```
-
+## Contributing
+See [CONTRIBUTING](CONTRIBUTING.md) for details on submitting patches and the contribution workflow.
 
 ## Contact us
 - [Author Blog](https://saltbo.cn).
 
 ## Author
-- [Saltbo](https://github.com/saltbo)
+- [saltbo](https://github.com/saltbo)
 
 ## License
-- [MIT](https://github.com/saltbo/zpan/blob/master/LICENSE)
-
-
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fsaltbo%2Fzpan?ref=badge_large)
