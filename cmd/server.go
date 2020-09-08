@@ -60,6 +60,10 @@ func serverRun(conf *config.Config) {
 
 	ge := gin.Default()
 	mu := moreu.New(ge, gormutil.DB())
+	if conf.EmailAct() {
+		mu.SetupMail(conf.Email)
+	}
+
 	mu.SetupAPI(conf.EmailAct(), conf.Invitation)
 	mu.SetupEmbedStatic()
 	ge.Use(mu.Auth(rest.Roles()))

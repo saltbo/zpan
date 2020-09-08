@@ -11,7 +11,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/rakyll/statik v0.1.7
 	github.com/saltbo/gopkg v0.0.0-20200905151036-32195ea0b27b
-	github.com/saltbo/moreu v0.0.0-20200908172817-b6c8f31ca9a6
+	github.com/saltbo/moreu v0.0.0-20200908175023-308ae56a0cbd
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.1
 	github.com/storyicon/grbac v0.0.0-20200224041032-a0461737df7e
