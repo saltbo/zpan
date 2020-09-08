@@ -22,15 +22,10 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"log"
-	"os"
-	"os/exec"
-	"strconv"
-
 	"github.com/gin-gonic/gin"
-	"github.com/saltbo/gopkg/fileutil"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
+	"github.com/saltbo/moreu/moreu"
 	"github.com/spf13/cobra"
 
 	"github.com/saltbo/zpan/assets"
@@ -59,66 +54,30 @@ func serverRun(conf *config.Config) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	ge := gin.Default()
-	ginutil.SetupEmbedAssets(ge.Group("/"), assets.EmbedFS(),
-		"/css", "/js", "/fonts")
-
-	simpleRouter := ginutil.NewSimpleRouter()
-	simpleRouter.StaticFsIndex("/", assets.EmbedFS())
-	ge.NoRoute(simpleRouter.Handler)
-	ge.Use(rest.UserInjector())
-
 	gormutil.Init(conf.Database, conf.Debug)
-	gormutil.SetupPrefix("zp_")
 	gormutil.AutoMigrate(model.Tables())
-
 	service.UserStorageInit(conf.Storage)
-	ginutil.SetupResource(ge.Group("/api"),
+
+	ge := gin.Default()
+	mu := moreu.New(ge, gormutil.DB())
+	mu.SetupAPI(conf.EmailAct(), conf.Invitation)
+	mu.SetupEmbedStatic()
+	ge.Use(mu.Auth(rest.Roles()))
+
+	apiRouter := ge.Group("/api")
+	apiRouter.Use(rest.UserInjector())
+	ginutil.SetupResource(apiRouter,
 		rest.NewUserResource(),
 		rest.NewFileResource(conf.Provider),
 		rest.NewFolderResource(),
 		rest.NewShareResource(),
 	)
 
-	fc := func() {
-		go ginutil.Startup(ge, ":8222")
-	}
+	ginutil.SetupEmbedAssets(ge.Group("/"),
+		assets.EmbedFS(), "/css", "/js", "/fonts")
+	ge.NoRoute(mu.NoRoute, func(c *gin.Context) {
+		c.FileFromFS("/", assets.EmbedFS())
+	})
 
-	if err := moreuRun(conf, fc); err != nil {
-		log.Fatalln(err)
-	}
-}
-
-func moreuRun(c *config.Config, callback func()) error {
-	var moreuCfgDir string
-	dirs := []string{"deployments/.moreu/", "/etc/zpan/.moreu/"}
-	for _, dir := range dirs {
-		if fileutil.PathExist(dir) {
-			moreuCfgDir = dir
-			moreuCfgDir = dir
-			break
-		}
-	}
-
-	oc := exec.Command("moreu",
-		"server",
-		"--invitation="+strconv.FormatBool(c.Invitation),
-		"--db-driver", c.Database.Driver,
-		"--db-dsn", c.Database.DSN,
-		"--email-host", c.Email.Host,
-		"--email-sender", c.Email.Sender,
-		"--email-username", c.Email.Username,
-		"--email-password", c.Email.Password,
-		"--grbac-config", moreuCfgDir+"roles.yml",
-		"--proxy-config", moreuCfgDir+"routers.yml",
-	)
-
-	oc.Stdout = os.Stdout
-	oc.Stderr = os.Stderr
-	if err := oc.Start(); err != nil {
-		return err
-	}
-
-	callback()
-	return oc.Wait()
+	ginutil.Startup(ge, ":8222")
 }

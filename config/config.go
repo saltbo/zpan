@@ -20,6 +20,10 @@ type Config struct {
 	Provider   disk.Config
 }
 
+func (c *Config) EmailAct() bool {
+	return c.Email.Host != ""
+}
+
 func Parse() *Config {
 	conf := new(Config)
 	if err := viper.Unmarshal(conf); err != nil {
