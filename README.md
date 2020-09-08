@@ -21,19 +21,22 @@ English | [🇨🇳中文](https://saltbo.cn/zpan)
 ## QuickStart
 ### Linux
 ```bash
-# 安装服务
+# Install 
 curl -sSf https://dl.saltbo.cn/install.sh | sudo sh -s zpan
 
-# 启动服务
+# Start 
 systemctl start zpan
 
-# 设置开机启动
+# Status
+systemctl status zpan
+
+# Enable boot up
 systemctl enable zpan
 ```
 
 ### Docker
 ```bash
-docker run -p 80:8081 -v /opt/dockerv/zpan:/zpan -it saltbo/zpan:latest
+docker run -p 80:8222 -v /opt/dockerv/zpan:/zpan -it saltbo/zpan:latest
 ```
 
 ## Contributing
