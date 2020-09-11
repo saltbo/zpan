@@ -38,6 +38,19 @@ func FileRename(src *model.Matter, name string) error {
 }
 
 func FileMove(src *model.Matter, parent string) error {
+	if src.IsDir() {
+		var children []model.Matter
+		err := gormutil.DB().Where("parent like ?", "%"+src.Name+"%").Find(&children).Error
+		if err != nil {
+			return err
+		}
+		for _, v := range children {
+			err := gormutil.DB().Model(v).Update("parent", parent+src.Name+"/").Error
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return gormutil.DB().Model(src).Update("parent", parent).Error
 }
 
