@@ -20,7 +20,7 @@ jobs:
       - name: Run Unit tests.
         run: make test
       - name: Upload Coverage report to CodeCov
-        uses: codecov/codecov-action@v1.0.0
+        uses: codecov/codecov-action@v1
         with:
 #          token: ${{secrets.CODECOV_TOKEN}}
           file: .coverprofile
