@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -206,10 +207,22 @@ func (rs *FileResource) move(c *gin.Context) {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
-
-	if err = service.FileMove(file, p.NewDir); err != nil {
-		ginutil.JSONServerError(c, err)
+	//issue #4
+	if strings.Contains(p.NewDir, file.Name) {
+		ginutil.JSONBadRequest(c, errors.New("can't move to itself"))
 		return
+	}
+
+	if file.IsDir() {
+		if err = service.FolderMove(file, p.NewDir); err != nil {
+			ginutil.JSONServerError(c, err)
+			return
+		}
+	} else {
+		if err = service.FileMove(file, p.NewDir); err != nil {
+			ginutil.JSONServerError(c, err)
+			return
+		}
 	}
 
 	ginutil.JSON(c)
