@@ -30,7 +30,7 @@ func UserFileGet(uid int64, alias string) (*model.Matter, error) {
 }
 
 func FileUploaded(src *model.Matter) error {
-	return gormutil.DB().Model(src).Update("uploaded", time.Now()).Error
+	return gormutil.DB().Model(src).Update("uploaded_at", time.Now()).Error
 }
 
 func FileRename(src *model.Matter, name string) error {
