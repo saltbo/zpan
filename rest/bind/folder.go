@@ -1,8 +1,6 @@
 package bind
 
 import (
-	"time"
-
 	"github.com/saltbo/zpan/model"
 )
 
@@ -20,6 +18,5 @@ func (p *BodyFolder) ToMatter(uid int64) *model.Matter {
 	m := model.NewMatter(uid, p.Name)
 	m.Parent = p.Dir
 	m.DirType = model.DirTypeUser
-	m.Uploaded = time.Now()
 	return m
 }

@@ -52,8 +52,8 @@ type Matter struct {
 
 func NewMatter(uid int64) *Matter {
 	return &Matter{
-		query:  "uid=? and dirtype!=? and uploaded != 0",
-		params: []interface{}{uid, model.DirTypeSys},
+		query:  "uid=? and (dirtype=? or (dirtype = 0 and uploaded_at is not null))",
+		params: []interface{}{uid, model.DirTypeUser},
 	}
 }
 

@@ -17,21 +17,21 @@ const (
 )
 
 type Matter struct {
-	Id       int64      `json:"id"`
-	Uid      int64      `json:"uid" gorm:"not null"`
-	Alias    string     `json:"alias" gorm:"not null"`
-	Name     string     `json:"name" gorm:"not null"`
-	Type     string     `json:"type" gorm:"not null"`
-	Size     int64      `json:"size" gorm:"not null"`
-	DirType  int8       `json:"dirtype" gorm:"column:dirtype;not null"`
-	Parent   string     `json:"parent" gorm:"not null"`
-	Object   string     `json:"object" gorm:"not null"`
-	ACL      string     `json:"acl" gorm:"not null"`
-	URL      string     `json:"url" gorm:"-"`
-	Uploaded time.Time  `json:"uploaded" gorm:"not null"`
-	Created  time.Time  `json:"created" gorm:"column:created_at;not null"`
-	Updated  time.Time  `json:"updated" gorm:"column:updated_at;not null"`
-	Deleted  *time.Time `json:"-" gorm:"column:deleted_at"`
+	Id         int64      `json:"id"`
+	Uid        int64      `json:"uid" gorm:"not null"`
+	Alias      string     `json:"alias" gorm:"not null"`
+	Name       string     `json:"name" gorm:"not null"`
+	Type       string     `json:"type" gorm:"not null"`
+	Size       int64      `json:"size" gorm:"not null"`
+	DirType    int8       `json:"dirtype" gorm:"column:dirtype;not null"`
+	Parent     string     `json:"parent" gorm:"not null"`
+	Object     string     `json:"object" gorm:"not null"`
+	ACL        string     `json:"acl" gorm:"not null"`
+	URL        string     `json:"url" gorm:"-"`
+	CreatedAt  time.Time  `json:"created" gorm:"not null"`
+	UpdatedAt  time.Time  `json:"updated" gorm:"not null"`
+	UploadedAt *time.Time `json:"uploaded"`
+	DeletedAt  *time.Time `json:"-"`
 }
 
 func NewMatter(uid int64, name string) *Matter {
