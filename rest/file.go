@@ -53,10 +53,12 @@ func (rs *FileResource) findAll(c *gin.Context) {
 	}
 
 	sm := service.NewMatter(userIdGet(c))
-	if !p.Search {
-		sm.SetDir(p.Dir)
-	} else if p.Type != "" {
+	if p.Type != "" {
 		sm.SetType(p.Type)
+	} else if p.Keyword != "" {
+		sm.SetKeyword(p.Keyword)
+	} else {
+		sm.SetDir(p.Dir)
 	}
 	list, total, err := sm.Find(p.Offset, p.Limit)
 	if err != nil {

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/jinzhu/gorm"
@@ -69,6 +70,11 @@ func (m *Matter) SetType(mt string) {
 		m.query += " and type like ?"
 		m.params = append(m.params, mt+"%")
 	}
+}
+
+func (m *Matter) SetKeyword(kw string) {
+	m.query += " and name like ?"
+	m.params = append(m.params, fmt.Sprintf("%%%s%%",kw))
 }
 
 func (m *Matter) Find(offset, limit int) (list []model.Matter, total int64, err error) {
