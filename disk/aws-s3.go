@@ -57,7 +57,8 @@ func (p *AwsS3) SignedPutURL(key, filetype string, public bool) (string, http.He
 		ContentType: aws.String(filetype),
 	}
 	req, _ := p.client.PutObjectRequest(input)
-	return req.PresignRequest(time.Minute * 5)
+	us, headers, err := req.PresignRequest(time.Minute * 5)
+	return us, headerRebuild(headers), err
 }
 
 func (p *AwsS3) SignedGetURL(key, filename string) (string, error) {
@@ -105,4 +106,14 @@ func (p *AwsS3) ObjectsDelete(objectKeys []string) error {
 	}
 	_, err := p.client.DeleteObjects(input)
 	return err
+}
+
+func headerRebuild(h http.Header) http.Header {
+	nh := make(http.Header)
+	for k, vs := range h {
+		for _, v := range vs {
+			nh.Add(k, v)
+		}
+	}
+	return nh
 }

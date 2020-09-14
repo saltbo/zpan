@@ -100,10 +100,6 @@ func (rs *FileResource) create(c *gin.Context) {
 		p.Name = name + suffix + ext
 	}
 
-	//publicRead := false
-	//if p.Dir == ".pics/" {
-	//	publicRead = true
-	//}
 	matter := p.ToMatter(user.Id)
 	link, headers, err := rs.provider.SignedPutURL(matter.Object, p.Type, p.Public)
 	if err != nil {
