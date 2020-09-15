@@ -58,6 +58,12 @@ func (rs *FolderResource) create(c *gin.Context) {
 		return
 	}
 
+	// check current dir file quota
+	if service.MatterDirFileQuotaIsMoreThanLimit(uid, p.Dir) {
+		ginutil.JSONBadRequest(c, fmt.Errorf("dir file quota is not enough"))
+		return
+	}
+
 	// matter exist
 	if service.MatterExist(uid, p.Name, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("matter already exist"))

@@ -9,6 +9,7 @@ import (
 const (
 	DirTypeSys = iota + 1
 	DirTypeUser
+	DirFileMaxNum = 65534
 )
 
 const (

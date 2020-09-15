@@ -36,6 +36,19 @@ func MatterParentExist(uid int64, parentDir string) bool {
 	return false
 }
 
+func MatterDirFileNum(uid int64, dir string) (num int64) {
+	result := gormutil.DB().Where("uid=? and parent=?", uid, dir).Find(&model.Matter{})
+	return result.RowsAffected
+}
+
+func MatterDirFileQuotaIsMoreThanLimit(uid int64, dir string) bool {
+	if MatterDirFileNum(uid, dir) >= model.DirFileMaxNum {
+		return true
+	}
+
+	return false
+}
+
 var docTypes = []string{
 	"text/csv",
 	"application/msword",
@@ -74,7 +87,7 @@ func (m *Matter) SetType(mt string) {
 
 func (m *Matter) SetKeyword(kw string) {
 	m.query += " and name like ?"
-	m.params = append(m.params, fmt.Sprintf("%%%s%%",kw))
+	m.params = append(m.params, fmt.Sprintf("%%%s%%", kw))
 }
 
 func (m *Matter) Find(offset, limit int) (list []model.Matter, total int64, err error) {
