@@ -1,7 +1,9 @@
 package service
 
 import (
+	"errors"
 	fmt "fmt"
+	"strings"
 	"time"
 
 	"github.com/saltbo/gopkg/gormutil"
@@ -45,4 +47,35 @@ func FileCopy(src *model.Matter, parent string) error {
 	nm := src.Clone()
 	nm.Parent = parent
 	return gormutil.DB().Create(nm).Error
+}
+
+func CanMove(uid int64, parent string, file *model.Matter) (bool, error) {
+	var (
+		out []model.Matter
+	)
+	//check dir exists
+	if !MatterParentExist(uid, parent) {
+		return false, errors.New("dir does not exists")
+	}
+	//avoid move to itself
+	//eg: a/ -> a/
+	//eg: a/ -> a/b/c
+	//eg: b/ -> a/b/c
+	if parent != "" && strings.HasPrefix(parent, file.Parent+file.Name) {
+		return false, errors.New("can not move to itself")
+	}
+	//avoid move to same place
+	if parent == file.Parent {
+		return false, errors.New("file already in this dir")
+	}
+	//avoid dst dir has the same name file
+	if err := gormutil.DB().Where("uid=? and parent = ?", uid, parent).Find(&out).Error; err != nil {
+		return false, err
+	}
+	for _, v := range out {
+		if v.Name == file.Name {
+			return false, errors.New("dir already has the same name file")
+		}
+	}
+	return true, nil
 }
