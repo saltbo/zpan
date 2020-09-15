@@ -50,9 +50,6 @@ func FileCopy(src *model.Matter, parent string) error {
 }
 
 func CanMove(uid int64, parent string, file *model.Matter) (bool, error) {
-	var (
-		out []model.Matter
-	)
 	//check dir exists
 	if !MatterParentExist(uid, parent) {
 		return false, errors.New("dir does not exists")
@@ -69,13 +66,9 @@ func CanMove(uid int64, parent string, file *model.Matter) (bool, error) {
 		return false, errors.New("file already in this dir")
 	}
 	//avoid dst dir has the same name file
-	if err := gormutil.DB().Where("uid=? and parent = ?", uid, parent).Find(&out).Error; err != nil {
-		return false, err
+	if MatterExist(uid, file.Name, parent) {
+		return false, errors.New("dir already has the same name file")
 	}
-	for _, v := range out {
-		if v.Name == file.Name {
-			return false, errors.New("dir already has the same name file")
-		}
-	}
+
 	return true, nil
 }
