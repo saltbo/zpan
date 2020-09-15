@@ -36,6 +36,11 @@ func MatterParentExist(uid int64, parentDir string) bool {
 	return false
 }
 
+func MatterDirFileNum(uid int64, name string) (num int64) {
+	result := gormutil.DB().Where("uid=? and parent=?", uid ,name + "/").Find(&model.Matter{})
+	return result.RowsAffected
+}
+
 var docTypes = []string{
 	"text/csv",
 	"application/msword",

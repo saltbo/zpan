@@ -13,6 +13,10 @@
 build
 *.out
 zpan.yml
+zpan.db
+
+# Editor auto generate file
+.idea
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
