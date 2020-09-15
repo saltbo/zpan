@@ -9,6 +9,7 @@ import (
 const (
 	DirTypeSys = iota + 1
 	DirTypeUser
+	DirFileMaxNum = 65534
 )
 
 const (
@@ -28,6 +29,7 @@ type Matter struct {
 	Object     string     `json:"object" gorm:"not null"`
 	ACL        string     `json:"acl" gorm:"not null"`
 	URL        string     `json:"url" gorm:"-"`
+	FileNum  int64      `json:"filenum" gorm:"-"`
 	CreatedAt  time.Time  `json:"created" gorm:"not null"`
 	UpdatedAt  time.Time  `json:"updated" gorm:"not null"`
 	UploadedAt *time.Time `json:"uploaded"`
@@ -63,5 +65,11 @@ func (m *Matter) Public() bool {
 func (m *Matter) SetURL(fc func(object string) string) {
 	if m.Public() {
 		m.URL = fc(m.Object)
+	}
+}
+
+func (m *Matter) SetFileNum(num int64) {
+	if m.IsDir() {
+		m.FileNum = num
 	}
 }
