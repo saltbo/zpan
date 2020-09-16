@@ -36,17 +36,10 @@ func MatterParentExist(uid int64, parentDir string) bool {
 	return false
 }
 
-func MatterDirFileNum(uid int64, dir string) (num int64) {
-	result := gormutil.DB().Where("uid=? and parent=?", uid, dir).Find(&model.Matter{})
-	return result.RowsAffected
-}
-
-func MatterDirFileQuotaIsMoreThanLimit(uid int64, dir string) bool {
-	if MatterDirFileNum(uid, dir) >= model.DirFileMaxNum {
-		return true
-	}
-
-	return false
+func MatterOverflowed(uid int64, dir string) bool {
+	var num = 0
+	gormutil.DB().Model(&model.Matter{}).Where("uid=? and parent=?", uid, dir).Count(&num)
+	return num >= model.DirFileMaxNum
 }
 
 var docTypes = []string{

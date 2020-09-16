@@ -59,7 +59,7 @@ func (rs *FolderResource) create(c *gin.Context) {
 	}
 
 	// check current dir file quota
-	if service.MatterDirFileQuotaIsMoreThanLimit(uid, p.Dir) {
+	if service.MatterOverflowed(uid, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("dir file quota is not enough"))
 		return
 	}

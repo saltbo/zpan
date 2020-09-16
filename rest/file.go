@@ -93,7 +93,7 @@ func (rs *FileResource) create(c *gin.Context) {
 	}
 
 	// check current dir file quota
-	if service.MatterDirFileQuotaIsMoreThanLimit(user.Id, p.Dir) {
+	if service.MatterOverflowed(user.Id, p.Dir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("dir file quota is not enough"))
 		return
 	}
@@ -218,7 +218,7 @@ func (rs *FileResource) move(c *gin.Context) {
 	}
 
 	// check current dir file quota
-	if service.MatterDirFileQuotaIsMoreThanLimit(file.Uid, p.NewDir) {
+	if service.MatterOverflowed(file.Uid, p.NewDir) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("dir file quota is not enough"))
 		return
 	}
@@ -252,7 +252,7 @@ func (rs *FileResource) copy(c *gin.Context) {
 	}
 
 	// check current dir file quota
-	if service.MatterDirFileQuotaIsMoreThanLimit(file.Uid, p.NewPath) {
+	if service.MatterOverflowed(file.Uid, p.NewPath) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("dir file quota is not enough"))
 		return
 	}
