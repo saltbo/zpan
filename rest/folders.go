@@ -2,6 +2,8 @@ package rest
 
 import (
 	"fmt"
+	"github.com/saltbo/zpan/disk"
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
@@ -13,16 +15,26 @@ import (
 )
 
 type FolderResource struct {
+	provider disk.Provider
 }
 
-func NewFolderResource() *FolderResource {
-	return &FolderResource{}
+func NewFolderResource(conf disk.Config) ginutil.Resource {
+	//return &FolderResource{}
+	provider, err := disk.New(conf)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	return &FolderResource{
+		provider: provider,
+	}
 }
 
 func (rs *FolderResource) Register(router *gin.RouterGroup) {
 	router.GET("/folders", rs.findAll)
 	router.POST("/folders", rs.create)
 	router.PATCH("/folders/:alias", rs.rename)
+	router.DELETE("/folders/:alias", rs.delete)
 }
 
 func (rs *FolderResource) findAll(c *gin.Context) {
@@ -96,5 +108,50 @@ func (rs *FolderResource) rename(c *gin.Context) {
 		return
 	}
 
+	ginutil.JSON(c)
+}
+
+func(rs *FolderResource) DelDir(src *model.Matter, c *gin.Context) error {
+	// if not directory return
+	if !src.IsDir() {
+		return fmt.Errorf("the file is not directory")
+	}
+	// traverse the directory
+	var files []model.Matter
+	if err := gormutil.DB().Where("parent=?", src.Name+"/").Find(&files).Error; err != nil {
+		return err
+	}
+
+	var objectString []string
+	for _, v := range files {
+		if v.IsDir() {
+			rs.DelDir(&v, c)
+		} else {
+			objectString = append(objectString, v.Object)
+		}
+	}
+	// if the dir is empty return
+	if len(objectString) > 0 {
+		if err := rs.provider.ObjectsDelete(objectString); err != nil {
+			return err
+		}
+	}
+	gormutil.DB().Delete(model.Matter{}, "parent=? or name=?", src.Name+"/", src.Name)
+
+	return nil
+}
+
+func (rs *FolderResource) delete(c *gin.Context) {
+	user := userGet(c)
+
+	file, err := service.UserFileGet(user.Id, c.Param("alias"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err := rs.DelDir(file, c); err != nil {
+		ginutil.JSONServerError(c, err)
+	}
 	ginutil.JSON(c)
 }
