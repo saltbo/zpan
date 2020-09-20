@@ -35,7 +35,7 @@ func userCreate(ux string) (*model.User, error) {
 			return err
 		}
 
-		return MatterSysInit(tx, user.Id, ".pics")
+		return MatterInit(tx, user.Id, ".pics")
 	}
 
 	return user, gormutil.DB().Transaction(fc)

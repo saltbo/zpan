@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jinzhu/gorm"
 	"github.com/saltbo/gopkg/gormutil"
@@ -10,17 +11,25 @@ import (
 	"github.com/saltbo/zpan/model"
 )
 
-func MatterSysInit(tx *gorm.DB, uid int64, name string) error {
+func MatterInit(tx *gorm.DB, uid int64, name string) error {
 	matter := model.NewMatter(uid, name)
 	matter.DirType = model.DirTypeSys
 	return tx.Create(matter).Error
 }
 
-func MatterExist(uid int64, name, parent string) bool {
-	return !gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(&model.Matter{}).RecordNotFound()
+type Matter struct {
 }
 
-func MatterParentExist(uid int64, parentDir string) bool {
+func NewMatter() *Matter {
+	return &Matter{}
+}
+
+func (ms *Matter) Exist(uid int64, name, parent string) (*model.Matter, bool) {
+	m := new(model.Matter)
+	return m, !gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(m).RecordNotFound()
+}
+
+func (ms *Matter) ParentExist(uid int64, parentDir string) bool {
 	if parentDir == "" {
 		return true
 	}
@@ -29,64 +38,113 @@ func MatterParentExist(uid int64, parentDir string) bool {
 	items := strings.Split(parentDir, "/")
 	name := items[len(items)-2]                       // -> 234
 	parent := strings.TrimSuffix(parentDir, name+"/") // -> test123/
-	if MatterExist(uid, name, parent) {
+	pm, exist := ms.Exist(uid, name, parent)
+	if exist && pm.IsDir() {
 		return true
 	}
 
 	return false
 }
 
-func MatterOverflowed(uid int64, dir string) bool {
-	var num = 0
-	gormutil.DB().Model(&model.Matter{}).Where("uid=? and parent=?", uid, dir).Count(&num)
-	return num >= model.DirFileMaxNum
-}
-
-var docTypes = []string{
-	"text/csv",
-	"application/msword",
-	"application/vnd.ms-excel",
-	"application/vnd.ms-powerpoint",
-	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-	"application/vnd.openxmlformats-officedocument.presentationml.presentation",
-}
-
-type Matter struct {
-	query  string
-	params []interface{}
-}
-
-func NewMatter(uid int64) *Matter {
-	return &Matter{
-		query:  "uid=? and (dirtype=? or (dirtype = 0 and uploaded_at is not null))",
-		params: []interface{}{uid, model.DirTypeUser},
-	}
-}
-
-func (m *Matter) SetDir(dir string) {
-	m.query += " and parent=?"
-	m.params = append(m.params, dir)
-}
-
-func (m *Matter) SetType(mt string) {
-	if mt == "doc" {
-		m.query += " and `type` in ('" + strings.Join(docTypes, "','") + "')"
-	} else if mt != "" {
-		m.query += " and type like ?"
-		m.params = append(m.params, mt+"%")
-	}
-}
-
-func (m *Matter) SetKeyword(kw string) {
-	m.query += " and name like ?"
-	m.params = append(m.params, fmt.Sprintf("%%%s%%", kw))
-}
-
-func (m *Matter) Find(offset, limit int) (list []model.Matter, total int64, err error) {
-	sn := gormutil.DB().Where(m.query, m.params...)
+func (ms *Matter) FindAll(mq *MatterQuery, offset, limit int) (list []model.Matter, total int64, err error) {
+	sn := gormutil.DB().Where(mq.query, mq.params...)
 	sn.Model(model.Matter{}).Count(&total)
 	sn = sn.Order("dirtype desc")
 	err = sn.Offset(offset).Limit(limit).Find(&list).Error
 	return
+}
+
+func (ms *Matter) Create(matter *model.Matter) error {
+	if _, ok := ms.Exist(matter.Uid, matter.Name, matter.Parent); ok {
+		return fmt.Errorf("matter already exist")
+	}
+
+	if !ms.ParentExist(matter.Uid, matter.Parent) {
+		return fmt.Errorf("parent dir not exist")
+	}
+
+	fc := func(tx *gorm.DB) error {
+		if err := tx.Create(matter).Error; err != nil {
+			return err
+		}
+
+		// update the service
+		expr := gorm.Expr("storage_used+?", matter.Size)
+		if err := tx.Model(&model.User{Id: matter.Uid}).Update("storage_used", expr).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}
+	return gormutil.DB().Transaction(fc)
+}
+
+func (ms *Matter) Find(alias string) (*model.Matter, error) {
+	m := new(model.Matter)
+	if gormutil.DB().First(m, "alias=?", alias).RecordNotFound() {
+		return nil, fmt.Errorf("file not exist")
+	}
+
+	return m, nil
+}
+
+func (ms *Matter) findUserMatter(uid int64, alias string) (*model.Matter, error) {
+	m, err := ms.Find(alias)
+	if err != nil {
+		return nil, err
+	} else if !m.UserAccessible(uid) {
+		return nil, fmt.Errorf("not accessible")
+	}
+
+	return m, nil
+}
+
+func (ms *Matter) Uploaded(alias string) error {
+	m := gormutil.DB().Model(&model.Matter{})
+	return m.Where("alias=?", alias).Update("uploaded_at", time.Now()).Error
+}
+
+func (ms *Matter) Rename(alias, name string) error {
+	m := gormutil.DB().Model(&model.Matter{})
+	return m.Where("alias=?", alias).Update("name", name).Error
+}
+
+func (ms *Matter) Move(alias, parent string) error {
+	m := gormutil.DB().Model(&model.Matter{})
+	return m.Where("alias=?", alias).Update("parent", parent).Error
+}
+
+func (ms *Matter) Copy(alias, parent string) error {
+	m, err := ms.Find(alias)
+	if err != nil {
+		return err
+	}
+
+	nm := m.Clone()
+	nm.Parent = parent
+	return ms.Create(nm)
+}
+
+func (ms *Matter) Delete(alias string) error {
+	m, err := ms.Find(alias)
+	if err != nil {
+		return err
+	}
+
+	fc := func(tx *gorm.DB) error {
+		// delete for the list
+		if err := tx.Delete(m).Error; err != nil {
+			return err
+		}
+
+		// update the user storage
+		expr := gorm.Expr("storage_used-?", m.Size)
+		if err := tx.Model(&model.User{Id: m.Uid}).Update("storage_used", expr).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return gormutil.DB().Transaction(fc)
 }

@@ -50,6 +50,8 @@ func (Matter) TableName() string {
 
 func (m *Matter) Clone() *Matter {
 	clone := *m
+	clone.Id = 0
+	clone.Alias = strutil.RandomText(16)
 	return &clone
 }
 
@@ -59,6 +61,10 @@ func (m *Matter) IsDir() bool {
 
 func (m *Matter) Public() bool {
 	return m.ACL == AclPublic
+}
+
+func (m *Matter) UserAccessible(uid int64) bool {
+	return m.Uid == uid
 }
 
 func (m *Matter) SetURL(fc func(object string) string) {

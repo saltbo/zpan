@@ -57,10 +57,10 @@ func (rs *ShareResource) find(c *gin.Context) {
 		return
 	}
 
-	sm := service.NewMatter(share.Uid)
 	if matter.IsDir() {
-		sm.SetDir(fmt.Sprintf("%s/%s", matter.Name, p.Dir)) // 设置父级目录
-		list, total, err := sm.Find(p.Offset, p.Limit)
+		mq := service.NewMatterQuery(share.Uid)
+		mq.SetDir(fmt.Sprintf("%s/%s", matter.Name, p.Dir)) // 设置父级目录
+		list, total, err := service.NewMatter().FindAll(mq, p.Offset, p.Limit)
 		if err != nil {
 			ginutil.JSONServerError(c, err)
 			return

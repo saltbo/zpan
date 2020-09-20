@@ -73,7 +73,7 @@ func serverRun(conf *config.Config) {
 	ginutil.SetupResource(apiRouter,
 		rest.NewUserResource(),
 		rest.NewFileResource(conf.Provider),
-		rest.NewFolderResource(conf.Provider),
+		rest.NewFolderResource(),
 		rest.NewShareResource(),
 	)
 
