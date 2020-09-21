@@ -1,0 +1,6 @@
+* [介绍](/zh-cn/)
+* [快速开始](/zh-cn/getting-started.md)
+* [配置文件](/zh-cn/config.md)
+* [云存储](/zh-cn/cloud-platform.md)
+* [构建](/zh-cn/build.md)
+* [常见问题](/zh-cn/faq.md)
