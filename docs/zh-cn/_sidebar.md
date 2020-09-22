@@ -2,5 +2,6 @@
 * [快速开始](/zh-cn/getting-started.md)
 * [配置文件](/zh-cn/config.md)
 * [云存储](/zh-cn/cloud-platform.md)
-* [构建](/zh-cn/build.md)
+* [贡献代码](/zh-cn/contributing.md)
+* [白话文教程](/zh-cn/vernacular.md)
 * [常见问题](/zh-cn/faq.md)

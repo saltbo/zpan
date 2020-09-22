@@ -17,3 +17,36 @@ systemctl enable zpan
 ```bash
 docker run -p 80:8222 -v /etc/zpan:/zpan -it saltbo/zpan:latest
 ```
+
+### Usage
+visit http://yourip:8222
+
+
+## 配置文件
+!>您需要将provider中的信息改为您自己云存储的配置
+
+```yaml
+debug: false
+invitation: false
+storage: 104857600
+
+database:
+  driver: sqlite3
+  dsn: zpan.db
+
+provider:
+  name: oss
+  bucket: saltbo-zpan-test
+  endpoint: https://oss-cn-zhangjiakou.aliyuncs.com
+  customHost: http://dl-test.saltbo.cn
+  accessKey: LTAIxxxxxxxxxxxxxxx7YoV
+  accessSecret: PFGVwxxxxxxxxxxxxxxxxRd09u
+
+#email:
+#  host: smtpdm.aliyun.com:25
+#  sender: no-reply@saltbo.fun
+#  username: Zpan
+#  password: mGxxxxxxxxh9
+```
+
+?>默认路径：/etc/zpan/zpan.yml
