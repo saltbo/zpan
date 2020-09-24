@@ -1,17 +1,17 @@
 # debug
-是否输出debug日志，默认为false
+Whether to output the debug log, the default is false
 
 # invitation
-邀请注册是否开启，开启后只允许邀请注册，默认关闭
+Whether invitation registration is enabled, after enabling, only invitation registration is allowed, and it is disabled by default
 
 # storage
-给每个用户分配的初始空间，默认50兆，单位：字节
+The initial space allocated to each user, default 50 megabytes, unit: byte
 
 # database
-这里定义了ZPan的数据库驱动
+The database driver of ZPan is defined here
 
 ## driver 
-我们支持四种数据库驱动，您可以根据需求进行选择
+We support four database drivers, you can choose according to your needs
 
 - sqlite3
 - mysql
@@ -19,7 +19,7 @@
 - mssql
 
 ## dsn
-不用的驱动对应的dsn也是不一样的，这里我们分别给出每种驱动的dsn格式
+The dsn corresponding to different drivers is also different, here we give the dsn format of each driver separately
 
 |  driver   | dsn  |
 |  ----  | ----  |
@@ -29,40 +29,40 @@
 | mssql  | sqlserver://zpan:LoremIpsum86@localhost:9930?database=zpan |
 
 # provider
-目前我们支持所有基于S3的云存储平台，比如阿里云OSS、腾讯云COS、七牛云KODO。
+Currently we support all S3-based cloud storage platforms, such as Alibaba Cloud OSS, Tencent Cloud COS, Qiniu Cloud KODO.
 
 ## name
-您使用的云存储名称，可选如下
+The name of the cloud storage you use, the options are as follows
 
 - oss
 - cos
 - kodo
 
 ## bucket
-您创建的存储空间名称
+The name of the storage space you created
 
 ## endpoint
-云存储的接入点
+Access point for cloud storage
 
 ## customHost
-云存储绑定的自定义域名
+Custom domain name bound to cloud storage
 
 ## accessKey
 
 ## accessSecret
 
 # email
-配置发信邮箱即可开启账号注册的邮箱验证
+Configure the email address to open the account registration email verification
 
 ## host
-发信服务地址，eg:: smtpdm.aliyun.com:25
+Mailing service address，eg:: smtpdm.aliyun.com:25
 
 ## sender: 
-发信地址，eg:no-reply@saltbo.fun
+Mailing address，eg:no-reply@saltbo.fun
 
 ## username
-发信人，eg：Zpan
+Sender，eg：Zpan
 
 ## password
-发信密码
+Sending password
 

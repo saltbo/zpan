@@ -1,14 +1,15 @@
-### 常见问题
+### FAQ
 
-待收集整理
+To be collected
 
+### Feedback
+If the problem you encounter is not within the above range, please create an [issue](https://github.com/saltbo/zpan/issues) on GitHub for feedback.
 
-### 用户反馈
-如果您遇到的问题不再以上范围内，请到GitHub上创建一个issue进行反馈。
+If you find any defects in the process of use, or have a new demand proposal, you are also welcome to submit an [issue](https://github.com/saltbo/zpan/issues).
 
-如果您在使用过程中发现了什么缺陷，或是有新的需求提议，也欢迎提交issue。
+### Contact
+- [Telegram](https://t.me/zzpan)
 
-### 联系
-<img src="https://static.saltbo.cn/images/image-20200907222028162.png" alt="image-20200907222028162" style="zoom: 25%;" />
+Or contact the developer:
 
-扫码进群，和我一起完善这个产品。
+Email：saltbo@foxmail.com

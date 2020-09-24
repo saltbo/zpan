@@ -1,4 +1,4 @@
-> Here we provide different endpoint samples for each major platform, you need to change `my-zpan-bucket` to your own bucket name
+> 这里我们提供了各大平台不同的endpoint样例，需要您把`my-zpan-bucket`改成您自己的bucket名称
 
 # S3
 ### Endpoint
@@ -20,7 +20,7 @@
 ### Endpoint
 `endpoint: storage.googleapis.com`
 
-### CORS
+### CORS配置
 ```bash
 echo '[{"origin":["*"],"method":["PUT"],"responseHeader":["content-type","x-amz-acl"]}]' > cors.json
 gsutil cors set cors.json gs://your-bucket-name

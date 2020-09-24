@@ -1,15 +1,15 @@
 ## Linux
 ```bash
-# install service
+# 安装服务
 curl -sSf https://dl.saltbo.cn/install.sh | sh -s zpan
 
-# start service
+# 启动服务
 systemctl start zpan
 
-# check service status
+# 查看服务状态
 systemctl status zpan
 
-# set boot up
+# 设置开机启动
 systemctl enable zpan
 ```
 
@@ -22,8 +22,8 @@ docker run -p 80:8222 -v /etc/zpan:/zpan -it saltbo/zpan:latest
 visit http://yourip:8222
 
 
-## ConfigFile
-!>You need to change the information in the provider to your own cloud storage configuration
+## 配置文件
+!>您需要将provider中的信息改为您自己云存储的配置
 
 ```yaml
 debug: false
@@ -49,4 +49,4 @@ provider:
 #  password: mGxxxxxxxxh9
 ```
 
-?>Default Path：/etc/zpan/zpan.yml
+?>默认路径：/etc/zpan/zpan.yml
