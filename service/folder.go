@@ -8,10 +8,11 @@ import (
 	"github.com/saltbo/gopkg/gormutil"
 
 	"github.com/saltbo/zpan/model"
+	"github.com/saltbo/zpan/service/matter"
 )
 
 type Folder struct {
-	Matter
+	matter.Matter
 }
 
 func NewFolder() *Folder {
@@ -19,7 +20,7 @@ func NewFolder() *Folder {
 }
 
 func (f *Folder) Rename(uid int64, alias, name string) error {
-	m, err := f.findUserMatter(uid, alias)
+	m, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}
@@ -54,7 +55,7 @@ func (f *Folder) Rename(uid int64, alias, name string) error {
 }
 
 func (f *Folder) Move(uid int64, alias, parent string) error {
-	m, err := f.findUserMatter(uid, alias)
+	m, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}
@@ -82,7 +83,7 @@ func (f *Folder) Move(uid int64, alias, parent string) error {
 }
 
 func (f *Folder) Remove(uid int64, alias string) error {
-	m, err := f.findUserMatter(uid, alias)
+	m, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}

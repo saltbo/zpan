@@ -11,10 +11,11 @@ import (
 
 	"github.com/saltbo/zpan/disk"
 	"github.com/saltbo/zpan/model"
+	"github.com/saltbo/zpan/service/matter"
 )
 
 type File struct {
-	Matter
+	matter.Matter
 
 	provider disk.Provider
 }
@@ -25,8 +26,8 @@ func NewFile(provider disk.Provider) *File {
 	}
 }
 
-func (f *File) FindAll(mq *MatterQuery, offset, limit int) (list []model.Matter, total int64, err error) {
-	list, total, err = f.Matter.FindAll(mq, offset, limit)
+func (f *File) FindAll(uid int64, offset, limit int, options ...matter.QueryOption) (list []model.Matter, total int64, err error) {
+	list, total, err = f.Matter.FindAll(uid, offset, limit, options...)
 	for idx := range list {
 		list[idx].SetURL(f.provider.PublicURL)
 	}
@@ -60,7 +61,7 @@ func (f *File) UploadDone(uid int64, alias string) (*model.Matter, error) {
 		return nil, err
 	}
 
-	m, err := f.findUserMatter(uid, alias)
+	m, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +80,7 @@ func (f *File) PreSignGetURL(alias string) (string, error) {
 }
 
 func (f *File) Rename(uid int64, alias, name string) error {
-	m, err := f.findUserMatter(uid, alias)
+	m, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}
@@ -92,7 +93,7 @@ func (f *File) Rename(uid int64, alias, name string) error {
 }
 
 func (f *File) Copy(uid int64, alias, parent string) error {
-	m, err := f.findUserMatter(uid, alias)
+	m, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	} else if err := f.copyOrMoveValidation(m, uid, parent); err != nil {
@@ -103,7 +104,7 @@ func (f *File) Copy(uid int64, alias, parent string) error {
 }
 
 func (f *File) Move(uid int64, alias, parent string) error {
-	m, err := f.findUserMatter(uid, alias)
+	m, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	} else if err := f.copyOrMoveValidation(m, uid, parent); err != nil {
@@ -114,7 +115,7 @@ func (f *File) Move(uid int64, alias, parent string) error {
 }
 
 func (f *File) Delete(uid int64, alias string) error {
-	m, err := f.findUserMatter(uid, alias)
+	m, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}

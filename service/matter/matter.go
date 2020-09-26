@@ -1,4 +1,4 @@
-package service
+package matter
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"github.com/saltbo/zpan/model"
 )
 
-func MatterInit(tx *gorm.DB, uid int64, name string) error {
+func Init(tx *gorm.DB, uid int64, name string) error {
 	matter := model.NewMatter(uid, name)
 	matter.DirType = model.DirTypeSys
 	return tx.Create(matter).Error
@@ -46,8 +46,9 @@ func (ms *Matter) ParentExist(uid int64, parentDir string) bool {
 	return false
 }
 
-func (ms *Matter) FindAll(mq *MatterQuery, offset, limit int) (list []model.Matter, total int64, err error) {
-	sn := gormutil.DB().Where(mq.query, mq.params...)
+func (ms *Matter) FindAll(uid int64, offset, limit int, options ...QueryOption) (list []model.Matter, total int64, err error) {
+	mq := NewQuery(uid, options...)
+	sn := gormutil.DB().Where(mq.SQL, mq.Params...)
 	sn.Model(model.Matter{}).Count(&total)
 	sn = sn.Order("dirtype desc")
 	err = sn.Offset(offset).Limit(limit).Find(&list).Error
@@ -88,7 +89,7 @@ func (ms *Matter) Find(alias string) (*model.Matter, error) {
 	return m, nil
 }
 
-func (ms *Matter) findUserMatter(uid int64, alias string) (*model.Matter, error) {
+func (ms *Matter) FindUserMatter(uid int64, alias string) (*model.Matter, error) {
 	m, err := ms.Find(alias)
 	if err != nil {
 		return nil, err

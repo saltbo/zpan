@@ -19,8 +19,9 @@ docker run -p 80:8222 -v /etc/zpan:/zpan -it saltbo/zpan:latest
 ```
 
 ### Usage
-visit http://yourip:8222
+>管理员默认账号密码会输出到Stdout，请到启动日志里获取并记录
 
+visit http://yourip:8222
 
 ## 配置文件
 !>您需要将provider中的信息改为您自己云存储的配置

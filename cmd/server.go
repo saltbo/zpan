@@ -75,6 +75,7 @@ func serverRun(conf *config.Config) {
 		rest.NewFileResource(conf.Provider),
 		rest.NewFolderResource(),
 		rest.NewShareResource(),
+		rest.NewRecycleBinResource(conf.Provider),
 	)
 
 	ginutil.SetupEmbedAssets(ge.Group("/"),

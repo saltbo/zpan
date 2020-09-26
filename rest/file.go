@@ -10,11 +10,11 @@ import (
 	"github.com/saltbo/zpan/disk"
 	"github.com/saltbo/zpan/rest/bind"
 	"github.com/saltbo/zpan/service"
+	"github.com/saltbo/zpan/service/matter"
 )
 
 type FileResource struct {
 	fs *service.File
-	folder *service.Folder
 }
 
 func NewFileResource(conf disk.Config) ginutil.Resource {
@@ -46,15 +46,16 @@ func (rs *FileResource) findAll(c *gin.Context) {
 		return
 	}
 
-	mq := service.NewMatterQuery(userIdGet(c))
+	opts := make([]matter.QueryOption, 0)
 	if p.Type != "" {
-		mq.SetType(p.Type)
+		opts = append(opts, matter.WithType(p.Type))
 	} else if p.Keyword != "" {
-		mq.SetKeyword(p.Keyword)
+		opts = append(opts, matter.WithKeyword(p.Keyword))
 	} else {
-		mq.SetDir(p.Dir)
+		opts = append(opts, matter.WithDir(p.Dir))
 	}
-	list, total, err := rs.fs.FindAll(mq, p.Offset, p.Limit)
+
+	list, total, err := rs.fs.FindAll(userIdGet(c), p.Offset, p.Limit, opts...)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
