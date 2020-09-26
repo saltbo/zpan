@@ -14,8 +14,7 @@ type QueryFiles struct {
 	QueryPage
 	Dir     string `form:"dir"`
 	Type    string `form:"type"`
-	Search  bool   `form:"search"`
-	Keyword string `form:"keyword"`
+	Keyword string `form:"kw"`
 }
 
 type BodyFile struct {

@@ -11,7 +11,7 @@ import (
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
-	"github.com/saltbo/zpan/service"
+	matter2 "github.com/saltbo/zpan/service/matter"
 )
 
 type ShareResource struct {
@@ -57,10 +57,9 @@ func (rs *ShareResource) find(c *gin.Context) {
 		return
 	}
 
-	sm := service.NewMatter(share.Uid)
 	if matter.IsDir() {
-		sm.SetDir(fmt.Sprintf("%s/%s", matter.Name, p.Dir)) // 设置父级目录
-		list, total, err := sm.Find(p.Offset, p.Limit)
+		dir := fmt.Sprintf("%s/%s", matter.Name, p.Dir) // 设置父级目录
+		list, total, err := matter2.NewMatter().FindAll(share.Uid, p.Offset, p.Limit, matter2.WithDir(dir))
 		if err != nil {
 			ginutil.JSONServerError(c, err)
 			return

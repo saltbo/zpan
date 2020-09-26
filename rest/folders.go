@@ -1,8 +1,6 @@
 package rest
 
 import (
-	"fmt"
-
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
@@ -13,16 +11,21 @@ import (
 )
 
 type FolderResource struct {
+	folder *service.Folder
 }
 
-func NewFolderResource() *FolderResource {
-	return &FolderResource{}
+func NewFolderResource() ginutil.Resource {
+	return &FolderResource{
+		folder: service.NewFolder(),
+	}
 }
 
 func (rs *FolderResource) Register(router *gin.RouterGroup) {
 	router.GET("/folders", rs.findAll)
 	router.POST("/folders", rs.create)
-	router.PATCH("/folders/:alias", rs.rename)
+	router.PATCH("/folders/:alias/name", rs.rename)
+	router.PATCH("/folders/:alias/dir", rs.move)
+	router.DELETE("/folders/:alias", rs.delete)
 }
 
 func (rs *FolderResource) findAll(c *gin.Context) {
@@ -53,18 +56,7 @@ func (rs *FolderResource) create(c *gin.Context) {
 	}
 
 	uid := userIdGet(c)
-	if !service.MatterParentExist(uid, p.Dir) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("parent dir not exist"))
-		return
-	}
-
-	// matter exist
-	if service.MatterExist(uid, p.Name, p.Dir) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("matter already exist"))
-		return
-	}
-
-	if err := gormutil.DB().Create(p.ToMatter(uid)).Error; err != nil {
+	if err := rs.folder.Create(p.ToMatter(uid)); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -79,13 +71,37 @@ func (rs *FolderResource) rename(c *gin.Context) {
 		return
 	}
 
-	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
-	if err != nil {
+	uid := userIdGet(c)
+	alias := c.Param("alias")
+	if err := rs.folder.Rename(uid, alias, p.NewName); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+func (rs *FolderResource) move(c *gin.Context) {
+	p := new(bind.BodyFileMove)
+	if err := c.ShouldBindJSON(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	if err := service.FolderRename(file, p.NewName); err != nil {
+	uid := userIdGet(c)
+	alias := c.Param("alias")
+	if err := rs.folder.Move(uid, alias, p.NewDir); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+func (rs *FolderResource) delete(c *gin.Context) {
+	uid := userIdGet(c)
+	alias := c.Param("alias")
+	if err := rs.folder.Remove(uid, alias); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

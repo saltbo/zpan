@@ -29,9 +29,11 @@ type Config struct {
 type ProviderConstructor func(provider Config) (Provider, error)
 
 var supportDrivers = map[string]string{
-	"cos":  "cos.(.*).myqcloud.com",
-	"oss":  `oss.(.*).aliyuncs.com`,
-	"kodo": "s3-(.*).qiniucs.com",
+	"s3":      "s3.(.*).amazonaws.com",
+	"cos":     "cos.(.*).myqcloud.com",
+	"oss":     `oss.(.*).aliyuncs.com`,
+	"kodo":    "s3-(.*).qiniucs.com",
+	"storage": "storage.googleapis.com",
 }
 
 func New(conf Config) (Provider, error) {
@@ -45,5 +47,12 @@ func New(conf Config) (Provider, error) {
 		return nil, err
 	}
 
-	return newAwsS3(conf, exp.FindString(conf.Endpoint))
+	var region string
+	if conf.Name == "storage" {
+		region = "auto"
+	} else if items := exp.FindStringSubmatch(conf.Endpoint); len(items) > 1 {
+		region = items[1]
+	}
+
+	return newAwsS3(conf, region)
 }

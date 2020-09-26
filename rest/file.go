@@ -3,23 +3,18 @@ package rest
 import (
 	"fmt"
 	"log"
-	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
 	"github.com/saltbo/gopkg/ginutil"
-	"github.com/saltbo/gopkg/gormutil"
-	"github.com/saltbo/gopkg/timeutil"
 
 	"github.com/saltbo/zpan/disk"
 	"github.com/saltbo/zpan/rest/bind"
 	"github.com/saltbo/zpan/service"
+	"github.com/saltbo/zpan/service/matter"
 )
 
 type FileResource struct {
-	provider disk.Provider
+	fs *service.File
 }
 
 func NewFileResource(conf disk.Config) ginutil.Resource {
@@ -29,7 +24,7 @@ func NewFileResource(conf disk.Config) ginutil.Resource {
 	}
 
 	return &FileResource{
-		provider: provider,
+		fs: service.NewFile(provider),
 	}
 }
 
@@ -51,21 +46,19 @@ func (rs *FileResource) findAll(c *gin.Context) {
 		return
 	}
 
-	sm := service.NewMatter(userIdGet(c))
-	if !p.Search {
-		sm.SetDir(p.Dir)
-	} else if p.Type != "" {
-		sm.SetType(p.Type)
+	opts := make([]matter.QueryOption, 0)
+	if p.Type != "" {
+		opts = append(opts, matter.WithType(p.Type))
+	} else if p.Keyword != "" {
+		opts = append(opts, matter.WithKeyword(p.Keyword))
+	} else {
+		opts = append(opts, matter.WithDir(p.Dir))
 	}
-	list, total, err := sm.Find(p.Offset, p.Limit)
+
+	list, total, err := rs.fs.FindAll(userIdGet(c), p.Offset, p.Limit, opts...)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
-	}
-
-	// inject the url for the public object
-	for idx := range list {
-		list[idx].SetURL(rs.provider.PublicURL)
 	}
 
 	ginutil.JSONList(c, list, total)
@@ -84,64 +77,36 @@ func (rs *FileResource) create(c *gin.Context) {
 		return
 	}
 
-	if !service.MatterParentExist(user.Id, p.Dir) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("parent dir not exist"))
-		return
-	}
-
-	//	auto append a suffix if matter exist
-	if service.MatterExist(user.Id, p.Name, p.Dir) {
-		ext := filepath.Ext(p.Name)
-		name := strings.TrimSuffix(p.Name, ext)
-		suffix := fmt.Sprintf("_%s", timeutil.Format(time.Now(), "YYYYMMDD_HHmmss"))
-		p.Name = name + suffix + ext
-	}
-
-	//publicRead := false
-	//if p.Dir == ".pics/" {
-	//	publicRead = true
-	//}
 	matter := p.ToMatter(user.Id)
-	link, headers, err := rs.provider.SignedPutURL(matter.Object, p.Type, p.Public)
+	link, headers, err := rs.fs.PreSignPutURL(matter)
 	if err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	fc := func(tx *gorm.DB) error {
-		if err := tx.Create(matter).Error; err != nil {
-			return err
-		}
-
-		// update the service
-		expr := gorm.Expr("storage_used+?", p.Size)
-		if err := tx.Model(user).Update("storage_used", expr).Error; err != nil {
-			return err
-		}
-
-		return nil
-	}
-	if err := gormutil.DB().Transaction(fc); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
 	ginutil.JSONData(c, gin.H{
 		"alias":   matter.Alias,
-		"link":    link,
 		"object":  matter.Object,
+		"link":    link,
 		"headers": headers,
 	})
 }
 
-func (rs *FileResource) find(c *gin.Context) {
-	file, err := service.FileGet(c.Param("alias"))
+func (rs *FileResource) uploaded(c *gin.Context) {
+	uid := userIdGet(c)
+	alias := c.Param("alias")
+	m, err := rs.fs.UploadDone(uid, alias)
 	if err != nil {
-		ginutil.JSONBadRequest(c, err)
+		ginutil.JSONServerError(c, err)
 		return
 	}
 
-	link, err := rs.provider.SignedGetURL(file.Object, file.Name)
+	ginutil.JSONData(c, m)
+}
+
+func (rs *FileResource) find(c *gin.Context) {
+	alias := c.Param("alias")
+	link, err := rs.fs.PreSignGetURL(alias)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -152,22 +117,6 @@ func (rs *FileResource) find(c *gin.Context) {
 	})
 }
 
-func (rs *FileResource) uploaded(c *gin.Context) {
-	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
-	if err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	if err = service.FileUploaded(file); err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	file.SetURL(rs.provider.PublicURL)
-	ginutil.JSONData(c, file)
-}
-
 func (rs *FileResource) rename(c *gin.Context) {
 	p := new(bind.BodyFileRename)
 	if err := c.ShouldBindJSON(p); err != nil {
@@ -175,18 +124,9 @@ func (rs *FileResource) rename(c *gin.Context) {
 		return
 	}
 
-	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
-	if err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	if file.IsDir() {
-		ginutil.JSONBadRequest(c, fmt.Errorf("not support rename the dir"))
-		return
-	}
-
-	if err = service.FileRename(file, p.NewName); err != nil {
+	uid := userIdGet(c)
+	alias := c.Param("alias")
+	if err := rs.fs.Rename(uid, alias, p.NewName); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -201,13 +141,9 @@ func (rs *FileResource) move(c *gin.Context) {
 		return
 	}
 
-	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
-	if err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	if err = service.FileMove(file, p.NewDir); err != nil {
+	uid := userIdGet(c)
+	alias := c.Param("alias")
+	if err := rs.fs.Move(uid, alias, p.NewDir); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -222,13 +158,9 @@ func (rs *FileResource) copy(c *gin.Context) {
 		return
 	}
 
-	file, err := service.UserFileGet(userIdGet(c), c.Param("alias"))
-	if err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	if err = service.FileCopy(file, p.NewPath); err != nil {
+	uid := userIdGet(c)
+	alias := c.Param("alias")
+	if err := rs.fs.Copy(uid, alias, p.NewPath); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -237,34 +169,9 @@ func (rs *FileResource) copy(c *gin.Context) {
 }
 
 func (rs *FileResource) delete(c *gin.Context) {
-	user := userGet(c)
-	file, err := service.UserFileGet(user.Id, c.Param("alias"))
-	if err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	if err := rs.provider.ObjectDelete(file.Object); err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	fc := func(tx *gorm.DB) error {
-		// delete for the list
-		if err := tx.Delete(file).Error; err != nil {
-			return err
-		}
-
-		// update the user storage
-		expr := gorm.Expr("storage_used-?", file.Size)
-		if err := tx.Model(user).Update("storage_used", expr).Error; err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	if err := gormutil.DB().Transaction(fc); err != nil {
+	uid := userIdGet(c)
+	alias := c.Param("alias")
+	if err := rs.fs.Delete(uid, alias); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
