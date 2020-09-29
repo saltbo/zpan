@@ -29,7 +29,7 @@ func (f *Folder) Rename(uid int64, alias, name string) error {
 		return fmt.Errorf("dir already exist a same name file")
 	}
 
-	children, err := f.findChildren(m)
+	children, err := f.FindChildren(m.Uid, m.FullPath())
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func (f *Folder) Move(uid int64, alias, parent string) error {
 		return err
 	}
 
-	children, err := f.findChildren(m)
+	children, err := f.FindChildren(m.Uid, m.FullPath())
 	if err != nil {
 		return err
 	}
@@ -88,36 +88,25 @@ func (f *Folder) Remove(uid int64, alias string) error {
 		return err
 	}
 
-	children, err := f.findChildren(m)
+	children, err := f.FindChildren(m.Uid, m.FullPath())
 	if err != nil {
 		return err
 	}
 
 	fc := func(tx *gorm.DB) error {
 		for _, v := range children {
-			err := tx.Delete(v).Error
-			if err != nil {
+			if err := f.Matter.Remove(tx, v.Alias); err != nil {
 				return err
 			}
 		}
 
-		return tx.Delete(m).Error
+		return f.Matter.RemoveToRecycle(tx, m.Alias)
 	}
+
 	return gormutil.DB().Transaction(fc)
 }
 
-func (f *Folder) findChildren(m *model.Matter) ([]model.Matter, error) {
-	var children []model.Matter
-	oldParent := fmt.Sprintf("%s%s/", m.Parent, m.Name)
-	if err := gormutil.DB().Where("uid=? and parent like ?", m.Uid, oldParent+"%").Find(&children).Error; err != nil {
-		return nil, err
-	}
-
-	return children, nil
-}
-
 func (f *Folder) copyOrMoveValidation(m *model.Matter, uid int64, parent string) error {
-	fmt.Println(parent, m.Parent+m.Name)
 	if !m.IsDir() {
 		return fmt.Errorf("only support direction")
 	} else if parent == m.Parent {

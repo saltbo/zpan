@@ -55,6 +55,16 @@ func (ms *Matter) FindAll(uid int64, offset, limit int, options ...QueryOption) 
 	return
 }
 
+func (ms *Matter) FindChildren(uid int64, parent string) (children []model.Matter, err error) {
+	err = gormutil.DB().Debug().Where("uid=? and parent like ?", uid, parent+"%").Find(&children).Error
+	return
+}
+
+func (ms *Matter) UnscopedChildren(uid int64, parent string) (children []model.Matter, err error) {
+	err = gormutil.DB().Unscoped().Where("uid=? and parent like ?", uid, parent+"%").Find(&children).Error
+	return
+}
+
 func (ms *Matter) Create(matter *model.Matter) error {
 	if _, ok := ms.Exist(matter.Uid, matter.Name, matter.Parent); ok {
 		return fmt.Errorf("matter already exist")
@@ -126,7 +136,16 @@ func (ms *Matter) Copy(alias, parent string) error {
 	return ms.Create(nm)
 }
 
-func (ms *Matter) Delete(alias string) error {
+func (ms *Matter) Remove(db *gorm.DB, alias string) error {
+	m, err := ms.Find(alias)
+	if err != nil {
+		return err
+	}
+
+	return db.Delete(m).Error
+}
+
+func (ms *Matter) RemoveToRecycle(db *gorm.DB, alias string) error {
 	m, err := ms.Find(alias)
 	if err != nil {
 		return err
@@ -138,14 +157,39 @@ func (ms *Matter) Delete(alias string) error {
 			return err
 		}
 
-		// update the user storage
-		expr := gorm.Expr("storage_used-?", m.Size)
-		if err := tx.Model(&model.User{Id: m.Uid}).Update("storage_used", expr).Error; err != nil {
+		// create a recycle record
+		rm := &model.Recycle{
+			Uid:     m.Uid,
+			Alias:   m.Alias,
+			Name:    m.Name,
+			Type:    m.Type,
+			Size:    m.Size,
+			DirType: m.DirType,
+		}
+		return tx.Create(rm).Error
+	}
+
+	return db.Transaction(fc)
+}
+
+func (ms *Matter) Recovery(m *model.Matter) error {
+	fc := func(tx *gorm.DB) error {
+		// delete the recycle record
+		if err := tx.Delete(&model.Recycle{}, "alias=?", m.Alias).Error; err != nil {
 			return err
 		}
 
-		return nil
+		if m.IsDir() {
+			// remove the delete tag for the children
+			sn := tx.Model(&model.Matter{}).Where("uid=? and parent=?", m.Uid, m.FullPath())
+			if err := sn.Update("delete_at", nil).Error; err != nil {
+				return err
+			}
+		}
+
+		// remove the delete tag
+		return tx.Model(m).Unscoped().Update("delete_at", nil).Error
 	}
 
-	return gormutil.DB().Transaction(fc)
+	return gormutil.DB().Debug().Transaction(fc)
 }

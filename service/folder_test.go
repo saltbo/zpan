@@ -42,7 +42,7 @@ func TestFolder_RenameNotEmpty(t *testing.T) {
 	assert.NoError(t, folder.Rename(0, ems[0].Alias, newName))
 
 	ems[0].Name = newName
-	children, err := folder.findChildren(ems[0])
+	children, err := folder.FindChildren(ems[0].Uid, ems[0].FullPath())
 	assert.NoError(t, err)
 	assert.Len(t, children, 3)
 }
@@ -73,7 +73,7 @@ func TestFolder_MoveWithNotEmpty(t *testing.T) {
 
 	assert.NoError(t, folder.Move(0, ems[0].Alias, ems[1].Name+"/"))
 
-	children, err := folder.findChildren(ems[1])
+	children, err := folder.FindChildren(ems[1].Uid, ems[1].FullPath())
 	assert.NoError(t, err)
 	assert.Len(t, children, 4)
 }

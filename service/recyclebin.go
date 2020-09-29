@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 
+	"github.com/jinzhu/gorm"
 	"github.com/saltbo/gopkg/gormutil"
 
 	"github.com/saltbo/zpan/disk"
@@ -11,6 +12,8 @@ import (
 )
 
 type RecycleBin struct {
+	matter.Matter
+
 	provider disk.Provider
 }
 
@@ -20,22 +23,21 @@ func NewRecycleBin(provider disk.Provider) *RecycleBin {
 	}
 }
 
-func (rb *RecycleBin) FindAll(uid int64, offset, limit int, options ...matter.QueryOption) (list []model.Matter, total int64, err error) {
-	mq := matter.NewQuery(uid, options...)
-	sn := gormutil.DB().Where(mq.SQL, mq.Params...)
-	sn.Model(model.Matter{}).Count(&total)
+func (rb *RecycleBin) FindAll(uid int64, offset, limit int) (list []model.Recycle, total int64, err error) {
+	sn := gormutil.DB().Where("uid=?", uid)
+	sn.Model(model.Recycle{}).Count(&total)
 	sn = sn.Order("dirtype desc")
-	err = sn.Unscoped().Offset(offset).Limit(limit).Find(&list).Error
+	err = sn.Offset(offset).Limit(limit).Find(&list).Error
 	return
 }
 
 func (rb *RecycleBin) Recovery(uid int64, alias string) error {
-	_, err := rb.find(uid, alias)
+	m, err := rb.find(uid, alias)
 	if err != nil {
 		return err
 	}
 
-	return gormutil.DB().Unscoped().Model(&model.Matter{}).Where("alias=?", alias).Update("deleted_at", nil).Error
+	return rb.Matter.Recovery(m)
 }
 
 func (rb *RecycleBin) Delete(uid int64, alias string) error {
@@ -48,9 +50,63 @@ func (rb *RecycleBin) Delete(uid int64, alias string) error {
 		return err
 	}
 
-	return gormutil.DB().Unscoped().Where("alias=?", alias).Delete(&model.Matter{}).Error
+	if m.IsDir() {
+		// 计算文件夹所占的所有空间
+		children, err := rb.UnscopedChildren(m.Uid, m.FullPath())
+		if err != nil {
+			return err
+		}
+		for _, child := range children {
+			m.Size += child.Size
+		}
+	}
+
+	return rb.release(m.Uid, m.Size, "alias=?", m.Alias)
 }
 
+func (rb *RecycleBin) Clean(uid int64) error {
+	rbs := make([]model.Recycle, 0)
+	if err := gormutil.DB().Where("uid=?", uid).Find(&rbs).Error; err != nil {
+		return err
+	}
+
+	var size int64
+	for _, recycle := range rbs {
+		if recycle.Size > 0 {
+			size += recycle.Size
+			continue
+		} else if recycle.DirType > model.DirTypeSys {
+			// 获取该文件夹的所有子文件，计算目录
+			children, err := rb.UnscopedChildren(recycle.Uid, recycle.FullPath())
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(children)
+			for _, child := range children {
+				size += child.Size
+			}
+			fmt.Println(size)
+		}
+	}
+
+	return rb.release(uid, size, "uid=?", uid)
+}
+
+func (rb *RecycleBin) release(uid, size int64, query interface{}, args ...interface{}) error {
+	fc := func(tx *gorm.DB) error {
+		// release the user storage
+		expr := gorm.Expr("storage_used-?", size)
+		if err := tx.Model(&model.User{Id: uid}).Update("storage_used", expr).Error; err != nil {
+			return err
+		}
+
+		// clean the RecycleBin
+		return tx.Where(query, args...).Delete(&model.Recycle{}).Error
+	}
+
+	return gormutil.DB().Transaction(fc)
+}
 
 func (rb *RecycleBin) find(uid int64, alias string) (*model.Matter, error) {
 	m := new(model.Matter)

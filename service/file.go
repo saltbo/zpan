@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/saltbo/gopkg/gormutil"
 	"github.com/saltbo/gopkg/timeutil"
 
 	"github.com/saltbo/zpan/disk"
@@ -115,16 +116,12 @@ func (f *File) Move(uid int64, alias, parent string) error {
 }
 
 func (f *File) Delete(uid int64, alias string) error {
-	m, err := f.FindUserMatter(uid, alias)
+	_, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}
 
-	if err := f.provider.ObjectDelete(m.Object); err != nil {
-		return err
-	}
-
-	return f.Matter.Delete(alias)
+	return f.Matter.RemoveToRecycle(gormutil.DB(), alias)
 }
 
 func (f *File) copyOrMoveValidation(m *model.Matter, uid int64, parent string) error {

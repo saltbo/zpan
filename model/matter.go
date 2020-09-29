@@ -55,6 +55,15 @@ func (m *Matter) Clone() *Matter {
 	return &clone
 }
 
+func (m *Matter) FullPath() string {
+	fp := m.Parent + m.Name
+	if m.IsDir() {
+		fp += "/"
+	}
+
+	return fp
+}
+
 func (m *Matter) IsDir() bool {
 	return m.DirType > 0
 }
