@@ -20,7 +20,7 @@ func TestFolder_Rename(t *testing.T) {
 	assert.NoError(t, folder.Rename(m.Uid, m.Alias, newName))
 	assert.Error(t, folder.Rename(m.Uid, m.Alias, newName))
 
-	nm, err := folder.findUserMatter(m.Uid, m.Alias)
+	nm, err := folder.FindUserMatter(m.Uid, m.Alias)
 	assert.NoError(t, err)
 	assert.Equal(t, newName, nm.Name)
 }

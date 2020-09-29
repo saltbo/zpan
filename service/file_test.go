@@ -58,7 +58,7 @@ func TestFileRename(t *testing.T) {
 
 	newName := "test-new.txt"
 	assert.NoError(t, fs.Rename(m.Uid, m.Alias, newName))
-	nm, err := fs.findUserMatter(m.Uid, m.Alias)
+	nm, err := fs.FindUserMatter(m.Uid, m.Alias)
 	assert.NoError(t, err)
 	assert.Equal(t, newName, nm.Name)
 }
