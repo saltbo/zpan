@@ -174,21 +174,22 @@ func (ms *Matter) RemoveToRecycle(db *gorm.DB, alias string) error {
 
 func (ms *Matter) Recovery(m *model.Matter) error {
 	fc := func(tx *gorm.DB) error {
-		// delete the recycle record
-		if err := tx.Delete(&model.Recycle{}, "alias=?", m.Alias).Error; err != nil {
-			return err
-		}
-
 		if m.IsDir() {
 			// remove the delete tag for the children
 			sn := tx.Model(&model.Matter{}).Where("uid=? and parent=?", m.Uid, m.FullPath())
-			if err := sn.Update("delete_at", nil).Error; err != nil {
+			if err := sn.Unscoped().Update("deleted_at", nil).Error; err != nil {
 				return err
 			}
 		}
 
 		// remove the delete tag
-		return tx.Model(m).Unscoped().Update("delete_at", nil).Error
+		sn := tx.Unscoped().Model(&model.Matter{}).Where("uid=? and alias=?", m.Uid, m.Alias)
+		if err := sn.Update("deleted_at", nil).Error; err != nil {
+			return err
+		}
+
+		// delete the recycle record
+		return tx.Delete(&model.Recycle{}, "alias=?", m.Alias).Error
 	}
 
 	return gormutil.DB().Debug().Transaction(fc)
