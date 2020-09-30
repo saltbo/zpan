@@ -46,9 +46,10 @@ func (rb *RecycleBin) Delete(uid int64, alias string) error {
 		return err
 	}
 
-	if err := rb.provider.ObjectDelete(m.Object); err != nil {
-		return err
-	}
+	// todo delete the remote object
+	//if err := rb.provider.ObjectDelete(m.Object); err != nil {
+	//	return err
+	//}
 
 	if m.IsDir() {
 		// 计算文件夹所占的所有空间
@@ -59,6 +60,7 @@ func (rb *RecycleBin) Delete(uid int64, alias string) error {
 		for _, child := range children {
 			m.Size += child.Size
 		}
+		//	todo delete the remote object
 	}
 
 	return rb.release(m.Uid, m.Size, "alias=?", m.Alias)
@@ -90,6 +92,8 @@ func (rb *RecycleBin) Clean(uid int64) error {
 		}
 	}
 
+	//	todo delete the remote object
+
 	return rb.release(uid, size, "uid=?", uid)
 }
 
@@ -108,8 +112,8 @@ func (rb *RecycleBin) release(uid, size int64, query interface{}, args ...interf
 	return gormutil.DB().Transaction(fc)
 }
 
-func (rb *RecycleBin) find(uid int64, alias string) (*model.Matter, error) {
-	m := new(model.Matter)
+func (rb *RecycleBin) find(uid int64, alias string) (*model.Recycle, error) {
+	m := new(model.Recycle)
 	if gormutil.DB().Unscoped().First(m, "alias=?", alias).RecordNotFound() {
 		return nil, fmt.Errorf("file not exist")
 	} else if !m.UserAccessible(uid) {

@@ -95,7 +95,7 @@ func (f *Folder) Remove(uid int64, alias string) error {
 
 	fc := func(tx *gorm.DB) error {
 		for _, v := range children {
-			if err := f.Matter.Remove(tx, v.Alias); err != nil {
+			if err := f.Matter.Remove(tx, v.Id, m.Alias); err != nil {
 				return err
 			}
 		}

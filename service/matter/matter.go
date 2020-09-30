@@ -136,13 +136,10 @@ func (ms *Matter) Copy(alias, parent string) error {
 	return ms.Create(nm)
 }
 
-func (ms *Matter) Remove(db *gorm.DB, alias string) error {
-	m, err := ms.Find(alias)
-	if err != nil {
-		return err
-	}
-
-	return db.Delete(m).Error
+func (ms *Matter) Remove(db *gorm.DB, mid int64, trashedBy string) error {
+	deletedAt := time.Now()
+	values := model.Matter{TrashedBy: trashedBy, DeletedAt: &deletedAt}
+	return db.Model(&model.Matter{Id: mid}).Updates(values).Error
 }
 
 func (ms *Matter) RemoveToRecycle(db *gorm.DB, alias string) error {
@@ -152,19 +149,21 @@ func (ms *Matter) RemoveToRecycle(db *gorm.DB, alias string) error {
 	}
 
 	fc := func(tx *gorm.DB) error {
-		// delete for the list
-		if err := tx.Delete(m).Error; err != nil {
+		// soft delete the matter
+		if err := ms.Remove(tx, m.Id, alias); err != nil {
 			return err
 		}
 
 		// create a recycle record
 		rm := &model.Recycle{
 			Uid:     m.Uid,
-			Alias:   m.Alias,
+			Alias:   alias,
 			Name:    m.Name,
 			Type:    m.Type,
 			Size:    m.Size,
 			DirType: m.DirType,
+			Parent:  m.Parent,
+			Object:  m.Object,
 		}
 		return tx.Create(rm).Error
 	}
@@ -172,19 +171,12 @@ func (ms *Matter) RemoveToRecycle(db *gorm.DB, alias string) error {
 	return db.Transaction(fc)
 }
 
-func (ms *Matter) Recovery(m *model.Matter) error {
+func (ms *Matter) Recovery(m *model.Recycle) error {
 	fc := func(tx *gorm.DB) error {
-		if m.IsDir() {
-			// remove the delete tag for the children
-			sn := tx.Model(&model.Matter{}).Where("uid=? and parent=?", m.Uid, m.FullPath())
-			if err := sn.Unscoped().Update("deleted_at", nil).Error; err != nil {
-				return err
-			}
-		}
-
 		// remove the delete tag
-		sn := tx.Unscoped().Model(&model.Matter{}).Where("uid=? and alias=?", m.Uid, m.Alias)
-		if err := sn.Update("deleted_at", nil).Error; err != nil {
+		sn := tx.Model(&model.Matter{}).Where("uid=? and trashed_by=?", m.Uid, m.Alias)
+		values := map[string]interface{}{"trashed_by": "", "deleted_at": nil}
+		if err := sn.Unscoped().Updates(values).Error; err != nil {
 			return err
 		}
 

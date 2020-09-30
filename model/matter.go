@@ -20,7 +20,7 @@ const (
 type Matter struct {
 	Id         int64      `json:"id"`
 	Uid        int64      `json:"uid" gorm:"not null"`
-	Alias      string     `json:"alias" gorm:"not null"`
+	Alias      string     `json:"alias" gorm:"size:16;not null"`
 	Name       string     `json:"name" gorm:"not null"`
 	Type       string     `json:"type" gorm:"not null"`
 	Size       int64      `json:"size" gorm:"not null"`
@@ -33,6 +33,7 @@ type Matter struct {
 	UpdatedAt  time.Time  `json:"updated" gorm:"not null"`
 	UploadedAt *time.Time `json:"uploaded"`
 	DeletedAt  *time.Time `json:"-"`
+	TrashedBy  string     `json:"-" gorm:"size:16;not null"`
 }
 
 func NewMatter(uid int64, name string) *Matter {
