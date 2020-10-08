@@ -6,8 +6,8 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/saltbo/gopkg/gormutil"
 
-	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/model"
+	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/service/matter"
 )
 
@@ -46,21 +46,32 @@ func (rb *RecycleBin) Delete(uid int64, alias string) error {
 		return err
 	}
 
-	// todo delete the remote object
-	//if err := rb.provider.ObjectDelete(m.Object); err != nil {
-	//	return err
-	//}
-
-	if m.IsDir() {
-		// 计算文件夹所占的所有空间
-		children, err := rb.UnscopedChildren(m.Uid, m.FullPath())
+	if !m.IsDir() {
+		// delete the remote object
+		if err := rb.provider.ObjectDelete(m.Object); err != nil {
+			return err
+		}
+	} else {
+		// get all files removed to the recycle bin
+		children, err := rb.UnscopedChildren(m.Uid, alias)
 		if err != nil {
 			return err
 		}
+
+		objects := make([]string, 0, len(children))
 		for _, child := range children {
-			m.Size += child.Size
+			if child.IsDir() {
+				continue
+			}
+
+			m.Size += child.Size // calc all the space occupied by the folder
+			objects = append(objects, child.Object)
 		}
-		//	todo delete the remote object
+
+		// delete the remote objects
+		if err := rb.provider.ObjectsDelete(objects); err != nil {
+			return err
+		}
 	}
 
 	return rb.release(m.Uid, m.Size, "alias=?", m.Alias)
@@ -73,26 +84,37 @@ func (rb *RecycleBin) Clean(uid int64) error {
 	}
 
 	var size int64
+	objects := make([]string, 0)
 	for _, recycle := range rbs {
 		if recycle.Size > 0 {
 			size += recycle.Size
+			objects = append(objects, recycle.Object)
 			continue
 		} else if recycle.DirType > model.DirTypeSys {
-			// 获取该文件夹的所有子文件，计算目录
-			children, err := rb.UnscopedChildren(recycle.Uid, recycle.FullPath())
+			children, err := rb.UnscopedChildren(recycle.Uid, recycle.Alias)
 			if err != nil {
 				return err
 			}
 
-			fmt.Println(children)
 			for _, child := range children {
+				if child.IsDir() {
+					continue
+				}
+
+				objects = append(objects, child.Object)
 				size += child.Size
 			}
-			fmt.Println(size)
 		}
 	}
 
-	//	todo delete the remote object
+	if len(objects) == 0 {
+		return fmt.Errorf("empty objects")
+	}
+
+	//delete the remote object
+	if err := rb.provider.ObjectsDelete(objects); err != nil {
+		return err
+	}
 
 	return rb.release(uid, size, "uid=?", uid)
 }

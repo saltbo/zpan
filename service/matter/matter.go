@@ -60,8 +60,8 @@ func (ms *Matter) FindChildren(uid int64, parent string) (children []model.Matte
 	return
 }
 
-func (ms *Matter) UnscopedChildren(uid int64, parent string) (children []model.Matter, err error) {
-	err = gormutil.DB().Unscoped().Where("uid=? and parent like ?", uid, parent+"%").Find(&children).Error
+func (ms *Matter) UnscopedChildren(uid int64, recycleAlias string) (children []model.Matter, err error) {
+	err = gormutil.DB().Unscoped().Where("uid=? and trashed_by=?", uid, recycleAlias).Find(&children).Error
 	return
 }
 
