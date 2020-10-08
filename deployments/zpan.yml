@@ -6,7 +6,7 @@ database:
   dsn: zpan.db
 
 provider:
-  name: oss
+  name: s3
   bucket: saltbo-zpan-test
   endpoint: https://oss-cn-zhangjiakou.aliyuncs.com
   accessKey: LTAIxxxxxxxxxxxxxxx7YoV
