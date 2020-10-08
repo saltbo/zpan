@@ -1,10 +1,8 @@
 package disk
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 )
 
 var urlEncode = url.QueryEscape
@@ -28,31 +26,10 @@ type Config struct {
 
 type ProviderConstructor func(provider Config) (Provider, error)
 
-var supportDrivers = map[string]string{
-	"s3":      "s3.(.*).amazonaws.com",
-	"cos":     "cos.(.*).myqcloud.com",
-	"oss":     `oss.(.*).aliyuncs.com`,
-	"kodo":    "s3-(.*).qiniucs.com",
-	"storage": "storage.googleapis.com",
-}
-
 func New(conf Config) (Provider, error) {
-	expr, ok := supportDrivers[conf.Name]
-	if !ok {
-		return nil, fmt.Errorf("provider %s not found", conf.Name)
-	}
+	//if conf.Name == "onedrive" {
+	//	return newOneDrive(conf)
+	//}
 
-	exp, err := regexp.Compile(expr)
-	if err != nil {
-		return nil, err
-	}
-
-	var region string
-	if conf.Name == "storage" {
-		region = "auto"
-	} else if items := exp.FindStringSubmatch(conf.Endpoint); len(items) > 1 {
-		region = items[1]
-	}
-
-	return newAwsS3(conf, region)
+	return newAwsS3(conf)
 }

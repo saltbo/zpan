@@ -18,14 +18,14 @@ type AwsS3 struct {
 	bucket string
 }
 
-func newAwsS3(conf Config, region string) (Provider, error) {
+func newAwsS3(conf Config) (Provider, error) {
 	cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(conf.AccessKey, conf.AccessSecret, ""))
 	s, err := session.NewSession(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	client := s3.New(s, cfg.WithRegion(region), cfg.WithEndpoint(conf.Endpoint))
+	client := s3.New(s, cfg.WithRegion("auto"), cfg.WithEndpoint(conf.Endpoint))
 	if conf.CustomHost != "" {
 		cURL, err := url.Parse(conf.CustomHost)
 		if err != nil {
