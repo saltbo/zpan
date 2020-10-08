@@ -51,3 +51,11 @@ provider:
 ```
 
 ?>默认路径：/etc/zpan/zpan.yml
+
+## CORS
+
+!> 由于我们采用浏览器端直传，所以存在跨域问题，请进行如下跨域配置
+
+- Origin: http://your-domain
+- AllowMethods: PUT
+- AllowHeaders: content-type,content-disposition,x-amz-acl
