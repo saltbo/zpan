@@ -1,4 +1,4 @@
-package disk
+package provider
 
 import (
 	"fmt"
@@ -80,15 +80,15 @@ func TestPublicURL(t *testing.T) {
 }
 
 func TestNotSupportedProvider(t *testing.T) {
-	//conf := dc
-	//conf.Name = "test-provider"
-	//_, err := New(conf)
-	//assert.Error(t, err)
+	conf := dc
+	conf.Name = "test-provider"
+	_, err := New(conf)
+	assert.Error(t, err)
 }
 
 func TestNew4Storage(t *testing.T) {
 	conf := dc
-	conf.Name = "storage"
+	conf.Name = "s3"
 	_, err := New(conf)
 	assert.NoError(t, err)
 }

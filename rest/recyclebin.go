@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 
-	"github.com/saltbo/zpan/disk"
+	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/rest/bind"
 	"github.com/saltbo/zpan/service"
 )
@@ -15,8 +15,8 @@ type RecycleBinResource struct {
 	rb *service.RecycleBin
 }
 
-func NewRecycleBinResource(conf disk.Config) ginutil.Resource {
-	provider, err := disk.New(conf)
+func NewRecycleBinResource(conf provider.Config) ginutil.Resource {
+	provider, err := provider.New(conf)
 	if err != nil {
 		log.Fatalln(err)
 	}

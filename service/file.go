@@ -10,7 +10,7 @@ import (
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/saltbo/gopkg/timeutil"
 
-	"github.com/saltbo/zpan/disk"
+	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/service/matter"
 )
@@ -18,10 +18,10 @@ import (
 type File struct {
 	matter.Matter
 
-	provider disk.Provider
+	provider provider.Provider
 }
 
-func NewFile(provider disk.Provider) *File {
+func NewFile(provider provider.Provider) *File {
 	return &File{
 		provider: provider,
 	}

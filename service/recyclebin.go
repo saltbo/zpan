@@ -6,7 +6,7 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/saltbo/gopkg/gormutil"
 
-	"github.com/saltbo/zpan/disk"
+	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/service/matter"
 )
@@ -14,10 +14,10 @@ import (
 type RecycleBin struct {
 	matter.Matter
 
-	provider disk.Provider
+	provider provider.Provider
 }
 
-func NewRecycleBin(provider disk.Provider) *RecycleBin {
+func NewRecycleBin(provider provider.Provider) *RecycleBin {
 	return &RecycleBin{
 		provider: provider,
 	}

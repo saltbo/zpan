@@ -7,7 +7,7 @@ import (
 	"github.com/saltbo/gopkg/mailutil"
 	"github.com/spf13/viper"
 
-	"github.com/saltbo/zpan/disk"
+	"github.com/saltbo/zpan/provider"
 )
 
 type Config struct {
@@ -17,7 +17,7 @@ type Config struct {
 	Storage    uint64
 	Email      mailutil.Config
 	Database   gormutil.Config
-	Provider   disk.Config
+	Provider   provider.Config
 }
 
 func (c *Config) EmailAct() bool {

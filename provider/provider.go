@@ -1,6 +1,7 @@
-package disk
+package provider
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 )
@@ -24,12 +25,19 @@ type Config struct {
 	AccessSecret string
 }
 
-type ProviderConstructor func(provider Config) (Provider, error)
+type Constructor func(provider Config) (Provider, error)
+
+var supportProviders = map[string]Constructor{
+	"s3": NewS3Provider,
+	//"od": NewODProvider,
+	//"gd": NewGDProvider,
+}
 
 func New(conf Config) (Provider, error) {
-	//if conf.Name == "onedrive" {
-	//	return newOneDrive(conf)
-	//}
+	constructor, ok := supportProviders[conf.Name]
+	if !ok {
+		return nil, fmt.Errorf("provider %s not found", conf.Name)
+	}
 
-	return newAwsS3(conf)
+	return constructor(conf)
 }

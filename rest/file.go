@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 
-	"github.com/saltbo/zpan/disk"
+	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/rest/bind"
 	"github.com/saltbo/zpan/service"
 	"github.com/saltbo/zpan/service/matter"
@@ -17,8 +17,8 @@ type FileResource struct {
 	fs *service.File
 }
 
-func NewFileResource(conf disk.Config) ginutil.Resource {
-	provider, err := disk.New(conf)
+func NewFileResource(conf provider.Config) ginutil.Resource {
+	provider, err := provider.New(conf)
 	if err != nil {
 		log.Fatalln(err)
 	}

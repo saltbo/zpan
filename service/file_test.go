@@ -7,7 +7,7 @@ import (
 	"github.com/saltbo/gopkg/strutil"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/saltbo/zpan/disk"
+	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
 )
@@ -28,7 +28,7 @@ func clean() {
 	gormutil.DB().Exec("delete from zp_matter where 1=1;")
 }
 
-var fs = NewFile(&disk.MockProvider{})
+var fs = NewFile(&provider.MockProvider{})
 
 func TestPreSignPutURL(t *testing.T) {
 	bf := &bind.BodyFile{

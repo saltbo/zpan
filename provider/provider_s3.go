@@ -1,4 +1,4 @@
-package disk
+package provider
 
 import (
 	"fmt"
@@ -13,12 +13,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
-type AwsS3 struct {
+type S3Provider struct {
 	client *s3.S3
 	bucket string
 }
 
-func newAwsS3(conf Config) (Provider, error) {
+func NewS3Provider(conf Config) (Provider, error) {
 	cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(conf.AccessKey, conf.AccessSecret, ""))
 	s, err := session.NewSession(cfg)
 	if err != nil {
@@ -38,13 +38,13 @@ func newAwsS3(conf Config) (Provider, error) {
 		})
 	}
 
-	return &AwsS3{
+	return &S3Provider{
 		client: client,
 		bucket: conf.Bucket,
 	}, nil
 }
 
-func (p *AwsS3) SignedPutURL(key, filetype string, public bool) (string, http.Header, error) {
+func (p *S3Provider) SignedPutURL(key, filetype string, public bool) (string, http.Header, error) {
 	acl := s3.ObjectCannedACLAuthenticatedRead
 	if public {
 		acl = s3.ObjectCannedACLPublicRead
@@ -61,7 +61,7 @@ func (p *AwsS3) SignedPutURL(key, filetype string, public bool) (string, http.He
 	return us, headerRebuild(headers), err
 }
 
-func (p *AwsS3) SignedGetURL(key, filename string) (string, error) {
+func (p *S3Provider) SignedGetURL(key, filename string) (string, error) {
 	disposition := fmt.Sprintf(`attachment;filename="%s"`, urlEncode(filename))
 	input := &s3.GetObjectInput{
 		Bucket:                     aws.String(p.bucket),
@@ -72,7 +72,7 @@ func (p *AwsS3) SignedGetURL(key, filename string) (string, error) {
 	return req.Presign(time.Minute)
 }
 
-func (p *AwsS3) PublicURL(key string) string {
+func (p *S3Provider) PublicURL(key string) string {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(p.bucket),
 		Key:    aws.String(key),
@@ -82,7 +82,7 @@ func (p *AwsS3) PublicURL(key string) string {
 	return req.HTTPRequest.URL.String()
 }
 
-func (p *AwsS3) ObjectDelete(key string) error {
+func (p *S3Provider) ObjectDelete(key string) error {
 	input := &s3.DeleteObjectInput{
 		Bucket: aws.String(p.bucket),
 		Key:    aws.String(key),
@@ -91,7 +91,7 @@ func (p *AwsS3) ObjectDelete(key string) error {
 	return err
 }
 
-func (p *AwsS3) ObjectsDelete(objectKeys []string) error {
+func (p *S3Provider) ObjectsDelete(objectKeys []string) error {
 	objects := make([]*s3.ObjectIdentifier, 0, len(objectKeys))
 	for _, key := range objectKeys {
 		objects = append(objects, &s3.ObjectIdentifier{Key: aws.String(key)})
