@@ -32,7 +32,6 @@ import (
 	"github.com/saltbo/zpan/config"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest"
-	"github.com/saltbo/zpan/service"
 )
 
 // serverCmd represents the server command
@@ -56,7 +55,6 @@ func serverRun(conf *config.Config) {
 
 	gormutil.Init(conf.Database, conf.Debug)
 	gormutil.AutoMigrate(model.Tables())
-	service.UserStorageInit(conf.Storage)
 
 	ge := gin.Default()
 	mu := moreu.New(ge, gormutil.DB())
@@ -68,10 +66,10 @@ func serverRun(conf *config.Config) {
 	mu.SetupEmbedStatic()
 	ge.Use(mu.Auth(rest.Roles()))
 
+	userResource := rest.NewUserResource(conf.Storage)
 	apiRouter := ge.Group("/api")
-	apiRouter.Use(rest.UserInjector())
-	ginutil.SetupResource(apiRouter,
-		rest.NewUserResource(),
+	apiRouter.Use(userResource.Injector())
+	ginutil.SetupResource(apiRouter, userResource,
 		rest.NewFileResource(conf.Provider),
 		rest.NewFolderResource(),
 		rest.NewShareResource(),

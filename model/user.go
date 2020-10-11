@@ -25,3 +25,14 @@ func (u *User) StorageOverflowed(addonSize int64) bool {
 
 	return false
 }
+
+type UserFormats struct {
+	User
+
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	RoleName string `json:"role"`
+	Nickname string `json:"nickname"`
+	Avatar   string `json:"avatar"`
+	Bio      string `json:"bio"`
+}
