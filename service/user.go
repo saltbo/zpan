@@ -52,10 +52,9 @@ func (u *User) Find(ux string) (*model.User, error) {
 	return user, nil
 }
 
-func (u *User) FindAll(cookie string, offset, limit int) (formats []model.UserFormats, total int64, err error) {
-	// 先从moreu拉取用户列表，再注入自定义的信息？
+func (u *User) FindAll(cookie, email string, offset, limit int) (formats []model.UserFormats, total int64, err error) {
 	opts := &client.UsersApiUsersGetOpts{
-		//Name:   ,
+		Email:  optional.NewString(email),
 		Offset: optional.NewInt32(int32(offset)),
 		Limit:  optional.NewInt32(int32(limit)),
 	}
@@ -87,11 +86,18 @@ func (u *User) FindAll(cookie string, offset, limit int) (formats []model.UserFo
 			Email:    user.Email,
 			Username: user.Username,
 			RoleName: user.Role,
+			Status:   user.Status,
 			Avatar:   user.Avatar,
 			Nickname: user.Nickname,
 			Bio:      user.Bio,
 		}
+
 		formats = append(formats, uf)
 	}
 	return
+}
+
+//7wABQLCA
+func (u *User) StoragePatch(id int64, max uint64) error {
+	return gormutil.DB().Model(&model.User{Id: id}).Update("storage_max", max).Error
 }

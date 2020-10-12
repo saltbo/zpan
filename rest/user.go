@@ -2,6 +2,7 @@ package rest
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
@@ -24,17 +25,19 @@ func NewUserResource(iss uint64) *UserResource {
 
 func (rs *UserResource) Register(router *gin.RouterGroup) {
 	router.GET("/users", rs.findAll)
+	//router.GET("/users/:id", rs.find)
+	router.PATCH("/users/:id/storage", rs.storageUpdate)
 	router.GET("/users/me", rs.me)
 }
 
 func (rs *UserResource) findAll(c *gin.Context) {
-	p := new(bind.QueryPage)
+	p := new(bind.QueryStorage)
 	if err := c.BindQuery(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	list, total, err := rs.user.FindAll(c.GetHeader("Cookie"), p.Offset, p.Limit)
+	list, total, err := rs.user.FindAll(c.GetHeader("Cookie"), p.Email, p.Offset, p.Limit)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -51,6 +54,22 @@ func (rs *UserResource) me(c *gin.Context) {
 	}
 
 	ginutil.JSONData(c, user)
+}
+
+func (rs *UserResource) storageUpdate(c *gin.Context) {
+	p := new(bind.BodyStorage)
+	if err := c.Bind(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err := rs.user.StoragePatch(id, p.Max); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
 }
 
 func (rs *UserResource) Injector() gin.HandlerFunc {

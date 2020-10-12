@@ -269,6 +269,14 @@ github.com/saltbo/moreu v0.0.0-20200908175023-308ae56a0cbd h1:W1Sc2nqQSTqoc/Z5eG
 github.com/saltbo/moreu v0.0.0-20200908175023-308ae56a0cbd/go.mod h1:YkThAC3ND6gAwu7L7CjYZTrnFYgU4FkWrkz5botfy8s=
 github.com/saltbo/moreu v0.0.0-20201011072549-7781e79287a1 h1:7ttrtXAavRZnFPqVJ1EdPw+ncabrZxi3aBWUhVtaZ4o=
 github.com/saltbo/moreu v0.0.0-20201011072549-7781e79287a1/go.mod h1:F7zqMPEvL1LKcJ5pPmj2g2ji51z62XHOThIKxj84p2E=
+github.com/saltbo/moreu v0.0.0-20201011084113-0035e7cf9952 h1:yJqnT3Z+eruWSqUbg02JvDjU4Ita56DXhJB4HP28UVQ=
+github.com/saltbo/moreu v0.0.0-20201011084113-0035e7cf9952/go.mod h1:F7zqMPEvL1LKcJ5pPmj2g2ji51z62XHOThIKxj84p2E=
+github.com/saltbo/moreu v0.0.0-20201011085055-a770c0ed4237 h1:zO00Yba2bU0W5q5UJSpfnEKXvxNZ7Ng9Hbs9FTVDGWw=
+github.com/saltbo/moreu v0.0.0-20201011085055-a770c0ed4237/go.mod h1:F7zqMPEvL1LKcJ5pPmj2g2ji51z62XHOThIKxj84p2E=
+github.com/saltbo/moreu v0.0.0-20201012134843-9abbe9829ba8 h1:EYTuwvvbmWpYvgaYkvmg1xWvuyDOCDp9tlgrzj28p8w=
+github.com/saltbo/moreu v0.0.0-20201012134843-9abbe9829ba8/go.mod h1:F7zqMPEvL1LKcJ5pPmj2g2ji51z62XHOThIKxj84p2E=
+github.com/saltbo/moreu v0.0.0-20201012142732-f189abe981e3 h1:z624uVJwKdSXq4oSU7gKqVJhxk8w52AKjZzkL7+i5Zs=
+github.com/saltbo/moreu v0.0.0-20201012142732-f189abe981e3/go.mod h1:F7zqMPEvL1LKcJ5pPmj2g2ji51z62XHOThIKxj84p2E=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=

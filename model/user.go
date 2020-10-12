@@ -32,6 +32,7 @@ type UserFormats struct {
 	Email    string `json:"email"`
 	Username string `json:"username"`
 	RoleName string `json:"role"`
+	Status   string `json:"status"`
 	Nickname string `json:"nickname"`
 	Avatar   string `json:"avatar"`
 	Bio      string `json:"bio"`
