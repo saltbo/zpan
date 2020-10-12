@@ -5,12 +5,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Support view the pdf files
+- support edit text file
+- support responsive for different devices
+- support visual configuration guidance
+- support WebDAV
+- compression/decompression
+- support upload in the background
+- Aria2 download into zpan
+- support onedrive && google drive
 
-## [1.4.0] - 2017-10-11
+## [1.4.0] - 2017-10-13
 ### Added
 - redesign UI
 - support Recycle Bin
-- support update the password
+- support update the user storage quota
+- support icon-layout for the file list
+- support auto https
 - support minio
 
 
