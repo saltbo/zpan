@@ -17,3 +17,17 @@ provider:
 #  sender: no-reply@saltbo.fun
 #  username: Zpan
 #  password: mGxxxxxxxxxxh9
+
+server:
+#   domain:
+#     - example1.com
+#     - example2.com
+  port: 8222
+  sslport: 443
+
+# tls:
+#   enabled: true
+#   auto: true
+#   cacheDir: /opt/
+#   certPath: "/etc/domain/cert.pem"
+#   certkeyPath: "/etc/domain/cert.key"

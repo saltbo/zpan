@@ -22,11 +22,18 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
+	"github.com/saltbo/gopkg/httputil"
 	"github.com/saltbo/moreu/moreu"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/saltbo/zpan/assets"
 	"github.com/saltbo/zpan/config"
@@ -82,5 +89,54 @@ func serverRun(conf *config.Config) {
 		c.FileFromFS("/", assets.EmbedFS())
 	})
 
-	ginutil.Startup(ge, ":8222")
+	if conf.TLS.Enabled {
+		//go startTls(ge, tlsAddr, conf.TLS.Auto, conf.TLS.CacheDir, conf.Server.Domain, conf.TLS.CertPath, conf.TLS.CertkeyPath)
+		go startTls(ge, conf)
+	}
+
+	addr := fmt.Sprintf(":%d", conf.Server.Port)
+	ginutil.Startup(ge, addr)
+}
+
+func startTls(e *gin.Engine, conf *config.Config) {
+	tlsAddr := fmt.Sprintf(":%d", conf.Server.SSLPort)
+	if conf.TLS.Auto {
+		m := autocert.Manager{
+			Prompt: autocert.AcceptTOS,
+		}
+		if err := os.MkdirAll(conf.TLS.CacheDir, 0700); err != nil {
+			log.Printf("autocert cache dir check failed: %s", err.Error())
+		} else {
+			m.Cache = autocert.DirCache(conf.TLS.CacheDir)
+		}
+		if len(conf.Server.Domain) > 0 {
+			m.HostPolicy = autocert.HostWhitelist(conf.Server.Domain...)
+		}
+		srv := &http.Server{
+			Addr:      tlsAddr,
+			Handler:   e,
+			TLSConfig: m.TLSConfig(),
+		}
+		go func() {
+			log.Printf("[rest server listen at %s]", srv.Addr)
+			if err := srv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+				log.Fatalln(err)
+			}
+		}()
+
+		httputil.SetupGracefulStop(srv)
+
+	} else {
+		srv := &http.Server{
+			Addr:    tlsAddr,
+			Handler: e,
+		}
+		go func() {
+			log.Printf("[rest server listen tls at %s]", srv.Addr)
+			if err := srv.ListenAndServeTLS(conf.TLS.CertPath, conf.TLS.CertkeyPath); err != nil && err != http.ErrServerClosed {
+				log.Fatalln(err)
+			}
+		}()
+		httputil.SetupGracefulStop(srv)
+	}
 }

@@ -66,3 +66,32 @@ Sender，eg：Zpan
 ## password
 Sending password
 
+# server
+Configure the server
+
+## domain
+Domain list of the server
+
+## port
+Http port
+
+## sslport
+Https port, only support 443 at the moment
+
+# tls
+Configure the tls 
+
+## enable
+Whether to enable https
+
+## auto
+Whether to auto https using let's encrypt
+
+## cacheDir
+Let's encrypt cert cache dir, need write permission
+
+## certPath
+Manually set cert
+
+## certkeyPath
+Manually set certkey
