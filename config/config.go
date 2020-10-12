@@ -18,6 +18,22 @@ type Config struct {
 	Email      mailutil.Config
 	Database   gormutil.Config
 	Provider   provider.Config
+	Server     Server
+	TLS        TLS
+}
+
+type Server struct {
+	Domain  []string
+	Port    int
+	SSLPort int
+}
+
+type TLS struct {
+	Enabled     bool
+	Auto        bool
+	CacheDir    string
+	CertPath    string
+	CertkeyPath string
 }
 
 func (c *Config) EmailAct() bool {

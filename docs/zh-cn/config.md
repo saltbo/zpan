@@ -66,3 +66,32 @@
 ## password
 发信密码
 
+# server
+服务器配置
+
+## domain
+服务器域名列表
+
+## port
+Http端口
+
+## sslport
+Https端口, 当前只支持443
+
+# tls
+TLS配置
+
+## enable
+是否开启HTTPS
+
+## auto
+是否使用let's encrypt 自动申请证书
+
+## cacheDir
+Let's encrypt 证书缓存目录
+
+## certPath
+手动配置证书
+
+## certkeyPath
+手动配置证书
