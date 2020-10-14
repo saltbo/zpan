@@ -63,14 +63,14 @@ func (u *User) FindAll(cookie, email string, offset, limit int) (formats []model
 	cfg.AddDefaultHeader("Cookie", cookie)
 	cli := client.NewAPIClient(cfg)
 	cli.ChangeBasePath("http://localhost:8222/api/moreu")
-	users, _, err := cli.UsersApi.UsersGet(context.Background(), opts)
+	ret, _, err := cli.UsersApi.UsersGet(context.Background(), opts)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	total = int64(users.Total)
-	uxs := make([]string, 0, users.Total)
-	for _, user := range users.Data.List {
+	total = int64(ret.Data.Total)
+	uxs := make([]string, 0, total)
+	for _, user := range ret.Data.List {
 		uxs = append(uxs, user.Ux)
 	}
 
@@ -80,7 +80,7 @@ func (u *User) FindAll(cookie, email string, offset, limit int) (formats []model
 		return nil, 0, err
 	}
 
-	for idx, user := range users.Data.List {
+	for idx, user := range ret.Data.List {
 		uf := model.UserFormats{
 			User:     list[idx],
 			Email:    user.Email,
