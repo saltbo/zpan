@@ -26,8 +26,7 @@ ZPan - Your Last disk on the cloud.
 See [CONTRIBUTING](CONTRIBUTING.md) for details on submitting patches and the contribution workflow.
 
 Thank you to all the people who already contributed to ZPan!
-
-<a href="https://opencollective.com/zpan#support"><img src="https://opencollective.com/zpan/contributors.svg?width=890" /></a>
+<a href="https://github.com/saltbo/zpan/graphs/contributors"><img src="https://opencollective.com/zpan/contributors.svg?width=890" /></a>
 
 ## License
 ZPan is under the GPL 3.0 license. See the [LICENSE](/LICENSE) file for details.

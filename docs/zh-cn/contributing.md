@@ -45,3 +45,4 @@ $ make build
 [their website](https://www.conventionalcommits.org).
 
 ### 提交一个Pull Request
+将分支推到您的`zpan`分支，然后对主分支打开一个拉取请求。

@@ -3,6 +3,9 @@
 # install service
 curl -sSf https://dl.saltbo.cn/install.sh | sh -s zpan
 
+# Change your config
+vi /etc/zpan/zpan.yml
+
 # start service
 systemctl start zpan
 
@@ -15,38 +18,16 @@ systemctl enable zpan
 
 ## Docker
 ```bash
-docker run -p 80:8222 -v /etc/zpan:/zpan -it saltbo/zpan:latest
+docker run -p 8222:8222 --name zpan -itd saltbo/zpan:latest
 ```
+
+## CORS
+
+!> Since we use browser-side direct transmission, there are cross-domain issues, please make the following cross-domain configuration
+
+- Origin: http://your-domain
+- AllowMethods: PUT
+- AllowHeaders: content-type,content-disposition,x-amz-acl
 
 ### Usage
-visit http://yourip:8222
-
-
-## ConfigFile
-!>You need to change the information in the provider to your own cloud storage configuration
-
-```yaml
-debug: false
-invitation: false
-storage: 104857600
-
-database:
-  driver: sqlite3
-  dsn: zpan.db
-
-provider:
-  name: oss
-  bucket: saltbo-zpan-test
-  endpoint: https://oss-cn-zhangjiakou.aliyuncs.com
-  customHost: http://dl-test.saltbo.cn
-  accessKey: LTAIxxxxxxxxxxxxxxx7YoV
-  accessSecret: PFGVwxxxxxxxxxxxxxxxxRd09u
-
-#email:
-#  host: smtpdm.aliyun.com:25
-#  sender: no-reply@saltbo.fun
-#  username: Zpan
-#  password: mGxxxxxxxxh9
-```
-
-?>Default Path：/etc/zpan/zpan.yml
+visit http://localhost:8222

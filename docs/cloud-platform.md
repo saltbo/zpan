@@ -1,28 +1,46 @@
 > Here we provide different endpoint samples for each major platform, you need to change `my-zpan-bucket` to your own bucket name
 
-# S3
-### Endpoint
-`endpoint: s3.my-zpan-bucket.amazonaws.com`
+## Endpoint
 
-# COS
-### Endpoint
-`endpoint: cos.my-zpan-bucket.myqcloud.com`
+- AmazonS3：`s3.ap-northeast-1.amazonaws.com`
+- TencentCOS：`cos.ap-shanghai.myqcloud.com`
+- AliyunOSS：`oss-cn-zhangjiakou.aliyuncs.com`
+- QiniuKodo：`s3-cn-east-1.qiniucs.com`
+- GoogleStorage：`storage.googleapis.com`
 
-# OSS
-### Endpoint
-`endpoint: oss.my-zpan-bucket.aliyuncs.com`
+## CORS
 
-# Kodo
-### Endpoint
-`endpoint: s3-my-zpan-bucket.qiniucs.com`
+- Origin: http://your-domain
+- AllowMethods: PUT
+- AllowHeaders: content-type,content-disposition,x-amz-acl
 
-# Storage
-### Endpoint
-`endpoint: storage.googleapis.com`
+### S3
+The permissions of s3 are more complicated, and I have not conducted detailed tests. At present, I directly turn off the option of `Block public access to buckets and objects granted through new access control lists (ACLs)`; then configure the following CORS Just fill in and save.
+```json
+[
+    {
+        "AllowedOrigins": [
+            "http://your-domain"
+        ],
+        "AllowedMethods": [
+            "PUT"
+        ],
+        "AllowedHeaders": [
+            "content-type",
+            "content-disposition",
+            "x-amz-acl"
+        ],
+        "ExposeHeaders": []
+    }
+]
+```
 
-### CORS
+### Storage
+Since Google Cloud Storage does not provide a visual configuration interface, only a command line tool, so we can use CloudShell to operate, the specific commands are as follows:
 ```bash
-echo '[{"origin":["*"],"method":["PUT"],"responseHeader":["content-type","x-amz-acl"]}]' > cors.json
+echo '[{"origin":["*"],"method":["PUT"],"responseHeader":["content-type","content-disposition","x-amz-acl"]}]' > cors.json
 gsutil cors set cors.json gs://your-bucket-name
 ```
 
+### Others
+OSS, COS, Kodo and other visualizations are all very good, so don’t talk nonsense, if you really don’t know how to do it, you can watch [Vernacular](/vernacular)
