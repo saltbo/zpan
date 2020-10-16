@@ -8,6 +8,7 @@ go 1.14
 require (
 	github.com/antihax/optional v1.0.0
 	github.com/aws/aws-sdk-go v1.34.14
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.6.3
 	github.com/jinzhu/gorm v1.9.16
 	github.com/rakyll/statik v0.1.7

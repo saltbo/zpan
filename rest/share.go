@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
+	"github.com/saltbo/gopkg/jwtutil"
 	"github.com/saltbo/gopkg/strutil"
 
 	"github.com/saltbo/zpan/model"
@@ -14,7 +16,10 @@ import (
 	matter2 "github.com/saltbo/zpan/service/matter"
 )
 
+const ShareCookieTokenKey = "share-token"
+
 type ShareResource struct {
+	jwtutil.JWTUtil
 }
 
 func NewShareResource() ginutil.Resource {
@@ -27,54 +32,24 @@ func (rs *ShareResource) Register(router *gin.RouterGroup) {
 	router.POST("/shares", rs.create)
 	router.PATCH("/shares/:alias", rs.update)
 	router.DELETE("/shares/:alias", rs.delete)
+
+	router.POST("/shares/:alias/token", rs.draw)
+	router.GET("/shares/:alias/matter", rs.findMatter)
+	router.GET("/shares/:alias/matters", rs.findMatters)
 }
 
 func (rs *ShareResource) find(c *gin.Context) {
-	p := new(bind.QueryShare)
-	if err := c.BindQuery(p); err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
 	share := new(model.Share)
 	if gormutil.DB().First(share, "alias=?", c.Param("alias")).RecordNotFound() {
 		ginutil.JSONBadRequest(c, fmt.Errorf("share not found"))
-		return
-	} else if p.Secret == "" && share.Secret != "" {
-		ginutil.JSONForbidden(c, fmt.Errorf("please submit secret"))
-		return
-	} else if share.Secret != p.Secret {
-		ginutil.JSONForbidden(c, fmt.Errorf("invalid secret"))
 		return
 	} else if time.Now().After(share.ExpireAt) {
 		ginutil.JSONForbidden(c, fmt.Errorf("share expired"))
 		return
 	}
 
-	matter := new(model.Matter)
-	if gormutil.DB().First(matter, "alias=?", share.Matter).RecordNotFound() {
-		ginutil.JSONBadRequest(c, fmt.Errorf("matter not exist"))
-		return
-	}
-
-	if matter.IsDir() {
-		dir := fmt.Sprintf("%s/%s", matter.Name, p.Dir) // 设置父级目录
-		list, total, err := matter2.NewMatter().FindAll(share.Uid, p.Offset, p.Limit, matter2.WithDir(dir))
-		if err != nil {
-			ginutil.JSONServerError(c, err)
-			return
-		}
-		ginutil.JSONData(c, gin.H{
-			"matter": matter,
-			"list":   list,
-			"total":  total,
-		})
-		return
-	}
-
-	ginutil.JSONData(c, gin.H{
-		"matter": matter,
-	})
+	share.Secret = ""
+	ginutil.JSONData(c, share)
 }
 
 func (rs *ShareResource) findAll(c *gin.Context) {
@@ -88,6 +63,7 @@ func (rs *ShareResource) findAll(c *gin.Context) {
 	list := make([]model.Share, 0)
 	sn := gormutil.DB().Where("uid=?", userIdGet(c))
 	sn.Model(model.Share{}).Count(&total)
+	sn = sn.Order("id desc")
 	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -114,6 +90,7 @@ func (rs *ShareResource) create(c *gin.Context) {
 		Uid:      userIdGet(c),
 		Name:     matter.Name,
 		Matter:   matter.Alias,
+		Type:     matter.Type,
 		ExpireAt: time.Now().Add(time.Second * time.Duration(p.ExpireSec)),
 	}
 	if p.Private {
@@ -167,4 +144,111 @@ func (rs *ShareResource) delete(c *gin.Context) {
 	}
 
 	ginutil.JSON(c)
+}
+
+func (rs *ShareResource) draw(c *gin.Context) {
+	p := new(bind.BodyShareDraw)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	share := new(model.Share)
+	if gormutil.DB().First(share, "alias=?", c.Param("alias")).RecordNotFound() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("share not found"))
+		return
+	} else if share.Secret != p.Secret {
+		ginutil.JSONForbidden(c, fmt.Errorf("invalid secret"))
+		return
+	}
+
+	claims := &jwt.StandardClaims{
+		ExpiresAt: share.ExpireAt.Unix(),
+		IssuedAt:  time.Now().Unix(),
+		NotBefore: time.Now().Unix(),
+		Subject:   share.Alias,
+	}
+	token, err := rs.JWTUtil.Issue(claims)
+	if err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.Cookie(c, ShareCookieTokenKey, token, int(share.ExpireAt.Sub(time.Now()).Seconds()))
+	ginutil.JSON(c)
+}
+
+func (rs *ShareResource) findMatter(c *gin.Context) {
+	share := new(model.Share)
+	if gormutil.DB().First(share, "alias=?", c.Param("alias")).RecordNotFound() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("share not found"))
+		return
+	}
+
+	if err := rs.shareTokenVerify(c, share); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	matter := new(model.Matter)
+	if gormutil.DB().First(matter, "alias=?", share.Matter).RecordNotFound() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("matter not exist"))
+		return
+	}
+
+	ginutil.JSONData(c, matter)
+}
+
+func (rs *ShareResource) findMatters(c *gin.Context) {
+	p := new(bind.QueryShareMatters)
+	if err := c.ShouldBind(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+	fmt.Println(p)
+
+	share := new(model.Share)
+	if gormutil.DB().First(share, "alias=?", c.Param("alias")).RecordNotFound() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("share not found"))
+		return
+	}
+
+	if err := rs.shareTokenVerify(c, share); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	matter := new(model.Matter)
+	if gormutil.DB().First(matter, "alias=?", share.Matter).RecordNotFound() {
+		ginutil.JSONBadRequest(c, fmt.Errorf("matter not exist"))
+		return
+	}
+
+	dir := fmt.Sprintf("%s/%s", matter.Name, p.Dir) // 设置父级目录
+	list, total, err := matter2.NewMatter().FindAll(matter.Uid, p.Offset, p.Limit, matter2.WithDir(dir))
+	if err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSONList(c, list, total)
+}
+
+func (rs *ShareResource) shareTokenVerify(c *gin.Context, share *model.Share) error {
+	if !share.Protected {
+		return nil
+	}
+
+	tokenStr, err := c.Cookie(ShareCookieTokenKey)
+	if err != nil {
+		return err
+	}
+
+	if token, err := rs.JWTUtil.Parse(tokenStr, &jwt.StandardClaims{}); err != nil {
+		return err
+	} else if token.Claims.(*jwt.StandardClaims).Subject != share.Alias {
+		return fmt.Errorf("unmatched token")
+	}
+
+	return nil
 }
