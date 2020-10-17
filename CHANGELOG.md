@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Aria2 download into zpan
 - support onedrive && google drive
 
+## [1.4.1] - 2017-10-17
+### Changed
+- Fix: some bugs for the share
+
 ## [1.4.0] - 2017-10-13
 ### Added
 - redesign UI
