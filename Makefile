@@ -23,7 +23,7 @@ coverage-html: ## show coverage by the html
 generate: ## generate the static assets
 	go generate ./...
 
-build: mod ## Build the binary file
+build: dep ## Build the binary file
 	@go build -v -o build/bin/$(PROJECT) $(MAINFILE)
 
 install:
