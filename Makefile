@@ -6,7 +6,7 @@ MAINFILE := main.go
 
 all: build
 
-mod: ## Get the dependencies
+dep: ## Get the dependencies
 	@go mod download
 
 lint: ## Lint Golang files
@@ -23,7 +23,7 @@ coverage-html: ## show coverage by the html
 generate: ## generate the static assets
 	go generate ./...
 
-build: mod ## Build the binary file
+build: dep ## Build the binary file
 	@go build -v -o build/bin/$(PROJECT) $(MAINFILE)
 
 install:
