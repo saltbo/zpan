@@ -20,7 +20,7 @@ $ git clone git@github.com:saltbo/zpan.git
 Install the build and lint dependencies:
 
 ```sh
-$ make dep
+$ make mod
 ```
 
 A good way of making sure everything is all right is running the test suite:
