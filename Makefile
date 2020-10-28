@@ -6,7 +6,7 @@ MAINFILE := main.go
 
 all: build
 
-mod: ## Get the dependencies
+dep: ## Get the dependencies
 	@go mod download
 
 lint: ## Lint Golang files
