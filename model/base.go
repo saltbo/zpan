@@ -6,5 +6,6 @@ func Tables() []interface{} {
 		new(Matter),
 		new(Share),
 		new(Recycle),
+		new(Storage),
 	}
 }

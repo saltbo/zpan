@@ -77,6 +77,7 @@ func serverRun(conf *config.Config) {
 	apiRouter := ge.Group("/api")
 	apiRouter.Use(userResource.Injector())
 	ginutil.SetupResource(apiRouter, userResource,
+		rest.NewStorageResource(),
 		rest.NewFileResource(conf.Provider),
 		rest.NewFolderResource(),
 		rest.NewShareResource(),

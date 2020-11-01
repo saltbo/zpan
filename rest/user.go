@@ -57,7 +57,7 @@ func (rs *UserResource) me(c *gin.Context) {
 }
 
 func (rs *UserResource) storageUpdate(c *gin.Context) {
-	p := new(bind.BodyStorage)
+	p := new(bind.BodyStorageQuota)
 	if err := c.Bind(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
