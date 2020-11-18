@@ -28,5 +28,9 @@ See [CONTRIBUTING](CONTRIBUTING.md) for details on submitting patches and the co
 Thank you to all the people who already contributed to ZPan!
 <a href="https://github.com/saltbo/zpan/graphs/contributors"><img src="https://opencollective.com/zpan/contributors.svg?width=890" /></a>
 
+## Stargazers over time
+
+[![Stargazers over time](https://starcharts.herokuapp.com/saltbo/zpan.svg)](https://starcharts.herokuapp.com/saltbo/zpan)
+
 ## License
 ZPan is under the GPL 3.0 license. See the [LICENSE](/LICENSE) file for details.
