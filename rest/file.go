@@ -15,6 +15,7 @@ import (
 
 type FileResource struct {
 	fs *service.File
+	cf provider.Config
 }
 
 func NewFileResource(conf provider.Config) ginutil.Resource {
@@ -25,6 +26,7 @@ func NewFileResource(conf provider.Config) ginutil.Resource {
 
 	return &FileResource{
 		fs: service.NewFile(provider),
+		cf: conf,
 	}
 }
 
@@ -77,7 +79,7 @@ func (rs *FileResource) create(c *gin.Context) {
 		return
 	}
 
-	matter := p.ToMatter(user.Id)
+	matter := p.ToMatter(user.Id, rs.cf.CustomPublicPath)
 	link, headers, err := rs.fs.PreSignPutURL(matter)
 	if err != nil {
 		ginutil.JSONServerError(c, err)

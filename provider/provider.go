@@ -17,12 +17,13 @@ type Provider interface {
 }
 
 type Config struct {
-	Name         string
-	Bucket       string
-	Endpoint     string
-	CustomHost   string
-	AccessKey    string
-	AccessSecret string
+	Name             string
+	Bucket           string
+	Endpoint         string
+	CustomHost       string
+	CustomPublicPath string
+	AccessKey        string
+	AccessSecret     string
 }
 
 type Constructor func(provider Config) (Provider, error)

@@ -105,6 +105,9 @@ Access point for cloud storage
 ### customHost
 Custom domain name bound to cloud storage
 
+#### customPublicPath
+Custom public path bound to cloud storage, for anonymous access
+
 ### accessKey
 Access key requested from cloud storage
 

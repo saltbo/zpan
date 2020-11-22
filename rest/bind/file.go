@@ -25,7 +25,7 @@ type BodyFile struct {
 	Public bool   `json:"public"`
 }
 
-func (p *BodyFile) ToMatter(uid int64) *model.Matter {
+func (p *BodyFile) ToMatter(uid int64, publicPath string) *model.Matter {
 	if p.Type == "" {
 		p.Type = "application/octet-stream"
 	}
@@ -38,6 +38,9 @@ func (p *BodyFile) ToMatter(uid int64) *model.Matter {
 	m.Object = fmt.Sprintf("%s/%s%s", prefix, m.Alias, filepath.Ext(p.Name))
 	if p.Public {
 		m.ACL = model.AclPublic
+		if publicPath != "" {
+			m.Object = fmt.Sprintf("%s/%s", publicPath, m.Object)
+		}
 	}
 
 	return m

@@ -37,7 +37,7 @@ func TestPreSignPutURL(t *testing.T) {
 		Type: "text/plain",
 		Dir:  "",
 	}
-	nm := bf.ToMatter(0)
+	nm := bf.ToMatter(0, "")
 	_, _, err := fs.PreSignPutURL(nm)
 	assert.NoError(t, err)
 

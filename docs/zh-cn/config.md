@@ -107,6 +107,9 @@ provider:
 #### customHost
 云存储绑定的自定义域名
 
+#### customPublicPath
+云存储绑定的自定义公共路径，供匿名访问
+
 #### accessKey
 从云存储申请的访问KEY
 
