@@ -12,7 +12,7 @@ import (
 var folder = NewFolder()
 
 func TestFolder_Rename(t *testing.T) {
-	m := model.NewMatter(0, "folder-test1")
+	m := model.NewMatter(0, 0,"folder-test1")
 	m.DirType = model.DirTypeUser
 	assert.NoError(t, folder.Create(m))
 
@@ -48,11 +48,11 @@ func TestFolder_RenameNotEmpty(t *testing.T) {
 }
 
 func TestFolder_Move(t *testing.T) {
-	fm := model.NewMatter(0, "test-move-dir2")
+	fm := model.NewMatter(0, 0,"test-move-dir2")
 	fm.DirType = model.DirTypeUser
 	assert.NoError(t, NewFolder().Create(fm))
 
-	m := model.NewMatter(0, "test-move-dir3")
+	m := model.NewMatter(0, 0,"test-move-dir3")
 	m.DirType = model.DirTypeUser
 	assert.NoError(t, folder.Create(m))
 	assert.NoError(t, folder.Move(m.Uid, m.Alias, fm.Name+"/"))

@@ -60,6 +60,10 @@ func (s *Storage) Delete(id string) error {
 }
 
 func (s *Storage) GetProvider(id interface{}) (provider.Provider, error) {
+	if sid, ok := id.(int64); ok && sid == 0 {
+		return &provider.MockProvider{}, nil
+	}
+
 	sModel, err := s.Find(id)
 	if err != nil {
 		return nil, err

@@ -7,7 +7,6 @@ import (
 	"github.com/saltbo/gopkg/strutil"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"
 )
@@ -28,7 +27,7 @@ func clean() {
 	gormutil.DB().Exec("delete from zp_matter where 1=1;")
 }
 
-var fs = NewFile(&provider.MockProvider{})
+var fs = NewFile()
 
 func TestPreSignPutURL(t *testing.T) {
 	bf := &bind.BodyFile{
@@ -53,7 +52,7 @@ func TestPreSignPutURL(t *testing.T) {
 }
 
 func TestFileRename(t *testing.T) {
-	m := model.NewMatter(0, "test1.txt")
+	m := model.NewMatter(0, 0, "test1.txt")
 	assert.NoError(t, fs.Create(m))
 
 	newName := "test-new.txt"
@@ -64,21 +63,21 @@ func TestFileRename(t *testing.T) {
 }
 
 func TestFileCopy(t *testing.T) {
-	fm := model.NewMatter(0, "test-copy-dir")
+	fm := model.NewMatter(0, 0, "test-copy-dir")
 	fm.DirType = model.DirTypeUser
 	assert.NoError(t, NewFolder().Create(fm))
 
-	m := model.NewMatter(0, "test2.txt")
+	m := model.NewMatter(0, 0, "test2.txt")
 	assert.NoError(t, fs.Create(m))
 	assert.NoError(t, fs.Copy(m.Uid, m.Alias, fm.Name+"/"))
 }
 
 func TestFileMove(t *testing.T) {
-	fm := model.NewMatter(0, "test-move-dir")
+	fm := model.NewMatter(0, 0, "test-move-dir")
 	fm.DirType = model.DirTypeUser
 	assert.NoError(t, NewFolder().Create(fm))
 
-	m := model.NewMatter(0, "test3.txt")
+	m := model.NewMatter(0, 0, "test3.txt")
 	assert.NoError(t, fs.Create(m))
 	assert.NoError(t, fs.Move(m.Uid, m.Alias, fm.Name+"/"))
 }
@@ -104,7 +103,7 @@ func TestFileMoveFails(t *testing.T) {
 }
 
 func TestFileDelete(t *testing.T) {
-	m := model.NewMatter(0, "test4.txt")
+	m := model.NewMatter(0, 0, "test4.txt")
 	assert.NoError(t, fs.Create(m))
 	assert.NoError(t, fs.Delete(m.Uid, m.Alias))
 
