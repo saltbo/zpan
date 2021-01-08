@@ -78,10 +78,10 @@ func serverRun(conf *config.Config) {
 	apiRouter.Use(userResource.Injector())
 	ginutil.SetupResource(apiRouter, userResource,
 		rest.NewStorageResource(),
-		rest.NewFileResource(conf.Provider),
+		rest.NewFileResource(),
 		rest.NewFolderResource(),
 		rest.NewShareResource(),
-		rest.NewRecycleBinResource(conf.Provider),
+		rest.NewRecycleBinResource(),
 	)
 
 	ginutil.SetupEmbedAssets(ge.Group("/"),

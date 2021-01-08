@@ -10,7 +10,6 @@ import (
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/saltbo/gopkg/timeutil"
 
-	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/service/matter"
 )
@@ -18,19 +17,25 @@ import (
 type File struct {
 	matter.Matter
 
-	provider provider.Provider
+	sStorage *Storage
 }
 
-func NewFile(provider provider.Provider) *File {
+func NewFile() *File {
 	return &File{
-		provider: provider,
+		sStorage: NewStorage(),
 	}
 }
 
-func (f *File) FindAll(uid int64, offset, limit int, options ...matter.QueryOption) (list []model.Matter, total int64, err error) {
+func (f *File) FindAll(uid, sid int64, offset, limit int, options ...matter.QueryOption) (list []model.Matter, total int64, err error) {
+	provider, err := f.sStorage.GetProvider(sid)
+	if err != nil {
+		return list, total, err
+	}
+
+	options = append(options, matter.WithSid(sid))
 	list, total, err = f.Matter.FindAll(uid, offset, limit, options...)
 	for idx := range list {
-		list[idx].SetURL(f.provider.PublicURL)
+		list[idx].SetURL(provider.PublicURL)
 	}
 	return
 }
@@ -48,7 +53,12 @@ func (f *File) PreSignPutURL(matter *model.Matter) (url string, headers http.Hea
 		matter.Name = name + suffix + ext
 	}
 
-	url, headers, err = f.provider.SignedPutURL(matter.Object, matter.Type, matter.Public())
+	provider, err := f.sStorage.GetProvider(matter.Sid)
+	if err != nil {
+		return "", nil, err
+	}
+
+	url, headers, err = provider.SignedPutURL(matter.Object, matter.Type, matter.Public())
 	if err != nil {
 		return
 	}
@@ -67,7 +77,12 @@ func (f *File) UploadDone(uid int64, alias string) (*model.Matter, error) {
 		return nil, err
 	}
 
-	m.SetURL(f.provider.PublicURL)
+	provider, err := f.sStorage.GetProvider(m.Sid)
+	if err != nil {
+		return nil, err
+	}
+
+	m.SetURL(provider.PublicURL)
 	return m, nil
 }
 
@@ -77,7 +92,12 @@ func (f *File) PreSignGetURL(alias string) (string, error) {
 		return "", err
 	}
 
-	return f.provider.SignedGetURL(m.Object, m.Name)
+	provider, err := f.sStorage.GetProvider(m.Sid)
+	if err != nil {
+		return "", err
+	}
+
+	return provider.SignedGetURL(m.Object, m.Name)
 }
 
 func (f *File) Rename(uid int64, alias, name string) error {

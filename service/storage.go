@@ -7,6 +7,7 @@ import (
 	"github.com/saltbo/gopkg/gormutil"
 
 	"github.com/saltbo/zpan/model"
+	"github.com/saltbo/zpan/provider"
 )
 
 type Storage struct {
@@ -16,7 +17,7 @@ func NewStorage() *Storage {
 	return &Storage{}
 }
 
-func (s *Storage) Find(id string) (*model.Storage, error) {
+func (s *Storage) Find(id interface{}) (*model.Storage, error) {
 	storage := new(model.Storage)
 	if gormutil.DB().First(storage, id).RecordNotFound() {
 		return nil, fmt.Errorf("storage not exist")
@@ -56,4 +57,21 @@ func (s *Storage) Delete(id string) error {
 	}
 
 	return gormutil.DB().Delete(storage).Error
+}
+
+func (s *Storage) GetProvider(id interface{}) (provider.Provider, error) {
+	sModel, err := s.Find(id)
+	if err != nil {
+		return nil, err
+	}
+
+	conf := provider.Config{
+		Name:         "s3",
+		Bucket:       sModel.Bucket,
+		Endpoint:     sModel.Endpoint,
+		CustomHost:   sModel.CustomHost,
+		AccessKey:    sModel.AccessKey,
+		AccessSecret: sModel.SecretKey,
+	}
+	return provider.New(conf)
 }

@@ -7,24 +7,23 @@ import (
 	"github.com/saltbo/gopkg/gormutil"
 
 	"github.com/saltbo/zpan/model"
-	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/service/matter"
 )
 
 type RecycleBin struct {
 	matter.Matter
 
-	provider provider.Provider
+	sStorage *Storage
 }
 
-func NewRecycleBin(provider provider.Provider) *RecycleBin {
+func NewRecycleBin() *RecycleBin {
 	return &RecycleBin{
-		provider: provider,
+		sStorage: NewStorage(),
 	}
 }
 
-func (rb *RecycleBin) FindAll(uid int64, offset, limit int) (list []model.Recycle, total int64, err error) {
-	sn := gormutil.DB().Where("uid=?", uid)
+func (rb *RecycleBin) FindAll(uid, sid int64, offset, limit int) (list []model.Recycle, total int64, err error) {
+	sn := gormutil.DB().Where("uid=? and sid=?", uid, sid)
 	sn.Model(model.Recycle{}).Count(&total)
 	sn = sn.Order("dirtype desc")
 	err = sn.Offset(offset).Limit(limit).Find(&list).Error
@@ -46,9 +45,14 @@ func (rb *RecycleBin) Delete(uid int64, alias string) error {
 		return err
 	}
 
+	provider, err := rb.sStorage.GetProvider(m.Sid)
+	if err != nil {
+		return err
+	}
+
 	if !m.IsDir() {
 		// delete the remote object
-		if err := rb.provider.ObjectDelete(m.Object); err != nil {
+		if err := provider.ObjectDelete(m.Object); err != nil {
 			return err
 		}
 	} else {
@@ -69,7 +73,7 @@ func (rb *RecycleBin) Delete(uid int64, alias string) error {
 		}
 
 		// delete the remote objects
-		if err := rb.provider.ObjectsDelete(objects); err != nil {
+		if err := provider.ObjectsDelete(objects); err != nil {
 			return err
 		}
 	}
@@ -77,9 +81,9 @@ func (rb *RecycleBin) Delete(uid int64, alias string) error {
 	return rb.release(m.Uid, m.Size, "alias=?", m.Alias)
 }
 
-func (rb *RecycleBin) Clean(uid int64) error {
+func (rb *RecycleBin) Clean(uid, sid int64) error {
 	rbs := make([]model.Recycle, 0)
-	if err := gormutil.DB().Where("uid=?", uid).Find(&rbs).Error; err != nil {
+	if err := gormutil.DB().Where("uid=? and sid=?", uid, sid).Find(&rbs).Error; err != nil {
 		return err
 	}
 
@@ -111,8 +115,13 @@ func (rb *RecycleBin) Clean(uid int64) error {
 		return fmt.Errorf("empty objects")
 	}
 
+	provider, err := rb.sStorage.GetProvider(sid)
+	if err != nil {
+		return err
+	}
+
 	//delete the remote object
-	if err := rb.provider.ObjectsDelete(objects); err != nil {
+	if err := provider.ObjectsDelete(objects); err != nil {
 		return err
 	}
 

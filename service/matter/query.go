@@ -37,6 +37,13 @@ func NewQuery(uid int64, opts ...QueryOption) *Query {
 
 type QueryOption func(*Query)
 
+func WithSid(sid int64) QueryOption {
+	return func(m *Query) {
+		m.SQL += " and sid=?"
+		m.Params = append(m.Params, sid)
+	}
+}
+
 func WithDir(dir string) QueryOption {
 	return func(m *Query) {
 		m.SQL += " and parent=?"

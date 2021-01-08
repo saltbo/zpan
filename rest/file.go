@@ -2,12 +2,10 @@ package rest
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 
-	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/rest/bind"
 	"github.com/saltbo/zpan/service"
 	"github.com/saltbo/zpan/service/matter"
@@ -17,14 +15,9 @@ type FileResource struct {
 	fs *service.File
 }
 
-func NewFileResource(conf provider.Config) ginutil.Resource {
-	provider, err := provider.New(conf)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
+func NewFileResource() ginutil.Resource {
 	return &FileResource{
-		fs: service.NewFile(provider),
+		fs: service.NewFile(),
 	}
 }
 
@@ -55,7 +48,7 @@ func (rs *FileResource) findAll(c *gin.Context) {
 		opts = append(opts, matter.WithDir(p.Dir))
 	}
 
-	list, total, err := rs.fs.FindAll(userIdGet(c), p.Offset, p.Limit, opts...)
+	list, total, err := rs.fs.FindAll(userIdGet(c), p.Sid, p.Offset, p.Limit, opts...)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -77,16 +70,16 @@ func (rs *FileResource) create(c *gin.Context) {
 		return
 	}
 
-	matter := p.ToMatter(user.Id)
-	link, headers, err := rs.fs.PreSignPutURL(matter)
+	m := p.ToMatter(user.Id)
+	link, headers, err := rs.fs.PreSignPutURL(m)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
 	ginutil.JSONData(c, gin.H{
-		"alias":   matter.Alias,
-		"object":  matter.Object,
+		"alias":   m.Alias,
+		"object":  m.Object,
 		"link":    link,
 		"headers": headers,
 	})

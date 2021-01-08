@@ -9,7 +9,6 @@ import (
 	"github.com/saltbo/moreu/client"
 
 	"github.com/saltbo/zpan/model"
-	"github.com/saltbo/zpan/service/matter"
 )
 
 const defaultSize = 50 << 20
@@ -37,7 +36,7 @@ func (u *User) Create(ux string) (*model.User, error) {
 			return err
 		}
 
-		return matter.Init(tx, user.Id, ".pics")
+		return nil
 	}
 
 	return user, gormutil.DB().Transaction(fc)

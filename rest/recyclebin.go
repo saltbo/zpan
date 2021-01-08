@@ -1,12 +1,11 @@
 package rest
 
 import (
-	"log"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 
-	"github.com/saltbo/zpan/provider"
 	"github.com/saltbo/zpan/rest/bind"
 	"github.com/saltbo/zpan/service"
 )
@@ -15,14 +14,9 @@ type RecycleBinResource struct {
 	rb *service.RecycleBin
 }
 
-func NewRecycleBinResource(conf provider.Config) ginutil.Resource {
-	provider, err := provider.New(conf)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
+func NewRecycleBinResource() ginutil.Resource {
 	return &RecycleBinResource{
-		rb: service.NewRecycleBin(provider),
+		rb: service.NewRecycleBin(),
 	}
 }
 
@@ -34,13 +28,13 @@ func (rs *RecycleBinResource) Register(router *gin.RouterGroup) {
 }
 
 func (rs *RecycleBinResource) findAll(c *gin.Context) {
-	p := new(bind.QueryPage)
+	p := new(bind.QueryRecycle)
 	if err := c.BindQuery(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	list, total, err := rs.rb.FindAll(userIdGet(c), p.Offset, p.Limit)
+	list, total, err := rs.rb.FindAll(userIdGet(c), p.Sid, p.Offset, p.Limit)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -73,7 +67,8 @@ func (rs *RecycleBinResource) delete(c *gin.Context) {
 
 func (rs *RecycleBinResource) clean(c *gin.Context) {
 	uid := userIdGet(c)
-	if err := rs.rb.Clean(uid); err != nil {
+	sid, _ := strconv.ParseInt(c.Query("sid"), 10, 64)
+	if err := rs.rb.Clean(uid, sid); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

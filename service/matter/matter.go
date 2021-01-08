@@ -11,12 +11,6 @@ import (
 	"github.com/saltbo/zpan/model"
 )
 
-func Init(tx *gorm.DB, uid int64, name string) error {
-	matter := model.NewMatter(uid, name)
-	matter.DirType = model.DirTypeSys
-	return tx.Create(matter).Error
-}
-
 type Matter struct {
 }
 
@@ -157,6 +151,7 @@ func (ms *Matter) RemoveToRecycle(db *gorm.DB, alias string) error {
 		// create a recycle record
 		rm := &model.Recycle{
 			Uid:     m.Uid,
+			Sid:     m.Sid,
 			Alias:   alias,
 			Name:    m.Name,
 			Type:    m.Type,

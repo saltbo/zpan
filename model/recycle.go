@@ -5,6 +5,7 @@ import "time"
 type Recycle struct {
 	Id        int64      `json:"id"`
 	Uid       int64      `json:"uid" gorm:"not null"`
+	Sid       int64      `json:"sid" gorm:"not null"` // storage_id
 	Alias     string     `json:"alias" gorm:"size:16;not null"`
 	Name      string     `json:"name" gorm:"not null"`
 	Type      string     `json:"type" gorm:"not null"`
