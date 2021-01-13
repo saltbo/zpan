@@ -3,7 +3,6 @@ module github.com/saltbo/zpan
 go 1.14
 
 //replace github.com/saltbo/gopkg => /opt/works/gopkg
-//replace github.com/saltbo/moreu => /opt/works/moreu
 
 require (
 	github.com/antihax/optional v1.0.0

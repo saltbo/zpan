@@ -26,12 +26,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
 	"github.com/saltbo/gopkg/httputil"
-	"github.com/saltbo/moreu/moreu"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/acme/autocert"
 
@@ -64,14 +64,10 @@ func serverRun(conf *config.Config) {
 	gormutil.AutoMigrate(model.Tables())
 
 	ge := gin.Default()
-	mu := moreu.New(ge, gormutil.DB())
 	if conf.EmailAct() {
-		mu.SetupMail(conf.Email)
 	}
 
-	mu.SetupAPI(conf.EmailAct(), conf.Invitation)
-	mu.SetupEmbedStatic()
-	ge.Use(mu.Auth(rest.Roles()))
+	//ge.Use(mu.Auth(rest.Roles()))
 
 	userResource := rest.NewUserResource(conf.Storage)
 	apiRouter := ge.Group("/api")
@@ -86,7 +82,11 @@ func serverRun(conf *config.Config) {
 
 	ginutil.SetupEmbedAssets(ge.Group("/"),
 		assets.EmbedFS(), "/css", "/js", "/fonts")
-	ge.NoRoute(mu.NoRoute, func(c *gin.Context) {
+	ge.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.RequestURI, "/api") {
+			return
+		}
+
 		c.FileFromFS("/", assets.EmbedFS())
 	})
 
