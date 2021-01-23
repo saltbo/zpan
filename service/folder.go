@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jinzhu/gorm"
-	"github.com/saltbo/gopkg/gormutil"
+	"gorm.io/gorm"
 
+	"github.com/saltbo/zpan/dao/matter"
 	"github.com/saltbo/zpan/model"
-	"github.com/saltbo/zpan/service/matter"
+	"github.com/saltbo/zpan/pkg/gormutil"
 )
 
 type Folder struct {

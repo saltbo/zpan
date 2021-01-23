@@ -1,10 +1,13 @@
-package service
+package dao
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
-	"github.com/saltbo/gopkg/gormutil"
+	"gorm.io/gorm"
+
+	"github.com/saltbo/zpan/pkg/gormutil"
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/provider"
@@ -19,7 +22,7 @@ func NewStorage() *Storage {
 
 func (s *Storage) Find(id interface{}) (*model.Storage, error) {
 	storage := new(model.Storage)
-	if gormutil.DB().First(storage, id).RecordNotFound() {
+	if err := gormutil.DB().First(storage, id).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("storage not exist")
 	}
 
@@ -34,7 +37,7 @@ func (s *Storage) FindAll(offset, limit int) (list []model.Storage, total int64,
 }
 
 func (s *Storage) Create(storage *model.Storage) error {
-	if !gormutil.DB().First(storage, "name=?", storage.Name).RecordNotFound() {
+	if err := gormutil.DB().First(storage, "name=?", storage.Name).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("storage already exist")
 	}
 
@@ -42,7 +45,7 @@ func (s *Storage) Create(storage *model.Storage) error {
 }
 
 func (s *Storage) Update(id string, storage *model.Storage) error {
-	if gormutil.DB().First(&model.Storage{}, id).RecordNotFound() {
+	if err := gormutil.DB().First(&model.Storage{}, id).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("storage not found")
 	}
 
@@ -52,7 +55,7 @@ func (s *Storage) Update(id string, storage *model.Storage) error {
 
 func (s *Storage) Delete(id string) error {
 	storage := new(model.Storage)
-	if gormutil.DB().First(storage, id).RecordNotFound() {
+	if err := gormutil.DB().First(storage, id).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("storage not exist")
 	}
 

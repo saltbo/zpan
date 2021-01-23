@@ -6,9 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 
+	"github.com/saltbo/zpan/dao"
+	"github.com/saltbo/zpan/dao/matter"
 	"github.com/saltbo/zpan/rest/bind"
 	"github.com/saltbo/zpan/service"
-	"github.com/saltbo/zpan/service/matter"
 )
 
 type FileResource struct {
@@ -64,7 +65,7 @@ func (rs *FileResource) create(c *gin.Context) {
 		return
 	}
 
-	user, err := service.NewUser().Find(userIdGet(c))
+	user, err := dao.NewUser().Find(userIdGet(c))
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return

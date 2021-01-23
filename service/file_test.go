@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/saltbo/gopkg/gormutil"
+	"github.com/saltbo/zpan/pkg/gormutil"
 	"github.com/saltbo/gopkg/strutil"
 	"github.com/stretchr/testify/assert"
 

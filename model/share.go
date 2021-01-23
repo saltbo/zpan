@@ -2,6 +2,8 @@ package model
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Share struct {
@@ -25,7 +27,7 @@ func (Share) TableName() string {
 	return "zp_share"
 }
 
-func (s *Share) AfterFind() (err error) {
+func (s *Share) AfterFind(*gorm.DB) (err error) {
 	s.Protected = s.Secret != ""
 	return
 }

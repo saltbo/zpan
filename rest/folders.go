@@ -3,7 +3,7 @@ package rest
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
-	"github.com/saltbo/gopkg/gormutil"
+	"github.com/saltbo/zpan/pkg/gormutil"
 
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest/bind"

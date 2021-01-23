@@ -1,7 +1,7 @@
-package service
+package dao
 
 import (
-	"github.com/saltbo/gopkg/gormutil"
+	"github.com/saltbo/zpan/pkg/gormutil"
 
 	"github.com/saltbo/zpan/model"
 )

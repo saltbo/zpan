@@ -1,38 +1,89 @@
 package model
 
-import "time"
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
 
-type Opt struct {
-	Key string `json:"key"`
-	Val string `json:"val"`
-}
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+)
 
 type Option struct {
-	Id      int64      `json:"id"`
-	Name    string     `json:"name"`
-	Opts    []Opt      `json:"opts"`
-	Created time.Time  `json:"created" gorm:"column:created_at;not null"`
-	Updated time.Time  `json:"updated" gorm:"column:updated_at;not null"`
-	Deleted *time.Time `json:"-" gorm:"column:deleted_at"`
+	Id      int64          `json:"id"`
+	Name    string         `json:"name"`
+	Opts    Opts           `json:"opts"`
+	Created time.Time      `json:"created" gorm:"autoCreateTime"`
+	Updated time.Time      `json:"updated" gorm:"autoUpdateTime"`
+	Deleted gorm.DeletedAt `json:"-"`
 }
 
 func (Option) TableName() string {
 	return "zp_option"
 }
 
-var opts = map[string]OptI{
-	"core": &OptCore{},
+// Opts defiend JSON data type, need to implements driver.Valuer, sql.Scanner interface
+type Opts map[string]interface{}
+
+// Value return json value, implement driver.Valuer interface
+func (m Opts) Value() (driver.Value, error) {
+	if m == nil {
+		return nil, nil
+	}
+	ba, err := m.MarshalJSON()
+	return string(ba), err
 }
 
-func FindOptResult(name string) OptI {
-	return opts[name]
+// Scan scan value into Jsonb, implements sql.Scanner interface
+func (m *Opts) Scan(val interface{}) error {
+	var ba []byte
+	switch v := val.(type) {
+	case []byte:
+		ba = v
+	case string:
+		ba = []byte(v)
+	default:
+		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", val))
+	}
+	t := map[string]interface{}{}
+	err := json.Unmarshal(ba, &t)
+	*m = Opts(t)
+	return err
 }
 
-type OptI interface {
+// MarshalJSON to output non base64 encoded []byte
+func (m Opts) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return []byte("null"), nil
+	}
+	t := (map[string]interface{})(m)
+	return json.Marshal(t)
 }
 
-type OptCore struct {
-	Title       string `json:"title"`
-	Intro       string `json:"intro"`
-	DefaultLang string `json:"default_lang"`
+// UnmarshalJSON to deserialize []byte
+func (m *Opts) UnmarshalJSON(b []byte) error {
+	t := map[string]interface{}{}
+	err := json.Unmarshal(b, &t)
+	*m = Opts(t)
+	return err
+}
+
+// GormDataType gorm common data type
+func (m Opts) GormDataType() string {
+	return "jsonmap"
+}
+
+// GormDBDataType gorm db data type
+func (Opts) GormDBDataType(db *gorm.DB, field *schema.Field) string {
+	switch db.Dialector.Name() {
+	case "sqlite":
+		return "TEXT"
+	case "mysql":
+		return "TEXT"
+	case "postgres":
+		return "TEXT"
+	}
+	return ""
 }

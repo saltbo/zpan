@@ -6,17 +6,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 
+	"github.com/saltbo/zpan/dao"
 	"github.com/saltbo/zpan/rest/bind"
-	"github.com/saltbo/zpan/service"
 )
 
 type UserResource struct {
-	user *service.User
+	user *dao.User
 }
 
 func NewUserResource() *UserResource {
 	return &UserResource{
-		user: service.NewUser(),
+		user: dao.NewUser(),
 	}
 }
 

@@ -5,7 +5,7 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
 
-	"github.com/saltbo/zpan/service"
+	"github.com/saltbo/zpan/dao"
 )
 
 type Option struct {
@@ -22,7 +22,7 @@ func (rs *Option) Register(router *gin.RouterGroup) {
 }
 
 func (rs *Option) find(c *gin.Context) {
-	ret, err := service.NewOption().Get(c.Param("name"))
+	ret, err := dao.NewOption().Get(c.Param("name"))
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -38,7 +38,7 @@ func (rs *Option) update(c *gin.Context) {
 		return
 	}
 
-	if err := service.NewOption().Save(c.Param("name"), p); err != nil {
+	if err := dao.NewOption().Save(c.Param("name"), p); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

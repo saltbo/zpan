@@ -1,24 +1,26 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/jinzhu/gorm"
-	"github.com/saltbo/gopkg/gormutil"
+	"gorm.io/gorm"
 
+	"github.com/saltbo/zpan/dao"
+	"github.com/saltbo/zpan/dao/matter"
 	"github.com/saltbo/zpan/model"
-	"github.com/saltbo/zpan/service/matter"
+	"github.com/saltbo/zpan/pkg/gormutil"
 )
 
 type RecycleBin struct {
 	matter.Matter
 
-	sStorage *Storage
+	sStorage *dao.Storage
 }
 
 func NewRecycleBin() *RecycleBin {
 	return &RecycleBin{
-		sStorage: NewStorage(),
+		sStorage: dao.NewStorage(),
 	}
 }
 
@@ -145,7 +147,7 @@ func (rb *RecycleBin) release(uid, size int64, query interface{}, args ...interf
 
 func (rb *RecycleBin) find(uid int64, alias string) (*model.Recycle, error) {
 	m := new(model.Recycle)
-	if gormutil.DB().Unscoped().First(m, "alias=?", alias).RecordNotFound() {
+	if err := gormutil.DB().Unscoped().First(m, "alias=?", alias).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("file not exist")
 	} else if !m.UserAccessible(uid) {
 		return nil, fmt.Errorf("not accessible")

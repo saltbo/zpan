@@ -8,7 +8,7 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 
 	"github.com/saltbo/zpan/assets"
-	"github.com/saltbo/zpan/service"
+	"github.com/saltbo/zpan/dao"
 )
 
 func SetupRoutes(ge *gin.Engine) {
@@ -37,7 +37,7 @@ func SetupRoutes(ge *gin.Engine) {
 
 func authentication() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, err := service.NewUser().FindByUx(c.GetHeader("X-Zplat-Ux"))
+		user, err := dao.NewUser().FindByUx(c.GetHeader("X-Zplat-Ux"))
 		if err != nil {
 			c.AbortWithError(http.StatusInternalServerError, err)
 			return

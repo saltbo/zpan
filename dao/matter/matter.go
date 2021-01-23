@@ -1,14 +1,15 @@
 package matter
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/jinzhu/gorm"
-	"github.com/saltbo/gopkg/gormutil"
+	"gorm.io/gorm"
 
 	"github.com/saltbo/zpan/model"
+	"github.com/saltbo/zpan/pkg/gormutil"
 )
 
 type Matter struct {
@@ -20,7 +21,8 @@ func NewMatter() *Matter {
 
 func (ms *Matter) Exist(uid int64, name, parent string) (*model.Matter, bool) {
 	m := new(model.Matter)
-	return m, !gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(m).RecordNotFound()
+	err := gormutil.DB().Where("uid=? and name=? and parent=?", uid, name, parent).First(m).Error
+	return m, !errors.Is(err, gorm.ErrRecordNotFound)
 }
 
 func (ms *Matter) ParentExist(uid int64, parentDir string) bool {
@@ -86,7 +88,7 @@ func (ms *Matter) Create(matter *model.Matter) error {
 
 func (ms *Matter) Find(alias string) (*model.Matter, error) {
 	m := new(model.Matter)
-	if gormutil.DB().First(m, "alias=?", alias).RecordNotFound() {
+	if err := gormutil.DB().First(m, "alias=?", alias).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("file not exist")
 	}
 

@@ -5,8 +5,8 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
 
+	"github.com/saltbo/zpan/dao"
 	"github.com/saltbo/zpan/rest/bind"
-	"github.com/saltbo/zpan/service"
 )
 
 type Storage struct {
@@ -26,7 +26,7 @@ func (rs *Storage) Register(router *gin.RouterGroup) {
 }
 
 func (rs *Storage) find(c *gin.Context) {
-	storage, err := service.NewStorage().Find(c.Param("id"))
+	storage, err := dao.NewStorage().Find(c.Param("id"))
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -43,7 +43,7 @@ func (rs *Storage) findAll(c *gin.Context) {
 		return
 	}
 
-	list, total, err := service.NewStorage().FindAll(p.Limit, p.Offset)
+	list, total, err := dao.NewStorage().FindAll(p.Limit, p.Offset)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -59,7 +59,7 @@ func (rs *Storage) create(c *gin.Context) {
 		return
 	}
 
-	sStorage := service.NewStorage()
+	sStorage := dao.NewStorage()
 	if err := sStorage.Create(p.Model()); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -75,7 +75,7 @@ func (rs *Storage) update(c *gin.Context) {
 		return
 	}
 
-	sStorage := service.NewStorage()
+	sStorage := dao.NewStorage()
 	if err := sStorage.Update(c.Param("id"), p.Model()); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -85,7 +85,7 @@ func (rs *Storage) update(c *gin.Context) {
 }
 
 func (rs *Storage) delete(c *gin.Context) {
-	sStorage := service.NewStorage()
+	sStorage := dao.NewStorage()
 	if err := sStorage.Delete(c.Param("id")); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
