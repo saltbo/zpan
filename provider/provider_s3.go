@@ -49,25 +49,29 @@ func newS3Provider(conf Config) (*S3Provider, error) {
 }
 
 func (p *S3Provider) SetupCORS() error {
+	output, err := p.client.GetBucketCors(&s3.GetBucketCorsInput{Bucket: aws.String(p.bucket)})
+	if err != nil {
+		return err
+	}
+
 	allowedHeaders := make([]*string, 0)
 	for _, header := range corsAllowHeaders {
 		allowedHeaders = append(allowedHeaders, aws.String(header))
 	}
+	output.CORSRules = append(output.CORSRules, &s3.CORSRule{
+		AllowedOrigins: []*string{aws.String("*")},
+		AllowedMethods: []*string{aws.String("PUT")},
+		AllowedHeaders: allowedHeaders,
+		MaxAgeSeconds:  aws.Int64(300),
+	})
 
 	input := &s3.PutBucketCorsInput{
 		Bucket: aws.String(p.bucket),
 		CORSConfiguration: &s3.CORSConfiguration{
-			CORSRules: []*s3.CORSRule{
-				{
-					AllowedOrigins: []*string{aws.String("*")},
-					AllowedMethods: []*string{aws.String("PUT")},
-					AllowedHeaders: allowedHeaders,
-					MaxAgeSeconds:  aws.Int64(300),
-				},
-			},
+			CORSRules: output.CORSRules,
 		},
 	}
-	_, err := p.client.PutBucketCors(input)
+	_, err = p.client.PutBucketCors(input)
 	return err
 }
 
