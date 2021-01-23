@@ -29,11 +29,17 @@ func NewAliOSSProvider(conf Config) (Provider, error) {
 }
 
 func (p *AliOSSProvider) SetupCORS() error {
-	rule := oss.CORSRule{
+	ret, err := p.client.GetBucketCORS(p.bucket)
+	if err != nil {
+		return err
+	}
+
+	zRule := oss.CORSRule{
 		AllowedOrigin: []string{"*"},
 		AllowedMethod: []string{"PUT"},
 		AllowedHeader: corsAllowHeaders,
 		MaxAgeSeconds: 300,
 	}
-	return p.client.SetBucketCORS(p.bucket, []oss.CORSRule{rule})
+	ret.CORSRules = append(ret.CORSRules, zRule)
+	return p.client.SetBucketCORS(p.bucket, ret.CORSRules)
 }
