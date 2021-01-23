@@ -23,20 +23,13 @@ package cmd
 
 import (
 	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/gormutil"
-	"github.com/saltbo/gopkg/httputil"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/acme/autocert"
+	"github.com/spf13/viper"
 
-	"github.com/saltbo/zpan/assets"
-	"github.com/saltbo/zpan/config"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/rest"
 )
@@ -46,98 +39,80 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "A cloud disk base on the cloud service.",
 	Run: func(cmd *cobra.Command, args []string) {
-		c := config.Parse()
-		serverRun(c)
+		serverRun()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
+
+	serverCmd.Flags().Int("port", 8222, "server port")
+	serverCmd.Flags().String("database-driver", "sqlite3", "database driver for the gorm")
+	serverCmd.Flags().String("database-dsn", "zpan.db", "database dsn for the gorm")
+	serverCmd.Flags().String("zplat-api-server", "http://localhost:8218", "database dsn for the gorm")
+
+	viper.BindPFlags(serverCmd.Flags())
 }
 
-func serverRun(conf *config.Config) {
-	if !conf.Debug {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	gormutil.Init(conf.Database, conf.Debug)
+func serverRun() {
+	//gin.SetMode(gin.ReleaseMode)
+	gormutil.Init(gormutil.Config{
+		Driver: viper.GetString("database-driver"),
+		DSN:    viper.GetString("database-dsn"),
+	}, true)
 	gormutil.AutoMigrate(model.Tables())
 
 	ge := gin.Default()
-	if conf.EmailAct() {
-	}
+	rest.SetupRoutes(ge)
 
-	//ge.Use(mu.Auth(rest.Roles()))
+	//if conf.TLS.Enabled {
+	//	//go startTls(ge, tlsAddr, conf.TLS.Auto, conf.TLS.CacheDir, conf.Server.Domain, conf.TLS.CertPath, conf.TLS.CertkeyPath)
+	//	go startTls(ge, conf)
+	//}
 
-	userResource := rest.NewUserResource(conf.Storage)
-	apiRouter := ge.Group("/api")
-	apiRouter.Use(userResource.Injector())
-	ginutil.SetupResource(apiRouter, userResource,
-		rest.NewStorageResource(),
-		rest.NewFileResource(),
-		rest.NewFolderResource(),
-		rest.NewShareResource(),
-		rest.NewRecycleBinResource(),
-	)
-
-	ginutil.SetupEmbedAssets(ge.Group("/"),
-		assets.EmbedFS(), "/css", "/js", "/fonts")
-	ge.NoRoute(func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.RequestURI, "/api") {
-			return
-		}
-
-		c.FileFromFS("/", assets.EmbedFS())
-	})
-
-	if conf.TLS.Enabled {
-		//go startTls(ge, tlsAddr, conf.TLS.Auto, conf.TLS.CacheDir, conf.Server.Domain, conf.TLS.CertPath, conf.TLS.CertkeyPath)
-		go startTls(ge, conf)
-	}
-
-	addr := fmt.Sprintf(":%d", conf.Server.Port)
+	addr := fmt.Sprintf(":%d", viper.GetInt("port"))
 	ginutil.Startup(ge, addr)
 }
 
-func startTls(e *gin.Engine, conf *config.Config) {
-	tlsAddr := fmt.Sprintf(":%d", conf.Server.SSLPort)
-	if conf.TLS.Auto {
-		m := autocert.Manager{
-			Prompt: autocert.AcceptTOS,
-		}
-		if err := os.MkdirAll(conf.TLS.CacheDir, 0700); err != nil {
-			log.Printf("autocert cache dir check failed: %s", err.Error())
-		} else {
-			m.Cache = autocert.DirCache(conf.TLS.CacheDir)
-		}
-		if len(conf.Server.Domain) > 0 {
-			m.HostPolicy = autocert.HostWhitelist(conf.Server.Domain...)
-		}
-		srv := &http.Server{
-			Addr:      tlsAddr,
-			Handler:   e,
-			TLSConfig: m.TLSConfig(),
-		}
-		go func() {
-			log.Printf("[rest server listen at %s]", srv.Addr)
-			if err := srv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-				log.Fatalln(err)
-			}
-		}()
-
-		httputil.SetupGracefulStop(srv)
-
-	} else {
-		srv := &http.Server{
-			Addr:    tlsAddr,
-			Handler: e,
-		}
-		go func() {
-			log.Printf("[rest server listen tls at %s]", srv.Addr)
-			if err := srv.ListenAndServeTLS(conf.TLS.CertPath, conf.TLS.CertkeyPath); err != nil && err != http.ErrServerClosed {
-				log.Fatalln(err)
-			}
-		}()
-		httputil.SetupGracefulStop(srv)
-	}
-}
+//func startTls(e *gin.Engine, conf *config.Config) {
+//	tlsAddr := fmt.Sprintf(":%d", conf.Server.SSLPort)
+//	if conf.TLS.Auto {
+//		m := autocert.Manager{
+//			Prompt: autocert.AcceptTOS,
+//		}
+//		if err := os.MkdirAll(conf.TLS.CacheDir, 0700); err != nil {
+//			log.Printf("autocert cache dir check failed: %s", err.Error())
+//		} else {
+//			m.Cache = autocert.DirCache(conf.TLS.CacheDir)
+//		}
+//		if len(conf.Server.Domain) > 0 {
+//			m.HostPolicy = autocert.HostWhitelist(conf.Server.Domain...)
+//		}
+//		srv := &http.Server{
+//			Addr:      tlsAddr,
+//			Handler:   e,
+//			TLSConfig: m.TLSConfig(),
+//		}
+//		go func() {
+//			log.Printf("[rest server listen at %s]", srv.Addr)
+//			if err := srv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+//				log.Fatalln(err)
+//			}
+//		}()
+//
+//		httputil.SetupGracefulStop(srv)
+//
+//	} else {
+//		srv := &http.Server{
+//			Addr:    tlsAddr,
+//			Handler: e,
+//		}
+//		go func() {
+//			log.Printf("[rest server listen tls at %s]", srv.Addr)
+//			if err := srv.ListenAndServeTLS(conf.TLS.CertPath, conf.TLS.CertkeyPath); err != nil && err != http.ErrServerClosed {
+//				log.Fatalln(err)
+//			}
+//		}()
+//		httputil.SetupGracefulStop(srv)
+//	}
+//}

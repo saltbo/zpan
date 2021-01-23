@@ -1,8 +1,7 @@
 package bind
 
-type QueryStorage struct {
-	QueryPage
-	Email string `form:"email"`
+type QueryUser struct {
+	Uxs []string `form:"ux"`
 }
 
 type BodyStorageQuota struct {

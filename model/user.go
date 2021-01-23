@@ -1,8 +1,6 @@
 package model
 
-import (
-	"time"
-)
+import "time"
 
 type User struct {
 	Id          int64      `json:"id"`
@@ -24,16 +22,4 @@ func (u *User) StorageOverflowed(addonSize int64) bool {
 	}
 
 	return false
-}
-
-type UserFormats struct {
-	User
-
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	RoleName string `json:"role"`
-	Status   string `json:"status"`
-	Nickname string `json:"nickname"`
-	Avatar   string `json:"avatar"`
-	Bio      string `json:"bio"`
 }

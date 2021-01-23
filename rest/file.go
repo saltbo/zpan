@@ -64,13 +64,16 @@ func (rs *FileResource) create(c *gin.Context) {
 		return
 	}
 
-	user := userGet(c)
-	if user.StorageOverflowed(p.Size) {
+	user, err := service.NewUser().Find(userIdGet(c))
+	if err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	} else if user.StorageOverflowed(p.Size) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("service not enough space"))
 		return
 	}
 
-	m := p.ToMatter(user.Id)
+	m := p.ToMatter(userIdGet(c))
 	link, headers, err := rs.fs.PreSignPutURL(m)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
