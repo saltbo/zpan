@@ -12,7 +12,7 @@ import (
 
 // default config
 var dc = Config{
-	Name:         "s3",
+	Provider:     "s3",
 	Bucket:       "test-bucket",
 	Endpoint:     "s3.ap-northeast-1.amazonaws.com",
 	AccessKey:    "test-ak",
@@ -81,14 +81,14 @@ func TestPublicURL(t *testing.T) {
 
 func TestNotSupportedProvider(t *testing.T) {
 	conf := dc
-	conf.Name = "test-provider"
+	conf.Provider = "test-provider"
 	_, err := New(conf)
 	assert.Error(t, err)
 }
 
 func TestNew4Storage(t *testing.T) {
 	conf := dc
-	conf.Name = "s3"
+	conf.Provider = "s3"
 	_, err := New(conf)
 	assert.NoError(t, err)
 }

@@ -9,6 +9,7 @@ type StorageBody struct {
 	Name       string `json:"name"`
 	Title      string `json:"title"`
 	Bucket     string `json:"bucket"`
+	Provider   string `json:"provider"`
 	Endpoint   string `json:"endpoint"`
 	CustomHost string `json:"custom_host"`
 	AccessKey  string `json:"access_key"`
@@ -21,6 +22,7 @@ func (b *StorageBody) Model() *model.Storage {
 		Name:       b.Name,
 		Title:      b.Title,
 		Bucket:     b.Bucket,
+		Provider:   b.Provider,
 		Endpoint:   b.Endpoint,
 		CustomHost: b.CustomHost,
 		AccessKey:  b.AccessKey,

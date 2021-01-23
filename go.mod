@@ -5,6 +5,7 @@ go 1.14
 //replace github.com/saltbo/gopkg => /opt/works/gopkg
 
 require (
+	github.com/aliyun/aliyun-oss-go-sdk v2.1.6+incompatible
 	github.com/aws/aws-sdk-go v1.34.14
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.6.3

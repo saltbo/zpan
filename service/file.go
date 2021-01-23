@@ -9,7 +9,6 @@ import (
 
 	"github.com/saltbo/gopkg/timeutil"
 
-	"github.com/saltbo/zpan/dao"
 	"github.com/saltbo/zpan/pkg/gormutil"
 
 	"github.com/saltbo/zpan/dao/matter"
@@ -19,12 +18,12 @@ import (
 type File struct {
 	matter.Matter
 
-	sStorage *dao.Storage
+	sStorage *Storage
 }
 
 func NewFile() *File {
 	return &File{
-		sStorage: dao.NewStorage(),
+		sStorage: NewStorage(),
 	}
 }
 

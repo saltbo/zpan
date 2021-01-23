@@ -7,6 +7,7 @@ import (
 
 	"github.com/saltbo/zpan/dao"
 	"github.com/saltbo/zpan/rest/bind"
+	"github.com/saltbo/zpan/service"
 )
 
 type Storage struct {
@@ -59,7 +60,7 @@ func (rs *Storage) create(c *gin.Context) {
 		return
 	}
 
-	sStorage := dao.NewStorage()
+	sStorage := service.NewStorage()
 	if err := sStorage.Create(p.Model()); err != nil {
 		ginutil.JSONServerError(c, err)
 		return

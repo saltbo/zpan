@@ -10,7 +10,6 @@ import (
 	"github.com/saltbo/zpan/pkg/gormutil"
 
 	"github.com/saltbo/zpan/model"
-	"github.com/saltbo/zpan/provider"
 )
 
 type Storage struct {
@@ -60,25 +59,4 @@ func (s *Storage) Delete(id string) error {
 	}
 
 	return gormutil.DB().Delete(storage).Error
-}
-
-func (s *Storage) GetProvider(id interface{}) (provider.Provider, error) {
-	if sid, ok := id.(int64); ok && sid == 0 {
-		return &provider.MockProvider{}, nil
-	}
-
-	sModel, err := s.Find(id)
-	if err != nil {
-		return nil, err
-	}
-
-	conf := provider.Config{
-		Name:         "s3",
-		Bucket:       sModel.Bucket,
-		Endpoint:     sModel.Endpoint,
-		CustomHost:   sModel.CustomHost,
-		AccessKey:    sModel.AccessKey,
-		AccessSecret: sModel.SecretKey,
-	}
-	return provider.New(conf)
 }

@@ -14,6 +14,7 @@ type Storage struct {
 	Name          string     `json:"name" gorm:"size:16;not null"`
 	Title         string     `json:"title" gorm:"size:16;not null"`
 	Bucket        string     `json:"bucket" gorm:"size:32;not null"`
+	Provider      string     `json:"provider" gorm:"not null"`
 	Endpoint      string     `json:"endpoint" gorm:"not null"`
 	AccessKey     string     `json:"access_key" gorm:"not null"`
 	SecretKey     string     `json:"secret_key" gorm:"not null"`

@@ -8,6 +8,10 @@ import (
 type MockProvider struct {
 }
 
+func (m *MockProvider) SetupCORS() error {
+	return nil
+}
+
 func (m *MockProvider) SignedPutURL(key, filetype string, public bool) (url string, headers http.Header, err error) {
 	headers = make(http.Header)
 	headers.Add("", "")

@@ -19,6 +19,10 @@ type S3Provider struct {
 }
 
 func NewS3Provider(conf Config) (Provider, error) {
+	return newS3Provider(conf)
+}
+
+func newS3Provider(conf Config) (*S3Provider, error) {
 	cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(conf.AccessKey, conf.AccessSecret, ""))
 	s, err := session.NewSession(cfg)
 	if err != nil {
@@ -42,6 +46,29 @@ func NewS3Provider(conf Config) (Provider, error) {
 		client: client,
 		bucket: conf.Bucket,
 	}, nil
+}
+
+func (p *S3Provider) SetupCORS() error {
+	allowedHeaders := make([]*string, 0)
+	for _, header := range corsAllowHeaders {
+		allowedHeaders = append(allowedHeaders, aws.String(header))
+	}
+
+	input := &s3.PutBucketCorsInput{
+		Bucket: aws.String(p.bucket),
+		CORSConfiguration: &s3.CORSConfiguration{
+			CORSRules: []*s3.CORSRule{
+				{
+					AllowedOrigins: []*string{aws.String("*")},
+					AllowedMethods: []*string{aws.String("PUT")},
+					AllowedHeaders: allowedHeaders,
+					MaxAgeSeconds:  aws.Int64(300),
+				},
+			},
+		},
+	}
+	_, err := p.client.PutBucketCors(input)
+	return err
 }
 
 func (p *S3Provider) SignedPutURL(key, filetype string, public bool) (string, http.Header, error) {

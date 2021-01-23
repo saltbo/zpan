@@ -6,7 +6,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/saltbo/zpan/dao"
 	"github.com/saltbo/zpan/dao/matter"
 	"github.com/saltbo/zpan/model"
 	"github.com/saltbo/zpan/pkg/gormutil"
@@ -15,12 +14,12 @@ import (
 type RecycleBin struct {
 	matter.Matter
 
-	sStorage *dao.Storage
+	sStorage *Storage
 }
 
 func NewRecycleBin() *RecycleBin {
 	return &RecycleBin{
-		sStorage: dao.NewStorage(),
+		sStorage: NewStorage(),
 	}
 }
 
