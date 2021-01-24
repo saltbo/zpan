@@ -1,32 +1,34 @@
 package bind
 
 import (
+	"strings"
+
 	"github.com/saltbo/zpan/model"
 )
 
 type StorageBody struct {
-	Mode       int8   `json:"mode"`
-	Name       string `json:"name"`
-	Title      string `json:"title"`
-	Bucket     string `json:"bucket"`
-	Provider   string `json:"provider"`
-	Endpoint   string `json:"endpoint"`
+	Mode       int8   `json:"mode" binding:"required"`
+	Name       string `json:"name" binding:"required"`
+	Title      string `json:"title" binding:"required"`
+	Bucket     string `json:"bucket" binding:"required"`
+	Provider   string `json:"provider" binding:"required"`
+	Endpoint   string `json:"endpoint" binding:"required"`
+	AccessKey  string `json:"access_key" binding:"required"`
+	SecretKey  string `json:"secret_key" binding:"required"`
 	CustomHost string `json:"custom_host"`
-	AccessKey  string `json:"access_key"`
-	SecretKey  string `json:"secret_key"`
 }
 
 func (b *StorageBody) Model() *model.Storage {
 	return &model.Storage{
 		Mode:       b.Mode,
-		Name:       b.Name,
-		Title:      b.Title,
-		Bucket:     b.Bucket,
+		Name:       strings.TrimSpace(b.Name),
+		Title:      strings.TrimSpace(b.Title),
+		Bucket:     strings.TrimSpace(b.Bucket),
 		Provider:   b.Provider,
-		Endpoint:   b.Endpoint,
-		CustomHost: b.CustomHost,
-		AccessKey:  b.AccessKey,
-		SecretKey:  b.SecretKey,
+		Endpoint:   strings.TrimSpace(b.Endpoint),
+		CustomHost: strings.TrimSpace(b.CustomHost),
+		AccessKey:  strings.TrimSpace(b.AccessKey),
+		SecretKey:  strings.TrimSpace(b.SecretKey),
 	}
 }
 

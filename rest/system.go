@@ -6,6 +6,7 @@ import (
 	"github.com/saltbo/gopkg/jwtutil"
 
 	"github.com/saltbo/zpan/dao"
+	"github.com/saltbo/zpan/provider"
 )
 
 type Option struct {
@@ -17,8 +18,13 @@ func NewOptionResource() *Option {
 }
 
 func (rs *Option) Register(router *gin.RouterGroup) {
-	router.GET("/options/:name", rs.find)
-	router.PUT("/options/:name", rs.update)
+	router.GET("/system/providers", rs.providers)
+	router.GET("/system/options/:name", rs.find)
+	router.PUT("/system/options/:name", rs.update)
+}
+
+func (rs *Option) providers(c *gin.Context) {
+	ginutil.JSONData(c, provider.GetProviders())
 }
 
 func (rs *Option) find(c *gin.Context) {

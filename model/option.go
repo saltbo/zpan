@@ -13,8 +13,8 @@ import (
 
 type Option struct {
 	Id      int64          `json:"id"`
-	Name    string         `json:"name"`
-	Opts    Opts           `json:"opts"`
+	Name    string         `json:"name" gorm:"size:16;not null"`
+	Opts    Opts           `json:"opts" gorm:"not null"`
 	Created time.Time      `json:"created" gorm:"autoCreateTime"`
 	Updated time.Time      `json:"updated" gorm:"autoUpdateTime"`
 	Deleted gorm.DeletedAt `json:"-"`

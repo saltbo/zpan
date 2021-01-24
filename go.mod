@@ -5,6 +5,7 @@ go 1.14
 //replace github.com/saltbo/gopkg => /opt/works/gopkg
 
 require (
+	github.com/NetEase-Object-Storage/nos-golang-sdk v0.0.0-20191125093154-335c2b73bf6b
 	github.com/aliyun/aliyun-oss-go-sdk v2.1.6+incompatible
 	github.com/aws/aws-sdk-go v1.34.14
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
@@ -15,6 +16,8 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/storyicon/grbac v0.0.0-20200224041032-a0461737df7e
 	github.com/stretchr/testify v1.6.1
+	github.com/tencentyun/cos-go-sdk-v5 v0.7.18
+	github.com/upyun/go-sdk/v3 v3.0.2
 	gorm.io/driver/mysql v1.0.3
 	gorm.io/driver/postgres v1.0.6
 	gorm.io/driver/sqlite v1.1.4

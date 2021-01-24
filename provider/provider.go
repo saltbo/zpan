@@ -31,8 +31,15 @@ type Config struct {
 type Constructor func(provider Config) (Provider, error)
 
 var supportProviders = map[string]Constructor{
-	"s3":  NewS3Provider,
-	"oss": NewAliOSSProvider,
+	"COS":   NewCOSProvider,
+	"KODO":  NewKODOProvider,
+	"MINIO": NewMINIOProvider,
+	"NOS":   NewNOSProvider,
+	"OBS":   NewOBSProvider,
+	"OSS":   NewOSSProvider,
+	"S3":    NewS3Provider,
+	"US3":   NewUS3Provider,
+	//"USS":   NewUSSProvider,
 	//"od": NewODProvider,
 	//"gd": NewGDProvider,
 }
@@ -44,4 +51,13 @@ func New(conf Config) (Provider, error) {
 	}
 
 	return constructor(conf)
+}
+
+func GetProviders() []string {
+	keys := make([]string, 0)
+	for k := range supportProviders {
+		keys = append(keys, k)
+	}
+
+	return keys
 }
