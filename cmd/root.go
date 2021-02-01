@@ -65,7 +65,7 @@ func initConfig() {
 	} else {
 		viper.AddConfigPath(".")
 		viper.AddConfigPath("/etc/zpan")
-		viper.SetConfigName("zpan")
+		viper.SetConfigName("config")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match

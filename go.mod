@@ -9,6 +9,7 @@ require (
 	github.com/aliyun/aliyun-oss-go-sdk v2.1.6+incompatible
 	github.com/aws/aws-sdk-go v1.34.14
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gin-gonic/gin v1.6.3
 	github.com/rakyll/statik v0.1.7
 	github.com/saltbo/gopkg v0.0.0-20200905151036-32195ea0b27b

@@ -14,6 +14,7 @@ build
 *.out
 zpan.yml
 zpan.db
+config.yml
 
 # Editor auto file
 .idea

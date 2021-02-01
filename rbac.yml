@@ -1,0 +1,23 @@
+- id: 0
+  # Resource
+  host: "*"
+  path: "**"
+  method: "*"
+  # Permission
+  authorized_roles:
+    - "admin"
+    - "member"
+  forbidden_roles: [ ]
+  allow_anyone: false
+
+- id: 1
+  host: "*"
+  path: "/api/system/options/**"
+  method: "GET"
+  allow_anyone: true
+
+- id: 1
+  host: "*"
+  path: "/api/tokens"
+  method: "POST"
+  allow_anyone: true
