@@ -30,3 +30,7 @@ type BodyUserPassword struct {
 	OldPassword string `json:"old_password" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required"`
 }
+
+type BodyUserStorage struct {
+	Max uint64 `json:"max"`
+}

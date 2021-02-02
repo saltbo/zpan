@@ -51,8 +51,8 @@ type User struct {
 	Roles     string      `json:"-" gorm:"size:64;not null"`
 	RoleTxt   string      `json:"role" gorm:"-"`
 	Ticket    string      `json:"ticket" gorm:"size:6;unique_index;not null"`
-	Profile   UserProfile `json:"profile" gorm:"foreignKey:Uid"`
-	Storage   UserStorage `json:"storage" gorm:"foreignKey:Uid"`
+	Profile   UserProfile `json:"profile,omitempty" gorm:"foreignKey:Uid"`
+	Storage   UserStorage `json:"storage,omitempty" gorm:"foreignKey:Uid"`
 	Deleted   *time.Time  `json:"-" gorm:"column:deleted_at"`
 	Created   time.Time   `json:"created" gorm:"column:created_at;not null"`
 	Updated   time.Time   `json:"updated" gorm:"column:updated_at;not null"`

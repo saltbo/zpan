@@ -32,8 +32,19 @@ func (u *User) Find(uid int64) (*model.User, error) {
 	return user, nil
 }
 
+func (u *User) FindByUsername(username string) (*model.User, error) {
+	user := new(model.User)
+	if err := gormutil.DB().First(user, "username=?", username).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("user not exist")
+	} else if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
 func (u *User) FindAll(query *Query) (list []*model.User, total int64, err error) {
-	sn := gormutil.DB()
+	sn := gormutil.DB().Model(&model.User{})
 	if len(query.Params) > 0 {
 		sn = sn.Where(query.SQL(), query.Params...)
 	}
@@ -71,7 +82,6 @@ func (u *User) Create(user *model.User) (*model.User, error) {
 	if exist {
 		return nil, fmt.Errorf("email already exist")
 	}
-
 
 	user.Profile = model.UserProfile{
 		Uid:      user.Id,
@@ -118,4 +128,12 @@ func (u *User) PasswordReset(uid int64, newPwd string) error {
 
 func (u *User) Update(user *model.User) error {
 	return gormutil.DB().Save(user).Error
+}
+
+func (u *User) UpdateProfile(uid int64, up *model.UserProfile) error {
+	return gormutil.DB().Model(model.UserProfile{}).Where("uid=?", uid).Updates(up).Error
+}
+
+func (u *User) UpdateStorage(uid int64, quota uint64) error {
+	return gormutil.DB().Model(model.UserStorage{}).Where("uid=?", uid).Update("max", quota).Error
 }
