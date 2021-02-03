@@ -77,7 +77,7 @@ func (u *User) userExist(k, v string) (*model.User, bool) {
 	return nil, false
 }
 
-func (u *User) Create(user *model.User) (*model.User, error) {
+func (u *User) Create(user *model.User, storageMax uint64) (*model.User, error) {
 	_, exist := u.EmailExist(user.Email)
 	if exist {
 		return nil, fmt.Errorf("email already exist")
@@ -89,6 +89,9 @@ func (u *User) Create(user *model.User) (*model.User, error) {
 	}
 	user.Storage = model.UserStorage{
 		Max: model.UserStorageDefaultSize,
+	}
+	if storageMax > 0 {
+		user.Storage.Max = storageMax
 	}
 
 	if err := gormutil.DB().Create(user).Error; err != nil {

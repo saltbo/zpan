@@ -31,10 +31,11 @@ var status = map[uint8]string{
 }
 
 type UserCreateOption struct {
-	Roles     string
-	Ticket    string
-	Origin    string
-	Activated bool
+	Roles      string
+	Ticket     string
+	Origin     string
+	Activated  bool
+	StorageMax uint64
 }
 
 func NewUserCreateOption() UserCreateOption {

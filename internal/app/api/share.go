@@ -90,8 +90,8 @@ func (rs *ShareResource) create(c *gin.Context) {
 	}
 
 	mMatter, err := rs.dMatter.Find(p.Matter)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("matter not found"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
 		return
 	}
 

@@ -40,7 +40,7 @@ func (u *User) Signup(email, password string, opt model.UserCreateOption) (*mode
 		user.Status = model.StatusActivated
 	}
 
-	if mUser, err := u.dUser.Create(user); err != nil {
+	if mUser, err := u.dUser.Create(user, opt.StorageMax); err != nil {
 		return mUser, err
 	}
 

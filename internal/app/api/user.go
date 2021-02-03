@@ -32,9 +32,10 @@ func (rs *UserResource) Register(router *gin.RouterGroup) {
 	router.PATCH("/users/:email", rs.patch) // 账户激活、密码重置
 
 	router.Use(middleware.LoginAuth())
-	router.GET("/users", rs.findAll)                         // 查询用户列表，需管理员权限
-	router.GET("/users/:username", rs.find)                  // 查询某一个用户的公开信息
-	router.PUT("/users/:username/storage", rs.updateStorage) // 修改某一个用户的存储空间
+	router.GET("/users", rs.findAll)                           // 查询用户列表，需管理员权限
+	router.GET("/users/:username", rs.find)                    // 查询某一个用户的公开信息
+	router.PUT("/users/:username/storage", rs.updateStorage)   // 修改某一个用户的存储空间
+	router.PUT("/users/:username/password", rs.updatePassword) // 修改某一个用户的用户密码
 
 	router.GET("/user", rs.userMe)                  // 获取已登录用户的所有信息
 	router.PUT("/user/profile", rs.updateProfile)   // 更新已登录用户个人信息
@@ -140,7 +141,7 @@ func (rs *UserResource) updateStorage(c *gin.Context) {
 // @Failure 500 {object} httputil.JSONResponse
 // @Router /v1/users [post]
 func (rs *UserResource) create(c *gin.Context) {
-	p := new(bind.BodyUser)
+	p := new(bind.BodyUserCreation)
 	if err := c.ShouldBindJSON(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -154,6 +155,11 @@ func (rs *UserResource) create(c *gin.Context) {
 	opt := model.NewUserCreateOption()
 	opt.Roles = model.RoleMember
 	opt.Ticket = p.Ticket
+	if authed.IsAdmin(c) {
+		opt.Roles = p.Roles
+		opt.StorageMax = p.StorageMax
+	}
+
 	opt.Origin = ginutil.GetOrigin(c)
 	if _, err := rs.sUser.Signup(p.Email, p.Password, opt); err != nil {
 		ginutil.JSONBadRequest(c, err)
@@ -231,6 +237,7 @@ func (rs *UserResource) userMe(c *gin.Context) {
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
+// @Router /v1/users/{username}/password [put]
 // @Router /v1/user/password [put]
 func (rs *UserResource) updatePassword(c *gin.Context) {
 	p := new(bind.BodyUserPassword)
@@ -239,7 +246,18 @@ func (rs *UserResource) updatePassword(c *gin.Context) {
 		return
 	}
 
-	if err := rs.sUser.PasswordUpdate(authed.UidGet(c), p.OldPassword, p.NewPassword); err != nil {
+	uid := authed.UidGet(c)
+	if username := c.Param("username"); username != "" {
+		user, err := rs.dUser.FindByUsername(username)
+		if err != nil {
+			ginutil.JSONBadRequest(c, err)
+			return
+		}
+
+		uid = user.Id
+	}
+
+	if err := rs.sUser.PasswordUpdate(uid, p.OldPassword, p.NewPassword); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

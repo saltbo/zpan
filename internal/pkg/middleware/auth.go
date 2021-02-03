@@ -47,6 +47,7 @@ func LoginAuthWithRoles() gin.HandlerFunc {
 		}
 
 		authed.UidSet(c, rc.Uid())
+		authed.RoleSet(c, rc.Roles)
 	}
 }
 

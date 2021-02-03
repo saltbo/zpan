@@ -5,10 +5,12 @@ type QueryUser struct {
 	Email string `form:"email"`
 }
 
-type BodyUser struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	Ticket   string `json:"ticket"`
+type BodyUserCreation struct {
+	Email      string `json:"email" binding:"required"`
+	Password   string `json:"password" binding:"required"`
+	Ticket     string `json:"ticket"`
+	Roles      string `json:"roles"`
+	StorageMax uint64 `json:"storage_max"`
 }
 
 type BodyUserPatch struct {

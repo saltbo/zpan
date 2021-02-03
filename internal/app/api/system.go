@@ -56,7 +56,7 @@ func (rs *Option) createDatabase(c *gin.Context) {
 }
 
 func (rs *Option) createAdministrator(c *gin.Context) {
-	p := new(bind.BodyUser)
+	p := new(bind.BodyUserCreation)
 	if err := c.ShouldBind(&p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -70,7 +70,7 @@ func (rs *Option) createAdministrator(c *gin.Context) {
 		Ticket:   strutil.RandomText(6),
 		Status:   model.StatusActivated,
 	}
-	if _, err := dao.NewUser().Create(user); err != nil {
+	if _, err := dao.NewUser().Create(user, 0); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

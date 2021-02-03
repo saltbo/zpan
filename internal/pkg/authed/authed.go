@@ -1,6 +1,10 @@
 package authed
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+
+	"github.com/saltbo/zpan/internal/app/model"
+)
 
 const (
 	ctxUidKey = "ctx-uid"
@@ -15,6 +19,20 @@ func UidSet(c *gin.Context, uid int64) {
 
 func UidGet(c *gin.Context) int64 {
 	return c.GetInt64(ctxUidKey)
+}
+
+func RoleSet(c *gin.Context, roles []string) {
+	c.Set("role", roles)
+}
+
+func IsAdmin(c *gin.Context) bool {
+	for _, s := range c.GetStringSlice("role") {
+		if s == model.RoleAdmin {
+			return true
+		}
+	}
+
+	return false
 }
 
 func TokenCookieSet(c *gin.Context, token string, expireSec int) {
