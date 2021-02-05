@@ -9,6 +9,7 @@ import (
 
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
+	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/saltbo/zpan/internal/pkg/bind"
 	"github.com/saltbo/zpan/internal/pkg/gormutil"
 	"github.com/saltbo/zpan/internal/pkg/middleware"
@@ -17,10 +18,14 @@ import (
 
 type Option struct {
 	jwtutil.JWTUtil
+
+	sOption *service.Option
 }
 
 func NewOptionResource() *Option {
-	return &Option{}
+	return &Option{
+		sOption: service.NewOption(),
+	}
 }
 
 func (rs *Option) Register(router *gin.RouterGroup) {
@@ -31,6 +36,7 @@ func (rs *Option) Register(router *gin.RouterGroup) {
 	router.GET("/system/providers", rs.providers)
 	router.GET("/system/options/:name", rs.find)
 	router.PUT("/system/options/:name", rs.update)
+	router.POST("/system/emails", rs.sendTestEmail)
 }
 
 func (rs *Option) createDatabase(c *gin.Context) {
@@ -100,10 +106,13 @@ func (rs *Option) update(c *gin.Context) {
 		return
 	}
 
-	if err := dao.NewOption().Set(c.Param("name"), p); err != nil {
+	if err := rs.sOption.Update(c.Param("name"), p); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
 	ginutil.JSON(c)
+}
+
+func (rs *Option) sendTestEmail(c *gin.Context) {
 }

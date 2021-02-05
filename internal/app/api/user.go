@@ -147,10 +147,10 @@ func (rs *UserResource) create(c *gin.Context) {
 		return
 	}
 
-	//if system.InvitationOnly() && p.Ticket == "" {
-	//	ginutil.JSONBadRequest(c, fmt.Errorf("ticket required"))
-	//	return
-	//}
+	if rs.sUser.InviteRequired() && p.Ticket == "" {
+		ginutil.JSONBadRequest(c, fmt.Errorf("ticket required"))
+		return
+	}
 
 	opt := model.NewUserCreateOption()
 	opt.Roles = model.RoleMember

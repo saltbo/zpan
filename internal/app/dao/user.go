@@ -78,8 +78,7 @@ func (u *User) userExist(k, v string) (*model.User, bool) {
 }
 
 func (u *User) Create(user *model.User, storageMax uint64) (*model.User, error) {
-	_, exist := u.EmailExist(user.Email)
-	if exist {
+	if _, exist := u.EmailExist(user.Email); exist {
 		return nil, fmt.Errorf("email already exist")
 	}
 

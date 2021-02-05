@@ -13,6 +13,7 @@ import (
 
 type User struct {
 	dUser *dao.User
+	dOpt  *dao.Option
 
 	sToken *Token
 	sMail  *Mail
@@ -21,6 +22,7 @@ type User struct {
 func NewUser() *User {
 	return &User{
 		dUser: dao.NewUser(),
+		dOpt:  dao.NewOption(),
 
 		sToken: NewToken(),
 		sMail:  NewMail(),
@@ -28,6 +30,10 @@ func NewUser() *User {
 }
 
 func (u *User) Signup(email, password string, opt model.UserCreateOption) (*model.User, error) {
+	if _, exist := u.dUser.TicketExist(opt.Ticket); !exist && opt.Ticket != "" {
+		return nil, fmt.Errorf("invalid ticket")
+	}
+
 	// 创建基本信息
 	user := &model.User{
 		Email:    email,
@@ -40,16 +46,22 @@ func (u *User) Signup(email, password string, opt model.UserCreateOption) (*mode
 		user.Status = model.StatusActivated
 	}
 
-	if mUser, err := u.dUser.Create(user, opt.StorageMax); err != nil {
-		return mUser, err
-	}
-
-	token, err := u.sToken.Create(user.IDString(), 3600*24, user.Roles)
+	mUser, err := u.dUser.Create(user, opt.StorageMax)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, u.sMail.SendSignupSuccessNotify(email, token)
+	// 如果如果启用了发信邮箱则发送一份激活邮件给用户
+	if u.sMail.Enabled() {
+		token, err := u.sToken.Create(user.IDString(), 3600*24, user.Roles)
+		if err != nil {
+			return nil, err
+		}
+
+		return mUser, u.sMail.NotifyActive(email, token)
+	}
+
+	return mUser, nil
 }
 
 func (u *User) Active(token string) error {
@@ -114,7 +126,7 @@ func (u *User) PasswordResetApply(origin, email string) error {
 		return err
 	}
 
-	return u.sMail.SendPasswordResetNotify(email, token)
+	return u.sMail.NotifyPasswordReset(email, token)
 }
 
 func (u *User) PasswordReset(token, password string) error {
@@ -124,4 +136,13 @@ func (u *User) PasswordReset(token, password string) error {
 	}
 
 	return u.dUser.PasswordReset(rc.Uid(), password)
+}
+
+func (u *User) InviteRequired() bool {
+	opts, err := u.dOpt.Get("website")
+	if err != nil {
+		return false
+	}
+
+	return opts.GetBool("invite_required")
 }

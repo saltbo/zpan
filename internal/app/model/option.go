@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	OptSite       = "CORE_SITE"
-	OptEmail      = "CORE_EMAIL"
+	OptSite  = "CORE_SITE"
+	OptEmail = "CORE_EMAIL"
 	//OptInvitation = "INVITATION"
 )
 
@@ -32,6 +32,22 @@ func (Option) TableName() string {
 
 // Opts defiend JSON data type, need to implements driver.Valuer, sql.Scanner interface
 type Opts map[string]interface{}
+
+func (m Opts) GetString(name string) string {
+	if v, ok := m[name].(string); ok {
+		return v
+	}
+
+	return ""
+}
+
+func (m Opts) GetBool(name string) bool {
+	if v, ok := m[name].(bool); ok {
+		return v
+	}
+
+	return false
+}
 
 // Value return json value, implement driver.Valuer interface
 func (m Opts) Value() (driver.Value, error) {
