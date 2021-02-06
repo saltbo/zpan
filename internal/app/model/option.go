@@ -49,6 +49,14 @@ func (m Opts) GetBool(name string) bool {
 	return false
 }
 
+func (m Opts) GetInt(name string) int {
+	if v, ok := m[name].(int); ok {
+		return v
+	}
+
+	return 0
+}
+
 // Value return json value, implement driver.Valuer interface
 func (m Opts) Value() (driver.Value, error) {
 	if m == nil {

@@ -3,10 +3,12 @@ package service
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/saltbo/gopkg/mailutil"
+	"gopkg.in/gomail.v2"
 
 	"github.com/saltbo/zpan/internal/app/model"
 )
@@ -30,8 +32,9 @@ var (
 )
 
 type Mail struct {
-	cli *mailutil.Mail
+	dialer *gomail.Dialer
 
+	from      string
 	enabled   bool
 	templates map[string]string
 }
@@ -51,39 +54,44 @@ func (m *Mail) Enabled() bool {
 }
 
 func (m *Mail) Boot(opt model.Opts) error {
+	host, port, err := splitHostPort(opt.GetString("address"))
+	if err != nil {
+		return err
+	}
+
+	dialer := gomail.NewDialer(host, port, opt.GetString("username"), opt.GetString("password"))
+	if _, err := dialer.Dial(); err != nil {
+		return err
+	}
+
+	m.dialer = dialer
+	m.enabled = opt.GetBool("enabled")
+	m.from = fmt.Sprintf("%s <%s>", opt.GetString("sender"), opt.GetString("username"))
 	if v, ok := opt["tpl_password_reset"]; ok {
 		m.templates[mailKindPasswordReset] = v.(string)
 	}
 	if v, ok := opt["tpl_account_active"]; ok {
 		m.templates[mailKindAccountActive] = v.(string)
 	}
-
-	m.enabled = opt.GetBool("enabled")
-	conf := mailutil.Config{
-		Host:     opt.GetString("host"),
-		Sender:   opt.GetString("sender"),
-		Username: opt.GetString("username"),
-		Password: opt.GetString("password"),
-	}
-	cli, err := mailutil.NewMail(conf)
-	if err != nil {
-		return err
-	}
-
-	m.cli = cli
 	return nil
 }
 
 func (m *Mail) NotifyActive(email string, token string) error {
-	return m.cli.Send("账户激活", email, m.buildMailBody(mailKindAccountActive, email, token))
+	msg := gomail.NewMessage()
+	msg.SetHeader("From", m.from)
+	msg.SetHeader("To", email)
+	msg.SetHeader("Subject", "账户激活")
+	msg.SetBody("text/html", m.buildMailBody(mailKindAccountActive, email, token))
+	return m.dialer.DialAndSend(msg)
 }
 
 func (m *Mail) NotifyPasswordReset(email string, token string) error {
-	return m.cli.Send("密码重置申请", email, m.buildMailBody(mailKindPasswordReset, email, token))
-}
-
-func (m Mail) SendTest(email string) error {
-	return m.cli.Send("邮箱配置测试", email, "Success")
+	msg := gomail.NewMessage()
+	msg.SetHeader("From", m.from)
+	msg.SetHeader("To", email)
+	msg.SetHeader("Subject", "密码重置申请")
+	msg.SetBody("text/html", m.buildMailBody(mailKindPasswordReset, email, token))
+	return m.dialer.DialAndSend(msg)
 }
 
 func (m *Mail) buildMailBody(kind, email, token string) string {
@@ -107,4 +115,18 @@ func decodeFromKey(key string) (email, token string) {
 	email = sss[0]
 	token = sss[1]
 	return
+}
+
+func splitHostPort(hostport string) (host string, port int, err error) {
+	host, portStr, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid smpt-addr: %s", err)
+	}
+
+	port, err = strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid port: %s", err)
+	}
+
+	return host, port, nil
 }

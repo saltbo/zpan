@@ -46,13 +46,11 @@ func NewOption() *Option {
 }
 
 func (o *Option) Update(name string, p model.Opts) error {
-	if err := o.dOption.Set(name, p); err != nil {
-		return err
-	}
-
 	if boot, ok := optBoots[name]; ok {
-		return boot(p)
+		if err := boot(p); err != nil {
+			return err
+		}
 	}
 
-	return nil
+	return o.dOption.Set(name, p)
 }

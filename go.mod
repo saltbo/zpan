@@ -19,6 +19,8 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.18
 	github.com/upyun/go-sdk/v3 v3.0.2
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
+	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gorm.io/driver/mysql v1.0.3
 	gorm.io/driver/postgres v1.0.6
 	gorm.io/driver/sqlite v1.1.4

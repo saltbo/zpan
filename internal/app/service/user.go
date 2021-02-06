@@ -42,10 +42,6 @@ func (u *User) Signup(email, password string, opt model.UserCreateOption) (*mode
 		Roles:    opt.Roles,
 		Ticket:   strutil.RandomText(6),
 	}
-	if opt.Activated {
-		user.Status = model.StatusActivated
-	}
-
 	mUser, err := u.dUser.Create(user, opt.StorageMax)
 	if err != nil {
 		return nil, err
@@ -85,10 +81,9 @@ func (u *User) SignIn(usernameOrEmail, password string, ttl int) (*model.User, e
 		return nil, fmt.Errorf("user not exist")
 	} else if user.Password != strutil.Md5Hex(password) {
 		return nil, fmt.Errorf("invalid password")
+	} else if u.sMail.Enabled() && !user.Activated() {
+		return nil, fmt.Errorf("account is not activated")
 	}
-	//if system.EmailActed() && !user.Activated() {
-	//	return nil, fmt.Errorf("account is not activated")
-	//}
 
 	token, err := u.sToken.Create(user.IDString(), ttl, user.Roles)
 	if err != nil {
