@@ -20,8 +20,8 @@ const (
 
 var (
 	mailLinks = map[string]string{
-		mailKindAccountActive: "%s/zplat/signin/%s",
-		mailKindPasswordReset: "%s/zplat/password-reset/%s",
+		mailKindAccountActive: "%s/u/signin/%s",
+		mailKindPasswordReset: "%s/u/password-reset/%s",
 	}
 	defaultTemplates = map[string]string{
 		mailKindAccountActive: "<h3>账户激活链接</h3>\n       <p><a href=\"%s\">点击此处账户激活</a></p>\n\t\t<p>如果您没有进行账号注册请忽略！</p>",
@@ -35,8 +35,8 @@ type Mail struct {
 	dialer *gomail.Dialer
 
 	from      string
-	enabled   bool
 	templates map[string]string
+	enabled   bool
 }
 
 func NewMail() *Mail {
@@ -76,27 +76,26 @@ func (m *Mail) Boot(opt model.Opts) error {
 	return nil
 }
 
-func (m *Mail) NotifyActive(email string, token string) error {
+func (m *Mail) NotifyActive(siteAddr, email string, token string) error {
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", m.from)
 	msg.SetHeader("To", email)
 	msg.SetHeader("Subject", "账户激活")
-	msg.SetBody("text/html", m.buildMailBody(mailKindAccountActive, email, token))
+	msg.SetBody("text/html", m.buildMailBody(mailKindAccountActive, siteAddr, email, token))
 	return m.dialer.DialAndSend(msg)
 }
 
-func (m *Mail) NotifyPasswordReset(email string, token string) error {
+func (m *Mail) NotifyPasswordReset(siteAddr, email, token string) error {
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", m.from)
 	msg.SetHeader("To", email)
 	msg.SetHeader("Subject", "密码重置申请")
-	msg.SetBody("text/html", m.buildMailBody(mailKindPasswordReset, email, token))
+	msg.SetBody("text/html", m.buildMailBody(mailKindPasswordReset, siteAddr, email, token))
 	return m.dialer.DialAndSend(msg)
 }
 
-func (m *Mail) buildMailBody(kind, email, token string) string {
-	origin := ""
-	link := fmt.Sprintf(mailLinks[kind], origin, encodeToKey(email, token))
+func (m *Mail) buildMailBody(kind, siteAddr, email, token string) string {
+	link := fmt.Sprintf(mailLinks[kind], siteAddr, encodeToKey(email, token))
 	return fmt.Sprintf(m.templates[kind], link)
 }
 

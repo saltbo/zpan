@@ -54,7 +54,7 @@ func (u *User) Signup(email, password string, opt model.UserCreateOption) (*mode
 			return nil, err
 		}
 
-		return mUser, u.sMail.NotifyActive(email, token)
+		return mUser, u.sMail.NotifyActive(opt.Origin, email, token)
 	}
 
 	return mUser, nil
@@ -67,6 +67,14 @@ func (u *User) Active(token string) error {
 	}
 
 	uid, _ := strconv.ParseInt(rc.Subject, 10, 64)
+	user, err := u.dUser.Find(uid)
+	if err != nil {
+		return err
+	} else if user.Status >= model.StatusActivated {
+		return fmt.Errorf("account already activated")
+	}
+
+	u.dUser.UpdateStorage(uid, model.UserStorageActiveSize) // 激活即送1G空间
 	return u.dUser.Activate(uid)
 }
 
@@ -121,7 +129,7 @@ func (u *User) PasswordResetApply(origin, email string) error {
 		return err
 	}
 
-	return u.sMail.NotifyPasswordReset(email, token)
+	return u.sMail.NotifyPasswordReset(origin, email, token)
 }
 
 func (u *User) PasswordReset(token, password string) error {

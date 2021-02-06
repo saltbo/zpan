@@ -2,7 +2,10 @@ package model
 
 import "time"
 
-const UserStorageDefaultSize = 50 << 20
+const (
+	UserStorageDefaultSize = 50 << 20
+	UserStorageActiveSize  = 1024 << 20
+)
 
 type UserStorage struct {
 	Id      int64      `json:"id"`
