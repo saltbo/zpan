@@ -34,9 +34,9 @@ func (rs *Option) Register(router *gin.RouterGroup) {
 
 	router.Use(middleware.Installer)
 	router.GET("/system/providers", rs.providers)
+	router.GET("/system/matter-path-envs", rs.matterPathEnvs)
 	router.GET("/system/options/:name", rs.find)
 	router.PUT("/system/options/:name", rs.update)
-	router.POST("/system/emails", rs.sendTestEmail)
 }
 
 func (rs *Option) createDatabase(c *gin.Context) {
@@ -114,5 +114,6 @@ func (rs *Option) update(c *gin.Context) {
 	ginutil.JSON(c)
 }
 
-func (rs *Option) sendTestEmail(c *gin.Context) {
+func (rs *Option) matterPathEnvs(c *gin.Context) {
+	ginutil.JSONData(c, model.SupportEnvs)
 }

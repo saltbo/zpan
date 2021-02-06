@@ -50,6 +50,7 @@ func (f *File) PreSignPutURL(matter *model.Matter) (url string, headers http.Hea
 		return "", nil, err
 	}
 
+	matter.BuildObject(storage.RootPath, storage.FilePath)
 	provider, err := f.sStorage.GetProviderByStorage(storage)
 	if err != nil {
 		return "", nil, err

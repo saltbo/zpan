@@ -1,12 +1,6 @@
 package bind
 
 import (
-	"fmt"
-	"path/filepath"
-	"time"
-
-	"github.com/saltbo/gopkg/timeutil"
-
 	"github.com/saltbo/zpan/internal/app/model"
 )
 
@@ -35,9 +29,6 @@ func (p *BodyFile) ToMatter(uid int64) *model.Matter {
 	m.Type = p.Type
 	m.Size = p.Size
 	m.Parent = p.Dir
-
-	prefix := timeutil.Format(time.Now(), "YYYYMMDD")
-	m.Object = fmt.Sprintf("%s/%s%s", prefix, m.Alias, filepath.Ext(p.Name))
 	return m
 }
 

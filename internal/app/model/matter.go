@@ -1,6 +1,8 @@
 package model
 
 import (
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/saltbo/gopkg/strutil"
@@ -36,7 +38,7 @@ func NewMatter(uid, sid int64, name string) *Matter {
 		Uid:   uid,
 		Sid:   sid,
 		Alias: strutil.RandomText(16),
-		Name:  name,
+		Name:  strings.TrimSpace(name),
 	}
 }
 
@@ -66,4 +68,21 @@ func (m *Matter) IsDir() bool {
 
 func (m *Matter) UserAccessible(uid int64) bool {
 	return m.Uid == uid
+}
+
+func (m *Matter) BuildObject(rootPath string, filePath string) {
+	if filePath == "" {
+		filePath = "$NOW_DATE/$RAND_16KEY.$RAW_EXT"
+	}
+
+	m.Object = filepath.Join(rootPath, m.renderPath(filePath))
+}
+
+func (m *Matter) renderPath(path string) string {
+	ons := make([]string, 0)
+	for _, env := range SupportEnvs {
+		ons = append(ons, env.Name, env.buildV(m))
+	}
+
+	return strings.NewReplacer(ons...).Replace(path)
 }
