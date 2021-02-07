@@ -66,21 +66,21 @@ func (f *File) PreSignPutURL(matter *model.Matter) (url string, headers http.Hea
 }
 
 func (f *File) UploadDone(uid int64, alias string) (*model.Matter, error) {
-	if err := f.Matter.Uploaded(alias); err != nil {
-		return nil, err
-	}
-
 	m, err := f.FindUserMatter(uid, alias)
 	if err != nil {
 		return nil, err
 	}
 
-	//provider, err := f.sStorage.GetProvider(m.Sid)
-	//if err != nil {
-	//	return nil, err
-	//}
+	if err := f.Matter.Uploaded(alias); err != nil {
+		return nil, err
+	}
 
-	//m.SetURL(provider.PublicURL)
+	link, err := f.BuildGetURL(alias)
+	if err != nil {
+		return nil, err
+	}
+
+	m.URL = link
 	return m, nil
 }
 

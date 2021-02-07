@@ -13,12 +13,12 @@ type QueryFiles struct {
 }
 
 type BodyFile struct {
-	Sid    int64  `json:"sid" binding:"required"`
-	Name   string `json:"name" binding:"required"`
-	Size   int64  `json:"size" binding:"required"`
-	Type   string `json:"type"`
-	Dir    string `json:"dir"`
-	Public bool   `json:"public"`
+	Sid  int64  `json:"sid" binding:"required"`
+	Name string `json:"name" binding:"required"`
+	Size int64  `json:"size" binding:"required"`
+	Type string `json:"type"`
+	Dir  string `json:"dir"`
+	//Public bool   `json:"public"`
 }
 
 func (p *BodyFile) ToMatter(uid int64) *model.Matter {
