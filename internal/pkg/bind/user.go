@@ -26,6 +26,7 @@ type BodyUserProfile struct {
 	URL      string `json:"url"`
 	Company  string `json:"company"`
 	Location string `json:"location"`
+	Locale   string `json:"locale"`
 }
 
 type BodyUserPassword struct {

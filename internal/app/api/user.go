@@ -296,6 +296,7 @@ func (rs *UserResource) updateProfile(c *gin.Context) {
 	userProfile.URL = p.URL
 	userProfile.Company = p.Company
 	userProfile.Location = p.Location
+	userProfile.Locale = p.Locale
 	if err := rs.dUser.UpdateProfile(user.Id, userProfile); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
