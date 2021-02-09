@@ -1,4 +1,4 @@
-package service
+package fakefs
 
 import (
 	"os"
@@ -29,7 +29,7 @@ func clean() {
 	gormutil.DB().Exec("delete from zp_matter where 1=1;")
 }
 
-var fs = NewFile()
+var fs = New()
 
 func TestPreSignPutURL(t *testing.T) {
 	bf := &bind.BodyFile{
@@ -55,11 +55,11 @@ func TestPreSignPutURL(t *testing.T) {
 
 func TestFileRename(t *testing.T) {
 	m := model.NewMatter(1, 0, "test1.txt")
-	assert.NoError(t, fs.Create(m))
+	assert.NoError(t, fs.dMatter.Create(m))
 
 	newName := "test-new.txt"
 	assert.NoError(t, fs.Rename(m.Uid, m.Alias, newName))
-	nm, err := fs.FindUserMatter(m.Uid, m.Alias)
+	nm, err := fs.dMatter.FindUserMatter(m.Uid, m.Alias)
 	assert.NoError(t, err)
 	assert.Equal(t, newName, nm.Name)
 }
@@ -70,7 +70,7 @@ func TestFileCopy(t *testing.T) {
 	assert.NoError(t, NewFolder().Create(fm))
 
 	m := model.NewMatter(1, 0, "test2.txt")
-	assert.NoError(t, fs.Create(m))
+	assert.NoError(t, fs.dMatter.Create(m))
 	assert.NoError(t, fs.Copy(m.Uid, m.Alias, fm.Name+"/"))
 }
 
@@ -80,7 +80,7 @@ func TestFileMove(t *testing.T) {
 	assert.NoError(t, NewFolder().Create(fm))
 
 	m := model.NewMatter(1, 0, "test3.txt")
-	assert.NoError(t, fs.Create(m))
+	assert.NoError(t, fs.dMatter.Create(m))
 	assert.NoError(t, fs.Move(m.Uid, m.Alias, fm.Name+"/"))
 }
 
@@ -94,7 +94,7 @@ func TestFileMoveFails(t *testing.T) {
 
 	for _, m := range ems {
 		m.Alias = strutil.RandomText(8)
-		assert.NoError(t, fs.Create(m))
+		assert.NoError(t, fs.dMatter.Create(m))
 	}
 
 	assert.Error(t, fs.Move(1, "ne.txt", "abc/"))              // Disable move a not exist file
@@ -106,7 +106,7 @@ func TestFileMoveFails(t *testing.T) {
 
 func TestFileDelete(t *testing.T) {
 	m := model.NewMatter(1, 0, "test4.txt")
-	assert.NoError(t, fs.Create(m))
+	assert.NoError(t, fs.dMatter.Create(m))
 	assert.NoError(t, fs.Delete(m.Uid, m.Alias))
 
 	assert.Error(t, fs.Delete(1, "123"))

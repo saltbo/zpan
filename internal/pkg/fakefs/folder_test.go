@@ -1,4 +1,4 @@
-package service
+package fakefs
 
 import (
 	"testing"
@@ -20,7 +20,7 @@ func TestFolder_Rename(t *testing.T) {
 	assert.NoError(t, folder.Rename(m.Uid, m.Alias, newName))
 	assert.Error(t, folder.Rename(m.Uid, m.Alias, newName))
 
-	nm, err := folder.FindUserMatter(m.Uid, m.Alias)
+	nm, err := folder.dMatter.FindUserMatter(m.Uid, m.Alias)
 	assert.NoError(t, err)
 	assert.Equal(t, newName, nm.Name)
 }
@@ -35,14 +35,14 @@ func TestFolder_RenameNotEmpty(t *testing.T) {
 
 	for _, m := range ems {
 		m.Alias = strutil.RandomText(8)
-		assert.NoError(t, fs.Create(m))
+		assert.NoError(t, fs.dMatter.Create(m))
 	}
 
 	newName := "rename-new"
 	assert.NoError(t, folder.Rename(1, ems[0].Alias, newName))
 
 	ems[0].Name = newName
-	children, err := folder.FindChildren(ems[0].Uid, ems[0].FullPath())
+	children, err := folder.dMatter.FindChildren(ems[0].Uid, ems[0].FullPath())
 	assert.NoError(t, err)
 	assert.Len(t, children, 3)
 }
@@ -68,12 +68,12 @@ func TestFolder_MoveWithNotEmpty(t *testing.T) {
 	}
 	for _, m := range ems {
 		m.Alias = strutil.RandomText(8)
-		assert.NoError(t, fs.Create(m))
+		assert.NoError(t, fs.dMatter.Create(m))
 	}
 
 	assert.NoError(t, folder.Move(1, ems[0].Alias, ems[1].Name+"/"))
 
-	children, err := folder.FindChildren(ems[1].Uid, ems[1].FullPath())
+	children, err := folder.dMatter.FindChildren(ems[1].Uid, ems[1].FullPath())
 	assert.NoError(t, err)
 	assert.Len(t, children, 4)
 }
@@ -88,7 +88,7 @@ func TestFolder_MoveFails(t *testing.T) {
 	}
 	for _, m := range ems {
 		m.Alias = strutil.RandomText(8)
-		assert.NoError(t, fs.Create(m))
+		assert.NoError(t, fs.dMatter.Create(m))
 	}
 
 	assert.Error(t, folder.Move(1, ems[3].Alias, ""))             // Only support move the direction
@@ -107,7 +107,7 @@ func TestFolder_Remove(t *testing.T) {
 	}
 	for _, m := range ems {
 		m.Alias = strutil.RandomText(8)
-		assert.NoError(t, fs.Create(m))
+		assert.NoError(t, fs.dMatter.Create(m))
 	}
 
 	assert.NoError(t, folder.Remove(1, ems[0].Alias))

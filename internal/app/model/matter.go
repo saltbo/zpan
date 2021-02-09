@@ -8,6 +8,16 @@ import (
 	"github.com/saltbo/gopkg/strutil"
 )
 
+var DocTypes = []string{
+	"text/csv",
+	"application/msword",
+	"application/vnd.ms-excel",
+	"application/vnd.ms-powerpoint",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
 const (
 	DirTypeSys = iota + 1
 	DirTypeUser

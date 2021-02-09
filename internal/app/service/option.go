@@ -13,6 +13,9 @@ var optBoots = map[string]BootFunc{}
 
 func OptRegister(name string, bf BootFunc) {
 	optBoots[name] = bf
+	if !dao.Ready() {
+		return // 如果数据库还没装好则先跳过
+	}
 
 	dOpt := dao.NewOption()
 	opts, err := dOpt.Get(name)

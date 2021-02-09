@@ -11,7 +11,6 @@ import (
 	"github.com/saltbo/zpan/internal/app/model"
 	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/saltbo/zpan/internal/pkg/bind"
-	"github.com/saltbo/zpan/internal/pkg/gormutil"
 	"github.com/saltbo/zpan/internal/pkg/middleware"
 	"github.com/saltbo/zpan/internal/pkg/provider"
 )
@@ -46,7 +45,7 @@ func (rs *Option) createDatabase(c *gin.Context) {
 		return
 	}
 
-	if _, err := gormutil.New(gormutil.Config{Driver: p["driver"], DSN: p["dsn"]}); err != nil {
+	if err := dao.Init(p["driver"], p["dsn"]); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

@@ -1,35 +1,43 @@
-package service
+package fakefs
 
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
-	"github.com/saltbo/zpan/internal/app/dao/matter"
+	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
-	"github.com/saltbo/zpan/internal/pkg/gormutil"
 )
 
 type Folder struct {
-	matter.Matter
+	dMatter *dao.Matter
 }
 
 func NewFolder() *Folder {
-	return &Folder{}
+	return &Folder{
+		dMatter: dao.NewMatter(),
+	}
+}
+
+func (f *Folder) Create(matter *model.Matter) error {
+	uploaded := time.Now()
+	matter.UploadedAt = &uploaded
+	return f.dMatter.Create(matter)
 }
 
 func (f *Folder) Rename(uid int64, alias, name string) error {
-	m, err := f.FindUserMatter(uid, alias)
+	m, err := f.dMatter.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}
 
-	if _, ok := f.Exist(uid, name, m.Parent); ok {
+	if _, ok := f.dMatter.Exist(uid, name, m.Parent); ok {
 		return fmt.Errorf("dir already exist a same name file")
 	}
 
-	children, err := f.FindChildren(m.Uid, m.FullPath())
+	children, err := f.dMatter.FindChildren(m.Uid, m.FullPath())
 	if err != nil {
 		return err
 	}
@@ -51,11 +59,11 @@ func (f *Folder) Rename(uid int64, alias, name string) error {
 		return nil
 	}
 
-	return gormutil.DB().Transaction(fc)
+	return dao.Transaction(fc)
 }
 
 func (f *Folder) Move(uid int64, alias, parent string) error {
-	m, err := f.FindUserMatter(uid, alias)
+	m, err := f.dMatter.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}
@@ -64,7 +72,7 @@ func (f *Folder) Move(uid int64, alias, parent string) error {
 		return err
 	}
 
-	children, err := f.FindChildren(m.Uid, m.FullPath())
+	children, err := f.dMatter.FindChildren(m.Uid, m.FullPath())
 	if err != nil {
 		return err
 	}
@@ -79,31 +87,31 @@ func (f *Folder) Move(uid int64, alias, parent string) error {
 
 		return tx.Model(m).Update("parent", parent).Error
 	}
-	return gormutil.DB().Transaction(fc)
+	return dao.Transaction(fc)
 }
 
 func (f *Folder) Remove(uid int64, alias string) error {
-	m, err := f.FindUserMatter(uid, alias)
+	m, err := f.dMatter.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}
 
-	children, err := f.FindChildren(m.Uid, m.FullPath())
+	children, err := f.dMatter.FindChildren(m.Uid, m.FullPath())
 	if err != nil {
 		return err
 	}
 
 	fc := func(tx *gorm.DB) error {
 		for _, v := range children {
-			if err := f.Matter.Remove(tx, v.Id, m.Alias); err != nil {
+			if err := f.dMatter.Remove(tx, v.Id, m.Alias); err != nil {
 				return err
 			}
 		}
 
-		return f.Matter.RemoveToRecycle(tx, m.Alias)
+		return f.dMatter.RemoveToRecycle(m.Alias)
 	}
 
-	return gormutil.DB().Transaction(fc)
+	return dao.Transaction(fc)
 }
 
 func (f *Folder) copyOrMoveValidation(m *model.Matter, uid int64, parent string) error {
@@ -113,11 +121,11 @@ func (f *Folder) copyOrMoveValidation(m *model.Matter, uid int64, parent string)
 		return fmt.Errorf("dir already in the dir")
 	} else if parent != "" && strings.HasPrefix(parent, m.Parent+m.Name+"/") {
 		return fmt.Errorf("can not move to itself")
-	} else if !f.ParentExist(uid, parent) {
+	} else if !f.dMatter.ParentExist(uid, parent) {
 		return fmt.Errorf("dir does not exists")
 	}
 
-	if _, ok := f.Exist(m.Uid, m.Name, parent); ok {
+	if _, ok := f.dMatter.Exist(m.Uid, m.Name, parent); ok {
 		return fmt.Errorf("dir already has the same name file")
 	}
 

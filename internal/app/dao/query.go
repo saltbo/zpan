@@ -64,14 +64,12 @@ func (q *Query) WithLike(k, v interface{}) {
 
 // todo test me
 func (q *Query) WithIn(k, v interface{}) {
-	q.conditions = append(q.conditions, fmt.Sprintf("%s in ?", k))
-	q.Params = append(q.Params, v)
+	q.conditions = append(q.conditions, fmt.Sprintf("%s in (%s)", k, v))
 }
 
 // todo test me
 func (q *Query) WithNin(k, v interface{}) {
-	q.conditions = append(q.conditions, fmt.Sprintf("%s not in ?", k))
-	q.Params = append(q.Params, v)
+	q.conditions = append(q.conditions, fmt.Sprintf("%s not in (%s)", k, v))
 }
 
 func (q *Query) SQL() string {

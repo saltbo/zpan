@@ -13,10 +13,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/saltbo/zpan/internal/app/dao"
-	"github.com/saltbo/zpan/internal/app/dao/matter"
 	"github.com/saltbo/zpan/internal/app/model"
 	"github.com/saltbo/zpan/internal/pkg/authed"
-	"github.com/saltbo/zpan/internal/pkg/gormutil"
 	"github.com/saltbo/zpan/internal/pkg/bind"
 )
 
@@ -26,13 +24,13 @@ type ShareResource struct {
 	jwtutil.JWTUtil
 
 	dShare  *dao.Share
-	dMatter *matter.Matter
+	dMatter *dao.Matter
 }
 
 func NewShareResource() ginutil.Resource {
 	return &ShareResource{
 		dShare:  dao.NewShare(),
-		dMatter: matter.NewMatter(),
+		dMatter: dao.NewMatter(),
 	}
 }
 
@@ -69,12 +67,8 @@ func (rs *ShareResource) findAll(c *gin.Context) {
 		return
 	}
 
-	var total int64
-	list := make([]model.Share, 0)
-	sn := gormutil.DB().Where("uid=?", authed.UidGet(c))
-	sn.Model(model.Share{}).Count(&total)
-	sn = sn.Order("id desc")
-	if err := sn.Limit(p.Limit).Offset(p.Offset).Find(&list).Error; err != nil {
+	list, total, err := rs.dShare.FindAll(authed.UidGet(c))
+	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
@@ -106,7 +100,7 @@ func (rs *ShareResource) create(c *gin.Context) {
 	if p.Private {
 		m.Secret = strutil.RandomText(5)
 	}
-	if err := gormutil.DB().Create(m).Error; err != nil {
+	if err := rs.dShare.Create(m); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -131,7 +125,7 @@ func (rs *ShareResource) update(c *gin.Context) {
 		share.Secret = strutil.RandomText(5)
 	}
 
-	if err := gormutil.DB().Save(share).Error; err != nil {
+	if err := rs.dShare.Update(p.Id, share); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -146,7 +140,7 @@ func (rs *ShareResource) delete(c *gin.Context) {
 		return
 	}
 
-	if err := gormutil.DB().Delete(share, "id=?", share.Id).Error; err != nil {
+	if err := rs.dShare.Delete(share.Id); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -232,7 +226,12 @@ func (rs *ShareResource) findMatters(c *gin.Context) {
 	}
 
 	dir := fmt.Sprintf("%s/%s", mMatter.Name, p.Dir) // 设置父级目录
-	list, total, err := rs.dMatter.FindAll(mMatter.Uid, p.Offset, p.Limit, matter.WithDir(dir))
+	query := dao.NewQuery()
+	query.WithEq("uid", mMatter.Uid)
+	query.WithEq("parent", dir)
+	query.Offset = p.Offset
+	query.Limit = p.Limit
+	list, total, err := rs.dMatter.FindAll(query)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return

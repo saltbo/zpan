@@ -7,31 +7,30 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 
 	"github.com/saltbo/zpan/internal/app/dao"
-	"github.com/saltbo/zpan/internal/app/dao/matter"
-	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/saltbo/zpan/internal/pkg/authed"
 	"github.com/saltbo/zpan/internal/pkg/bind"
+	"github.com/saltbo/zpan/internal/pkg/fakefs"
 )
 
 type FileResource struct {
-	fs *service.File
+	fs *fakefs.FakeFS
 }
 
 func NewFileResource() ginutil.Resource {
 	return &FileResource{
-		fs: service.NewFile(),
+		fs: fakefs.New(),
 	}
 }
 
 func (rs *FileResource) Register(router *gin.RouterGroup) {
-	router.POST("/files", rs.create)
-	router.GET("/files", rs.findAll)
-	router.GET("/files/:alias", rs.find)
-	router.PATCH("/files/:alias/uploaded", rs.uploaded)
-	router.PATCH("/files/:alias/name", rs.rename)
-	router.PATCH("/files/:alias/location", rs.move)
-	router.PATCH("/files/:alias/duplicate", rs.copy)
-	router.DELETE("/files/:alias", rs.delete)
+	router.POST("/matters", rs.create)
+	router.GET("/matters", rs.findAll)
+	router.GET("/matters/:alias", rs.find)
+	router.PATCH("/matters/:alias/uploaded", rs.uploaded)
+	router.PATCH("/matters/:alias/name", rs.rename)
+	router.PATCH("/matters/:alias/location", rs.move)
+	router.PATCH("/matters/:alias/duplicate", rs.copy)
+	router.DELETE("/matters/:alias", rs.delete)
 }
 
 func (rs *FileResource) findAll(c *gin.Context) {
@@ -41,16 +40,7 @@ func (rs *FileResource) findAll(c *gin.Context) {
 		return
 	}
 
-	opts := make([]matter.QueryOption, 0)
-	if p.Type != "" {
-		opts = append(opts, matter.WithType(p.Type))
-	} else if p.Keyword != "" {
-		opts = append(opts, matter.WithKeyword(p.Keyword))
-	} else {
-		opts = append(opts, matter.WithDir(p.Dir))
-	}
-
-	list, total, err := rs.fs.FindAll(authed.UidGet(c), p.Sid, p.Offset, p.Limit, opts...)
+	list, total, err := rs.fs.List(authed.UidGet(c), p)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return

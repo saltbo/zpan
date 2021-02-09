@@ -24,7 +24,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/spf13/cobra"
@@ -57,19 +56,13 @@ func serverRun() {
 		dao.Init(viper.GetString("database.driver"), viper.GetString("database.dsn"))
 	}
 
-	viper.WatchConfig()
-	viper.OnConfigChange(func(in fsnotify.Event) {
-		dao.Init(viper.GetString("database.driver"), viper.GetString("database.dsn"))
-	})
-
-	ge := gin.Default()
-	api.SetupRoutes(ge)
-
 	//if conf.TLS.Enabled {
 	//	//go startTls(ge, tlsAddr, conf.TLS.Auto, conf.TLS.CacheDir, conf.Server.Domain, conf.TLS.CertPath, conf.TLS.CertkeyPath)
 	//	go startTls(ge, conf)
 	//}
 
+	ge := gin.Default()
+	api.SetupRoutes(ge)
 	addr := fmt.Sprintf(":%d", viper.GetInt("port"))
 	ginutil.Startup(ge, addr)
 }

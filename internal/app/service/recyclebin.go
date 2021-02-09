@@ -1,47 +1,48 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 
-	"gorm.io/gorm"
-
-	"github.com/saltbo/zpan/internal/app/dao/matter"
+	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
-	"github.com/saltbo/zpan/internal/pkg/gormutil"
 )
 
 type RecycleBin struct {
-	matter.Matter
+	dMatter     *dao.Matter
+	dRecycleBin *dao.RecycleBin
 
 	sStorage *Storage
 }
 
 func NewRecycleBin() *RecycleBin {
 	return &RecycleBin{
+		dMatter:     dao.NewMatter(),
+		dRecycleBin: dao.NewRecycleBin(),
+
 		sStorage: NewStorage(),
 	}
 }
 
-func (rb *RecycleBin) FindAll(uid, sid int64, offset, limit int) (list []model.Recycle, total int64, err error) {
-	sn := gormutil.DB().Where("uid=? and sid=?", uid, sid)
-	sn.Model(model.Recycle{}).Count(&total)
-	sn = sn.Order("dirtype desc")
-	err = sn.Offset(offset).Limit(limit).Find(&list).Error
-	return
+func (rb *RecycleBin) FindAll(uid int64, sid int64, offset int, limit int) (list []model.Recycle, total int64, err error) {
+	query := dao.NewQuery()
+	query.WithEq("uid", uid)
+	query.WithEq("sid", sid)
+	query.Offset = offset
+	query.Limit = limit
+	return rb.dRecycleBin.FindAll(query)
 }
 
 func (rb *RecycleBin) Recovery(uid int64, alias string) error {
-	m, err := rb.find(uid, alias)
+	m, err := rb.dRecycleBin.Find(uid, alias)
 	if err != nil {
 		return err
 	}
 
-	return rb.Matter.Recovery(m)
+	return rb.dMatter.Recovery(m)
 }
 
 func (rb *RecycleBin) Delete(uid int64, alias string) error {
-	m, err := rb.find(uid, alias)
+	m, err := rb.dRecycleBin.Find(uid, alias)
 	if err != nil {
 		return err
 	}
@@ -58,7 +59,7 @@ func (rb *RecycleBin) Delete(uid int64, alias string) error {
 		}
 	} else {
 		// get all files removed to the recycle bin
-		children, err := rb.UnscopedChildren(m.Uid, alias)
+		children, err := rb.dMatter.UnscopedChildren(m.Uid, alias)
 		if err != nil {
 			return err
 		}
@@ -79,12 +80,15 @@ func (rb *RecycleBin) Delete(uid int64, alias string) error {
 		}
 	}
 
-	return rb.release(m.Uid, m.Size, "alias=?", m.Alias)
+	return rb.dRecycleBin.Release(m.Uid, m.Size, "alias=?", m.Alias)
 }
 
 func (rb *RecycleBin) Clean(uid, sid int64) error {
-	rbs := make([]model.Recycle, 0)
-	if err := gormutil.DB().Where("uid=? and sid=?", uid, sid).Find(&rbs).Error; err != nil {
+	query := dao.NewQuery()
+	query.WithEq("uid", uid)
+	query.WithEq("sid", sid)
+	rbs, _, err := rb.dRecycleBin.FindAll(query)
+	if err != nil {
 		return err
 	}
 
@@ -96,7 +100,7 @@ func (rb *RecycleBin) Clean(uid, sid int64) error {
 			objects = append(objects, recycle.Object)
 			continue
 		} else if recycle.DirType > model.DirTypeSys {
-			children, err := rb.UnscopedChildren(recycle.Uid, recycle.Alias)
+			children, err := rb.dMatter.UnscopedChildren(recycle.Uid, recycle.Alias)
 			if err != nil {
 				return err
 			}
@@ -126,31 +130,5 @@ func (rb *RecycleBin) Clean(uid, sid int64) error {
 		return err
 	}
 
-	return rb.release(uid, size, "uid=?", uid)
-}
-
-func (rb *RecycleBin) release(uid, size int64, query interface{}, args ...interface{}) error {
-	fc := func(tx *gorm.DB) error {
-		// release the user storage
-		expr := gorm.Expr("used-?", size)
-		if err := tx.Model(&model.UserStorage{}).Where("uid=?", uid).Update("used", expr).Error; err != nil {
-			return err
-		}
-
-		// clean the RecycleBin
-		return tx.Where(query, args...).Delete(&model.Recycle{}).Error
-	}
-
-	return gormutil.DB().Transaction(fc)
-}
-
-func (rb *RecycleBin) find(uid int64, alias string) (*model.Recycle, error) {
-	m := new(model.Recycle)
-	if err := gormutil.DB().Unscoped().First(m, "alias=?", alias).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("file not exist")
-	} else if !m.UserAccessible(uid) {
-		return nil, fmt.Errorf("not accessible")
-	}
-
-	return m, nil
+	return rb.dRecycleBin.Release(uid, size, "uid=?", uid)
 }

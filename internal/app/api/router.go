@@ -17,7 +17,6 @@ func SetupRoutes(ge *gin.Engine) {
 		NewTokenResource(),
 		NewStorageResource(),
 		NewFileResource(),
-		NewFolderResource(),
 		NewShareResource(),
 		NewRecycleBinResource(),
 	)

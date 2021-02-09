@@ -10,7 +10,6 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/saltbo/zpan/internal/app/model"
-	"github.com/saltbo/zpan/internal/pkg/gormutil"
 )
 
 type User struct {
@@ -22,19 +21,19 @@ func NewUser() *User {
 
 func (u *User) Find(uid int64) (*model.User, error) {
 	user := new(model.User)
-	if err := gormutil.DB().First(user, uid).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := gdb.First(user, uid).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("user not exist")
 	}
 
-	gormutil.DB().Model(user).Association("Profile").Find(&user.Profile)
-	gormutil.DB().Model(user).Association("Storage").Find(&user.Storage)
+	gdb.Model(user).Association("Profile").Find(&user.Profile)
+	gdb.Model(user).Association("Storage").Find(&user.Storage)
 
 	return user, nil
 }
 
 func (u *User) FindByUsername(username string) (*model.User, error) {
 	user := new(model.User)
-	if err := gormutil.DB().First(user, "username=?", username).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := gdb.First(user, "username=?", username).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("user not exist")
 	} else if err != nil {
 		return nil, err
@@ -44,7 +43,7 @@ func (u *User) FindByUsername(username string) (*model.User, error) {
 }
 
 func (u *User) FindAll(query *Query) (list []*model.User, total int64, err error) {
-	sn := gormutil.DB().Model(&model.User{})
+	sn := gdb.Model(&model.User{})
 	if len(query.Params) > 0 {
 		sn = sn.Where(query.SQL(), query.Params...)
 	}
@@ -70,7 +69,7 @@ func (u *User) TicketExist(ticket string) (*model.User, bool) {
 
 func (u *User) userExist(k, v string) (*model.User, bool) {
 	user := new(model.User)
-	if err := gormutil.DB().Where(k+"=?", v).First(user).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := gdb.Where(k+"=?", v).First(user).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
 		return user, true
 	}
 
@@ -93,7 +92,7 @@ func (u *User) Create(user *model.User, storageMax uint64) (*model.User, error) 
 		user.Storage.Max = storageMax
 	}
 
-	if err := gormutil.DB().Create(user).Error; err != nil {
+	if err := gdb.Create(user).Error; err != nil {
 		return nil, err
 	}
 
@@ -106,7 +105,7 @@ func (u *User) Activate(uid int64) error {
 		return err
 	}
 
-	if err := gormutil.DB().Model(user).Update("status", model.StatusActivated).Error; err != nil {
+	if err := gdb.Model(user).Update("status", model.StatusActivated).Error; err != nil {
 		return err
 	}
 
@@ -120,7 +119,7 @@ func (u *User) PasswordReset(uid int64, newPwd string) error {
 		return err
 	}
 
-	if err := gormutil.DB().Model(user).Update("password", strutil.Md5Hex(newPwd)).Error; err != nil {
+	if err := gdb.Model(user).Update("password", strutil.Md5Hex(newPwd)).Error; err != nil {
 		return err
 	}
 	// record the old password
@@ -129,13 +128,13 @@ func (u *User) PasswordReset(uid int64, newPwd string) error {
 }
 
 func (u *User) Update(user *model.User) error {
-	return gormutil.DB().Save(user).Error
+	return gdb.Save(user).Error
 }
 
 func (u *User) UpdateProfile(uid int64, up *model.UserProfile) error {
-	return gormutil.DB().Model(model.UserProfile{}).Where("uid=?", uid).Updates(up).Error
+	return gdb.Model(model.UserProfile{}).Where("uid=?", uid).Updates(up).Error
 }
 
 func (u *User) UpdateStorage(uid int64, quota uint64) error {
-	return gormutil.DB().Model(model.UserStorage{}).Where("uid=?", uid).Update("max", quota).Error
+	return gdb.Model(model.UserStorage{}).Where("uid=?", uid).Update("max", quota).Error
 }
