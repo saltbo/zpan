@@ -12,23 +12,26 @@ type QueryFiles struct {
 	Keyword string `form:"kw"`
 }
 
-type BodyFile struct {
-	Sid  int64  `json:"sid" binding:"required"`
-	Name string `json:"name" binding:"required"`
-	Size int64  `json:"size" binding:"required"`
-	Type string `json:"type"`
-	Dir  string `json:"dir"`
-	//Public bool   `json:"public"`
+type BodyMatter struct {
+	Sid   int64  `json:"sid" binding:"required"`
+	Name  string `json:"name" binding:"required"`
+	IsDir bool   `json:"is_dir"`
+	Dir   string `json:"dir"`
+	Type  string `json:"type"`
+	Size  int64  `json:"size"`
 }
 
-func (p *BodyFile) ToMatter(uid int64) *model.Matter {
-	if p.Type == "" {
-		p.Type = "application/octet-stream"
-	}
+func (p *BodyMatter) ToMatter(uid int64) *model.Matter {
 	m := model.NewMatter(uid, p.Sid, p.Name)
 	m.Type = p.Type
 	m.Size = p.Size
 	m.Parent = p.Dir
+	if p.IsDir {
+		m.DirType = model.DirTypeUser
+	} else if p.Type == "" {
+		p.Type = "application/octet-stream"
+	}
+
 	return m
 }
 

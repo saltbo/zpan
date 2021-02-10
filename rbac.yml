@@ -1,23 +1,59 @@
+# 默认所有人都可以发送GET
 - id: 0
-  # Resource
   host: "*"
   path: "**"
-  method: "*"
-  # Permission
-  authorized_roles:
-    - "admin"
-    - "member"
-  forbidden_roles: [ ]
-  allow_anyone: false
-
-- id: 1
-  host: "*"
-  path: "/api/system/options/**"
   method: "GET"
   allow_anyone: true
 
+# 默认只有注册用户才能发送POST,PUT,DELETE
 - id: 1
   host: "*"
+  path: "**"
+  method: "{POST,PUT,PATCH,DELETE}"
+  authorized_roles:
+    - "admin"
+    - "member"
+
+# 登录接口允许任何人访问
+- id: 2
+  host: "*"
   path: "/api/tokens"
-  method: "POST"
+  method: "{POST,DELETE}"
   allow_anyone: true
+
+# 注册接口允许任何人访问
+- id: 3
+  host: "*"
+  path: "/api/users"
+  method: "{POST,PATCH}"
+  allow_anyone: true
+
+
+# 以下规则限制只能由管理员请求
+- id: 101
+  host: "*"
+  path: "/api/storages"
+  method: "POST"
+  authorized_roles:
+    - "admin"
+
+- id: 102
+  host: "*"
+  path: "/api/storages/**"
+  method: "{PUT,DELETE}"
+  authorized_roles:
+    - "admin"
+
+- id: 103
+  host: "*"
+  path: "/api/users/**"
+  method: "{PUT,DELETE}"
+  authorized_roles:
+    - "admin"
+
+- id: 104
+  host: "*"
+  path: "/api/system/options/*"
+  method: "PUT"
+  authorized_roles:
+    - "admin"

@@ -2,34 +2,28 @@ package fakefs
 
 import (
 	"fmt"
-	"net/http"
-	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/saltbo/gopkg/timeutil"
+	"github.com/gin-gonic/gin"
 
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
-	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/saltbo/zpan/internal/pkg/bind"
 )
 
 type FakeFS struct {
 	dMatter *dao.Matter
 
-	sFile    *File
-	sFolder  *Folder
-	sStorage *service.Storage
+	sFile   *File
+	sFolder *Folder
 }
 
 func New() *FakeFS {
 	return &FakeFS{
 		dMatter: dao.NewMatter(),
 
-		sFile:    NewFile(),
-		sFolder:  NewFolder(),
-		sStorage: service.NewStorage(),
+		sFile:   NewFile(),
+		sFolder: NewFolder(),
 	}
 }
 
@@ -50,81 +44,6 @@ func (fs *FakeFS) List(uid int64, qp *bind.QueryFiles) (list []model.Matter, tot
 	query.Limit = qp.Limit
 	query.Offset = qp.Offset
 	return fs.dMatter.FindAll(query)
-}
-
-func (fs *FakeFS) PreSignPutURL(matter *model.Matter) (url string, headers http.Header, err error) {
-	if !fs.dMatter.ParentExist(matter.Uid, matter.Parent) {
-		return "", nil, fmt.Errorf("dir does not exists")
-	}
-
-	//	auto append a suffix if matter exist
-	if _, ok := fs.dMatter.Exist(matter.Uid, matter.Name, matter.Parent); ok {
-		ext := filepath.Ext(matter.Name)
-		name := strings.TrimSuffix(matter.Name, ext)
-		suffix := fmt.Sprintf("_%s", timeutil.Format(time.Now(), "YYYYMMDD_HHmmss"))
-		matter.Name = name + suffix + ext
-	}
-
-	storage, err := fs.sStorage.Get(matter.Sid)
-	if err != nil {
-		return "", nil, err
-	}
-
-	matter.BuildObject(storage.RootPath, storage.FilePath)
-	provider, err := fs.sStorage.GetProviderByStorage(storage)
-	if err != nil {
-		return "", nil, err
-	}
-
-	url, headers, err = provider.SignedPutURL(matter.Object, matter.Type, storage.PublicRead())
-	if err != nil {
-		return
-	}
-
-	err = fs.dMatter.Create(matter)
-	return
-}
-
-func (fs *FakeFS) UploadDone(uid int64, alias string) (*model.Matter, error) {
-	m, err := fs.dMatter.FindUserMatter(uid, alias)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := fs.dMatter.Uploaded(alias); err != nil {
-		return nil, err
-	}
-
-	link, err := fs.BuildGetURL(alias)
-	if err != nil {
-		return nil, err
-	}
-
-	m.URL = link
-	return m, nil
-}
-
-func (fs *FakeFS) BuildGetURL(alias string) (string, error) {
-	m, err := fs.dMatter.Find(alias)
-	if err != nil {
-		return "", err
-	}
-
-	storage, err := fs.sStorage.Get(m.Sid)
-	if err != nil {
-		return "", err
-	}
-
-	provider, err := fs.sStorage.GetProviderByStorage(storage)
-	if err != nil {
-		return "", err
-	}
-
-	if storage.PublicRead() {
-		return provider.PublicURL(m.Object), nil
-	}
-
-	return provider.SignedGetURL(m.Object, m.Name)
 }
 
 func (fs *FakeFS) Copy(uid int64, alias, newPath string) error {
@@ -189,4 +108,38 @@ func (fs *FakeFS) Delete(uid int64, alias string) error {
 	}
 
 	return fs.sFile.Delete(uid, alias)
+}
+
+func (fs *FakeFS) CreateFile(m *model.Matter) (interface{}, error) {
+	user, err := dao.NewUser().Find(m.Uid)
+	if err != nil {
+		return nil, err
+	} else if user.Storage.Overflowed(m.Size) {
+		return nil, fmt.Errorf("service not enough space")
+	}
+
+	link, headers, err := fs.sFile.PreSignPutURL(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return gin.H{
+		"alias":   m.Alias,
+		"object":  m.Object,
+		"link":    link,
+		"headers": headers,
+	}, nil
+}
+
+func (fs *FakeFS) CreateFolder(m *model.Matter) (interface{}, error) {
+	err := fs.sFolder.Create(m)
+	return m, err
+}
+
+func (fs *FakeFS) CreateFileLink(alias string) (string, error) {
+	return fs.sFile.BuildGetURL(alias)
+}
+
+func (fs *FakeFS) TagUploadDone(uid int64, alias string) (*model.Matter, error) {
+	return fs.sFile.UploadDone(uid, alias)
 }

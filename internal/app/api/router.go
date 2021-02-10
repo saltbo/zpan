@@ -7,10 +7,12 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 
 	"github.com/saltbo/zpan/assets"
+	"github.com/saltbo/zpan/internal/pkg/middleware"
 )
 
 func SetupRoutes(ge *gin.Engine) {
 	apiRouter := ge.Group("/api")
+	apiRouter.Use(middleware.LoginAuth())
 	ginutil.SetupResource(apiRouter,
 		NewOptionResource(),
 		NewUserResource(),

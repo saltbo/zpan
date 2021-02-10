@@ -142,7 +142,7 @@ func (u *User) PasswordReset(token, password string) error {
 }
 
 func (u *User) InviteRequired() bool {
-	opts, err := u.dOpt.Get("website")
+	opts, err := u.dOpt.Get(model.OptSite)
 	if err != nil {
 		return false
 	}

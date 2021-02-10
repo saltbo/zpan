@@ -12,7 +12,6 @@ import (
 	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/saltbo/zpan/internal/pkg/authed"
 	"github.com/saltbo/zpan/internal/pkg/bind"
-	"github.com/saltbo/zpan/internal/pkg/middleware"
 )
 
 type UserResource struct {
@@ -31,7 +30,6 @@ func (rs *UserResource) Register(router *gin.RouterGroup) {
 	router.POST("/users", rs.create)        // 账户注册
 	router.PATCH("/users/:email", rs.patch) // 账户激活、密码重置
 
-	router.Use(middleware.LoginAuth())
 	router.GET("/users", rs.findAll)                           // 查询用户列表，需管理员权限
 	router.GET("/users/:username", rs.find)                    // 查询某一个用户的公开信息
 	router.PUT("/users/:username/storage", rs.updateStorage)   // 修改某一个用户的存储空间

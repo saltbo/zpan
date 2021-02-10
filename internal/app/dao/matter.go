@@ -131,8 +131,8 @@ func (ms *Matter) Copy(alias, parent string) error {
 }
 
 func (ms *Matter) Remove(db *gorm.DB, mid int64, trashedBy string) error {
-	deletedAt := time.Now()
-	values := model.Matter{TrashedBy: trashedBy, DeletedAt: &deletedAt}
+	deletedAt := gorm.DeletedAt{Time: time.Now(), Valid: true}
+	values := model.Matter{TrashedBy: trashedBy, DeletedAt: deletedAt}
 	return db.Model(&model.Matter{Id: mid}).Updates(values).Error
 }
 
