@@ -30,9 +30,10 @@ func NewOBSProvider(conf Config) (Provider, error) {
 }
 
 func (p *OBSProvider) SetupCORS() error {
-	ret, err := p.client.GetBucketCors(p.bucket)
-	if err != nil {
-		return err
+	var existRules []obs.CorsRule
+	ret, _ := p.client.GetBucketCors(p.bucket)
+	if ret != nil && len(ret.CorsRules) > 0 {
+		existRules = append(existRules, ret.CorsRules...)
 	}
 
 	zRule := obs.CorsRule{
@@ -43,8 +44,8 @@ func (p *OBSProvider) SetupCORS() error {
 	}
 	input := &obs.SetBucketCorsInput{
 		Bucket:     p.bucket,
-		BucketCors: obs.BucketCors{CorsRules: append(ret.CorsRules, zRule)},
+		BucketCors: obs.BucketCors{CorsRules: append(existRules, zRule)},
 	}
-	_, err = p.client.SetBucketCors(input)
+	_, err := p.client.SetBucketCors(input)
 	return err
 }

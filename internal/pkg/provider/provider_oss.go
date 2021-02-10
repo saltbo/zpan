@@ -30,9 +30,10 @@ func NewOSSProvider(conf Config) (Provider, error) {
 }
 
 func (p *OSSProvider) SetupCORS() error {
-	ret, err := p.client.GetBucketCORS(p.bucket)
-	if err != nil {
-		return err
+	var existRules []oss.CORSRule
+	ret, _ := p.client.GetBucketCORS(p.bucket)
+	if len(ret.CORSRules) > 0 {
+		existRules = append(existRules, ret.CORSRules...)
 	}
 
 	zRule := oss.CORSRule{
@@ -41,6 +42,5 @@ func (p *OSSProvider) SetupCORS() error {
 		AllowedHeader: corsAllowHeaders,
 		MaxAgeSeconds: 300,
 	}
-	ret.CORSRules = append(ret.CORSRules, zRule)
-	return p.client.SetBucketCORS(p.bucket, ret.CORSRules)
+	return p.client.SetBucketCORS(p.bucket, append(existRules, zRule))
 }

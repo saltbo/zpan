@@ -44,10 +44,11 @@ func NewCOSProvider(conf Config) (Provider, error) {
 }
 
 func (p *COSProvider) SetupCORS() error {
+	var existRules []cos.BucketCORSRule
 	ctx := context.Background()
-	ret, _, err := p.client.Bucket.GetCORS(ctx)
-	if err != nil {
-		return err
+	ret, _, _ := p.client.Bucket.GetCORS(ctx)
+	if ret != nil && len(ret.Rules) > 0 {
+		existRules = append(existRules, ret.Rules...)
 	}
 
 	zRule := cos.BucketCORSRule{
@@ -56,6 +57,6 @@ func (p *COSProvider) SetupCORS() error {
 		AllowedHeaders: corsAllowHeaders,
 		MaxAgeSeconds:  300,
 	}
-	_, err = p.client.Bucket.PutCORS(ctx, &cos.BucketPutCORSOptions{Rules: append(ret.Rules, zRule)})
+	_, err := p.client.Bucket.PutCORS(ctx, &cos.BucketPutCORSOptions{Rules: append(existRules, zRule)})
 	return err
 }

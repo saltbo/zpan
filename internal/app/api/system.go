@@ -32,6 +32,7 @@ func (rs *Option) Register(router *gin.RouterGroup) {
 	router.PUT("/system/account", rs.createAdministrator)
 
 	router.Use(middleware.Installer)
+	router.Use(middleware.LoginAuth())
 	router.GET("/system/providers", rs.providers)
 	router.GET("/system/matter-path-envs", rs.matterPathEnvs)
 	router.GET("/system/options/:name", rs.find)

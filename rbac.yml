@@ -6,7 +6,7 @@
   allow_anyone: true
 
 # 默认只有注册用户才能发送POST,PUT,DELETE
-- id: 1
+- id: 10
   host: "*"
   path: "**"
   method: "{POST,PUT,PATCH,DELETE}"
@@ -15,14 +15,14 @@
     - "member"
 
 # 登录接口允许任何人访问
-- id: 2
+- id: 11
   host: "*"
   path: "/api/tokens"
   method: "{POST,DELETE}"
   allow_anyone: true
 
 # 注册接口允许任何人访问
-- id: 3
+- id: 12
   host: "*"
   path: "/api/users"
   method: "{POST,PATCH}"
