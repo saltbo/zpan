@@ -12,9 +12,13 @@ import (
 )
 
 const (
-	OptSite  = "CORE_SITE"
-	OptEmail = "CORE_EMAIL"
-	//OptInvitation = "INVITATION"
+	OptSite  = "core.site"
+	OptEmail = "core.email"
+)
+
+var (
+	DefaultSiteOpts  = Opts{"name": "ZPan", "intro": "您的私有网盘专家", "locale": "zh-CN", "invite_required": true}
+	DefaultEmailOpts = Opts{"address": "smtpdm.aliyun.com:25", "username": "no-reply@saltbo.fun", "password": "yourpassword", "sender": "ZPan"}
 )
 
 type Option struct {

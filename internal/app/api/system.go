@@ -50,9 +50,15 @@ func (rs *Option) createDatabase(c *gin.Context) {
 		return
 	}
 
+	if err := dao.NewOption().Init(); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
 	viper.Set("database.driver", p["driver"])
 	viper.Set("database.dsn", p["dsn"])
-	if err := viper.WriteConfigAs("config.yml"); err != nil {
+	viper.SetConfigFile("config.yml")
+	if err := viper.WriteConfigAs(viper.ConfigFileUsed()); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

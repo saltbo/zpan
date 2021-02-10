@@ -28,3 +28,9 @@ func (o *Option) Set(name string, opts model.Opts) error {
 	}
 	return gdb.Save(mOpt).Error
 }
+
+func (o *Option) Init() error {
+	o.Set(model.OptSite, model.DefaultSiteOpts)
+	o.Set(model.OptEmail, model.DefaultEmailOpts)
+	return nil
+}
