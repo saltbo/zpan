@@ -7,7 +7,7 @@ MAINFILE := main.go
 all: build
 
 mod: ## Get the dependencies
-	@go mod download
+	go mod download
 
 lint: ## Lint Golang files
 	@golangci-lint --version
@@ -24,7 +24,7 @@ generate: ## generate the static assets
 	go generate ./...
 
 build: mod ## Build the binary file
-	@go build -v -o build/bin/$(PROJECT) $(MAINFILE)
+	go build -v -o build/bin/$(PROJECT) $(MAINFILE)
 
 install:
 	# 复制二进制文件

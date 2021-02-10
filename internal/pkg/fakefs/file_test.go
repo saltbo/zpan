@@ -7,49 +7,52 @@ import (
 	"github.com/saltbo/gopkg/strutil"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
 	"github.com/saltbo/zpan/internal/pkg/bind"
-	"github.com/saltbo/zpan/internal/pkg/gormutil"
 )
-
-var dbc = gormutil.Config{
-	Driver: "sqlite3",
-	DSN:    "zpan.db",
-}
 
 func init() {
 	os.Remove("zpan.db")
-	gormutil.Init(dbc, false)
-	gormutil.AutoMigrate(model.Tables())
+	dao.Init("sqlite3", "zpan.db")
+	user := &model.User{
+		Email:    "admin@zpan.space",
+		Username: "admin",
+		Password: strutil.Md5Hex("123"),
+		Roles:    "admin",
+		Ticket:   strutil.RandomText(6),
+		Status:   model.StatusActivated,
+	}
+	dao.NewUser().Create(user, model.UserStorageDefaultSize)
 	//clean before all
-	clean()
+	//clean()
 }
 
-func clean() {
-	gormutil.DB().Exec("delete from zp_matter where 1=1;")
-}
+//func clean() {
+//	gormutil.DB().Exec("delete from zp_matter where 1=1;")
+//}
 
 var fs = New()
 
 func TestPreSignPutURL(t *testing.T) {
-	bf := &bind.BodyFile{
+	bf := &bind.BodyMatter{
 		Name: "test.txt",
 		Size: 0,
 		Type: "text/plain",
 		Dir:  "",
 	}
 	nm := bf.ToMatter(1)
-	_, _, err := fs.PreSignPutURL(nm)
+	_, err := fs.CreateFile(nm)
 	assert.NoError(t, err)
 
-	m, err := fs.UploadDone(1, nm.Alias)
+	m, err := fs.TagUploadDone(1, nm.Alias)
 	assert.NoError(t, err)
 	assert.Equal(t, nm.Name, m.Name)
 	assert.Equal(t, nm.Size, m.Size)
 	assert.Equal(t, nm.Type, m.Type)
 	assert.Equal(t, nm.Parent, m.Parent)
 
-	_, err = fs.BuildGetURL(m.Alias)
+	_, err = fs.CreateFileLink(m.Alias)
 	assert.NoError(t, err)
 }
 
