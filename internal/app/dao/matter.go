@@ -130,10 +130,10 @@ func (ms *Matter) Copy(alias, parent string) error {
 	return ms.Create(nm)
 }
 
-func (ms *Matter) Remove(db *gorm.DB, mid int64, trashedBy string) error {
+func (ms *Matter) Remove(mid int64, trashedBy string) error {
 	deletedAt := gorm.DeletedAt{Time: time.Now(), Valid: true}
 	values := model.Matter{TrashedBy: trashedBy, DeletedAt: deletedAt}
-	return db.Model(&model.Matter{Id: mid}).Updates(values).Error
+	return gdb.Model(&model.Matter{Id: mid}).Updates(values).Error
 }
 
 func (ms *Matter) RemoveToRecycle(alias string) error {
@@ -142,28 +142,24 @@ func (ms *Matter) RemoveToRecycle(alias string) error {
 		return err
 	}
 
-	fc := func(tx *gorm.DB) error {
-		// soft delete the matter
-		if err := ms.Remove(tx, m.Id, alias); err != nil {
-			return err
-		}
-
-		// create a recycle record
-		rm := &model.Recycle{
-			Uid:     m.Uid,
-			Sid:     m.Sid,
-			Alias:   alias,
-			Name:    m.Name,
-			Type:    m.Type,
-			Size:    m.Size,
-			DirType: m.DirType,
-			Parent:  m.Parent,
-			Object:  m.Object,
-		}
-		return tx.Create(rm).Error
+	// soft delete the matter
+	if err := ms.Remove(m.Id, alias); err != nil {
+		return err
 	}
 
-	return gdb.Transaction(fc)
+	// create a recycle record
+	rm := &model.Recycle{
+		Uid:     m.Uid,
+		Sid:     m.Sid,
+		Alias:   alias,
+		Name:    m.Name,
+		Type:    m.Type,
+		Size:    m.Size,
+		DirType: m.DirType,
+		Parent:  m.Parent,
+		Object:  m.Object,
+	}
+	return gdb.Create(rm).Error
 }
 
 func (ms *Matter) Recovery(m *model.Recycle) error {

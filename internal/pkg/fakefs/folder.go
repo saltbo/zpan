@@ -101,17 +101,13 @@ func (f *Folder) Remove(uid int64, alias string) error {
 		return err
 	}
 
-	fc := func(tx *gorm.DB) error {
-		for _, v := range children {
-			if err := f.dMatter.Remove(tx, v.Id, m.Alias); err != nil {
-				return err
-			}
+	for _, v := range children {
+		if err := f.dMatter.Remove(v.Id, m.Alias); err != nil {
+			return err
 		}
-
-		return f.dMatter.RemoveToRecycle(m.Alias)
 	}
 
-	return dao.Transaction(fc)
+	return f.dMatter.RemoveToRecycle(m.Alias)
 }
 
 func (f *Folder) copyOrMoveValidation(m *model.Matter, uid int64, parent string) error {
