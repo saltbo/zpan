@@ -17,10 +17,10 @@ type Share struct {
 	Protected bool       `json:"protected" gorm:"-"`
 	DownTimes int64      `json:"down_times" gorm:"not null"`
 	ViewTimes int64      `json:"view_times" gorm:"not null"`
-	ExpireAt  time.Time  `json:"expire_at" gorm:"column:expire_at;not null"`
-	Created   time.Time  `json:"created" gorm:"column:created_at;not null"`
-	Updated   time.Time  `json:"updated" gorm:"column:updated_at;not null"`
-	Deleted   *time.Time `json:"-" gorm:"column:deleted_at"`
+	ExpireAt  time.Time  `json:"expire_at" gorm:"not null"`
+	CreateAt  time.Time  `json:"created" gorm:"not null"`
+	UpdateAt  time.Time  `json:"updated" gorm:"not null"`
+	DeleteAr  *time.Time `json:"-"`
 }
 
 func (Share) TableName() string {

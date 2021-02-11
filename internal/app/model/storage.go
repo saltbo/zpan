@@ -25,9 +25,9 @@ type Storage struct {
 	CustomHost string         `json:"custom_host" gorm:"size:128;not null"`
 	RootPath   string         `json:"root_path" gorm:"size:64;not null"`
 	FilePath   string         `json:"file_path" gorm:"size:1024;not null"`
-	Created    time.Time      `json:"created" gorm:"column:created_at;not null"`
-	Updated    time.Time      `json:"updated" gorm:"column:updated_at;not null"`
-	Deleted    gorm.DeletedAt `json:"-" gorm:"column:deleted_at"`
+	Created    time.Time      `json:"created" gorm:"autoCreateTime;not null"`
+	Updated    time.Time      `json:"updated" gorm:"autoUpdateTime;not null"`
+	Deleted    gorm.DeletedAt `json:"-"`
 }
 
 func (Storage) TableName() string {

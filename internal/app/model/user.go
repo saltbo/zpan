@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 const (
@@ -43,20 +45,20 @@ func NewUserCreateOption() UserCreateOption {
 }
 
 type User struct {
-	Id        int64       `json:"id"`
-	Email     string      `json:"email" gorm:"size:32;unique_index;not null"`
-	Username  string      `json:"username" gorm:"size:20;unique_index;not null"`
-	Password  string      `json:"-" gorm:"size:32;not null"`
-	Status    uint8       `json:"-" gorm:"size:1;not null"`
-	StatusTxt string      `json:"status" gorm:"-"`
-	Roles     string      `json:"-" gorm:"size:64;not null"`
-	RoleTxt   string      `json:"role" gorm:"-"`
-	Ticket    string      `json:"ticket" gorm:"size:6;unique_index;not null"`
-	Profile   UserProfile `json:"profile,omitempty" gorm:"foreignKey:Uid"`
-	Storage   UserStorage `json:"storage,omitempty" gorm:"foreignKey:Uid"`
-	Deleted   *time.Time  `json:"-" gorm:"column:deleted_at"`
-	Created   time.Time   `json:"created" gorm:"column:created_at;not null"`
-	Updated   time.Time   `json:"updated" gorm:"column:updated_at;not null"`
+	Id        int64          `json:"id"`
+	Email     string         `json:"email" gorm:"size:32;unique_index;not null"`
+	Username  string         `json:"username" gorm:"size:20;unique_index;not null"`
+	Password  string         `json:"-" gorm:"size:32;not null"`
+	Status    uint8          `json:"-" gorm:"size:1;not null"`
+	StatusTxt string         `json:"status" gorm:"-"`
+	Roles     string         `json:"-" gorm:"size:64;not null"`
+	RoleTxt   string         `json:"role" gorm:"-"`
+	Ticket    string         `json:"ticket" gorm:"size:6;unique_index;not null"`
+	Profile   UserProfile    `json:"profile,omitempty" gorm:"foreignKey:Uid"`
+	Storage   UserStorage    `json:"storage,omitempty" gorm:"foreignKey:Uid"`
+	Created   time.Time      `json:"created" gorm:"autoCreateTime;not null"`
+	Updated   time.Time      `json:"updated" gorm:"autoUpdateTime;not null"`
+	Deleted   gorm.DeletedAt `json:"-"`
 
 	Token string `json:"-" gorm:"-"`
 }

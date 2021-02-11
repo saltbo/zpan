@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 const (
 	UserStorageDefaultSize = 50 << 20
@@ -8,13 +12,13 @@ const (
 )
 
 type UserStorage struct {
-	Id      int64      `json:"id"`
-	Uid     int64      `json:"uid" gorm:"not null"`
-	Max     uint64     `json:"max" gorm:"not null"`
-	Used    uint64     `json:"used" gorm:"not null"`
-	Created time.Time  `json:"created" gorm:"column:created_at;not null"`
-	Updated time.Time  `json:"updated" gorm:"column:updated_at;not null"`
-	Deleted *time.Time `json:"-" gorm:"column:deleted_at"`
+	Id      int64          `json:"id"`
+	Uid     int64          `json:"uid" gorm:"not null"`
+	Max     uint64         `json:"max" gorm:"not null"`
+	Used    uint64         `json:"used" gorm:"not null"`
+	Created time.Time      `json:"created" gorm:"autoCreateTime;not null"`
+	Updated time.Time      `json:"updated" gorm:"autoUpdateTime;not null"`
+	Deleted gorm.DeletedAt `json:"-"`
 }
 
 func (UserStorage) TableName() string {
