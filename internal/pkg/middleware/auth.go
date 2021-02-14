@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
+	"github.com/spf13/viper"
 	"github.com/storyicon/grbac"
 
 	"github.com/saltbo/zpan/internal/app/service"
@@ -18,7 +19,7 @@ func LoginAuth() gin.HandlerFunc {
 }
 
 func LoginAuthWithRoles() gin.HandlerFunc {
-	ctrl, err := grbac.New(grbac.WithYAML("rbac.yml", time.Second))
+	ctrl, err := grbac.New(grbac.WithYAML(viper.GetString("permission"), time.Second))
 	if err != nil {
 		log.Fatalln(err)
 	}

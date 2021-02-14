@@ -46,6 +46,7 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 
 	serverCmd.Flags().Int("port", 8222, "server port")
+	serverCmd.Flags().String("permission", "/etc/zpan/rbac.yml", "server permission ctrl file")
 
 	viper.BindPFlags(serverCmd.Flags())
 }

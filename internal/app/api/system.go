@@ -58,7 +58,7 @@ func (rs *Option) createDatabase(c *gin.Context) {
 
 	viper.Set("database.driver", p["driver"])
 	viper.Set("database.dsn", p["dsn"])
-	viper.SetConfigFile("config.yml")
+	viper.SetConfigFile("/etc/zpan/config.yml")
 	if err := viper.WriteConfigAs(viper.ConfigFileUsed()); err != nil {
 		ginutil.JSONServerError(c, err)
 		return

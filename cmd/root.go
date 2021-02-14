@@ -54,7 +54,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is /etc/zpan/zpan.yml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is /etc/zpan/config.yml)")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -63,7 +63,6 @@ func initConfig() {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
 	} else {
-		viper.AddConfigPath(".")
 		viper.AddConfigPath("/etc/zpan")
 		viper.SetConfigName("config")
 	}
