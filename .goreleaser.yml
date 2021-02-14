@@ -29,7 +29,7 @@ archives:
       - LICENSE
       - README.md
       - CHANGELOG.md
-      - deployments/**/*
+      - deployments/*
       - install.sh
 checksum:
   name_template: 'checksums.txt'
