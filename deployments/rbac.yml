@@ -1,0 +1,78 @@
+# 默认注册用户才能访问
+- id: 0
+  host: "*"
+  path: "**"
+  method: "*"
+  authorized_roles:
+    - "admin"
+    - "member"
+
+# 站点信息允许匿名访问
+- id: 10
+  host: "*"
+  path: "/api/system/options/core.site"
+  method: "GET"
+  allow_anyone: true
+
+# 登录接口允许任何人访问
+- id: 11
+  host: "*"
+  path: "/api/tokens"
+  method: "{POST,DELETE}"
+  allow_anyone: true
+# 注册接口允许任何人访问
+- id: 12
+  host: "*"
+  path: "/api/users"
+  method: "{POST,PATCH}"
+  allow_anyone: true
+# 分享接口允许匿名访问
+- id: 13
+  host: "*"
+  path: "/api/shares/**"
+  method: "GET"
+  allow_anyone: true
+
+# 分享提取接口允许匿名访问
+- id: 14
+  host: "*"
+  path: "/api/shares/*/token"
+  method: "POST"
+  allow_anyone: true
+
+# 下载接口允许匿名访问
+- id: 15
+  host: "*"
+  path: "/api/matters/*/link"
+  method: "GET"
+  allow_anyone: true
+
+
+# 以下规则限制只能由管理员请求
+- id: 101
+  host: "*"
+  path: "/api/storages"
+  method: "POST"
+  authorized_roles:
+    - "admin"
+
+- id: 102
+  host: "*"
+  path: "/api/storages/**"
+  method: "{PUT,DELETE}"
+  authorized_roles:
+    - "admin"
+
+- id: 103
+  host: "*"
+  path: "/api/users/**"
+  method: "{PUT,DELETE}"
+  authorized_roles:
+    - "admin"
+
+- id: 104
+  host: "*"
+  path: "/api/system/options/*"
+  method: "PUT"
+  authorized_roles:
+    - "admin"
