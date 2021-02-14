@@ -14,33 +14,16 @@
 - AllowMethods: PUT
 - AllowHeaders: content-type,content-disposition,x-amz-acl
 
-### 亚马逊S3
-s3的权限比较复杂，我还没有进行详细的测试，目前我是直接将`阻止通过新访问控制列表(ACL)授予的对存储桶和对象的公开访问`这个选项关闭；然后将下面的CORS配置填写并保存即可。
-```json
-[
-    {
-        "AllowedOrigins": [
-            "http://your-domain"
-        ],
-        "AllowedMethods": [
-            "PUT"
-        ],
-        "AllowedHeaders": [
-            "content-type",
-            "content-disposition",
-            "x-amz-acl"
-        ],
-        "ExposeHeaders": []
-    }
-]
-```
+从v.1.5.0开始，在管理后台添加云存储配置的时候会自动进行CORS的设置。
 
-### 谷歌Storage
-由于谷歌云Storage没有提供可视化配置界面，只提供了一个命令行工具，所以我们可以利用CloudShell进行操作，具体命令如下：
-```bash
-echo '[{"origin":["*"],"method":["PUT"],"responseHeader":["content-type","content-disposition","x-amz-acl"]}]' > cors.json
-gsutil cors set cors.json gs://your-bucket-name
-```
+但由于多数厂商兼容的S3协议API里并不包含CORS相关操作，所以CORS的设置每个厂商的情况都不一样。
 
-### 其他
-OSS、COS、Kodo之类的可视化做的都很好，就不废话了，如果实在不会弄可以看[白话文教程](/zh-cn/vernacular)
+目前支持的平台有：
+- 阿里云OSS
+- 腾讯云COS
+- 七牛云Kodo
+- UCloud（暂不支持自动设置CORS）
+- 华为云OBS
+- 网易云NOS（暂不支持自动设置CORS）
+- 亚马逊S3
+- MinIO
