@@ -1,6 +1,6 @@
 module github.com/saltbo/zpan
 
-go 1.14
+go 1.16
 
 //replace github.com/saltbo/gopkg => /opt/works/gopkg
 
@@ -9,9 +9,7 @@ require (
 	github.com/aliyun/aliyun-oss-go-sdk v2.1.6+incompatible
 	github.com/aws/aws-sdk-go v1.34.14
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gin-gonic/gin v1.6.3
-	github.com/rakyll/statik v0.1.7
 	github.com/saltbo/gopkg v0.0.0-20200905151036-32195ea0b27b
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cobra v1.0.0
@@ -22,6 +20,7 @@ require (
 	github.com/upyun/go-sdk/v3 v3.0.2
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gorm.io/driver/mysql v1.0.3
 	gorm.io/driver/postgres v1.0.6
 	gorm.io/driver/sqlite v1.1.4

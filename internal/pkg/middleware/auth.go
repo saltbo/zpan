@@ -1,25 +1,34 @@
 package middleware
 
 import (
+	_ "embed"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
-	"github.com/spf13/viper"
 	"github.com/storyicon/grbac"
+	"github.com/storyicon/grbac/pkg/meta"
+	"gopkg.in/yaml.v3"
 
 	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/saltbo/zpan/internal/pkg/authed"
 )
+
+//go:embed auth_rbac.yml
+var embedRules []byte
 
 func LoginAuth() gin.HandlerFunc {
 	return LoginAuthWithRoles()
 }
 
 func LoginAuthWithRoles() gin.HandlerFunc {
-	ctrl, err := grbac.New(grbac.WithYAML(viper.GetString("permission"), time.Second))
+	rules := make(meta.Rules, 0)
+	if err := yaml.Unmarshal(embedRules, &rules); err != nil {
+		log.Fatalln(err)
+	}
+
+	ctrl, err := grbac.New(grbac.WithRules(rules))
 	if err != nil {
 		log.Fatalln(err)
 	}
