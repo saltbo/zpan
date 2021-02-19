@@ -22,8 +22,6 @@ dockers:
     image_templates:
       - "saltbo/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
       - "saltbo/{{ .ProjectName }}:latest"
-      - "registry.cn-zhangjiakou.aliyuncs.com/saltbo/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
-      - "registry.cn-zhangjiakou.aliyuncs.com/saltbo/{{ .ProjectName }}:latest"
 
 archives:
   - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"

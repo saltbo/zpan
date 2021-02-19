@@ -25,13 +25,6 @@ jobs:
         run: |
           echo "${DOCKER_HUB_PASSWORD}" | docker login --username saltbo --password-stdin
 
-      - name: DockerCR Login
-        if: success() && startsWith(github.ref, 'refs/tags/')
-        env:
-          DOCKERCR_PASSWORD: ${{ secrets.DOCKERCR_PASSWORD }}
-        run: |
-          echo "${DOCKERCR_PASSWORD}" | docker login --username yb1225@qq.com registry.cn-zhangjiakou.aliyuncs.com --password-stdin
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
