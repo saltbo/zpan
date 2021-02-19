@@ -31,6 +31,7 @@ import (
 
 	"github.com/saltbo/zpan/internal/app/api"
 	"github.com/saltbo/zpan/internal/app/dao"
+	"github.com/saltbo/zpan/web"
 )
 
 // serverCmd represents the server command
@@ -63,6 +64,7 @@ func serverRun() {
 
 	ge := gin.Default()
 	api.SetupRoutes(ge)
+	web.SetupRoutes(ge)
 	addr := fmt.Sprintf(":%d", viper.GetInt("port"))
 	ginutil.Startup(ge, addr)
 }
