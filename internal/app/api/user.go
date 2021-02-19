@@ -145,7 +145,7 @@ func (rs *UserResource) create(c *gin.Context) {
 		return
 	}
 
-	if rs.sUser.InviteRequired() && p.Ticket == "" {
+	if !authed.IsAdmin(c) && rs.sUser.InviteRequired() && p.Ticket == "" {
 		ginutil.JSONBadRequest(c, fmt.Errorf("ticket required"))
 		return
 	}

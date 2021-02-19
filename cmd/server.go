@@ -46,14 +46,13 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 
 	serverCmd.Flags().Int("port", 8222, "server port")
-	serverCmd.Flags().String("permission", "/etc/zpan/rbac.yml", "server permission ctrl file")
 
 	viper.BindPFlags(serverCmd.Flags())
 }
 
 func serverRun() {
 	//gin.SetMode(gin.ReleaseMode)
-	if viper.ConfigFileUsed() != "" {
+	if viper.IsSet("installed") {
 		dao.Init(viper.GetString("database.driver"), viper.GetString("database.dsn"))
 	}
 

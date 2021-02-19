@@ -9,7 +9,7 @@ import (
 )
 
 func Installer(c *gin.Context) {
-	if viper.ConfigFileUsed() == "" {
+	if !viper.IsSet("installed") {
 		ginutil.JSONError(c, 520, fmt.Errorf("system is not initialized"))
 		return
 	}

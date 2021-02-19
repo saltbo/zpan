@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
@@ -40,6 +42,11 @@ func (rs *Option) Register(router *gin.RouterGroup) {
 }
 
 func (rs *Option) createDatabase(c *gin.Context) {
+	if viper.IsSet("installed") {
+		ginutil.JSONBadRequest(c, fmt.Errorf("datebase config already installed"))
+		return
+	}
+
 	p := make(map[string]string)
 	if err := c.ShouldBind(&p); err != nil {
 		ginutil.JSONBadRequest(c, err)
@@ -58,7 +65,6 @@ func (rs *Option) createDatabase(c *gin.Context) {
 
 	viper.Set("database.driver", p["driver"])
 	viper.Set("database.dsn", p["dsn"])
-	viper.SetConfigFile("/etc/zpan/config.yml")
 	if err := viper.WriteConfigAs(viper.ConfigFileUsed()); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -68,6 +74,11 @@ func (rs *Option) createDatabase(c *gin.Context) {
 }
 
 func (rs *Option) createAdministrator(c *gin.Context) {
+	if viper.IsSet("installed") {
+		ginutil.JSONBadRequest(c, fmt.Errorf("datebase config already installed"))
+		return
+	}
+
 	p := new(bind.BodyUserCreation)
 	if err := c.ShouldBind(&p); err != nil {
 		ginutil.JSONBadRequest(c, err)
@@ -87,6 +98,7 @@ func (rs *Option) createAdministrator(c *gin.Context) {
 		return
 	}
 
+	viper.Set("installed", true)
 	ginutil.JSON(c)
 
 }
