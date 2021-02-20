@@ -26,9 +26,12 @@ func (s *Storage) Find(id interface{}) (*model.Storage, error) {
 	return storage, nil
 }
 
-func (s *Storage) FindAll(offset, limit int) (list []model.Storage, total int64, err error) {
+func (s *Storage) FindAll(offset, limit int) (storages []model.Storage, total int64, err error) {
 	gdb.Model(model.Storage{}).Count(&total)
-	err = gdb.Find(&list).Offset(offset).Limit(limit).Error
+	err = gdb.Find(&storages).Offset(offset).Limit(limit).Error
+	for idx, storage := range storages {
+		storages[idx].SecretKey = storage.SKAsterisk() // 对外隐藏SK
+	}
 	return
 }
 
@@ -41,11 +44,16 @@ func (s *Storage) Create(storage *model.Storage) error {
 }
 
 func (s *Storage) Update(id string, storage *model.Storage) error {
-	if err := gdb.First(&model.Storage{}, id).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+	existStorage := new(model.Storage)
+	if err := gdb.First(existStorage, id).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("storage not found")
 	}
 
 	storage.Id, _ = strconv.ParseInt(id, 10, 64)
+	// 如果SK没有发生改变则不允许更新SK，避免改错SK
+	if storage.SecretKey == existStorage.SKAsterisk() {
+		storage.SecretKey = existStorage.SecretKey
+	}
 	return gdb.Save(storage).Error
 }
 

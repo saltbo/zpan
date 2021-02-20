@@ -37,3 +37,10 @@ func (Storage) TableName() string {
 func (s *Storage) PublicRead() bool {
 	return s.Mode == StorageModeFileDisk
 }
+
+func (s *Storage) SKAsterisk() (sk string) {
+	for range s.SecretKey {
+		sk += "*"
+	}
+	return
+}

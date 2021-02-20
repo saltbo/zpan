@@ -59,20 +59,34 @@
 - id: 102
   host: "*"
   path: "/api/storages/**"
-  method: "{PUT,DELETE}"
+  method: "{PUT,PATCH,DELETE}"
   authorized_roles:
     - "admin"
 
 - id: 103
+  host: "*"
+  path: "/api/users"
+  method: "GET"
+  authorized_roles:
+    - "admin"
+
+- id: 104
   host: "*"
   path: "/api/users/**"
   method: "{PUT,DELETE}"
   authorized_roles:
     - "admin"
 
-- id: 104
+- id: 105
   host: "*"
   path: "/api/system/options/*"
   method: "PUT"
+  authorized_roles:
+    - "admin"
+
+- id: 106
+  host: "*"
+  path: "/api/system/options/core.email"
+  method: "GET"
   authorized_roles:
     - "admin"
