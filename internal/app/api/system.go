@@ -30,7 +30,7 @@ func NewOptionResource() *Option {
 }
 
 func (rs *Option) Register(router *gin.RouterGroup) {
-	router.PUT("/system/database", rs.createDatabase)
+	router.PUT("/system/database", rs.setupDatabase)
 	router.PUT("/system/account", rs.createAdministrator)
 
 	router.Use(middleware.Installer)
@@ -41,7 +41,7 @@ func (rs *Option) Register(router *gin.RouterGroup) {
 	router.PUT("/system/options/:name", rs.update)
 }
 
-func (rs *Option) createDatabase(c *gin.Context) {
+func (rs *Option) setupDatabase(c *gin.Context) {
 	if viper.IsSet("installed") {
 		ginutil.JSONBadRequest(c, fmt.Errorf("datebase config already installed"))
 		return
@@ -65,7 +65,11 @@ func (rs *Option) createDatabase(c *gin.Context) {
 
 	viper.Set("database.driver", p["driver"])
 	viper.Set("database.dsn", p["dsn"])
-	if err := viper.WriteConfigAs(viper.ConfigFileUsed()); err != nil {
+	cfgFile := viper.ConfigFileUsed()
+	if cfgFile == "" {
+		cfgFile = "/etc/zpan/config.yml"
+	}
+	if err := viper.WriteConfigAs(cfgFile); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
