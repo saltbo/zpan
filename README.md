@@ -18,9 +18,14 @@ ZPan - Your Last disk on the cloud.
 - Support multi-user storage space control
 - Support multiple languages
 
+
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/saltbo/zpan)
+
+
 ## Documentation
 - [English](https://zpan.space)
 - [简体中文](https://zpan.space/#/zh-cn/)
+
 
 ## Contributing
 See [CONTRIBUTING](CONTRIBUTING.md) for details on submitting patches and the contribution workflow.
@@ -34,3 +39,4 @@ Thank you to all the people who already contributed to ZPan!
 
 ## License
 ZPan is under the GPL 3.0 license. See the [LICENSE](/LICENSE) file for details.
+
