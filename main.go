@@ -21,7 +21,9 @@ THE SOFTWARE.
 */
 package main
 
-import "github.com/saltbo/zpan/cmd"
+import (
+	"github.com/saltbo/zpan/cmd"
+)
 
 func main() {
 	cmd.Execute()

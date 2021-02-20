@@ -1,5 +1,6 @@
 module github.com/saltbo/zpan
 
+// +heroku goVersion go1.16
 go 1.16
 
 //replace github.com/saltbo/gopkg => /opt/works/gopkg
