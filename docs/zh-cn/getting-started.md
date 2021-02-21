@@ -3,9 +3,6 @@
 # 安装服务
 curl -sSf https://dl.saltbo.cn/install.sh | sh -s zpan
 
-# 调整配置
-vi /etc/zpan/zpan.yml
-
 # 启动服务
 systemctl start zpan
 
@@ -18,7 +15,7 @@ systemctl enable zpan
 
 ## Docker
 ```bash
-docker run -p 8222:8222 --name zpan -itd saltbo/zpan:latest
+docker run -it -p 8222:8222 -v /etc/zpan:/etc/zpan --name zpan saltbo/zpan
 ```
 
 ## CORS

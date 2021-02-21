@@ -9,7 +9,7 @@
 依赖:
 
 - `make`
-- [Go 1.13+](https://golang.org/doc/install)
+- [Go 1.16+](https://golang.org/doc/install)
 
 克隆源码:
 
