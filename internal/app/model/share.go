@@ -18,9 +18,9 @@ type Share struct {
 	DownTimes int64      `json:"down_times" gorm:"not null"`
 	ViewTimes int64      `json:"view_times" gorm:"not null"`
 	ExpireAt  time.Time  `json:"expire_at" gorm:"not null"`
-	CreateAt  time.Time  `json:"created" gorm:"not null"`
-	UpdateAt  time.Time  `json:"updated" gorm:"not null"`
-	DeleteAr  *time.Time `json:"-"`
+	CreateAt  time.Time  `json:"created" gorm:"autoCreateTime;not null"` // 这里的CreateAt应该是CreatedAt，但是先将错就错吧
+	UpdateAt  time.Time  `json:"updated" gorm:"autoUpdateTime;not null"` // 这里的UpdateAt应该是UpdatedAt，但是先将错就错吧
+	DeletedAt *time.Time `json:"-"`
 }
 
 func (Share) TableName() string {
