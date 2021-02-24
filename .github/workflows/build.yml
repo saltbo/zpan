@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -26,7 +26,7 @@ jobs:
           file: .coverprofile
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     needs: [test]
     steps:
       - name: Set up Go
