@@ -29,7 +29,7 @@ func newS3Provider(conf Config) (*S3Provider, error) {
 		return nil, err
 	}
 
-	client := s3.New(s, cfg.WithRegion("auto"), cfg.WithEndpoint(conf.Endpoint))
+	client := s3.New(s, cfg.WithRegion(conf.Region), cfg.WithEndpoint(conf.Endpoint))
 	if conf.CustomHost != "" {
 		cURL, err := url.Parse(conf.CustomHost)
 		if err != nil {

@@ -21,6 +21,7 @@ func (s *Storage) Create(storage *model.Storage) error {
 		Provider:     storage.Provider,
 		Bucket:       storage.Bucket,
 		Endpoint:     storage.Endpoint,
+		Region:       storage.Region,
 		CustomHost:   storage.CustomHost,
 		AccessKey:    storage.AccessKey,
 		AccessSecret: storage.SecretKey,

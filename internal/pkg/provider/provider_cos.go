@@ -10,7 +10,7 @@ import (
 	"github.com/tencentyun/cos-go-sdk-v5"
 )
 
-// 腾讯云
+// COSProvider 腾讯云
 type COSProvider struct {
 	S3Provider
 

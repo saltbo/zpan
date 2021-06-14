@@ -4,7 +4,7 @@ import (
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
-// 七牛云
+// KODOProvider 七牛云
 type KODOProvider struct {
 	S3Provider
 

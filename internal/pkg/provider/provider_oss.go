@@ -4,7 +4,7 @@ import (
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
-// 阿里云
+// OSSProvider 阿里云
 type OSSProvider struct {
 	S3Provider
 

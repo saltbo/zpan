@@ -4,7 +4,7 @@ import (
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
-// UCloud
+// US3Provider UCloud
 type US3Provider struct {
 	S3Provider
 

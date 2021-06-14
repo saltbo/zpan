@@ -5,7 +5,7 @@ import (
 	"github.com/NetEase-Object-Storage/nos-golang-sdk/nosclient"
 )
 
-// 网易云
+// NOSProvider 网易云
 type NOSProvider struct {
 	S3Provider
 

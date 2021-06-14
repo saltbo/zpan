@@ -14,6 +14,7 @@ type StorageBody struct {
 	Bucket     string `json:"bucket" binding:"required"`
 	Provider   string `json:"provider" binding:"required"`
 	Endpoint   string `json:"endpoint" binding:"required"`
+	Region     string `json:"region"`
 	AccessKey  string `json:"access_key" binding:"required"`
 	SecretKey  string `json:"secret_key" binding:"required"`
 	Title      string `json:"title"`
@@ -38,6 +39,7 @@ func (b *StorageBody) Model() *model.Storage {
 		Bucket:     ts(b.Bucket),
 		Provider:   b.Provider,
 		Endpoint:   ts(b.Endpoint),
+		Region:     ts(b.Region),
 		CustomHost: ts(b.CustomHost),
 		AccessKey:  ts(b.AccessKey),
 		SecretKey:  ts(b.SecretKey),

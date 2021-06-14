@@ -4,7 +4,7 @@ import (
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
-// MinIO
+// MINIOProvider MinIO
 type MINIOProvider struct {
 	S3Provider
 

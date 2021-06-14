@@ -8,7 +8,7 @@ import (
 	"github.com/upyun/go-sdk/v3/upyun"
 )
 
-// 又拍云
+// USSProvider 又拍云
 type USSProvider struct {
 	client *upyun.UpYun
 }

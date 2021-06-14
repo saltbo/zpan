@@ -24,6 +24,7 @@ type Config struct {
 	Provider     string
 	Bucket       string
 	Endpoint     string
+	Region       string
 	CustomHost   string
 	AccessKey    string
 	AccessSecret string
@@ -46,6 +47,10 @@ var supportProviders = map[string]Constructor{
 }
 
 func New(conf Config) (Provider, error) {
+	if conf.Region == "" {
+		conf.Region = "auto"
+	}
+
 	constructor, ok := supportProviders[strings.ToUpper(conf.Provider)]
 	if !ok {
 		return nil, fmt.Errorf("provider %s not found", conf.Provider)

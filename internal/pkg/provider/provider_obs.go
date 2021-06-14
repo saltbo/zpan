@@ -4,7 +4,7 @@ import (
 	"github.com/saltbo/zpan/pkg/obs"
 )
 
-// 华为云
+// OBSProvider 华为云
 type OBSProvider struct {
 	S3Provider
 
