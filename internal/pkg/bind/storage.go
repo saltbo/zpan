@@ -18,6 +18,7 @@ type StorageBody struct {
 	AccessKey  string `json:"access_key" binding:"required"`
 	SecretKey  string `json:"secret_key" binding:"required"`
 	Title      string `json:"title"`
+	Status     int8   `json:"status"`
 	IDirs      string `json:"idirs"` // internal dirs
 	CustomHost string `json:"custom_host"`
 	RootPath   string `json:"root_path"`
@@ -40,6 +41,7 @@ func (b *StorageBody) Model() *model.Storage {
 		Provider:   b.Provider,
 		Endpoint:   ts(b.Endpoint),
 		Region:     ts(b.Region),
+		Status:     b.Status,
 		CustomHost: ts(b.CustomHost),
 		AccessKey:  ts(b.AccessKey),
 		SecretKey:  ts(b.SecretKey),
