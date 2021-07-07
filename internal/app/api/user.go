@@ -32,8 +32,10 @@ func (rs *UserResource) Register(router *gin.RouterGroup) {
 
 	router.GET("/users", rs.findAll)                           // 查询用户列表，需管理员权限
 	router.GET("/users/:username", rs.find)                    // 查询某一个用户的公开信息
+	router.DELETE("/users/:username", rs.remove)               // 删除某一个用户
 	router.PUT("/users/:username/storage", rs.updateStorage)   // 修改某一个用户的存储空间
 	router.PUT("/users/:username/password", rs.updatePassword) // 修改某一个用户的用户密码
+	router.PUT("/users/:username/status", rs.updateStatus)     // 修改某一个用户的状态
 
 	router.GET("/user", rs.userMe)                  // 获取已登录用户的所有信息
 	router.PUT("/user/profile", rs.updateProfile)   // 更新已登录用户个人信息
@@ -94,10 +96,37 @@ func (rs *UserResource) find(c *gin.Context) {
 	ginutil.JSONData(c, user.Profile)
 }
 
+// remove godoc
+// @Tags v1/Users
+// @Summary 删除某一个用户
+// @Description 删除某一个用户
+// @Accept json
+// @Produce json
+// @Param username path string true "用户名"
+// @Success 200 {object} httputil.JSONResponse
+// @Failure 400 {object} httputil.JSONResponse
+// @Failure 500 {object} httputil.JSONResponse
+// @Router /v1/users/{username} [delete]
+func (rs *UserResource) remove(c *gin.Context) {
+	user, err := rs.dUser.FindByUsername(c.Param("username"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err := rs.dUser.Delete(user); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+
 // updateStorage godoc
 // @Tags v1/Users
-// @Summary 修改登录用户存储空间
-// @Description 修改登录用户存储空间
+// @Summary 修改某一个用户的存储空间
+// @Description 修改某一个用户的存储空间
 // @Accept json
 // @Produce json
 // @Param username path string true "用户名"
@@ -120,6 +149,39 @@ func (rs *UserResource) updateStorage(c *gin.Context) {
 	}
 
 	if err := rs.dUser.UpdateStorage(user.Id, p.Max); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+// updateStatus godoc
+// @Tags v1/Users
+// @Summary 修改某一个用户的状态
+// @Description 修改某一个用户的状态
+// @Accept json
+// @Produce json
+// @Param username path string true "用户名"
+// @Param body body bind.BodyUserStatus true "参数"
+// @Success 200 {object} httputil.JSONResponse
+// @Failure 400 {object} httputil.JSONResponse
+// @Failure 500 {object} httputil.JSONResponse
+// @Router /v1/users/{username}/storage [put]
+func (rs *UserResource) updateStatus(c *gin.Context) {
+	p := new(bind.BodyUserStatus)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	user, err := rs.dUser.FindByUsername(c.Param("username"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err := rs.dUser.UpdateStatus(user.Id, p.Status); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

@@ -112,7 +112,7 @@ func (u *User) Activate(uid int64) error {
 	return nil
 }
 
-// ResetPassword update the new password
+// PasswordReset update the new password
 func (u *User) PasswordReset(uid int64, newPwd string) error {
 	user, err := u.Find(uid)
 	if err != nil {
@@ -129,6 +129,14 @@ func (u *User) PasswordReset(uid int64, newPwd string) error {
 
 func (u *User) Update(user *model.User) error {
 	return gdb.Save(user).Error
+}
+
+func (u *User) UpdateStatus(uid int64, status uint8) error {
+	return gdb.Model(model.User{}).Where("id=?", uid).Update("status", status).Error
+}
+
+func (u *User) Delete(user *model.User) error {
+	return gdb.Delete(user).Error
 }
 
 func (u *User) UpdateProfile(uid int64, up *model.UserProfile) error {

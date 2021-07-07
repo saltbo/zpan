@@ -37,3 +37,7 @@ type BodyUserPassword struct {
 type BodyUserStorage struct {
 	Max uint64 `json:"max"`
 }
+
+type BodyUserStatus struct {
+	Status uint8 `json:"status"`
+}
