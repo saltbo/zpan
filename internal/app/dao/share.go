@@ -35,8 +35,9 @@ func (s *Share) Delete(id int64) error {
 func (s *Share) FindAll(uid int64) (list []*model.Share, total int64, err error) {
 	query := NewQuery()
 	query.WithEq("uid", uid)
-	gdb.Model(model.Share{}).Count(&total)
-	err = gdb.Find(&list).Offset(query.Offset).Limit(query.Limit).Error
+	sn := gdb.Where(query.SQL(), query.Params)
+	sn.Model(model.Share{}).Count(&total)
+	err = sn.Find(&list).Offset(query.Offset).Limit(query.Limit).Error
 	return
 }
 
