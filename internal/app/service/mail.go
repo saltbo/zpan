@@ -44,7 +44,7 @@ func NewMail() *Mail {
 		mail = &Mail{
 			templates: defaultTemplates,
 		}
-		OptRegister("email", mail.Boot)
+		OptRegister("core.email", mail.Boot)
 	})
 	return mail
 }
