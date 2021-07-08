@@ -51,6 +51,10 @@ func New(conf Config) (Provider, error) {
 		conf.Region = "auto"
 	}
 
+	if !strings.Contains(conf.CustomHost, "://") {
+		conf.CustomHost = "http://" + conf.CustomHost
+	}
+
 	constructor, ok := supportProviders[strings.ToUpper(conf.Provider)]
 	if !ok {
 		return nil, fmt.Errorf("provider %s not found", conf.Provider)

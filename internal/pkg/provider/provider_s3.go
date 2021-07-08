@@ -37,6 +37,10 @@ func newS3Provider(conf Config) (*S3Provider, error) {
 		}
 
 		client.Handlers.Build.PushBack(func(r *request.Request) {
+			if r.HTTPRequest.Method != http.MethodGet {
+				return
+			}
+
 			r.HTTPRequest.URL.Scheme = cURL.Scheme
 			r.HTTPRequest.URL.Host = cURL.Host
 		})
