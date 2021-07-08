@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -76,6 +77,53 @@ func (p *S3Provider) SetupCORS() error {
 	}
 	_, err = p.client.PutBucketCors(input)
 	return err
+}
+
+// List returns the remote objects
+func (p *S3Provider) List(prefix string) ([]Object, error) {
+	marker := ""
+	objects := make([]Object, 0)
+	for {
+		input := &s3.ListObjectsInput{
+			Bucket: aws.String(p.bucket),
+			Prefix: aws.String(prefix),
+			Marker: aws.String(marker),
+		}
+		objectsResult, err := p.client.ListObjects(input)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, obj := range objectsResult.Contents {
+			fObj := Object{
+				Key:  aws.StringValue(obj.Key),
+				ETag: strings.Trim(aws.StringValue(obj.ETag), `"`),
+			}
+
+			objects = append(objects, fObj)
+		}
+
+		if aws.BoolValue(objectsResult.IsTruncated) {
+			marker = aws.StringValue(objectsResult.NextMarker)
+		} else {
+			break
+		}
+	}
+
+	return objects, nil
+}
+
+func (p *S3Provider) Move(object, newObject string) error {
+	input := &s3.CopyObjectInput{
+		Bucket:     aws.String(p.bucket),
+		CopySource: aws.String(object),
+		Key:        aws.String(newObject),
+	}
+	if _, err := p.client.CopyObject(input); err != nil {
+		return err
+	}
+
+	return p.ObjectDelete(object)
 }
 
 func (p *S3Provider) SignedPutURL(key, filetype string, public bool) (string, http.Header, error) {

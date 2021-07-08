@@ -11,8 +11,18 @@ var urlEncode = url.QueryEscape
 
 var corsAllowHeaders = []string{"content-type", "content-disposition", "x-amz-acl"}
 
+// Object is the basic operation unit
+type Object struct {
+	Key      string // remote file path
+	ETag     string // file md5
+	FilePath string // local file path
+	Type     string // local file type, added or changed
+}
+
 type Provider interface {
 	SetupCORS() error
+	List(prefix string) ([]Object, error)
+	Move(object, newObject string) error
 	SignedPutURL(key, filetype string, public bool) (url string, headers http.Header, err error)
 	SignedGetURL(key, filename string) (url string, err error)
 	PublicURL(key string) (url string)
