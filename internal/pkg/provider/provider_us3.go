@@ -11,7 +11,7 @@ type US3Provider struct {
 	client *oss.Client
 }
 
-func NewUS3Provider(conf Config) (Provider, error) {
+func NewUS3Provider(conf *Config) (Provider, error) {
 	p, err := newS3Provider(conf)
 	if err != nil {
 		return nil, err

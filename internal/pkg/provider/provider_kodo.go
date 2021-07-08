@@ -11,7 +11,7 @@ type KODOProvider struct {
 	client *oss.Client
 }
 
-func NewKODOProvider(conf Config) (Provider, error) {
+func NewKODOProvider(conf *Config) (Provider, error) {
 	p, err := newS3Provider(conf)
 	if err != nil {
 		return nil, err

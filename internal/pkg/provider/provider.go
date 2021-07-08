@@ -30,7 +30,17 @@ type Config struct {
 	AccessSecret string
 }
 
-type Constructor func(provider Config) (Provider, error)
+func (c *Config) Clone() *Config {
+	clone := *c
+	return &clone
+}
+
+func (c *Config) WithCustomHost(s string) *Config {
+	c.CustomHost = s
+	return c
+}
+
+type Constructor func(provider *Config) (Provider, error)
 
 var supportProviders = map[string]Constructor{
 	"COS":   NewCOSProvider,
@@ -46,12 +56,12 @@ var supportProviders = map[string]Constructor{
 	//"gd": NewGDProvider,
 }
 
-func New(conf Config) (Provider, error) {
+func New(conf *Config) (Provider, error) {
 	if conf.Region == "" {
 		conf.Region = "auto"
 	}
 
-	if !strings.Contains(conf.CustomHost, "://") {
+	if conf.CustomHost != "" && !strings.Contains(conf.CustomHost, "://") {
 		conf.CustomHost = "http://" + conf.CustomHost
 	}
 

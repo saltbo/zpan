@@ -13,7 +13,7 @@ type USSProvider struct {
 	client *upyun.UpYun
 }
 
-func NewUSSProvider(conf Config) (Provider, error) {
+func NewUSSProvider(conf *Config) (Provider, error) {
 	return &USSProvider{
 		client: upyun.NewUpYun(&upyun.UpYunConfig{
 			Bucket:   conf.Bucket,

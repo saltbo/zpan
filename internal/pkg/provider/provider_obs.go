@@ -11,7 +11,7 @@ type OBSProvider struct {
 	client *obs.ObsClient
 }
 
-func NewOBSProvider(conf Config) (Provider, error) {
+func NewOBSProvider(conf *Config) (Provider, error) {
 	client, err := obs.New(conf.AccessKey, conf.AccessSecret, conf.Endpoint)
 	if err != nil {
 		return nil, err

@@ -17,7 +17,7 @@ type COSProvider struct {
 	client *cos.Client
 }
 
-func NewCOSProvider(conf Config) (Provider, error) {
+func NewCOSProvider(conf *Config) (Provider, error) {
 	p, err := newS3Provider(conf)
 	if err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package provider
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 )
 
 // default config
-var dc = Config{
+var dc = &Config{
 	Provider:     "s3",
 	Bucket:       "test-bucket",
 	Endpoint:     "s3.ap-northeast-1.amazonaws.com",
@@ -21,7 +22,8 @@ var dc = Config{
 
 var key = "1001/test.txt"
 
-func checkSignedURLStr(t *testing.T, us, customHost string) *url.URL {
+func assertSignedURL(t *testing.T, err error, us, customHost string) *url.URL {
+	assert.NoError(t, err)
 	host := fmt.Sprintf("%s.%s", dc.Bucket, dc.Endpoint)
 	if customHost != "" {
 		host = strings.TrimPrefix(customHost, "http://")
@@ -35,37 +37,39 @@ func checkSignedURLStr(t *testing.T, us, customHost string) *url.URL {
 	return u
 }
 
-func testSignedGetUrl(t *testing.T, conf Config) {
-	disk, err := New(conf)
+func TestSignedPutURL(t *testing.T) {
+	disk, err := New(dc)
 	assert.NoError(t, err)
 
-	us, headers, err := disk.SignedPutURL(key, "text/plain", false)
+	_, headers, err := disk.SignedPutURL(key, "text/plain", false)
 	assert.NoError(t, err)
-	checkSignedURLStr(t, us, conf.CustomHost)
 
 	assert.Equal(t, s3.ObjectCannedACLAuthenticatedRead, headers.Get("x-amz-acl"))
 	assert.Equal(t, "text/plain", headers.Get("content-type"))
 }
 
-func TestSignedPutURL(t *testing.T) {
-	testSignedGetUrl(t, dc)
-}
-
-func TestSignedPutURLWithCustomHost(t *testing.T) {
-	conf := dc
-	conf.CustomHost = "http://dl.zpan.com"
-	testSignedGetUrl(t, conf)
-}
-
-func TestSignedGetURL(t *testing.T) {
-	disk, err := New(dc)
+func testSignedGetURL(t *testing.T, cfg *Config) {
+	disk, err := New(cfg)
 	assert.NoError(t, err)
 
 	filename := "test2.txt"
 	us, err := disk.SignedGetURL(key, filename)
-	assert.NoError(t, err)
-	u := checkSignedURLStr(t, us, "")
+	u := assertSignedURL(t, err, us, cfg.CustomHost)
 	assert.Equal(t, u.Query().Get("response-content-disposition"), fmt.Sprintf(`attachment;filename="%s"`, urlEncode(filename)))
+}
+
+func TestSignedGetURL(t *testing.T) {
+	configs := []*Config{
+		dc.Clone().WithCustomHost(""),
+		dc.Clone().WithCustomHost("dl.zpan.com"),
+		dc.Clone().WithCustomHost("http://dl.zpan.com"),
+	}
+
+	for idx, config := range configs {
+		t.Run(strconv.Itoa(idx), func(t *testing.T) {
+			testSignedGetURL(t, config)
+		})
+	}
 }
 
 func TestPublicURL(t *testing.T) {

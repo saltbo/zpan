@@ -17,7 +17,7 @@ func NewStorage() *Storage {
 }
 
 func (s *Storage) Create(storage *model.Storage) error {
-	conf := provider.Config{
+	conf := &provider.Config{
 		Provider:     storage.Provider,
 		Bucket:       storage.Bucket,
 		Endpoint:     storage.Endpoint,
@@ -38,8 +38,8 @@ func (s *Storage) Create(storage *model.Storage) error {
 	return s.dStorage.Create(storage)
 }
 
-// fixme: 单元测试mock侵入了业务代码，有没有更好的办法？
 func (s *Storage) Get(id interface{}) (*model.Storage, error) {
+	// fixme: 单元测试mock侵入了业务代码，有没有更好的办法？
 	if sid, ok := id.(int64); ok && sid == 0 {
 		return &model.Storage{}, nil
 	}
@@ -47,8 +47,8 @@ func (s *Storage) Get(id interface{}) (*model.Storage, error) {
 	return s.dStorage.Find(id)
 }
 
-// fixme: 单元测试mock侵入了业务代码，有没有更好的办法？
 func (s *Storage) GetProvider(id interface{}) (provider.Provider, error) {
+	// fixme: 单元测试mock侵入了业务代码，有没有更好的办法？
 	if sid, ok := id.(int64); ok && sid == 0 {
 		return &provider.MockProvider{}, nil
 	}
@@ -61,13 +61,13 @@ func (s *Storage) GetProvider(id interface{}) (provider.Provider, error) {
 	return s.GetProviderByStorage(storage)
 }
 
-// fixme: 单元测试mock侵入了业务代码，有没有更好的办法？
 func (s *Storage) GetProviderByStorage(storage *model.Storage) (provider.Provider, error) {
+	// fixme: 单元测试mock侵入了业务代码，有没有更好的办法？
 	if storage.Id == 0 {
 		return &provider.MockProvider{}, nil
 	}
 
-	conf := provider.Config{
+	conf := &provider.Config{
 		Provider:     storage.Provider,
 		Bucket:       storage.Bucket,
 		Endpoint:     storage.Endpoint,

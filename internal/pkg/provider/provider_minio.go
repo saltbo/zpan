@@ -11,7 +11,7 @@ type MINIOProvider struct {
 	client *oss.Client
 }
 
-func NewMINIOProvider(conf Config) (Provider, error) {
+func NewMINIOProvider(conf *Config) (Provider, error) {
 	p, err := newS3Provider(conf)
 	if err != nil {
 		return nil, err

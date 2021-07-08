@@ -11,7 +11,7 @@ type OSSProvider struct {
 	client *oss.Client
 }
 
-func NewOSSProvider(conf Config) (Provider, error) {
+func NewOSSProvider(conf *Config) (Provider, error) {
 	client, err := oss.New(conf.Endpoint, conf.AccessKey, conf.AccessSecret)
 	if err != nil {
 		return nil, err

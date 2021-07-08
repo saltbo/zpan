@@ -12,7 +12,7 @@ type NOSProvider struct {
 	client *nosclient.NosClient
 }
 
-func NewNOSProvider(conf Config) (Provider, error) {
+func NewNOSProvider(conf *Config) (Provider, error) {
 	cfg := &config.Config{
 		Endpoint:                    conf.Endpoint,
 		AccessKey:                   conf.AccessKey,

@@ -18,11 +18,11 @@ type S3Provider struct {
 	bucket string
 }
 
-func NewS3Provider(conf Config) (Provider, error) {
+func NewS3Provider(conf *Config) (Provider, error) {
 	return newS3Provider(conf)
 }
 
-func newS3Provider(conf Config) (*S3Provider, error) {
+func newS3Provider(conf *Config) (*S3Provider, error) {
 	cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(conf.AccessKey, conf.AccessSecret, ""))
 	s, err := session.NewSession(cfg)
 	if err != nil {
