@@ -126,7 +126,7 @@ func (p *S3Provider) Move(object, newObject string) error {
 	return p.ObjectDelete(object)
 }
 
-func (p *S3Provider) SignedPutURL(key, filetype string, public bool) (string, http.Header, error) {
+func (p *S3Provider) SignedPutURL(key, filetype string, filesize int64, public bool) (string, http.Header, error) {
 	acl := s3.ObjectCannedACLAuthenticatedRead
 	if public {
 		acl = s3.ObjectCannedACLPublicRead

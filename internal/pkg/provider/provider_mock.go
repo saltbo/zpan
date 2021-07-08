@@ -20,7 +20,7 @@ func (m *MockProvider) Move(object, newObject string) error {
 	return nil
 }
 
-func (m *MockProvider) SignedPutURL(key, filetype string, public bool) (url string, headers http.Header, err error) {
+func (m *MockProvider) SignedPutURL(key, filetype string, filesize int64, public bool) (url string, headers http.Header, err error) {
 	headers = make(http.Header)
 	headers.Add("", "")
 	return fmt.Sprintf("http://dl.test.com/%s", key), headers, nil

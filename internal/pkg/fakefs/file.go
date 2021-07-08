@@ -52,7 +52,7 @@ func (f *File) PreSignPutURL(matter *model.Matter) (url string, headers http.Hea
 		return "", nil, err
 	}
 
-	url, headers, err = provider.SignedPutURL(matter.Object, matter.Type, storage.PublicRead())
+	url, headers, err = provider.SignedPutURL(matter.Object, matter.Type, matter.Size, storage.PublicRead())
 	if err != nil {
 		return
 	}

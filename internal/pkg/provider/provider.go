@@ -23,7 +23,7 @@ type Provider interface {
 	SetupCORS() error
 	List(prefix string) ([]Object, error)
 	Move(object, newObject string) error
-	SignedPutURL(key, filetype string, public bool) (url string, headers http.Header, err error)
+	SignedPutURL(key, filetype string, filesize int64, public bool) (url string, headers http.Header, err error)
 	SignedGetURL(key, filename string) (url string, err error)
 	PublicURL(key string) (url string)
 	ObjectDelete(key string) error
@@ -61,7 +61,7 @@ var supportProviders = map[string]Constructor{
 	"OSS":   NewOSSProvider,
 	"S3":    NewS3Provider,
 	"US3":   NewUS3Provider,
-	//"USS":   NewUSSProvider,
+	"USS":   NewUSSProvider,
 	//"od": NewODProvider,
 	//"gd": NewGDProvider,
 }
