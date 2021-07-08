@@ -62,7 +62,12 @@ func (p *USSProvider) SignedGetURL(key, filename string) (url string, err error)
 }
 
 func (p *USSProvider) PublicURL(key string) (url string) {
-	return fmt.Sprintf("%s/%s", p.conf.CustomHost, key)
+	host := p.conf.CustomHost
+	if host == "" {
+		host = p.conf.Endpoint
+	}
+
+	return fmt.Sprintf("%s/%s", host, key)
 }
 
 func (p *USSProvider) ObjectDelete(key string) error {
