@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -139,7 +138,7 @@ func (p *S3Provider) SignedPutURL(key, filetype string, filesize int64, public b
 		ContentType: aws.String(filetype),
 	}
 	req, _ := p.client.PutObjectRequest(input)
-	us, headers, err := req.PresignRequest(time.Minute * 5)
+	us, headers, err := req.PresignRequest(defaultUploadExp)
 	return us, headerRebuild(headers), err
 }
 
@@ -151,7 +150,7 @@ func (p *S3Provider) SignedGetURL(key, filename string) (string, error) {
 		ResponseContentDisposition: aws.String(disposition),
 	}
 	req, _ := p.client.GetObjectRequest(input)
-	return req.Presign(time.Minute)
+	return req.Presign(defaultDownloadExp)
 }
 
 func (p *S3Provider) PublicURL(key string) string {

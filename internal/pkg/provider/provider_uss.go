@@ -44,9 +44,12 @@ func (p *USSProvider) Move(object, newObject string) error {
 }
 
 func (p *USSProvider) SignedPutURL(key, filetype string, filesize int64, public bool) (url string, headers http.Header, err error) {
-	//expireAt := time.Now().Add(time.Minute * 15).Unix()
+	// todo 新版签名存在跨域问题暂时不能用，客服反馈正在调试，后续通知。
+	//expireAt := time.Now().Add(defaultUploadExp).Unix()
 	//headers.Set("X-Upyun-Expire", fmt.Sprint(expireAt))
 	//headers.Set("X-Upyun-Uri-Prefix", uriPrefix)
+
+	//老版签名不能设置有效期，固定为30min
 	headers = make(http.Header)
 	uri := fmt.Sprintf("/%s/%s", p.client.Bucket, key)
 	date := time.Now().UTC().Format(http.TimeFormat)
@@ -56,7 +59,7 @@ func (p *USSProvider) SignedPutURL(key, filetype string, filesize int64, public 
 }
 
 func (p *USSProvider) SignedGetURL(key, filename string) (url string, err error) {
-	expireAt := time.Now().Add(time.Minute * 15).Unix()
+	expireAt := time.Now().Add(defaultDownloadExp).Unix()
 	upt := p.buildUpt(expireAt, fmt.Sprintf("/%s", key))
 	return fmt.Sprintf("%s?_upt=%s", p.PublicURL(key), upt), err
 }

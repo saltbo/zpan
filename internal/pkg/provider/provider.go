@@ -5,11 +5,17 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 var urlEncode = url.QueryEscape
 
 var corsAllowHeaders = []string{"content-type", "content-disposition", "x-amz-acl"}
+
+const (
+	defaultUploadExp   = time.Hour
+	defaultDownloadExp = time.Hour * 24
+)
 
 // Object is the basic operation unit
 type Object struct {
