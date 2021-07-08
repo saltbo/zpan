@@ -39,5 +39,9 @@ type BodyUserStorage struct {
 }
 
 type BodyUserStatus struct {
-	Status uint8 `json:"status"`
+	Status uint8 `json:"status" binding:"required"`
+}
+
+type BodyUserPasswordReset struct {
+	Password string `json:"password" binding:"required"`
 }

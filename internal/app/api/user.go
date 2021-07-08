@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	_ "github.com/saltbo/gopkg/httputil"
+	"github.com/saltbo/gopkg/strutil"
 
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
@@ -30,163 +31,16 @@ func (rs *UserResource) Register(router *gin.RouterGroup) {
 	router.POST("/users", rs.create)        // 账户注册
 	router.PATCH("/users/:email", rs.patch) // 账户激活、密码重置
 
-	router.GET("/users", rs.findAll)                           // 查询用户列表，需管理员权限
-	router.GET("/users/:username", rs.find)                    // 查询某一个用户的公开信息
-	router.DELETE("/users/:username", rs.remove)               // 删除某一个用户
-	router.PUT("/users/:username/storage", rs.updateStorage)   // 修改某一个用户的存储空间
-	router.PUT("/users/:username/password", rs.updatePassword) // 修改某一个用户的用户密码
-	router.PUT("/users/:username/status", rs.updateStatus)     // 修改某一个用户的状态
+	router.GET("/users", rs.findAll)                          // 查询用户列表，需管理员权限
+	router.GET("/users/:username", rs.find)                   // 查询某一个用户的公开信息
+	router.DELETE("/users/:username", rs.remove)              // 删除某一个用户
+	router.PUT("/users/:username/storage", rs.updateStorage)  // 修改某一个用户的存储空间
+	router.PUT("/users/:username/password", rs.resetPassword) // 修改某一个用户的用户密码
+	router.PUT("/users/:username/status", rs.updateStatus)    // 修改某一个用户的状态
 
 	router.GET("/user", rs.userMe)                  // 获取已登录用户的所有信息
 	router.PUT("/user/profile", rs.updateProfile)   // 更新已登录用户个人信息
 	router.PUT("/user/password", rs.updatePassword) // 修改已登录用户密码
-}
-
-// findAll godoc
-// @Tags v1/Users
-// @Summary 用户列表
-// @Description 获取用户列表信息
-// @Accept json
-// @Produce json
-// @Param query query bind.QueryUser true "参数"
-// @Success 200 {object} httputil.JSONResponse{data=gin.H{list=[]model.UserFormats,total=int64}}
-// @Failure 400 {object} httputil.JSONResponse
-// @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users [get]
-func (rs *UserResource) findAll(c *gin.Context) {
-	p := new(bind.QueryUser)
-	if err := c.BindQuery(p); err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	query := dao.NewQuery()
-	query.WithPage(p.PageNo, p.PageSize)
-	if p.Email != "" {
-		query.WithLike("email", p.Email)
-	}
-
-	list, total, err := rs.dUser.FindAll(query)
-	if err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	ginutil.JSONList(c, list, total)
-}
-
-// find godoc
-// @Tags v1/Users
-// @Summary 用户查询
-// @Description 获取一个用户的公开信息
-// @Accept json
-// @Produce json
-// @Param username path string true "用户名"
-// @Success 200 {object} httputil.JSONResponse{data=model.UserProfile}
-// @Failure 400 {object} httputil.JSONResponse
-// @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username} [get]
-func (rs *UserResource) find(c *gin.Context) {
-	user, exist := rs.dUser.UsernameExist(c.Param("username"))
-	if !exist {
-		ginutil.JSONServerError(c, fmt.Errorf("user not exist"))
-		return
-	}
-
-	ginutil.JSONData(c, user.Profile)
-}
-
-// remove godoc
-// @Tags v1/Users
-// @Summary 删除某一个用户
-// @Description 删除某一个用户
-// @Accept json
-// @Produce json
-// @Param username path string true "用户名"
-// @Success 200 {object} httputil.JSONResponse
-// @Failure 400 {object} httputil.JSONResponse
-// @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username} [delete]
-func (rs *UserResource) remove(c *gin.Context) {
-	user, err := rs.dUser.FindByUsername(c.Param("username"))
-	if err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	if err := rs.dUser.Delete(user); err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	ginutil.JSON(c)
-}
-
-
-// updateStorage godoc
-// @Tags v1/Users
-// @Summary 修改某一个用户的存储空间
-// @Description 修改某一个用户的存储空间
-// @Accept json
-// @Produce json
-// @Param username path string true "用户名"
-// @Param body body bind.BodyUserPassword true "参数"
-// @Success 200 {object} httputil.JSONResponse
-// @Failure 400 {object} httputil.JSONResponse
-// @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username}/storage [put]
-func (rs *UserResource) updateStorage(c *gin.Context) {
-	p := new(bind.BodyUserStorage)
-	if err := c.ShouldBindJSON(p); err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	user, err := rs.dUser.FindByUsername(c.Param("username"))
-	if err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	if err := rs.dUser.UpdateStorage(user.Id, p.Max); err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	ginutil.JSON(c)
-}
-
-// updateStatus godoc
-// @Tags v1/Users
-// @Summary 修改某一个用户的状态
-// @Description 修改某一个用户的状态
-// @Accept json
-// @Produce json
-// @Param username path string true "用户名"
-// @Param body body bind.BodyUserStatus true "参数"
-// @Success 200 {object} httputil.JSONResponse
-// @Failure 400 {object} httputil.JSONResponse
-// @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username}/storage [put]
-func (rs *UserResource) updateStatus(c *gin.Context) {
-	p := new(bind.BodyUserStatus)
-	if err := c.ShouldBindJSON(p); err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	user, err := rs.dUser.FindByUsername(c.Param("username"))
-	if err != nil {
-		ginutil.JSONBadRequest(c, err)
-		return
-	}
-
-	if err := rs.dUser.UpdateStatus(user.Id, p.Status); err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	ginutil.JSON(c)
 }
 
 // create godoc
@@ -267,6 +121,186 @@ func (rs *UserResource) patch(c *gin.Context) {
 	ginutil.JSON(c)
 }
 
+// findAll godoc
+// @Tags v1/Users
+// @Summary 用户列表
+// @Description 获取用户列表信息
+// @Accept json
+// @Produce json
+// @Param query query bind.QueryUser true "参数"
+// @Success 200 {object} httputil.JSONResponse{data=gin.H{list=[]model.UserFormats,total=int64}}
+// @Failure 400 {object} httputil.JSONResponse
+// @Failure 500 {object} httputil.JSONResponse
+// @Router /v1/users [get]
+func (rs *UserResource) findAll(c *gin.Context) {
+	p := new(bind.QueryUser)
+	if err := c.BindQuery(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	query := dao.NewQuery()
+	query.WithPage(p.PageNo, p.PageSize)
+	if p.Email != "" {
+		query.WithLike("email", p.Email)
+	}
+
+	list, total, err := rs.dUser.FindAll(query)
+	if err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSONList(c, list, total)
+}
+
+// find godoc
+// @Tags v1/Users
+// @Summary 用户查询
+// @Description 获取一个用户的公开信息
+// @Accept json
+// @Produce json
+// @Param username path string true "用户名"
+// @Success 200 {object} httputil.JSONResponse{data=model.UserProfile}
+// @Failure 400 {object} httputil.JSONResponse
+// @Failure 500 {object} httputil.JSONResponse
+// @Router /v1/users/{username} [get]
+func (rs *UserResource) find(c *gin.Context) {
+	user, exist := rs.dUser.UsernameExist(c.Param("username"))
+	if !exist {
+		ginutil.JSONServerError(c, fmt.Errorf("user not exist"))
+		return
+	}
+
+	ginutil.JSONData(c, user.Profile)
+}
+
+// updateStorage godoc
+// @Tags v1/Users
+// @Summary 修改某一个用户的存储空间
+// @Description 修改某一个用户的存储空间
+// @Accept json
+// @Produce json
+// @Param username path string true "用户名"
+// @Param body body bind.BodyUserPassword true "参数"
+// @Success 200 {object} httputil.JSONResponse
+// @Failure 400 {object} httputil.JSONResponse
+// @Failure 500 {object} httputil.JSONResponse
+// @Router /v1/users/{username}/storage [put]
+func (rs *UserResource) updateStorage(c *gin.Context) {
+	p := new(bind.BodyUserStorage)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	user, err := rs.dUser.FindByUsername(c.Param("username"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err := rs.dUser.UpdateStorage(user.Id, p.Max); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+// updateStatus godoc
+// @Tags v1/Users
+// @Summary 修改某一个用户的状态
+// @Description 修改某一个用户的状态
+// @Accept json
+// @Produce json
+// @Param username path string true "用户名"
+// @Param body body bind.BodyUserStatus true "参数"
+// @Success 200 {object} httputil.JSONResponse
+// @Failure 400 {object} httputil.JSONResponse
+// @Failure 500 {object} httputil.JSONResponse
+// @Router /v1/users/{username}/storage [put]
+func (rs *UserResource) updateStatus(c *gin.Context) {
+	p := new(bind.BodyUserStatus)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	user, err := rs.dUser.FindByUsername(c.Param("username"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err := rs.dUser.UpdateStatus(user.Id, p.Status); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+// resetPassword godoc
+// @Tags v1/Users
+// @Summary 重置某一个用户的密码
+// @Description 重置某一个用户的密码
+// @Accept json
+// @Produce json
+// @Param username path string true "用户名"
+// @Param body body bind.BodyUserStatus true "参数"
+// @Success 200 {object} httputil.JSONResponse
+// @Failure 400 {object} httputil.JSONResponse
+// @Failure 500 {object} httputil.JSONResponse
+// @Router /v1/users/{username}/password [put]
+func (rs *UserResource) resetPassword(c *gin.Context) {
+	p := new(bind.BodyUserPasswordReset)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	user, err := rs.dUser.FindByUsername(c.Param("username"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	user.Password = strutil.Md5Hex(p.Password)
+	if err := rs.dUser.Update(user); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
+// remove godoc
+// @Tags v1/Users
+// @Summary 删除某一个用户
+// @Description 删除某一个用户
+// @Accept json
+// @Produce json
+// @Param username path string true "用户名"
+// @Success 200 {object} httputil.JSONResponse
+// @Failure 400 {object} httputil.JSONResponse
+// @Failure 500 {object} httputil.JSONResponse
+// @Router /v1/users/{username} [delete]
+func (rs *UserResource) remove(c *gin.Context) {
+	user, err := rs.dUser.FindByUsername(c.Param("username"))
+	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err := rs.dUser.Delete(user); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSON(c)
+}
+
 // profile godoc
 // @Tags v1/Users
 // @Summary 当前登录用户信息
@@ -297,7 +331,6 @@ func (rs *UserResource) userMe(c *gin.Context) {
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username}/password [put]
 // @Router /v1/user/password [put]
 func (rs *UserResource) updatePassword(c *gin.Context) {
 	p := new(bind.BodyUserPassword)
@@ -307,16 +340,6 @@ func (rs *UserResource) updatePassword(c *gin.Context) {
 	}
 
 	uid := authed.UidGet(c)
-	if username := c.Param("username"); username != "" {
-		user, err := rs.dUser.FindByUsername(username)
-		if err != nil {
-			ginutil.JSONBadRequest(c, err)
-			return
-		}
-
-		uid = user.Id
-	}
-
 	if err := rs.sUser.PasswordUpdate(uid, p.OldPassword, p.NewPassword); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
