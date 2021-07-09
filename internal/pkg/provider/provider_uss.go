@@ -70,6 +70,10 @@ func (p *USSProvider) PublicURL(key string) (url string) {
 		host = p.conf.Endpoint
 	}
 
+	if !strings.Contains(host, "://") {
+		host = "http://" + host
+	}
+
 	return fmt.Sprintf("%s/%s", host, key)
 }
 

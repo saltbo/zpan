@@ -77,10 +77,6 @@ func New(conf *Config) (Provider, error) {
 		conf.Region = "auto"
 	}
 
-	if !strings.Contains(conf.Endpoint, "://") {
-		conf.Endpoint = "http://" + conf.Endpoint
-	}
-
 	if conf.CustomHost != "" && !strings.Contains(conf.CustomHost, "://") {
 		conf.CustomHost = "http://" + conf.CustomHost
 	}
