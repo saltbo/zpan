@@ -12,6 +12,13 @@ func (m *MockProvider) SetupCORS() error {
 	return nil
 }
 
+func (m *MockProvider) Head(object string) (*Object, error) {
+	return &Object{
+		Key:      "20210709/86JzAOLIlGZ5Z2Fk.zip",
+		Type:     "application/zip",
+	}, nil
+}
+
 func (m *MockProvider) List(prefix string) ([]Object, error) {
 	return []Object{}, nil
 }

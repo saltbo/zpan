@@ -27,6 +27,7 @@ type Object struct {
 
 type Provider interface {
 	SetupCORS() error
+	Head(object string) (*Object, error)
 	List(prefix string) ([]Object, error)
 	Move(object, newObject string) error
 	SignedPutURL(key, filetype string, filesize int64, public bool) (url string, headers http.Header, err error)

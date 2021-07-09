@@ -78,6 +78,24 @@ func (p *S3Provider) SetupCORS() error {
 	return err
 }
 
+func (p *S3Provider) Head(object string) (*Object, error) {
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(p.bucket),
+		Key:    aws.String(object),
+	}
+
+	hOut, err := p.client.HeadObject(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Object{
+		Key:  object,
+		ETag: aws.StringValue(hOut.ETag),
+		Type: aws.StringValue(hOut.ContentType),
+	}, nil
+}
+
 // List returns the remote objects
 func (p *S3Provider) List(prefix string) ([]Object, error) {
 	marker := ""

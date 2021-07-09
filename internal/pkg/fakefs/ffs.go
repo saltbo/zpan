@@ -5,13 +5,13 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
 	"github.com/saltbo/zpan/internal/pkg/bind"
 )
 
 type FakeFS struct {
+	worker  *Worker
 	dMatter *dao.Matter
 
 	sFile   *File
@@ -20,11 +20,16 @@ type FakeFS struct {
 
 func New() *FakeFS {
 	return &FakeFS{
+		worker:  NewWorker(),
 		dMatter: dao.NewMatter(),
 
 		sFile:   NewFile(),
 		sFolder: NewFolder(),
 	}
+}
+
+func (fs *FakeFS) Start() {
+	go fs.worker.Run()
 }
 
 func (fs *FakeFS) List(uid int64, qp *bind.QueryFiles) (list []model.Matter, total int64, err error) {
@@ -123,6 +128,7 @@ func (fs *FakeFS) CreateFile(m *model.Matter) (interface{}, error) {
 		return nil, err
 	}
 
+	fs.worker.WaitDone(m, fs.TagUploadDone)
 	return gin.H{
 		"alias":   m.Alias,
 		"object":  m.Object,

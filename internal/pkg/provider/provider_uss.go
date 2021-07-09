@@ -43,6 +43,19 @@ func (p *USSProvider) Move(object, newObject string) error {
 	panic("implement me")
 }
 
+func (p *USSProvider) Head(object string) (*Object, error) {
+	fi, err := p.client.GetInfo(object)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Object{
+		Key:  object,
+		ETag: fi.MD5,
+		Type: fi.ContentType,
+	}, nil
+}
+
 func (p *USSProvider) SignedPutURL(key, filetype string, filesize int64, public bool) (url string, headers http.Header, err error) {
 	// todo 新版签名存在跨域问题暂时不能用，客服反馈正在调试，后续通知。
 	//expireAt := time.Now().Add(defaultUploadExp).Unix()
