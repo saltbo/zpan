@@ -47,6 +47,18 @@ func (rs *FileResource) findAll(c *gin.Context) {
 	ginutil.JSONList(c, list, total)
 }
 
+// create godoc
+// @Tags Matters
+// @Summary 创建文件
+// @Description 创建文件
+// @Accept json
+// @Produce json
+// @Security OAuth2Application[matter, admin]
+// @Param body body bind.BodyMatter true "参数"
+// @Success 200 {object} httputil.JSONResponse{data=model.User}
+// @Failure 400 {object} httputil.JSONResponse
+// @Failure 500 {object} httputil.JSONResponse
+// @Router /matters [post]
 func (rs *FileResource) create(c *gin.Context) {
 	p := new(bind.BodyMatter)
 	if err := c.ShouldBindJSON(p); err != nil {

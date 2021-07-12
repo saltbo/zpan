@@ -1,8 +1,8 @@
 package provider
 
 import (
-	"github.com/NetEase-Object-Storage/nos-golang-sdk/config"
-	"github.com/NetEase-Object-Storage/nos-golang-sdk/nosclient"
+	"github.com/saltbo/zpan/pkg/nos/config"
+	"github.com/saltbo/zpan/pkg/nos/nosclient"
 )
 
 // NOSProvider 网易云

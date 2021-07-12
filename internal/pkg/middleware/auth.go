@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
@@ -34,7 +35,7 @@ func LoginAuthWithRoles() gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
-		rc, err := token2Roles(authed.TokenCookieGet(c))
+		rc, err := token2Roles(c)
 		if err != nil {
 			ginutil.JSONUnauthorized(c, err)
 			return
@@ -61,10 +62,19 @@ func LoginAuthWithRoles() gin.HandlerFunc {
 	}
 }
 
-func token2Roles(token string) (*service.RoleClaims, error) {
-	if token == "" {
+func token2Roles(c *gin.Context) (*service.RoleClaims, error) {
+	const basicPrefix = "Basic "
+	const BearerPrefix = "Bearer "
+	cookieAuth := authed.TokenCookieGet(c)
+	headerAuth := c.GetHeader("Authorization")
+	if (cookieAuth == "" && headerAuth == "") || strings.HasPrefix(headerAuth, basicPrefix) {
 		return service.NewRoleClaims("anonymous", 3600, []string{"guest"}), nil
 	}
 
-	return service.NewToken().Verify(token)
+	authToken := strings.TrimPrefix(headerAuth, BearerPrefix)
+	if authToken == "" {
+		authToken = cookieAuth
+	}
+
+	return service.NewToken().Verify(authToken)
 }

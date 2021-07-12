@@ -26,6 +26,9 @@ generate: ## generate the static assets
 build: mod ## Build the binary file
 	go build -v -o build/bin/$(PROJECT) $(MAINFILE)
 
+swag:
+	swag init -g internal/app/api/router.go --exclude client --parseDependency --parseDepth 1 --output internal/docs
+
 install:
 	# 复制二进制文件
 	# 复制默认配置文件

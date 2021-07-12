@@ -45,3 +45,7 @@ type BodyUserStatus struct {
 type BodyUserPasswordReset struct {
 	Password string `json:"password" binding:"required"`
 }
+
+type BodyUserKeyCreation struct {
+	Name string `json:"name" binding:"required"`
+}

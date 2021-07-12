@@ -1,7 +1,13 @@
 package api
 
 import (
+	"log"
+
 	"github.com/gin-gonic/gin"
+	"github.com/go-oauth2/oauth2/v4/errors"
+	"github.com/go-oauth2/oauth2/v4/manage"
+	"github.com/go-oauth2/oauth2/v4/server"
+	"github.com/go-oauth2/oauth2/v4/store"
 	"github.com/saltbo/gopkg/ginutil"
 	_ "github.com/saltbo/gopkg/httputil"
 
@@ -12,10 +18,28 @@ import (
 
 type TokenResource struct {
 	sUser *service.User
+
+	srv *server.Server
 }
 
 func NewTokenResource() *TokenResource {
+	uk := service.NewUserKey()
+	uk.LoadExistClient()
+	manager := manage.NewManager()
+	manager.MapAccessGenerate(uk)
+	manager.MapClientStorage(uk.ClientStore())
+	manager.MustTokenStorage(store.NewMemoryTokenStore())
+
+	srv := server.NewDefaultServer(manager)
+	srv.SetAllowGetAccessRequest(true)
+	srv.SetClientInfoHandler(server.ClientBasicHandler)
+	srv.SetInternalErrorHandler(func(err error) (re *errors.Response) {
+		log.Println("Internal Error:", err.Error())
+		return
+	})
+
 	return &TokenResource{
+		srv:   srv,
 		sUser: service.NewUser(),
 	}
 }
@@ -26,7 +50,7 @@ func (rs *TokenResource) Register(router *gin.RouterGroup) {
 }
 
 // create godoc
-// @Tags v1/Tokens
+// @Tags Tokens
 // @Summary 登录/密码重置
 // @Description 用于账户登录和申请密码重置
 // @Accept json
@@ -35,8 +59,14 @@ func (rs *TokenResource) Register(router *gin.RouterGroup) {
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/tokens [post]
+// @Router /tokens [post]
 func (rs *TokenResource) create(c *gin.Context) {
+	// support gen oauth2 access_token
+	if _, _, ok := c.Request.BasicAuth(); ok {
+		rs.srv.HandleTokenRequest(c.Writer, c.Request)
+		return
+	}
+
 	p := new(bind.BodyToken)
 	if err := c.ShouldBindJSON(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
@@ -67,7 +97,7 @@ func (rs *TokenResource) create(c *gin.Context) {
 }
 
 // delete godoc
-// @Tags v1/Tokens
+// @Tags Tokens
 // @Summary 退出登录
 // @Description 用户状态登出
 // @Accept json
@@ -75,7 +105,7 @@ func (rs *TokenResource) create(c *gin.Context) {
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/tokens [delete]
+// @Router /tokens [delete]
 func (rs *TokenResource) delete(c *gin.Context) {
 	authed.TokenCookieSet(c, "", 1)
 	authed.RoleCookieSet(c, "", 1)

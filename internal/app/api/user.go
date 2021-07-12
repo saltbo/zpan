@@ -44,16 +44,16 @@ func (rs *UserResource) Register(router *gin.RouterGroup) {
 }
 
 // create godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 用户注册
 // @Description 注册一个用户
 // @Accept json
 // @Produce json
-// @Param body body bind.BodyUser true "参数"
+// @Param body body bind.BodyUserCreation true "参数"
 // @Success 200 {object} httputil.JSONResponse{data=model.User}
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users [post]
+// @Router /users [post]
 func (rs *UserResource) create(c *gin.Context) {
 	p := new(bind.BodyUserCreation)
 	if err := c.ShouldBindJSON(p); err != nil {
@@ -84,7 +84,7 @@ func (rs *UserResource) create(c *gin.Context) {
 }
 
 // patch godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 更新一项用户信息
 // @Description 用于账户激活和密码重置
 // @Accept json
@@ -94,7 +94,7 @@ func (rs *UserResource) create(c *gin.Context) {
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{email} [patch]
+// @Router /users/{email} [patch]
 func (rs *UserResource) patch(c *gin.Context) {
 	p := new(bind.BodyUserPatch)
 	if err := c.ShouldBindJSON(p); err != nil {
@@ -122,16 +122,17 @@ func (rs *UserResource) patch(c *gin.Context) {
 }
 
 // findAll godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 用户列表
 // @Description 获取用户列表信息
 // @Accept json
 // @Produce json
+// @Security OAuth2Application[admin]
 // @Param query query bind.QueryUser true "参数"
-// @Success 200 {object} httputil.JSONResponse{data=gin.H{list=[]model.UserFormats,total=int64}}
+// @Success 200 {object} httputil.JSONResponse{data=gin.H{list=[]model.User,total=int64}}
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users [get]
+// @Router /users [get]
 func (rs *UserResource) findAll(c *gin.Context) {
 	p := new(bind.QueryUser)
 	if err := c.BindQuery(p); err != nil {
@@ -155,7 +156,7 @@ func (rs *UserResource) findAll(c *gin.Context) {
 }
 
 // find godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 用户查询
 // @Description 获取一个用户的公开信息
 // @Accept json
@@ -164,7 +165,7 @@ func (rs *UserResource) findAll(c *gin.Context) {
 // @Success 200 {object} httputil.JSONResponse{data=model.UserProfile}
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username} [get]
+// @Router /users/{username} [get]
 func (rs *UserResource) find(c *gin.Context) {
 	user, exist := rs.dUser.UsernameExist(c.Param("username"))
 	if !exist {
@@ -176,17 +177,18 @@ func (rs *UserResource) find(c *gin.Context) {
 }
 
 // updateStorage godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 修改某一个用户的存储空间
 // @Description 修改某一个用户的存储空间
 // @Accept json
 // @Produce json
+// @Security OAuth2Application[admin]
 // @Param username path string true "用户名"
 // @Param body body bind.BodyUserPassword true "参数"
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username}/storage [put]
+// @Router /users/{username}/storage [put]
 func (rs *UserResource) updateStorage(c *gin.Context) {
 	p := new(bind.BodyUserStorage)
 	if err := c.ShouldBindJSON(p); err != nil {
@@ -209,17 +211,18 @@ func (rs *UserResource) updateStorage(c *gin.Context) {
 }
 
 // updateStatus godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 修改某一个用户的状态
 // @Description 修改某一个用户的状态
 // @Accept json
 // @Produce json
+// @Security OAuth2Application[admin]
 // @Param username path string true "用户名"
 // @Param body body bind.BodyUserStatus true "参数"
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username}/storage [put]
+// @Router /users/{username}/status [put]
 func (rs *UserResource) updateStatus(c *gin.Context) {
 	p := new(bind.BodyUserStatus)
 	if err := c.ShouldBindJSON(p); err != nil {
@@ -242,17 +245,18 @@ func (rs *UserResource) updateStatus(c *gin.Context) {
 }
 
 // resetPassword godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 重置某一个用户的密码
 // @Description 重置某一个用户的密码
 // @Accept json
 // @Produce json
+// @Security OAuth2Application[admin]
 // @Param username path string true "用户名"
 // @Param body body bind.BodyUserStatus true "参数"
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username}/password [put]
+// @Router /users/{username}/password [put]
 func (rs *UserResource) resetPassword(c *gin.Context) {
 	p := new(bind.BodyUserPasswordReset)
 	if err := c.ShouldBindJSON(p); err != nil {
@@ -276,16 +280,17 @@ func (rs *UserResource) resetPassword(c *gin.Context) {
 }
 
 // remove godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 删除某一个用户
 // @Description 删除某一个用户
 // @Accept json
 // @Produce json
+// @Security OAuth2Application[admin]
 // @Param username path string true "用户名"
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/users/{username} [delete]
+// @Router /users/{username} [delete]
 func (rs *UserResource) remove(c *gin.Context) {
 	user, err := rs.dUser.FindByUsername(c.Param("username"))
 	if err != nil {
@@ -302,7 +307,7 @@ func (rs *UserResource) remove(c *gin.Context) {
 }
 
 // profile godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 当前登录用户信息
 // @Description 获取已登录用户的详细信息
 // @Accept json
@@ -310,7 +315,7 @@ func (rs *UserResource) remove(c *gin.Context) {
 // @Success 200 {object} httputil.JSONResponse{data=gin.H{user=model.User,profile=model.UserProfile}}
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/user [get]
+// @Router /user [get]
 func (rs *UserResource) userMe(c *gin.Context) {
 	user, err := rs.dUser.Find(authed.UidGet(c))
 	if err != nil {
@@ -322,7 +327,7 @@ func (rs *UserResource) userMe(c *gin.Context) {
 }
 
 // updatePassword godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 修改登录用户密码
 // @Description 修改登录用户密码
 // @Accept json
@@ -331,7 +336,7 @@ func (rs *UserResource) userMe(c *gin.Context) {
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/user/password [put]
+// @Router /user/password [put]
 func (rs *UserResource) updatePassword(c *gin.Context) {
 	p := new(bind.BodyUserPassword)
 	if err := c.ShouldBindJSON(p); err != nil {
@@ -349,7 +354,7 @@ func (rs *UserResource) updatePassword(c *gin.Context) {
 }
 
 // updateProfile godoc
-// @Tags v1/Users
+// @Tags Users
 // @Summary 修改个人信息
 // @Description 更新用户的个人信息
 // @Accept json
@@ -358,7 +363,7 @@ func (rs *UserResource) updatePassword(c *gin.Context) {
 // @Success 200 {object} httputil.JSONResponse
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
-// @Router /v1/user/profile [put]
+// @Router /user/profile [put]
 func (rs *UserResource) updateProfile(c *gin.Context) {
 	p := new(bind.BodyUserProfile)
 	if err := c.ShouldBindJSON(p); err != nil {

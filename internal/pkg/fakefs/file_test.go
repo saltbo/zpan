@@ -34,6 +34,10 @@ func init() {
 
 var fs = New()
 
+func init() {
+	fs.Start()
+}
+
 func TestPreSignPutURL(t *testing.T) {
 	bf := &bind.BodyMatter{
 		Name: "test.txt",
