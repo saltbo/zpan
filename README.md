@@ -23,8 +23,8 @@ ZPan - Your Last disk on the cloud.
 
 
 ## Documentation
-- [English](https://zpan.space)
-- [简体中文](https://zpan.space/#/zh-cn/)
+- [简体中文](https://zpan.space)
+- [English](https://zpan.space/#/en/)
 
 
 ## Contributing
