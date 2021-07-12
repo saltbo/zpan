@@ -1,0 +1,7 @@
+* [Introduction](/en/)
+* [Getting Started](/en/getting-started.md)
+* [Config](/en/config.md)
+* [Cloud Storage](/en/cloud-platform.md)
+* [Contributing](/en/contributing.md)
+* [Vernacular](/en/vernacular.md)
+* [FAQ](/en/faq.md)

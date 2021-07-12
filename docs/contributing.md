@@ -1,53 +1,48 @@
-### Contributing
+### 贡献代码
 
-By participating to this project, you agree to abide our [code of conduct](/CODEOFCONDUCT.md).
+!> 参与该项目，即表示您同意遵守我们的[行为准则](/CODEOFCONDUCT.md)。 
 
-#### Setup your machine
+### 安装环境
 
-`zpan` is written in [Go](https://golang.org/).
+`zpan` 基于[Go](https://golang.org/)进行开发.
 
-Prerequisites:
+依赖:
 
 - `make`
-- [Go 1.13+](https://golang.org/doc/install)
+- [Go 1.16+](https://golang.org/doc/install)
 
-Clone `zpan` anywhere:
+克隆源码:
 
 ```sh
 $ git clone git@github.com:saltbo/zpan.git
 ```
 
-Install the build and lint dependencies:
+安装构建依赖:
 
 ```sh
 $ make dep
 ```
 
-A good way of making sure everything is all right is running the test suite:
+运行单元测试
 
 ```sh
 $ make test
 ```
 
-### Test your change
+### 测试你的修改
 
-You can create a branch for your changes and try to build from the source as you go:
+您可以为更改创建分支，并尝试从源代码进行构建:
 
 ```sh
 $ make build
 ```
 
-Which runs all the linters and tests.
+### 创建一个提交
 
-#### Create a commit
+提交消息的格式应正确，并使其“标准化”，我们正在使用常规提交。
 
-Commit messages should be well formatted, and to make that "standardized", we
-are using Conventional Commits.
-
-You can follow the documentation on
+您可以按照以下文档操作
 [their website](https://www.conventionalcommits.org).
 
-#### Submit a pull request
-
-Push your branch to your `zpan` fork and open a pull request against the
-master branch.
+### 提交一个Pull Request
+将分支推到您的`zpan`分支，然后对主分支打开一个拉取请求。

@@ -1,48 +1,51 @@
-### Welcome
-!> The project has just started, and the documentation is not complete, please help with PR
+### 欢迎
+!> 项目刚开始，文档尚不完善，欢迎帮忙PR
 
-### Introduction
-ZPan is committed to creating an unlimited speed network disk system, so we use the client to connect directly to cloud storage for design.
+### 介绍
+ZPan致力于打造一款不限速的网盘系统，因此我们采用客户端直连云存储的方式进行设计。
 
-Currently ZPan supports all cloud storage platforms compatible with the S3 protocol. You can choose a platform you are familiar with to drive ZPan.
+目前ZPan支持所有兼容S3协议的云存储平台，您可以选用您熟悉的平台来驱动ZPan。
 
-[Online Live](http://zpan.saltbo.cn)(username：demo，password：demo)
+[在线体验](http://zpan.saltbo.cn)(体验账号：demo，密码：demo)
 
-### How It Works
+### 他是如何工作的？
 
-ZPan is essentially a URL signature server + a visual file browser.
+ZPan本质上是一个URL签名服务器+可视化的文件浏览器。
 
-Because we use a direct-link method for uploading and downloading, in order to ensure the security of uploading and downloading, all URLs used by the client to upload and download must be signed by the server.
+因为我们采用直链的方式进行上传下载，所以为了保证上传下载的安全性，客户端用来上传下载的URL均需要服务端进行签名。
 
-Then, in order to conveniently manage the files uploaded by users, we need to develop a visual pseudo file system for file management.
+然后为了能给方便的管理用户上传的文件，我们就需要开发一个可视化的伪文件系统来进行文件管理。
 
 - [saltbo/zpan](https://github.com/saltbo/zpan)
 - [saltbo/zpan-front](https://github.com/saltbo/zpan-front)
 
-### Features
-- Not limited by server bandwidth
-- Support all cloud storage compatible with S3 protocol
-- Support file and folder management
-- Support file and folder sharing (accessible without logging in)
-- Support document preview and audio and video playback
-- Support multi-user storage space control
-- Support multiple languages
+### 特色
+- 完全不受服务器带宽限制
+- 支持所有兼容S3协议的云存储
+- 支持文件及文件夹管理
+- 支持文件及文件夹分享（未登录可访问）
+- 支持文档预览及音视频播放
+- 支持多用户存储空间控制
+- 支持多语言
 
-### Why Not ...?
+### 为什么不是...？
 
 #### NextCloud
-NextCloud is a very easy to use network disk system. It can be said to be the predecessor in this field. But because it was born relatively early, it was designed base on the local file system. The speed of file transfer is limited by the speed of local network. This means that if you use NextCloud to build a network disk on a server with a bandwidth of one megabyte, the upper bound of the upload and download speed of the network disk is only one megabyte. If you want to increase the speed, you can only upgrade the bandwidth of the server, which is a big cost.
+NextCloud是非常好用的网盘系统，可以说是这个领域的前辈了。但是由于它诞生的比较早，在设计上它是基于本地文件系统进行存储的。这就意味着如果您使用NextCloud在一台一兆带宽的服务器上搭建一个网盘，那么网盘的上传下载速度上限就只有一兆，如果您想提升速度就只能给服务器升级带宽，这将是很大的成本。
+
+当然，有人可能会说NextCloud也可以用云存储啊。但其实它是通过将云存储挂载成本地磁盘的方式进行使用的，还是无法解决上传下载速度受限于服务器带宽的问题。
 
 #### Cloudreve
 
-Cloudreve is the only product I found before developing ZPan that meets my needs (uploads and downloads are not limited by bandwidth). However, Cloudreve was developed based on PHP at the time, and I was a bit disgusted about that it was troublesome to deploy, so I wanted to implement one by myself in Golang. However, due to some reasons, it was put on hold for more than a year. When I restarted ZPan and it was almost finished, I realized that Cloudreve also used Golang for refactoring during this year.
+Cloudreve是我在研发ZPan之前找到的唯一满足我需求（上传下载不受带宽限制）的产品。但是当时Cloudreve是基于PHP开发的，我有点嫌弃它部署起来比较麻烦，所以就想着用Golang自己实现一个。但是由于一些原因，中途搁置了一年多，当我重新开始搞ZPan且已经差不多搞完的时候才发现在这一年中Cloudreve也使用Golang进行重构了。
 
-It is undeniable that Cloudreve has more functions than ZPan does. ZPan will be more restrained in features, as I always believe that more features are not always better. So, if you find that ZPan does not meet your needs, you can also try Cloudreve.
+不可否认Cloudreve在功能上是比ZPan更加多的，ZPan在功能上会比较克制，因为我始终认为功能不是越多越好。所以如果您发现ZPan不满足您的需求，也可以去试试Cloudreve。
 
-#### EyeblueTank
+#### 蓝眼云盘
 
-Blue Eye Cloud Disk was also found when I was looking for online storage products in the early days. Generally speaking, it fits my vision and is simple and easy to use. Unfortunately, it also belongs to the traditional network disk. I have communicated with his developers, and they have no plans to support cloud storage.
+蓝眼云盘也是我早期在找网盘产品的时候找到的，总体来说他符合我的设想，简单好用。但很遗憾，他也属于传统网盘，我和他的开发者有过交流，他们并没有打算支持云存储。
 
 #### Z-File
 
-Z-File is an online file catalog program that supports various object storage and local storage. Its target is to be a commonly used tools by individuals for downloading, or a public file library. It will not be developed in the direction of multiple accounts.
+Z-File是一个在线文件目录的程序, 支持各种对象存储和本地存储, 使用定位是个人放常用工具下载, 或做公共的文件库. 不会向多账户方向开发.
+
