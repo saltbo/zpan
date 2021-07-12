@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
+	"github.com/spf13/viper"
 )
 
 var cs = store.NewClientStore()
@@ -77,6 +78,10 @@ func (uk *UserKey) ResetSecret(muk *model.UserKey) error {
 }
 
 func (uk *UserKey) LoadExistClient() {
+	if !viper.IsSet("installed") {
+		return
+	}
+
 	list, _, err := uk.dUserKey.FindAll(dao.NewQuery())
 	if err != nil {
 		log.Println(err)
