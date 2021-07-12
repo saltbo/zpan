@@ -67,7 +67,7 @@ func (f *File) UploadDone(uid int64, alias string) (*model.Matter, error) {
 		return nil, err
 	}
 
-	if err := f.dMatter.Uploaded(alias); err != nil {
+	if err := f.dMatter.Uploaded(m); err != nil {
 		return nil, err
 	}
 

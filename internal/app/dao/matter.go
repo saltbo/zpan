@@ -68,20 +68,7 @@ func (ms *Matter) Create(matter *model.Matter) error {
 		return fmt.Errorf("parent dir not exist")
 	}
 
-	fc := func(tx *gorm.DB) error {
-		if err := tx.Create(matter).Error; err != nil {
-			return err
-		}
-
-		// update the service
-		expr := gorm.Expr("used+?", matter.Size)
-		if err := tx.Model(&model.UserStorage{}).Where("uid=?", matter.Uid).Update("used", expr).Error; err != nil {
-			return err
-		}
-
-		return nil
-	}
-	return gdb.Transaction(fc)
+	return gdb.Create(matter).Error
 }
 
 func (ms *Matter) Find(alias string) (*model.Matter, error) {
@@ -104,9 +91,22 @@ func (ms *Matter) FindUserMatter(uid int64, alias string) (*model.Matter, error)
 	return m, nil
 }
 
-func (ms *Matter) Uploaded(alias string) error {
-	m := gdb.Model(&model.Matter{})
-	return m.Where("alias=?", alias).Update("uploaded_at", time.Now()).Error
+func (ms *Matter) Uploaded(matter *model.Matter) error {
+	fc := func(tx *gorm.DB) error {
+		if err := tx.First(matter).Update("uploaded_at", time.Now()).Error; err != nil {
+			return err
+		}
+
+		// update the storage used of the user
+		expr := gorm.Expr("used+?", matter.Size)
+		if err := tx.Model(&model.UserStorage{}).Where("uid=?", matter.Uid).Update("used", expr).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return gdb.Transaction(fc)
 }
 
 func (ms *Matter) Rename(alias, name string) error {
