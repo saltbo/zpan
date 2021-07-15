@@ -225,7 +225,7 @@ func (rs *ShareResource) findMatters(c *gin.Context) {
 		return
 	}
 
-	dir := fmt.Sprintf("%s/%s", mMatter.Name, p.Dir) // 设置父级目录
+	dir := fmt.Sprintf("%s%s", mMatter.FullPath(), p.Dir) // 设置父级目录
 	query := dao.NewQuery()
 	query.WithEq("uid", mMatter.Uid)
 	query.WithEq("parent", dir)
