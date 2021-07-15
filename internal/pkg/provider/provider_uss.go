@@ -64,11 +64,11 @@ func (p *USSProvider) SignedPutURL(key, filetype string, filesize int64, public 
 
 	//老版签名不能设置有效期，固定为30min
 	headers = make(http.Header)
-	uri := fmt.Sprintf("/%s/%s", p.client.Bucket, key)
 	date := time.Now().UTC().Format(http.TimeFormat)
+	uri := fmt.Sprintf("/%s/%s", p.client.Bucket, urlEncode(key))
 	headers.Set("X-Date", date)
 	headers.Set("Authorization", p.buildOldSign("PUT", uri, date, fmt.Sprint(filesize)))
-	return fmt.Sprintf("http://v0.api.upyun.com/%s/%s", p.client.Bucket, key), headers, err
+	return fmt.Sprintf("http://v0.api.upyun.com%s", uri), headers, err
 }
 
 func (p *USSProvider) SignedGetURL(key, filename string) (url string, err error) {
