@@ -91,10 +91,14 @@ func (ms *Matter) FindUserMatter(uid int64, alias string) (*model.Matter, error)
 	return m, nil
 }
 
-func (ms *Matter) Uploaded(matter *model.Matter) error {
+func (ms *Matter) Uploaded(matter *model.Matter, incrUsed bool) error {
 	fc := func(tx *gorm.DB) error {
 		if err := tx.First(matter).Update("uploaded_at", time.Now()).Error; err != nil {
 			return err
+		}
+
+		if !incrUsed {
+			return nil
 		}
 
 		// update the storage used of the user

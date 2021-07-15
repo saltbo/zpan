@@ -67,7 +67,12 @@ func (f *File) UploadDone(uid int64, alias string) (*model.Matter, error) {
 		return nil, err
 	}
 
-	if err := f.dMatter.Uploaded(m); err != nil {
+	s, err := f.sStorage.Get(m.Sid)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := f.dMatter.Uploaded(m, s.Mode == model.StorageModeNetDisk); err != nil {
 		return nil, err
 	}
 
