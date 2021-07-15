@@ -73,8 +73,9 @@ func (p *USSProvider) SignedPutURL(key, filetype string, filesize int64, public 
 
 func (p *USSProvider) SignedGetURL(key, filename string) (url string, err error) {
 	expireAt := time.Now().Add(defaultDownloadExp).Unix()
+	upd := urlEncode(filename)
 	upt := p.buildUpt(expireAt, fmt.Sprintf("/%s", key))
-	return fmt.Sprintf("%s?_upt=%s", p.PublicURL(key), upt), err
+	return fmt.Sprintf("%s?_upd=%s&_upt=%s", p.PublicURL(key), upd, upt), err
 }
 
 func (p *USSProvider) PublicURL(key string) (url string) {
