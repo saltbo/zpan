@@ -8,7 +8,7 @@ import (
 
 const (
 	StorageModeNetDisk = iota + 1
-	StorageModeFileDisk
+	StorageModeOutline
 )
 
 const (
@@ -42,7 +42,7 @@ func (Storage) TableName() string {
 }
 
 func (s *Storage) PublicRead() bool {
-	return s.Mode == StorageModeFileDisk
+	return s.Mode == StorageModeOutline
 }
 
 func (s *Storage) SKAsterisk() (sk string) {

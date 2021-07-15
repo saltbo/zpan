@@ -107,7 +107,7 @@ func (f *Folder) Remove(uid int64, alias string) error {
 		}
 	}
 
-	return f.dMatter.RemoveToRecycle(m.Alias)
+	return f.dMatter.RemoveToRecycle(m)
 }
 
 func (f *Folder) copyOrMoveValidation(m *model.Matter, uid int64, parent string) error {

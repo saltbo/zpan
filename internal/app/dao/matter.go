@@ -136,14 +136,9 @@ func (ms *Matter) Remove(mid int64, trashedBy string) error {
 	return gdb.Model(&model.Matter{Id: mid}).Updates(values).Error
 }
 
-func (ms *Matter) RemoveToRecycle(alias string) error {
-	m, err := ms.Find(alias)
-	if err != nil {
-		return err
-	}
-
+func (ms *Matter) RemoveToRecycle(m *model.Matter) error {
 	// soft delete the matter
-	if err := ms.Remove(m.Id, alias); err != nil {
+	if err := ms.Remove(m.Id, m.Alias); err != nil {
 		return err
 	}
 
@@ -151,7 +146,7 @@ func (ms *Matter) RemoveToRecycle(alias string) error {
 	rm := &model.Recycle{
 		Uid:     m.Uid,
 		Sid:     m.Sid,
-		Alias:   alias,
+		Alias:   m.Alias,
 		Name:    m.Name,
 		Type:    m.Type,
 		Size:    m.Size,

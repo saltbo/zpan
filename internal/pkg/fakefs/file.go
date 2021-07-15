@@ -139,12 +139,34 @@ func (f *File) Move(uid int64, alias, parent string) error {
 }
 
 func (f *File) Delete(uid int64, alias string) error {
-	_, err := f.dMatter.FindUserMatter(uid, alias)
+	matter, err := f.dMatter.FindUserMatter(uid, alias)
 	if err != nil {
 		return err
 	}
 
-	return f.dMatter.RemoveToRecycle(alias)
+	storage, err := f.sStorage.Get(matter.Sid)
+	if err != nil {
+		return err
+	}
+
+	if storage.Mode == model.StorageModeNetDisk {
+		return f.dMatter.RemoveToRecycle(matter)
+	}
+
+	return f.removeFromStorage(matter, storage)
+}
+
+func (f *File) removeFromStorage(m *model.Matter, s *model.Storage) error {
+	provider, err := f.sStorage.GetProviderByStorage(s)
+	if err != nil {
+		return err
+	}
+
+	if err := provider.ObjectDelete(m.Object); err != nil {
+		return err
+	}
+
+	return f.dMatter.Remove(m.Id, m.Alias)
 }
 
 func (f *File) copyOrMoveValidation(m *model.Matter, uid int64, parent string) error {
