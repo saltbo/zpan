@@ -35,7 +35,7 @@ func init() {
 var fs = New()
 
 func init() {
-	fs.Start()
+	fs.StartFileAutoDoneWorker()
 }
 
 func TestPreSignPutURL(t *testing.T) {
