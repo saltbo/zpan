@@ -11,7 +11,6 @@ import (
 )
 
 type FakeFS struct {
-	worker  *Worker
 	dMatter *dao.Matter
 
 	sFile   *File
@@ -20,7 +19,6 @@ type FakeFS struct {
 
 func New() *FakeFS {
 	return &FakeFS{
-		worker:  NewWorker(),
 		dMatter: dao.NewMatter(),
 
 		sFile:   NewFile(),
@@ -28,8 +26,8 @@ func New() *FakeFS {
 	}
 }
 
-func (fs *FakeFS) Start() {
-	go fs.worker.Run()
+func (fs *FakeFS) StartFileAutoDoneWorker() {
+	go fs.sFile.RunFileAutoDoneWorker()
 }
 
 func (fs *FakeFS) List(uid int64, qp *bind.QueryFiles) (list []model.Matter, total int64, err error) {
@@ -128,7 +126,6 @@ func (fs *FakeFS) CreateFile(m *model.Matter) (interface{}, error) {
 		return nil, err
 	}
 
-	fs.worker.WaitDone(m, fs.TagUploadDone)
 	return gin.H{
 		"alias":   m.Alias,
 		"object":  m.Object,

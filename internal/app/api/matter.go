@@ -28,7 +28,7 @@ func (rs *FileResource) Register(router *gin.RouterGroup) {
 	router.PATCH("/matters/:alias/location", rs.move)
 	router.PATCH("/matters/:alias/duplicate", rs.copy)
 	router.DELETE("/matters/:alias", rs.delete)
-	rs.fs.Start()
+	rs.fs.StartFileAutoDoneWorker()
 }
 
 func (rs *FileResource) findAll(c *gin.Context) {

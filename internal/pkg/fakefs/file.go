@@ -17,15 +17,21 @@ import (
 type File struct {
 	dMatter *dao.Matter
 
-	sStorage *service.Storage
+	sStorage   *service.Storage
+	fileWaiter *FileWaiter
 }
 
 func NewFile() *File {
 	return &File{
 		dMatter: dao.NewMatter(),
 
-		sStorage: service.NewStorage(),
+		sStorage:   service.NewStorage(),
+		fileWaiter: NewFileWaiter(),
 	}
+}
+
+func (f *File) RunFileAutoDoneWorker() error {
+	return f.fileWaiter.Run()
 }
 
 func (f *File) PreSignPutURL(matter *model.Matter) (url string, headers http.Header, err error) {
@@ -50,6 +56,11 @@ func (f *File) PreSignPutURL(matter *model.Matter) (url string, headers http.Hea
 	provider, err := f.sStorage.GetProviderByStorage(storage)
 	if err != nil {
 		return "", nil, err
+	}
+
+	// 只有外链盘才有自动标记上传完成的逻辑
+	if storage.Mode == model.StorageModeOutline {
+		f.fileWaiter.Wait(provider, matter, f.UploadDone)
 	}
 
 	url, headers, err = provider.SignedPutURL(matter.Object, matter.Type, matter.Size, storage.PublicRead())

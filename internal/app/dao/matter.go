@@ -93,7 +93,7 @@ func (ms *Matter) FindUserMatter(uid int64, alias string) (*model.Matter, error)
 
 func (ms *Matter) Uploaded(matter *model.Matter, incrUsed bool) error {
 	fc := func(tx *gorm.DB) error {
-		if err := tx.First(matter).Update("uploaded_at", time.Now()).Error; err != nil {
+		if err := tx.First(matter).Where("uploaded_at is null").Update("uploaded_at", time.Now()).Error; err != nil {
 			return err
 		}
 
@@ -103,11 +103,7 @@ func (ms *Matter) Uploaded(matter *model.Matter, incrUsed bool) error {
 
 		// update the storage used of the user
 		expr := gorm.Expr("used+?", matter.Size)
-		if err := tx.Model(&model.UserStorage{}).Where("uid=?", matter.Uid).Update("used", expr).Error; err != nil {
-			return err
-		}
-
-		return nil
+		return tx.Model(&model.UserStorage{}).Where("uid=?", matter.Uid).Update("used", expr).Error
 	}
 
 	return gdb.Transaction(fc)
