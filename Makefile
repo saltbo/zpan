@@ -25,6 +25,9 @@ generate: ## generate the static assets
 
 build: mod ## Build the binary file
 	go build -v -o build/bin/$(PROJECT) $(MAINFILE)
+	sudo apt-get install g++-arm-linux-gnueabi -y
+	sudo apt-get install gcc-arm-linux-gnueabi -y
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm CC=arm-linux-gnueabi-gcc CGO_LDFLAGS="-static" go build -v -o build/bin/arm64-$(PROJECT) $(MAINFILE)
 
 swag:
 	swag init -g internal/app/api/router.go --exclude client --parseDependency --parseDepth 1 --output internal/docs
