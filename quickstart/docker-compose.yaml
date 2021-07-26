@@ -10,8 +10,8 @@ services:
     volumes:
       - minio:/data
     environment:
-      - MINIO_ROOT_USER=zpanminotest
-      - MINIO_ROOT_PASSWORD=zpanminotestpwd
+      - MINIO_ROOT_USER=zpan
+      - MINIO_ROOT_PASSWORD=zpanminio
       - MINIO_DOMAIN=minio.localhost
 
   zpan:
