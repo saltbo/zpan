@@ -17,9 +17,9 @@ func NewUserKey() *UserKey {
 	return &UserKey{}
 }
 
-func (u *UserKey) Find(name string) (*model.UserKey, error) {
+func (u *UserKey) Find(uid int64, name string) (*model.UserKey, error) {
 	uk := new(model.UserKey)
-	if err := gdb.Where("name=?", name).First(uk).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := gdb.Where("uid=? and name=?", uid, name).First(uk).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("userKey not exist")
 	}
 
@@ -46,7 +46,7 @@ func (u *UserKey) FindAll(query *Query) (list []*model.UserKey, total int64, err
 }
 
 func (u *UserKey) Create(uk *model.UserKey) (*model.UserKey, error) {
-	if _, err := u.Find(uk.Name); err == nil {
+	if _, err := u.Find(uk.Uid, uk.Name); err == nil {
 		return nil, fmt.Errorf("userKey already exist: %s", uk.Name)
 	}
 
