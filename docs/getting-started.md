@@ -26,7 +26,7 @@ docker run -it -p 8222:8222 -v /etc/zpan:/etc/zpan --name zpan saltbo/zpan
 ### StartWithMinIO
 ```bash
 mkdir localzpan && cd localzpan
-curl -L https://raw.githubusercontent.com/saltbo/zpan/master/quickstart/docker-componse.yml -o docker-componse.yml
+curl -L https://raw.githubusercontent.com/saltbo/zpan/master/quickstart/docker-compose.yaml -o docker-compose.yaml
 docker-componse up -d
 ```
 
