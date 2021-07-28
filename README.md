@@ -3,8 +3,8 @@ ZPan - Your Last disk on the cloud.
 
 [![](https://github.com/saltbo/zpan/workflows/build/badge.svg)](https://github.com/saltbo/zpan/actions?query=workflow%3Abuild)
 [![](https://codecov.io/gh/saltbo/zpan/branch/master/graph/badge.svg)](https://codecov.io/gh/saltbo/zpan)
-[![](https://wakatime.com/badge/github/saltbo/zpan.svg)](https://wakatime.com/badge/github/saltbo/zpan)
-[![](https://api.codacy.com/project/badge/Grade/88817db9b3b04c0293c9d001d574a5ef)](https://app.codacy.com/manual/saltbo/zpan?utm_source=github.com&utm_medium=referral&utm_content=saltbo/zpan&utm_campaign=Badge_Grade_Dashboard)
+[![](https://img.shields.io/github/downloads/saltbo/zpan/total.svg)](https://github.com/saltbo/zpan/releases)
+[![](https://img.shields.io/docker/pulls/saltbo/zpan.svg)](https://hub.docker.com/r/saltbo/zpan)
 [![](https://img.shields.io/github/v/release/saltbo/zpan.svg)](https://github.com/saltbo/zpan/releases)
 [![](https://img.shields.io/github/license/saltbo/zpan.svg)](https://github.com/saltbo/zpan/blob/master/LICENSE)
 
