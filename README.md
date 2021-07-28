@@ -35,7 +35,7 @@ Thank you to all the people who already contributed to ZPan!
 
 ## Stargazers over time
 
-[![Stargazers over time](https://starcharts.herokuapp.com/saltbo/zpan.svg)](https://starcharts.herokuapp.com/saltbo/zpan)
+[![Stargazers over time](https://starchart.cc/saltbo/zpan.svg)](https://starchart.cc/saltbo/zpan)
 
 ## License
 ZPan is under the GPL 3.0 license. See the [LICENSE](/LICENSE) file for details.
