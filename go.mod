@@ -3,18 +3,16 @@ module github.com/saltbo/zpan
 // +heroku goVersion go1.16
 go 1.16
 
-//replace github.com/saltbo/gopkg => /opt/works/gopkg
-
 require (
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/aliyun/aliyun-oss-go-sdk v2.1.6+incompatible
 	github.com/aws/aws-sdk-go v1.34.14
 	github.com/baiyubin/aliyun-sts-go-sdk v0.0.0-20180326062324-cfa1a18b161f // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.7.0
-	github.com/go-oauth2/oauth2/v4 v4.3.0
+	github.com/go-oauth2/oauth2/v4 v4.4.1
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.1.1
-	github.com/saltbo/gopkg v0.0.0-20200905151036-32195ea0b27b
+	github.com/saltbo/gopkg v0.0.0-20210807060851-127038a22f0d
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.1
@@ -32,3 +30,5 @@ require (
 	gorm.io/driver/sqlserver v1.0.5
 	gorm.io/gorm v1.20.11
 )
+
+//replace github.com/saltbo/gopkg => /opt/works/gopkg
