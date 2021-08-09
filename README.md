@@ -27,16 +27,19 @@ ZPan - Your Last disk on the cloud.
 - [English](https://zpan.space/#/en/)
 
 
+## Special thanks
+
+[![JetBrains](https://raw.githubusercontent.com/kainonly/ngx-bit/main/resource/jetbrains.svg)](https://www.jetbrains.com/?from=saltbo)
+
+Thanks for non-commercial open source development authorization by JetBrains
+
 ## Contributing
 See [CONTRIBUTING](CONTRIBUTING.md) for details on submitting patches and the contribution workflow.
 
 Thank you to all the people who already contributed to ZPan!
 <a href="https://github.com/saltbo/zpan/graphs/contributors"><img src="https://opencollective.com/zpan/contributors.svg?width=890" /></a>
 
-## Stargazers over time
-
 [![Stargazers over time](https://starchart.cc/saltbo/zpan.svg)](https://starchart.cc/saltbo/zpan)
 
 ## License
 ZPan is under the GPL 3.0 license. See the [LICENSE](/LICENSE) file for details.
-
