@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
 	"github.com/saltbo/gopkg/strutil"
@@ -193,8 +193,8 @@ func (rs *ShareResource) findMatter(c *gin.Context) {
 	}
 
 	mMatter, err := rs.dMatter.Find(share.Matter)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		ginutil.JSONBadRequest(c, fmt.Errorf("matter not found"))
+	if err != nil {
+		ginutil.JSONServerError(c, err)
 		return
 	}
 

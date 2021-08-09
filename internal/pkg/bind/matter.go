@@ -1,6 +1,9 @@
 package bind
 
 import (
+	"mime"
+	"path/filepath"
+
 	"github.com/saltbo/zpan/internal/app/model"
 )
 
@@ -22,6 +25,15 @@ type BodyMatter struct {
 }
 
 func (p *BodyMatter) ToMatter(uid int64) *model.Matter {
+	detectType := func(name string) string {
+		cType := mime.TypeByExtension(filepath.Ext(p.Name))
+		if cType != "" {
+			return cType
+		}
+
+		return "application/octet-stream"
+	}
+
 	m := model.NewMatter(uid, p.Sid, p.Name)
 	m.Type = p.Type
 	m.Size = p.Size
@@ -29,7 +41,7 @@ func (p *BodyMatter) ToMatter(uid int64) *model.Matter {
 	if p.IsDir {
 		m.DirType = model.DirTypeUser
 	} else if p.Type == "" {
-		p.Type = "application/octet-stream"
+		m.Type = detectType(p.Name)
 	}
 
 	return m
