@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/timeutil"
 
 	"github.com/saltbo/zpan/internal/app/dao"
@@ -87,36 +88,56 @@ func (f *File) UploadDone(uid int64, alias string) (*model.Matter, error) {
 		return nil, err
 	}
 
-	link, err := f.BuildGetURL(alias)
+	return m, f.BuildGetURL(m)
+}
+
+func (f File) GetMatter(uid int64, alias string) (*model.Matter, error) {
+	m, err := f.dMatter.FindUserMatter(uid, alias)
 	if err != nil {
 		return nil, err
 	}
 
-	m.URL = link
-	return m, nil
+	return m, f.BuildGetURL(m)
 }
 
-func (f *File) BuildGetURL(alias string) (string, error) {
-	m, err := f.dMatter.Find(alias)
-	if err != nil {
-		return "", err
-	}
-
+func (f *File) BuildGetURL(m *model.Matter) error {
 	storage, err := f.sStorage.Get(m.Sid)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	provider, err := f.sStorage.GetProviderByStorage(storage)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if storage.PublicRead() {
-		return provider.PublicURL(m.Object), nil
+		m.URL = provider.PublicURL(m.Object)
+		return nil
 	}
 
-	return provider.SignedGetURL(m.Object, m.Name)
+	link, err := provider.SignedGetURL(m.Object, m.Name)
+	m.URL = link
+	return err
+}
+
+func (f *File) BuildPutURL(m *model.Matter) (interface{}, error) {
+	storage, err := f.sStorage.Get(m.Sid)
+	if err != nil {
+		return nil, err
+	}
+
+	provider, err := f.sStorage.GetProviderByStorage(storage)
+	if err != nil {
+		return nil, err
+	}
+
+	link, headers, err := provider.SignedPutURL(m.Object, m.Type, m.Size, storage.PublicRead())
+	if err != nil {
+		return nil, err
+	}
+
+	return gin.H{"link": link, "headers": headers}, nil
 }
 
 func (f *File) Rename(uid int64, alias, name string) error {

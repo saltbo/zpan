@@ -22,7 +22,8 @@ func NewFileResource() ginutil.Resource {
 func (rs *FileResource) Register(router *gin.RouterGroup) {
 	router.POST("/matters", rs.create)
 	router.GET("/matters", rs.findAll)
-	router.GET("/matters/:alias/link", rs.find)
+	router.GET("/matters/:alias", rs.find)
+	router.GET("/matters/:alias/ulink", rs.ulink)
 	router.PATCH("/matters/:alias/done", rs.uploaded)
 	router.PATCH("/matters/:alias/name", rs.rename)
 	router.PATCH("/matters/:alias/location", rs.move)
@@ -94,16 +95,13 @@ func (rs *FileResource) uploaded(c *gin.Context) {
 }
 
 func (rs *FileResource) find(c *gin.Context) {
-	alias := c.Param("alias")
-	link, err := rs.fs.CreateFileLink(alias)
+	matter, err := rs.fs.GetFileInfo(authed.UidGet(c), c.Param("alias"))
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
-	ginutil.JSONData(c, gin.H{
-		"link": link,
-	})
+	ginutil.JSONData(c, matter)
 }
 
 func (rs *FileResource) rename(c *gin.Context) {
@@ -166,4 +164,14 @@ func (rs *FileResource) delete(c *gin.Context) {
 	}
 
 	ginutil.JSON(c)
+}
+
+func (rs *FileResource) ulink(c *gin.Context) {
+	data, err := rs.fs.GetSaveRequest(authed.UidGet(c), c.Param("alias"))
+	if err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSONData(c, data)
 }

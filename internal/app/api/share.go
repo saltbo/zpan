@@ -10,6 +10,7 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
 	"github.com/saltbo/gopkg/strutil"
+	"github.com/saltbo/zpan/internal/pkg/fakefs"
 	"gorm.io/gorm"
 
 	"github.com/saltbo/zpan/internal/app/dao"
@@ -23,12 +24,14 @@ const ShareCookieTokenKey = "share-token"
 type ShareResource struct {
 	jwtutil.JWTUtil
 
+	fs      *fakefs.FakeFS
 	dShare  *dao.Share
 	dMatter *dao.Matter
 }
 
 func NewShareResource() ginutil.Resource {
 	return &ShareResource{
+		fs:      fakefs.New(),
 		dShare:  dao.NewShare(),
 		dMatter: dao.NewMatter(),
 	}
@@ -192,7 +195,7 @@ func (rs *ShareResource) findMatter(c *gin.Context) {
 		return
 	}
 
-	mMatter, err := rs.dMatter.Find(share.Matter)
+	mMatter, err := rs.fs.GetFileInfo(share.Uid, share.Matter)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return

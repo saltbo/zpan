@@ -139,8 +139,17 @@ func (fs *FakeFS) CreateFolder(m *model.Matter) (interface{}, error) {
 	return m, err
 }
 
-func (fs *FakeFS) CreateFileLink(alias string) (string, error) {
-	return fs.sFile.BuildGetURL(alias)
+func (fs *FakeFS) GetFileInfo(uid int64, alias string) (*model.Matter, error) {
+	return fs.sFile.GetMatter(uid, alias)
+}
+
+func (fs *FakeFS) GetSaveRequest(uid int64, alias string) (interface{}, error) {
+	m, err := fs.dMatter.FindUserMatter(uid, alias)
+	if err != nil {
+		return nil, err
+	}
+
+	return fs.sFile.BuildPutURL(m)
 }
 
 func (fs *FakeFS) TagUploadDone(uid int64, alias string) (*model.Matter, error) {
