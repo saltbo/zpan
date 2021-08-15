@@ -127,9 +127,8 @@ func (fs *FakeFS) CreateFile(m *model.Matter) (interface{}, error) {
 	}
 
 	return gin.H{
-		"alias":   m.Alias,
-		"object":  m.Object,
-		"link":    link,
+		"matter":  m,
+		"uplink":  link,
 		"headers": headers,
 	}, nil
 }
