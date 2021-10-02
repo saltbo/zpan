@@ -17,16 +17,7 @@ func NewStorage() *Storage {
 }
 
 func (s *Storage) Create(storage *model.Storage) error {
-	conf := &provider.Config{
-		Provider:     storage.Provider,
-		Bucket:       storage.Bucket,
-		Endpoint:     storage.Endpoint,
-		Region:       storage.Region,
-		CustomHost:   storage.CustomHost,
-		AccessKey:    storage.AccessKey,
-		AccessSecret: storage.SecretKey,
-	}
-	p, err := provider.New(conf)
+	p, err := provider.New(s.buildConfig(storage))
 	if err != nil {
 		return err
 	}
@@ -67,13 +58,17 @@ func (s *Storage) GetProviderByStorage(storage *model.Storage) (provider.Provide
 		return &provider.MockProvider{}, nil
 	}
 
-	conf := &provider.Config{
+	return provider.New(s.buildConfig(storage))
+}
+
+func (s *Storage) buildConfig(storage *model.Storage) *provider.Config {
+	return &provider.Config{
 		Provider:     storage.Provider,
 		Bucket:       storage.Bucket,
 		Endpoint:     storage.Endpoint,
+		Region:       storage.Region,
 		CustomHost:   storage.CustomHost,
 		AccessKey:    storage.AccessKey,
 		AccessSecret: storage.SecretKey,
 	}
-	return provider.New(conf)
 }
