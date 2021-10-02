@@ -55,9 +55,6 @@ func TestPreSignPutURL(t *testing.T) {
 	assert.Equal(t, nm.Size, m.Size)
 	assert.Equal(t, nm.Type, m.Type)
 	assert.Equal(t, nm.Parent, m.Parent)
-
-	_, err = fs.CreateFileLink(m.Alias)
-	assert.NoError(t, err)
 }
 
 func TestFileRename(t *testing.T) {
