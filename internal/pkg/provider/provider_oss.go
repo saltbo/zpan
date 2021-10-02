@@ -38,7 +38,7 @@ func (p *OSSProvider) SetupCORS() error {
 
 	zRule := oss.CORSRule{
 		AllowedOrigin: []string{"*"},
-		AllowedMethod: []string{"PUT"},
+		AllowedMethod: corsAllowMethods,
 		AllowedHeader: corsAllowHeaders,
 		MaxAgeSeconds: 300,
 	}

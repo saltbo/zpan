@@ -53,7 +53,7 @@ func (p *COSProvider) SetupCORS() error {
 
 	zRule := cos.BucketCORSRule{
 		AllowedOrigins: []string{"*"},
-		AllowedMethods: []string{"PUT"},
+		AllowedMethods: corsAllowMethods,
 		AllowedHeaders: corsAllowHeaders,
 		MaxAgeSeconds:  300,
 	}

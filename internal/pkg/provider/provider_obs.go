@@ -38,7 +38,7 @@ func (p *OBSProvider) SetupCORS() error {
 
 	zRule := obs.CorsRule{
 		AllowedOrigin: []string{"*"},
-		AllowedMethod: []string{"PUT"},
+		AllowedMethod: corsAllowMethods,
 		AllowedHeader: corsAllowHeaders,
 		MaxAgeSeconds: 300,
 	}

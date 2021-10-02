@@ -10,7 +10,10 @@ import (
 
 var urlEncode = url.QueryEscape
 
-var corsAllowHeaders = []string{"content-type", "content-disposition", "x-amz-acl"}
+var (
+	corsAllowMethods = []string{"GET", "PUT"}
+	corsAllowHeaders = []string{"content-type", "content-disposition", "x-amz-acl"}
+)
 
 const (
 	defaultUploadExp   = time.Hour

@@ -59,14 +59,19 @@ func (p *S3Provider) SetupCORS() error {
 		corsRules = append(corsRules, output.CORSRules...)
 	}
 
-	allowedHeaders := make([]*string, 0)
-	for _, header := range corsAllowHeaders {
-		allowedHeaders = append(allowedHeaders, aws.String(header))
+	convert := func(rSlice []string) []*string {
+		slice := make([]*string, 0)
+		for _, v := range rSlice {
+			slice = append(slice, aws.String(v))
+		}
+
+		return slice
 	}
+
 	corsRules = append(corsRules, &s3.CORSRule{
 		AllowedOrigins: []*string{aws.String("*")},
-		AllowedMethods: []*string{aws.String("PUT")},
-		AllowedHeaders: allowedHeaders,
+		AllowedMethods: convert(corsAllowMethods),
+		AllowedHeaders: convert(corsAllowHeaders),
 		MaxAgeSeconds:  aws.Int64(300),
 	})
 
