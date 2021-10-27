@@ -32,7 +32,7 @@ type Storage struct {
 	RootPath   string         `json:"root_path" gorm:"size:64;not null"`
 	FilePath   string         `json:"file_path" gorm:"size:1024;not null"`
 	Status     int8           `json:"status" gorm:"size:1;default:1;not null"`
-	Created    time.Time      `json:"created" gorm:"autoCreateTime;not null"`
+	Created    time.Time      `json:"created" gorm:"->;<-:create;autoCreateTime;not null"`
 	Updated    time.Time      `json:"updated" gorm:"autoUpdateTime;not null"`
 	Deleted    gorm.DeletedAt `json:"-"`
 }
