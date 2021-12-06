@@ -14,8 +14,8 @@ func (m *MockProvider) SetupCORS() error {
 
 func (m *MockProvider) Head(object string) (*Object, error) {
 	return &Object{
-		Key:      "20210709/86JzAOLIlGZ5Z2Fk.zip",
-		Type:     "application/zip",
+		Key:  "20210709/86JzAOLIlGZ5Z2Fk.zip",
+		Type: "application/zip",
 	}, nil
 }
 
@@ -47,4 +47,20 @@ func (m *MockProvider) ObjectDelete(key string) error {
 
 func (m *MockProvider) ObjectsDelete(keys []string) error {
 	return nil
+}
+
+func (m *MockProvider) CreateMultipartUpload(key, filetype string, public bool) (uid string, err error) {
+	return "", nil
+}
+
+func (m *MockProvider) CompleteMultipartUpload(key, uid string, parts []*ObjectPart) error {
+	return nil
+}
+
+func (m *MockProvider) SignedPartPutURL(key, uid string, partSize, partNumber int64) (string, http.Header, error) {
+	return "", nil, nil
+}
+
+func (m *MockProvider) HasMultipartSupport() bool {
+	return false
 }

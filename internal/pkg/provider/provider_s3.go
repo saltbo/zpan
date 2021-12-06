@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -72,6 +73,7 @@ func (p *S3Provider) SetupCORS() error {
 		AllowedOrigins: []*string{aws.String("*")},
 		AllowedMethods: convert(corsAllowMethods),
 		AllowedHeaders: convert(corsAllowHeaders),
+		ExposeHeaders:  convert(corsExposeHeader),
 		MaxAgeSeconds:  aws.Int64(300),
 	})
 
@@ -210,6 +212,64 @@ func (p *S3Provider) ObjectsDelete(objectKeys []string) error {
 	}
 	_, err := p.client.DeleteObjects(input)
 	return err
+}
+
+func (p *S3Provider) HasMultipartSupport() bool {
+	return true
+}
+
+func (p *S3Provider) CreateMultipartUpload(key, filetype string, public bool) (string, error) {
+	acl := s3.ObjectCannedACLAuthenticatedRead
+	if public {
+		acl = s3.ObjectCannedACLPublicRead
+	}
+
+	input := &s3.CreateMultipartUploadInput{
+		Bucket:      aws.String(p.bucket),
+		Key:         aws.String(key),
+		ACL:         aws.String(acl),
+		ContentType: aws.String(filetype),
+	}
+
+	output, err := p.client.CreateMultipartUpload(input)
+	if err != nil {
+		return "", nil
+	}
+	return *output.UploadId, nil
+}
+
+func (p *S3Provider) CompleteMultipartUpload(key, uid string, parts []*ObjectPart) error {
+	completedParts := make([]*s3.CompletedPart, 0, len(parts))
+	for _, part := range parts {
+		completedParts = append(completedParts, &s3.CompletedPart{
+			ETag:       aws.String(part.Etag),
+			PartNumber: aws.Int64(part.PartNumber),
+		})
+	}
+	sort.Slice(completedParts, func(i, j int) bool {
+		return *completedParts[i].PartNumber < *completedParts[j].PartNumber
+	})
+	input := &s3.CompleteMultipartUploadInput{
+		Bucket:          aws.String(p.bucket),
+		Key:             aws.String(key),
+		UploadId:        aws.String(uid),
+		MultipartUpload: &s3.CompletedMultipartUpload{Parts: completedParts},
+	}
+	_, err := p.client.CompleteMultipartUpload(input)
+	return err
+}
+
+func (p *S3Provider) SignedPartPutURL(key, uid string, partSize, partNumber int64) (string, http.Header, error) {
+	input := &s3.UploadPartInput{
+		Bucket:        aws.String(p.bucket),
+		Key:           aws.String(key),
+		ContentLength: aws.Int64(partSize),
+		PartNumber:    aws.Int64(partNumber),
+		UploadId:      aws.String(uid),
+	}
+	req, _ := p.client.UploadPartRequest(input)
+	us, headers, err := req.PresignRequest(defaultUploadExp)
+	return us, headerRebuild(headers), err
 }
 
 func headerRebuild(h http.Header) http.Header {

@@ -13,6 +13,7 @@ var urlEncode = url.QueryEscape
 var (
 	corsAllowMethods = []string{"GET", "PUT"}
 	corsAllowHeaders = []string{"content-type", "content-disposition", "x-amz-acl"}
+	corsExposeHeader = []string{"etag"}
 )
 
 const (
@@ -28,6 +29,13 @@ type Object struct {
 	Type     string // local file type, added or changed
 }
 
+type ObjectPart struct {
+	Etag       string
+	PartNumber int64
+}
+
+type ObjectParts = []*ObjectPart
+
 type Provider interface {
 	SetupCORS() error
 	Head(object string) (*Object, error)
@@ -38,6 +46,10 @@ type Provider interface {
 	PublicURL(key string) (url string)
 	ObjectDelete(key string) error
 	ObjectsDelete(keys []string) error
+	CreateMultipartUpload(key, filetype string, public bool) (uid string, err error)
+	CompleteMultipartUpload(key, uid string, parts ObjectParts) error
+	SignedPartPutURL(key, uid string, partSize, partNumber int64) (string, http.Header, error)
+	HasMultipartSupport() bool
 }
 
 type Config struct {

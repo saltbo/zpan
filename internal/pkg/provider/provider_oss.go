@@ -40,6 +40,7 @@ func (p *OSSProvider) SetupCORS() error {
 		AllowedOrigin: []string{"*"},
 		AllowedMethod: corsAllowMethods,
 		AllowedHeader: corsAllowHeaders,
+		ExposeHeader:  corsExposeHeader,
 		MaxAgeSeconds: 300,
 	}
 	return p.client.SetBucketCORS(p.bucket, append(existRules, zRule))

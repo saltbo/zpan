@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -13,6 +14,8 @@ import (
 
 type Matter struct {
 }
+
+var lock sync.Mutex
 
 func NewMatter() *Matter {
 	return &Matter{}
@@ -60,6 +63,8 @@ func (ms *Matter) UnscopedChildren(uid int64, recycleAlias string) (children []m
 }
 
 func (ms *Matter) Create(matter *model.Matter) error {
+	lock.Lock()
+	defer lock.Unlock()
 	if _, ok := ms.Exist(matter.Uid, matter.Name, matter.Parent); ok {
 		return fmt.Errorf("matter already exist")
 	}

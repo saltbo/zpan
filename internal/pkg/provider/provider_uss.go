@@ -110,6 +110,22 @@ func (p *USSProvider) ObjectsDelete(keys []string) error {
 	return nil
 }
 
+func (p *USSProvider) HasMultipartSupport() bool {
+	return false
+}
+
+func (p *USSProvider) CreateMultipartUpload(key, filetype string, public bool) (uid string, err error) {
+	return "", fmt.Errorf("not realized")
+}
+
+func (p *USSProvider) CompleteMultipartUpload(key, uid string, parts []*ObjectPart) error {
+	return fmt.Errorf("not realized")
+}
+
+func (p *USSProvider) SignedPartPutURL(key, uid string, partSize, partNumber int64) (string, http.Header, error) {
+	return "", nil, fmt.Errorf("not realized")
+}
+
 func (p *USSProvider) buildSign(items ...string) string {
 	mac := hmac.New(sha1.New, []byte(strutil.Md5Hex(p.conf.AccessSecret)))
 	mac.Write([]byte(strings.Join(items, "&")))

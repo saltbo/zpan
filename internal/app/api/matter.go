@@ -25,9 +25,11 @@ func (rs *FileResource) Register(router *gin.RouterGroup) {
 	router.GET("/matters/:alias", rs.find)
 	router.GET("/matters/:alias/ulink", rs.ulink)
 	router.PATCH("/matters/:alias/done", rs.uploaded)
+	router.PATCH("/matters/:alias/done/multipart", rs.uploadedMultipart)
 	router.PATCH("/matters/:alias/name", rs.rename)
 	router.PATCH("/matters/:alias/location", rs.move)
 	router.PATCH("/matters/:alias/duplicate", rs.copy)
+	router.PATCH("/matters/:alias/part", rs.uploadPart)
 	router.DELETE("/matters/:alias", rs.delete)
 	rs.fs.StartFileAutoDoneWorker()
 }
@@ -68,9 +70,13 @@ func (rs *FileResource) create(c *gin.Context) {
 	}
 
 	m := p.ToMatter(authed.UidGet(c))
-	op := rs.fs.CreateFile
-	if m.IsDir() {
-		op = rs.fs.CreateFolder
+	op := rs.fs.CreateFolder
+	if !m.IsDir() {
+		if rs.fs.TouchSupport(m) && m.Size > 10000000 {
+			op = rs.fs.TouchFile
+		} else {
+			op = rs.fs.CreateFile
+		}
 	}
 
 	data, err := op(m)
@@ -82,6 +88,40 @@ func (rs *FileResource) create(c *gin.Context) {
 	ginutil.JSONData(c, data)
 }
 
+func (rs *FileResource) uploadPart(c *gin.Context) {
+	p := new(bind.BodyMatterMultipart)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+	uid := authed.UidGet(c)
+	alias := c.Param("alias")
+	m, err := rs.fs.CreateFilePart(uid, alias, p)
+	if err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSONData(c, m)
+}
+
+func (rs *FileResource) uploadedMultipart(c *gin.Context) {
+	p := new(bind.BodyMatterMultipart)
+	if err := c.ShouldBindJSON(p); err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+	uid := authed.UidGet(c)
+	alias := c.Param("alias")
+	m, err := rs.fs.FinishFilePart(uid, alias, p)
+	if err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	ginutil.JSONData(c, m)
+}
+
 func (rs *FileResource) uploaded(c *gin.Context) {
 	uid := authed.UidGet(c)
 	alias := c.Param("alias")
@@ -90,7 +130,6 @@ func (rs *FileResource) uploaded(c *gin.Context) {
 		ginutil.JSONServerError(c, err)
 		return
 	}
-
 	ginutil.JSONData(c, m)
 }
 

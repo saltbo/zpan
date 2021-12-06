@@ -53,6 +53,13 @@ func NewMatter(uid, sid int64, name string) *Matter {
 	}
 }
 
+func NewDirMatter(uid, sid int64, name, parent string) *Matter {
+	m := NewMatter(uid, sid, name)
+	m.Parent = parent
+	m.DirType = DirTypeUser
+	return m
+}
+
 func (Matter) TableName() string {
 	return "zp_matter"
 }

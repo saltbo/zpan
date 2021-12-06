@@ -27,6 +27,19 @@ func (f *Folder) Create(matter *model.Matter) error {
 	return f.dMatter.Create(matter)
 }
 
+func (f *Folder) CreateIfNotExist(matter *model.Matter) error {
+	err := f.Create(matter)
+	if err == nil || err.Error() == "matter already exist" {
+		return nil
+	}
+	return err
+}
+
+func (f *Folder) Exist(matter *model.Matter) bool {
+	_, ok := f.dMatter.Exist(matter.Uid, matter.Name, matter.Parent)
+	return ok
+}
+
 func (f *Folder) Rename(uid int64, alias, name string) error {
 	m, err := f.dMatter.FindUserMatter(uid, alias)
 	if err != nil {

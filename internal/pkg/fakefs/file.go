@@ -9,10 +9,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/timeutil"
-
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
 	"github.com/saltbo/zpan/internal/app/service"
+	"github.com/saltbo/zpan/internal/pkg/provider"
 )
 
 type File struct {
@@ -89,6 +89,80 @@ func (f *File) UploadDone(uid int64, alias string) (*model.Matter, error) {
 	}
 
 	return m, f.BuildGetURL(m)
+}
+
+func (f *File) PrepareMultipart(matter *model.Matter) (uid string, err error) {
+	if !f.dMatter.ParentExist(matter.Uid, matter.Parent) {
+		return "", fmt.Errorf("dir does not exists")
+	}
+
+	//	auto append a suffix if matter exist
+	if _, ok := f.dMatter.Exist(matter.Uid, matter.Name, matter.Parent); ok {
+		ext := filepath.Ext(matter.Name)
+		name := strings.TrimSuffix(matter.Name, ext)
+		suffix := fmt.Sprintf("_%s", timeutil.Format(time.Now(), "YYYYMMDD_HHmmss"))
+		matter.Name = name + suffix + ext
+	}
+
+	storage, err := f.sStorage.Get(matter.Sid)
+	if err != nil {
+		return "", err
+	}
+
+	matter.BuildObject(storage.RootPath, storage.FilePath)
+	provider, err := f.sStorage.GetProviderByStorage(storage)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: 对外链盘自动标记上传完成的逻辑
+	// if storage.Mode == model.StorageModeOutline {
+	// 	f.fileWaiter.Wait(provider, matter, f.UploadDone)
+	// }
+
+	uid, err = provider.CreateMultipartUpload(matter.Object, matter.Type, storage.PublicRead())
+	if err != nil {
+		return
+	}
+
+	err = f.dMatter.Create(matter)
+	return
+}
+
+func (f *File) PreSignMultipartPutURL(matter *model.Matter, uploadId string, partNumber, partSize int64) (url string, headers http.Header, err error) {
+	storage, err := f.sStorage.Get(matter.Sid)
+	if err != nil {
+		return "", nil, err
+	}
+	provider, err := f.sStorage.GetProviderByStorage(storage)
+	if err != nil {
+		return "", nil, err
+	}
+	return provider.SignedPartPutURL(matter.Object, uploadId, partSize, partNumber)
+}
+
+func (f *File) MultipartUploadDone(matter *model.Matter, uploadId string, parts provider.ObjectParts) error {
+	storage, err := f.sStorage.Get(matter.Sid)
+	if err != nil {
+		return err
+	}
+	provider, err := f.sStorage.GetProviderByStorage(storage)
+	if err != nil {
+		return err
+	}
+	return provider.CompleteMultipartUpload(matter.Object, uploadId, parts)
+}
+
+func (f *File) HasMultipartSupport(sid int64) bool {
+	storage, err := f.sStorage.Get(sid)
+	if err != nil {
+		return false
+	}
+	provider, err := f.sStorage.GetProviderByStorage(storage)
+	if err != nil {
+		return false
+	}
+	return provider.HasMultipartSupport()
 }
 
 func (f File) GetMatter(uid int64, alias string) (*model.Matter, error) {

@@ -120,8 +120,74 @@ func (fs *FakeFS) CreateFile(m *model.Matter) (interface{}, error) {
 	} else if user.Storage.Overflowed(m.Size) {
 		return nil, fmt.Errorf("service not enough space")
 	}
+	return fs.createFile(m)
+}
 
+func (fs *FakeFS) createFile(m *model.Matter) (interface{}, error) {
+	pathAndName := strings.Split(m.Name, "/")
+	if len(pathAndName) > 1 {
+		name := pathAndName[len(pathAndName)-1]
+		path := strings.Join(pathAndName[0:len(pathAndName)-1], "/")
+		dm := model.NewDirMatter(m.Uid, m.Sid, path, m.Parent)
+		_, err := fs.CreateFolder(dm)
+		if err != nil {
+			return nil, err
+		}
+		m.Name = name
+		m.Parent += path + "/"
+		return fs.createFile(m)
+	}
 	link, headers, err := fs.sFile.PreSignPutURL(m)
+	if err != nil {
+		return nil, err
+	}
+	return gin.H{
+		"matter":  m,
+		"uplink":  link,
+		"headers": headers,
+	}, nil
+}
+
+func (fs *FakeFS) TouchSupport(m *model.Matter) bool {
+	return fs.sFile.HasMultipartSupport(m.Sid)
+}
+
+func (fs *FakeFS) TouchFile(m *model.Matter) (interface{}, error) {
+	pathAndName := strings.Split(m.Name, "/")
+	if len(pathAndName) > 1 {
+		name := pathAndName[len(pathAndName)-1]
+		path := strings.Join(pathAndName[0:len(pathAndName)-1], "/")
+		dm := model.NewDirMatter(m.Uid, m.Sid, path, m.Parent)
+		_, err := fs.CreateFolder(dm)
+		if err != nil {
+			return nil, err
+		}
+		m.Name = name
+		m.Parent += path + "/"
+		return fs.TouchFile(m)
+	}
+	uploadId, err := fs.sFile.PrepareMultipart(m)
+	return gin.H{
+		"matter":    m,
+		"upload_id": uploadId,
+		"multipart": true,
+	}, err
+}
+
+func (fs *FakeFS) CreateFilePart(uid int64, alias string, mInfo *bind.BodyMatterMultipart) (interface{}, error) {
+	m, err := fs.dMatter.FindUserMatter(uid, alias)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := dao.NewUser().Find(m.Uid)
+	if err != nil {
+		return nil, err
+	} else if user.Storage.Overflowed(m.Size) {
+		return nil, fmt.Errorf("service not enough space")
+	}
+
+	link, headers, err := fs.sFile.PreSignMultipartPutURL(m, mInfo.UploadId, mInfo.PartNumber, mInfo.PartSize)
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +199,31 @@ func (fs *FakeFS) CreateFile(m *model.Matter) (interface{}, error) {
 	}, nil
 }
 
+func (fs *FakeFS) FinishFilePart(uid int64, alias string, mInfo *bind.BodyMatterMultipart) (*model.Matter, error) {
+	m, err := fs.dMatter.FindUserMatter(uid, alias)
+	if err != nil {
+		return nil, err
+	}
+	err = fs.sFile.MultipartUploadDone(m, mInfo.UploadId, mInfo.GetParts())
+	if err != nil {
+		return nil, err
+	}
+	return fs.TagUploadDone(uid, alias)
+}
+
 func (fs *FakeFS) CreateFolder(m *model.Matter) (interface{}, error) {
-	err := fs.sFolder.Create(m)
+	dirNames := strings.SplitN(m.Name, "/", 2)
+	m.Name = dirNames[0]
+	err := fs.sFolder.CreateIfNotExist(m)
+	if err != nil {
+		return nil, err
+	}
+	if len(dirNames) > 1 {
+		nm := m.Clone()
+		nm.Parent += m.Name + "/"
+		nm.Name = dirNames[1]
+		return fs.CreateFolder(nm)
+	}
 	return m, err
 }
 
