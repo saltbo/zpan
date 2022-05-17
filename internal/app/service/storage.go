@@ -71,6 +71,7 @@ func (s *Storage) GetProviderByStorage(storage *model.Storage) (provider.Provide
 		Provider:     storage.Provider,
 		Bucket:       storage.Bucket,
 		Endpoint:     storage.Endpoint,
+		Region:       storage.Region,
 		CustomHost:   storage.CustomHost,
 		AccessKey:    storage.AccessKey,
 		AccessSecret: storage.SecretKey,
