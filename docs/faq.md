@@ -33,6 +33,6 @@ docker run -it -v /etc/zpan:/etc/zpan zpan
 - 邮箱：saltbo@foxmail.com
 - 微信：saltbo
   
-<img src="https://static.saltbo.cn/images/image-20201110234507523.png" alt="image-20201110234507523" style="zoom: 25%;" />
+<img src="/static/images/wechat.png" alt="wechat" style="zoom: 25%;" />
 
 扫码备注ZPan进入微信群，和我一起完善这个产品。

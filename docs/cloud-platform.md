@@ -13,7 +13,7 @@
 
 ### 基础配置
 
-<img src="https://static.saltbo.cn/images/image-20210712165603221.png" alt="image-20210712165603221" style="zoom:50%;" />
+<img src="/static/images/cloud-platform/image-20210712165603221.png" alt="image-20210712165603221" style="zoom:50%;" />
 
 1. 网盘和外链盘的区别是：外链盘可以直接拿到永久外链，同时它没有分享和回收站的功能
 2. 名称是在zpan中该存储的名字，同时也是路由地址，所以只支持英文
@@ -22,7 +22,7 @@
 
 ### 高级配置
 
-![image-20210712170751044](https://static.saltbo.cn/images/image-20210712170751044.png)
+![image-20210712170751044](/static/images/cloud-platform/image-20210712170751044.png)
 
 1. 高级配置默认都可为空
 2. 标题可以是中文，用于在页面顶部的导航栏显示
@@ -70,6 +70,6 @@
 2. AccessKey为操作员名称，AccessSecret为操作员密码
 3. **如果是网盘类型，需要将Token防盗链的秘钥设置为操作员的密码**
 
-![image-20210712172027775](https://static.saltbo.cn/images/image-20210712172027775.png)![image-20210712172346760](https://static.saltbo.cn/images/image-20210712172346760.png)
+![image-20210712172027775](/static/images/cloud-platform/image-20210712172027775.png)![image-20210712172346760](/static/images/cloud-platform/image-20210712172346760.png)
 
-![image-20210712172707803](https://static.saltbo.cn/images/image-20210712172707803.png)
+![image-20210712172707803](/static/images/cloud-platform/image-20210712172707803.png)
