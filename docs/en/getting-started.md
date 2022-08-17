@@ -1,7 +1,7 @@
 ## Linux
 ```bash
 # install service
-curl -sSf https://dl.saltbo.cn/install.sh | sh -s zpan
+curl -sSLf https://dl.saltbo.cn/install.sh | sh -s zpan
 
 # start service
 systemctl start zpan
