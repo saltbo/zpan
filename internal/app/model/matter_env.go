@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/saltbo/gopkg/strutil"
 	"github.com/saltbo/gopkg/timeutil"
-	uuid "github.com/satori/go.uuid"
 )
 
 type MatterEnv struct {
@@ -25,7 +25,7 @@ func (env *MatterEnv) buildV(m *Matter) string {
 
 var SupportEnvs = []MatterEnv{
 	{Name: "$UID", Intro: "用户ID", Example: "10001", builder: func(m *Matter) string { return strconv.FormatInt(m.Uid, 10) }},
-	{Name: "$UUID", Intro: "UUID", Example: "6ba7b810-9dad-11d1-80b4-00c04fd430c8", builder: func(m *Matter) string { return uuid.NewV4().String() }},
+	{Name: "$UUID", Intro: "UUID", Example: "6ba7b810-9dad-11d1-80b4-00c04fd430c8", builder: func(m *Matter) string { return uuid.New().String() }},
 	{Name: "$RAW_PATH", Intro: "初始上传路径", Example: "文稿/简历", builder: func(m *Matter) string { return m.Parent }},
 	{Name: "$RAW_NAME", Intro: "初始文件名", Example: "张三-简历", builder: func(m *Matter) string { return m.Name }},
 	{Name: "$RAW_EXT", Intro: "初始文件后缀", Example: "pdf", builder: func(m *Matter) string { return filepath.Ext(m.Name)[1:] }},

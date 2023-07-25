@@ -9,7 +9,7 @@ By participating to this project, you agree to abide our [code of conduct](/CODE
 Prerequisites:
 
 - `make`
-- [Go 1.16+](https://golang.org/doc/install)
+- [Go 1.20+](https://golang.org/doc/install)
 
 Clone `zpan` anywhere:
 
