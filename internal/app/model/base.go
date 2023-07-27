@@ -7,9 +7,6 @@ func Tables() []interface{} {
 		new(UserKey),
 		new(UserProfile),
 		new(UserStorage),
-		new(Storage),
-		new(Matter),
 		new(Share),
-		new(Recycle),
 	}
 }

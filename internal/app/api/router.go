@@ -25,18 +25,18 @@ import (
 // @license.name GPL 3.0
 // @license.url https://github.com/saltbo/zpan/blob/master/LICENSE
 
-func SetupRoutes(ge *gin.Engine) {
+func SetupRoutes(ge *gin.Engine, repository *Repository) {
 	ginutil.SetupSwagger(ge)
 
 	apiRouter := ge.Group("/api")
 	ginutil.SetupResource(apiRouter,
-		NewOptionResource(),
-		NewUserResource(),
-		NewUserKeyResource(),
-		NewTokenResource(),
-		NewStorageResource(),
-		NewFileResource(),
-		NewShareResource(),
-		NewRecycleBinResource(),
+		repository.file,
+		repository.storage,
+		repository.option,
+		repository.share,
+		repository.token,
+		repository.user,
+		repository.userKey,
+		repository.recycleBin,
 	)
 }

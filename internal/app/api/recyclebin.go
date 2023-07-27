@@ -1,24 +1,20 @@
 package api
 
 import (
-	"strconv"
-
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
-
-	"github.com/saltbo/zpan/internal/pkg/authed"
+	"github.com/saltbo/zpan/internal/app/repo"
+	"github.com/saltbo/zpan/internal/app/usecase/vfs"
 	"github.com/saltbo/zpan/internal/pkg/bind"
-	"github.com/saltbo/zpan/internal/app/service"
 )
 
 type RecycleBinResource struct {
-	rb *service.RecycleBin
+	rbr repo.RecycleBin
+	rbf vfs.RecycleBinFs
 }
 
-func NewRecycleBinResource() ginutil.Resource {
-	return &RecycleBinResource{
-		rb: service.NewRecycleBin(),
-	}
+func NewRecycleBinResource(rbr repo.RecycleBin, rbf vfs.RecycleBinFs) *RecycleBinResource {
+	return &RecycleBinResource{rbr: rbr, rbf: rbf}
 }
 
 func (rs *RecycleBinResource) Register(router *gin.RouterGroup) {
@@ -35,7 +31,7 @@ func (rs *RecycleBinResource) findAll(c *gin.Context) {
 		return
 	}
 
-	list, total, err := rs.rb.FindAll(authed.UidGet(c), p.Sid, p.Offset, p.Limit)
+	list, total, err := rs.rbr.FindAll(c, repo.RecycleBinFindOptions{QueryPage: repo.QueryPage(p.QueryPage)})
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -44,10 +40,9 @@ func (rs *RecycleBinResource) findAll(c *gin.Context) {
 	ginutil.JSONList(c, list, total)
 }
 
-func (rs RecycleBinResource) recovery(c *gin.Context) {
-	uid := authed.UidGet(c)
+func (rs *RecycleBinResource) recovery(c *gin.Context) {
 	alias := c.Param("alias")
-	if err := rs.rb.Recovery(uid, alias); err != nil {
+	if err := rs.rbf.Recovery(c, alias); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -56,9 +51,8 @@ func (rs RecycleBinResource) recovery(c *gin.Context) {
 }
 
 func (rs *RecycleBinResource) delete(c *gin.Context) {
-	uid := authed.UidGet(c)
 	alias := c.Param("alias")
-	if err := rs.rb.Delete(uid, alias); err != nil {
+	if err := rs.rbf.Delete(c, alias); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -67,9 +61,7 @@ func (rs *RecycleBinResource) delete(c *gin.Context) {
 }
 
 func (rs *RecycleBinResource) clean(c *gin.Context) {
-	uid := authed.UidGet(c)
-	sid, _ := strconv.ParseInt(c.Query("sid"), 10, 64)
-	if err := rs.rb.Clean(uid, sid); err != nil {
+	if err := rs.rbf.Clean(c); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

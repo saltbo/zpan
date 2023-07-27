@@ -3,20 +3,21 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
+	"github.com/saltbo/zpan/internal/app/repo"
+	"github.com/saltbo/zpan/internal/app/usecase/uploader"
+	"github.com/saltbo/zpan/internal/app/usecase/vfs"
 
 	"github.com/saltbo/zpan/internal/pkg/authed"
 	"github.com/saltbo/zpan/internal/pkg/bind"
-	"github.com/saltbo/zpan/internal/pkg/fakefs"
 )
 
 type FileResource struct {
-	fs *fakefs.FakeFS
+	fs vfs.VirtualFs
+	up uploader.Uploader
 }
 
-func NewFileResource() ginutil.Resource {
-	return &FileResource{
-		fs: fakefs.New(),
-	}
+func NewFileResource(fs vfs.VirtualFs, up uploader.Uploader) *FileResource {
+	return &FileResource{fs: fs, up: up}
 }
 
 func (rs *FileResource) Register(router *gin.RouterGroup) {
@@ -29,17 +30,17 @@ func (rs *FileResource) Register(router *gin.RouterGroup) {
 	router.PATCH("/matters/:alias/location", rs.move)
 	router.PATCH("/matters/:alias/duplicate", rs.copy)
 	router.DELETE("/matters/:alias", rs.delete)
-	rs.fs.StartFileAutoDoneWorker()
+	// rs.fs.StartFileAutoDoneWorker()
 }
 
 func (rs *FileResource) findAll(c *gin.Context) {
-	p := new(bind.QueryFiles)
+	p := new(repo.ListOption)
 	if err := c.BindQuery(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	list, total, err := rs.fs.List(authed.UidGet(c), p)
+	list, total, err := rs.fs.List(c, p)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -56,7 +57,7 @@ func (rs *FileResource) findAll(c *gin.Context) {
 // @Produce json
 // @Security OAuth2Application[matter, admin]
 // @Param body body bind.BodyMatter true "参数"
-// @Success 200 {object} httputil.JSONResponse{data=model.User}
+// @Success 200 {object} httputil.JSONResponse{data=entity.Matter}
 // @Failure 400 {object} httputil.JSONResponse
 // @Failure 500 {object} httputil.JSONResponse
 // @Router /matters [post]
@@ -68,25 +69,23 @@ func (rs *FileResource) create(c *gin.Context) {
 	}
 
 	m := p.ToMatter(authed.UidGet(c))
-	op := rs.fs.CreateFile
-	if m.IsDir() {
-		op = rs.fs.CreateFolder
-	}
-
-	data, err := op(m)
-	if err != nil {
+	if err := rs.fs.Create(c, m); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
-	ginutil.JSONData(c, data)
+	ginutil.JSONData(c, m)
 }
 
 func (rs *FileResource) uploaded(c *gin.Context) {
-	uid := authed.UidGet(c)
 	alias := c.Param("alias")
-	m, err := rs.fs.TagUploadDone(uid, alias)
+	m, err := rs.fs.Get(c, alias)
 	if err != nil {
+		ginutil.JSONBadRequest(c, err)
+		return
+	}
+
+	if err := rs.up.UploadDone(c, m); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -95,7 +94,7 @@ func (rs *FileResource) uploaded(c *gin.Context) {
 }
 
 func (rs *FileResource) find(c *gin.Context) {
-	matter, err := rs.fs.GetFileInfo(authed.UidGet(c), c.Param("alias"))
+	matter, err := rs.fs.Get(c, c.Param("alias"))
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -111,9 +110,7 @@ func (rs *FileResource) rename(c *gin.Context) {
 		return
 	}
 
-	uid := authed.UidGet(c)
-	alias := c.Param("alias")
-	if err := rs.fs.Rename(uid, alias, p.NewName); err != nil {
+	if err := rs.fs.Rename(c, c.Param("alias"), p.NewName); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -128,9 +125,7 @@ func (rs *FileResource) move(c *gin.Context) {
 		return
 	}
 
-	uid := authed.UidGet(c)
-	alias := c.Param("alias")
-	if err := rs.fs.Move(uid, alias, p.NewDir); err != nil {
+	if err := rs.fs.Move(c, c.Param("alias"), p.NewDir); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -145,20 +140,17 @@ func (rs *FileResource) copy(c *gin.Context) {
 		return
 	}
 
-	uid := authed.UidGet(c)
-	alias := c.Param("alias")
-	if err := rs.fs.Copy(uid, alias, p.NewPath); err != nil {
+	m, err := rs.fs.Copy(c, c.Param("alias"), p.NewPath)
+	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
-	ginutil.JSON(c)
+	ginutil.JSONData(c, m)
 }
 
 func (rs *FileResource) delete(c *gin.Context) {
-	uid := authed.UidGet(c)
-	alias := c.Param("alias")
-	if err := rs.fs.Delete(uid, alias); err != nil {
+	if err := rs.fs.Delete(c, c.Param("alias")); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -167,11 +159,11 @@ func (rs *FileResource) delete(c *gin.Context) {
 }
 
 func (rs *FileResource) ulink(c *gin.Context) {
-	data, err := rs.fs.GetSaveRequest(authed.UidGet(c), c.Param("alias"))
-	if err != nil {
-		ginutil.JSONServerError(c, err)
-		return
-	}
-
-	ginutil.JSONData(c, data)
+	// data, err := rs.up.GetPreSign(authed.UidGet(c), c.Param("alias"))
+	// if err != nil {
+	// 	ginutil.JSONServerError(c, err)
+	// 	return
+	// }
+	//
+	// ginutil.JSONData(c, data)
 }

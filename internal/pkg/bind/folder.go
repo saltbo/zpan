@@ -1,7 +1,7 @@
 package bind
 
 import (
-	"github.com/saltbo/zpan/internal/app/model"
+	"github.com/saltbo/zpan/internal/app/entity"
 )
 
 type QueryFolder struct {
@@ -17,9 +17,9 @@ type BodyFolder struct {
 	Dir  string `json:"dir"`
 }
 
-func (p *BodyFolder) ToMatter(uid int64) *model.Matter {
-	m := model.NewMatter(uid, p.Sid, p.Name)
+func (p *BodyFolder) ToMatter(uid int64) *entity.Matter {
+	m := entity.NewMatter(uid, p.Sid, p.Name)
 	m.Parent = p.Dir
-	m.DirType = model.DirTypeUser
+	m.DirType = entity.DirTypeUser
 	return m
 }

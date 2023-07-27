@@ -21,7 +21,7 @@ func (s *Share) Create(share *model.Share) error {
 }
 
 func (s *Share) Update(id int64, share *model.Share) error {
-	if err := gdb.First(&model.Storage{}, id).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := gdb.First(&model.Share{}, id).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("share not found")
 	}
 

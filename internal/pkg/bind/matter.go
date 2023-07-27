@@ -4,7 +4,7 @@ import (
 	"mime"
 	"path/filepath"
 
-	"github.com/saltbo/zpan/internal/app/model"
+	"github.com/saltbo/zpan/internal/app/entity"
 )
 
 type QueryFiles struct {
@@ -24,7 +24,7 @@ type BodyMatter struct {
 	Size  int64  `json:"size"`
 }
 
-func (p *BodyMatter) ToMatter(uid int64) *model.Matter {
+func (p *BodyMatter) ToMatter(uid int64) *entity.Matter {
 	detectType := func(name string) string {
 		cType := mime.TypeByExtension(filepath.Ext(p.Name))
 		if cType != "" {
@@ -34,12 +34,12 @@ func (p *BodyMatter) ToMatter(uid int64) *model.Matter {
 		return "application/octet-stream"
 	}
 
-	m := model.NewMatter(uid, p.Sid, p.Name)
+	m := entity.NewMatter(uid, p.Sid, p.Name)
 	m.Type = p.Type
 	m.Size = p.Size
 	m.Parent = p.Dir
 	if p.IsDir {
-		m.DirType = model.DirTypeUser
+		m.DirType = entity.DirTypeUser
 	} else if p.Type == "" {
 		m.Type = detectType(p.Name)
 	}

@@ -3,7 +3,7 @@ package bind
 import (
 	"strings"
 
-	"github.com/saltbo/zpan/internal/app/model"
+	"github.com/saltbo/zpan/internal/app/entity"
 )
 
 var ts = strings.TrimSpace
@@ -26,13 +26,13 @@ type StorageBody struct {
 	PublicRead bool   `json:"public_read"`
 }
 
-func (b *StorageBody) Model() *model.Storage {
+func (b *StorageBody) Model() *entity.Storage {
 	title := b.Title
 	if title == "" {
 		title = b.Name
 	}
 
-	return &model.Storage{
+	return &entity.Storage{
 		Mode:       b.Mode,
 		Name:       ts(b.Name),
 		Title:      ts(title),
