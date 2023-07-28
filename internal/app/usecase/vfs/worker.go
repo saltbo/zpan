@@ -17,7 +17,7 @@ func (w *Worker) Start() {
 }
 
 func (w *Worker) cleanExpireMatters() {
-	// matters, total, err := w.matterRepo.FindAll(context.Background(), &repo.ListOption{})
+	// matters, total, err := w.matterRepo.FindAll(context.Background(), &repo.MatterListOption{})
 	// if err != nil {
 	// 	return
 	// }

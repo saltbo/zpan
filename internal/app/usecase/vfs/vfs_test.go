@@ -109,7 +109,7 @@ func TestVfs_Delete(t *testing.T) {
 	_, err := vfs.Get(ctx, "test")
 	assert.Error(t, err)
 
-	rbs, total, err := vfs.recycleBinRepo.FindAll(ctx, repo.RecycleBinFindOptions{})
+	rbs, total, err := vfs.recycleBinRepo.FindAll(ctx, &repo.RecycleBinFindOptions{})
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	assert.Equal(t, rbs[0].Name, matter.Name)

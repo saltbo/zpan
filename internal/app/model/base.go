@@ -1,5 +1,7 @@
 package model
 
+import "github.com/saltbo/zpan/internal/app/entity"
+
 func Tables() []interface{} {
 	return []interface{}{
 		new(Option),
@@ -7,6 +9,9 @@ func Tables() []interface{} {
 		new(UserKey),
 		new(UserProfile),
 		new(UserStorage),
+		new(entity.Storage),
+		new(entity.Matter),
 		new(Share),
+		new(entity.RecycleBin),
 	}
 }

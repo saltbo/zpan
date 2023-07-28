@@ -43,7 +43,9 @@ type Matter struct {
 	UpdatedAt  time.Time      `json:"updated" gorm:"not null"`
 	UploadedAt time.Time      `json:"uploaded"`
 	DeletedAt  gorm.DeletedAt `json:"-"`
-	TrashedBy  string         `json:"-" gorm:"size:16;not null"`
+
+	// Deprecated: 弃用
+	TrashedBy string `json:"-" gorm:"size:16;not null"`
 }
 
 func (m *Matter) GetID() int64 {
@@ -52,10 +54,11 @@ func (m *Matter) GetID() int64 {
 
 func NewMatter(uid, sid int64, name string) *Matter {
 	return &Matter{
-		Uid:   uid,
-		Sid:   sid,
-		Alias: strutil.RandomText(16),
-		Name:  strings.TrimSpace(name),
+		Uid:      uid,
+		Sid:      sid,
+		Alias:    strutil.RandomText(16),
+		Name:     strings.TrimSpace(name),
+		Uploader: make(map[string]any),
 	}
 }
 

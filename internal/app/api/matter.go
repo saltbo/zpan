@@ -6,7 +6,6 @@ import (
 	"github.com/saltbo/zpan/internal/app/repo"
 	"github.com/saltbo/zpan/internal/app/usecase/uploader"
 	"github.com/saltbo/zpan/internal/app/usecase/vfs"
-
 	"github.com/saltbo/zpan/internal/pkg/authed"
 	"github.com/saltbo/zpan/internal/pkg/bind"
 )
@@ -34,7 +33,7 @@ func (rs *FileResource) Register(router *gin.RouterGroup) {
 }
 
 func (rs *FileResource) findAll(c *gin.Context) {
-	p := new(repo.ListOption)
+	p := new(repo.MatterListOption)
 	if err := c.BindQuery(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -74,7 +73,11 @@ func (rs *FileResource) create(c *gin.Context) {
 		return
 	}
 
-	ginutil.JSONData(c, m)
+	ginutil.JSONData(c, gin.H{
+		"matter":  m,
+		"uplink":  m.Uploader["upURL"],
+		"headers": m.Uploader["upHeaders"],
+	})
 }
 
 func (rs *FileResource) uploaded(c *gin.Context) {

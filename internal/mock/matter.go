@@ -12,11 +12,35 @@ import (
 var _ repo.Matter = (*Matter)(nil)
 
 type Matter struct {
-	mockStore[*entity.Matter, *repo.ListOption, int64]
+	mockStore[*entity.Matter, *repo.MatterListOption, int64]
 }
 
 func NewMatter() *Matter {
 	return &Matter{}
+}
+
+func (mk *Matter) FindWith(ctx context.Context, opt *repo.MatterFindWithOption) (*entity.Matter, error) {
+	matter, ok := lo.Find(mk.store, func(item *entity.Matter) bool {
+		var conds []bool
+		if opt.Id != 0 {
+			conds = append(conds, opt.Id == item.Id)
+		}
+		if opt.Alias != "" {
+			conds = append(conds, opt.Alias == item.Alias)
+		}
+
+		for _, cond := range conds {
+			if !cond {
+				return false
+			}
+		}
+		return true
+	})
+	if !ok {
+		return nil, fmt.Errorf("not found with: %v", opt)
+	}
+
+	return matter, nil
 }
 
 func (mk *Matter) FindByAlias(ctx context.Context, alias string) (*entity.Matter, error) {
@@ -30,15 +54,9 @@ func (mk *Matter) FindByAlias(ctx context.Context, alias string) (*entity.Matter
 	return matter, nil
 }
 
-func (mk *Matter) FindByPath(ctx context.Context, filepath string) (*entity.Matter, error) {
-	matter, ok := lo.Find(mk.store, func(item *entity.Matter) bool {
-		return item.FullPath() == filepath
-	})
-	if !ok {
-		return nil, fmt.Errorf("not found: %v", filepath)
-	}
-
-	return matter, nil
+func (mk *Matter) PathExist(ctx context.Context, filepath string) bool {
+	_, ok := lo.Find(mk.store, func(item *entity.Matter) bool { return item.FullPath() == filepath })
+	return ok
 }
 
 func (mk *Matter) Copy(ctx context.Context, id int64, to string) (*entity.Matter, error) {
@@ -53,7 +71,7 @@ func (mk *Matter) Copy(ctx context.Context, id int64, to string) (*entity.Matter
 	return newMatter, nil
 }
 
-func (mk *Matter) Recovery(ctx context.Context, mid int64) error {
+func (mk *Matter) Recovery(ctx context.Context, id int64) error {
 	return nil
 }
 

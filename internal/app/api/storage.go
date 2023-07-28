@@ -4,8 +4,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
+	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/saltbo/zpan/internal/app/repo"
 	"github.com/saltbo/zpan/internal/app/usecase/storage"
+	"github.com/samber/lo"
 
 	"github.com/saltbo/zpan/internal/pkg/bind"
 )
@@ -47,11 +49,16 @@ func (rs *StorageResource) findAll(c *gin.Context) {
 		return
 	}
 
-	list, total, err := rs.storageRepo.FindAll(c, repo.StorageFindOptions{Limit: p.Limit, Offset: p.Offset})
+	list, total, err := rs.storageRepo.FindAll(c, &repo.StorageFindOptions{Limit: p.Limit, Offset: p.Offset})
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
+
+	lo.Map(list, func(item *entity.Storage, index int) *entity.Storage {
+		item.SecretKey = item.SKAsterisk()
+		return item
+	})
 
 	ginutil.JSONList(c, list, total)
 }

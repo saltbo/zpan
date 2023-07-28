@@ -31,7 +31,7 @@ func (rs *RecycleBinResource) findAll(c *gin.Context) {
 		return
 	}
 
-	list, total, err := rs.rbr.FindAll(c, repo.RecycleBinFindOptions{QueryPage: repo.QueryPage(p.QueryPage)})
+	list, total, err := rs.rbr.FindAll(c, &repo.RecycleBinFindOptions{QueryPage: repo.QueryPage(p.QueryPage), Sid: p.Sid})
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -61,7 +61,7 @@ func (rs *RecycleBinResource) delete(c *gin.Context) {
 }
 
 func (rs *RecycleBinResource) clean(c *gin.Context) {
-	if err := rs.rbf.Clean(c); err != nil {
+	if err := rs.rbf.Clean(c, ginutil.QueryInt64(c, "sid")); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

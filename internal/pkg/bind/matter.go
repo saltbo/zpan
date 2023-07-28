@@ -43,7 +43,6 @@ func (p *BodyMatter) ToMatter(uid int64) *entity.Matter {
 	} else if p.Type == "" {
 		m.Type = detectType(p.Name)
 	}
-
 	return m
 }
 

@@ -227,7 +227,7 @@ func (rs *ShareResource) findMatters(c *gin.Context) {
 	}
 
 	dir := fmt.Sprintf("%s%s", mMatter.FullPath(), p.Dir) // 设置父级目录
-	list, total, err := rs.dMatter.FindAll(c, &repo.ListOption{
+	list, total, err := rs.dMatter.FindAll(c, &repo.MatterListOption{
 		QueryPage: repo.QueryPage{Offset: p.Offset, Limit: p.Limit},
 		Uid:       mMatter.Uid,
 		Dir:       dir,

@@ -30,9 +30,9 @@ func SetupRoutes(ge *gin.Engine, repository *Repository) {
 
 	apiRouter := ge.Group("/api")
 	ginutil.SetupResource(apiRouter,
+		repository.option,
 		repository.file,
 		repository.storage,
-		repository.option,
 		repository.share,
 		repository.token,
 		repository.user,

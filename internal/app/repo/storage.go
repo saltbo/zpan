@@ -16,7 +16,7 @@ type StorageFindOptions struct {
 }
 
 type Storage interface {
-	BasicOP[*entity.Storage, int64, StorageFindOptions]
+	BasicOP[*entity.Storage, int64, *StorageFindOptions]
 }
 
 var _ Storage = (*StorageDBQuery)(nil)
@@ -33,7 +33,7 @@ func (s *StorageDBQuery) Find(ctx context.Context, id int64) (*entity.Storage, e
 	return s.q.Storage.WithContext(ctx).Where(s.q.Storage.Id.Eq(id)).First()
 }
 
-func (s *StorageDBQuery) FindAll(ctx context.Context, opts StorageFindOptions) (storages []*entity.Storage, total int64, err error) {
+func (s *StorageDBQuery) FindAll(ctx context.Context, opts *StorageFindOptions) (storages []*entity.Storage, total int64, err error) {
 	return s.q.Storage.WithContext(ctx).FindByPage(opts.Offset, opts.Limit)
 }
 

@@ -45,11 +45,6 @@ func (s *Storage) TableName() string {
 	return "zp_storage"
 }
 
-func (s *Storage) AfterFind(db *gorm.DB) error {
-	s.SecretKey = s.SKAsterisk()
-	return nil
-}
-
 func (s *Storage) PublicRead() bool {
 	return s.Mode == StorageModeOutline
 }

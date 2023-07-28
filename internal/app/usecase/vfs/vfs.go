@@ -32,12 +32,21 @@ func (v *Vfs) Create(ctx context.Context, m *entity.Matter) error {
 	return v.matterRepo.Create(ctx, m)
 }
 
-func (v *Vfs) List(ctx context.Context, option *repo.ListOption) ([]*entity.Matter, int64, error) {
+func (v *Vfs) List(ctx context.Context, option *repo.MatterListOption) ([]*entity.Matter, int64, error) {
 	return v.matterRepo.FindAll(ctx, option)
 }
 
 func (v *Vfs) Get(ctx context.Context, alias string) (*entity.Matter, error) {
-	return v.matterRepo.FindByAlias(ctx, alias)
+	matter, err := v.matterRepo.FindByAlias(ctx, alias)
+	if err != nil {
+		return nil, err
+	}
+
+	if matter.IsDir() {
+		return matter, nil
+	}
+
+	return matter, v.uploader.CreateVisitURL(ctx, matter)
 }
 
 func (v *Vfs) Rename(ctx context.Context, alias string, newName string) error {
@@ -46,7 +55,7 @@ func (v *Vfs) Rename(ctx context.Context, alias string, newName string) error {
 		return err
 	}
 
-	if _, err := v.matterRepo.FindByPath(ctx, path.Join(m.Parent, newName)); err == nil {
+	if exist := v.matterRepo.PathExist(ctx, path.Join(m.Parent, newName)); exist {
 		return fmt.Errorf("dir already has the same name file")
 	}
 
@@ -61,7 +70,7 @@ func (v *Vfs) Move(ctx context.Context, alias string, to string) error {
 		return err
 	}
 
-	if _, err := v.matterRepo.FindByPath(ctx, to); err == nil {
+	if exist := v.matterRepo.PathExist(ctx, to); exist {
 		return fmt.Errorf("dir already has the same name file")
 	}
 
@@ -88,5 +97,6 @@ func (v *Vfs) Delete(ctx context.Context, alias string) error {
 		return err
 	}
 
-	return v.recycleBinRepo.Create(ctx, m.BuildRecycleBinItem())
+	rb := m.BuildRecycleBinItem()
+	return v.recycleBinRepo.Create(ctx, rb)
 }

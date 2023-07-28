@@ -20,12 +20,12 @@ func NewRecycleBin(recycleRepo repo.RecycleBin, matterRepo repo.Matter, storage 
 }
 
 func (rb *RecycleBin) Recovery(ctx context.Context, alias string) error {
-	m, err := rb.recycleRepo.Find(ctx, alias)
+	rbv, err := rb.recycleRepo.Find(ctx, alias)
 	if err != nil {
 		return err
 	}
 
-	if err := rb.matterRepo.Recovery(ctx, m.Mid); err != nil {
+	if err := rb.matterRepo.Recovery(ctx, rbv.Mid); err != nil {
 		return err
 	}
 
@@ -38,21 +38,27 @@ func (rb *RecycleBin) Delete(ctx context.Context, alias string) error {
 		return err
 	}
 
-	objects, err := rb.matterRepo.GetObjects(ctx, m.Id)
+	matter, err := rb.matterRepo.FindWith(ctx, &repo.MatterFindWithOption{Id: m.Mid, Deleted: true})
 	if err != nil {
 		return err
 	}
 
-	provider, err := rb.storage.GetProvider(ctx, m.Sid)
+	provider, err := rb.storage.GetProvider(ctx, matter.Sid)
 	if err != nil {
 		return err
 	}
 
-	return provider.ObjectsDelete(objects)
+	objects, _ := rb.matterRepo.GetObjects(ctx, matter.Id)
+	objects = append(objects, matter.Object)
+	if err := provider.ObjectsDelete(objects); err != nil {
+		return err
+	}
+
+	return rb.recycleRepo.Delete(ctx, alias)
 }
 
-func (rb *RecycleBin) Clean(ctx context.Context) error {
-	rbs, _, err := rb.recycleRepo.FindAll(ctx, repo.RecycleBinFindOptions{})
+func (rb *RecycleBin) Clean(ctx context.Context, sid int64) error {
+	rbs, _, err := rb.recycleRepo.FindAll(ctx, &repo.RecycleBinFindOptions{Sid: sid})
 	if err != nil {
 		return err
 	}

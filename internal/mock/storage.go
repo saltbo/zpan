@@ -8,7 +8,7 @@ import (
 var _ repo.Storage = (*Storage)(nil)
 
 type Storage struct {
-	mockStore[*entity.Storage, repo.StorageFindOptions, int64]
+	mockStore[*entity.Storage, *repo.StorageFindOptions, int64]
 }
 
 func NewStorage() *Storage {

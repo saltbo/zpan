@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type ListOption struct {
+type MatterListOption struct {
 	QueryPage
 	Sid     int64  `form:"sid" binding:"required"`
 	Uid     int64  `form:"uid"`
@@ -21,13 +21,20 @@ type ListOption struct {
 	Keyword string `form:"kw"`
 }
 
-type Matter interface {
-	BasicOP[*entity.Matter, int64, *ListOption]
+type MatterFindWithOption struct {
+	Id      int64
+	Alias   string
+	Deleted bool
+}
 
+type Matter interface {
+	BasicOP[*entity.Matter, int64, *MatterListOption]
+
+	FindWith(ctx context.Context, opt *MatterFindWithOption) (*entity.Matter, error)
 	FindByAlias(ctx context.Context, alias string) (*entity.Matter, error)
-	FindByPath(ctx context.Context, path string) (*entity.Matter, error)
+	PathExist(ctx context.Context, path string) bool
 	Copy(ctx context.Context, id int64, to string) (*entity.Matter, error)
-	Recovery(ctx context.Context, mid int64) error
+	Recovery(ctx context.Context, id int64) error
 	GetObjects(ctx context.Context, id int64) ([]string, error)
 }
 
@@ -45,27 +52,67 @@ func (db *MatterDBQuery) Find(ctx context.Context, id int64) (*entity.Matter, er
 	return db.q.Matter.WithContext(ctx).Where(db.q.Matter.Id.Eq(id)).First()
 }
 
+func (db *MatterDBQuery) FindWith(ctx context.Context, opt *MatterFindWithOption) (*entity.Matter, error) {
+	conds := make([]gen.Condition, 0)
+	if opt.Id != 0 {
+		conds = append(conds, db.q.Matter.Id.Eq(opt.Id))
+	}
+	if opt.Alias != "" {
+		conds = append(conds, db.q.Matter.Alias_.Eq(opt.Alias))
+	}
+
+	q := db.q.Matter.WithContext(ctx)
+	if opt.Deleted {
+		q = q.Unscoped()
+	}
+
+	return q.Where(conds...).First()
+}
+
 func (db *MatterDBQuery) FindByAlias(ctx context.Context, alias string) (*entity.Matter, error) {
 	return db.q.Matter.WithContext(ctx).Where(db.q.Matter.Alias_.Eq(alias)).First()
 }
 
-func (db *MatterDBQuery) FindByPath(ctx context.Context, filepath string) (*entity.Matter, error) {
-	return db.q.Matter.WithContext(ctx).Where(
+func (db *MatterDBQuery) PathExist(ctx context.Context, filepath string) bool {
+	if filepath == "" {
+		return true
+	}
+
+	_, err := db.q.Matter.WithContext(ctx).Where(
 		db.q.Matter.Parent.Eq(path.Dir(filepath)),
 		db.q.Matter.Name.Eq(path.Base(filepath))).First()
+	return err == nil
 }
 
-func (db *MatterDBQuery) FindAll(ctx context.Context, opts *ListOption) ([]*entity.Matter, int64, error) {
+func (db *MatterDBQuery) FindAll(ctx context.Context, opts *MatterListOption) ([]*entity.Matter, int64, error) {
 	conds := make([]gen.Condition, 0)
+	if opts.Uid != 0 {
+		conds = append(conds, db.q.Matter.Uid.Eq(opts.Uid))
+	}
+	if opts.Sid != 0 {
+		conds = append(conds, db.q.Matter.Sid.Eq(opts.Sid))
+	}
+	if opts.Dir != "" {
+		conds = append(conds, db.q.Matter.Parent.Eq(opts.Dir))
+	}
+	if opts.Keyword != "" {
+		conds = append(conds, db.q.Matter.Name.Like(fmt.Sprintf("%%%s%%", opts.Keyword)))
+	}
+	if opts.Type == "doc" {
+		conds = append(conds, db.q.Matter.Type.In(entity.DocTypes...))
+	} else if opts.Type != "" {
+		conds = append(conds, db.q.Matter.Type.Like(fmt.Sprintf("%%%s%%", opts.Type)))
+	}
+
 	return db.q.Matter.Where(conds...).Order(db.q.Matter.DirType.Desc()).FindByPage(opts.Offset, opts.Limit)
 }
 
 func (db *MatterDBQuery) Create(ctx context.Context, m *entity.Matter) error {
-	if _, err := db.FindByPath(ctx, m.FullPath()); err == nil {
-		return fmt.Errorf("matter already exist")
+	if exist := db.PathExist(ctx, m.FullPath()); exist {
+		return fmt.Errorf("matter %s already exist", m.FullPath())
 	}
 
-	if _, err := db.FindByPath(ctx, m.Parent); err != nil {
+	if exist := db.PathExist(ctx, m.Parent); !exist {
 		return fmt.Errorf("base dir not exist")
 	}
 
@@ -78,7 +125,7 @@ func (db *MatterDBQuery) Copy(ctx context.Context, id int64, to string) (*entity
 		return nil, err
 	}
 
-	if _, err := db.FindByPath(ctx, path.Join(to, em.Name)); err == nil {
+	if exist := db.PathExist(ctx, path.Join(to, em.Name)); exist {
 		return nil, fmt.Errorf("dir already has the same name file")
 	}
 
@@ -140,6 +187,7 @@ func (db *MatterDBQuery) Delete(ctx context.Context, id int64) error {
 		return err
 	}
 
+	matters = append(matters, m)
 	_, err = db.q.Matter.Delete(matters...)
 	return err
 }
@@ -151,13 +199,17 @@ func (db *MatterDBQuery) Recovery(ctx context.Context, id int64) error {
 	}
 
 	m.DeletedAt = gorm.DeletedAt{}
-	return db.q.Matter.WithContext(ctx).Unscoped().Where(db.q.Matter.Id.Eq(id)).Save(m)
+	return db.q.Matter.WithContext(ctx).Unscoped().Where(db.q.Matter.Id.Eq(m.Id)).Save(m)
 }
 
 func (db *MatterDBQuery) GetObjects(ctx context.Context, id int64) ([]string, error) {
 	m, err := db.Find(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if !m.IsDir() {
+		return []string{m.Object}, nil
 	}
 
 	matters, err := db.findChildren(ctx, m)
@@ -173,5 +225,9 @@ func (db *MatterDBQuery) GetObjects(ctx context.Context, id int64) ([]string, er
 }
 
 func (db *MatterDBQuery) findChildren(ctx context.Context, m *entity.Matter) ([]*entity.Matter, error) {
+	if m.Parent == "" {
+		return []*entity.Matter{}, nil
+	}
+
 	return db.q.Matter.WithContext(ctx).Where(db.q.Matter.Parent.Like(m.Parent + "%")).Find()
 }

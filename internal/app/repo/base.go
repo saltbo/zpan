@@ -9,6 +9,10 @@ type QueryPage struct {
 	Limit  int `form:"limit,default=500"`
 }
 
+type Opt[p any] interface {
+	apply(*p)
+}
+
 type IDType interface {
 	int64 | string
 }

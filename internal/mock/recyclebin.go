@@ -8,7 +8,7 @@ import (
 var _ repo.RecycleBin = (*RecycleBin)(nil)
 
 type RecycleBin struct {
-	mockStore[*entity.RecycleBin, repo.RecycleBinFindOptions, string]
+	mockStore[*entity.RecycleBin, *repo.RecycleBinFindOptions, string]
 }
 
 func NewRecycleBin() *RecycleBin {

@@ -9,10 +9,12 @@ import (
 
 type RecycleBinFindOptions struct {
 	QueryPage
+
+	Sid int64
 }
 
 type RecycleBin interface {
-	Reader[*entity.RecycleBin, string, RecycleBinFindOptions]
+	Reader[*entity.RecycleBin, string, *RecycleBinFindOptions]
 	Creator[*entity.RecycleBin]
 	Deleter[string]
 }
@@ -31,8 +33,15 @@ func (r *RecycleBinDBQuery) Find(ctx context.Context, alias string) (*entity.Rec
 	return r.q.RecycleBin.WithContext(ctx).Where(r.q.RecycleBin.Alias_.Eq(alias)).First()
 }
 
-func (r *RecycleBinDBQuery) FindAll(ctx context.Context, opts RecycleBinFindOptions) ([]*entity.RecycleBin, int64, error) {
-	return r.q.RecycleBin.WithContext(ctx).FindByPage(opts.Offset, opts.Limit)
+func (r *RecycleBinDBQuery) FindAll(ctx context.Context, opts *RecycleBinFindOptions) (rows []*entity.RecycleBin, total int64, err error) {
+	q := r.q.RecycleBin.WithContext(ctx).Where(r.q.RecycleBin.Sid.Eq(opts.Sid)).Order(r.q.RecycleBin.Id.Desc())
+
+	if opts.Limit == 0 {
+		rows, err = q.Find()
+		return
+	}
+
+	return q.FindByPage(opts.Offset, opts.Limit)
 }
 
 func (r *RecycleBinDBQuery) Create(ctx context.Context, m *entity.RecycleBin) error {
