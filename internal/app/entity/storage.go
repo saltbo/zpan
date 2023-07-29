@@ -1,4 +1,4 @@
-package model
+package entity
 
 import (
 	"time"
@@ -37,7 +37,11 @@ type Storage struct {
 	Deleted    gorm.DeletedAt `json:"-"`
 }
 
-func (Storage) TableName() string {
+func (s *Storage) GetID() int64 {
+	return s.Id
+}
+
+func (s *Storage) TableName() string {
 	return "zp_storage"
 }
 

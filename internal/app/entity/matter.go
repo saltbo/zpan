@@ -1,6 +1,7 @@
-package model
+package entity
 
 import (
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -37,23 +38,29 @@ type Matter struct {
 	Parent     string         `json:"parent" gorm:"not null"`
 	Object     string         `json:"object" gorm:"not null"`
 	URL        string         `json:"url" gorm:"-"`
+	Uploader   map[string]any `json:"uploader" gorm:"-"`
 	CreatedAt  time.Time      `json:"created" gorm:"not null"`
 	UpdatedAt  time.Time      `json:"updated" gorm:"not null"`
-	UploadedAt *time.Time     `json:"uploaded"`
+	UploadedAt time.Time      `json:"uploaded"`
 	DeletedAt  gorm.DeletedAt `json:"-"`
 	TrashedBy  string         `json:"-" gorm:"size:16;not null"`
 }
 
+func (m *Matter) GetID() int64 {
+	return m.Id
+}
+
 func NewMatter(uid, sid int64, name string) *Matter {
 	return &Matter{
-		Uid:   uid,
-		Sid:   sid,
-		Alias: strutil.RandomText(16),
-		Name:  strings.TrimSpace(name),
+		Uid:      uid,
+		Sid:      sid,
+		Alias:    strutil.RandomText(16),
+		Name:     strings.TrimSpace(name),
+		Uploader: make(map[string]any),
 	}
 }
 
-func (Matter) TableName() string {
+func (m *Matter) TableName() string {
 	return "zp_matter"
 }
 
@@ -65,7 +72,7 @@ func (m *Matter) Clone() *Matter {
 }
 
 func (m *Matter) FullPath() string {
-	fp := m.Parent + m.Name
+	fp := path.Join(m.Parent, m.Name)
 	if m.IsDir() {
 		fp += "/"
 	}
@@ -96,4 +103,17 @@ func (m *Matter) renderPath(path string) string {
 	}
 
 	return strings.NewReplacer(ons...).Replace(path)
+}
+
+func (m *Matter) BuildRecycleBinItem() *RecycleBin {
+	return &RecycleBin{
+		Uid:     m.Uid,
+		Sid:     m.Sid,
+		Mid:     m.Id,
+		Alias:   strutil.RandomText(16),
+		Name:    m.Name,
+		Type:    m.Type,
+		Size:    m.Size,
+		DirType: m.DirType,
+	}
 }

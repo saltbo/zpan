@@ -10,7 +10,7 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
 	"github.com/saltbo/gopkg/strutil"
-	"github.com/saltbo/zpan/internal/pkg/fakefs"
+	"github.com/saltbo/zpan/internal/app/repo"
 	"gorm.io/gorm"
 
 	"github.com/saltbo/zpan/internal/app/dao"
@@ -24,16 +24,14 @@ const ShareCookieTokenKey = "share-token"
 type ShareResource struct {
 	jwtutil.JWTUtil
 
-	fs      *fakefs.FakeFS
 	dShare  *dao.Share
-	dMatter *dao.Matter
+	dMatter repo.Matter
 }
 
-func NewShareResource() ginutil.Resource {
+func NewShareResource(dMatter repo.Matter) *ShareResource {
 	return &ShareResource{
-		fs:      fakefs.New(),
 		dShare:  dao.NewShare(),
-		dMatter: dao.NewMatter(),
+		dMatter: dMatter,
 	}
 }
 
@@ -86,7 +84,7 @@ func (rs *ShareResource) create(c *gin.Context) {
 		return
 	}
 
-	mMatter, err := rs.dMatter.Find(p.Matter)
+	mMatter, err := rs.dMatter.FindByAlias(c, p.Matter)
 	if err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
@@ -195,7 +193,7 @@ func (rs *ShareResource) findMatter(c *gin.Context) {
 		return
 	}
 
-	mMatter, err := rs.fs.GetFileInfo(share.Uid, share.Matter)
+	mMatter, err := rs.dMatter.FindByAlias(c, share.Matter)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -222,19 +220,18 @@ func (rs *ShareResource) findMatters(c *gin.Context) {
 		return
 	}
 
-	mMatter, err := rs.dMatter.Find(share.Matter)
+	mMatter, err := rs.dMatter.FindByAlias(c, share.Matter)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		ginutil.JSONBadRequest(c, fmt.Errorf("matter not found"))
 		return
 	}
 
 	dir := fmt.Sprintf("%s%s", mMatter.FullPath(), p.Dir) // 设置父级目录
-	query := dao.NewQuery()
-	query.WithEq("uid", mMatter.Uid)
-	query.WithEq("parent", dir)
-	query.Offset = p.Offset
-	query.Limit = p.Limit
-	list, total, err := rs.dMatter.FindAll(query)
+	list, total, err := rs.dMatter.FindAll(c, &repo.MatterListOption{
+		QueryPage: repo.QueryPage{Offset: p.Offset, Limit: p.Limit},
+		Uid:       mMatter.Uid,
+		Dir:       dir,
+	})
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return

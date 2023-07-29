@@ -7,6 +7,7 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
 	"github.com/saltbo/gopkg/strutil"
+	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/spf13/viper"
 
 	"github.com/saltbo/zpan/internal/app/dao"
@@ -137,5 +138,5 @@ func (rs *Option) update(c *gin.Context) {
 }
 
 func (rs *Option) matterPathEnvs(c *gin.Context) {
-	ginutil.JSONData(c, model.SupportEnvs)
+	ginutil.JSONData(c, entity.SupportEnvs)
 }

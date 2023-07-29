@@ -8,14 +8,18 @@ import (
 type MockProvider struct {
 }
 
+func NewMockProvider(provider *Config) (Provider, error) {
+	return &MockProvider{}, nil
+}
+
 func (m *MockProvider) SetupCORS() error {
 	return nil
 }
 
 func (m *MockProvider) Head(object string) (*Object, error) {
 	return &Object{
-		Key:      "20210709/86JzAOLIlGZ5Z2Fk.zip",
-		Type:     "application/zip",
+		Key:  "20210709/86JzAOLIlGZ5Z2Fk.zip",
+		Type: "application/zip",
 	}, nil
 }
 

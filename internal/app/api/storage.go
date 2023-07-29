@@ -4,21 +4,26 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
+	"github.com/saltbo/zpan/internal/app/entity"
+	"github.com/saltbo/zpan/internal/app/repo"
+	"github.com/saltbo/zpan/internal/app/usecase/storage"
+	"github.com/samber/lo"
 
-	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/pkg/bind"
-	"github.com/saltbo/zpan/internal/app/service"
 )
 
-type Storage struct {
+type StorageResource struct {
 	jwtutil.JWTUtil
+
+	storageRepo repo.Storage
+	storageUc   storage.Storage
 }
 
-func NewStorageResource() *Storage {
-	return &Storage{}
+func NewStorageResource(storageRepo repo.Storage, storageUc storage.Storage) *StorageResource {
+	return &StorageResource{storageRepo: storageRepo, storageUc: storageUc}
 }
 
-func (rs *Storage) Register(router *gin.RouterGroup) {
+func (rs *StorageResource) Register(router *gin.RouterGroup) {
 	router.GET("/storages/:id", rs.find)
 	router.GET("/storages", rs.findAll)
 	router.POST("/storages", rs.create)
@@ -26,42 +31,46 @@ func (rs *Storage) Register(router *gin.RouterGroup) {
 	router.DELETE("/storages/:id", rs.delete)
 }
 
-func (rs *Storage) find(c *gin.Context) {
-	storage, err := dao.NewStorage().Find(c.Param("id"))
+func (rs *StorageResource) find(c *gin.Context) {
+	ret, err := rs.storageRepo.Find(c, ginutil.ParamInt64(c, "id"))
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
-	ginutil.JSONData(c, storage)
+	ginutil.JSONData(c, ret)
 
 }
 
-func (rs *Storage) findAll(c *gin.Context) {
+func (rs *StorageResource) findAll(c *gin.Context) {
 	p := new(bind.StorageQuery)
 	if err := c.Bind(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	list, total, err := dao.NewStorage().FindAll(p.Limit, p.Offset)
+	list, total, err := rs.storageRepo.FindAll(c, &repo.StorageFindOptions{Limit: p.Limit, Offset: p.Offset})
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
 
+	lo.Map(list, func(item *entity.Storage, index int) *entity.Storage {
+		item.SecretKey = item.SKAsterisk()
+		return item
+	})
+
 	ginutil.JSONList(c, list, total)
 }
 
-func (rs *Storage) create(c *gin.Context) {
+func (rs *StorageResource) create(c *gin.Context) {
 	p := new(bind.StorageBody)
 	if err := c.Bind(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	sStorage := service.NewStorage()
-	if err := sStorage.Create(p.Model()); err != nil {
+	if err := rs.storageUc.Create(c, p.Model()); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -69,15 +78,14 @@ func (rs *Storage) create(c *gin.Context) {
 	ginutil.JSON(c)
 }
 
-func (rs *Storage) update(c *gin.Context) {
+func (rs *StorageResource) update(c *gin.Context) {
 	p := new(bind.StorageBody)
 	if err := c.Bind(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	sStorage := dao.NewStorage()
-	if err := sStorage.Update(c.Param("id"), p.Model()); err != nil {
+	if err := rs.storageRepo.Update(c, ginutil.ParamInt64(c, "id"), p.Model()); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}
@@ -85,9 +93,8 @@ func (rs *Storage) update(c *gin.Context) {
 	ginutil.JSON(c)
 }
 
-func (rs *Storage) delete(c *gin.Context) {
-	sStorage := dao.NewStorage()
-	if err := sStorage.Delete(c.Param("id")); err != nil {
+func (rs *StorageResource) delete(c *gin.Context) {
+	if err := rs.storageRepo.Delete(c, ginutil.ParamInt64(c, "id")); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

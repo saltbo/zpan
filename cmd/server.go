@@ -22,24 +22,18 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"fmt"
-
-	"github.com/gin-gonic/gin"
-	"github.com/saltbo/gopkg/ginutil"
+	"github.com/saltbo/zpan/internal/app"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	"github.com/saltbo/zpan/internal/app/api"
-	"github.com/saltbo/zpan/internal/app/dao"
-	"github.com/saltbo/zpan/web"
 )
 
 // serverCmd represents the server command
 var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "A cloud disk base on the cloud service.",
-	Run: func(cmd *cobra.Command, args []string) {
-		serverRun()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		s := app.NewServer()
+		return s.Run()
 	},
 }
 
@@ -48,28 +42,10 @@ func init() {
 
 	serverCmd.Flags().Int("port", 8222, "server port")
 
-	viper.BindPFlags(serverCmd.Flags())
+	_ = viper.BindPFlags(serverCmd.Flags())
 }
 
-func serverRun() {
-	//gin.SetMode(gin.ReleaseMode)
-	if viper.IsSet("installed") {
-		dao.Init(viper.GetString("database.driver"), viper.GetString("database.dsn"))
-	}
-
-	//if conf.TLS.Enabled {
-	//	//go startTls(ge, tlsAddr, conf.TLS.Auto, conf.TLS.CacheDir, conf.Server.Domain, conf.TLS.CertPath, conf.TLS.CertkeyPath)
-	//	go startTls(ge, conf)
-	//}
-
-	ge := gin.Default()
-	api.SetupRoutes(ge)
-	web.SetupRoutes(ge)
-	addr := fmt.Sprintf(":%d", viper.GetInt("port"))
-	ginutil.Startup(ge, addr)
-}
-
-//func startTls(e *gin.Engine, conf *config.Config) {
+// func startTls(e *gin.Engine, conf *config.Config) {
 //	tlsAddr := fmt.Sprintf(":%d", conf.Server.SSLPort)
 //	if conf.TLS.Auto {
 //		m := autocert.Manager{
@@ -110,4 +86,4 @@ func serverRun() {
 //		}()
 //		httputil.SetupGracefulStop(srv)
 //	}
-//}
+// }
