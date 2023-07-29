@@ -49,9 +49,10 @@ func (rb *RecycleBin) Delete(ctx context.Context, alias string) error {
 	}
 
 	objects, _ := rb.matterRepo.GetObjects(ctx, matter.Id)
-	objects = append(objects, matter.Object)
-	if err := provider.ObjectsDelete(objects); err != nil {
-		return err
+	if len(objects) != 0 {
+		if err := provider.ObjectsDelete(objects); err != nil {
+			return err
+		}
 	}
 
 	return rb.recycleRepo.Delete(ctx, alias)

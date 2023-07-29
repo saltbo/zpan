@@ -60,7 +60,6 @@ func (v *Vfs) Rename(ctx context.Context, alias string, newName string) error {
 	}
 
 	m.Name = newName
-	m.Parent = fmt.Sprintf("%s%s/", m.Parent, newName)
 	return v.matterRepo.Update(ctx, m.Id, m)
 }
 
@@ -70,7 +69,7 @@ func (v *Vfs) Move(ctx context.Context, alias string, to string) error {
 		return err
 	}
 
-	if exist := v.matterRepo.PathExist(ctx, to); exist {
+	if exist := v.matterRepo.PathExist(ctx, path.Join(to, m.Name)); exist {
 		return fmt.Errorf("dir already has the same name file")
 	}
 

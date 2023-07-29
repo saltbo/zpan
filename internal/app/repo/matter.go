@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/saltbo/zpan/internal/app/repo/query"
 	"github.com/samber/lo"
@@ -78,9 +80,20 @@ func (db *MatterDBQuery) PathExist(ctx context.Context, filepath string) bool {
 		return true
 	}
 
-	_, err := db.q.Matter.WithContext(ctx).Where(
-		db.q.Matter.Parent.Eq(path.Dir(filepath)),
-		db.q.Matter.Name.Eq(path.Base(filepath))).First()
+	var name, parent string
+	if strings.HasSuffix(filepath, "/") {
+		name = path.Base(filepath)
+		parent = strings.TrimSuffix(filepath, name+"/")
+	} else {
+		parent, name = path.Split(filepath)
+	}
+
+	conds := []gen.Condition{db.q.Matter.Name.Eq(name)}
+	if parent != name {
+		conds = append(conds, db.q.Matter.Parent.Eq(strings.TrimPrefix(parent, "/")))
+	}
+
+	_, err := db.q.Matter.WithContext(ctx).Where(conds...).First()
 	return err == nil
 }
 
@@ -92,12 +105,13 @@ func (db *MatterDBQuery) FindAll(ctx context.Context, opts *MatterListOption) ([
 	if opts.Sid != 0 {
 		conds = append(conds, db.q.Matter.Sid.Eq(opts.Sid))
 	}
-	if opts.Dir != "" {
-		conds = append(conds, db.q.Matter.Parent.Eq(opts.Dir))
-	}
+
 	if opts.Keyword != "" {
 		conds = append(conds, db.q.Matter.Name.Like(fmt.Sprintf("%%%s%%", opts.Keyword)))
+	} else {
+		conds = append(conds, db.q.Matter.Parent.Eq(opts.Dir))
 	}
+
 	if opts.Type == "doc" {
 		conds = append(conds, db.q.Matter.Type.In(entity.DocTypes...))
 	} else if opts.Type != "" {
@@ -137,7 +151,7 @@ func (db *MatterDBQuery) Copy(ctx context.Context, id int64, to string) (*entity
 	}
 
 	// 如果是文件夹则查找所有子文件/文件夹一起复制
-	matters, err := db.findChildren(ctx, em)
+	matters, err := db.findChildren(ctx, em, false)
 	if err != nil {
 		return nil, err
 	}
@@ -157,23 +171,20 @@ func (db *MatterDBQuery) Update(ctx context.Context, id int64, m *entity.Matter)
 		return err
 	}
 
-	// 如果没有修改目录则只更改自身
-	if m.Parent == em.Parent {
-		return db.q.Matter.WithContext(ctx).Where(db.q.Matter.Id.Eq(id)).Save(m)
-	}
+	return db.q.Transaction(func(tx *query.Query) error {
+		tq := tx.Matter.WithContext(ctx)
+		if m.IsDir() {
+			// 如果是目录，则需要把该目录下的子文件/目录一并修改
+			cond := tx.Matter.Parent.Like(em.FullPath() + "%")
+			updated := map[string]any{"parent": gorm.Expr("REPLACE(parent, ?, ?)", em.FullPath(), m.FullPath())}
+			if _, err := tq.Select(tx.Matter.Parent).Where(cond).Updates(updated); err != nil {
+				return err
+			}
+		}
 
-	// 如果修改了目录，则需要把关联的matter的子目录都改掉
-	matters, err := db.findChildren(ctx, em)
-	if err != nil {
+		_, err := tq.Select(tx.Matter.Name, tx.Matter.Parent).Updates(m)
 		return err
-	}
-
-	matters = lo.Map(matters, func(item *entity.Matter, index int) *entity.Matter {
-		item.Parent = m.Parent
-		return item
 	})
-
-	return db.q.Matter.WithContext(ctx).Where(db.q.Matter.Id.Eq(id)).Save(matters...)
 }
 
 func (db *MatterDBQuery) Delete(ctx context.Context, id int64) error {
@@ -182,14 +193,26 @@ func (db *MatterDBQuery) Delete(ctx context.Context, id int64) error {
 		return err
 	}
 
-	matters, err := db.findChildren(ctx, m)
-	if err != nil {
-		return err
-	}
+	m.TrashedBy = uuid.New().String()
+	return db.q.Transaction(func(tx *query.Query) error {
+		tq := tx.Matter.WithContext(ctx)
+		if m.IsDir() {
+			// 如果是目录，则需要把该目录下的子文件/目录一并删除
+			cond := tx.Matter.Parent.Like(m.Name + "/%")
+			if _, err := tq.Where(cond).Update(tx.Matter.TrashedBy, m.TrashedBy); err != nil {
+				return err
+			}
+			if _, err := tq.Where(cond).Delete(); err != nil {
+				return err
+			}
+		}
 
-	matters = append(matters, m)
-	_, err = db.q.Matter.Delete(matters...)
-	return err
+		if _, err := tq.Select(tx.Matter.TrashedBy).Updates(m); err != nil {
+			return err
+		}
+		_, err := tq.Delete(m)
+		return err
+	})
 }
 
 func (db *MatterDBQuery) Recovery(ctx context.Context, id int64) error {
@@ -198,12 +221,17 @@ func (db *MatterDBQuery) Recovery(ctx context.Context, id int64) error {
 		return err
 	}
 
-	m.DeletedAt = gorm.DeletedAt{}
-	return db.q.Matter.WithContext(ctx).Unscoped().Where(db.q.Matter.Id.Eq(m.Id)).Save(m)
+	if !db.PathExist(ctx, m.Parent) {
+		return fmt.Errorf("recovery: file parent[%s] not found", m.Parent)
+	}
+
+	_, err = db.q.Matter.WithContext(ctx).Unscoped().Where(db.q.Matter.TrashedBy.Eq(m.TrashedBy)).
+		UpdateSimple(db.q.Matter.TrashedBy.Value(""), db.q.Matter.DeletedAt.Null())
+	return err
 }
 
 func (db *MatterDBQuery) GetObjects(ctx context.Context, id int64) ([]string, error) {
-	m, err := db.Find(ctx, id)
+	m, err := db.FindWith(ctx, &MatterFindWithOption{Id: id, Deleted: true})
 	if err != nil {
 		return nil, err
 	}
@@ -212,22 +240,23 @@ func (db *MatterDBQuery) GetObjects(ctx context.Context, id int64) ([]string, er
 		return []string{m.Object}, nil
 	}
 
-	matters, err := db.findChildren(ctx, m)
+	matters, err := db.findChildren(ctx, m, true)
 	if err != nil {
 		return nil, err
 	}
 
-	return lo.Map(lo.Filter(matters, func(item *entity.Matter, index int) bool {
+	return lo.Map(lo.Filter(append(matters, m), func(item *entity.Matter, index int) bool {
 		return item.Object != ""
 	}), func(item *entity.Matter, index int) string {
 		return item.Object
 	}), nil
 }
 
-func (db *MatterDBQuery) findChildren(ctx context.Context, m *entity.Matter) ([]*entity.Matter, error) {
-	if m.Parent == "" {
-		return []*entity.Matter{}, nil
+func (db *MatterDBQuery) findChildren(ctx context.Context, m *entity.Matter, withDeleted bool) ([]*entity.Matter, error) {
+	q := db.q.Matter.WithContext(ctx)
+	if withDeleted {
+		q = q.Unscoped()
 	}
 
-	return db.q.Matter.WithContext(ctx).Where(db.q.Matter.Parent.Like(m.Parent + "%")).Find()
+	return q.Where(db.q.Matter.Parent.Like(m.FullPath() + "%")).Find()
 }

@@ -36,8 +36,10 @@ func newRecycleBin(db *gorm.DB, opts ...gen.DOOption) recycleBin {
 	_recycleBin.Type = field.NewString(tableName, "type")
 	_recycleBin.Size = field.NewInt64(tableName, "size")
 	_recycleBin.DirType = field.NewInt8(tableName, "dirtype")
+	_recycleBin.Parent = field.NewString(tableName, "parent")
+	_recycleBin.Object = field.NewString(tableName, "object")
 	_recycleBin.CreatedAt = field.NewTime(tableName, "created_at")
-	_recycleBin.DeletedAt = field.NewTime(tableName, "deleted_at")
+	_recycleBin.DeletedAt = field.NewField(tableName, "deleted_at")
 
 	_recycleBin.fillFieldMap()
 
@@ -57,8 +59,10 @@ type recycleBin struct {
 	Type      field.String
 	Size      field.Int64
 	DirType   field.Int8
+	Parent    field.String
+	Object    field.String
 	CreatedAt field.Time
-	DeletedAt field.Time
+	DeletedAt field.Field
 
 	fieldMap map[string]field.Expr
 }
@@ -84,8 +88,10 @@ func (r *recycleBin) updateTableName(table string) *recycleBin {
 	r.Type = field.NewString(table, "type")
 	r.Size = field.NewInt64(table, "size")
 	r.DirType = field.NewInt8(table, "dirtype")
+	r.Parent = field.NewString(table, "parent")
+	r.Object = field.NewString(table, "object")
 	r.CreatedAt = field.NewTime(table, "created_at")
-	r.DeletedAt = field.NewTime(table, "deleted_at")
+	r.DeletedAt = field.NewField(table, "deleted_at")
 
 	r.fillFieldMap()
 
@@ -102,7 +108,7 @@ func (r *recycleBin) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (r *recycleBin) fillFieldMap() {
-	r.fieldMap = make(map[string]field.Expr, 11)
+	r.fieldMap = make(map[string]field.Expr, 13)
 	r.fieldMap["id"] = r.Id
 	r.fieldMap["uid"] = r.Uid
 	r.fieldMap["sid"] = r.Sid
@@ -112,6 +118,8 @@ func (r *recycleBin) fillFieldMap() {
 	r.fieldMap["type"] = r.Type
 	r.fieldMap["size"] = r.Size
 	r.fieldMap["dirtype"] = r.DirType
+	r.fieldMap["parent"] = r.Parent
+	r.fieldMap["object"] = r.Object
 	r.fieldMap["created_at"] = r.CreatedAt
 	r.fieldMap["deleted_at"] = r.DeletedAt
 }

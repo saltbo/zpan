@@ -43,9 +43,7 @@ type Matter struct {
 	UpdatedAt  time.Time      `json:"updated" gorm:"not null"`
 	UploadedAt time.Time      `json:"uploaded"`
 	DeletedAt  gorm.DeletedAt `json:"-"`
-
-	// Deprecated: 弃用
-	TrashedBy string `json:"-" gorm:"size:16;not null"`
+	TrashedBy  string         `json:"-" gorm:"size:16;not null"`
 }
 
 func (m *Matter) GetID() int64 {
