@@ -6,6 +6,8 @@ builds:
   - id: server
     main: ./main.go
     binary: bin/{{ .ProjectName }}
+    env:
+      - CGO_ENABLED=1
     ldflags:
       - -s -w
       - -X github.com/saltbo/{{ .ProjectName }}/cmd.release={{.Version}}
@@ -17,6 +19,10 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm
+    goarm:
+      - "6"
+      - "7"
 
 dockers:
   -
