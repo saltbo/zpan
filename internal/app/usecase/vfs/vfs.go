@@ -16,10 +16,16 @@ type Vfs struct {
 	matterRepo     repo.Matter
 	recycleBinRepo repo.RecycleBin
 	uploader       uploader.Uploader
+	eventWorker    *EventWorker
 }
 
 func NewVfs(matterRepo repo.Matter, recycleBinRepo repo.RecycleBin, uploader uploader.Uploader) *Vfs {
-	return &Vfs{matterRepo: matterRepo, recycleBinRepo: recycleBinRepo, uploader: uploader}
+	vfs := &Vfs{matterRepo: matterRepo, recycleBinRepo: recycleBinRepo, uploader: uploader, eventWorker: NewWorker()}
+	vfs.eventWorker.registerEventHandler(EventActionCreated, vfs.matterCreatedEventHandler)
+	vfs.eventWorker.registerEventHandler(EventActionDeleted, vfs.matterDeletedEventHandler)
+	vfs.cleanExpiredMatters(context.Background())
+	go vfs.eventWorker.Run()
+	return vfs
 }
 
 func (v *Vfs) Create(ctx context.Context, m *entity.Matter) error {
@@ -27,6 +33,8 @@ func (v *Vfs) Create(ctx context.Context, m *entity.Matter) error {
 		if err := v.uploader.CreateUploadURL(ctx, m); err != nil {
 			return err
 		}
+
+		defer v.eventWorker.sendEvent(EventActionCreated, m)
 	}
 
 	return v.matterRepo.Create(ctx, m)
@@ -96,6 +104,7 @@ func (v *Vfs) Delete(ctx context.Context, alias string) error {
 		return err
 	}
 
+	defer v.eventWorker.sendEvent(EventActionDeleted, m)
 	rb := m.BuildRecycleBinItem()
 	return v.recycleBinRepo.Create(ctx, rb)
 }

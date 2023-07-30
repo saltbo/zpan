@@ -24,6 +24,7 @@ type MatterListOption struct {
 	Dir     string `form:"dir"`
 	Type    string `form:"type"`
 	Keyword string `form:"kw"`
+	Draft   bool
 }
 
 type MatterFindWithOption struct {
@@ -111,7 +112,7 @@ func (db *MatterDBQuery) FindAll(ctx context.Context, opts *MatterListOption) ([
 
 	if opts.Keyword != "" {
 		conds = append(conds, db.q.Matter.Name.Like(fmt.Sprintf("%%%s%%", opts.Keyword)))
-	} else {
+	} else if !opts.Draft {
 		conds = append(conds, db.q.Matter.Parent.Eq(opts.Dir))
 	}
 
@@ -121,8 +122,17 @@ func (db *MatterDBQuery) FindAll(ctx context.Context, opts *MatterListOption) ([
 		conds = append(conds, db.q.Matter.Type.Like(fmt.Sprintf("%%%s%%", opts.Type)))
 	}
 
-	conds = append(conds, db.q.Matter.UploadedAt.IsNotNull())
-	return db.q.Matter.Where(conds...).Order(db.q.Matter.DirType.Desc(), db.q.Matter.Id.Desc()).FindByPage(opts.Offset, opts.Limit)
+	if !opts.Draft {
+		conds = append(conds, db.q.Matter.UploadedAt.IsNotNull())
+	}
+
+	q := db.q.Matter.WithContext(ctx).Where(conds...).Order(db.q.Matter.DirType.Desc(), db.q.Matter.Id.Desc())
+	if opts.Limit != 0 {
+		return q.FindByPage(opts.Offset, opts.Limit)
+	}
+
+	matters, err := q.Find()
+	return matters, int64(len(matters)), err
 }
 
 func (db *MatterDBQuery) Create(ctx context.Context, m *entity.Matter) error {
