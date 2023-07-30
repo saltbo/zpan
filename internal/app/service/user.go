@@ -111,6 +111,8 @@ func (u *User) PasswordUpdate(uid int64, oldPwd, newPwd string) error {
 		return err
 	} else if user.Password != strutil.Md5Hex(oldPwd) {
 		return fmt.Errorf("error password")
+	} else if user.Username == "demo" {
+		return fmt.Errorf("user demo not allowed change password")
 	}
 
 	user.Password = strutil.Md5Hex(newPwd)
