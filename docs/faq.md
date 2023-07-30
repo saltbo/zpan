@@ -14,9 +14,11 @@ vi /etc/zpan/zpan.yml
 docker run -it -v /etc/zpan:/etc/zpan zpan
 ```
 
-**三、为什么接入点不支持ip+端口**
+**三、为什么接入点不支持IP+端口**
 
-答：因为我们仅支持virtual-host-style，系统会自动把bucket名称拼接到接入点上，如果使用ip拼上去就错了。详见https://docs.aws.amazon.com/AmazonS3/latest/userguide/RESTAPI.html
+~~答：因为我们仅支持virtual-host-style，系统会自动把bucket名称拼接到接入点上，如果使用ip拼上去就错了。详见https://docs.aws.amazon.com/AmazonS3/latest/userguide/RESTAPI.html~~
+
+答：从v1.7.0版本已经支持是否开启PathStyle，开启后即可使用IP+端口形式
 
 **四、为什么不支持Windows系统？**
 
