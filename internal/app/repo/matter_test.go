@@ -65,7 +65,7 @@ func TestMatterDBQuery_Update(t *testing.T) {
 			expectChildrenArgs:   []driver.Value{"dir0/dir1/", "dir0/dir1-1/", nowFunc(), "dir0/dir1/%"},
 			expectChildrenResult: sqlmock.NewResult(1, 1),
 
-			expectMainArgs:   []driver.Value{"dir1-1", "dir0/", nowFunc(), 1},
+			expectMainArgs:   []driver.Value{"dir1-1", "dir0/", nil, nowFunc(), 1},
 			expectMainResult: sqlmock.NewResult(1, 1),
 		},
 		"update parent with children": {
@@ -76,7 +76,7 @@ func TestMatterDBQuery_Update(t *testing.T) {
 			expectChildrenArgs:   []driver.Value{"dir2/", "dir1/dir2/", nowFunc(), "dir2/%"},
 			expectChildrenResult: sqlmock.NewResult(1, 1),
 
-			expectMainArgs:   []driver.Value{"dir2", "dir1/", nowFunc(), 2},
+			expectMainArgs:   []driver.Value{"dir2", "dir1/", nil, nowFunc(), 2},
 			expectMainResult: sqlmock.NewResult(1, 1),
 		},
 	}

@@ -36,7 +36,7 @@ func NewServer() *Server {
 	fileResource := api.NewFileResource(vfsVfs, cloudUploader)
 	recycleBin := vfs.NewRecycleBin(recycleBinDBQuery, matterDBQuery, cloudStorage)
 	recycleBinResource := api.NewRecycleBinResource(recycleBinDBQuery, recycleBin)
-	shareResource := api.NewShareResource(matterDBQuery)
+	shareResource := api.NewShareResource(matterDBQuery, vfsVfs)
 	storageResource := api.NewStorageResource(storageDBQuery, cloudStorage)
 	option := api.NewOptionResource()
 	tokenResource := api.NewTokenResource()
