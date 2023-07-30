@@ -23,7 +23,6 @@ func (rs *FileResource) Register(router *gin.RouterGroup) {
 	router.POST("/matters", rs.create)
 	router.GET("/matters", rs.findAll)
 	router.GET("/matters/:alias", rs.find)
-	router.GET("/matters/:alias/ulink", rs.ulink)
 	router.PATCH("/matters/:alias/done", rs.uploaded)
 	router.PATCH("/matters/:alias/name", rs.rename)
 	router.PATCH("/matters/:alias/location", rs.move)
