@@ -118,7 +118,7 @@ func (db *MatterDBQuery) FindAll(ctx context.Context, opts *MatterListOption) ([
 		conds = append(conds, db.q.Matter.Type.Like(fmt.Sprintf("%%%s%%", opts.Type)))
 	}
 
-	return db.q.Matter.Where(conds...).Order(db.q.Matter.DirType.Desc()).FindByPage(opts.Offset, opts.Limit)
+	return db.q.Matter.Where(conds...).Order(db.q.Matter.DirType.Desc(), db.q.Matter.Id.Desc()).FindByPage(opts.Offset, opts.Limit)
 }
 
 func (db *MatterDBQuery) Create(ctx context.Context, m *entity.Matter) error {
