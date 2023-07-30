@@ -73,6 +73,7 @@ func (u *CloudUploader) UploadDone(ctx context.Context, m *entity.Matter) error 
 		return err
 	}
 
-	m.UploadedAt = time.Now()
+	now := time.Now()
+	m.UploadedAt = &now
 	return u.matterRepo.Update(ctx, m.Id, m)
 }

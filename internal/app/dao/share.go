@@ -37,7 +37,7 @@ func (s *Share) FindAll(uid int64) (list []*model.Share, total int64, err error)
 	query.WithEq("uid", uid)
 	sn := gdb.Where(query.SQL(), query.Params)
 	sn.Model(model.Share{}).Count(&total)
-	err = sn.Find(&list).Offset(query.Offset).Limit(query.Limit).Error
+	err = sn.Order("id desc").Find(&list).Offset(query.Offset).Limit(query.Limit).Error
 	return
 }
 

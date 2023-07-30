@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/saltbo/gopkg/timeutil"
 	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/saltbo/zpan/internal/app/repo/query"
 	"github.com/samber/lo"
@@ -118,16 +121,20 @@ func (db *MatterDBQuery) FindAll(ctx context.Context, opts *MatterListOption) ([
 		conds = append(conds, db.q.Matter.Type.Like(fmt.Sprintf("%%%s%%", opts.Type)))
 	}
 
-	return db.q.Matter.Where(conds...).Order(db.q.Matter.DirType.Desc()).FindByPage(opts.Offset, opts.Limit)
+	conds = append(conds, db.q.Matter.UploadedAt.IsNotNull())
+	return db.q.Matter.Where(conds...).Order(db.q.Matter.DirType.Desc(), db.q.Matter.Id.Desc()).FindByPage(opts.Offset, opts.Limit)
 }
 
 func (db *MatterDBQuery) Create(ctx context.Context, m *entity.Matter) error {
-	if exist := db.PathExist(ctx, m.FullPath()); exist {
-		return fmt.Errorf("matter %s already exist", m.FullPath())
-	}
-
 	if exist := db.PathExist(ctx, m.Parent); !exist {
 		return fmt.Errorf("base dir not exist")
+	}
+
+	if exist := db.PathExist(ctx, m.FullPath()); exist {
+		// auto append a suffix if matter exist
+		ext := filepath.Ext(m.Name)
+		suffix := fmt.Sprintf("_%s", timeutil.Format(time.Now(), "YYYYMMDD_HHmmss"))
+		m.Name = strings.TrimSuffix(m.Name, ext) + suffix + ext
 	}
 
 	return db.q.Matter.Create(m)
@@ -182,7 +189,7 @@ func (db *MatterDBQuery) Update(ctx context.Context, id int64, m *entity.Matter)
 			}
 		}
 
-		_, err := tq.Select(tx.Matter.Name, tx.Matter.Parent).Updates(m)
+		_, err := tq.Select(tx.Matter.Name, tx.Matter.Parent, tx.Matter.UploadedAt).Updates(m)
 		return err
 	})
 }

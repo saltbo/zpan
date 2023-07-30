@@ -39,9 +39,9 @@ type Matter struct {
 	Object     string         `json:"object" gorm:"not null"`
 	URL        string         `json:"url" gorm:"-"`
 	Uploader   map[string]any `json:"uploader" gorm:"-"`
+	UploadedAt *time.Time     `json:"uploaded"`
 	CreatedAt  time.Time      `json:"created" gorm:"not null"`
 	UpdatedAt  time.Time      `json:"updated" gorm:"not null"`
-	UploadedAt time.Time      `json:"uploaded"`
 	DeletedAt  gorm.DeletedAt `json:"-"`
 	TrashedBy  string         `json:"-" gorm:"size:16;not null"`
 }
