@@ -57,6 +57,7 @@ func TestVfs_Rename(t *testing.T) {
 		Parent: "/",
 		Name:   "abc.txt",
 	}
+	matter.SetUploadedAt()
 	ctx := context.Background()
 	mockMatter := mock.NewMatter()
 	assert.NoError(t, mockMatter.Create(ctx, matter))

@@ -62,8 +62,7 @@ func (m *Matter) TableName() string {
 
 func (m *Matter) BeforeCreate(db *gorm.DB) error {
 	if m.IsDir() {
-		now := time.Now()
-		m.UploadedAt = &now
+		m.SetUploadedAt()
 	}
 
 	return nil
@@ -78,6 +77,11 @@ func (m *Matter) Clone() *Matter {
 	clone.Id = 0
 	clone.Alias = strutil.RandomText(16)
 	return &clone
+}
+
+func (m *Matter) SetUploadedAt() {
+	now := time.Now()
+	m.UploadedAt = &now
 }
 
 func (m *Matter) FullPath() string {

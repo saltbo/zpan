@@ -2,7 +2,6 @@ package uploader
 
 import (
 	"context"
-	"time"
 
 	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/saltbo/zpan/internal/app/repo"
@@ -73,7 +72,6 @@ func (u *CloudUploader) UploadDone(ctx context.Context, m *entity.Matter) error 
 		return err
 	}
 
-	now := time.Now()
-	m.UploadedAt = &now
+	m.SetUploadedAt()
 	return u.matterRepo.Update(ctx, m.Id, m)
 }

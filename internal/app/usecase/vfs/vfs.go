@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/robfig/cron"
 	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/saltbo/zpan/internal/app/repo"
 	"github.com/saltbo/zpan/internal/app/usecase/uploader"
@@ -23,7 +24,7 @@ func NewVfs(matterRepo repo.Matter, recycleBinRepo repo.RecycleBin, uploader upl
 	vfs := &Vfs{matterRepo: matterRepo, recycleBinRepo: recycleBinRepo, uploader: uploader, eventWorker: NewWorker()}
 	vfs.eventWorker.registerEventHandler(EventActionCreated, vfs.matterCreatedEventHandler)
 	vfs.eventWorker.registerEventHandler(EventActionDeleted, vfs.matterDeletedEventHandler)
-	vfs.cleanExpiredMatters(context.Background())
+	_ = cron.New().AddFunc("30 1 * * *", vfs.cleanExpiredMatters)
 	go vfs.eventWorker.Run()
 	return vfs
 }

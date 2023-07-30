@@ -27,7 +27,8 @@ func (v *Vfs) matterDeletedEventHandler(matter *entity.Matter) error {
 	return nil
 }
 
-func (v *Vfs) cleanExpiredMatters(ctx context.Context) {
+func (v *Vfs) cleanExpiredMatters() {
+	ctx := context.Background()
 	matters, _, err := v.matterRepo.FindAll(ctx, &repo.MatterListOption{Draft: true})
 	if err != nil {
 		log.Printf("error getting the files of not uploaded: %s", err)
