@@ -37,9 +37,9 @@ func newMatter(db *gorm.DB, opts ...gen.DOOption) matter {
 	_matter.DirType = field.NewInt8(tableName, "dirtype")
 	_matter.Parent = field.NewString(tableName, "parent")
 	_matter.Object = field.NewString(tableName, "object")
+	_matter.UploadedAt = field.NewTime(tableName, "uploaded_at")
 	_matter.CreatedAt = field.NewTime(tableName, "created_at")
 	_matter.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_matter.UploadedAt = field.NewTime(tableName, "uploaded_at")
 	_matter.DeletedAt = field.NewField(tableName, "deleted_at")
 	_matter.TrashedBy = field.NewString(tableName, "trashed_by")
 
@@ -62,9 +62,9 @@ type matter struct {
 	DirType    field.Int8
 	Parent     field.String
 	Object     field.String
+	UploadedAt field.Time
 	CreatedAt  field.Time
 	UpdatedAt  field.Time
-	UploadedAt field.Time
 	DeletedAt  field.Field
 	TrashedBy  field.String
 
@@ -93,9 +93,9 @@ func (m *matter) updateTableName(table string) *matter {
 	m.DirType = field.NewInt8(table, "dirtype")
 	m.Parent = field.NewString(table, "parent")
 	m.Object = field.NewString(table, "object")
+	m.UploadedAt = field.NewTime(table, "uploaded_at")
 	m.CreatedAt = field.NewTime(table, "created_at")
 	m.UpdatedAt = field.NewTime(table, "updated_at")
-	m.UploadedAt = field.NewTime(table, "uploaded_at")
 	m.DeletedAt = field.NewField(table, "deleted_at")
 	m.TrashedBy = field.NewString(table, "trashed_by")
 
@@ -125,9 +125,9 @@ func (m *matter) fillFieldMap() {
 	m.fieldMap["dirtype"] = m.DirType
 	m.fieldMap["parent"] = m.Parent
 	m.fieldMap["object"] = m.Object
+	m.fieldMap["uploaded_at"] = m.UploadedAt
 	m.fieldMap["created_at"] = m.CreatedAt
 	m.fieldMap["updated_at"] = m.UpdatedAt
-	m.fieldMap["uploaded_at"] = m.UploadedAt
 	m.fieldMap["deleted_at"] = m.DeletedAt
 	m.fieldMap["trashed_by"] = m.TrashedBy
 }

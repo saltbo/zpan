@@ -17,6 +17,7 @@ type StorageBody struct {
 	Region     string `json:"region"`
 	AccessKey  string `json:"access_key" binding:"required"`
 	SecretKey  string `json:"secret_key" binding:"required"`
+	PathStyle  bool   `json:"path_style"`
 	Title      string `json:"title"`
 	Status     int8   `json:"status"`
 	IDirs      string `json:"idirs"` // internal dirs
@@ -39,6 +40,7 @@ func (b *StorageBody) Model() *entity.Storage {
 		IDirs:      ts(b.IDirs),
 		Bucket:     ts(b.Bucket),
 		Provider:   b.Provider,
+		PathStyle:  b.PathStyle,
 		Endpoint:   ts(b.Endpoint),
 		Region:     ts(b.Region),
 		Status:     b.Status,

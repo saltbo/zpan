@@ -44,7 +44,7 @@ func TestSignedPutURL(t *testing.T) {
 	_, headers, err := disk.SignedPutURL(key, "text/plain", 0, false)
 	assert.NoError(t, err)
 
-	assert.Equal(t, s3.ObjectCannedACLAuthenticatedRead, headers.Get("x-amz-acl"))
+	assert.Equal(t, s3.ObjectCannedACLPrivate, headers.Get("x-amz-acl"))
 	assert.Equal(t, "text/plain", headers.Get("content-type"))
 }
 

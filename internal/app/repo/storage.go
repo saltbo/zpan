@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/saltbo/zpan/internal/app/repo/query"
@@ -46,18 +47,18 @@ func (s *StorageDBQuery) Create(ctx context.Context, storage *entity.Storage) er
 }
 
 func (s *StorageDBQuery) Update(ctx context.Context, id int64, storage *entity.Storage) error {
-	existStorage := new(entity.Storage)
-	if _, err := s.Find(ctx, id); errors.Is(err, gorm.ErrRecordNotFound) {
+	existStorage, err := s.Find(ctx, id)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("storage not found")
 	}
 
-	storage.Id = id
-	// 如果SK没有发生改变则不允许更新SK，避免改错SK
-	if storage.SecretKey == existStorage.SKAsterisk() {
+	// 如果SK是掩码则忽略
+	if strings.HasPrefix(storage.SecretKey, "***") {
 		storage.SecretKey = existStorage.SecretKey
 	}
 
-	return s.q.Storage.WithContext(ctx).Save(storage)
+	_, err = s.q.Storage.WithContext(ctx).Where(s.q.Storage.Id.Eq(id)).Updates(storage)
+	return err
 }
 
 func (s *StorageDBQuery) Delete(ctx context.Context, id int64) error {

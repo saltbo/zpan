@@ -63,5 +63,6 @@ func (s *CloudStorage) buildConfig(storage *entity.Storage) *provider.Config {
 		CustomHost:   storage.CustomHost,
 		AccessKey:    storage.AccessKey,
 		AccessSecret: storage.SecretKey,
+		PathStyle:    storage.PathStyle,
 	}
 }

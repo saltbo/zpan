@@ -39,6 +39,7 @@ func newStorage(db *gorm.DB, opts ...gen.DOOption) storage {
 	_storage.AccessKey = field.NewString(tableName, "access_key")
 	_storage.SecretKey = field.NewString(tableName, "secret_key")
 	_storage.CustomHost = field.NewString(tableName, "custom_host")
+	_storage.PathStyle = field.NewBool(tableName, "path_style")
 	_storage.RootPath = field.NewString(tableName, "root_path")
 	_storage.FilePath = field.NewString(tableName, "file_path")
 	_storage.Status = field.NewInt8(tableName, "status")
@@ -67,6 +68,7 @@ type storage struct {
 	AccessKey  field.String
 	SecretKey  field.String
 	CustomHost field.String
+	PathStyle  field.Bool
 	RootPath   field.String
 	FilePath   field.String
 	Status     field.Int8
@@ -101,6 +103,7 @@ func (s *storage) updateTableName(table string) *storage {
 	s.AccessKey = field.NewString(table, "access_key")
 	s.SecretKey = field.NewString(table, "secret_key")
 	s.CustomHost = field.NewString(table, "custom_host")
+	s.PathStyle = field.NewBool(table, "path_style")
 	s.RootPath = field.NewString(table, "root_path")
 	s.FilePath = field.NewString(table, "file_path")
 	s.Status = field.NewInt8(table, "status")
@@ -123,7 +126,7 @@ func (s *storage) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (s *storage) fillFieldMap() {
-	s.fieldMap = make(map[string]field.Expr, 18)
+	s.fieldMap = make(map[string]field.Expr, 19)
 	s.fieldMap["id"] = s.Id
 	s.fieldMap["mode"] = s.Mode
 	s.fieldMap["name"] = s.Name
@@ -136,6 +139,7 @@ func (s *storage) fillFieldMap() {
 	s.fieldMap["access_key"] = s.AccessKey
 	s.fieldMap["secret_key"] = s.SecretKey
 	s.fieldMap["custom_host"] = s.CustomHost
+	s.fieldMap["path_style"] = s.PathStyle
 	s.fieldMap["root_path"] = s.RootPath
 	s.fieldMap["file_path"] = s.FilePath
 	s.fieldMap["status"] = s.Status

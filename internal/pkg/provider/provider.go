@@ -48,6 +48,7 @@ type Config struct {
 	CustomHost   string
 	AccessKey    string
 	AccessSecret string
+	PathStyle    bool
 }
 
 func (c *Config) Clone() *Config {
@@ -72,8 +73,8 @@ var supportProviders = map[string]Constructor{
 	"S3":    NewS3Provider,
 	"US3":   NewUS3Provider,
 	"USS":   NewUSSProvider,
-	//"od": NewODProvider,
-	//"gd": NewGDProvider,
+	// "od": NewODProvider,
+	// "gd": NewGDProvider,
 }
 
 func New(conf *Config) (Provider, error) {

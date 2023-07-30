@@ -24,6 +24,9 @@ func NewS3Provider(conf *Config) (Provider, error) {
 
 func newS3Provider(conf *Config) (*S3Provider, error) {
 	cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(conf.AccessKey, conf.AccessSecret, ""))
+	if conf.PathStyle {
+		cfg.WithS3ForcePathStyle(true)
+	}
 	s, err := session.NewSession(cfg)
 	if err != nil {
 		return nil, err
@@ -149,7 +152,7 @@ func (p *S3Provider) Move(object, newObject string) error {
 }
 
 func (p *S3Provider) SignedPutURL(key, filetype string, filesize int64, public bool) (string, http.Header, error) {
-	acl := s3.ObjectCannedACLAuthenticatedRead
+	acl := s3.ObjectCannedACLPrivate
 	if public {
 		acl = s3.ObjectCannedACLPublicRead
 	}

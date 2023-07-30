@@ -29,6 +29,7 @@ type Storage struct {
 	AccessKey  string         `json:"access_key" gorm:"size:64;not null"`
 	SecretKey  string         `json:"secret_key" gorm:"size:64;not null"`
 	CustomHost string         `json:"custom_host" gorm:"size:128;not null"`
+	PathStyle  bool           `json:"path_style" gorm:"not null;default:false"`
 	RootPath   string         `json:"root_path" gorm:"size:64;not null"`
 	FilePath   string         `json:"file_path" gorm:"size:1024;not null"`
 	Status     int8           `json:"status" gorm:"size:1;default:1;not null"`
