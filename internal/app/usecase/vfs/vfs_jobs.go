@@ -35,7 +35,7 @@ func (v *Vfs) cleanExpiredMatters(ctx context.Context) {
 	}
 
 	for _, matter := range matters {
-		if time.Since(matter.CreatedAt) > time.Hour*24 {
+		if time.Since(matter.CreatedAt) < time.Hour*24 {
 			continue
 		}
 
