@@ -11,6 +11,7 @@ type RecycleBinFindOptions struct {
 	QueryPage
 
 	Sid int64
+	Uid int64
 }
 
 type RecycleBin interface {
@@ -34,7 +35,7 @@ func (r *RecycleBinDBQuery) Find(ctx context.Context, alias string) (*entity.Rec
 }
 
 func (r *RecycleBinDBQuery) FindAll(ctx context.Context, opts *RecycleBinFindOptions) (rows []*entity.RecycleBin, total int64, err error) {
-	q := r.q.RecycleBin.WithContext(ctx).Where(r.q.RecycleBin.Sid.Eq(opts.Sid)).Order(r.q.RecycleBin.Id.Desc())
+	q := r.q.RecycleBin.WithContext(ctx).Where(r.q.RecycleBin.Uid.Eq(opts.Uid), r.q.RecycleBin.Sid.Eq(opts.Sid)).Order(r.q.RecycleBin.Id.Desc())
 
 	if opts.Limit == 0 {
 		rows, err = q.Find()

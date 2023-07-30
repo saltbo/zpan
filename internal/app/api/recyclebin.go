@@ -5,6 +5,7 @@ import (
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/zpan/internal/app/repo"
 	"github.com/saltbo/zpan/internal/app/usecase/vfs"
+	"github.com/saltbo/zpan/internal/pkg/authed"
 	"github.com/saltbo/zpan/internal/pkg/bind"
 )
 
@@ -31,7 +32,12 @@ func (rs *RecycleBinResource) findAll(c *gin.Context) {
 		return
 	}
 
-	list, total, err := rs.rbr.FindAll(c, &repo.RecycleBinFindOptions{QueryPage: repo.QueryPage(p.QueryPage), Sid: p.Sid})
+	opts := &repo.RecycleBinFindOptions{
+		QueryPage: repo.QueryPage(p.QueryPage),
+		Uid:       authed.UidGet(c),
+		Sid:       p.Sid,
+	}
+	list, total, err := rs.rbr.FindAll(c, opts)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return

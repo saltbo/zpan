@@ -46,10 +46,6 @@ type Matter struct {
 	TrashedBy  string         `json:"-" gorm:"size:16;not null"`
 }
 
-func (m *Matter) GetID() int64 {
-	return m.Id
-}
-
 func NewMatter(uid, sid int64, name string) *Matter {
 	return &Matter{
 		Uid:      uid,
@@ -62,6 +58,19 @@ func NewMatter(uid, sid int64, name string) *Matter {
 
 func (m *Matter) TableName() string {
 	return "zp_matter"
+}
+
+func (m *Matter) BeforeCreate(db *gorm.DB) error {
+	if m.IsDir() {
+		now := time.Now()
+		m.UploadedAt = &now
+	}
+
+	return nil
+}
+
+func (m *Matter) GetID() int64 {
+	return m.Id
 }
 
 func (m *Matter) Clone() *Matter {

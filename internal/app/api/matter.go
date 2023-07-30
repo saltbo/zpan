@@ -28,17 +28,24 @@ func (rs *FileResource) Register(router *gin.RouterGroup) {
 	router.PATCH("/matters/:alias/location", rs.move)
 	router.PATCH("/matters/:alias/duplicate", rs.copy)
 	router.DELETE("/matters/:alias", rs.delete)
-	// rs.fs.StartFileAutoDoneWorker()
 }
 
 func (rs *FileResource) findAll(c *gin.Context) {
-	p := new(repo.MatterListOption)
+	p := new(bind.QueryFiles)
 	if err := c.BindQuery(p); err != nil {
 		ginutil.JSONBadRequest(c, err)
 		return
 	}
 
-	list, total, err := rs.fs.List(c, p)
+	opt := &repo.MatterListOption{
+		QueryPage: repo.QueryPage(p.QueryPage),
+		Sid:       p.Sid,
+		Uid:       authed.UidGet(c),
+		Dir:       p.Dir,
+		Type:      p.Type,
+		Keyword:   p.Keyword,
+	}
+	list, total, err := rs.fs.List(c, opt)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -72,11 +79,7 @@ func (rs *FileResource) create(c *gin.Context) {
 		return
 	}
 
-	ginutil.JSONData(c, gin.H{
-		"matter":  m,
-		"uplink":  m.Uploader["upURL"],
-		"headers": m.Uploader["upHeaders"],
-	})
+	ginutil.JSONData(c, m)
 }
 
 func (rs *FileResource) uploaded(c *gin.Context) {
@@ -158,14 +161,4 @@ func (rs *FileResource) delete(c *gin.Context) {
 	}
 
 	ginutil.JSON(c)
-}
-
-func (rs *FileResource) ulink(c *gin.Context) {
-	// data, err := rs.up.GetPreSign(authed.UidGet(c), c.Param("alias"))
-	// if err != nil {
-	// 	ginutil.JSONServerError(c, err)
-	// 	return
-	// }
-	//
-	// ginutil.JSONData(c, data)
 }

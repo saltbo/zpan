@@ -19,11 +19,11 @@ import (
 
 type MatterListOption struct {
 	QueryPage
-	Sid     int64  `form:"sid" binding:"required"`
-	Uid     int64  `form:"uid"`
-	Dir     string `form:"dir"`
-	Type    string `form:"type"`
-	Keyword string `form:"kw"`
+	Sid     int64
+	Uid     int64
+	Dir     string
+	Type    string
+	Keyword string
 	Draft   bool
 }
 
@@ -127,12 +127,13 @@ func (db *MatterDBQuery) FindAll(ctx context.Context, opts *MatterListOption) ([
 	}
 
 	q := db.q.Matter.WithContext(ctx).Where(conds...).Order(db.q.Matter.DirType.Desc(), db.q.Matter.Id.Desc())
-	if opts.Limit != 0 {
-		return q.FindByPage(opts.Offset, opts.Limit)
+
+	if opts.Limit == 0 {
+		matters, err := q.Find()
+		return matters, int64(len(matters)), err
 	}
 
-	matters, err := q.Find()
-	return matters, int64(len(matters)), err
+	return q.FindByPage(opts.Offset, opts.Limit)
 }
 
 func (db *MatterDBQuery) Create(ctx context.Context, m *entity.Matter) error {
