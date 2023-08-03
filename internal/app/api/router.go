@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
-
+	"github.com/saltbo/zpan/internal/app/usecase/authz"
 	_ "github.com/saltbo/zpan/internal/docs"
 )
 
@@ -29,6 +29,7 @@ func SetupRoutes(ge *gin.Engine, repository *Repository) {
 	ginutil.SetupSwagger(ge)
 
 	apiRouter := ge.Group("/api")
+	apiRouter.Use(authz.NewMiddleware)
 	ginutil.SetupResource(apiRouter,
 		repository.option,
 		repository.file,
