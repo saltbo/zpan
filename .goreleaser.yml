@@ -22,10 +22,26 @@ builds:
       - "6"
       - "7"
 
+release:
+  prerelease: auto
+  header: |
+    ## Some title ({{ .Date }})
+
+    Welcome to this new release!
+  footer: |
+    ## Docker Images
+    
+    - `saltbo/{{ .ProjectName }}:{{ .Version }}`
+    
+    ## Thanks
+
+    Those were the changes on {{ .Tag }}!
+
 dockers:
   - image_templates:
-      - "saltbo/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
-      - "saltbo/{{ .ProjectName }}:latest"
+      - "saltbo/{{ .ProjectName }}:{{ .Version }}"
+#      - "saltbo/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
+#      - "saltbo/{{ .ProjectName }}:latest"
 
 archives:
   - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
@@ -53,7 +69,7 @@ changelog:
 nfpms:
   - file_name_template: '{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     homepage: https://github.com/saltbo/{{ .ProjectName }}
-    description: Convenient static file deployment tool that supports multiple platforms
+    description: A self-hosted cloud disk base on the cloud storage
     maintainer: Ambor <saltbo@foxmail.com>
     license: MIT
     formats:
