@@ -24,18 +24,11 @@ builds:
 
 release:
   prerelease: auto
-  header: |
-    ## Some title ({{ .Date }})
-
-    Welcome to this new release!
   footer: |
     ## Docker Images
     
     - `saltbo/{{ .ProjectName }}:{{ .Version }}`
     
-    ## Thanks
-
-    Those were the changes on {{ .Tag }}!
 
 dockers:
   - image_templates:
