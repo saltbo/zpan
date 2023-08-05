@@ -6,8 +6,6 @@ builds:
   - id: server
     main: ./main.go
     binary: bin/{{ .ProjectName }}
-    env:
-      - CGO_ENABLED=1
     ldflags:
       - -s -w
       - -X github.com/saltbo/{{ .ProjectName }}/cmd.release={{.Version}}
