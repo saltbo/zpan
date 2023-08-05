@@ -17,18 +17,28 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm
+    goarm:
+      - "6"
+      - "7"
+
+release:
+  prerelease: auto
+  footer: |
+    ## Docker Images
+    
+    - `saltbo/{{ .ProjectName }}:{{ .Version }}`
+    
 
 dockers:
-  -
-    image_templates:
-      - "saltbo/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
-      - "saltbo/{{ .ProjectName }}:latest"
+  - image_templates:
+      - "saltbo/{{ .ProjectName }}:{{ .Version }}"
+#      - "saltbo/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
+#      - "saltbo/{{ .ProjectName }}:latest"
 
 archives:
-  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     wrap_in_directory: true
-    replacements:
-      darwin: macos
     format: tar.gz
     format_overrides: # archive as zip on Windows
       - goos: windows
@@ -50,9 +60,9 @@ changelog:
       - '^docs:'
       - '^test:'
 nfpms:
-  - file_name_template: '{{ .ProjectName }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+  - file_name_template: '{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     homepage: https://github.com/saltbo/{{ .ProjectName }}
-    description: Convenient static file deployment tool that supports multiple platforms
+    description: A self-hosted cloud disk base on the cloud storage
     maintainer: Ambor <saltbo@foxmail.com>
     license: MIT
     formats:
