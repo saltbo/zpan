@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	Q          = new(Query)
-	Matter     *matter
-	RecycleBin *recycleBin
-	Storage    *storage
+	Q           = new(Query)
+	Matter      *matter
+	RecycleBin  *recycleBin
+	Storage     *storage
+	UserStorage *userStorage
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
@@ -27,33 +28,37 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	Matter = &Q.Matter
 	RecycleBin = &Q.RecycleBin
 	Storage = &Q.Storage
+	UserStorage = &Q.UserStorage
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:         db,
-		Matter:     newMatter(db, opts...),
-		RecycleBin: newRecycleBin(db, opts...),
-		Storage:    newStorage(db, opts...),
+		db:          db,
+		Matter:      newMatter(db, opts...),
+		RecycleBin:  newRecycleBin(db, opts...),
+		Storage:     newStorage(db, opts...),
+		UserStorage: newUserStorage(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	Matter     matter
-	RecycleBin recycleBin
-	Storage    storage
+	Matter      matter
+	RecycleBin  recycleBin
+	Storage     storage
+	UserStorage userStorage
 }
 
 func (q *Query) Available() bool { return q.db != nil }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:         db,
-		Matter:     q.Matter.clone(db),
-		RecycleBin: q.RecycleBin.clone(db),
-		Storage:    q.Storage.clone(db),
+		db:          db,
+		Matter:      q.Matter.clone(db),
+		RecycleBin:  q.RecycleBin.clone(db),
+		Storage:     q.Storage.clone(db),
+		UserStorage: q.UserStorage.clone(db),
 	}
 }
 
@@ -67,24 +72,27 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:         db,
-		Matter:     q.Matter.replaceDB(db),
-		RecycleBin: q.RecycleBin.replaceDB(db),
-		Storage:    q.Storage.replaceDB(db),
+		db:          db,
+		Matter:      q.Matter.replaceDB(db),
+		RecycleBin:  q.RecycleBin.replaceDB(db),
+		Storage:     q.Storage.replaceDB(db),
+		UserStorage: q.UserStorage.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	Matter     IMatterDo
-	RecycleBin IRecycleBinDo
-	Storage    IStorageDo
+	Matter      IMatterDo
+	RecycleBin  IRecycleBinDo
+	Storage     IStorageDo
+	UserStorage IUserStorageDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		Matter:     q.Matter.WithContext(ctx),
-		RecycleBin: q.RecycleBin.WithContext(ctx),
-		Storage:    q.Storage.WithContext(ctx),
+		Matter:      q.Matter.WithContext(ctx),
+		RecycleBin:  q.RecycleBin.WithContext(ctx),
+		Storage:     q.Storage.WithContext(ctx),
+		UserStorage: q.UserStorage.WithContext(ctx),
 	}
 }
 

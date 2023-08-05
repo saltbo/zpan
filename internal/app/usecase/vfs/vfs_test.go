@@ -28,7 +28,7 @@ func TestVfs_Create_File(t *testing.T) {
 	ctx := context.Background()
 	mockMatter := mock.NewMatter()
 	assert.NoError(t, mockMatter.Create(ctx, matter))
-	vfs := NewVfs(mockMatter, nil, &uploader.FakeUploader{CreateUploadURLFn: func(ctx context.Context, m *entity.Matter) error {
+	vfs := NewVfs(mockMatter, nil, mock.NewUser(), &uploader.FakeUploader{CreateUploadURLFn: func(ctx context.Context, m *entity.Matter) error {
 		m.Uploader = mockUploader
 		return nil
 	}})
@@ -44,7 +44,7 @@ func TestVfs_Create_Folder(t *testing.T) {
 		Parent:  "/",
 		Name:    "abc",
 	}
-	vfs := NewVfs(&mock.Matter{}, nil, nil)
+	vfs := NewVfs(&mock.Matter{}, nil, nil, nil)
 	assert.NoError(t, vfs.Create(context.Background(), matter))
 	assert.True(t, matter.IsDir())
 	assert.Equal(t, "/abc/", matter.FullPath())
@@ -61,7 +61,7 @@ func TestVfs_Rename(t *testing.T) {
 	ctx := context.Background()
 	mockMatter := mock.NewMatter()
 	assert.NoError(t, mockMatter.Create(ctx, matter))
-	vfs := NewVfs(mockMatter, nil, nil)
+	vfs := NewVfs(mockMatter, nil, nil, nil)
 	assert.NoError(t, vfs.Rename(ctx, "test", "new.txt"))
 	assert.Equal(t, "new.txt", matter.Name)
 }
@@ -75,7 +75,7 @@ func TestVfs_Move(t *testing.T) {
 	ctx := context.Background()
 	mockMatter := mock.NewMatter()
 	assert.NoError(t, mockMatter.Create(ctx, matter))
-	vfs := NewVfs(mockMatter, nil, nil)
+	vfs := NewVfs(mockMatter, nil, nil, nil)
 	assert.NoError(t, vfs.Move(context.Background(), "test", "newDir"))
 	assert.Equal(t, "newDir/abc.txt", matter.FullPath())
 }
@@ -89,7 +89,7 @@ func TestVfs_Copy(t *testing.T) {
 	ctx := context.Background()
 	mockMatter := mock.NewMatter()
 	assert.NoError(t, mockMatter.Create(ctx, matter))
-	vfs := NewVfs(mockMatter, nil, nil)
+	vfs := NewVfs(mockMatter, nil, nil, nil)
 	newMatter, err := vfs.Copy(context.Background(), "test", "newDir")
 	assert.NoError(t, err)
 	assert.Equal(t, "newDir/abc.txt", newMatter.FullPath())
@@ -105,7 +105,7 @@ func TestVfs_Delete(t *testing.T) {
 	ctx := context.Background()
 	mockMatter := mock.NewMatter()
 	assert.NoError(t, mockMatter.Create(ctx, matter))
-	vfs := NewVfs(mockMatter, mock.NewRecycleBin(), nil)
+	vfs := NewVfs(mockMatter, mock.NewRecycleBin(), nil, nil)
 	assert.NoError(t, vfs.Delete(ctx, "test"))
 	_, err := vfs.Get(ctx, "test")
 	assert.Error(t, err)

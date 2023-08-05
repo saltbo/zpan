@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/saltbo/gopkg/strutil"
+	"github.com/saltbo/zpan/internal/app/entity"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -85,8 +86,8 @@ func (u *User) Create(user *model.User, storageMax uint64) (*model.User, error) 
 		Uid:      user.Id,
 		Nickname: user.Email[:strings.Index(user.Email, "@")],
 	}
-	user.Storage = model.UserStorage{
-		Max: model.UserStorageDefaultSize,
+	user.Storage = entity.UserStorage{
+		Max: entity.UserStorageDefaultSize,
 	}
 	if storageMax > 0 {
 		user.Storage.Max = storageMax
@@ -144,5 +145,5 @@ func (u *User) UpdateProfile(uid int64, up *model.UserProfile) error {
 }
 
 func (u *User) UpdateStorage(uid int64, quota uint64) error {
-	return gdb.Model(model.UserStorage{}).Where("uid=?", uid).Update("max", quota).Error
+	return gdb.Model(entity.UserStorage{}).Where("uid=?", uid).Update("max", quota).Error
 }

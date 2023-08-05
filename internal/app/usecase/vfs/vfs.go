@@ -16,12 +16,13 @@ var _ VirtualFs = (*Vfs)(nil)
 type Vfs struct {
 	matterRepo     repo.Matter
 	recycleBinRepo repo.RecycleBin
+	userRepo       repo.User
 	uploader       uploader.Uploader
 	eventWorker    *EventWorker
 }
 
-func NewVfs(matterRepo repo.Matter, recycleBinRepo repo.RecycleBin, uploader uploader.Uploader) *Vfs {
-	vfs := &Vfs{matterRepo: matterRepo, recycleBinRepo: recycleBinRepo, uploader: uploader, eventWorker: NewWorker()}
+func NewVfs(matterRepo repo.Matter, recycleBinRepo repo.RecycleBin, userRepo repo.User, uploader uploader.Uploader) *Vfs {
+	vfs := &Vfs{matterRepo: matterRepo, recycleBinRepo: recycleBinRepo, userRepo: userRepo, uploader: uploader, eventWorker: NewWorker()}
 	vfs.eventWorker.registerEventHandler(EventActionCreated, vfs.matterCreatedEventHandler)
 	vfs.eventWorker.registerEventHandler(EventActionDeleted, vfs.matterDeletedEventHandler)
 	_ = cron.New().AddFunc("30 1 * * *", vfs.cleanExpiredMatters)
@@ -31,6 +32,13 @@ func NewVfs(matterRepo repo.Matter, recycleBinRepo repo.RecycleBin, uploader upl
 
 func (v *Vfs) Create(ctx context.Context, m *entity.Matter) error {
 	if !m.IsDir() {
+		us, err := v.userRepo.GetUserStorage(ctx, m.Uid)
+		if err != nil {
+			return fmt.Errorf("error getting user storage: %v", err)
+		} else if us.Overflowed(m.Size) {
+			return fmt.Errorf("insufficient storage space")
+		}
+
 		if err := v.uploader.CreateUploadURL(ctx, m); err != nil {
 			return err
 		}

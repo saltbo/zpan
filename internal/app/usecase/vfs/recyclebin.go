@@ -12,11 +12,12 @@ var _ RecycleBinFs = (*RecycleBin)(nil)
 type RecycleBin struct {
 	recycleRepo repo.RecycleBin
 	matterRepo  repo.Matter
+	userRepo    repo.User
 	storage     storage.Storage
 }
 
-func NewRecycleBin(recycleRepo repo.RecycleBin, matterRepo repo.Matter, storage storage.Storage) *RecycleBin {
-	return &RecycleBin{recycleRepo: recycleRepo, matterRepo: matterRepo, storage: storage}
+func NewRecycleBin(recycleRepo repo.RecycleBin, matterRepo repo.Matter, userRepo repo.User, storage storage.Storage) *RecycleBin {
+	return &RecycleBin{recycleRepo: recycleRepo, matterRepo: matterRepo, userRepo: userRepo, storage: storage}
 }
 
 func (rb *RecycleBin) Recovery(ctx context.Context, alias string) error {
@@ -55,11 +56,12 @@ func (rb *RecycleBin) Delete(ctx context.Context, alias string) error {
 		}
 	}
 
+	defer rb.userRepo.UserStorageUsedDecr(ctx, matter)
 	return rb.recycleRepo.Delete(ctx, alias)
 }
 
-func (rb *RecycleBin) Clean(ctx context.Context, sid int64) error {
-	rbs, _, err := rb.recycleRepo.FindAll(ctx, &repo.RecycleBinFindOptions{Sid: sid})
+func (rb *RecycleBin) Clean(ctx context.Context, sid, uid int64) error {
+	rbs, _, err := rb.recycleRepo.FindAll(ctx, &repo.RecycleBinFindOptions{Sid: sid, Uid: uid})
 	if err != nil {
 		return err
 	}

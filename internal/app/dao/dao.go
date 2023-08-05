@@ -39,10 +39,6 @@ type DBQueryFactory struct {
 }
 
 func NewDBQueryFactory() *DBQueryFactory {
-	return &DBQueryFactory{}
-}
-
-func (D *DBQueryFactory) Q() *query.Query {
 	if !viper.IsSet("installed") {
 		return nil
 	}
@@ -51,5 +47,9 @@ func (D *DBQueryFactory) Q() *query.Query {
 		log.Fatalln(err)
 	}
 
+	return &DBQueryFactory{}
+}
+
+func (D *DBQueryFactory) Q() *query.Query {
 	return query.Use(gdb)
 }

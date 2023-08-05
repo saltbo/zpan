@@ -67,7 +67,7 @@ func (rs *RecycleBinResource) delete(c *gin.Context) {
 }
 
 func (rs *RecycleBinResource) clean(c *gin.Context) {
-	if err := rs.rbf.Clean(c, ginutil.QueryInt64(c, "sid")); err != nil {
+	if err := rs.rbf.Clean(c, ginutil.QueryInt64(c, "sid"), authed.UidGet(c)); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

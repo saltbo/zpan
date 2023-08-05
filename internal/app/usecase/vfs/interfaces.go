@@ -20,5 +20,5 @@ type VirtualFs interface {
 type RecycleBinFs interface {
 	Recovery(ctx context.Context, alias string) error
 	Delete(ctx context.Context, alias string) error
-	Clean(ctx context.Context, sid int64) error
+	Clean(ctx context.Context, sid, uid int64) error
 }

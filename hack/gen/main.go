@@ -12,7 +12,7 @@ func main() {
 	})
 
 	// Generate basic type-safe DAO API for struct `model.User` following conventions
-	g.ApplyBasic(entity.Storage{}, entity.Matter{}, entity.RecycleBin{})
+	g.ApplyBasic(entity.Storage{}, entity.Matter{}, entity.RecycleBin{}, entity.UserStorage{})
 
 	// Generate the code
 	g.Execute()

@@ -19,6 +19,7 @@ func (v *Vfs) matterCreatedEventHandler(matter *entity.Matter) error {
 			return
 		}
 
+		_ = v.userRepo.UserStorageUsedIncr(ctx, matter)
 		c.Stop()
 	})
 }

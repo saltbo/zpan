@@ -1,4 +1,4 @@
-package model
+package entity
 
 import (
 	"time"
@@ -21,12 +21,12 @@ type UserStorage struct {
 	Deleted gorm.DeletedAt `json:"-"`
 }
 
-func (UserStorage) TableName() string {
+func (us *UserStorage) TableName() string {
 	return "zp_storage_quota"
 }
 
-func (sq *UserStorage) Overflowed(addonSize int64) bool {
-	if sq.Used+uint64(addonSize) >= sq.Max {
+func (us *UserStorage) Overflowed(addonSize int64) bool {
+	if us.Used+uint64(addonSize) >= us.Max {
 		return true
 	}
 

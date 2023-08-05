@@ -13,12 +13,17 @@ func NewRepository(storage Storage, matter Matter, recycleBin RecycleBin) *Repos
 }
 
 var ProviderSet = wire.NewSet(
-	NewStorageDBQuery,
-	NewMatterDBQuery,
-	NewRecycleBinDBQuery,
+	NewUserDBQuery,
+	wire.Bind(new(User), new(*UserDBQuery)),
 
+	NewStorageDBQuery,
 	wire.Bind(new(Storage), new(*StorageDBQuery)),
+
+	NewMatterDBQuery,
 	wire.Bind(new(Matter), new(*MatterDBQuery)),
+
+	NewRecycleBinDBQuery,
 	wire.Bind(new(RecycleBin), new(*RecycleBinDBQuery)),
+
 	NewRepository,
 )
