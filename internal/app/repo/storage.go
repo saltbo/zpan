@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/saltbo/zpan/internal/app/entity"
-	"github.com/saltbo/zpan/internal/app/repo/query"
 	"gorm.io/gorm"
 )
 
@@ -23,27 +22,27 @@ type Storage interface {
 var _ Storage = (*StorageDBQuery)(nil)
 
 type StorageDBQuery struct {
-	q *query.Query
+	DBQuery
 }
 
-func NewStorageDBQuery(q *query.Query) *StorageDBQuery {
-	return &StorageDBQuery{q: q}
+func NewStorageDBQuery(q DBQuery) *StorageDBQuery {
+	return &StorageDBQuery{DBQuery: q}
 }
 
 func (s *StorageDBQuery) Find(ctx context.Context, id int64) (*entity.Storage, error) {
-	return s.q.Storage.WithContext(ctx).Where(s.q.Storage.Id.Eq(id)).First()
+	return s.Q().Storage.WithContext(ctx).Where(s.Q().Storage.Id.Eq(id)).First()
 }
 
 func (s *StorageDBQuery) FindAll(ctx context.Context, opts *StorageFindOptions) (storages []*entity.Storage, total int64, err error) {
-	return s.q.Storage.WithContext(ctx).FindByPage(opts.Offset, opts.Limit)
+	return s.Q().Storage.WithContext(ctx).FindByPage(opts.Offset, opts.Limit)
 }
 
 func (s *StorageDBQuery) Create(ctx context.Context, storage *entity.Storage) error {
-	if _, err := s.q.Storage.Where(s.q.Storage.Name.Eq(storage.Name)).First(); !errors.Is(err, gorm.ErrRecordNotFound) {
+	if _, err := s.Q().Storage.Where(s.Q().Storage.Name.Eq(storage.Name)).First(); !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("storage already exist")
 	}
 
-	return s.q.Storage.WithContext(ctx).Create(storage)
+	return s.Q().Storage.WithContext(ctx).Create(storage)
 }
 
 func (s *StorageDBQuery) Update(ctx context.Context, id int64, storage *entity.Storage) error {
@@ -57,7 +56,7 @@ func (s *StorageDBQuery) Update(ctx context.Context, id int64, storage *entity.S
 		storage.SecretKey = existStorage.SecretKey
 	}
 
-	_, err = s.q.Storage.WithContext(ctx).Where(s.q.Storage.Id.Eq(id)).Updates(storage)
+	_, err = s.Q().Storage.WithContext(ctx).Where(s.Q().Storage.Id.Eq(id)).Updates(storage)
 	return err
 }
 
@@ -67,6 +66,6 @@ func (s *StorageDBQuery) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("storage not exist")
 	}
 
-	_, err := s.q.Storage.WithContext(ctx).Delete(storage)
+	_, err := s.Q().Storage.WithContext(ctx).Delete(storage)
 	return err
 }

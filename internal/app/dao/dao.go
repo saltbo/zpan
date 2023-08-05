@@ -35,16 +35,21 @@ func Init(driver, dsn string) error {
 	return nil
 }
 
-func GetDBQuery() *query.Query {
-	if viper.IsSet("installed") {
-		if err := Init(viper.GetString("database.driver"), viper.GetString("database.dsn")); err != nil {
-			log.Fatalln(err)
-		}
+type DBQueryFactory struct {
+}
+
+func NewDBQueryFactory() *DBQueryFactory {
+	return &DBQueryFactory{}
+}
+
+func (D *DBQueryFactory) Q() *query.Query {
+	if !viper.IsSet("installed") {
+		return nil
+	}
+
+	if err := Init(viper.GetString("database.driver"), viper.GetString("database.dsn")); err != nil {
+		log.Fatalln(err)
 	}
 
 	return query.Use(gdb)
-}
-
-func Transaction(fc func(tx *gorm.DB) error) error {
-	return gdb.Transaction(fc)
 }

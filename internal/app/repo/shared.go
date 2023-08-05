@@ -2,6 +2,8 @@ package repo
 
 import (
 	"context"
+
+	"github.com/saltbo/zpan/internal/app/repo/query"
 )
 
 type QueryPage struct {
@@ -43,4 +45,20 @@ type Updater[T comparable, ID IDType] interface {
 
 type Deleter[ID IDType] interface {
 	Delete(ctx context.Context, id ID) error
+}
+
+type DBQuery interface {
+	Q() *query.Query
+}
+
+type DBQueryFactory struct {
+	q *query.Query
+}
+
+func NewDBQueryFactory(q *query.Query) *DBQueryFactory {
+	return &DBQueryFactory{q: q}
+}
+
+func (f *DBQueryFactory) Q() *query.Query {
+	return f.q
 }

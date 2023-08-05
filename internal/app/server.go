@@ -1,16 +1,11 @@
-//go:build wireinject
-// +build wireinject
-
 package app
 
 import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/wire"
 	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/zpan/internal/app/api"
-	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/repo"
 	"github.com/saltbo/zpan/internal/app/usecase"
 	"github.com/saltbo/zpan/web"
@@ -23,13 +18,8 @@ type Server struct {
 	ap *api.Repository
 }
 
-func newServer(rp *repo.Repository, uc *usecase.Repository, ap *api.Repository) *Server {
-	return &Server{rp: rp, uc: uc, ap: ap}
-}
-
-func NewServer() *Server {
-	wire.Build(dao.GetDBQuery, repo.ProviderSet, usecase.ProviderSet, api.ProviderSet, newServer)
-	return &Server{}
+func NewServer(uc *usecase.Repository, rp *repo.Repository, ap *api.Repository) *Server {
+	return &Server{uc: uc, rp: rp, ap: ap}
 }
 
 func (s *Server) Run() error {

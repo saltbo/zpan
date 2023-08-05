@@ -4,33 +4,15 @@ import (
 	"context"
 	"database/sql/driver"
 	"testing"
-	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/saltbo/zpan/internal/app/entity"
-	"github.com/saltbo/zpan/internal/app/repo/query"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
 )
 
-var nowFunc = func() time.Time {
-	return time.Unix(0, 0)
-}
-
-func newMockDB(t *testing.T) (sqlmock.Sqlmock, *gorm.DB) {
-	rdb, mock, err := sqlmock.New()
-	assert.NoError(t, err)
-	gdb, err := gorm.Open(mysql.New(mysql.Config{Conn: rdb, DriverName: "mysql", SkipInitializeWithVersion: true}), &gorm.Config{
-		NowFunc: nowFunc,
-	})
-	assert.NoError(t, err)
-	return mock, gdb.Debug()
-}
-
 func TestMatterDBQuery_PathExist(t *testing.T) {
-	mock, gdb := newMockDB(t)
-	q := NewMatterDBQuery(query.Use(gdb))
+	mock, db := newMockDB(t)
+	q := NewMatterDBQuery(db)
 	mock.ExpectQuery("SELECT").WithArgs("to", "path/")
 	q.PathExist(context.Background(), "/path/to/")
 
@@ -83,7 +65,7 @@ func TestMatterDBQuery_Update(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			mock, gdb := newMockDB(t)
+			mock, db := newMockDB(t)
 			mock.ExpectQuery("SELECT").WithArgs(tc.target.Id).
 				WillReturnRows(tc.rows)
 
@@ -97,7 +79,7 @@ func TestMatterDBQuery_Update(t *testing.T) {
 				WillReturnResult(tc.expectMainResult)
 			mock.ExpectCommit()
 
-			q := NewMatterDBQuery(query.Use(gdb))
+			q := NewMatterDBQuery(db)
 			ctx := context.Background()
 			assert.NoError(t, q.Update(ctx, tc.target.Id, tc.target))
 		})

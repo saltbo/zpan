@@ -47,27 +47,27 @@ type Matter interface {
 var _ Matter = (*MatterDBQuery)(nil)
 
 type MatterDBQuery struct {
-	q *query.Query
+	DBQuery
 }
 
-func NewMatterDBQuery(q *query.Query) *MatterDBQuery {
-	return &MatterDBQuery{q: q}
+func NewMatterDBQuery(q DBQuery) *MatterDBQuery {
+	return &MatterDBQuery{DBQuery: q}
 }
 
 func (db *MatterDBQuery) Find(ctx context.Context, id int64) (*entity.Matter, error) {
-	return db.q.Matter.WithContext(ctx).Where(db.q.Matter.Id.Eq(id)).First()
+	return db.Q().Matter.WithContext(ctx).Where(db.Q().Matter.Id.Eq(id)).First()
 }
 
 func (db *MatterDBQuery) FindWith(ctx context.Context, opt *MatterFindWithOption) (*entity.Matter, error) {
 	conds := make([]gen.Condition, 0)
 	if opt.Id != 0 {
-		conds = append(conds, db.q.Matter.Id.Eq(opt.Id))
+		conds = append(conds, db.Q().Matter.Id.Eq(opt.Id))
 	}
 	if opt.Alias != "" {
-		conds = append(conds, db.q.Matter.Alias_.Eq(opt.Alias))
+		conds = append(conds, db.Q().Matter.Alias_.Eq(opt.Alias))
 	}
 
-	q := db.q.Matter.WithContext(ctx)
+	q := db.Q().Matter.WithContext(ctx)
 	if opt.Deleted {
 		q = q.Unscoped()
 	}
@@ -76,7 +76,7 @@ func (db *MatterDBQuery) FindWith(ctx context.Context, opt *MatterFindWithOption
 }
 
 func (db *MatterDBQuery) FindByAlias(ctx context.Context, alias string) (*entity.Matter, error) {
-	return db.q.Matter.WithContext(ctx).Where(db.q.Matter.Alias_.Eq(alias)).First()
+	return db.Q().Matter.WithContext(ctx).Where(db.Q().Matter.Alias_.Eq(alias)).First()
 }
 
 func (db *MatterDBQuery) PathExist(ctx context.Context, filepath string) bool {
@@ -92,41 +92,41 @@ func (db *MatterDBQuery) PathExist(ctx context.Context, filepath string) bool {
 		parent, name = path.Split(filepath)
 	}
 
-	conds := []gen.Condition{db.q.Matter.Name.Eq(name)}
+	conds := []gen.Condition{db.Q().Matter.Name.Eq(name)}
 	if parent != name {
-		conds = append(conds, db.q.Matter.Parent.Eq(strings.TrimPrefix(parent, "/")))
+		conds = append(conds, db.Q().Matter.Parent.Eq(strings.TrimPrefix(parent, "/")))
 	}
 
-	_, err := db.q.Matter.WithContext(ctx).Where(conds...).First()
+	_, err := db.Q().Matter.WithContext(ctx).Where(conds...).First()
 	return err == nil
 }
 
 func (db *MatterDBQuery) FindAll(ctx context.Context, opts *MatterListOption) ([]*entity.Matter, int64, error) {
 	conds := make([]gen.Condition, 0)
 	if opts.Uid != 0 {
-		conds = append(conds, db.q.Matter.Uid.Eq(opts.Uid))
+		conds = append(conds, db.Q().Matter.Uid.Eq(opts.Uid))
 	}
 	if opts.Sid != 0 {
-		conds = append(conds, db.q.Matter.Sid.Eq(opts.Sid))
+		conds = append(conds, db.Q().Matter.Sid.Eq(opts.Sid))
 	}
 
 	if opts.Keyword != "" {
-		conds = append(conds, db.q.Matter.Name.Like(fmt.Sprintf("%%%s%%", opts.Keyword)))
+		conds = append(conds, db.Q().Matter.Name.Like(fmt.Sprintf("%%%s%%", opts.Keyword)))
 	} else if !opts.Draft {
-		conds = append(conds, db.q.Matter.Parent.Eq(opts.Dir))
+		conds = append(conds, db.Q().Matter.Parent.Eq(opts.Dir))
 	}
 
 	if opts.Type == "doc" {
-		conds = append(conds, db.q.Matter.Type.In(entity.DocTypes...))
+		conds = append(conds, db.Q().Matter.Type.In(entity.DocTypes...))
 	} else if opts.Type != "" {
-		conds = append(conds, db.q.Matter.Type.Like(fmt.Sprintf("%%%s%%", opts.Type)))
+		conds = append(conds, db.Q().Matter.Type.Like(fmt.Sprintf("%%%s%%", opts.Type)))
 	}
 
 	if !opts.Draft {
-		conds = append(conds, db.q.Matter.UploadedAt.IsNotNull())
+		conds = append(conds, db.Q().Matter.UploadedAt.IsNotNull())
 	}
 
-	q := db.q.Matter.WithContext(ctx).Where(conds...).Order(db.q.Matter.DirType.Desc(), db.q.Matter.Id.Desc())
+	q := db.Q().Matter.WithContext(ctx).Where(conds...).Order(db.Q().Matter.DirType.Desc(), db.Q().Matter.Id.Desc())
 
 	if opts.Limit == 0 {
 		matters, err := q.Find()
@@ -148,7 +148,7 @@ func (db *MatterDBQuery) Create(ctx context.Context, m *entity.Matter) error {
 		m.Name = strings.TrimSuffix(m.Name, ext) + suffix + ext
 	}
 
-	return db.q.Matter.Create(m)
+	return db.Q().Matter.Create(m)
 }
 
 func (db *MatterDBQuery) Copy(ctx context.Context, id int64, to string) (*entity.Matter, error) {
@@ -165,7 +165,7 @@ func (db *MatterDBQuery) Copy(ctx context.Context, id int64, to string) (*entity
 	newMatter.Parent = to
 	if !em.IsDir() {
 		// 如果是文件则只创建新的文件即可
-		return newMatter, db.q.Matter.Create(newMatter)
+		return newMatter, db.Q().Matter.Create(newMatter)
 	}
 
 	// 如果是文件夹则查找所有子文件/文件夹一起复制
@@ -180,7 +180,7 @@ func (db *MatterDBQuery) Copy(ctx context.Context, id int64, to string) (*entity
 		return newMatter
 	})
 
-	return newMatter, db.q.Matter.Create(newMatters...)
+	return newMatter, db.Q().Matter.Create(newMatters...)
 }
 
 func (db *MatterDBQuery) Update(ctx context.Context, id int64, m *entity.Matter) error {
@@ -189,7 +189,7 @@ func (db *MatterDBQuery) Update(ctx context.Context, id int64, m *entity.Matter)
 		return err
 	}
 
-	return db.q.Transaction(func(tx *query.Query) error {
+	return db.Q().Transaction(func(tx *query.Query) error {
 		tq := tx.Matter.WithContext(ctx)
 		if m.IsDir() {
 			// 如果是目录，则需要把该目录下的子文件/目录一并修改
@@ -212,7 +212,7 @@ func (db *MatterDBQuery) Delete(ctx context.Context, id int64) error {
 	}
 
 	m.TrashedBy = uuid.New().String()
-	return db.q.Transaction(func(tx *query.Query) error {
+	return db.Q().Transaction(func(tx *query.Query) error {
 		tq := tx.Matter.WithContext(ctx)
 		if m.IsDir() {
 			// 如果是目录，则需要把该目录下的子文件/目录一并删除
@@ -234,7 +234,7 @@ func (db *MatterDBQuery) Delete(ctx context.Context, id int64) error {
 }
 
 func (db *MatterDBQuery) Recovery(ctx context.Context, id int64) error {
-	m, err := db.q.Matter.WithContext(ctx).Unscoped().Where(db.q.Matter.Id.Eq(id)).First()
+	m, err := db.Q().Matter.WithContext(ctx).Unscoped().Where(db.Q().Matter.Id.Eq(id)).First()
 	if err != nil {
 		return err
 	}
@@ -243,8 +243,8 @@ func (db *MatterDBQuery) Recovery(ctx context.Context, id int64) error {
 		return fmt.Errorf("recovery: file parent[%s] not found", m.Parent)
 	}
 
-	_, err = db.q.Matter.WithContext(ctx).Unscoped().Where(db.q.Matter.TrashedBy.Eq(m.TrashedBy)).
-		UpdateSimple(db.q.Matter.TrashedBy.Value(""), db.q.Matter.DeletedAt.Null())
+	_, err = db.Q().Matter.WithContext(ctx).Unscoped().Where(db.Q().Matter.TrashedBy.Eq(m.TrashedBy)).
+		UpdateSimple(db.Q().Matter.TrashedBy.Value(""), db.Q().Matter.DeletedAt.Null())
 	return err
 }
 
@@ -271,10 +271,10 @@ func (db *MatterDBQuery) GetObjects(ctx context.Context, id int64) ([]string, er
 }
 
 func (db *MatterDBQuery) findChildren(ctx context.Context, m *entity.Matter, withDeleted bool) ([]*entity.Matter, error) {
-	q := db.q.Matter.WithContext(ctx)
+	q := db.Q().Matter.WithContext(ctx)
 	if withDeleted {
 		q = q.Unscoped()
 	}
 
-	return q.Where(db.q.Matter.Parent.Like(m.FullPath() + "%")).Find()
+	return q.Where(db.Q().Matter.Parent.Like(m.FullPath() + "%")).Find()
 }

@@ -32,7 +32,7 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "A cloud disk base on the cloud service.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := app.NewServer()
+		s := app.InitializeServer()
 		return s.Run()
 	},
 }

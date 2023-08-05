@@ -7,9 +7,6 @@
 package app
 
 import (
-	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/zpan/internal/app/api"
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/repo"
@@ -17,22 +14,20 @@ import (
 	"github.com/saltbo/zpan/internal/app/usecase/storage"
 	"github.com/saltbo/zpan/internal/app/usecase/uploader"
 	"github.com/saltbo/zpan/internal/app/usecase/vfs"
-	"github.com/saltbo/zpan/web"
-	"github.com/spf13/viper"
 )
 
-// Injectors from server.go:
+// Injectors from wire.go:
 
-func NewServer() *Server {
-	query := dao.GetDBQuery()
-	storageDBQuery := repo.NewStorageDBQuery(query)
-	matterDBQuery := repo.NewMatterDBQuery(query)
-	recycleBinDBQuery := repo.NewRecycleBinDBQuery(query)
-	repository := repo.NewRepository(storageDBQuery, matterDBQuery, recycleBinDBQuery)
+func InitializeServer() *Server {
+	dbQueryFactory := dao.NewDBQueryFactory()
+	storageDBQuery := repo.NewStorageDBQuery(dbQueryFactory)
 	cloudStorage := storage.NewCloudStorage(storageDBQuery)
+	matterDBQuery := repo.NewMatterDBQuery(dbQueryFactory)
 	cloudUploader := uploader.NewCloudUploader(cloudStorage, matterDBQuery)
+	recycleBinDBQuery := repo.NewRecycleBinDBQuery(dbQueryFactory)
 	vfsVfs := vfs.NewVfs(matterDBQuery, recycleBinDBQuery, cloudUploader)
-	usecaseRepository := usecase.NewRepository(cloudStorage, cloudUploader, vfsVfs)
+	repository := usecase.NewRepository(cloudStorage, cloudUploader, vfsVfs)
+	repoRepository := repo.NewRepository(storageDBQuery, matterDBQuery, recycleBinDBQuery)
 	fileResource := api.NewFileResource(vfsVfs, cloudUploader)
 	recycleBin := vfs.NewRecycleBin(recycleBinDBQuery, matterDBQuery, cloudStorage)
 	recycleBinResource := api.NewRecycleBinResource(recycleBinDBQuery, recycleBin)
@@ -43,27 +38,6 @@ func NewServer() *Server {
 	userResource := api.NewUserResource()
 	userKeyResource := api.NewUserKeyResource()
 	apiRepository := api.NewRepository(fileResource, recycleBinResource, shareResource, storageResource, option, tokenResource, userResource, userKeyResource)
-	server := newServer(repository, usecaseRepository, apiRepository)
+	server := NewServer(repository, repoRepository, apiRepository)
 	return server
-}
-
-// server.go:
-
-type Server struct {
-	uc *usecase.Repository
-	rp *repo.Repository
-	ap *api.Repository
-}
-
-func newServer(rp *repo.Repository, uc *usecase.Repository, ap *api.Repository) *Server {
-	return &Server{rp: rp, uc: uc, ap: ap}
-}
-
-func (s *Server) Run() error {
-
-	ge := gin.Default()
-	api.SetupRoutes(ge, s.ap)
-	web.SetupRoutes(ge)
-	ginutil.Startup(ge, fmt.Sprintf(":%d", viper.GetInt("port")))
-	return nil
 }

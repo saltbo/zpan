@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/saltbo/zpan/internal/app/entity"
-	"github.com/saltbo/zpan/internal/app/repo/query"
 )
 
 type RecycleBinFindOptions struct {
@@ -23,19 +22,19 @@ type RecycleBin interface {
 var _ RecycleBin = (*RecycleBinDBQuery)(nil)
 
 type RecycleBinDBQuery struct {
-	q *query.Query
+	DBQuery
 }
 
-func NewRecycleBinDBQuery(q *query.Query) *RecycleBinDBQuery {
-	return &RecycleBinDBQuery{q: q}
+func NewRecycleBinDBQuery(q DBQuery) *RecycleBinDBQuery {
+	return &RecycleBinDBQuery{DBQuery: q}
 }
 
 func (r *RecycleBinDBQuery) Find(ctx context.Context, alias string) (*entity.RecycleBin, error) {
-	return r.q.RecycleBin.WithContext(ctx).Where(r.q.RecycleBin.Alias_.Eq(alias)).First()
+	return r.Q().RecycleBin.WithContext(ctx).Where(r.Q().RecycleBin.Alias_.Eq(alias)).First()
 }
 
 func (r *RecycleBinDBQuery) FindAll(ctx context.Context, opts *RecycleBinFindOptions) (rows []*entity.RecycleBin, total int64, err error) {
-	q := r.q.RecycleBin.WithContext(ctx).Where(r.q.RecycleBin.Uid.Eq(opts.Uid), r.q.RecycleBin.Sid.Eq(opts.Sid)).Order(r.q.RecycleBin.Id.Desc())
+	q := r.Q().RecycleBin.WithContext(ctx).Where(r.Q().RecycleBin.Uid.Eq(opts.Uid), r.Q().RecycleBin.Sid.Eq(opts.Sid)).Order(r.Q().RecycleBin.Id.Desc())
 
 	if opts.Limit == 0 {
 		rows, err = q.Find()
@@ -46,7 +45,7 @@ func (r *RecycleBinDBQuery) FindAll(ctx context.Context, opts *RecycleBinFindOpt
 }
 
 func (r *RecycleBinDBQuery) Create(ctx context.Context, m *entity.RecycleBin) error {
-	return r.q.RecycleBin.WithContext(ctx).Create(m)
+	return r.Q().RecycleBin.WithContext(ctx).Create(m)
 }
 
 func (r *RecycleBinDBQuery) Delete(ctx context.Context, alias string) error {
@@ -55,6 +54,6 @@ func (r *RecycleBinDBQuery) Delete(ctx context.Context, alias string) error {
 		return err
 	}
 
-	_, err = r.q.RecycleBin.WithContext(ctx).Delete(m)
+	_, err = r.Q().RecycleBin.WithContext(ctx).Delete(m)
 	return err
 }
