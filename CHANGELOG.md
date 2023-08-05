@@ -1,22 +1,40 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- Support view the pdf files
-- support edit text file
+
 - support responsive for different devices
-- support visual configuration guidance
 - support WebDAV
 - compression/decompression
-- support upload in the background
 - Aria2 download into zpan
 - support onedrive && google drive
 
-## [1.6.0] - 2021-07-12
+## [1.7.0] - 2023-08-06
+
 ### Added
+
+- 支持查看PDF文件
+- 支持查看编辑文本文件，如markdown,txt,yaml等文件
+- 新版上传器，支持一定程度上的后台上传（上传时可以切换页面但不能刷新页面）
+- S3地址支持Path-Style开关，开启后在使用minio时可以使用ip+port
+- 移除sqlite对CGO的依赖，支持armv6,armv7 #188
+- 分享时复制可以直接复制到密码
+
+### Fixed
+
+- 修复上传无扩展名的文件报错问题 #185
+- 修复修改存储时报错的问题 #140
+- 修复回收站删除空文件夹时报错 #175
+- 修复分析列表数量过多会导致最后一个无法看到链接
+
+## [1.6.0] - 2021-07-12
+
+### Added
+
 - 增加对又拍云的支持 #55
 - 支持禁用某个云存储 #103
 - 支持禁用/删除某个用户 #113
@@ -28,16 +46,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 增加对ARM64的支持，可以允许在ARM架构的机器上了 #52
 
 ### Fixed
+
 - 修复用户无法重置密码的问题 #105
-- 修复上传中断/失败仍然占用了存储空间的问题 #78  
+- 修复上传中断/失败仍然占用了存储空间的问题 #78
 - 修复分享列表存在的越权问题
-- 修复上传多个文件时其中一个文件完成导致其他文件结束的问题  
+- 修复上传多个文件时其中一个文件完成导致其他文件结束的问题
 - 修复部分RAR和DMG文件分享后无法下载的问题
 - 调整上传签名有效期，解决上传较慢时过期导致失败的问题
 - 调整自用域名仅用于查看或下载文件，不再用于上传 #111
 
 ## [1.5.0] - 2020-02-14
+
 ### Added
+
 - 增加了可视化的引导安装页面，帮助用户快速安装
 - 支持多存储，在后台管理员可以添加多个存储空间，在前台用户可以随意切换存储空间
 - 添加存储空间时支持自动设置 CORS （部分平台不支持），解决手动去云存储平台创建的麻烦
@@ -48,7 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 增加 heroku 的支持，可以一键部署到 heroku
 
 ## [1.4.0] - 2020-10-13
+
 ### Added
+
 - redesign UI
 - support Recycle Bin
 - support update the user storage quota
@@ -56,17 +79,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - support auto https
 - support minio
 
-
 ## [1.3.0] - 2020-09-20
+
 ### Added
+
 - support search
 - support delete the folder [@XiangYu0777](https://github.com/XiangYu0777)
 - support preview for the audio and video
 - support aws-s3 && google storage
 - support i18n
 
-
 ### Changed
+
 - Fix: don't allow move the folder into itself [@holicc](https://github.com/holicc)
 - Fix: error display the file that upload failed for the sqlite3 driver
 - Fix: error display the folders of move dialog when the folder renamed
