@@ -23,13 +23,12 @@ builds:
       - "7"
 
 dockers:
-  -
-    image_templates:
+  - image_templates:
       - "saltbo/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
       - "saltbo/{{ .ProjectName }}:latest"
 
 archives:
-  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     wrap_in_directory: true
     format: tar.gz
     format_overrides: # archive as zip on Windows
@@ -52,7 +51,7 @@ changelog:
       - '^docs:'
       - '^test:'
 nfpms:
-  - file_name_template: '{{ .ProjectName }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+  - file_name_template: '{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     homepage: https://github.com/saltbo/{{ .ProjectName }}
     description: Convenient static file deployment tool that supports multiple platforms
     maintainer: Ambor <saltbo@foxmail.com>
