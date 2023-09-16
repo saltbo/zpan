@@ -2,6 +2,7 @@ package authz
 
 import (
 	"context"
+	_ "embed"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +16,9 @@ type Input struct {
 	PathParams []gin.Param `json:"path_params"`
 	Resource   any         `json:"resource"`
 }
+
+//go:embed authz.rego
+var module string
 
 func NewMiddleware(c *gin.Context) {
 	bw := NewWriter(c.Writer)
@@ -42,7 +46,7 @@ func NewMiddleware(c *gin.Context) {
 func Decision(ctx context.Context, input *Input) (rego.ResultSet, error) {
 	r := rego.New(
 		rego.Query("data.authz.allow"),
-		rego.Load([]string{"./authz.rego"}, nil),
+		rego.Module("./authz.rego", module),
 	)
 
 	query, err := r.PrepareForEval(ctx)
