@@ -6,6 +6,6 @@ RUN apt-get update \
 ENV APP_HOME /srv
 WORKDIR $APP_HOME
 
-COPY zpan $APP_HOME
+COPY bin/zpan $APP_HOME
 
 CMD ["./zpan", "server"]
