@@ -1,7 +1,10 @@
+
 * [介绍](/)
 * [快速开始](/getting-started.md)
 * [配置文件](/config.md)
 * [云存储](/cloud-platform.md)
 * [贡献代码](/contributing.md)
 * [白话文教程](/vernacular/index.md)
+    * [手把手教你在宝塔面板安装 Zpan](/vernacular/panel-baota.md)
+    * [手把手教你申请阿里云OSS存储桶](/vernacular/provider-oss.md)
 * [常见问题](/faq.md)
