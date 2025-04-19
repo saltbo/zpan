@@ -25,9 +25,9 @@ docker run -it -v /etc/zpan:/etc/zpan zpan
 答：实际上Mac也没有提供二进制包，主要是考虑ZPan是一个服务端程序，再加上ZPan用到的一些依赖在支持多平台的情况下打包遇到一些麻烦，所以目前仅提供了一个Linux版本的Release，后续我们会考虑支持多平台。
 
 ## 用户反馈
-如果您遇到的问题不再以上范围内，请到GitHub上创建一个[issue](https://github.com/saltbo/zpan/issue)进行反馈。
+如果您遇到的问题不再以上范围内，请到GitHub上创建一个[issue](https://github.com/saltbo/zpan/issues)进行反馈。
 
-如果您在使用过程中发现了什么缺陷，或是有新的需求提议，也欢迎提交[issue](https://github.com/saltbo/zpan/issue)。
+如果您在使用过程中发现了什么缺陷，或是有新的需求提议，也欢迎提交[issue](https://github.com/saltbo/zpan/issues)。
 
 ## 联系
 
