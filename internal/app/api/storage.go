@@ -2,11 +2,11 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/gopkg/jwtutil"
 	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/saltbo/zpan/internal/app/repo"
 	"github.com/saltbo/zpan/internal/app/usecase/storage"
+	"github.com/saltbo/zpan/internal/pkg/ginutil"
 	"github.com/samber/lo"
 
 	"github.com/saltbo/zpan/internal/pkg/bind"

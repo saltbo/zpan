@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/saltbo/gopkg/ginutil"
+	"github.com/saltbo/zpan/internal/pkg/ginutil"
 	"github.com/spf13/viper"
 )
 

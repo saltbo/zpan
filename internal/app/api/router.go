@@ -2,9 +2,11 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/zpan/internal/app/usecase/authz"
 	_ "github.com/saltbo/zpan/internal/docs"
+	"github.com/saltbo/zpan/internal/pkg/ginutil"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // @title zpan
@@ -26,7 +28,7 @@ import (
 // @license.url https://github.com/saltbo/zpan/blob/master/LICENSE
 
 func SetupRoutes(ge *gin.Engine, repository *Repository) {
-	ginutil.SetupSwagger(ge)
+	ge.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	apiRouter := ge.Group("/api")
 	apiRouter.Use(authz.NewMiddleware)

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/saltbo/gopkg/ginutil"
+	"github.com/saltbo/zpan/internal/pkg/ginutil"
 )
 
 func SetupRoutes(ge *gin.Engine) {

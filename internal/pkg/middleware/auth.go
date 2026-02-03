@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/saltbo/gopkg/ginutil"
+	"github.com/saltbo/zpan/internal/pkg/ginutil"
 	"github.com/storyicon/grbac"
 	"github.com/storyicon/grbac/pkg/meta"
 	"gopkg.in/yaml.v3"

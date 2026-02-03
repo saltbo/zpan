@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/saltbo/gopkg/ginutil"
 	"github.com/saltbo/zpan/internal/app/api"
 	"github.com/saltbo/zpan/internal/app/repo"
 	"github.com/saltbo/zpan/internal/app/usecase"
+	"github.com/saltbo/zpan/internal/pkg/ginutil"
 	"github.com/saltbo/zpan/web"
 	"github.com/spf13/viper"
 )
