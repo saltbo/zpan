@@ -1,14 +1,13 @@
 package dao
 
 import (
-	"log"
-
 	"github.com/saltbo/zpan/internal/app/repo/query"
 	"github.com/spf13/viper"
 	"gorm.io/gorm"
 
 	"github.com/saltbo/zpan/internal/app/model"
 	"github.com/saltbo/zpan/internal/pkg/gormutil"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 )
 
 var gdb *gorm.DB
@@ -27,7 +26,7 @@ func Init(driver, dsn string) error {
 		return err
 	}
 
-	gdb = db.Debug()
+	gdb = db
 	if err := gdb.AutoMigrate(model.Tables()...); err != nil {
 		return err
 	}
@@ -44,7 +43,7 @@ func NewDBQueryFactory() *DBQueryFactory {
 	}
 
 	if err := Init(viper.GetString("database.driver"), viper.GetString("database.dsn")); err != nil {
-		log.Fatalln(err)
+		logger.Fatal("Failed to initialize database", "error", err)
 	}
 
 	return &DBQueryFactory{}

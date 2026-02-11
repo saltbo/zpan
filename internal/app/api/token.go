@@ -1,8 +1,6 @@
 package api
 
 import (
-	"log"
-
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/manage"
@@ -14,6 +12,7 @@ import (
 	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/saltbo/zpan/internal/pkg/authed"
 	"github.com/saltbo/zpan/internal/pkg/bind"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 )
 
 type TokenResource struct {
@@ -34,7 +33,7 @@ func NewTokenResource() *TokenResource {
 	srv.SetAllowGetAccessRequest(true)
 	srv.SetClientInfoHandler(server.ClientBasicHandler)
 	srv.SetInternalErrorHandler(func(err error) (re *errors.Response) {
-		log.Println("Internal Error:", err.Error())
+		logger.Error("Internal Error:", "error", err)
 		return
 	})
 

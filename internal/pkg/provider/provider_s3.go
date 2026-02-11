@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 )
 
 type S3Provider struct {
@@ -23,12 +24,16 @@ func NewS3Provider(conf *Config) (Provider, error) {
 }
 
 func newS3Provider(conf *Config) (*S3Provider, error) {
+	logger.Debug("[S3Provider] Initializing - Endpoint: %s, Bucket: %s, Region: %s, PathStyle: %v",
+		conf.Endpoint, conf.Bucket, conf.Region, conf.PathStyle)
+
 	cfg := aws.NewConfig().WithCredentials(credentials.NewStaticCredentials(conf.AccessKey, conf.AccessSecret, ""))
 	if conf.PathStyle {
 		cfg.WithS3ForcePathStyle(true)
 	}
 	s, err := session.NewSession(cfg)
 	if err != nil {
+		logger.Error("[S3Provider] Failed to create AWS session", "error", err)
 		return nil, err
 	}
 
@@ -36,8 +41,10 @@ func newS3Provider(conf *Config) (*S3Provider, error) {
 	if conf.CustomHost != "" {
 		cURL, err := url.Parse(conf.CustomHost)
 		if err != nil {
+			logger.Error("[S3Provider] Failed to parse custom host", "error", err)
 			return nil, err
 		}
+		logger.Debug("[S3Provider] Using custom host", "host", conf.CustomHost)
 
 		client.Handlers.Build.PushBack(func(r *request.Request) {
 			if r.HTTPRequest.Method != http.MethodGet {
@@ -49,6 +56,7 @@ func newS3Provider(conf *Config) (*S3Provider, error) {
 		})
 	}
 
+	logger.Debug("[S3Provider] Client created successfully")
 	return &S3Provider{
 		client: client,
 		bucket: conf.Bucket,
@@ -56,10 +64,18 @@ func newS3Provider(conf *Config) (*S3Provider, error) {
 }
 
 func (p *S3Provider) SetupCORS() error {
+	logger.Debug("Starting CORS setup for bucket", "bucket", p.bucket)
+
 	var corsRules []*s3.CORSRule
 	output, err := p.client.GetBucketCors(&s3.GetBucketCorsInput{Bucket: aws.String(p.bucket)})
-	if output != nil && len(output.CORSRules) > 0 {
+	if err != nil {
+		logger.Debug("Failed to get existing CORS rules", "error", err)
+		// Continue with empty rules if we can't fetch existing ones
+	} else if output != nil && len(output.CORSRules) > 0 {
+		logger.Debug("Found existing CORS rules", "count", len(output.CORSRules))
 		corsRules = append(corsRules, output.CORSRules...)
+	} else {
+		logger.Debug("No existing CORS rules found")
 	}
 
 	convert := func(rSlice []string) []*string {
@@ -70,6 +86,10 @@ func (p *S3Provider) SetupCORS() error {
 
 		return slice
 	}
+
+	logger.Debug("Setting CORS rule",
+		"methods", corsAllowMethods,
+		"headers", corsAllowHeaders)
 
 	corsRules = append(corsRules, &s3.CORSRule{
 		AllowedOrigins: []*string{aws.String("*")},
@@ -83,7 +103,12 @@ func (p *S3Provider) SetupCORS() error {
 		CORSConfiguration: &s3.CORSConfiguration{CORSRules: corsRules},
 	}
 	_, err = p.client.PutBucketCors(input)
-	return err
+	if err != nil {
+		logger.Error("Failed to set CORS rules", "error", err)
+		return err
+	}
+	logger.Debug("CORS setup completed successfully")
+	return nil
 }
 
 func (p *S3Provider) Head(object string) (*Object, error) {

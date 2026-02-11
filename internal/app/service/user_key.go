@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/base64"
-	"log"
 	"strings"
 
 	"github.com/go-oauth2/oauth2/v4"
@@ -12,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 	"github.com/spf13/viper"
 )
 
@@ -84,14 +84,14 @@ func (uk *UserKey) LoadExistClient() {
 
 	list, _, err := uk.dUserKey.FindAll(dao.NewQuery())
 	if err != nil {
-		log.Println(err)
+		logger.Error("Failed to load existing clients", "error", err)
 		return
 	}
 
 	for _, muk := range list {
 		cli := &models.Client{ID: muk.AccessKey, Secret: muk.SecretKey}
 		if err := uk.ClientStore().Set(muk.AccessKey, cli); err != nil {
-			log.Println(err)
+			logger.Error("Failed to set client in store", "error", err)
 		}
 	}
 }

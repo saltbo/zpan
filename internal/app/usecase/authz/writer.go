@@ -3,9 +3,9 @@ package authz
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 )
 
 type Writer struct {
@@ -31,7 +31,7 @@ func (w *Writer) extractResource() any {
 	dec := json.NewDecoder(bytes.NewReader(buf))
 	dec.UseNumber()
 	if err := dec.Decode(&resource); err != nil {
-		log.Fatal(err)
+		logger.Error("Failed to decode resource", "error", err)
 	}
 	return resource
 }

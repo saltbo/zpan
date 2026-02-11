@@ -3,7 +3,6 @@ package middleware
 import (
 	_ "embed"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/saltbo/zpan/internal/pkg/authed"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 )
 
 //go:embed auth_rbac.yml
@@ -26,12 +26,12 @@ func LoginAuth() gin.HandlerFunc {
 func LoginAuthWithRoles() gin.HandlerFunc {
 	rules := make(meta.Rules, 0)
 	if err := yaml.Unmarshal(embedRules, &rules); err != nil {
-		log.Fatalln(err)
+		logger.Error("Failed to unmarshal auth rules", "error", err)
 	}
 
 	ctrl, err := grbac.New(grbac.WithRules(rules))
 	if err != nil {
-		log.Fatalln(err)
+		logger.Error("Failed to create RBAC controller", "error", err)
 	}
 
 	return func(c *gin.Context) {

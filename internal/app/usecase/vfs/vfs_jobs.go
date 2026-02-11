@@ -2,12 +2,12 @@ package vfs
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/robfig/cron"
 	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/saltbo/zpan/internal/app/repo"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 )
 
 func (v *Vfs) matterCreatedEventHandler(matter *entity.Matter) error {
@@ -32,7 +32,7 @@ func (v *Vfs) cleanExpiredMatters() {
 	ctx := context.Background()
 	matters, _, err := v.matterRepo.FindAll(ctx, &repo.MatterListOption{Draft: true})
 	if err != nil {
-		log.Printf("error getting the files of not uploaded: %s", err)
+		logger.Error("error getting the files of not uploaded", "error", err)
 		return
 	}
 
@@ -42,10 +42,10 @@ func (v *Vfs) cleanExpiredMatters() {
 		}
 
 		if err := v.matterRepo.Delete(ctx, matter.Id); err != nil {
-			log.Printf("error deleting the file %s: %s", matter.FullPath(), err)
+			logger.Error("error deleting the file", "file", matter.FullPath(), "error", err)
 			return
 		}
 
-		log.Printf("deleted the file: %s", matter.FullPath())
+		logger.Info("deleted the file", "file", matter.FullPath())
 	}
 }

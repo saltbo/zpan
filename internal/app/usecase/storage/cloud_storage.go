@@ -5,6 +5,7 @@ import (
 
 	"github.com/saltbo/zpan/internal/app/entity"
 	"github.com/saltbo/zpan/internal/app/repo"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 	"github.com/saltbo/zpan/internal/pkg/provider"
 )
 
@@ -25,14 +26,28 @@ func NewCloudStorageWithProviderConstructor(storageRepo repo.Storage, providerCo
 }
 
 func (s *CloudStorage) Create(ctx context.Context, storage *entity.Storage) error {
-	p, err := s.providerConstructor(s.buildConfig(storage))
+	config := s.buildConfig(storage)
+	logger.Debug("Creating storage provider",
+		"type", config.Provider,
+		"bucket", config.Bucket,
+		"endpoint", config.Endpoint,
+		"pathStyle", config.PathStyle)
+
+	p, err := s.providerConstructor(config)
 	if err != nil {
+		logger.Error("Failed to initialize provider", "error", err)
 		return err
 	}
+	logger.Debug("Provider initialized successfully, setting up CORS...")
 
 	if err := p.SetupCORS(); err != nil {
+		logger.Error("SetupCORS failed",
+			"provider", config.Provider,
+			"bucket", config.Bucket,
+			"error", err)
 		return err
 	}
+	logger.Debug("CORS setup successful")
 
 	return s.storageRepo.Create(ctx, storage)
 }

@@ -1,9 +1,8 @@
 package gormutil
 
 import (
-	"log"
-
 	"github.com/glebarez/sqlite"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlserver"
@@ -15,7 +14,7 @@ var defaultDB *gorm.DB
 func Init(conf Config, debug bool) {
 	db, err := New(conf)
 	if err != nil {
-		log.Panicln(err)
+		logger.Fatal("Failed to initialize database", "error", err)
 	}
 
 	if debug {
@@ -51,5 +50,7 @@ func New(conf Config) (*gorm.DB, error) {
 		director = sqlite.Open
 	}
 
-	return gorm.Open(director(conf.DSN), &gorm.Config{})
+	return gorm.Open(director(conf.DSN), &gorm.Config{
+		Logger: logger.NewGormSlogger(),
+	})
 }

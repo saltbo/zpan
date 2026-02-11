@@ -1,10 +1,9 @@
 package service
 
 import (
-	"log"
-
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 )
 
 type BootFunc func(opts model.Opts) error
@@ -27,13 +26,13 @@ func OptRegister(name string, bf BootFunc) {
 	// 检查boot参数是否存在
 	// 如果不存在则直接跳过
 	if len(opts) == 0 {
-		log.Printf("WARN: skip boot for the component %s", name)
+		logger.Warn("skip boot for the component", "component", name)
 		return
 	}
 
 	// 如果存在则执行一次BootFunc
 	if err := bf(opts); err != nil {
-		log.Printf("ERR: opt-%s boot failed: %s\n", name, err)
+		logger.Error("opt boot failed", "component", name, "error", err)
 		return
 	}
 }

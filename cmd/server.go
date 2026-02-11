@@ -23,6 +23,7 @@ package cmd
 
 import (
 	"github.com/saltbo/zpan/internal/app"
+	"github.com/saltbo/zpan/internal/pkg/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -32,6 +33,9 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "A cloud disk base on the cloud service.",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		logLevel := viper.GetString("loglevel")
+		logger.Init(logLevel)
+
 		s := app.InitializeServer()
 		return s.Run()
 	},
@@ -41,6 +45,7 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 
 	serverCmd.Flags().Int("port", 8222, "server port")
+	serverCmd.Flags().String("loglevel", "info", "log level: debug, info, warn, error (default: info)")
 
 	_ = viper.BindPFlags(serverCmd.Flags())
 }
