@@ -25,6 +25,8 @@ export const createStorageSchema = z.object({
   priority: z.number().default(0),
 })
 
+export const updateStorageSchema = createStorageSchema.partial()
+
 export const createMatterSchema = z.object({
   name: z.string().min(1),
   type: z.string(),

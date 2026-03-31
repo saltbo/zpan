@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { eq, and, asc } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { createStorageSchema } from '@zpan/shared/schemas'
+import { createStorageSchema, updateStorageSchema } from '@zpan/shared/schemas'
 import type { Env } from '../middleware/platform'
 import { requireAdmin } from '../middleware/auth'
 import { storages, matters } from '../db/schema'
@@ -16,10 +16,9 @@ const app = new Hono<Env>()
   })
   .post('/', async (c) => {
     const db = c.get('platform').db
-    const body = await c.req.json()
-    const parsed = createStorageSchema.safeParse(body)
+    const parsed = createStorageSchema.safeParse(await c.req.json())
     if (!parsed.success) {
-      return c.json({ error: parsed.error.message }, 400)
+      return c.json({ error: parsed.error.flatten() }, 400)
     }
 
     const data = parsed.data
@@ -32,21 +31,15 @@ const app = new Hono<Env>()
         bucket: data.bucket,
       })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return c.json({ error: `Connection failed: ${message}` }, 400)
+      console.error('[storages] Connection test failed:', err)
+      return c.json({ error: 'Connection failed: invalid credentials or bucket not accessible' }, 400)
     }
 
     const now = new Date()
-    const record = {
-      id: nanoid(),
-      ...data,
-      usedBytes: 0,
-      status: 1,
-      createdAt: now,
-      updatedAt: now,
-    }
-
-    const [created] = await db.insert(storages).values(record).returning()
+    const [created] = await db
+      .insert(storages)
+      .values({ id: nanoid(), ...data, createdAt: now, updatedAt: now })
+      .returning()
     return c.json(created, 201)
   })
   .get('/:id', async (c) => {
@@ -63,32 +56,31 @@ const app = new Hono<Env>()
     const [existing] = await db.select().from(storages).where(eq(storages.id, id))
     if (!existing) return c.json({ error: 'Not found' }, 404)
 
-    const body = await c.req.json()
-    const { title, mode, bucket, endpoint, region, accessKey, secretKey, filePath, customHost, capacityBytes, priority } = body
-    const updates = Object.fromEntries(
-      Object.entries({ title, mode, bucket, endpoint, region, accessKey, secretKey, filePath, customHost, capacityBytes, priority })
-        .filter(([, v]) => v !== undefined)
-    )
+    const parsed = updateStorageSchema.safeParse(await c.req.json())
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400)
+    }
 
+    const updates = parsed.data
     const credentialsChanged =
-      (updates.endpoint && updates.endpoint !== existing.endpoint) ||
-      (updates.accessKey && updates.accessKey !== existing.accessKey) ||
-      (updates.secretKey && updates.secretKey !== existing.secretKey) ||
-      (updates.bucket && updates.bucket !== existing.bucket) ||
-      (updates.region && updates.region !== existing.region)
+      ('endpoint' in updates && updates.endpoint !== existing.endpoint) ||
+      ('region' in updates && updates.region !== existing.region) ||
+      ('accessKey' in updates && updates.accessKey !== existing.accessKey) ||
+      ('secretKey' in updates && updates.secretKey !== existing.secretKey) ||
+      ('bucket' in updates && updates.bucket !== existing.bucket)
 
     if (credentialsChanged) {
       try {
         await testConnection({
-          endpoint: (updates.endpoint as string) ?? existing.endpoint,
-          region: (updates.region as string) ?? existing.region,
-          accessKey: (updates.accessKey as string) ?? existing.accessKey,
-          secretKey: (updates.secretKey as string) ?? existing.secretKey,
-          bucket: (updates.bucket as string) ?? existing.bucket,
+          endpoint: updates.endpoint ?? existing.endpoint,
+          region: updates.region ?? existing.region,
+          accessKey: updates.accessKey ?? existing.accessKey,
+          secretKey: updates.secretKey ?? existing.secretKey,
+          bucket: updates.bucket ?? existing.bucket,
         })
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        return c.json({ error: `Connection failed: ${message}` }, 400)
+        console.error('[storages] Connection test failed:', err)
+        return c.json({ error: 'Connection failed: invalid credentials or bucket not accessible' }, 400)
       }
     }
 
