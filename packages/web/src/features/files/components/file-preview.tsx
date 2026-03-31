@@ -1,4 +1,5 @@
 import type { StorageObject } from '@zpan/shared'
+import { useQuery } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Download, FileIcon } from 'lucide-react'
@@ -79,13 +80,12 @@ function TextPreview({ url }: { url: string }) {
   )
 }
 
-function useTextContent(_url: string) {
-  return {
-    data: undefined as string | undefined,
-    isLoading: false,
-  }
-  // Text fetching left as a lightweight stub — in production,
-  // use useQuery to fetch and cache the text content.
+function useTextContent(url: string) {
+  return useQuery({
+    queryKey: ['text-preview', url],
+    queryFn: () => fetch(url).then((r) => r.text()),
+    staleTime: 5 * 60 * 1000,
+  })
 }
 
 function UnsupportedPreview({ item }: { item: StorageObject }) {

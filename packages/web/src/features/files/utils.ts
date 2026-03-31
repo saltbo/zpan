@@ -26,7 +26,7 @@ export function isFolder(obj: StorageObject): boolean {
 }
 
 export function mimeCategory(type: string): string {
-  if (!type) return 'folder'
+  if (!type) return 'file'
   const prefix = type.split('/')[0]
   if (['image', 'video', 'audio', 'text'].includes(prefix)) return prefix
   if (type === 'application/pdf') return 'pdf'

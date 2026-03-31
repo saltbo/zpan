@@ -12,6 +12,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { cn } from '@/lib/utils'
+import { Home, Folder } from 'lucide-react'
 import {
   useObjects,
   useCreateObject,
@@ -58,16 +60,18 @@ function FilesPage() {
 
   // Breadcrumb path state — track ancestors as user navigates
   const [breadcrumbs, setBreadcrumbs] = useState<{ id: string; name: string }[]>([])
+  const [pageSize, setPageSize] = useState(50)
 
   const listParams = {
     parent: type ? undefined : (parent ?? ''),
     status: 'active',
     type,
     search: searchLocal || undefined,
-    pageSize: 100,
+    pageSize,
   }
   const { data, isLoading } = useObjects(listParams)
   const items = data?.items ?? []
+  const total = data?.total ?? 0
 
   const createObject = useCreateObject()
   const updateObject = useUpdateObject()
@@ -133,21 +137,29 @@ function FilesPage() {
     })
   }
 
-  function handleBatchTrash() {
-    selectedIds.forEach((id) => {
-      trashObject.mutate(id, { onError: (err) => toast.error(err.message) })
-    })
+  async function handleBatchTrash() {
+    const ids = Array.from(selectedIds)
     setSelectedIds(new Set())
-    toast.success(`${selectedIds.size} items moved to trash`)
+    const results = await Promise.allSettled(ids.map((id) => trashObject.mutateAsync(id)))
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.length - succeeded
+    if (succeeded > 0) toast.success(`${succeeded} item(s) moved to trash`)
+    if (failed > 0) toast.error(`Failed to trash ${failed} item(s)`)
   }
 
-  function handleDownload(item: StorageObject) {
-    // Fetch detail to get presigned download URL, open in new tab
-    fetch(`/api/objects/${item.id}`, { credentials: 'include' })
-      .then((r) => r.json())
-      .then((d: { downloadUrl?: string }) => {
-        if (d.downloadUrl) window.open(d.downloadUrl, '_blank')
-      })
+  async function handleDownload(item: StorageObject) {
+    try {
+      const res = await fetch(`/api/objects/${item.id}`, { credentials: 'include' })
+      if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`)
+      const data: { downloadUrl?: string } = await res.json()
+      if (data.downloadUrl) {
+        window.open(data.downloadUrl, '_blank')
+      } else {
+        toast.error('Download URL not available')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Download failed')
+    }
   }
 
   function handleMoveSubmit() {
@@ -206,6 +218,7 @@ function FilesPage() {
 
       <FileList
         items={items}
+        total={total}
         isLoading={isLoading}
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
@@ -226,6 +239,7 @@ function FilesPage() {
         onTrash={handleTrash}
         onDownload={handleDownload}
         onProperties={setPropertiesItem}
+        onLoadMore={() => setPageSize((s) => s + 50)}
       />
 
       {/* Preview Dialog */}
@@ -306,20 +320,60 @@ function FolderPickerDialog({
   onFolderTargetChange: (id: string) => void
   onSubmit: () => void
 }) {
+  const [browsing, setBrowsing] = useState('')
+  const { data } = useObjects({
+    parent: browsing,
+    status: 'active',
+    pageSize: 100,
+  })
+  const folders = (data?.items ?? []).filter((i: StorageObject) => i.dirtype > 0)
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setBrowsing('')
+        onOpenChange(v)
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Enter the target folder ID, or leave empty for root.
-        </p>
-        <Input
-          placeholder="Folder ID (empty = root)"
-          value={folderTargetId}
-          onChange={(e) => onFolderTargetChange(e.target.value)}
-        />
+        <div className="max-h-60 overflow-y-auto rounded-md border">
+          <button
+            type="button"
+            onClick={() => {
+              onFolderTargetChange('')
+              setBrowsing('')
+            }}
+            className={cn(
+              'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors',
+              folderTargetId === '' && 'bg-muted font-medium',
+            )}
+          >
+            <Home className="h-4 w-4" />
+            Root (My Files)
+          </button>
+          {folders.map((f: StorageObject) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => onFolderTargetChange(f.id)}
+              onDoubleClick={() => setBrowsing(f.id)}
+              className={cn(
+                'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors',
+                folderTargetId === f.id && 'bg-muted font-medium',
+              )}
+            >
+              <Folder className="h-4 w-4 text-blue-500" />
+              {f.name}
+            </button>
+          ))}
+          {folders.length === 0 && (
+            <p className="px-3 py-4 text-center text-sm text-muted-foreground">No subfolders</p>
+          )}
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel

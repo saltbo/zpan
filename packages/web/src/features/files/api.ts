@@ -119,9 +119,11 @@ export async function uploadToPresignedUrl(
   url: string,
   file: File,
   onProgress?: (pct: number) => void,
+  onXhr?: (xhr: XMLHttpRequest) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
+    onXhr?.(xhr)
     xhr.open('PUT', url)
     xhr.setRequestHeader('Content-Type', file.type)
     xhr.upload.onprogress = (e) => {

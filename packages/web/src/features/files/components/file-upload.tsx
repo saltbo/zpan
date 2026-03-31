@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Progress } from '@/components/ui/progress'
@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useCreateObject, useConfirmUpload, uploadToPresignedUrl } from '../api'
 
 interface UploadItem {
+  id: string
   file: File
   progress: number
   status: 'uploading' | 'done' | 'error'
@@ -21,13 +22,23 @@ export function FileUpload({ parent, inputRef }: FileUploadProps) {
   const [uploads, setUploads] = useState<UploadItem[]>([])
   const createObject = useCreateObject()
   const confirmUpload = useConfirmUpload()
+  const xhrRefs = useRef<Map<string, XMLHttpRequest>>(new Map())
 
-  const updateUpload = useCallback((index: number, patch: Partial<UploadItem>) => {
-    setUploads((prev) => prev.map((u, i) => (i === index ? { ...u, ...patch } : u)))
+  // Abort all in-flight XHRs on unmount
+  useEffect(() => {
+    const refs = xhrRefs.current
+    return () => {
+      refs.forEach((xhr) => xhr.abort())
+      refs.clear()
+    }
+  }, [])
+
+  const updateUpload = useCallback((id: string, patch: Partial<UploadItem>) => {
+    setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)))
   }, [])
 
   const processFile = useCallback(
-    async (file: File, index: number) => {
+    async (uploadId: string, file: File) => {
       try {
         const res = await createObject.mutateAsync({
           name: file.name,
@@ -40,14 +51,19 @@ export function FileUpload({ parent, inputRef }: FileUploadProps) {
           throw new Error('Missing upload URL from server')
         }
 
-        await uploadToPresignedUrl(res.uploadUrl, file, (pct) =>
-          updateUpload(index, { progress: pct }),
+        await uploadToPresignedUrl(
+          res.uploadUrl,
+          file,
+          (pct) => updateUpload(uploadId, { progress: pct }),
+          (xhr) => xhrRefs.current.set(uploadId, xhr),
         )
+        xhrRefs.current.delete(uploadId)
         await confirmUpload.mutateAsync(res.matter.id)
-        updateUpload(index, { status: 'done', progress: 100 })
+        updateUpload(uploadId, { status: 'done', progress: 100 })
         toast.success(`Uploaded ${file.name}`)
       } catch {
-        updateUpload(index, { status: 'error' })
+        xhrRefs.current.delete(uploadId)
+        updateUpload(uploadId, { status: 'error' })
         toast.error(`Failed to upload ${file.name}`)
       }
     },
@@ -56,17 +72,16 @@ export function FileUpload({ parent, inputRef }: FileUploadProps) {
 
   const startUpload = useCallback(
     (files: FileList | File[]) => {
-      const fileArray = Array.from(files)
-      const baseIndex = uploads.length
-      const newItems: UploadItem[] = fileArray.map((f) => ({
-        file: f,
+      const items: UploadItem[] = Array.from(files).map((file) => ({
+        id: crypto.randomUUID(),
+        file,
         progress: 0,
         status: 'uploading',
       }))
-      setUploads((prev) => [...prev, ...newItems])
-      fileArray.forEach((file, i) => processFile(file, baseIndex + i))
+      setUploads((prev) => [...prev, ...items])
+      items.forEach((item) => processFile(item.id, item.file))
     },
-    [uploads.length, processFile],
+    [processFile],
   )
 
   function handleDrop(e: React.DragEvent) {
@@ -111,8 +126,8 @@ export function FileUpload({ parent, inputRef }: FileUploadProps) {
       {activeUploads.length > 0 && (
         <div className="fixed bottom-4 right-4 z-50 w-80 space-y-2 rounded-lg border bg-background p-3 shadow-lg">
           <p className="text-sm font-medium">Uploading {activeUploads.length} file(s)</p>
-          {activeUploads.map((u, i) => (
-            <div key={i} className="space-y-1">
+          {activeUploads.map((u) => (
+            <div key={u.id} className="space-y-1">
               <p className="truncate text-xs text-muted-foreground">{u.file.name}</p>
               <Progress value={u.progress} />
             </div>
