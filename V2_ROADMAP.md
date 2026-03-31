@@ -25,18 +25,18 @@ Three scenarios, one platform:
 
 Each version ships 1–2 major features. Ship small, ship often.
 
-| Version | Focus | Details |
-|---------|-------|---------|
-| [v2.0](docs/roadmap/v2.0.md) | **Foundation** | File management + basic auth + dual deployment |
-| [v2.1](docs/roadmap/v2.1.md) | **Image Bed** | Upload API, PicGo / ShareX integration |
-| [v2.2](docs/roadmap/v2.2.md) | **Sharing** | Share links, direct links, password / expiration / limits |
-| [v2.3](docs/roadmap/v2.3.md) | **Auth & Access** | Social login, OIDC, invite codes, registration controls |
-| [v2.4](docs/roadmap/v2.4.md) | **Branding & Polish** | Custom logo / title, dark mode, custom file domain |
-| [v2.5](docs/roadmap/v2.5.md) | **Backup** | zpan-cli (Rust) one-way backup for NAS / desktop |
-| [v2.6](docs/roadmap/v2.6.md) | **Sync & Desktop** | Bidirectional sync + Tauri desktop tray app |
-| [v2.7](docs/roadmap/v2.7.md) | **Teams** | Team workspaces, shared folders, member roles |
-| [v2.8](docs/roadmap/v2.8.md) | **Managed Service** | Payments, analytics, webhooks, audit log |
-| [v2.9](docs/roadmap/v2.9.md) | **Managed Advanced** | Content moderation, server-side processing, custom domain provisioning |
+| Version                      | Focus                 | Details                                                                |
+| ---------------------------- | --------------------- | ---------------------------------------------------------------------- |
+| [v2.0](docs/roadmap/v2.0.md) | **Foundation**        | File management + basic auth + dual deployment                         |
+| [v2.1](docs/roadmap/v2.1.md) | **Image Bed**         | Upload API, PicGo / ShareX integration                                 |
+| [v2.2](docs/roadmap/v2.2.md) | **Sharing**           | Share links, direct links, password / expiration / limits              |
+| [v2.3](docs/roadmap/v2.3.md) | **Auth & Access**     | Social login, OIDC, invite codes, registration controls                |
+| [v2.4](docs/roadmap/v2.4.md) | **Branding & Polish** | Custom logo / title, dark mode, custom file domain                     |
+| [v2.5](docs/roadmap/v2.5.md) | **Backup**            | zpan-cli (Rust) one-way backup for NAS / desktop                       |
+| [v2.6](docs/roadmap/v2.6.md) | **Sync & Desktop**    | Bidirectional sync + Tauri desktop tray app                            |
+| [v2.7](docs/roadmap/v2.7.md) | **Teams**             | Team workspaces, shared folders, member roles                          |
+| [v2.8](docs/roadmap/v2.8.md) | **Managed Service**   | Payments, analytics, webhooks, audit log                               |
+| [v2.9](docs/roadmap/v2.9.md) | **Managed Advanced**  | Content moderation, server-side processing, custom domain provisioning |
 
 ## Deployment Options
 

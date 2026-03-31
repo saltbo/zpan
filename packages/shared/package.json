@@ -9,7 +9,8 @@
     "./constants": "./src/constants.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "build": "echo 'shared: no build step (raw .ts exports)'",
+    "typecheck": "echo 'shared: typechecked via consuming packages'"
   },
   "dependencies": {
     "zod": "^3.24.0"

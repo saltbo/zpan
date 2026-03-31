@@ -5,7 +5,11 @@
     "dev": "pnpm --filter @zpan/server --filter @zpan/web --parallel dev",
     "build": "pnpm --filter @zpan/shared build && pnpm --filter @zpan/server build && pnpm --filter @zpan/web build",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
+    "lint": "eslint packages/*/src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "e2e": "playwright test"
   },
   "engines": {
@@ -19,6 +23,13 @@
     ]
   },
   "devDependencies": {
-    "@playwright/test": "1.58.2"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.58.2",
+    "@vitest/coverage-v8": "^4.1.2",
+    "eslint": "^10.1.0",
+    "lefthook": "^2.1.4",
+    "prettier": "^3.8.1",
+    "typescript-eslint": "^8.58.0",
+    "vitest": "^4.1.2"
   }
 }

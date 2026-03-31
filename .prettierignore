@@ -1,0 +1,9 @@
+node_modules
+dist
+.wrangler
+coverage
+test-results
+playwright-report
+pnpm-lock.yaml
+*.db
+packages/web/src/routeTree.gen.ts

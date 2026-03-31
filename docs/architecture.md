@@ -31,42 +31,42 @@ CF Pages                              Docker (Node.js)
 
 ## Core Tech Stack
 
-| Layer | Choice | Alternatives Considered | Why This One |
-|-------|--------|------------------------|--------------|
-| Web Framework | **Hono** | Express, Fastify, ElysiaJS | Native CF Pages Functions + Node.js dual runtime. Lightweight, fast, web-standard Request/Response API |
-| ORM | **Drizzle** | Prisma, Kysely | First-class D1 support, type-safe, SQL-like syntax, lightweight bundle for CF Pages Functions |
-| Auth | **Better Auth** | Lucia, Auth.js, custom JWT | Drizzle adapter, D1 support, built-in social login / OIDC / organization plugin, active development |
-| S3 SDK | **@aws-sdk/client-s3** | minio-js, custom fetch | Industry standard, works with every S3-compatible provider including R2 |
-| Package Manager | **pnpm** | npm, yarn, bun | Fast, disk efficient, good monorepo support if needed later |
-| Frontend Framework | **React 19 + Vite** | Vue, Solid, Svelte | Largest ecosystem, Capacitor-ready for future native apps if needed |
-| UI Components | **shadcn/ui + Tailwind CSS 4** | Ant Design, MUI | Zero runtime overhead (source code, not npm dep), best responsive/mobile support, modern aesthetic preferred by international users |
-| Admin Scaffold | **[shadcn-admin](https://github.com/satnaing/shadcn-admin)** (11.6k stars) | Custom build | Fork as starting point. Includes sidebar, navigation, search, dark mode, responsive layout, settings pages. Same stack: Vite + TanStack Router + shadcn/ui |
-| File Manager | **[SVAR React File Manager](https://svar.dev/react/filemanager/)** (MIT) | @cubone/react-file-manager | List/grid/split views, directory tree, breadcrumb, context menu, drag-and-drop, image preview, search, storage indicator, dark mode, TypeScript, backend-agnostic adapter API |
-| Routing | **TanStack Router** | React Router, Next.js | Type-safe, lightweight, no framework lock-in. Included in shadcn-admin |
-| Data Table | **TanStack Table** (via shadcn/ui Data Table) | AG Grid | Share management, user management, admin pages. Included in shadcn/ui |
-| Icons | **Lucide** | Heroicons, Phosphor | Default icon set for shadcn/ui, consistent style |
-| Forms | **react-hook-form + zod** | Formik | Lightweight, type-safe validation, shadcn/ui has built-in form components |
-| File Upload UI | **react-dropzone** | Uppy, Filepond | Minimal, headless, composable with shadcn/ui. Community has ready-made shadcn upload blocks |
-| Charts | **Recharts** (via shadcn/ui Charts) | Chart.js, D3 | For analytics dashboard (v2.8). Included in shadcn/ui |
-| Notifications | **Sonner** (via shadcn/ui) | react-toastify | Upload feedback, copy-to-clipboard confirmations. Included in shadcn/ui |
+| Layer              | Choice                                                                     | Alternatives Considered    | Why This One                                                                                                                                                                  |
+| ------------------ | -------------------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web Framework      | **Hono**                                                                   | Express, Fastify, ElysiaJS | Native CF Pages Functions + Node.js dual runtime. Lightweight, fast, web-standard Request/Response API                                                                        |
+| ORM                | **Drizzle**                                                                | Prisma, Kysely             | First-class D1 support, type-safe, SQL-like syntax, lightweight bundle for CF Pages Functions                                                                                 |
+| Auth               | **Better Auth**                                                            | Lucia, Auth.js, custom JWT | Drizzle adapter, D1 support, built-in social login / OIDC / organization plugin, active development                                                                           |
+| S3 SDK             | **@aws-sdk/client-s3**                                                     | minio-js, custom fetch     | Industry standard, works with every S3-compatible provider including R2                                                                                                       |
+| Package Manager    | **pnpm**                                                                   | npm, yarn, bun             | Fast, disk efficient, good monorepo support if needed later                                                                                                                   |
+| Frontend Framework | **React 19 + Vite**                                                        | Vue, Solid, Svelte         | Largest ecosystem, Capacitor-ready for future native apps if needed                                                                                                           |
+| UI Components      | **shadcn/ui + Tailwind CSS 4**                                             | Ant Design, MUI            | Zero runtime overhead (source code, not npm dep), best responsive/mobile support, modern aesthetic preferred by international users                                           |
+| Admin Scaffold     | **[shadcn-admin](https://github.com/satnaing/shadcn-admin)** (11.6k stars) | Custom build               | Fork as starting point. Includes sidebar, navigation, search, dark mode, responsive layout, settings pages. Same stack: Vite + TanStack Router + shadcn/ui                    |
+| File Manager       | **[SVAR React File Manager](https://svar.dev/react/filemanager/)** (MIT)   | @cubone/react-file-manager | List/grid/split views, directory tree, breadcrumb, context menu, drag-and-drop, image preview, search, storage indicator, dark mode, TypeScript, backend-agnostic adapter API |
+| Routing            | **TanStack Router**                                                        | React Router, Next.js      | Type-safe, lightweight, no framework lock-in. Included in shadcn-admin                                                                                                        |
+| Data Table         | **TanStack Table** (via shadcn/ui Data Table)                              | AG Grid                    | Share management, user management, admin pages. Included in shadcn/ui                                                                                                         |
+| Icons              | **Lucide**                                                                 | Heroicons, Phosphor        | Default icon set for shadcn/ui, consistent style                                                                                                                              |
+| Forms              | **react-hook-form + zod**                                                  | Formik                     | Lightweight, type-safe validation, shadcn/ui has built-in form components                                                                                                     |
+| File Upload UI     | **react-dropzone**                                                         | Uppy, Filepond             | Minimal, headless, composable with shadcn/ui. Community has ready-made shadcn upload blocks                                                                                   |
+| Charts             | **Recharts** (via shadcn/ui Charts)                                        | Chart.js, D3               | For analytics dashboard (v2.8). Included in shadcn/ui                                                                                                                         |
+| Notifications      | **Sonner** (via shadcn/ui)                                                 | react-toastify             | Upload feedback, copy-to-clipboard confirmations. Included in shadcn/ui                                                                                                       |
 
 ## Frontend Architecture
 
 ### Off-the-shelf vs Custom
 
-| Component | Source | Custom Work |
-|-----------|--------|-------------|
-| Layout, sidebar, navigation, dark mode | shadcn-admin | Minimal — adapt routes and menu items |
-| File manager (list, grid, tree, drag-drop) | SVAR File Manager | Write adapter to connect to ZPan API |
-| Upload dropzone | react-dropzone + shadcn blocks | Compose with presigned URL upload logic |
-| Data tables (shares, users, storage) | shadcn/ui Data Table | Define columns and connect to API |
-| Dialogs (share settings, file detail) | shadcn/ui Dialog/Sheet | Build forms inside pre-made shells |
-| Global search | shadcn/ui Command | Connect to search API |
-| Toast / notifications | shadcn/ui Sonner | Wire to upload events |
-| **Share landing page** | **Custom** | Public page with file preview + download |
-| **Upload history panel** | **Custom** | Recent uploads with URL copy |
-| **Storage backend config forms** | **Custom** | S3 endpoint, credentials, path template |
-| **Image bed quick-upload view** | **Custom** | Paste/drop → get URL, minimal UI |
+| Component                                  | Source                         | Custom Work                              |
+| ------------------------------------------ | ------------------------------ | ---------------------------------------- |
+| Layout, sidebar, navigation, dark mode     | shadcn-admin                   | Minimal — adapt routes and menu items    |
+| File manager (list, grid, tree, drag-drop) | SVAR File Manager              | Write adapter to connect to ZPan API     |
+| Upload dropzone                            | react-dropzone + shadcn blocks | Compose with presigned URL upload logic  |
+| Data tables (shares, users, storage)       | shadcn/ui Data Table           | Define columns and connect to API        |
+| Dialogs (share settings, file detail)      | shadcn/ui Dialog/Sheet         | Build forms inside pre-made shells       |
+| Global search                              | shadcn/ui Command              | Connect to search API                    |
+| Toast / notifications                      | shadcn/ui Sonner               | Wire to upload events                    |
+| **Share landing page**                     | **Custom**                     | Public page with file preview + download |
+| **Upload history panel**                   | **Custom**                     | Recent uploads with URL copy             |
+| **Storage backend config forms**           | **Custom**                     | S3 endpoint, credentials, path template  |
+| **Image bed quick-upload view**            | **Custom**                     | Paste/drop → get URL, minimal UI         |
 
 Most of the heavy UI work is handled by existing components. Custom development focuses on ZPan-specific business pages.
 
@@ -133,11 +133,11 @@ Backend error messages returned as i18n keys, frontend resolves to localized str
 
 ## Testing
 
-| Layer | Tool | Scope |
-|-------|------|-------|
-| Unit tests | **Vitest** | Services, utilities, business logic |
-| API tests | **Vitest** + Hono `app.request()` | Route handlers, middleware, auth flows |
-| E2E tests | **Playwright** | Full user flows: upload, share, login, file management |
+| Layer      | Tool                              | Scope                                                  |
+| ---------- | --------------------------------- | ------------------------------------------------------ |
+| Unit tests | **Vitest**                        | Services, utilities, business logic                    |
+| API tests  | **Vitest** + Hono `app.request()` | Route handlers, middleware, auth flows                 |
+| E2E tests  | **Playwright**                    | Full user flows: upload, share, login, file management |
 
 Playwright tests live in `e2e/` at the repo root, run against a local dev server (server + web).
 
@@ -146,12 +146,14 @@ Playwright tests live in `e2e/` at the repo root, run against a local dev server
 GitHub Actions:
 
 **On PR:**
+
 - `pnpm lint` — ESLint + Prettier check
 - `pnpm typecheck` — TypeScript compilation
 - `pnpm test` — Vitest unit + API tests
 - `pnpm e2e` — Playwright tests
 
 **On merge to master:**
+
 - Build + deploy to CF Pages (preview / production)
 - Build Docker image + push to Docker Hub (`saltbo/zpan:latest`, `saltbo/zpan:v2.x.x`)
 
@@ -170,9 +172,9 @@ src/platform/
 
 ```typescript
 interface Platform {
-  db: DrizzleInstance          // D1 or SQLite file or PostgreSQL
-  s3: S3Client                // R2 or any S3-compatible
-  cron: CronScheduler         // CF Cron Triggers or node-cron
+  db: DrizzleInstance // D1 or SQLite file or PostgreSQL
+  s3: S3Client // R2 or any S3-compatible
+  cron: CronScheduler // CF Cron Triggers or node-cron
 }
 ```
 
@@ -202,6 +204,7 @@ Mounted at `/api/auth/*`. Session-based auth with secure cookies. Better Auth ma
 One `@aws-sdk/client-s3` instance per storage backend. No per-provider SDKs (unlike v1 which had 8 separate implementations). All providers accessed via S3-compatible API.
 
 Key operations:
+
 - `PutObjectCommand` presigned URL for uploads
 - `GetObjectCommand` presigned URL for downloads
 - `HeadObjectCommand` for upload verification
@@ -259,15 +262,17 @@ Configure via `socialProviders` in Better Auth config. Each provider needs `clie
 **OIDC: Better Auth Generic OAuth plugin**
 
 ```typescript
-import { genericOAuth } from "better-auth/plugins"
+import { genericOAuth } from 'better-auth/plugins'
 
 genericOAuth({
-  config: [{
-    providerId: "company-sso",
-    discoveryUrl: "https://idp.example.com/.well-known/openid-configuration",
-    clientId: env.OIDC_CLIENT_ID,
-    clientSecret: env.OIDC_CLIENT_SECRET,
-  }]
+  config: [
+    {
+      providerId: 'company-sso',
+      discoveryUrl: 'https://idp.example.com/.well-known/openid-configuration',
+      clientId: env.OIDC_CLIENT_ID,
+      clientSecret: env.OIDC_CLIENT_SECRET,
+    },
+  ],
 })
 ```
 
@@ -306,6 +311,7 @@ Rust produces small (~5MB) static binaries for every platform (macOS, Linux, Win
 Core logic lives in `zpan-core` crate, shared with the desktop app (v2.6).
 
 **Rust crate dependencies:**
+
 - `aws-sdk-s3` — S3 operations (upload, download, head, delete)
 - `notify` — filesystem watching for real-time backup
 - `tokio-cron-scheduler` — scheduled backup runs
@@ -318,6 +324,7 @@ Core logic lives in `zpan-core` crate, shared with the desktop app (v2.6).
 **Sync Protocol**
 
 CLI authenticates with ZPan via API token. Workflow:
+
 1. Scan local directory, compute file hashes
 2. `POST /api/sync/check` — send hashes, get back list of files needing upload
 3. `POST /api/sync/batch-presign` — get presigned URLs for new/changed files
@@ -325,6 +332,7 @@ CLI authenticates with ZPan via API token. Workflow:
 5. `POST /api/sync/complete` — report uploaded files, ZPan updates matter records
 
 **ZPan API additions:**
+
 - `POST /api/sync/check` — file fingerprint comparison
 - `POST /api/sync/batch-presign` — batch presigned URL generation
 - `GET /api/sync/status` — backup job status for web UI
@@ -338,6 +346,7 @@ CLI authenticates with ZPan via API token. Workflow:
 New table `changes` (`id`, `matter_id`, `action`, `path`, `hash`, `device_id`, `timestamp`). Every file create/update/delete writes a change record.
 
 **Sync API:**
+
 - `GET /api/sync/changes?since={id}&device={deviceId}` — pull changes from other devices
 - `POST /api/sync/changes` — push local changes
 
@@ -357,6 +366,7 @@ Location: `native/crates/zpan-desktop/`. Ships alongside v2.6 as the graphical i
 - macOS, Windows, Linux builds via Tauri's cross-platform tooling
 
 Tauri dependencies:
+
 - `tauri` — app framework, system tray, window management
 - `tauri-plugin-autostart` — launch on login
 - `tauri-plugin-notification` — native notifications (sync conflict, backup complete)
@@ -370,7 +380,7 @@ Tauri dependencies:
 Direct use, no custom implementation needed.
 
 ```typescript
-import { organization } from "better-auth/plugins"
+import { organization } from 'better-auth/plugins'
 
 organization({
   teams: { enabled: true },
@@ -382,16 +392,16 @@ organization({
 
 ```typescript
 const statement = {
-  file: ["upload", "download", "delete", "share"],
-  workspace: ["manage", "invite"],
+  file: ['upload', 'download', 'delete', 'share'],
+  workspace: ['manage', 'invite'],
 } as const
 
 const ac = createAccessControl(statement)
-const viewer = ac.newRole({ file: ["download"] })
-const editor = ac.newRole({ file: ["upload", "download", "delete", "share"] })
+const viewer = ac.newRole({ file: ['download'] })
+const editor = ac.newRole({ file: ['upload', 'download', 'delete', 'share'] })
 const owner = ac.newRole({
-  file: ["upload", "download", "delete", "share"],
-  workspace: ["manage", "invite"],
+  file: ['upload', 'download', 'delete', 'share'],
+  workspace: ['manage', 'invite'],
 })
 ```
 
@@ -414,6 +424,7 @@ Webhook endpoint at `POST /api/webhooks/stripe` for subscription lifecycle event
 **Analytics**
 
 Managed version runs a separate analytics pipeline. Options:
+
 - CF Analytics Engine (native, no extra infra)
 - ClickHouse (Docker deployment)
 - Simple approach: aggregate counters in D1/PostgreSQL with daily rollup cron
@@ -433,6 +444,7 @@ New table `audit_logs` (`user_id`, `action`, `resource_type`, `resource_id`, `me
 **Content Moderation**
 
 Upload hook triggers image classification. Options:
+
 - CF Workers AI (managed deployment)
 - External API (AWS Rekognition, Google Cloud Vision)
 
@@ -441,6 +453,7 @@ Flagged files stored in `moderation_queue` table for admin review.
 **Server-side Processing**
 
 Background worker (CF Queue consumer or separate container) handles:
+
 - Archive extraction: stream zip from S3, extract entries, write back to S3
 - Thumbnails: sharp / CF Image Resizing
 - Format conversion: sharp for images

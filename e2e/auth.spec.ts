@@ -91,12 +91,18 @@ test.describe('Auth flow', () => {
     await expect(page.getByText('Deleted files will appear here')).toBeVisible({ timeout: 5000 })
 
     await page.goto('/storages')
-    await expect(page.getByText('Configure your S3-compatible storage backends here')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Configure your S3-compatible storage backends here')).toBeVisible({
+      timeout: 5000,
+    })
 
     await page.goto('/users')
-    await expect(page.getByText('User management will be implemented here')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('User management will be implemented here')).toBeVisible({
+      timeout: 5000,
+    })
 
     await page.goto('/settings')
-    await expect(page.getByText('Profile and appearance settings will be here')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Profile and appearance settings will be here')).toBeVisible({
+      timeout: 5000,
+    })
   })
 })
