@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, asc } from 'drizzle-orm'
+import { eq, and, asc } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { createStorageSchema } from '@zpan/shared/schemas'
 import type { Env } from '../middleware/platform'
@@ -64,21 +64,27 @@ const app = new Hono<Env>()
     if (!existing) return c.json({ error: 'Not found' }, 404)
 
     const body = await c.req.json()
+    const { title, mode, bucket, endpoint, region, accessKey, secretKey, filePath, customHost, capacityBytes, priority } = body
+    const updates = Object.fromEntries(
+      Object.entries({ title, mode, bucket, endpoint, region, accessKey, secretKey, filePath, customHost, capacityBytes, priority })
+        .filter(([, v]) => v !== undefined)
+    )
+
     const credentialsChanged =
-      (body.endpoint && body.endpoint !== existing.endpoint) ||
-      (body.accessKey && body.accessKey !== existing.accessKey) ||
-      (body.secretKey && body.secretKey !== existing.secretKey) ||
-      (body.bucket && body.bucket !== existing.bucket) ||
-      (body.region && body.region !== existing.region)
+      (updates.endpoint && updates.endpoint !== existing.endpoint) ||
+      (updates.accessKey && updates.accessKey !== existing.accessKey) ||
+      (updates.secretKey && updates.secretKey !== existing.secretKey) ||
+      (updates.bucket && updates.bucket !== existing.bucket) ||
+      (updates.region && updates.region !== existing.region)
 
     if (credentialsChanged) {
       try {
         await testConnection({
-          endpoint: body.endpoint ?? existing.endpoint,
-          region: body.region ?? existing.region,
-          accessKey: body.accessKey ?? existing.accessKey,
-          secretKey: body.secretKey ?? existing.secretKey,
-          bucket: body.bucket ?? existing.bucket,
+          endpoint: (updates.endpoint as string) ?? existing.endpoint,
+          region: (updates.region as string) ?? existing.region,
+          accessKey: (updates.accessKey as string) ?? existing.accessKey,
+          secretKey: (updates.secretKey as string) ?? existing.secretKey,
+          bucket: (updates.bucket as string) ?? existing.bucket,
         })
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
@@ -88,7 +94,7 @@ const app = new Hono<Env>()
 
     const [updated] = await db
       .update(storages)
-      .set({ ...body, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() })
       .where(eq(storages.id, id))
       .returning()
     return c.json(updated)
@@ -103,7 +109,7 @@ const app = new Hono<Env>()
     const activeFiles = await db
       .select()
       .from(matters)
-      .where(eq(matters.storageId, id))
+      .where(and(eq(matters.storageId, id), eq(matters.status, 'active')))
       .limit(1)
 
     if (activeFiles.length > 0) {
