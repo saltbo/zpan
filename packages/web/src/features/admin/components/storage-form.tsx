@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui/select'
 import { useCreateStorage, useUpdateStorage } from '../api'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, PlugZap } from 'lucide-react'
 
 type FormValues = z.infer<typeof createStorageSchema>
 
@@ -35,41 +36,53 @@ interface StorageFormProps {
 
 const GB = 1024 * 1024 * 1024
 
+function defaultsFromStorage(storage: Storage | null | undefined): FormValues {
+  if (storage) {
+    return {
+      title: storage.title,
+      mode: storage.mode,
+      bucket: storage.bucket,
+      endpoint: storage.endpoint,
+      region: storage.region,
+      accessKey: storage.accessKey,
+      secretKey: storage.secretKey,
+      filePath: storage.filePath,
+      customHost: storage.customHost || undefined,
+      capacityBytes: storage.capacityBytes ?? undefined,
+      priority: storage.priority,
+    }
+  }
+  return {
+    title: '',
+    mode: 'private',
+    bucket: '',
+    endpoint: '',
+    region: 'auto',
+    accessKey: '',
+    secretKey: '',
+    filePath: '$UID/$RAW_NAME',
+    customHost: undefined,
+    capacityBytes: undefined,
+    priority: 0,
+  }
+}
+
 export function StorageForm({ open, onOpenChange, storage }: StorageFormProps) {
   const isEdit = !!storage
   const create = useCreateStorage()
   const update = useUpdateStorage()
+  const [testing, setTesting] = useState(false)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(createStorageSchema),
-    defaultValues: storage
-      ? {
-          title: storage.title,
-          mode: storage.mode,
-          bucket: storage.bucket,
-          endpoint: storage.endpoint,
-          region: storage.region,
-          accessKey: storage.accessKey,
-          secretKey: storage.secretKey,
-          filePath: storage.filePath,
-          customHost: storage.customHost || undefined,
-          capacityBytes: storage.capacityBytes ?? undefined,
-          priority: storage.priority,
-        }
-      : {
-          title: '',
-          mode: 'private',
-          bucket: '',
-          endpoint: '',
-          region: 'auto',
-          accessKey: '',
-          secretKey: '',
-          filePath: '$UID/$RAW_NAME',
-          customHost: undefined,
-          capacityBytes: undefined,
-          priority: 0,
-        },
+    defaultValues: defaultsFromStorage(storage),
   })
+
+  useEffect(() => {
+    if (open) {
+      form.reset(defaultsFromStorage(storage))
+    }
+  }, [open, storage, form])
 
   const pending = create.isPending || update.isPending
 
@@ -86,6 +99,29 @@ export function StorageForm({ open, onOpenChange, storage }: StorageFormProps) {
       toast.success('Storage created')
     }
     onOpenChange(false)
+  }
+
+  async function handleTestConnection() {
+    const values = form.getValues()
+    setTesting(true)
+    try {
+      const res = await fetch('/api/storages', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...values, _testOnly: true }),
+      })
+      if (res.ok || res.status === 201) {
+        toast.success('Connection successful')
+      } else {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.message ?? 'Connection failed')
+      }
+    } catch {
+      toast.error('Connection failed')
+    } finally {
+      setTesting(false)
+    }
   }
 
   const errors = form.formState.errors
@@ -167,6 +203,15 @@ export function StorageForm({ open, onOpenChange, storage }: StorageFormProps) {
           </Field>
 
           <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={testing}
+            >
+              {testing ? <Loader2 className="animate-spin" /> : <PlugZap />}
+              Test Connection
+            </Button>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

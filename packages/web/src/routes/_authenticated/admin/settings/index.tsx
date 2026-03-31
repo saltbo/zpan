@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -69,13 +69,14 @@ function GeneralSettings() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [initialized, setInitialized] = useState(false)
 
-  if (siteName.data && siteDesc.data && !initialized) {
-    setName(siteName.data.value ?? '')
-    setDescription(siteDesc.data.value ?? '')
-    setInitialized(true)
-  }
+  useEffect(() => {
+    if (siteName.data) setName(siteName.data.value ?? '')
+  }, [siteName.data])
+
+  useEffect(() => {
+    if (siteDesc.data) setDescription(siteDesc.data.value ?? '')
+  }, [siteDesc.data])
 
   async function handleSave() {
     await Promise.all([
@@ -126,6 +127,15 @@ function formatCapacity(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function statusLabel(status: number): {
+  text: string
+  variant: 'default' | 'secondary' | 'destructive'
+} {
+  if (status === 1) return { text: 'Active', variant: 'default' }
+  if (status === -1) return { text: 'Error', variant: 'destructive' }
+  return { text: 'Inactive', variant: 'secondary' }
+}
+
 function StorageBackends() {
   const { data, isLoading } = useStorages()
   const deleteStorage = useDeleteStorage()
@@ -150,6 +160,8 @@ function StorageBackends() {
     setDeleteTarget(null)
   }
 
+  const colCount = 8
+
   return (
     <div className="space-y-4 pt-4">
       <div className="flex items-center justify-between">
@@ -170,26 +182,28 @@ function StorageBackends() {
               <TableHead>Endpoint</TableHead>
               <TableHead>Usage</TableHead>
               <TableHead>Priority</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="w-24">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={colCount} className="text-center py-8 text-muted-foreground">
                   Loading...
                 </TableCell>
               </TableRow>
             )}
             {data?.items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={colCount} className="text-center py-8 text-muted-foreground">
                   No storage backends configured.
                 </TableCell>
               </TableRow>
             )}
             {data?.items.map((s) => {
               const pct = s.capacityBytes ? Math.round((s.usedBytes / s.capacityBytes) * 100) : 0
+              const st = statusLabel(s.status)
               return (
                 <TableRow key={s.id}>
                   <TableCell className="font-medium">{s.title}</TableCell>
@@ -209,6 +223,9 @@ function StorageBackends() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">{s.priority}</TableCell>
+                  <TableCell>
+                    <Badge variant={st.variant}>{st.text}</Badge>
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon-xs" onClick={() => openEdit(s)}>
