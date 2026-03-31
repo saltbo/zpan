@@ -271,14 +271,10 @@ const app = new Hono<Env>()
 
     if (!matter) return c.json({ error: 'Not found' }, 404)
 
-    if (matter.dirtype === 0 && matter.object && matter.storageId) {
-      const [storage] = await db.select().from(storages).where(eq(storages.id, matter.storageId))
-
-      if (storage) {
-        const client = createS3Client(storage)
-        await deleteObject(client, storage.bucket, matter.object)
-      }
-    }
+    const [storage] =
+      matter.dirtype === 0 && matter.storageId
+        ? await db.select().from(storages).where(eq(storages.id, matter.storageId))
+        : []
 
     await db.transaction(async (tx) => {
       await tx.delete(matters).where(eq(matters.id, id))
@@ -293,6 +289,11 @@ const app = new Hono<Env>()
           .where(eq(storageQuotas.uid, userId))
       }
     })
+
+    if (storage && matter.object) {
+      const client = createS3Client(storage)
+      await deleteObject(client, storage.bucket, matter.object)
+    }
 
     return new Response(null, { status: 204 })
   })
@@ -315,7 +316,7 @@ const app = new Hono<Env>()
     const newAlias = nanoid(10)
     const now = new Date()
 
-    // For files, copy the S3 object
+    // For files, copy the S3 object first (outside transaction)
     let newObjectKey = ''
     if (matter.dirtype === 0 && matter.object && storage) {
       const rawExt = extFromName(matter.name)
@@ -328,40 +329,45 @@ const app = new Hono<Env>()
 
       const client = createS3Client(storage)
       await copyObject(client, storage.bucket, matter.object, newObjectKey)
-
-      // Update storage usage and user quota
-      await db
-        .update(storages)
-        .set({ usedBytes: sql`${storages.usedBytes} + ${matter.size}` })
-        .where(eq(storages.id, storage.id))
-
-      await db
-        .insert(storageQuotas)
-        .values({ id: nanoid(), uid: userId, quota: 0, used: matter.size ?? 0 })
-        .onConflictDoUpdate({
-          target: storageQuotas.uid,
-          set: { used: sql`${storageQuotas.used} + ${matter.size}` },
-        })
     }
 
-    const [copy] = await db
-      .insert(matters)
-      .values({
-        id: newId,
-        uid: userId,
-        alias: newAlias,
-        name: matter.name,
-        type: matter.type,
-        size: matter.size,
-        dirtype: matter.dirtype,
-        parent: parent ?? '',
-        object: newObjectKey,
-        storageId: matter.storageId,
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning()
+    const [copy] = await db.transaction(async (tx) => {
+      const result = await tx
+        .insert(matters)
+        .values({
+          id: newId,
+          uid: userId,
+          alias: newAlias,
+          name: matter.name,
+          type: matter.type,
+          size: matter.size,
+          dirtype: matter.dirtype,
+          parent: parent ?? '',
+          object: newObjectKey,
+          storageId: matter.storageId,
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning()
+
+      if (matter.dirtype === 0 && matter.size && matter.size > 0 && storage) {
+        await tx
+          .update(storages)
+          .set({ usedBytes: sql`${storages.usedBytes} + ${matter.size}` })
+          .where(eq(storages.id, storage.id))
+
+        await tx
+          .insert(storageQuotas)
+          .values({ id: nanoid(), uid: userId, quota: 0, used: matter.size })
+          .onConflictDoUpdate({
+            target: storageQuotas.uid,
+            set: { used: sql`${storageQuotas.used} + ${matter.size}` },
+          })
+      }
+
+      return result
+    })
 
     return c.json(copy, 201)
   })
