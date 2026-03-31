@@ -11,7 +11,6 @@ import {
   NoSuchKey,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import type { Storage } from '@zpan/shared/types'
 import type { StorageMode } from '@zpan/shared/constants'
 
 const PRESIGN_EXPIRES_IN = 3600 // 1 hour
@@ -70,9 +69,7 @@ export async function headObject(
   key: string,
 ): Promise<{ size: number; contentType: string } | null> {
   try {
-    const response = await client.send(
-      new HeadObjectCommand({ Bucket: bucket, Key: key }),
-    )
+    const response = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }))
     if (response.ContentLength == null) return null
     return {
       size: response.ContentLength,
@@ -84,11 +81,7 @@ export async function headObject(
   }
 }
 
-export async function deleteObject(
-  client: S3Client,
-  bucket: string,
-  key: string,
-): Promise<void> {
+export async function deleteObject(client: S3Client, bucket: string, key: string): Promise<void> {
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
 }
 
@@ -155,17 +148,19 @@ export function expandFilePath(
 
 // --- Storage Selection ---
 
-export type StorageWithMeta = Storage & {
+export type StorageWithMeta = {
+  mode: string
+  status: number
   priority: number
   capacityBytes: number | null
   usedBytes: number
 }
 
-export function selectStorage(
-  storages: StorageWithMeta[],
-  mode: StorageMode,
+export function selectStorage<T extends StorageWithMeta>(
+  storages: T[],
+  mode: string,
   fileSize: number,
-): StorageWithMeta | null {
+): T | null {
   const candidates = storages
     .filter((s) => s.mode === mode && s.status === 1)
     .sort((a, b) => a.priority - b.priority)

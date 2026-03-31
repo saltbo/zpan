@@ -9,39 +9,15 @@ import {
   getUploadUrl,
   getDownloadUrl,
   headObject,
-  deleteObjects,
   copyObject,
   expandFilePath,
   selectStorage,
 } from '../services/s3'
+import { collectDescendants, permanentDeleteMatters } from '../services/objects'
 
 function extFromName(name: string): string {
   const dot = name.lastIndexOf('.')
   return dot === -1 ? '' : name.slice(dot + 1)
-}
-
-type Matter = typeof matters.$inferSelect
-
-async function collectDescendants(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  db: { select: () => any },
-  parentIds: string[],
-  uid: string,
-): Promise<Matter[]> {
-  const result: Matter[] = []
-  let currentIds = parentIds
-
-  while (currentIds.length > 0) {
-    const children: Matter[] = await db
-      .select()
-      .from(matters)
-      .where(and(eq(matters.uid, uid), inArray(matters.parent, currentIds)))
-
-    result.push(...children)
-    currentIds = children.filter((c) => c.dirtype && c.dirtype > 0).map((c) => c.id)
-  }
-
-  return result
 }
 
 const app = new Hono<Env>()
@@ -304,47 +280,7 @@ const app = new Hono<Env>()
 
     if (trashed.length === 0) return new Response(null, { status: 204 })
 
-    const files = trashed.filter((m) => m.dirtype === 0 && m.object)
-    const totalSize = files.reduce((sum, m) => sum + (m.size ?? 0), 0)
-    const trashedIds = trashed.map((m) => m.id)
-
-    // Group files by storageId for batch S3 delete
-    const byStorage = new Map<string, { keys: string[]; size: number }>()
-    for (const file of files) {
-      const entry = byStorage.get(file.storageId) ?? { keys: [], size: 0 }
-      entry.keys.push(file.object)
-      entry.size += file.size ?? 0
-      byStorage.set(file.storageId, entry)
-    }
-
-    await db.transaction(async (tx) => {
-      await tx.delete(matters).where(inArray(matters.id, trashedIds))
-
-      for (const [storageId, { size }] of byStorage) {
-        if (size > 0) {
-          await tx
-            .update(storages)
-            .set({ usedBytes: sql`${storages.usedBytes} - ${size}` })
-            .where(eq(storages.id, storageId))
-        }
-      }
-
-      if (totalSize > 0) {
-        await tx
-          .update(storageQuotas)
-          .set({ used: sql`${storageQuotas.used} - ${totalSize}` })
-          .where(eq(storageQuotas.uid, userId))
-      }
-    })
-
-    // S3 cleanup outside transaction
-    for (const [storageId, { keys }] of byStorage) {
-      const [storage] = await db.select().from(storages).where(eq(storages.id, storageId))
-      if (storage) {
-        const client = createS3Client(storage)
-        await deleteObjects(client, storage.bucket, keys)
-      }
-    }
+    await permanentDeleteMatters(db, userId, trashed)
 
     return new Response(null, { status: 204 })
   })
@@ -368,7 +304,6 @@ const app = new Hono<Env>()
       const status = action === 'trash' ? 'trashed' : 'active'
       const allIds = [...ids]
 
-      // Collect descendants for folders
       const folderIds = targets.filter((m) => m.dirtype && m.dirtype > 0).map((m) => m.id)
       if (folderIds.length > 0) {
         const descendants = await collectDescendants(db, folderIds, userId)
@@ -389,7 +324,6 @@ const app = new Hono<Env>()
         return c.json({ error: 'Must be trashed before permanent delete' }, 409)
       }
 
-      // Collect all items including folder descendants
       const allItems = [...targets]
       const folderIds = targets.filter((m) => m.dirtype && m.dirtype > 0).map((m) => m.id)
       if (folderIds.length > 0) {
@@ -397,47 +331,8 @@ const app = new Hono<Env>()
         allItems.push(...descendants)
       }
 
-      const files = allItems.filter((m) => m.dirtype === 0 && m.object)
-      const totalSize = files.reduce((sum, m) => sum + (m.size ?? 0), 0)
-      const allIds = allItems.map((m) => m.id)
-
-      const byStorage = new Map<string, { keys: string[]; size: number }>()
-      for (const file of files) {
-        const entry = byStorage.get(file.storageId) ?? { keys: [], size: 0 }
-        entry.keys.push(file.object)
-        entry.size += file.size ?? 0
-        byStorage.set(file.storageId, entry)
-      }
-
-      await db.transaction(async (tx) => {
-        await tx.delete(matters).where(inArray(matters.id, allIds))
-
-        for (const [storageId, { size }] of byStorage) {
-          if (size > 0) {
-            await tx
-              .update(storages)
-              .set({ usedBytes: sql`${storages.usedBytes} - ${size}` })
-              .where(eq(storages.id, storageId))
-          }
-        }
-
-        if (totalSize > 0) {
-          await tx
-            .update(storageQuotas)
-            .set({ used: sql`${storageQuotas.used} - ${totalSize}` })
-            .where(eq(storageQuotas.uid, userId))
-        }
-      })
-
-      for (const [storageId, { keys }] of byStorage) {
-        const [storage] = await db.select().from(storages).where(eq(storages.id, storageId))
-        if (storage) {
-          const client = createS3Client(storage)
-          await deleteObjects(client, storage.bucket, keys)
-        }
-      }
-
-      return c.json({ affected: allIds.length })
+      const affected = await permanentDeleteMatters(db, userId, allItems)
+      return c.json({ affected })
     }
 
     if (action === 'move') {
@@ -478,54 +373,13 @@ const app = new Hono<Env>()
       return c.json({ error: 'Must be trashed before permanent delete' }, 409)
     }
 
-    // Collect all items to delete (including descendants for folders)
     const allItems = [matter]
     if (matter.dirtype && matter.dirtype > 0) {
       const descendants = await collectDescendants(db, [id], userId)
       allItems.push(...descendants)
     }
 
-    const files = allItems.filter((m) => m.dirtype === 0 && m.object)
-    const totalSize = files.reduce((sum, m) => sum + (m.size ?? 0), 0)
-    const allIds = allItems.map((m) => m.id)
-
-    // Group files by storageId for batch S3 delete
-    const byStorage = new Map<string, { keys: string[]; size: number }>()
-    for (const file of files) {
-      const entry = byStorage.get(file.storageId) ?? { keys: [], size: 0 }
-      entry.keys.push(file.object)
-      entry.size += file.size ?? 0
-      byStorage.set(file.storageId, entry)
-    }
-
-    await db.transaction(async (tx) => {
-      await tx.delete(matters).where(inArray(matters.id, allIds))
-
-      for (const [storageId, { size }] of byStorage) {
-        if (size > 0) {
-          await tx
-            .update(storages)
-            .set({ usedBytes: sql`${storages.usedBytes} - ${size}` })
-            .where(eq(storages.id, storageId))
-        }
-      }
-
-      if (totalSize > 0) {
-        await tx
-          .update(storageQuotas)
-          .set({ used: sql`${storageQuotas.used} - ${totalSize}` })
-          .where(eq(storageQuotas.uid, userId))
-      }
-    })
-
-    // S3 cleanup outside transaction
-    for (const [storageId, { keys }] of byStorage) {
-      const [storage] = await db.select().from(storages).where(eq(storages.id, storageId))
-      if (storage) {
-        const client = createS3Client(storage)
-        await deleteObjects(client, storage.bucket, keys)
-      }
-    }
+    await permanentDeleteMatters(db, userId, allItems)
 
     return new Response(null, { status: 204 })
   })
