@@ -15,3 +15,14 @@ export const requireAuth = createMiddleware<Env>(async (c, next) => {
   }
   await next()
 })
+
+export const requireAdmin = createMiddleware<Env>(async (c, next) => {
+  const userId = c.get('userId')
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+
+  const auth = c.get('auth')
+  const session = await auth.api.getSession({ headers: c.req.raw.headers })
+  if (session?.user?.role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
+
+  await next()
+})
