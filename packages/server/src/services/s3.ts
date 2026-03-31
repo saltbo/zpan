@@ -120,7 +120,7 @@ export async function copyObject(
   await client.send(
     new CopyObjectCommand({
       Bucket: bucket,
-      CopySource: `${bucket}/${encodeURIComponent(sourceKey)}`,
+      CopySource: `${bucket}/${sourceKey.split('/').map(encodeURIComponent).join('/')}`,
       Key: destKey,
     }),
   )
@@ -147,7 +147,7 @@ export function expandFilePath(
     .replace(/\$UID/g, vars.uid)
     .replace(/\$UUID/g, vars.uuid)
     .replace(/\$RAW_NAME/g, safeName)
-    .replace(/\$RAW_EXT/g, vars.rawExt)
+    .replace(/\$RAW_EXT/g, sanitizePathSegment(vars.rawExt))
     .replace(/\$NOW_DATE/g, `${yyyy}/${mm}/${dd}`)
     .replace(/\$RAND_16KEY/g, rand16)
 }
