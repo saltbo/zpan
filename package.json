@@ -12,6 +12,7 @@
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test"
   },
+  "packageManager": "pnpm@10.30.2",
   "engines": {
     "node": ">=20"
   },

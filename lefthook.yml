@@ -3,10 +3,10 @@ pre-commit:
   commands:
     lint:
       glob: '*.{ts,tsx}'
-      run: npx eslint {staged_files}
+      run: pnpm exec eslint {staged_files}
     format:
       glob: '*.{ts,tsx,json,md}'
-      run: npx prettier --check {staged_files}
+      run: pnpm exec prettier --check {staged_files}
     typecheck:
       glob: '*.{ts,tsx}'
-      run: pnpm --filter @zpan/server typecheck
+      run: pnpm -r typecheck

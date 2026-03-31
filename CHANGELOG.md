@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Complete rewrite from Go to TypeScript.
 
 ### Changed
-
 - New tech stack: Hono + Drizzle + Better Auth
 - Dual deployment: Cloudflare Pages and Docker
 - R2 as default storage backend
