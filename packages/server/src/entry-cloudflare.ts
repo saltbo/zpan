@@ -1,3 +1,4 @@
+import type { EventContext } from 'hono/cloudflare-pages'
 import { handle } from 'hono/cloudflare-pages'
 import { createApp } from './app'
 import { createAuth } from './auth'
@@ -10,7 +11,7 @@ interface CloudflareEnv {
   [key: string]: unknown
 }
 
-export const onRequest: PagesFunction<CloudflareEnv> = (context) => {
+export const onRequest = (context: EventContext<CloudflareEnv>) => {
   const platform = createCloudflarePlatform(context.env)
   const auth = createAuth(
     platform.db,

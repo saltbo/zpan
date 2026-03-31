@@ -9,9 +9,13 @@
     "./constants": "./src/constants.ts"
   },
   "scripts": {
+    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }

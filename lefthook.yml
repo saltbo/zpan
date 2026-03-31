@@ -1,0 +1,12 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: '*.{ts,tsx}'
+      run: pnpm exec eslint {staged_files}
+    format:
+      glob: '*.{ts,tsx,json,md}'
+      run: pnpm exec prettier --check {staged_files}
+    typecheck:
+      glob: '*.{ts,tsx}'
+      run: pnpm --filter @zpan/shared --filter @zpan/server typecheck
