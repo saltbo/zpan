@@ -1,10 +1,10 @@
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import type { DrizzleD1Database } from 'drizzle-orm/d1'
-import * as schema from '../db/schema'
+import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
+import type * as schema from '../db/schema'
+import type * as authSchema from '../db/auth-schema'
 
-export type Database =
-  | BetterSQLite3Database<typeof schema>
-  | DrizzleD1Database<typeof schema>
+type FullSchema = typeof schema & typeof authSchema
+
+export type Database = BaseSQLiteDatabase<'sync' | 'async', unknown, FullSchema>
 
 export interface Platform {
   db: Database
