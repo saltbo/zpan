@@ -1,10 +1,17 @@
 import { Hono } from 'hono'
 import { eq, and, asc, desc, like, sql, type SQL } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import {
+  createFolderSchema,
+  createFileSchema,
+  updateObjectSchema,
+  copyObjectSchema,
+  updateStatusSchema,
+} from '@zpan/shared/schemas'
 import type { Env } from '../middleware/platform'
+import type { Database } from '../platform/interface'
 import { requireAuth } from '../middleware/auth'
 import { matters, storages, storageQuotas } from '../db/schema'
-import type { StorageWithMeta } from '../services/s3'
 import {
   createS3Client,
   selectStorage,
@@ -13,18 +20,38 @@ import {
   getDownloadUrl,
   headObject,
   copyObject,
+  deleteObject,
 } from '../services/s3'
+import type { StorageMode } from '@zpan/shared/constants'
 
 const FILE_TYPE_PREFIXES: Record<string, string> = {
   image: 'image/',
   video: 'video/',
   audio: 'audio/',
-  document: 'application/',
+  document: 'application/pdf',
 }
 
 function fileExtension(name: string): string {
   const dot = name.lastIndexOf('.')
   return dot >= 0 ? name.slice(dot + 1) : ''
+}
+
+async function upsertQuotaUsage(db: Database, uid: string, sizeDelta: number): Promise<void> {
+  const [existing] = await db.select().from(storageQuotas).where(eq(storageQuotas.uid, uid))
+
+  if (existing) {
+    await db
+      .update(storageQuotas)
+      .set({ used: sql`${storageQuotas.used} + ${sizeDelta}` })
+      .where(eq(storageQuotas.uid, uid))
+  } else {
+    await db.insert(storageQuotas).values({
+      id: nanoid(),
+      uid,
+      quota: 0,
+      used: sizeDelta,
+    })
+  }
 }
 
 const app = new Hono<Env>()
@@ -77,17 +104,21 @@ const app = new Hono<Env>()
 
     // Folder creation
     if (body.dirtype && body.dirtype > 0) {
+      const parsed = createFolderSchema.safeParse(body)
+      if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400)
+
+      const data = parsed.data
       const [folder] = await db
         .insert(matters)
         .values({
           id: nanoid(),
           uid: userId,
           alias: nanoid(10),
-          name: body.name,
+          name: data.name,
           type: '',
           size: 0,
-          dirtype: body.dirtype,
-          parent: body.parent ?? '',
+          dirtype: data.dirtype,
+          parent: data.parent,
           object: '',
           storageId: '',
           status: 'active',
@@ -98,32 +129,33 @@ const app = new Hono<Env>()
       return c.json(folder, 201)
     }
 
-    // File creation — select storage and generate presigned upload URL
+    // File creation
+    const parsed = createFileSchema.safeParse(body)
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400)
+
+    const data = parsed.data
+
+    // Select storage — private mode for user uploads
     const allStorages = await db.select().from(storages)
     const storage = selectStorage(
-      allStorages as unknown as StorageWithMeta[],
-      'private',
-      body.size ?? 0,
+      allStorages as unknown as Parameters<typeof selectStorage>[0],
+      'private' as StorageMode,
+      data.size,
     )
     if (!storage) {
       return c.json({ error: 'No storage capacity available' }, 409)
     }
 
-    const ext = fileExtension(body.name)
+    const ext = fileExtension(data.name)
     const objectKey = expandFilePath(storage.filePath, {
       uid: userId,
-      rawName: body.name,
+      rawName: data.name,
       rawExt: ext,
       uuid: nanoid(),
     })
 
     const client = createS3Client(storage)
-    const uploadUrl = await getUploadUrl(
-      client,
-      storage.bucket,
-      objectKey,
-      body.type ?? 'application/octet-stream',
-    )
+    const uploadUrl = await getUploadUrl(client, storage.bucket, objectKey, data.type)
 
     const [matter] = await db
       .insert(matters)
@@ -131,11 +163,11 @@ const app = new Hono<Env>()
         id: nanoid(),
         uid: userId,
         alias: nanoid(10),
-        name: body.name,
-        type: body.type ?? 'application/octet-stream',
-        size: body.size ?? 0,
+        name: data.name,
+        type: data.type,
+        size: data.size,
         dirtype: 0,
-        parent: body.parent ?? '',
+        parent: data.parent,
         object: objectKey,
         storageId: storage.id,
         status: 'draft',
@@ -167,39 +199,32 @@ const app = new Hono<Env>()
     const actualSize = head.size
     const now = new Date()
 
-    // Activate the matter and update storage/quota usage
-    const [updatedMatter] = await db
-      .update(matters)
-      .set({ status: 'active', size: actualSize, updatedAt: now })
-      .where(eq(matters.id, id))
-      .returning()
+    // Activate matter and update storage/quota in a transaction
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatedMatter = await (db as any).transaction(async (tx: any) => {
+      const [row] = await tx
+        .update(matters)
+        .set({
+          status: 'active',
+          size: actualSize,
+          type: head.contentType,
+          updatedAt: now,
+        })
+        .where(eq(matters.id, id))
+        .returning()
 
-    await db
-      .update(storages)
-      .set({
-        usedBytes: sql`${storages.usedBytes} + ${actualSize}`,
-        updatedAt: now,
-      })
-      .where(eq(storages.id, storage.id))
+      await tx
+        .update(storages)
+        .set({
+          usedBytes: sql`${storages.usedBytes} + ${actualSize}`,
+          updatedAt: now,
+        })
+        .where(eq(storages.id, storage.id))
 
-    const [existingQuota] = await db
-      .select()
-      .from(storageQuotas)
-      .where(eq(storageQuotas.uid, userId))
+      await upsertQuotaUsage(tx as unknown as Database, userId, actualSize)
 
-    if (existingQuota) {
-      await db
-        .update(storageQuotas)
-        .set({ used: sql`${storageQuotas.used} + ${actualSize}` })
-        .where(eq(storageQuotas.uid, userId))
-    } else {
-      await db.insert(storageQuotas).values({
-        id: nanoid(),
-        uid: userId,
-        quota: 0,
-        used: actualSize,
-      })
-    }
+      return row
+    })
 
     return c.json(updatedMatter)
   })
@@ -226,7 +251,7 @@ const app = new Hono<Env>()
       storage.bucket,
       matter.object,
       storage.customHost ?? undefined,
-      storage.mode as 'private' | 'public',
+      storage.mode as StorageMode,
     )
 
     return c.json({ ...matter, downloadUrl })
@@ -235,7 +260,11 @@ const app = new Hono<Env>()
     const userId = c.get('userId')!
     const db = c.get('platform').db
     const id = c.req.param('id')
-    const body = await c.req.json()
+
+    const parsed = updateObjectSchema.safeParse(await c.req.json())
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400)
+
+    const body = parsed.data
 
     const [matter] = await db
       .select()
@@ -243,20 +272,23 @@ const app = new Hono<Env>()
       .where(and(eq(matters.id, id), eq(matters.uid, userId)))
     if (!matter) return c.json({ error: 'Not found' }, 404)
 
-    const updates: Record<string, unknown> = { updatedAt: new Date() }
+    const updates: Partial<typeof matters.$inferInsert> = {
+      updatedAt: new Date(),
+    }
 
     if (body.name !== undefined) {
       updates.name = body.name
     }
 
     if (body.parent !== undefined) {
-      // Validate target parent exists and belongs to user (unless moving to root)
+      // Validate target parent exists, belongs to user, and is a folder
       if (body.parent !== '') {
         const [parentFolder] = await db
           .select()
           .from(matters)
           .where(and(eq(matters.id, body.parent), eq(matters.uid, userId)))
-        if (!parentFolder) return c.json({ error: 'Target parent not found' }, 404)
+        if (!parentFolder || (parentFolder.dirtype ?? 0) === 0)
+          return c.json({ error: 'Target parent must be a folder' }, 400)
       }
       updates.parent = body.parent
     }
@@ -269,7 +301,9 @@ const app = new Hono<Env>()
     const userId = c.get('userId')!
     const db = c.get('platform').db
     const id = c.req.param('id')
-    const body = await c.req.json()
+
+    const parsed = updateStatusSchema.safeParse(await c.req.json())
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400)
 
     const [matter] = await db
       .select()
@@ -279,7 +313,7 @@ const app = new Hono<Env>()
 
     const [updated] = await db
       .update(matters)
-      .set({ status: body.status, updatedAt: new Date() })
+      .set({ status: parsed.data.status, updatedAt: new Date() })
       .where(eq(matters.id, id))
       .returning()
 
@@ -296,6 +330,33 @@ const app = new Hono<Env>()
       .where(and(eq(matters.id, id), eq(matters.uid, userId)))
     if (!matter) return c.json({ error: 'Not found' }, 404)
 
+    const fileSize = matter.size ?? 0
+
+    // Delete S3 object and decrement quotas for files
+    if ((matter.dirtype ?? 0) === 0 && matter.storageId) {
+      const [storage] = await db.select().from(storages).where(eq(storages.id, matter.storageId))
+
+      if (storage && matter.object) {
+        const client = createS3Client(storage)
+        await deleteObject(client, storage.bucket, matter.object)
+      }
+
+      if (fileSize > 0) {
+        await db
+          .update(storages)
+          .set({
+            usedBytes: sql`${storages.usedBytes} - ${fileSize}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(storages.id, matter.storageId))
+
+        await db
+          .update(storageQuotas)
+          .set({ used: sql`${storageQuotas.used} - ${fileSize}` })
+          .where(eq(storageQuotas.uid, userId))
+      }
+    }
+
     await db.delete(matters).where(eq(matters.id, id))
     return new Response(null, { status: 204 })
   })
@@ -303,8 +364,11 @@ const app = new Hono<Env>()
     const userId = c.get('userId')!
     const db = c.get('platform').db
     const id = c.req.param('id')
-    const body = await c.req.json()
-    const targetParent: string = body.parent ?? ''
+
+    const parsed = copyObjectSchema.safeParse(await c.req.json())
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400)
+
+    const targetParent = parsed.data.parent
 
     const [matter] = await db
       .select()
@@ -312,10 +376,22 @@ const app = new Hono<Env>()
       .where(and(eq(matters.id, id), eq(matters.uid, userId)))
     if (!matter) return c.json({ error: 'Not found' }, 404)
 
+    // Only files can be copied
+    if ((matter.dirtype ?? 0) > 0) return c.json({ error: 'Cannot copy a folder' }, 400)
+
+    // Validate target parent
+    if (targetParent !== '') {
+      const [parentFolder] = await db
+        .select()
+        .from(matters)
+        .where(and(eq(matters.id, targetParent), eq(matters.uid, userId)))
+      if (!parentFolder || (parentFolder.dirtype ?? 0) === 0)
+        return c.json({ error: 'Target parent must be a folder' }, 400)
+    }
+
     const [storage] = await db.select().from(storages).where(eq(storages.id, matter.storageId))
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
-    // Build new S3 key for the copy
     const ext = fileExtension(matter.name)
     const newObjectKey = expandFilePath(storage.filePath, {
       uid: userId,
@@ -324,58 +400,47 @@ const app = new Hono<Env>()
       uuid: nanoid(),
     })
 
+    // S3 copy is outside the transaction (not transactional)
     const client = createS3Client(storage)
     await copyObject(client, storage.bucket, matter.object, newObjectKey)
 
     const now = new Date()
     const fileSize = matter.size ?? 0
 
-    // Create new matter record and update storage/quota usage
-    const [newMatter] = await db
-      .insert(matters)
-      .values({
-        id: nanoid(),
-        uid: userId,
-        alias: nanoid(10),
-        name: matter.name,
-        type: matter.type,
-        size: fileSize,
-        dirtype: matter.dirtype,
-        parent: targetParent,
-        object: newObjectKey,
-        storageId: storage.id,
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning()
+    // DB insert + quota updates in a transaction
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const newMatter = await (db as any).transaction(async (tx: any) => {
+      const [row] = await tx
+        .insert(matters)
+        .values({
+          id: nanoid(),
+          uid: userId,
+          alias: nanoid(10),
+          name: matter.name,
+          type: matter.type,
+          size: fileSize,
+          dirtype: 0,
+          parent: targetParent,
+          object: newObjectKey,
+          storageId: storage.id,
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning()
 
-    await db
-      .update(storages)
-      .set({
-        usedBytes: sql`${storages.usedBytes} + ${fileSize}`,
-        updatedAt: now,
-      })
-      .where(eq(storages.id, storage.id))
+      await tx
+        .update(storages)
+        .set({
+          usedBytes: sql`${storages.usedBytes} + ${fileSize}`,
+          updatedAt: now,
+        })
+        .where(eq(storages.id, storage.id))
 
-    const [existingQuota] = await db
-      .select()
-      .from(storageQuotas)
-      .where(eq(storageQuotas.uid, userId))
+      await upsertQuotaUsage(tx as unknown as Database, userId, fileSize)
 
-    if (existingQuota) {
-      await db
-        .update(storageQuotas)
-        .set({ used: sql`${storageQuotas.used} + ${fileSize}` })
-        .where(eq(storageQuotas.uid, userId))
-    } else {
-      await db.insert(storageQuotas).values({
-        id: nanoid(),
-        uid: userId,
-        quota: 0,
-        used: fileSize,
-      })
-    }
+      return row
+    })
 
     return c.json(newMatter, 201)
   })
