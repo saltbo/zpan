@@ -25,6 +25,20 @@ export const createStorageSchema = z.object({
   priority: z.number().default(0),
 })
 
+export const updateStorageSchema = z.object({
+  title: z.string().min(1),
+  mode: z.enum(['private', 'public']),
+  bucket: z.string().min(1),
+  endpoint: z.string().url(),
+  region: z.string(),
+  accessKey: z.string().min(1),
+  secretKey: z.string().min(1),
+  filePath: z.string(),
+  customHost: z.string(),
+  capacityBytes: z.number(),
+  priority: z.number(),
+}).partial()
+
 export const createMatterSchema = z.object({
   name: z.string().min(1),
   type: z.string(),
