@@ -155,7 +155,17 @@ export function expandFilePath(
 
 // --- Storage Selection ---
 
-export type StorageWithMeta = Storage & {
+export type StorageWithMeta = {
+  id: string
+  mode: string
+  bucket: string
+  endpoint: string
+  region: string
+  accessKey: string
+  secretKey: string
+  filePath: string
+  customHost: string | null
+  status: number
   priority: number
   capacityBytes: number | null
   usedBytes: number
@@ -163,7 +173,7 @@ export type StorageWithMeta = Storage & {
 
 export function selectStorage(
   storages: StorageWithMeta[],
-  mode: StorageMode,
+  mode: string,
   fileSize: number,
 ): StorageWithMeta | null {
   const candidates = storages
