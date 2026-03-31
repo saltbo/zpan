@@ -90,7 +90,7 @@ const app = new Hono<Env>()
       return c.json(folder, 201)
     }
 
-    // File creation — select storage and generate presigned URL
+    // File creation — user uploads always go to private storage
     const allStorages = await db.select().from(storages)
     const storage = selectStorage(allStorages, 'private', body.size ?? 0)
     if (!storage) {
@@ -280,7 +280,20 @@ const app = new Hono<Env>()
       }
     }
 
-    await db.delete(matters).where(eq(matters.id, id))
+    await db.transaction(async (tx) => {
+      await tx.delete(matters).where(eq(matters.id, id))
+      if (matter.size && matter.size > 0 && matter.storageId) {
+        await tx
+          .update(storages)
+          .set({ usedBytes: sql`${storages.usedBytes} - ${matter.size}` })
+          .where(eq(storages.id, matter.storageId))
+        await tx
+          .update(storageQuotas)
+          .set({ used: sql`${storageQuotas.used} - ${matter.size}` })
+          .where(eq(storageQuotas.uid, userId))
+      }
+    })
+
     return new Response(null, { status: 204 })
   })
   .post('/:id/copy', async (c) => {
