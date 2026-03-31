@@ -8,10 +8,11 @@ import type { Auth } from './auth'
 import objects from './routes/objects'
 import storages from './routes/storages'
 import users from './routes/users'
-import system, { seedSystemOptions } from './routes/system'
+import system from './routes/system'
+import { seedSystemOptions } from './db/seed'
 
 export function createApp(platform: Platform, auth: Auth) {
-  seedSystemOptions(platform.db).catch(() => {})
+  seedSystemOptions(platform.db).catch((err) => console.error('[seed] systemOptions failed:', err))
 
   const app = new Hono<Env>()
 

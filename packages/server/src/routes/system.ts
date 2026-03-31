@@ -3,7 +3,6 @@ import { eq } from 'drizzle-orm'
 import type { Env } from '../middleware/platform'
 import { requireAdmin } from '../middleware/auth'
 import { systemOptions } from '../db/schema'
-import type { Database } from '../platform/interface'
 
 const app = new Hono<Env>()
   .get('/options/:key', async (c) => {
@@ -31,7 +30,7 @@ const app = new Hono<Env>()
     const key = c.req.param('key')
     const body = await c.req.json<{ value: string; public?: boolean }>()
 
-    const set: Record<string, unknown> = { value: body.value }
+    const set: { value: string; public?: boolean } = { value: body.value }
     if (body.public !== undefined) {
       set.public = body.public
     }
@@ -46,17 +45,3 @@ const app = new Hono<Env>()
   })
 
 export default app
-
-const defaultOptions = [
-  { key: 'site.name', value: 'ZPan', public: true },
-  { key: 'site.description', value: 'S3-native file hosting', public: true },
-]
-
-export async function seedSystemOptions(db: Database) {
-  for (const opt of defaultOptions) {
-    await db
-      .insert(systemOptions)
-      .values(opt)
-      .onConflictDoNothing({ target: systemOptions.key })
-  }
-}

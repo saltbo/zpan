@@ -1,24 +1,19 @@
 import { Hono } from 'hono'
-import { eq, like, or, sql } from 'drizzle-orm'
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import { eq, like, or, sql, inArray } from 'drizzle-orm'
 import type { Env } from '../middleware/platform'
 import { requireAdmin } from '../middleware/auth'
 import { user } from '../db/auth-schema'
-import { storageQuotas, matters } from '../db/schema'
-import type { Database } from '../platform/interface'
+import { storageQuotas, matters, storages } from '../db/schema'
 
-// The Database union type breaks .select({}) overload resolution.
-// Cast to one branch — runtime is identical for standard query builder ops.
-function asDb(db: Database) {
-  return db as BetterSQLite3Database<typeof import('../db/schema')>
-}
+const VALID_ROLES = ['admin', 'user'] as const
+const MAX_PAGE_SIZE = 100
 
 const app = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => {
-    const db = asDb(c.get('platform').db)
-    const page = Number(c.req.query('page') ?? '1')
-    const pageSize = Number(c.req.query('pageSize') ?? '20')
+    const db = c.get('platform').db
+    const page = Math.max(1, Number(c.req.query('page') ?? '1'))
+    const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(c.req.query('pageSize') ?? '20')))
     const search = c.req.query('search')
 
     const offset = (page - 1) * pageSize
@@ -31,8 +26,9 @@ const app = new Hono<Env>()
       db.select({ total: sql<number>`count(*)` }).from(user).where(where),
     ])
 
-    const quotas = users.length > 0
-      ? await db.select().from(storageQuotas)
+    const uids = users.map((u) => u.id)
+    const quotas = uids.length > 0
+      ? await db.select().from(storageQuotas).where(inArray(storageQuotas.uid, uids))
       : []
     const quotaMap = new Map(quotas.map((q) => [q.uid, q]))
     const items = users.map((u) => ({ ...u, quota: quotaMap.get(u.id) ?? null }))
@@ -40,7 +36,7 @@ const app = new Hono<Env>()
     return c.json({ items, total: Number(countResult[0].total), page, pageSize })
   })
   .get('/:id', async (c) => {
-    const db = asDb(c.get('platform').db)
+    const db = c.get('platform').db
     const id = c.req.param('id')
 
     const rows = await db.select().from(user).where(eq(user.id, id))
@@ -53,18 +49,24 @@ const app = new Hono<Env>()
     return c.json({ ...rows[0], quota: quotaRows[0] ?? null })
   })
   .patch('/:id', async (c) => {
-    const db = asDb(c.get('platform').db)
+    const db = c.get('platform').db
     const auth = c.get('auth')
     const id = c.req.param('id')
     const body = await c.req.json<{ role?: string; banned?: boolean; quota?: number }>()
 
+    const rows = await db.select().from(user).where(eq(user.id, id))
+    if (rows.length === 0) {
+      return c.json({ error: 'Not found' }, 404)
+    }
+
     const headers = c.req.raw.headers
 
     if (body.role !== undefined) {
-      await auth.api.setRole({
-        headers,
-        body: { userId: id, role: body.role as 'admin' | 'user' },
-      })
+      if (!VALID_ROLES.includes(body.role as typeof VALID_ROLES[number])) {
+        return c.json({ error: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}` }, 400)
+      }
+      const role = body.role as typeof VALID_ROLES[number]
+      await auth.api.setRole({ headers, body: { userId: id, role } })
     }
 
     if (body.banned === true) {
@@ -80,15 +82,13 @@ const app = new Hono<Env>()
         .onConflictDoUpdate({ target: storageQuotas.uid, set: { quota: body.quota } })
     }
 
-    const rows = await db.select().from(user).where(eq(user.id, id))
-    if (rows.length === 0) {
-      return c.json({ error: 'Not found' }, 404)
-    }
+    const updated = await db.select().from(user).where(eq(user.id, id))
+    const quotaRows = await db.select().from(storageQuotas).where(eq(storageQuotas.uid, id))
 
-    return c.json(rows[0])
+    return c.json({ ...updated[0], quota: quotaRows[0] ?? null })
   })
   .delete('/:id', async (c) => {
-    const db = asDb(c.get('platform').db)
+    const db = c.get('platform').db
     const auth = c.get('auth')
     const id = c.req.param('id')
     const currentUserId = c.get('userId')
@@ -97,8 +97,14 @@ const app = new Hono<Env>()
       return c.json({ error: 'Cannot delete yourself' }, 400)
     }
 
-    await db.delete(matters).where(eq(matters.uid, id))
-    await db.delete(storageQuotas).where(eq(storageQuotas.uid, id))
+    // TODO: S3 object cleanup — iterate matters grouped by storageId,
+    // build S3 clients from storages table, and delete objects before
+    // removing DB records. Blocked on S3 service (not yet implemented).
+
+    await db.transaction(async (tx) => {
+      await tx.delete(matters).where(eq(matters.uid, id))
+      await tx.delete(storageQuotas).where(eq(storageQuotas.uid, id))
+    })
     await auth.api.removeUser({ headers: c.req.raw.headers, body: { userId: id } })
 
     return c.body(null, 204)
