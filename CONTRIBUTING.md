@@ -1,73 +1,44 @@
 # Contributing
 
-By participating to this project, you agree to abide our [code of conduct](/CODEOFCONDUCT.md).
+By participating in this project, you agree to abide by our [Code of Conduct](CODEOFCONDUCT.md).
 
-## Setup your machine
+## Setup
 
-`zpan` is written in [Go](https://golang.org/).
+ZPan v2 is written in TypeScript.
 
 Prerequisites:
 
-- `make`
-- [Go 1.20+](https://golang.org/doc/install)
-
-Clone `zpan` anywhere:
+- Node.js 20+
+- pnpm
 
 ```sh
-$ git clone git@github.com:saltbo/zpan.git
+git clone git@github.com:saltbo/zpan.git
+cd zpan
+pnpm install
 ```
 
-Install the build and lint dependencies:
+## Development
 
 ```sh
-$ make mod
+pnpm dev          # Start local dev server
+pnpm test         # Run tests
+pnpm build        # Build for production
 ```
 
-A good way of making sure everything is all right is running the test suite:
+## Commits
 
-```sh
-$ make test
-```
+We use [Conventional Commits](https://www.conventionalcommits.org). Please format your commit messages accordingly.
 
-## Test your change
+## Pull Requests
 
-You can create a branch for your changes and try to build from the source as you go:
+Push your branch to your fork and open a pull request against the `master` branch.
 
-```sh
-$ make build
-```
+## Financial Contributions
 
-Which runs all the linters and tests.
+We welcome financial contributions on our [Open Collective](https://opencollective.com/zpan).
 
-## Create a commit
+## Contributors
 
-Commit messages should be well formatted, and to make that "standardized", we
-are using Conventional Commits.
+Thank you to all the people who have already contributed to ZPan!
 
-You can follow the documentation on
-[their website](https://www.conventionalcommits.org).
-
-## Submit a pull request
-
-Push your branch to your `zpan` fork and open a pull request against the
-master branch.
-
-## Financial contributions
-
-We also welcome financial contributions in full transparency on our [open collective](https://opencollective.com/zpan).
-Anyone can file an expense. If the expense makes sense for the development of the community, it will be "merged" in the ledger of our open collective by the core contributors and the person who filed the expense will be reimbursed.
-
-## Credits
-
-### Contributors
-
-Thank you to all the people who have already contributed to zpan!
 <a href="https://github.com/saltbo/zpan/graphs/contributors"><img src="https://opencollective.com/zpan/contributors.svg?width=890" /></a>
-
-### Backers
-
-Thank you to all our backers! [[Become a backer](https://opencollective.com/zpan#backer)]
-
-### Sponsors
-
-Thank you to all our sponsors! (please ask your company to also support this open source project by [becoming a sponsor](https://opencollective.com/zpan#sponsor))

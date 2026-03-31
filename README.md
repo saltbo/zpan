@@ -1,45 +1,60 @@
-ZPan - Your Last disk on the cloud. 
-===================================
+# ZPan
 
-[![](https://github.com/saltbo/zpan/workflows/build/badge.svg)](https://github.com/saltbo/zpan/actions?query=workflow%3Abuild)
-[![](https://codecov.io/gh/saltbo/zpan/branch/master/graph/badge.svg)](https://codecov.io/gh/saltbo/zpan)
-[![](https://img.shields.io/github/downloads/saltbo/zpan/total.svg)](https://github.com/saltbo/zpan/releases)
-[![](https://img.shields.io/docker/pulls/saltbo/zpan.svg)](https://hub.docker.com/r/saltbo/zpan)
-[![](https://img.shields.io/github/v/release/saltbo/zpan.svg)](https://github.com/saltbo/zpan/releases)
-[![](https://img.shields.io/github/license/saltbo/zpan.svg)](https://github.com/saltbo/zpan/blob/master/LICENSE)
+**The open-source, S3-native file hosting platform.**
 
+[![License](https://img.shields.io/github/license/saltbo/zpan.svg)](https://github.com/saltbo/zpan/blob/master/LICENSE)
 
-## Overview
-- Not limited by server bandwidth
-- Support all cloud storage compatible with S3 protocol
-- Support file and folder management
-- Support file and folder sharing (accessible without logging in)
-- Support document preview and audio and video playback
-- Support multi-user storage space control
-- Support multiple languages
+> Image bed, file sharing, and backup — powered by S3, deployed anywhere.
 
+## What is ZPan?
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/saltbo/zpan)
+ZPan is a lightweight file hosting platform built on top of S3-compatible storage. Files upload directly from the client to S3, bypassing server bandwidth entirely.
 
+**Three scenarios, one platform:**
+
+- **Image Bed** — Upload via PicGo / ShareX / API, get a URL instantly
+- **File Sharing** — Upload files, generate share links, distribute to anyone
+- **File Backup** — CLI agent syncs local directories to S3/R2
+
+## Deploy
+
+### Cloudflare Pages (Recommended)
+
+One-click deploy with zero server management. Free tier covers personal use.
+
+<!-- TODO: Deploy button -->
+
+### Docker
+
+```bash
+docker compose up -d
+```
 
 ## Documentation
-- [简体中文](https://zpan.space)
-- [English](https://zpan.space/#/en/)
 
+- [Roadmap](V2_ROADMAP.md)
+- [Contributing](CONTRIBUTING.md)
 
-## Special thanks
+## Why ZPan?
 
-[![JetBrains](https://raw.githubusercontent.com/kainonly/ngx-bit/main/resource/jetbrains.svg)](https://www.jetbrains.com/?from=saltbo)
+- **Zero bandwidth bottleneck** — files transfer directly between client and S3
+- **Zero ops option** — deploy to Cloudflare Pages for free, no server needed
+- **Self-host friendly** — Docker deployment with any S3-compatible storage
+- **Tool ecosystem** — works with PicGo, ShareX, Flameshot out of the box
+- **Open source** — free forever for self-hosted users
 
-Thanks for non-commercial open source development authorization by JetBrains
+## v1
+
+Looking for ZPan v1 (Go version)? See the [v1 branch](https://github.com/saltbo/zpan/tree/v1).
 
 ## Contributing
-See [CONTRIBUTING](CONTRIBUTING.md) for details on submitting patches and the contribution workflow.
 
-Thank you to all the people who already contributed to ZPan!
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+Thank you to all the people who contributed to ZPan!
+
 <a href="https://github.com/saltbo/zpan/graphs/contributors"><img src="https://opencollective.com/zpan/contributors.svg?width=890" /></a>
 
-[![Stargazers over time](https://starchart.cc/saltbo/zpan.svg)](https://starchart.cc/saltbo/zpan)
-
 ## License
-ZPan is under the GPL 3.0 license. See the [LICENSE](/LICENSE) file for details.
+
+ZPan is under the GPL 3.0 license. See the [LICENSE](LICENSE) file for details.

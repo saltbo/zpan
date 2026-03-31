@@ -1,28 +1,28 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# Dependencies
+node_modules/
 
-# Test binary, built with `go test -c`
-*.test
-.coverprofile
+# Build output
+dist/
+.wrangler/
 
-# Output
-build
-*.out
-zpan.yml
-zpan.db
-config.yml
+# Environment
+.env
+.env.local
+.dev.vars
 
-# Editor auto file
-.idea
-.vscode
+# Database
+*.db
+*.db-journal
 
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# OS
+.DS_Store
+Thumbs.db
 
-# Go workspace file
-go.work*
+# Test
+coverage/

@@ -1,6 +1,0 @@
-build:
-  languages:
-    - go
-
-run:
-  web: bin/zpan
