@@ -6,6 +6,7 @@ import {
   CopyObjectCommand,
   HeadObjectCommand,
   DeleteObjectsCommand,
+  HeadBucketCommand,
   NotFound,
   NoSuchKey,
 } from '@aws-sdk/client-s3'
@@ -174,6 +175,17 @@ export function selectStorage(
       return s.capacityBytes == null || s.usedBytes + fileSize <= s.capacityBytes
     }) ?? null
   )
+}
+
+export async function testConnection(config: {
+  endpoint: string
+  region: string
+  accessKey: string
+  secretKey: string
+  bucket: string
+}): Promise<void> {
+  const client = createS3Client(config)
+  await client.send(new HeadBucketCommand({ Bucket: config.bucket }))
 }
 
 // --- Internal helpers ---
