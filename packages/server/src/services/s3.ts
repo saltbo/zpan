@@ -6,10 +6,12 @@ import {
   CopyObjectCommand,
   HeadObjectCommand,
   DeleteObjectsCommand,
+  NotFound,
+  NoSuchKey,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { nanoid } from 'nanoid'
-import type { Storage } from '@zpan/shared'
+import type { Storage } from '@zpan/shared/types'
+import type { StorageMode } from '@zpan/shared/constants'
 
 const PRESIGN_EXPIRES_IN = 3600 // 1 hour
 
@@ -18,6 +20,7 @@ export function createS3Client(storage: {
   region: string
   accessKey: string
   secretKey: string
+  forcePathStyle?: boolean
 }): S3Client {
   return new S3Client({
     endpoint: storage.endpoint,
@@ -26,7 +29,7 @@ export function createS3Client(storage: {
       accessKeyId: storage.accessKey,
       secretAccessKey: storage.secretKey,
     },
-    forcePathStyle: true,
+    forcePathStyle: storage.forcePathStyle ?? false,
   })
 }
 
@@ -49,7 +52,7 @@ export async function getDownloadUrl(
   bucket: string,
   key: string,
   customHost?: string,
-  mode?: string,
+  mode?: StorageMode,
 ): Promise<string> {
   if (customHost && mode === 'public') {
     const host = customHost.replace(/\/+$/, '')
@@ -69,12 +72,13 @@ export async function headObject(
     const response = await client.send(
       new HeadObjectCommand({ Bucket: bucket, Key: key }),
     )
+    if (response.ContentLength == null) return null
     return {
-      size: response.ContentLength ?? 0,
+      size: response.ContentLength,
       contentType: response.ContentType ?? 'application/octet-stream',
     }
   } catch (error: unknown) {
-    if (isNotFoundError(error)) return null
+    if (error instanceof NotFound || error instanceof NoSuchKey) return null
     throw error
   }
 }
@@ -94,12 +98,17 @@ export async function deleteObjects(
 ): Promise<void> {
   if (keys.length === 0) return
 
-  await client.send(
+  const response = await client.send(
     new DeleteObjectsCommand({
       Bucket: bucket,
       Delete: { Objects: keys.map((Key) => ({ Key })) },
     }),
   )
+
+  if (response.Errors && response.Errors.length > 0) {
+    const failed = response.Errors.map((e) => `${e.Key}: ${e.Message}`).join(', ')
+    throw new Error(`Failed to delete objects: ${failed}`)
+  }
 }
 
 export async function copyObject(
@@ -111,7 +120,7 @@ export async function copyObject(
   await client.send(
     new CopyObjectCommand({
       Bucket: bucket,
-      CopySource: `${bucket}/${sourceKey}`,
+      CopySource: `${bucket}/${encodeURIComponent(sourceKey)}`,
       Key: destKey,
     }),
   )
@@ -128,15 +137,16 @@ export function expandFilePath(
   const mm = String(now.getMonth() + 1).padStart(2, '0')
   const dd = String(now.getDate()).padStart(2, '0')
 
-  const rand16 = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+  const rand16 = Array.from(crypto.getRandomValues(new Uint8Array(8)))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
-    .slice(0, 16)
+
+  const safeName = sanitizePathSegment(vars.rawName)
 
   return template
     .replace(/\$UID/g, vars.uid)
     .replace(/\$UUID/g, vars.uuid)
-    .replace(/\$RAW_NAME/g, vars.rawName)
+    .replace(/\$RAW_NAME/g, safeName)
     .replace(/\$RAW_EXT/g, vars.rawExt)
     .replace(/\$NOW_DATE/g, `${yyyy}/${mm}/${dd}`)
     .replace(/\$RAND_16KEY/g, rand16)
@@ -144,34 +154,30 @@ export function expandFilePath(
 
 // --- Storage Selection ---
 
+export type StorageWithMeta = Storage & {
+  priority: number
+  capacityBytes: number | null
+  usedBytes: number
+}
+
 export function selectStorage(
-  storages: Storage[],
-  mode: 'private' | 'public',
+  storages: StorageWithMeta[],
+  mode: StorageMode,
   fileSize: number,
-): Storage | null {
+): StorageWithMeta | null {
   const candidates = storages
     .filter((s) => s.mode === mode && s.status === 1)
-    .sort((a, b) => (a as StorageWithPriority).priority - (b as StorageWithPriority).priority)
+    .sort((a, b) => a.priority - b.priority)
 
   return (
     candidates.find((s) => {
-      const sq = s as StorageWithQuota
-      return sq.capacityBytes == null || sq.usedBytes + fileSize <= sq.capacityBytes
+      return s.capacityBytes == null || s.usedBytes + fileSize <= s.capacityBytes
     }) ?? null
   )
 }
 
 // --- Internal helpers ---
 
-function isNotFoundError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'name' in error &&
-    (error.name === 'NotFound' || error.name === '404' || error.name === 'NoSuchKey')
-  )
+function sanitizePathSegment(name: string): string {
+  return name.replace(/\.\./g, '_').replace(/[/\\]/g, '_')
 }
-
-// Extended storage types for selection logic
-type StorageWithPriority = Storage & { priority: number }
-type StorageWithQuota = Storage & { capacityBytes: number | null; usedBytes: number }
