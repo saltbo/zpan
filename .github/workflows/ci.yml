@@ -28,10 +28,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @zpan/shared typecheck
-      - name: Typecheck server (has known pre-existing errors)
-        run: pnpm --filter @zpan/server typecheck
-        continue-on-error: true
+      - run: pnpm --filter @zpan/shared --filter @zpan/server typecheck
 
   build:
     runs-on: ubuntu-latest
