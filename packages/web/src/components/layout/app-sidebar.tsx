@@ -13,15 +13,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/lib/auth-client'
-import {
-  FolderOpen,
-  Trash2,
-  Database,
-  Users,
-  Settings,
-  LogOut,
-  HardDrive,
-} from 'lucide-react'
+import { FolderOpen, Trash2, Users, Settings, LogOut, HardDrive } from 'lucide-react'
 
 const navItems = {
   main: [
@@ -29,12 +21,10 @@ const navItems = {
     { title: 'Recycle Bin', url: '/recycle-bin', icon: Trash2 },
   ],
   admin: [
-    { title: 'Storage Backends', url: '/storages', icon: Database },
-    { title: 'Users', url: '/users', icon: Users },
+    { title: 'Users', url: '/admin/users', icon: Users },
+    { title: 'Settings', url: '/admin/settings', icon: Settings },
   ],
-  other: [
-    { title: 'Settings', url: '/settings', icon: Settings },
-  ],
+  other: [{ title: 'Settings', url: '/settings', icon: Settings }],
 }
 
 export function AppSidebar() {
