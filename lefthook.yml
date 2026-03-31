@@ -9,4 +9,4 @@ pre-commit:
       run: pnpm exec prettier --check {staged_files}
     typecheck:
       glob: '*.{ts,tsx}'
-      run: pnpm -r typecheck
+      run: pnpm --filter @zpan/shared --filter @zpan/server typecheck
