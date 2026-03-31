@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth'
+import { admin } from 'better-auth/plugins/admin'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import * as authSchema from './db/auth-schema'
 import type { Database } from './platform/interface'
@@ -18,6 +19,7 @@ export function createAuth(db: Database, secret: string, baseURL?: string, trust
         maxAge: 60 * 5,
       },
     },
+    plugins: [admin()],
   })
 }
 

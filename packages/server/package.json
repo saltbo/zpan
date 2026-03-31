@@ -20,8 +20,9 @@
     "nanoid": "^5.1.0"
   },
   "devDependencies": {
-    "better-sqlite3": "^11.0.0",
+    "@cloudflare/workers-types": "^4.20260329.1",
     "@types/better-sqlite3": "^7.6.0",
+    "better-sqlite3": "^11.0.0",
     "drizzle-kit": "^0.30.0",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",

@@ -21,6 +21,8 @@ export const createStorageSchema = z.object({
   secretKey: z.string().min(1),
   filePath: z.string().default('$UID/$RAW_NAME'),
   customHost: z.string().optional(),
+  capacityBytes: z.number().optional(),
+  priority: z.number().default(0),
 })
 
 export const createMatterSchema = z.object({

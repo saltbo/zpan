@@ -18,7 +18,6 @@ export interface StorageObject {
 
 export interface Storage {
   id: string
-  uid: string
   title: string
   mode: StorageMode
   bucket: string
@@ -28,6 +27,9 @@ export interface Storage {
   secretKey: string
   filePath: string
   customHost: string
+  capacityBytes: number | null
+  usedBytes: number
+  priority: number
   status: number
   createdAt: string
   updatedAt: string
@@ -36,7 +38,6 @@ export interface Storage {
 export interface StorageQuota {
   id: string
   uid: string
-  storageId: string
   quota: number
   used: number
 }

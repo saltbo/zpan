@@ -7,6 +7,7 @@ export type Env = {
     platform: Platform
     auth: Auth
     userId: string | null
+    userRole: string | null
   }
 }
 
