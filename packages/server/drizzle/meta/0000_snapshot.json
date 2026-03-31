@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2056f471-ff29-41dd-93c1-0ba4c8e485aa",
+  "id": "4c17d73d-733e-4c48-876b-d1a88ca202c4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "matters": {
@@ -146,7 +146,7 @@
           "name": "used",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         }
@@ -252,7 +252,7 @@
           "name": "used_bytes",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -260,7 +260,7 @@
           "name": "priority",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -268,7 +268,7 @@
           "name": "status",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 1
         },

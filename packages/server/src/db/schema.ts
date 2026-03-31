@@ -28,9 +28,9 @@ export const storages = sqliteTable('storages', {
   filePath: text('file_path').notNull().default('$UID/$RAW_NAME'),
   customHost: text('custom_host').default(''),
   capacityBytes: integer('capacity_bytes'),
-  usedBytes: integer('used_bytes').default(0),
-  priority: integer('priority').default(0),
-  status: integer('status').default(1),
+  usedBytes: integer('used_bytes').notNull().default(0),
+  priority: integer('priority').notNull().default(0),
+  status: integer('status').notNull().default(1),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
@@ -39,7 +39,7 @@ export const storageQuotas = sqliteTable('storage_quotas', {
   id: text('id').primaryKey(),
   uid: text('uid').notNull().unique(),
   quota: integer('quota').notNull(),
-  used: integer('used').default(0),
+  used: integer('used').notNull().default(0),
 })
 
 export const systemOptions = sqliteTable('system_options', {

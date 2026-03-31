@@ -30,5 +30,6 @@ export const createMatterSchema = z.object({
   type: z.string(),
   size: z.number().optional(),
   parent: z.string().default(''),
+  storageId: z.string(),
   dirtype: z.number().default(0),
 })

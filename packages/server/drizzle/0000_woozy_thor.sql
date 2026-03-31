@@ -19,7 +19,7 @@ CREATE TABLE `storage_quotas` (
 	`id` text PRIMARY KEY NOT NULL,
 	`uid` text NOT NULL,
 	`quota` integer NOT NULL,
-	`used` integer DEFAULT 0
+	`used` integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `storage_quotas_uid_unique` ON `storage_quotas` (`uid`);--> statement-breakpoint
@@ -35,9 +35,9 @@ CREATE TABLE `storages` (
 	`file_path` text DEFAULT '$UID/$RAW_NAME' NOT NULL,
 	`custom_host` text DEFAULT '',
 	`capacity_bytes` integer,
-	`used_bytes` integer DEFAULT 0,
-	`priority` integer DEFAULT 0,
-	`status` integer DEFAULT 1,
+	`used_bytes` integer DEFAULT 0 NOT NULL,
+	`priority` integer DEFAULT 0 NOT NULL,
+	`status` integer DEFAULT 1 NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL
 );
