@@ -1,0 +1,31 @@
+{
+  "name": "@zpan/server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./types": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/entry-node.ts",
+    "build": "tsup src/entry-node.ts --format esm --outDir dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@zpan/shared": "workspace:*",
+    "better-auth": "^1.2.0",
+    "drizzle-orm": "^0.39.0",
+    "hono": "^4.7.0",
+    "nanoid": "^5.1.0"
+  },
+  "devDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "@types/better-sqlite3": "^7.6.0",
+    "drizzle-kit": "^0.30.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.0.0"
+  }
+}

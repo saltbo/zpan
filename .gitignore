@@ -26,3 +26,18 @@ Thumbs.db
 
 # Test
 coverage/
+test-results/
+
+# Playwright
+/playwright-report/
+
+# Database (dev)
+zpan.db
+zpan.db-shm
+zpan.db-wal
+
+# pnpm
+*.tsbuildinfo
+
+# Generated
+packages/web/src/routeTree.gen.ts
