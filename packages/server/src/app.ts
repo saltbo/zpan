@@ -5,11 +5,10 @@ import { platformMiddleware } from './middleware/platform'
 import { authMiddleware } from './middleware/auth'
 import type { Platform } from './platform/interface'
 import type { Auth } from './auth'
-import matters from './routes/matters'
+import objects from './routes/objects'
 import storages from './routes/storages'
 import users from './routes/users'
 import system from './routes/system'
-import recycles from './routes/recycles'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
@@ -34,11 +33,10 @@ export function createApp(platform: Platform, auth: Auth) {
   app.use('/api/*', authMiddleware)
 
   const routes = app
-    .route('/api/matters', matters)
+    .route('/api/objects', objects)
     .route('/api/storages', storages)
     .route('/api/users', users)
     .route('/api/system', system)
-    .route('/api/recycles', recycles)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 

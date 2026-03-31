@@ -1,6 +1,6 @@
-import type { StorageMode, DirType } from '../constants'
+import type { StorageMode, DirType, ObjectStatus } from '../constants'
 
-export interface Matter {
+export interface StorageObject {
   id: string
   uid: string
   alias: string
@@ -11,7 +11,7 @@ export interface Matter {
   parent: string
   object: string
   storageId: string
-  trashed: boolean
+  status: ObjectStatus
   createdAt: string
   updatedAt: string
 }

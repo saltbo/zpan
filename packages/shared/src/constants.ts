@@ -19,3 +19,11 @@ export const DirType = {
 } as const
 
 export type DirType = (typeof DirType)[keyof typeof DirType]
+
+export const ObjectStatus = {
+  DRAFT: 'draft',
+  ACTIVE: 'active',
+  TRASHED: 'trashed',
+} as const
+
+export type ObjectStatus = (typeof ObjectStatus)[keyof typeof ObjectStatus]
