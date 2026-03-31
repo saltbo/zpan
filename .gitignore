@@ -41,3 +41,8 @@ zpan.db-wal
 
 # Generated
 packages/web/src/routeTree.gen.ts
+
+# agent skills (managed by daemon)
+.claude/skills/
+.agents/
+skills-lock.json
