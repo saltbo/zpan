@@ -3,7 +3,7 @@ import { eq, like, or, sql, inArray } from 'drizzle-orm'
 import type { Env } from '../middleware/platform'
 import { requireAdmin } from '../middleware/auth'
 import { user } from '../db/auth-schema'
-import { storageQuotas, matters, storages } from '../db/schema'
+import { storageQuotas, matters } from '../db/schema'
 
 const VALID_ROLES = ['admin', 'user'] as const
 const MAX_PAGE_SIZE = 100
@@ -101,11 +101,11 @@ const app = new Hono<Env>()
     // build S3 clients from storages table, and delete objects before
     // removing DB records. Blocked on S3 service (not yet implemented).
 
+    await auth.api.removeUser({ headers: c.req.raw.headers, body: { userId: id } })
     await db.transaction(async (tx) => {
       await tx.delete(matters).where(eq(matters.uid, id))
       await tx.delete(storageQuotas).where(eq(storageQuotas.uid, id))
     })
-    await auth.api.removeUser({ headers: c.req.raw.headers, body: { userId: id } })
 
     return c.body(null, 204)
   })

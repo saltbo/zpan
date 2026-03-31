@@ -28,16 +28,18 @@ const app = new Hono<Env>()
   .put('/options/:key', requireAdmin, async (c) => {
     const db = c.get('platform').db
     const key = c.req.param('key')
-    const body = await c.req.json<{ value: string; public?: boolean }>()
+    const body = await c.req.json<{ value?: string; public?: boolean }>()
 
-    const set: { value: string; public?: boolean } = { value: body.value }
-    if (body.public !== undefined) {
-      set.public = body.public
+    const set: { value?: string; public?: boolean } = {}
+    if (body.value !== undefined) set.value = body.value
+    if (body.public !== undefined) set.public = body.public
+    if (Object.keys(set).length === 0) {
+      return c.json({ error: 'No fields to update' }, 400)
     }
 
     const rows = await db
       .insert(systemOptions)
-      .values({ key, value: body.value, public: body.public ?? false })
+      .values({ key, value: body.value ?? '', public: body.public ?? false })
       .onConflictDoUpdate({ target: systemOptions.key, set })
       .returning()
 

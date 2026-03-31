@@ -7,10 +7,8 @@ const defaultSystemOptions = [
 ]
 
 export async function seedSystemOptions(db: Database) {
-  for (const opt of defaultSystemOptions) {
-    await db
-      .insert(systemOptions)
-      .values(opt)
-      .onConflictDoNothing({ target: systemOptions.key })
-  }
+  await db
+    .insert(systemOptions)
+    .values(defaultSystemOptions)
+    .onConflictDoNothing({ target: systemOptions.key })
 }
