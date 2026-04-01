@@ -21,6 +21,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: mkdir -p dist
       - run: pnpm test:cf
 
   e2e:
