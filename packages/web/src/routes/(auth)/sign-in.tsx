@@ -1,5 +1,6 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +11,7 @@ export const Route = createFileRoute('/(auth)/sign-in')({
 })
 
 function SignIn() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -27,7 +29,7 @@ function SignIn() {
     })
     setLoading(false)
     if (result.error) {
-      setError(result.error.message ?? 'Sign in failed')
+      setError(result.error.message ?? t('auth.signInFailed'))
       return
     }
     navigate({ to: '/files' })
@@ -38,15 +40,15 @@ function SignIn() {
       <div className="w-full max-w-sm space-y-6 p-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold">ZPan</h1>
-          <p className="text-muted-foreground">Sign in to your account</p>
+          <p className="text-muted-foreground">{t('auth.signInSubtitle')}</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <Input
               id="password"
               type="password"
@@ -57,14 +59,14 @@ function SignIn() {
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? t('auth.signingIn') : t('auth.signIn')}
           </Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">
-          Don't have an account?{' '}
-          <a href="/sign-up" className="underline hover:text-foreground">
-            Sign up
-          </a>
+          {t('auth.noAccount')}{' '}
+          <Link to="/sign-up" className="underline hover:text-foreground">
+            {t('auth.signUp')}
+          </Link>
         </p>
       </div>
     </div>
