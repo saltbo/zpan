@@ -1,5 +1,6 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +11,7 @@ export const Route = createFileRoute('/(auth)/sign-up')({
 })
 
 function SignUp() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -29,7 +31,7 @@ function SignUp() {
     })
     setLoading(false)
     if (result.error) {
-      setError(result.error.message ?? 'Sign up failed')
+      setError(result.error.message ?? t('auth.signUpFailed'))
       return
     }
     navigate({ to: '/files' })
@@ -40,19 +42,19 @@ function SignUp() {
       <div className="w-full max-w-sm space-y-6 p-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold">ZPan</h1>
-          <p className="text-muted-foreground">Create your account</p>
+          <p className="text-muted-foreground">{t('auth.signUpSubtitle')}</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">{t('auth.name')}</Label>
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <Input
               id="password"
               type="password"
@@ -63,14 +65,14 @@ function SignUp() {
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating account...' : 'Sign up'}
+            {loading ? t('auth.creatingAccount') : t('auth.signUp')}
           </Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
-          <a href="/sign-in" className="underline hover:text-foreground">
-            Sign in
-          </a>
+          {t('auth.hasAccount')}{' '}
+          <Link to="/sign-in" className="underline hover:text-foreground">
+            {t('auth.signIn')}
+          </Link>
         </p>
       </div>
     </div>

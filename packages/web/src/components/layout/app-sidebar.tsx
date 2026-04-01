@@ -1,5 +1,6 @@
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Database, FolderOpen, HardDrive, LogOut, Settings, Trash2, Users } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Sidebar,
@@ -17,17 +18,18 @@ import { signOut } from '@/lib/auth-client'
 
 const navItems = {
   main: [
-    { title: 'Files', url: '/files', icon: FolderOpen },
-    { title: 'Recycle Bin', url: '/recycle-bin', icon: Trash2 },
+    { titleKey: 'nav.files', url: '/files', icon: FolderOpen },
+    { titleKey: 'nav.recycleBin', url: '/recycle-bin', icon: Trash2 },
   ],
   admin: [
-    { title: 'Storage Backends', url: '/storages', icon: Database },
-    { title: 'Users', url: '/users', icon: Users },
+    { titleKey: 'nav.storageBackends', url: '/storages', icon: Database },
+    { titleKey: 'nav.users', url: '/users', icon: Users },
   ],
-  other: [{ title: 'Settings', url: '/settings', icon: Settings }],
+  secondary: [{ titleKey: 'nav.settings', url: '/settings', icon: Settings }],
 }
 
 export function AppSidebar() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
 
   async function handleSignOut() {
@@ -45,16 +47,16 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Main</SidebarGroupLabel>
+          <SidebarGroupLabel>{t('nav.main')}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.main.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
-                    <a href={item.url}>
+                    <Link to={item.url}>
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
+                      <span>{t(item.titleKey)}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -62,16 +64,16 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Admin</SidebarGroupLabel>
+          <SidebarGroupLabel>{t('nav.admin')}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.admin.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
-                    <a href={item.url}>
+                    <Link to={item.url}>
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
+                      <span>{t(item.titleKey)}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -81,13 +83,13 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.other.map((item) => (
+              {navItems.secondary.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
-                    <a href={item.url}>
+                    <Link to={item.url}>
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
+                      <span>{t(item.titleKey)}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -98,7 +100,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t p-2">
         <Button variant="ghost" className="w-full justify-start" onClick={handleSignOut}>
           <LogOut className="mr-2 h-4 w-4" />
-          Sign out
+          {t('auth.signOut')}
         </Button>
       </SidebarFooter>
     </Sidebar>
