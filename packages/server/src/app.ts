@@ -8,7 +8,7 @@ import { platformMiddleware } from './middleware/platform'
 import type { Platform } from './platform/interface'
 import objects from './routes/objects'
 import storages from './routes/storages'
-import system from './routes/system'
+import system, { adminSystem } from './routes/system'
 import users from './routes/users'
 
 export function createApp(platform: Platform, auth: Auth) {
@@ -39,6 +39,7 @@ export function createApp(platform: Platform, auth: Auth) {
     .route('/api/storages', storages)
     .route('/api/users', users)
     .route('/api/system', system)
+    .route('/api/admin/system', adminSystem)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 

@@ -164,3 +164,23 @@ export async function authedHeaders(
   const cookies = signUpRes.headers.getSetCookie()
   return { Cookie: cookies.join('; ') }
 }
+
+/** Signs up then signs in to get a session that reflects post-hook role updates (e.g. first-user admin promotion). */
+export async function authedHeadersWithSignIn(
+  app: ReturnType<typeof createApp>,
+  email = 'test@example.com',
+  password = 'password123456',
+) {
+  await app.request('/api/auth/sign-up/email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Test User', email, password }),
+  })
+  const signInRes = await app.request('/api/auth/sign-in/email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  const cookies = signInRes.headers.getSetCookie()
+  return { Cookie: cookies.join('; ') }
+}
