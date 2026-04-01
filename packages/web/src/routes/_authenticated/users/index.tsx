@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Users } from 'lucide-react'
+import { UserTable } from '@/features/admin/components/user-table'
 
 export const Route = createFileRoute('/_authenticated/users/')({
   component: UsersPage,
@@ -7,10 +7,9 @@ export const Route = createFileRoute('/_authenticated/users/')({
 
 function UsersPage() {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
-      <Users className="h-16 w-16" />
-      <h2 className="text-xl font-medium">Users</h2>
-      <p className="text-sm">User management will be implemented here.</p>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold">Users</h1>
+      <UserTable />
     </div>
   )
 }
