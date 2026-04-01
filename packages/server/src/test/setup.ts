@@ -13,6 +13,10 @@ const AUTH_SCHEMA_SQL = `
     email TEXT NOT NULL UNIQUE,
     email_verified INTEGER NOT NULL DEFAULT 0,
     image TEXT,
+    role TEXT,
+    banned INTEGER DEFAULT 0,
+    ban_reason TEXT,
+    ban_expires INTEGER,
     created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
     updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
   );
@@ -24,7 +28,9 @@ const AUTH_SCHEMA_SQL = `
     updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
     ip_address TEXT,
     user_agent TEXT,
-    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    impersonated_by TEXT,
+    active_organization_id TEXT
   );
   CREATE INDEX IF NOT EXISTS session_userId_idx ON session(user_id);
   CREATE TABLE IF NOT EXISTS account (
@@ -52,12 +58,42 @@ const AUTH_SCHEMA_SQL = `
     updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
   );
   CREATE INDEX IF NOT EXISTS verification_identifier_idx ON verification(identifier);
+  CREATE TABLE IF NOT EXISTS organization (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    logo TEXT,
+    metadata TEXT,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    updated_at INTEGER DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  );
+  CREATE TABLE IF NOT EXISTS member (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'member',
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  );
+  CREATE INDEX IF NOT EXISTS member_organizationId_idx ON member(organization_id);
+  CREATE INDEX IF NOT EXISTS member_userId_idx ON member(user_id);
+  CREATE TABLE IF NOT EXISTS invitation (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    expires_at INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    inviter_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS invitation_organizationId_idx ON invitation(organization_id);
+  CREATE INDEX IF NOT EXISTS invitation_email_idx ON invitation(email);
 `
 
 const APP_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS matters (
     id TEXT PRIMARY KEY,
-    uid TEXT NOT NULL,
+    org_id TEXT NOT NULL,
     alias TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -86,12 +122,11 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS storage_quotas (
+  CREATE TABLE IF NOT EXISTS org_quotas (
     id TEXT PRIMARY KEY,
-    uid TEXT NOT NULL,
-    storage_id TEXT NOT NULL,
-    quota INTEGER NOT NULL,
-    used INTEGER DEFAULT 0
+    org_id TEXT NOT NULL,
+    quota INTEGER NOT NULL DEFAULT 0,
+    used INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS system_options (
     key TEXT PRIMARY KEY,

@@ -2,7 +2,7 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const matters = sqliteTable('matters', {
   id: text('id').primaryKey(),
-  uid: text('uid').notNull(),
+  orgId: text('org_id').notNull(),
   alias: text('alias').notNull().unique(),
   name: text('name').notNull(),
   type: text('type').notNull(),
@@ -33,12 +33,11 @@ export const storages = sqliteTable('storages', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
 
-export const storageQuotas = sqliteTable('storage_quotas', {
+export const orgQuotas = sqliteTable('org_quotas', {
   id: text('id').primaryKey(),
-  uid: text('uid').notNull(),
-  storageId: text('storage_id').notNull(),
-  quota: integer('quota').notNull(),
-  used: integer('used').default(0),
+  orgId: text('org_id').notNull(),
+  quota: integer('quota').notNull().default(0),
+  used: integer('used').notNull().default(0),
 })
 
 export const systemOptions = sqliteTable('system_options', {
