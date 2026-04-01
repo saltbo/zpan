@@ -12,6 +12,7 @@
     "format": "biome format --write .",
     "e2e": "playwright test"
   },
+  "packageManager": "pnpm@10.30.2",
   "engines": {
     "node": ">=20"
   },
