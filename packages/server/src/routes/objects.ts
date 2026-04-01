@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
-import { eq, and, asc, desc, like, sql, count } from 'drizzle-orm'
+import { eq, and, asc, desc, like, sql, count, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { Env } from '../middleware/platform'
+import type { Database } from '../platform/interface'
 import { requireAuth } from '../middleware/auth'
 import { matters, storages, storageQuotas } from '../db/schema'
 import {
@@ -9,7 +10,7 @@ import {
   getUploadUrl,
   getDownloadUrl,
   headObject,
-  deleteObject,
+  deleteObjects,
   copyObject,
   expandFilePath,
   selectStorage,
@@ -18,6 +19,82 @@ import {
 function extFromName(name: string): string {
   const dot = name.lastIndexOf('.')
   return dot === -1 ? '' : name.slice(dot + 1)
+}
+
+async function collectDescendants(
+  db: Database,
+  parentId: string,
+  userId: string,
+): Promise<(typeof matters.$inferSelect)[]> {
+  const children = await db
+    .select()
+    .from(matters)
+    .where(and(eq(matters.parent, parentId), eq(matters.uid, userId)))
+  const nested = await Promise.all(
+    children.filter((c) => (c.dirtype ?? 0) > 0).map((c) => collectDescendants(db, c.id, userId)),
+  )
+  return [...children, ...nested.flat()]
+}
+
+async function deleteMattersWithCleanup(
+  db: Database,
+  items: (typeof matters.$inferSelect)[],
+  userId: string,
+): Promise<void> {
+  if (items.length === 0) return
+
+  const ids = items.map((m) => m.id)
+  const totalSize = items.reduce((sum, m) => sum + (m.size ?? 0), 0)
+
+  // Group storageId adjustments
+  const sizeByStorage = new Map<string, number>()
+  for (const m of items) {
+    if (m.storageId && m.size && m.size > 0) {
+      sizeByStorage.set(m.storageId, (sizeByStorage.get(m.storageId) ?? 0) + m.size)
+    }
+  }
+
+  await db.delete(matters).where(inArray(matters.id, ids))
+
+  for (const [storageId, size] of sizeByStorage) {
+    await db
+      .update(storages)
+      .set({ usedBytes: sql`${storages.usedBytes} - ${size}` })
+      .where(eq(storages.id, storageId))
+  }
+
+  if (totalSize > 0) {
+    await db
+      .update(storageQuotas)
+      .set({ used: sql`${storageQuotas.used} - ${totalSize}` })
+      .where(eq(storageQuotas.uid, userId))
+  }
+}
+
+async function deleteMattersFromS3(
+  db: Database,
+  items: (typeof matters.$inferSelect)[],
+): Promise<void> {
+  const files = items.filter((m) => m.dirtype === 0 && m.object && m.storageId)
+  if (files.length === 0) return
+
+  const keysByStorage = new Map<string, string[]>()
+  for (const f of files) {
+    const keys = keysByStorage.get(f.storageId) ?? []
+    keys.push(f.object)
+    keysByStorage.set(f.storageId, keys)
+  }
+
+  const storageIds = [...keysByStorage.keys()]
+  const storageRows = await db.select().from(storages).where(inArray(storages.id, storageIds))
+  const storageMap = new Map(storageRows.map((s) => [s.id, s]))
+
+  for (const [storageId, keys] of keysByStorage) {
+    const storage = storageMap.get(storageId)
+    if (!storage) continue
+    const client = createS3Client(storage)
+    await deleteObjects(client, storage.bucket, keys)
+  }
 }
 
 const app = new Hono<Env>()
@@ -251,13 +328,53 @@ const app = new Hono<Env>()
 
     if (!matter) return c.json({ error: 'Not found' }, 404)
 
-    const [updated] = await db
-      .update(matters)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(matters.id, id))
-      .returning()
+    const now = new Date()
+
+    const [updated] = await db.transaction(async (tx) => {
+      const result = await tx
+        .update(matters)
+        .set({ status, updatedAt: now })
+        .where(eq(matters.id, id))
+        .returning()
+
+      if ((matter.dirtype ?? 0) > 0) {
+        const descendants = await collectDescendants(tx, id, userId)
+        if (descendants.length > 0) {
+          await tx
+            .update(matters)
+            .set({ status, updatedAt: now })
+            .where(
+              inArray(
+                matters.id,
+                descendants.map((d) => d.id),
+              ),
+            )
+        }
+      }
+
+      return result
+    })
 
     return c.json(updated)
+  })
+  .delete('/trash', async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+
+    const trashed = await db
+      .select()
+      .from(matters)
+      .where(and(eq(matters.uid, userId), eq(matters.status, 'trashed')))
+
+    if (trashed.length === 0) return new Response(null, { status: 204 })
+
+    await db.transaction(async (tx) => {
+      await deleteMattersWithCleanup(tx, trashed, userId)
+    })
+
+    await deleteMattersFromS3(db, trashed)
+
+    return new Response(null, { status: 204 })
   })
   .delete('/:id', async (c) => {
     const db = c.get('platform').db
@@ -270,32 +387,103 @@ const app = new Hono<Env>()
       .where(and(eq(matters.id, id), eq(matters.uid, userId)))
 
     if (!matter) return c.json({ error: 'Not found' }, 404)
-
-    const [storage] =
-      matter.dirtype === 0 && matter.storageId
-        ? await db.select().from(storages).where(eq(storages.id, matter.storageId))
-        : []
-
-    await db.transaction(async (tx) => {
-      await tx.delete(matters).where(eq(matters.id, id))
-      if (matter.size && matter.size > 0 && matter.storageId) {
-        await tx
-          .update(storages)
-          .set({ usedBytes: sql`${storages.usedBytes} - ${matter.size}` })
-          .where(eq(storages.id, matter.storageId))
-        await tx
-          .update(storageQuotas)
-          .set({ used: sql`${storageQuotas.used} - ${matter.size}` })
-          .where(eq(storageQuotas.uid, userId))
-      }
-    })
-
-    if (storage && matter.object) {
-      const client = createS3Client(storage)
-      await deleteObject(client, storage.bucket, matter.object)
+    if (matter.status !== 'trashed') {
+      return c.json({ error: 'Must be trashed before permanent delete' }, 409)
     }
 
+    const allItems =
+      (matter.dirtype ?? 0) > 0 ? [matter, ...(await collectDescendants(db, id, userId))] : [matter]
+
+    await db.transaction(async (tx) => {
+      await deleteMattersWithCleanup(tx, allItems, userId)
+    })
+
+    await deleteMattersFromS3(db, allItems)
+
     return new Response(null, { status: 204 })
+  })
+  .post('/batch', async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const { ids, action, parent } = (await c.req.json()) as {
+      ids: string[]
+      action: 'trash' | 'restore' | 'delete' | 'move'
+      parent?: string
+    }
+
+    const items = await db
+      .select()
+      .from(matters)
+      .where(and(eq(matters.uid, userId), inArray(matters.id, ids)))
+
+    if (action === 'trash' || action === 'restore') {
+      const status = action === 'trash' ? 'trashed' : 'active'
+      const now = new Date()
+
+      await db.transaction(async (tx) => {
+        await tx.update(matters).set({ status, updatedAt: now }).where(inArray(matters.id, ids))
+
+        const folders = items.filter((m) => (m.dirtype ?? 0) > 0)
+        for (const folder of folders) {
+          const descendants = await collectDescendants(tx, folder.id, userId)
+          if (descendants.length > 0) {
+            await tx
+              .update(matters)
+              .set({ status, updatedAt: now })
+              .where(
+                inArray(
+                  matters.id,
+                  descendants.map((d) => d.id),
+                ),
+              )
+          }
+        }
+      })
+
+      return c.json({ affected: items.length })
+    }
+
+    if (action === 'delete') {
+      const notTrashed = items.find((m) => m.status !== 'trashed')
+      if (notTrashed) {
+        return c.json({ error: 'Must be trashed before permanent delete' }, 409)
+      }
+
+      let allItems = [...items]
+      for (const item of items) {
+        if ((item.dirtype ?? 0) > 0) {
+          const descendants = await collectDescendants(db, item.id, userId)
+          allItems = [...allItems, ...descendants]
+        }
+      }
+
+      await db.transaction(async (tx) => {
+        await deleteMattersWithCleanup(tx, allItems, userId)
+      })
+
+      await deleteMattersFromS3(db, allItems)
+
+      return c.json({ affected: items.length })
+    }
+
+    if (action === 'move') {
+      if (parent !== undefined && parent !== '') {
+        const [parentFolder] = await db
+          .select()
+          .from(matters)
+          .where(and(eq(matters.id, parent), eq(matters.uid, userId)))
+        if (!parentFolder) return c.json({ error: 'Target parent not found' }, 404)
+      }
+
+      await db
+        .update(matters)
+        .set({ parent: parent ?? '', updatedAt: new Date() })
+        .where(inArray(matters.id, ids))
+
+      return c.json({ affected: items.length })
+    }
+
+    return c.json({ error: 'Invalid action' }, 400)
   })
   .post('/:id/copy', async (c) => {
     const db = c.get('platform').db
