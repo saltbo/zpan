@@ -2,7 +2,7 @@ import type { DirType, ObjectStatus, StorageMode } from '../constants'
 
 export interface StorageObject {
   id: string
-  uid: string
+  orgId: string
   alias: string
   name: string
   type: string
@@ -33,12 +33,29 @@ export interface Storage {
   updatedAt: string
 }
 
-export interface StorageQuota {
+export interface OrgQuota {
   id: string
-  uid: string
-  storageId: string
+  orgId: string
   quota: number
   used: number
+}
+
+export interface Organization {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  metadata: string | null
+  createdAt: string
+  updatedAt: string | null
+}
+
+export interface Member {
+  id: string
+  organizationId: string
+  userId: string
+  role: string
+  createdAt: string
 }
 
 export interface SystemOption {

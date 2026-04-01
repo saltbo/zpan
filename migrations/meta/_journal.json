@@ -8,6 +8,13 @@
       "when": 1775051640321,
       "tag": "0000_perfect_cyclops",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1775073310565,
+      "tag": "0001_org_and_admin_plugins",
+      "breakpoints": true
     }
   ]
 }
