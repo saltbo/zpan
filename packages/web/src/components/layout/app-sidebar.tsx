@@ -13,26 +13,16 @@ import {
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/lib/auth-client'
-import {
-  FolderOpen,
-  Trash2,
-  Database,
-  Users,
-  Settings,
-  LogOut,
-  HardDrive,
-} from 'lucide-react'
+import { FolderOpen, ImageUp, Trash2, Users, Settings, LogOut, HardDrive } from 'lucide-react'
 
 const navItems = {
   main: [
     { title: 'Files', url: '/files', icon: FolderOpen },
+    { title: 'Image Bed', url: '/images', icon: ImageUp },
     { title: 'Recycle Bin', url: '/recycle-bin', icon: Trash2 },
   ],
   admin: [
-    { title: 'Storage Backends', url: '/storages', icon: Database },
     { title: 'Users', url: '/users', icon: Users },
-  ],
-  other: [
     { title: 'Settings', url: '/settings', icon: Settings },
   ],
 }
@@ -76,22 +66,6 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.admin.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.other.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
                     <a href={item.url}>
