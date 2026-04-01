@@ -70,23 +70,23 @@ function RecycleBinPage() {
 
   async function handleBatchRestore() {
     const ids = Array.from(selectedIds)
-    setSelectedIds(new Set())
     const results = await Promise.allSettled(ids.map((id) => restoreObject.mutateAsync(id)))
-    const succeeded = results.filter((r) => r.status === 'fulfilled').length
-    const failed = results.length - succeeded
+    const failedIds = ids.filter((_, i) => results[i].status === 'rejected')
+    const succeeded = ids.length - failedIds.length
+    setSelectedIds(new Set(failedIds))
     if (succeeded > 0) toast.success(`${succeeded} item(s) restored`)
-    if (failed > 0) toast.error(`Failed to restore ${failed} item(s)`)
+    if (failedIds.length > 0) toast.error(`Failed to restore ${failedIds.length} item(s)`)
   }
 
   async function handleBatchDelete() {
     const ids = Array.from(selectedIds)
-    setSelectedIds(new Set())
     setConfirmBatchDelete(false)
     const results = await Promise.allSettled(ids.map((id) => deleteObject.mutateAsync(id)))
-    const succeeded = results.filter((r) => r.status === 'fulfilled').length
-    const failed = results.length - succeeded
+    const failedIds = ids.filter((_, i) => results[i].status === 'rejected')
+    const succeeded = ids.length - failedIds.length
+    setSelectedIds(new Set(failedIds))
     if (succeeded > 0) toast.success(`${succeeded} item(s) permanently deleted`)
-    if (failed > 0) toast.error(`Failed to delete ${failed} item(s)`)
+    if (failedIds.length > 0) toast.error(`Failed to delete ${failedIds.length} item(s)`)
   }
 
   function handleEmptyTrash() {

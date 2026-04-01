@@ -1,4 +1,3 @@
-import type { StorageObject } from '@zpan/shared'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -9,7 +8,6 @@ import {
 import { RotateCcw, Trash2, Info } from 'lucide-react'
 
 interface TrashContextMenuProps {
-  item: StorageObject
   children: React.ReactNode
   onRestore: () => void
   onDeleteForever: () => void
