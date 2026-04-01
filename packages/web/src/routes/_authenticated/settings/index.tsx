@@ -215,6 +215,7 @@ function StorageTab() {
         description={`Are you sure you want to delete "${deleteTarget?.title}"? This cannot be undone.`}
         confirmLabel="Delete"
         destructive
+        pending={deleteStorage.isPending}
         onConfirm={handleDelete}
       />
     </div>

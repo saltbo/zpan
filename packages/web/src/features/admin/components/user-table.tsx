@@ -183,6 +183,7 @@ export function UserTable() {
         description={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
         confirmLabel="Delete"
         destructive
+        pending={deleteUser.isPending}
         onConfirm={handleDelete}
       />
     </div>

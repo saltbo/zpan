@@ -1,5 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { z } from 'zod'
+import type { createStorageSchema, updateStorageSchema } from '@zpan/shared/schemas'
 import type { Storage, PaginatedResponse, SystemOption, StorageQuota } from '@zpan/shared'
+
+export type CreateStoragePayload = z.infer<typeof createStorageSchema>
+export type UpdateStoragePayload = z.infer<typeof updateStorageSchema>
 
 export interface AdminUser {
   id: string
@@ -37,7 +42,7 @@ export function useStorages() {
 export function useCreateStorage() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
+    mutationFn: (body: CreateStoragePayload) =>
       fetchJson<Storage>('/api/storages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -50,7 +55,7 @@ export function useCreateStorage() {
 export function useUpdateStorage() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) =>
+    mutationFn: ({ id, ...body }: { id: string } & UpdateStoragePayload) =>
       fetchJson<Storage>(`/api/storages/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

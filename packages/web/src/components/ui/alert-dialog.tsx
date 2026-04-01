@@ -17,6 +17,7 @@ interface AlertDialogProps {
   confirmLabel?: string
   onConfirm: () => void
   destructive?: boolean
+  pending?: boolean
 }
 
 function AlertDialog({
@@ -27,6 +28,7 @@ function AlertDialog({
   confirmLabel = 'Continue',
   onConfirm,
   destructive = false,
+  pending = false,
 }: AlertDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -41,12 +43,13 @@ function AlertDialog({
           </Button>
           <Button
             variant={destructive ? 'destructive' : 'default'}
+            disabled={pending}
             onClick={() => {
               onConfirm()
-              onOpenChange(false)
+              if (!pending) onOpenChange(false)
             }}
           >
-            {confirmLabel}
+            {pending ? 'Deleting...' : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
