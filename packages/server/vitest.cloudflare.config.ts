@@ -5,11 +5,11 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   plugins: [
     cloudflareTest(async () => {
-      const migrationsPath = path.join(__dirname, 'drizzle')
+      const migrationsPath = path.join(__dirname, '../../migrations')
       const migrations = await readD1Migrations(migrationsPath)
 
       return {
-        wrangler: { configPath: './wrangler.toml' },
+        wrangler: { configPath: '../../wrangler.toml' },
         miniflare: {
           bindings: { TEST_MIGRATIONS: migrations },
         },

@@ -4,6 +4,9 @@
   "scripts": {
     "dev": "pnpm --filter @zpan/server --filter @zpan/web --parallel dev",
     "build": "pnpm --filter @zpan/shared build && pnpm --filter @zpan/server build && pnpm --filter @zpan/web build",
+    "build:pages": "pnpm --filter @zpan/web exec vite build",
+    "pages:dev": "pnpm build:pages && wrangler dev",
+    "deploy": "pnpm build:pages && wrangler deploy",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --parallel test",
     "test:cf": "pnpm --filter @zpan/server test:cf",

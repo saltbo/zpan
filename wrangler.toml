@@ -1,0 +1,19 @@
+name = "zpan"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+main = "./packages/server/src/entry-cloudflare.ts"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[vars]
+BETTER_AUTH_SECRET = "zpan-test-secret"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zpan-db"
+database_id = "local"
+migrations_dir = "./migrations"

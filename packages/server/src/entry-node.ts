@@ -15,8 +15,8 @@ const api = createApp(platform, auth)
 
 const app = new Hono()
 app.route('/', api)
-app.use('/*', serveStatic({ root: '../web/dist' }))
-app.get('/*', serveStatic({ root: '../web/dist', path: 'index.html' }))
+app.use('/*', serveStatic({ root: '../../dist' }))
+app.get('/*', serveStatic({ root: '../../dist', path: 'index.html' }))
 
 const port = Number(process.env.PORT) || 8222
 console.log(`ZPan server running on http://localhost:${port}`)

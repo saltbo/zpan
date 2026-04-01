@@ -5,6 +5,10 @@ import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  build: {
+    outDir: '../../dist',
+    emptyOutDir: true,
+  },
   plugins: [TanStackRouterVite({}), react(), tailwindcss()],
   resolve: {
     alias: {

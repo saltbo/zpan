@@ -2,37 +2,23 @@
 
 ## Project Overview
 
-ZPan v2 is an open-source, S3-native file hosting platform written in TypeScript. It supports deployment to Cloudflare Pages (zero-ops) and Docker (self-hosted).
+ZPan v2 is an open-source, S3-native file hosting platform written in TypeScript. Cloudflare Pages is the primary deployment target, Node.js (Docker) is backup.
 
 Core architecture: clients upload directly to S3-compatible storage via presigned URLs, bypassing server bandwidth.
 
-## Tech Stack
+## Key Context
 
-- **Runtime**: Hono (runs on CF Workers + Node.js)
-- **Database**: Drizzle ORM (D1 / SQLite / PostgreSQL)
-- **Auth**: Better Auth (email/password, social login, OIDC)
-- **Storage**: @aws-sdk/client-s3 (R2, AWS S3, MinIO, any S3-compatible)
-- **Frontend**: TBD
+- Monorepo: `packages/server` (Hono API), `packages/web` (React SPA), `packages/shared` (types/schemas)
+- Dual runtime: `entry-cloudflare.ts` (CF Workers + D1) and `entry-node.ts` (Node + SQLite)
+- Tests are co-located: `*.test.ts` (Node), `*.cf-test.ts` (CF Workers)
+- Migrations: drizzle-kit generates SQL → wrangler manages D1 state
 
-## Project Structure
+## Docs Index
 
-```
-src/
-├── app/                  # Business logic (routes, middleware, services)
-├── platform/             # Platform abstraction (CF vs Node.js)
-├── entry-cloudflare.ts   # CF Pages Functions entry
-└── entry-node.ts         # Docker / Node.js entry
-```
-
-## Development
-
-```bash
-pnpm install              # Install dependencies
-pnpm dev                  # Start local dev server
-pnpm test                 # Run tests
-pnpm build                # Build for production
-```
-
+- [CONTRIBUTING.md](CONTRIBUTING.md) — setup, commands, quality gates, migration workflow, deployment
+- [docs/architecture.md](docs/architecture.md) — system architecture, tech decisions, platform abstraction
+- [V2_ROADMAP.md](V2_ROADMAP.md) — product positioning, release plan (v2.0–v2.9)
+- [docs/roadmap/](docs/roadmap/) — per-version technical specs (v2.0.md–v2.9.md)
 ## Commit Convention
 
-Use Conventional Commits (feat:, fix:, docs:, etc.). PRs target the master branch.
+Conventional Commits (`feat:`, `fix:`, `docs:`, etc.). PRs target `master`.
