@@ -255,6 +255,10 @@ const app = new Hono<Env>()
 
     if (!matter) return c.json({ error: 'Not found' }, 404)
 
+    if (matter.status === 'draft') {
+      return c.json({ error: 'Draft items cannot change status' }, 409)
+    }
+
     const now = new Date()
 
     const [updated] = await db.transaction(async (tx) => {
