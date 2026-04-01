@@ -12,6 +12,13 @@ export const UserRole = {
 
 export type UserRole = (typeof UserRole)[keyof typeof UserRole]
 
+export const StorageStatus = {
+  ACTIVE: 'active',
+  DISABLED: 'disabled',
+} as const
+
+export type StorageStatus = (typeof StorageStatus)[keyof typeof StorageStatus]
+
 export const DirType = {
   FILE: 0,
   USER_FOLDER: 1,

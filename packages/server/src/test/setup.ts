@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
@@ -118,7 +119,9 @@ const APP_SCHEMA_SQL = `
     secret_key TEXT NOT NULL,
     file_path TEXT NOT NULL DEFAULT '',
     custom_host TEXT DEFAULT '',
-    status INTEGER DEFAULT 1,
+    capacity INTEGER NOT NULL DEFAULT 0,
+    used INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
@@ -163,4 +166,15 @@ export async function authedHeaders(
   })
   const cookies = signUpRes.headers.getSetCookie()
   return { Cookie: cookies.join('; ') }
+}
+
+export async function adminHeaders(
+  app: ReturnType<typeof createApp>,
+  db: ReturnType<typeof createTestApp>['db'],
+  email = 'admin@example.com',
+  password = 'password123456',
+) {
+  const headers = await authedHeaders(app, email, password)
+  await db.update(authSchema.user).set({ role: 'admin' }).where(eq(authSchema.user.email, email))
+  return headers
 }
