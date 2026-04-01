@@ -5,11 +5,13 @@ Technical reference for ZPan v2 development. For product roadmap, see [V2_ROADMA
 ## Global Architecture
 
 ```
-CF Pages                              Docker (Node.js)
+CF Pages (wrangler)                   Docker (Node.js)
 ┌─────────────────────┐
-│ Static assets (web/) │
-│ Functions (api/*)    │               entry-node.ts
-│  entry-cloudflare.ts │               (serves both static + API)
+│ [assets] → web/dist  │
+│ run_worker_first =   │               entry-node.ts
+│   ["/api/*"]         │               (serves both static + API)
+│ main: entry-cf.ts    │                      │
+│  exports { fetch }   │                      │
 └──────────┬──────────┘                      │
            │    Single deployment            │
            └──────────┬──────────────────────┘
@@ -40,7 +42,7 @@ CF Pages                              Docker (Node.js)
 | Package Manager | **pnpm** | npm, yarn, bun | Fast, disk efficient, good monorepo support if needed later |
 | Frontend Framework | **React 19 + Vite** | Vue, Solid, Svelte | Largest ecosystem, Capacitor-ready for future native apps if needed |
 | UI Components | **shadcn/ui + Tailwind CSS 4** | Ant Design, MUI | Zero runtime overhead (source code, not npm dep), best responsive/mobile support, modern aesthetic preferred by international users |
-| Admin Scaffold | **[shadcn-admin](https://github.com/satnaing/shadcn-admin)** (11.6k stars) | Custom build | Fork as starting point. Includes sidebar, navigation, search, dark mode, responsive layout, settings pages. Same stack: Vite + TanStack Router + shadcn/ui |
+| Admin Scaffold | **[shadcn-admin](https://github.com/satnaing/shadcn-admin)** (11.6k stars) | Custom build | Fork as starting point for the **admin backend panel**. Includes sidebar, navigation, search, dark mode, responsive layout, settings pages. Same stack: Vite + TanStack Router + shadcn/ui. The user-facing frontend is custom-built |
 | File Manager | **[SVAR React File Manager](https://svar.dev/react/filemanager/)** (MIT) | @cubone/react-file-manager | List/grid/split views, directory tree, breadcrumb, context menu, drag-and-drop, image preview, search, storage indicator, dark mode, TypeScript, backend-agnostic adapter API |
 | Routing | **TanStack Router** | React Router, Next.js | Type-safe, lightweight, no framework lock-in. Included in shadcn-admin |
 | Data Table | **TanStack Table** (via shadcn/ui Data Table) | AG Grid | Share management, user management, admin pages. Included in shadcn/ui |
@@ -72,39 +74,43 @@ Most of the heavy UI work is handled by existing components. Custom development 
 
 ## Project Structure
 
-pnpm workspace monorepo for TypeScript packages, Cargo workspace for Rust native tools. All in one repo.
+pnpm workspace monorepo for TypeScript packages, Cargo workspace for Rust native tools (planned). All in one repo.
 
 ```
 zpan/
 ├── packages/                  # TypeScript (pnpm workspace)
 │   ├── server/                # Hono + Drizzle + Better Auth
 │   │   ├── src/
-│   │   │   ├── app/           # Routes, middleware, services
-│   │   │   ├── db/            # Drizzle schema + migrations
+│   │   │   ├── routes/        # API route handlers
+│   │   │   ├── middleware/    # Hono middleware
+│   │   │   ├── db/            # Drizzle schema
 │   │   │   ├── platform/      # CF vs Node.js adapters
 │   │   │   ├── entry-cloudflare.ts
 │   │   │   └── entry-node.ts
+│   │   ├── migrations/        # D1 migrations (drizzle-kit generated, wrangler managed)
 │   │   └── package.json
 │   ├── web/                   # React + shadcn/ui
 │   │   ├── src/
 │   │   │   ├── components/    # Shared UI components
-│   │   │   ├── pages/         # Route pages
-│   │   │   ├── lib/           # API client, utils
-│   │   │   └── i18n/          # Translations
+│   │   │   ├── routes/        # Route pages (TanStack Router file-based routing)
+│   │   │   └── lib/           # API client, utils
 │   │   └── package.json
 │   └── shared/                # Shared types and constants
 │       ├── src/
 │       │   ├── types/         # API request/response types
 │       │   └── constants/     # Shared enums, config keys
 │       └── package.json
-├── native/                    # Rust (Cargo workspace)
+├── native/                    # Rust (Cargo workspace) (planned, v2.5+)
 │   ├── Cargo.toml             # Workspace definition
 │   ├── crates/
 │   │   ├── zpan-core/         # Core: S3 operations, sync, backup, file scanning
 │   │   ├── zpan-cli/          # CLI tool (depends on zpan-core)
 │   │   └── zpan-desktop/      # Tauri desktop app (depends on zpan-core)
 │   └── Cargo.lock
-├── e2e/                       # Playwright tests
+├── e2e/                       # Playwright E2E tests (full user flows)
+├── wrangler.toml              # Cloudflare Workers config
+├── biome.json                 # Biome linter + formatter config
+├── lefthook.yml               # Git hooks config
 ├── pnpm-workspace.yaml
 └── package.json
 ```
@@ -135,25 +141,26 @@ Backend error messages returned as i18n keys, frontend resolves to localized str
 
 | Layer | Tool | Scope |
 |-------|------|-------|
-| Unit tests | **Vitest** | Services, utilities, business logic |
-| API tests | **Vitest** + Hono `app.request()` | Route handlers, middleware, auth flows |
-| E2E tests | **Playwright** | Full user flows: upload, share, login, file management |
+| Unit tests | **Vitest** | Shared schemas, constants, utilities |
+| Integration tests (Node) | **Vitest** + Hono `app.request()` | Route handlers, middleware, auth flows (better-sqlite3) |
+| Integration tests (CF) | **Vitest** + `@cloudflare/vitest-pool-workers` | Same routes on Cloudflare Workers runtime (Miniflare + D1) |
+| E2E tests | **Playwright** | Full user flows: login, navigation, file management |
 
-Playwright tests live in `e2e/` at the repo root, run against a local dev server (server + web).
+Coverage gate: 90% on server package. Playwright tests live in `e2e/` at the repo root, run against a local dev server (server + web).
 
 ## CI/CD
 
 GitHub Actions:
 
 **On PR:**
-- `pnpm lint` — ESLint + Prettier check
+- `pnpm lint` — Biome lint + format check
 - `pnpm typecheck` — TypeScript compilation
 - `pnpm test` — Vitest unit + API tests
 - `pnpm e2e` — Playwright tests
 
 **On merge to master:**
 - Build + deploy to CF Pages (preview / production)
-- Build Docker image + push to Docker Hub (`saltbo/zpan:latest`, `saltbo/zpan:v2.x.x`)
+- Build Docker image + push to Docker Hub (planned)
 
 ## Platform Abstraction
 
@@ -162,24 +169,25 @@ The only code that differs between CF and Docker:
 ```
 src/platform/
 ├── interface.ts      # Platform interface definition
-├── cloudflare.ts     # CF Pages Functions: D1 binding, R2 via S3 API, Cron Triggers
-└── node.ts           # Node.js: better-sqlite3 / pg, node-cron
+├── cloudflare.ts     # CF Workers: D1 binding
+└── node.ts           # Node.js: better-sqlite3 / pg
 ```
 
 ### Interface
 
 ```typescript
 interface Platform {
-  db: DrizzleInstance          // D1 or SQLite file or PostgreSQL
-  s3: S3Client                // R2 or any S3-compatible
-  cron: CronScheduler         // CF Cron Triggers or node-cron
+  db: Database    // D1 (CF) or better-sqlite3 (Node)
+  getEnv(key: string): string | undefined
 }
 ```
 
+Note: `s3` and `cron` will be added in later versions.
+
 ### Entry Points
 
-- `entry-cloudflare.ts` — exports Hono app via `@hono/cloudflare-pages` adapter, deployed as `functions/[[path]].ts` to handle all `/api/*` routes. Static frontend is served by CF Pages automatically.
-- `entry-node.ts` — starts Hono via `@hono/node-server`, serves both API and static frontend on the same port.
+- `entry-cloudflare.ts` — exports `default { fetch }`, wrangler bundles it directly. Static frontend served by wrangler's `[assets]` config with SPA fallback. `run_worker_first = ["/api/*"]` routes only API requests to the worker.
+- `entry-node.ts` — starts Hono via `@hono/node-server`, serves both API and static frontend from `../../dist` on the same port.
 
 ## Per-Version Technical Decisions
 
@@ -189,7 +197,7 @@ interface Platform {
 
 **Database: Drizzle + D1 / SQLite**
 
-Schema definition in `src/app/db/schema.ts`, single source of truth. Drizzle Kit for migrations.
+Schema definition in `src/db/schema.ts`, single source of truth. Drizzle Kit for migrations.
 
 Tables: `matters`, `storages`, `storage_quotas`, `system_options` + Better Auth managed tables (`user`, `session`, `account`, `verification`).
 
