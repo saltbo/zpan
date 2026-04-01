@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import type { Env } from '../middleware/platform'
 import { requireAuth } from '../middleware/auth'
+import type { Env } from '../middleware/platform'
 
 const app = new Hono<Env>()
   .use(requireAuth)

@@ -1,19 +1,21 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import type { Auth } from './auth'
+import { authMiddleware } from './middleware/auth'
+import { accessLog } from './middleware/logger'
 import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
-import { authMiddleware } from './middleware/auth'
 import type { Platform } from './platform/interface'
-import type { Auth } from './auth'
 import objects from './routes/objects'
 import storages from './routes/storages'
-import users from './routes/users'
 import system from './routes/system'
+import users from './routes/users'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
 
   app.use('/*', platformMiddleware(platform, auth))
+  app.use('/api/*', accessLog)
 
   app.use(
     '/api/*',

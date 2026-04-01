@@ -9,6 +9,9 @@
   "scripts": {
     "dev": "tsx watch src/entry-node.ts",
     "build": "tsup src/entry-node.ts --format esm --outDir dist",
+    "test": "vitest run --coverage",
+    "test:cf": "vitest run --config vitest.cloudflare.config.ts",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -20,12 +23,15 @@
     "nanoid": "^5.1.0"
   },
   "devDependencies": {
-    "better-sqlite3": "^11.0.0",
+    "@cloudflare/vitest-pool-workers": "^0.14.0",
     "@types/better-sqlite3": "^7.6.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "better-sqlite3": "^11.0.0",
     "drizzle-kit": "^0.30.0",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
+    "vitest": "^4.1.2",
     "wrangler": "^4.0.0"
   }
 }

@@ -5,7 +5,11 @@
     "dev": "pnpm --filter @zpan/server --filter @zpan/web --parallel dev",
     "build": "pnpm --filter @zpan/shared build && pnpm --filter @zpan/server build && pnpm --filter @zpan/web build",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
+    "test": "pnpm -r --parallel test",
+    "test:cf": "pnpm --filter @zpan/server test:cf",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
     "e2e": "playwright test"
   },
   "engines": {
@@ -19,6 +23,9 @@
     ]
   },
   "devDependencies": {
-    "@playwright/test": "1.58.2"
+    "@biomejs/biome": "^2.4.10",
+    "@playwright/test": "1.58.2",
+    "@vitest/coverage-v8": "^4.1.2",
+    "vitest": "^4.1.2"
   }
 }

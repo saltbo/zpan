@@ -1,4 +1,4 @@
-import type { StorageMode, DirType, ObjectStatus } from '../constants'
+import type { DirType, ObjectStatus, StorageMode } from '../constants'
 
 export interface StorageObject {
   id: string

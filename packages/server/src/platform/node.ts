@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import * as schema from '../db/schema'
 import * as authSchema from '../db/auth-schema'
+import * as schema from '../db/schema'
 import type { Platform } from './interface'
 
 export function createNodePlatform(): Platform {

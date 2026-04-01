@@ -41,3 +41,6 @@ zpan.db-wal
 
 # Generated
 packages/web/src/routeTree.gen.ts
+
+#playwright
+.playwright-mcp/

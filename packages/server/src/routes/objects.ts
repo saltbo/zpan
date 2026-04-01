@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
-import type { Env } from '../middleware/platform'
 import { requireAuth } from '../middleware/auth'
+import type { Env } from '../middleware/platform'
 
 const app = new Hono<Env>()
   .use(requireAuth)
   .get('/', async (c) => {
-    const userId = c.get('userId')!
+    const _userId = c.get('userId')!
     const _parent = c.req.query('parent') ?? ''
     const _status = c.req.query('status') ?? 'active'
     const _type = c.req.query('type')

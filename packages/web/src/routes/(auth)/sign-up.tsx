@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { signUp } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { signUp } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/(auth)/sign-up')({
   component: SignUp,
@@ -53,7 +53,13 @@ function SignUp() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
@@ -62,7 +68,9 @@ function SignUp() {
         </form>
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{' '}
-          <a href="/sign-in" className="underline hover:text-foreground">Sign in</a>
+          <a href="/sign-in" className="underline hover:text-foreground">
+            Sign in
+          </a>
         </p>
       </div>
     </div>
