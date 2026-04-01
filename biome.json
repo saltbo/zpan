@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["packages/**/*.ts", "packages/**/*.tsx", "e2e/**/*.ts"],
+    "includes": ["packages/**/*.ts", "packages/**/*.tsx", "e2e/**/*.ts", "!packages/web/src/routeTree.gen.ts"],
     "ignoreUnknown": true
   },
   "formatter": {

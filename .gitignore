@@ -39,8 +39,7 @@ zpan.db-wal
 # pnpm
 *.tsbuildinfo
 
-# Generated
-packages/web/src/routeTree.gen.ts
+# Generated (routeTree.gen.ts is committed for CI typecheck)
 
 #playwright
 .playwright-mcp/
