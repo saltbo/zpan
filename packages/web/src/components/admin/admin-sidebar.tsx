@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, Database, Users } from 'lucide-react'
+import { ArrowLeft, Database, Settings, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { useSiteName } from '@/lib/site-options'
 import {
   Sidebar,
   SidebarContent,
@@ -18,16 +19,19 @@ import {
 const adminNavItems = [
   { titleKey: 'admin.nav.storages', url: '/admin/storages', icon: Database },
   { titleKey: 'admin.nav.users', url: '/admin/users', icon: Users },
+  { titleKey: 'admin.nav.settings', url: '/admin/settings', icon: Settings },
 ]
 
 export function AdminSidebar() {
   const { t } = useTranslation()
+  const siteName = useSiteName()
 
   return (
     <Sidebar>
       <SidebarHeader className="border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold">{t('admin.title')}</span>
+          <span className="text-lg font-semibold">{siteName}</span>
+          <span className="text-xs text-muted-foreground">{t('admin.title')}</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
