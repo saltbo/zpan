@@ -53,4 +53,27 @@ test.describe('Auth flow', () => {
 
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
   })
+
+  test('sidebar shows only Files and Recycle Bin for regular users', async ({ page }) => {
+    await page.goto('/sign-up')
+    await page.getByLabel('Name').fill('Sidebar Test')
+    await page.getByLabel('Email').fill(`sidebar-${Date.now()}@example.com`)
+    await page.getByLabel('Password').fill('password123456')
+
+    const [signUpResp] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/auth/sign-up')),
+      page.getByRole('button', { name: 'Sign up' }).click(),
+    ])
+    expect(signUpResp.status()).toBe(200)
+    await expect(page).toHaveURL(/files/, { timeout: 10000 })
+
+    // Main sidebar should show Files and Recycle Bin
+    const sidebar = page.locator('[data-slot="sidebar"]')
+    await expect(sidebar.getByText('Files')).toBeVisible()
+    await expect(sidebar.getByText('Recycle Bin')).toBeVisible()
+
+    // Admin items should NOT be in the main sidebar
+    await expect(sidebar.getByText('Storages')).not.toBeVisible()
+    await expect(sidebar.getByText('Users')).not.toBeVisible()
+  })
 })
