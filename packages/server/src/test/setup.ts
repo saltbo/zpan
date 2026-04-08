@@ -108,7 +108,6 @@ const APP_SCHEMA_SQL = `
   );
   CREATE TABLE IF NOT EXISTS storages (
     id TEXT PRIMARY KEY,
-    uid TEXT NOT NULL,
     title TEXT NOT NULL,
     mode TEXT NOT NULL,
     bucket TEXT NOT NULL,
@@ -116,9 +115,11 @@ const APP_SCHEMA_SQL = `
     region TEXT NOT NULL DEFAULT 'auto',
     access_key TEXT NOT NULL,
     secret_key TEXT NOT NULL,
-    file_path TEXT NOT NULL DEFAULT '',
+    file_path TEXT NOT NULL DEFAULT '$UID/$RAW_NAME',
     custom_host TEXT DEFAULT '',
-    status INTEGER DEFAULT 1,
+    capacity INTEGER NOT NULL DEFAULT 0,
+    used INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
@@ -149,6 +150,18 @@ export function createTestApp() {
   const app = createApp(platform, auth)
 
   return { app, db, auth }
+}
+
+export async function adminHeaders(app: ReturnType<typeof createApp>) {
+  // Sign up first user (gets promoted to admin via hook)
+  await authedHeaders(app, 'admin@example.com', 'password123456')
+  // Sign in again to get a session that reflects the admin role
+  const signInRes = await app.request('/api/auth/sign-in/email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@example.com', password: 'password123456' }),
+  })
+  return { Cookie: signInRes.headers.getSetCookie().join('; ') }
 }
 
 export async function authedHeaders(
