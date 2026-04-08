@@ -11,11 +11,17 @@ function buildApp() {
 }
 
 describe('[CF] System API', () => {
-  it('GET /api/system/options/:key works without auth', async () => {
+  it('GET /api/system/options returns empty list without auth', async () => {
     const app = buildApp()
-    const res = await app.request('/api/system/options/site_name')
+    const res = await app.request('/api/system/options')
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body).toEqual({ key: 'site_name', value: '' })
+    const body = (await res.json()) as { items: unknown[]; total: number }
+    expect(Array.isArray(body.items)).toBe(true)
+  })
+
+  it('GET unknown option returns 404', async () => {
+    const app = buildApp()
+    const res = await app.request('/api/system/options/nonexistent_key')
+    expect(res.status).toBe(404)
   })
 })
