@@ -97,5 +97,9 @@
   "common.confirm": "Confirm",
   "common.loading": "Loading...",
   "common.error": "Error",
-  "common.success": "Success"
+  "common.success": "Success",
+  "preview.download": "Download",
+  "preview.unsupported": "Preview is not available for this file type.",
+  "preview.loadError": "Failed to load file.",
+  "preview.pageOf": "{{current}} / {{total}}"
 }

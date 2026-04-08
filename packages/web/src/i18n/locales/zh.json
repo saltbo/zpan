@@ -97,5 +97,9 @@
   "common.confirm": "确认",
   "common.loading": "加载中...",
   "common.error": "错误",
-  "common.success": "成功"
+  "common.success": "成功",
+  "preview.download": "下载",
+  "preview.unsupported": "此文件类型不支持预览。",
+  "preview.loadError": "文件加载失败。",
+  "preview.pageOf": "{{current}} / {{total}}"
 }
