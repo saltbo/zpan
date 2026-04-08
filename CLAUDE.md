@@ -22,3 +22,7 @@ Core architecture: clients upload directly to S3-compatible storage via presigne
 ## Commit Convention
 
 Conventional Commits (`feat:`, `fix:`, `docs:`, etc.). PRs target `master`.
+
+## Pre-commit Hooks
+
+Husky + lint-staged run biome auto-fix on every `git commit`. **Never** bypass with `--no-verify`. **Never** run `pnpm install --ignore-scripts` — the `prepare` script must run so hooks are installed. If a hook fails, fix the underlying lint error and re-commit.

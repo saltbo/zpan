@@ -12,6 +12,7 @@
     "test:cf": "pnpm --filter @zpan/server test:cf",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "prepare": "husky",
     "format": "biome format --write .",
     "e2e": "playwright test"
   },
@@ -30,6 +31,11 @@
     "@biomejs/biome": "^2.4.10",
     "@playwright/test": "1.58.2",
     "@vitest/coverage-v8": "^4.1.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "vitest": "^4.1.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,jsonc}": "biome check --write --no-errors-on-unmatched"
   }
 }
