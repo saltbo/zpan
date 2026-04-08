@@ -1,5 +1,67 @@
+import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import {
+  confirmUpload,
+  copyMatter,
+  createMatter,
+  deleteMatter,
+  getMatter,
+  listMatters,
+  updateMatter,
+} from '../services/matter.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
+
+const validStorage = {
+  id: 'st-1',
+  title: 'Test S3',
+  mode: 'private',
+  bucket: 'test-bucket',
+  endpoint: 'https://s3.amazonaws.com',
+  region: 'us-east-1',
+  accessKey: 'AKIAIOSFODNN7EXAMPLE',
+  secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+  filePath: '$UID/$RAW_NAME',
+}
+
+async function insertStorage(db: ReturnType<typeof createTestApp>['db']) {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES (${validStorage.id}, ${validStorage.title}, ${validStorage.mode}, ${validStorage.bucket}, ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey}, ${validStorage.filePath}, '', 0, 0, 'active', ${now}, ${now})
+  `)
+}
+
+async function insertFolder(
+  db: ReturnType<typeof createTestApp>['db'],
+  orgId: string,
+  opts: { id: string; name: string; parent?: string },
+) {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'folder', 0, 1, ${opts.parent ?? ''}, '', ${validStorage.id}, 'active', ${now}, ${now})
+  `)
+}
+
+async function insertFile(
+  db: ReturnType<typeof createTestApp>['db'],
+  orgId: string,
+  opts: { id: string; name: string; parent?: string; status?: string },
+) {
+  const now = Date.now()
+  const status = opts.status ?? 'active'
+  await db.run(sql`
+    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', 100, 0, ${opts.parent ?? ''}, 'some/key.txt', ${validStorage.id}, ${status}, ${now}, ${now})
+  `)
+}
+
+async function getOrgId(db: ReturnType<typeof createTestApp>['db']): Promise<string> {
+  const rows = await db.all<{ id: string }>(sql`
+    SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1
+  `)
+  return rows[0].id
+}
 
 describe('Objects API', () => {
   it('returns 401 without auth', async () => {
@@ -27,35 +89,439 @@ describe('Objects API', () => {
     expect(body.pageSize).toBe(10)
   })
 
-  it('POST /api/objects returns 501 (not implemented)', async () => {
+  it('POST /api/objects creates a folder', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'My Folder', type: 'folder', dirtype: 1 }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.name).toBe('My Folder')
+    expect(body.dirtype).toBe(1)
+    expect(body.status).toBe('active')
+    expect(body.object).toBe('')
+    expect(body.id).toBeTruthy()
+  })
+
+  it('POST /api/objects returns 400 for invalid input', async () => {
     const { app } = createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'test.txt', type: 'text/plain', storageId: 's1' }),
+      body: JSON.stringify({ name: '' }),
     })
-    expect(res.status).toBe(501)
+    expect(res.status).toBe(400)
   })
 
-  it('GET /api/objects/:id returns 501', async () => {
+  it('POST /api/objects returns 500 when no storage available', async () => {
     const { app } = createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/abc', { headers })
-    expect(res.status).toBe(501)
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'test.txt', type: 'text/plain' }),
+    })
+    expect(res.status).toBe(500)
   })
 
-  it('PATCH /api/objects/:id returns 501', async () => {
-    const { app } = createTestApp()
+  it('GET /api/objects lists active objects in root', async () => {
+    const { app, db } = createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/abc', { method: 'PATCH', headers })
-    expect(res.status).toBe(501)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+
+    await insertFolder(db, orgId, { id: 'f1', name: 'Folder A' })
+    await insertFile(db, orgId, { id: 'm1', name: 'file.txt' })
+
+    const res = await app.request('/api/objects', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
+    expect(body.total).toBe(2)
+    expect(body.items).toHaveLength(2)
+    // Folders sort before files (dirtype DESC)
+    expect(body.items[0].name).toBe('Folder A')
+    expect(body.items[1].name).toBe('file.txt')
   })
 
-  it('DELETE /api/objects/:id returns 501', async () => {
+  it('GET /api/objects filters by parent', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+
+    await insertFolder(db, orgId, { id: 'f1', name: 'Folder A' })
+    await insertFile(db, orgId, { id: 'm1', name: 'nested.txt', parent: 'f1' })
+    await insertFile(db, orgId, { id: 'm2', name: 'root.txt' })
+
+    const res = await app.request('/api/objects?parent=f1', { headers })
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
+    expect(body.total).toBe(1)
+    expect(body.items[0].name).toBe('nested.txt')
+  })
+
+  it('GET /api/objects filters by status', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+
+    await insertFile(db, orgId, { id: 'm1', name: 'active.txt', status: 'active' })
+    await insertFile(db, orgId, { id: 'm2', name: 'draft.txt', status: 'draft' })
+
+    const res = await app.request('/api/objects?status=draft', { headers })
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
+    expect(body.total).toBe(1)
+    expect(body.items[0].name).toBe('draft.txt')
+  })
+
+  it('GET /api/objects/:id returns folder detail', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'My Folder' })
+
+    const res = await app.request('/api/objects/f1', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.id).toBe('f1')
+    expect(body.name).toBe('My Folder')
+    // Folder should not have downloadUrl
+    expect(body).not.toHaveProperty('downloadUrl')
+  })
+
+  it('GET /api/objects/:id returns 404 for missing object', async () => {
     const { app } = createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/abc', { method: 'DELETE', headers })
-    expect(res.status).toBe(501)
+    const res = await app.request('/api/objects/nonexistent', { headers })
+    expect(res.status).toBe(404)
+  })
+
+  it('PATCH /api/objects/:id renames an object', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'Old Name' })
+
+    const res = await app.request('/api/objects/f1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'New Name' }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.name).toBe('New Name')
+  })
+
+  it('PATCH /api/objects/:id moves an object', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'Target Folder' })
+    await insertFile(db, orgId, { id: 'm1', name: 'moveme.txt' })
+
+    const res = await app.request('/api/objects/m1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent: 'f1' }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.parent).toBe('f1')
+  })
+
+  it('PATCH /api/objects/:id returns 404 for missing object', async () => {
+    const { app } = createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects/nonexistent', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nope' }),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('PATCH /api/objects/:id/done confirms upload', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'uploading.txt', status: 'draft' })
+
+    const res = await app.request('/api/objects/m1/done', {
+      method: 'PATCH',
+      headers,
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('active')
+  })
+
+  it('PATCH /api/objects/:id/done returns 404 for non-draft object', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'already-active.txt', status: 'active' })
+
+    const res = await app.request('/api/objects/m1/done', {
+      method: 'PATCH',
+      headers,
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('DELETE /api/objects/:id deletes a folder', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'Delete Me' })
+
+    const res = await app.request('/api/objects/f1', {
+      method: 'DELETE',
+      headers,
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.id).toBe('f1')
+    expect(body.deleted).toBe(true)
+
+    // Verify deleted from DB
+    const check = await app.request('/api/objects/f1', { headers })
+    expect(check.status).toBe(404)
+  })
+
+  it('DELETE /api/objects/:id returns 404 for missing object', async () => {
+    const { app } = createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects/nonexistent', {
+      method: 'DELETE',
+      headers,
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('POST /api/objects/:id/copy copies a folder', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'Original' })
+
+    const res = await app.request('/api/objects/f1/copy', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent: '' }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.name).toBe('Original')
+    expect(body.id).not.toBe('f1')
+    expect(body.status).toBe('active')
+  })
+
+  it('POST /api/objects/:id/copy returns 404 for missing source', async () => {
+    const { app } = createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects/nonexistent/copy', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('PATCH /api/objects/:id/done returns 404 for missing object', async () => {
+    const { app } = createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects/nonexistent/done', {
+      method: 'PATCH',
+      headers,
+    })
+    expect(res.status).toBe(404)
+  })
+})
+
+describe('Matter service', () => {
+  it('createMatter applies defaults for optional fields', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'test.txt',
+      type: 'text/plain',
+      object: 'key.txt',
+      storageId: 's1',
+      status: 'draft',
+    })
+    expect(matter.size).toBe(0)
+    expect(matter.dirtype).toBe(0)
+    expect(matter.parent).toBe('')
+    expect(matter.id).toBeTruthy()
+    expect(matter.alias).toBeTruthy()
+  })
+
+  it('createMatter uses provided optional fields', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'doc.pdf',
+      type: 'application/pdf',
+      size: 1024,
+      dirtype: 1,
+      parent: 'folder-1',
+      object: '',
+      storageId: 's1',
+      status: 'active',
+    })
+    expect(matter.size).toBe(1024)
+    expect(matter.dirtype).toBe(1)
+    expect(matter.parent).toBe('folder-1')
+  })
+
+  it('listMatters returns paginated results', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+
+    await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'active',
+    })
+    await createMatter(db, {
+      orgId: 'org-1',
+      name: 'b.txt',
+      type: 'text/plain',
+      object: 'b',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    const page1 = await listMatters(db, 'org-1', { parent: '', status: 'active', page: 1, pageSize: 1 })
+    expect(page1.items).toHaveLength(1)
+    expect(page1.total).toBe(2)
+
+    const page2 = await listMatters(db, 'org-1', { parent: '', status: 'active', page: 2, pageSize: 1 })
+    expect(page2.items).toHaveLength(1)
+  })
+
+  it('getMatter returns null for missing record', async () => {
+    const { db } = createTestApp()
+    const result = await getMatter(db, 'nonexistent', 'org-1')
+    expect(result).toBeNull()
+  })
+
+  it('updateMatter returns null for missing record', async () => {
+    const { db } = createTestApp()
+    const result = await updateMatter(db, 'nonexistent', 'org-1', { name: 'new' })
+    expect(result).toBeNull()
+  })
+
+  it('confirmUpload returns null for missing record', async () => {
+    const { db } = createTestApp()
+    const result = await confirmUpload(db, 'nonexistent', 'org-1')
+    expect(result).toBeNull()
+  })
+
+  it('confirmUpload returns null for non-draft status', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'active',
+    })
+    const result = await confirmUpload(db, matter.id, 'org-1')
+    expect(result).toBeNull()
+  })
+
+  it('deleteMatter removes and returns the record', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    const deleted = await deleteMatter(db, matter.id, 'org-1')
+    expect(deleted).not.toBeNull()
+    expect(deleted!.id).toBe(matter.id)
+
+    const check = await getMatter(db, matter.id, 'org-1')
+    expect(check).toBeNull()
+  })
+
+  it('deleteMatter returns null for missing record', async () => {
+    const { db } = createTestApp()
+    const result = await deleteMatter(db, 'nonexistent', 'org-1')
+    expect(result).toBeNull()
+  })
+
+  it('copyMatter creates a new record from source', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const source = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      size: 42,
+      object: 'original/key',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    const copy = await copyMatter(db, source, 'target-folder', 'copy/key')
+    expect(copy.id).not.toBe(source.id)
+    expect(copy.alias).not.toBe(source.alias)
+    expect(copy.name).toBe('a.txt')
+    expect(copy.size).toBe(42)
+    expect(copy.parent).toBe('target-folder')
+    expect(copy.object).toBe('copy/key')
+    expect(copy.status).toBe('active')
   })
 })

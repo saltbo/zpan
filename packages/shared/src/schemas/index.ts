@@ -16,9 +16,21 @@ export const signUpSchema = z.object({
 
 export const createMatterSchema = z.object({
   name: z.string().min(1),
-  type: z.string(),
+  type: z.string().min(1),
   size: z.number().optional(),
   parent: z.string().default(''),
-  storageId: z.string(),
   dirtype: z.number().default(0),
+})
+
+export type CreateMatterInput = z.infer<typeof createMatterSchema>
+
+export const updateMatterSchema = z.object({
+  name: z.string().min(1).optional(),
+  parent: z.string().optional(),
+})
+
+export type UpdateMatterInput = z.infer<typeof updateMatterSchema>
+
+export const copyMatterSchema = z.object({
+  parent: z.string().default(''),
 })

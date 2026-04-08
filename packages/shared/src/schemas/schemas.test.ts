@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { createMatterSchema, createStorageSchema, signInSchema, signUpSchema } from './index.js'
+import {
+  copyMatterSchema,
+  createMatterSchema,
+  createStorageSchema,
+  signInSchema,
+  signUpSchema,
+  updateMatterSchema,
+} from './index.js'
 
 describe('signInSchema', () => {
   it('accepts valid input', () => {
@@ -62,7 +69,7 @@ describe('createStorageSchema', () => {
 
 describe('createMatterSchema', () => {
   it('accepts valid input with defaults', () => {
-    const result = createMatterSchema.safeParse({ name: 'file.txt', type: 'text/plain', storageId: 's1' })
+    const result = createMatterSchema.safeParse({ name: 'file.txt', type: 'text/plain' })
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.parent).toBe('')
@@ -71,7 +78,39 @@ describe('createMatterSchema', () => {
   })
 
   it('rejects empty name', () => {
-    const result = createMatterSchema.safeParse({ name: '', type: 'text/plain', storageId: 's1' })
+    const result = createMatterSchema.safeParse({ name: '', type: 'text/plain' })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('updateMatterSchema', () => {
+  it('accepts partial update with name only', () => {
+    const result = updateMatterSchema.safeParse({ name: 'renamed.txt' })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts empty object (no fields)', () => {
+    const result = updateMatterSchema.safeParse({})
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects empty name', () => {
+    const result = updateMatterSchema.safeParse({ name: '' })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('copyMatterSchema', () => {
+  it('accepts empty object with default parent', () => {
+    const result = copyMatterSchema.safeParse({})
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.parent).toBe('')
+    }
+  })
+
+  it('accepts explicit parent', () => {
+    const result = copyMatterSchema.safeParse({ parent: 'folder-id' })
+    expect(result.success).toBe(true)
   })
 })
