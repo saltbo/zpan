@@ -7,6 +7,7 @@ import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
 import type { Platform } from './platform/interface'
 import objects from './routes/objects'
+import { adminQuotas, userQuotas } from './routes/quotas'
 import storages from './routes/storages'
 import system from './routes/system'
 import users from './routes/users'
@@ -37,7 +38,9 @@ export function createApp(platform: Platform, auth: Auth) {
   const routes = app
     .route('/api/objects', objects)
     .route('/api/storages', storages)
-    .route('/api/users', users)
+    .route('/api/admin/users', users)
+    .route('/api/admin/quotas', adminQuotas)
+    .route('/api/quotas', userQuotas)
     .route('/api/system', system)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
