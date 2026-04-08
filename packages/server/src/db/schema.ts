@@ -18,7 +18,6 @@ export const matters = sqliteTable('matters', {
 
 export const storages = sqliteTable('storages', {
   id: text('id').primaryKey(),
-  uid: text('uid').notNull(),
   title: text('title').notNull(),
   mode: text('mode').notNull(),
   bucket: text('bucket').notNull(),
@@ -28,7 +27,9 @@ export const storages = sqliteTable('storages', {
   secretKey: text('secret_key').notNull(),
   filePath: text('file_path').notNull().default('$UID/$RAW_NAME'),
   customHost: text('custom_host').default(''),
-  status: integer('status').default(1),
+  capacity: integer('capacity').notNull().default(0),
+  used: integer('used').notNull().default(0),
+  status: text('status').notNull().default('active'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })

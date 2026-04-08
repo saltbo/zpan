@@ -37,7 +37,7 @@ export function createApp(platform: Platform, auth: Auth) {
 
   const routes = app
     .route('/api/objects', objects)
-    .route('/api/storages', storages)
+    .route('/api/admin/storages', storages)
     .route('/api/admin/users', users)
     .route('/api/admin/quotas', adminQuotas)
     .route('/api/quotas', userQuotas)
