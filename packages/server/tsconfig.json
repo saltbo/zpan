@@ -1,12 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "composite": true,
-    "outDir": "dist",
-    "rootDir": "src",
     "types": ["@cloudflare/workers-types"]
   },
   "include": ["src"],
-  "exclude": ["src/**/*.cf-test.ts", "src/test/apply-migrations.ts"],
-  "references": [{ "path": "../shared" }]
+  "exclude": ["src/**/*.cf-test.ts", "src/test/apply-migrations.ts"]
 }
