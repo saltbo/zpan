@@ -28,7 +28,9 @@ export interface Storage {
   secretKey: string
   filePath: string
   customHost: string
-  status: number
+  capacity: number
+  used: number
+  status: 'active' | 'disabled'
   createdAt: string
   updatedAt: string
 }
