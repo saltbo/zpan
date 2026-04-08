@@ -21,6 +21,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { useSiteName } from '@/hooks/use-site-options'
 import { signOut, useSession } from '@/lib/auth-client'
 
 const navItems = {
@@ -43,6 +44,7 @@ function getInitials(name: string): string {
 export function AppSidebar() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const siteName = useSiteName()
   const { data: session } = useSession()
   const user = session?.user as { name: string; role?: string } | undefined
   const isAdmin = user?.role === 'admin'
@@ -57,7 +59,7 @@ export function AppSidebar() {
       <SidebarHeader className="border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <HardDrive className="h-5 w-5" />
-          <span className="text-lg font-semibold">ZPan</span>
+          <span className="text-lg font-semibold">{siteName}</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
