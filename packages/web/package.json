@@ -33,6 +33,7 @@
     "radix-ui": "^1.4.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-dropzone": "^15.0.0",
     "react-hook-form": "^7.54.0",
     "react-i18next": "^17.0.2",
     "sonner": "^1.7.0",

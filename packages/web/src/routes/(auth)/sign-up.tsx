@@ -34,7 +34,7 @@ function SignUp() {
       setError(result.error.message ?? t('auth.signUpFailed'))
       return
     }
-    navigate({ to: '/files' })
+    navigate({ to: '/files', search: { folder: '' } })
   }
 
   return (

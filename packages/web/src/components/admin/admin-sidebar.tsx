@@ -51,7 +51,7 @@ export function AdminSidebar() {
       </SidebarContent>
       <SidebarFooter className="border-t p-2">
         <Button variant="ghost" className="w-full justify-start" asChild>
-          <Link to="/files">
+          <Link to="/files" search={{ folder: '' }}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             {t('admin.backToFiles')}
           </Link>

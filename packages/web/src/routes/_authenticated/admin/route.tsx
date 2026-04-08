@@ -7,7 +7,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 export const Route = createFileRoute('/_authenticated/admin')({
   beforeLoad: async ({ context }) => {
     const { user } = context as { user: { role: string } }
-    if (user.role !== 'admin') throw redirect({ to: '/files' })
+    if (user.role !== 'admin') throw redirect({ to: '/files', search: { folder: '' } })
   },
   component: AdminLayout,
 })

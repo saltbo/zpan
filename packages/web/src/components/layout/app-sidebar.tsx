@@ -23,9 +23,16 @@ import {
 } from '@/components/ui/sidebar'
 import { signOut, useSession } from '@/lib/auth-client'
 
-const navItems = {
+interface NavItem {
+  titleKey: string
+  url: string
+  icon: React.ComponentType<{ className?: string }>
+  search?: Record<string, string>
+}
+
+const navItems: { main: NavItem[]; secondary: NavItem[] } = {
   main: [
-    { titleKey: 'nav.files', url: '/files', icon: FolderOpen },
+    { titleKey: 'nav.files', url: '/files', icon: FolderOpen, search: { folder: '' } },
     { titleKey: 'nav.recycleBin', url: '/recycle-bin', icon: Trash2 },
   ],
   secondary: [{ titleKey: 'nav.settings', url: '/settings', icon: Settings }],
@@ -68,7 +75,7 @@ export function AppSidebar() {
               {navItems.main.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
-                    <Link to={item.url}>
+                    <Link to={item.url} search={item.search as Record<string, string> | undefined}>
                       <item.icon className="h-4 w-4" />
                       <span>{t(item.titleKey)}</span>
                     </Link>
@@ -84,7 +91,7 @@ export function AppSidebar() {
               {navItems.secondary.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
-                    <Link to={item.url}>
+                    <Link to={item.url} search={item.search as Record<string, string> | undefined}>
                       <item.icon className="h-4 w-4" />
                       <span>{t(item.titleKey)}</span>
                     </Link>

@@ -32,7 +32,7 @@ function SignIn() {
       setError(result.error.message ?? t('auth.signInFailed'))
       return
     }
-    navigate({ to: '/files' })
+    navigate({ to: '/files', search: { folder: '' } })
   }
 
   return (
