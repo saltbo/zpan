@@ -7,6 +7,7 @@ import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
 import type { Platform } from './platform/interface'
 import objects from './routes/objects'
+import objectsBatch from './routes/objects-batch'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import storages from './routes/storages'
 import system from './routes/system'
@@ -37,6 +38,7 @@ export function createApp(platform: Platform, auth: Auth) {
 
   const routes = app
     .route('/api/objects', objects)
+    .route('/api/batch', objectsBatch)
     .route('/api/admin/storages', storages)
     .route('/api/admin/users', users)
     .route('/api/admin/quotas', adminQuotas)

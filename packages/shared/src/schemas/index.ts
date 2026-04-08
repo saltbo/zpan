@@ -22,3 +22,12 @@ export const createMatterSchema = z.object({
   storageId: z.string(),
   dirtype: z.number().default(0),
 })
+
+export const batchIdsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+})
+
+export const batchMoveSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+  parent: z.string(),
+})
