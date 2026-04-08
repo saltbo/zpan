@@ -37,14 +37,53 @@ describe('[CF] Objects API', () => {
     expect(body).toEqual({ items: [], total: 0, page: 1, pageSize: 20 })
   })
 
-  it('POST /api/objects returns 501', async () => {
+  it('POST /api/objects returns 400 for invalid input', async () => {
     const app = buildApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'test.txt', type: 'text/plain', storageId: 's1' }),
+      body: JSON.stringify({ name: '' }),
     })
-    expect(res.status).toBe(501)
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /api/objects returns 500 when no storage configured', async () => {
+    const app = buildApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'test.txt', type: 'text/plain' }),
+    })
+    expect(res.status).toBe(500)
+  })
+
+  it('GET /api/objects/:id returns 404 for missing object', async () => {
+    const app = buildApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects/nonexistent', { headers })
+    expect(res.status).toBe(404)
+  })
+
+  it('PATCH /api/objects/:id returns 404 for missing object', async () => {
+    const app = buildApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects/nonexistent', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nope' }),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('DELETE /api/objects/:id returns 404 for missing object', async () => {
+    const app = buildApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects/nonexistent', {
+      method: 'DELETE',
+      headers,
+    })
+    expect(res.status).toBe(404)
   })
 })
