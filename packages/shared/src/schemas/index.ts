@@ -31,3 +31,11 @@ export const createMatterSchema = z.object({
   storageId: z.string(),
   dirtype: z.number().default(0),
 })
+
+export {
+  copyObjectSchema,
+  createFileSchema,
+  createFolderSchema,
+  createObjectSchema,
+  updateObjectSchema,
+} from './object'
