@@ -14,12 +14,16 @@ import {
   batchDelete,
   batchMove,
   batchTrash,
+  collectForPurge,
   confirmUpload,
   copyMatter,
   createMatter,
-  deleteMatter,
+  decrementUsage,
   getMatter,
   listMatters,
+  purgeMatters,
+  restoreMatter,
+  trashMatter,
   updateMatter,
 } from '../services/matter'
 import { buildObjectKey } from '../services/path-template'
@@ -31,6 +35,43 @@ const s3 = new S3Service()
 function fileExt(name: string): string {
   const dot = name.lastIndexOf('.')
   return dot >= 0 ? name.slice(dot) : ''
+}
+
+async function purgeRecursively(
+  db: import('../platform/interface').Database,
+  orgId: string,
+  matters: import('../services/matter').Matter[],
+): Promise<number> {
+  const keysByStorage = new Map<string, { storage: S3Storage | null; keys: string[] }>()
+  const bytesByStorage = new Map<string, number>()
+  let totalBytes = 0
+
+  for (const m of matters) {
+    if (m.dirtype === 0 && m.size > 0) {
+      bytesByStorage.set(m.storageId, (bytesByStorage.get(m.storageId) ?? 0) + m.size)
+      totalBytes += m.size
+    }
+    if (!m.object) continue
+    let entry = keysByStorage.get(m.storageId)
+    if (!entry) {
+      const storage = (await getStorage(db, m.storageId)) as unknown as S3Storage | null
+      entry = { storage, keys: [] }
+      keysByStorage.set(m.storageId, entry)
+    }
+    entry.keys.push(m.object)
+  }
+
+  for (const { storage, keys } of keysByStorage.values()) {
+    if (storage && keys.length > 0) await s3.deleteObjects(storage, keys)
+  }
+
+  await purgeMatters(
+    db,
+    orgId,
+    matters.map((m) => m.id),
+  )
+  await decrementUsage(db, orgId, bytesByStorage, totalBytes)
+  return matters.length
 }
 
 const app = new Hono<Env>()
@@ -190,20 +231,33 @@ const app = new Hono<Env>()
     if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
     return c.json(matter)
   })
+  .patch('/:id/trash', async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    const db = c.get('platform').db
+    const matter = await trashMatter(db, orgId, c.req.param('id'))
+    if (!matter) return c.json({ error: 'Not found' }, 404)
+    return c.json(matter)
+  })
+  .patch('/:id/restore', async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    const db = c.get('platform').db
+    const matter = await restoreMatter(db, orgId, c.req.param('id'))
+    if (!matter) return c.json({ error: 'Not found' }, 404)
+    return c.json(matter)
+  })
   .delete('/:id', async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
-
     const db = c.get('platform').db
-    const matter = await deleteMatter(db, c.req.param('id'), orgId)
-    if (!matter) return c.json({ error: 'Not found' }, 404)
-
-    if (matter.object) {
-      const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage
-      if (storage) await s3.deleteObject(storage, matter.object)
+    const ms = await collectForPurge(db, orgId, c.req.param('id'))
+    if (!ms) return c.json({ error: 'Not found' }, 404)
+    if (ms[0].status !== 'trashed') {
+      return c.json({ error: 'Object must be trashed before permanent deletion' }, 409)
     }
-
-    return c.json({ id: matter.id, deleted: true })
+    const purged = await purgeRecursively(db, orgId, ms)
+    return c.json({ id: ms[0].id, deleted: true, purged })
   })
   .post('/:id/copy', async (c) => {
     const orgId = c.get('orgId')

@@ -12,6 +12,7 @@ export const matters = sqliteTable('matters', {
   object: text('object').notNull().default(''),
   storageId: text('storage_id').notNull(),
   status: text('status').notNull().default('draft'), // draft, active, trashed
+  trashedAt: integer('trashed_at'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })

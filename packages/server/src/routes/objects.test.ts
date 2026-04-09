@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   batchDelete,
   batchMove,
@@ -13,7 +13,13 @@ import {
   listMatters,
   updateMatter,
 } from '../services/matter.js'
+import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
+
+beforeEach(() => {
+  vi.spyOn(S3Service.prototype, 'deleteObject').mockResolvedValue(undefined)
+  vi.spyOn(S3Service.prototype, 'deleteObjects').mockResolvedValue(undefined)
+})
 
 const validStorage = {
   id: 'st-1',
@@ -282,24 +288,107 @@ describe('Objects API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /api/objects/:id deletes a folder', async () => {
+  it('DELETE /api/objects/:id rejects active object (must trash first)', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'Active Folder' })
+
+    const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
+    expect(res.status).toBe(409)
+  })
+
+  it('DELETE /api/objects/:id permanently deletes a trashed folder', async () => {
     const { app, db } = createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFolder(db, orgId, { id: 'f1', name: 'Delete Me' })
 
-    const res = await app.request('/api/objects/f1', {
-      method: 'DELETE',
-      headers,
-    })
+    const trashRes = await app.request('/api/objects/f1/trash', { method: 'PATCH', headers })
+    expect(trashRes.status).toBe(200)
+
+    const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.id).toBe('f1')
     expect(body.deleted).toBe(true)
 
-    // Verify deleted from DB
     const check = await app.request('/api/objects/f1', { headers })
+    expect(check.status).toBe(404)
+  })
+
+  it('PATCH /api/objects/:id/trash trashes a file', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt' })
+
+    const res = await app.request('/api/objects/m1/trash', { method: 'PATCH', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('trashed')
+    expect(body.trashedAt).toBeTruthy()
+
+    const list = await app.request('/api/objects?status=trashed', { headers })
+    const listBody = (await list.json()) as { total: number }
+    expect(listBody.total).toBe(1)
+  })
+
+  it('PATCH /api/objects/:id/restore restores a trashed file', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
+
+    const res = await app.request('/api/objects/m1/restore', { method: 'PATCH', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('active')
+  })
+
+  it('PATCH /api/objects/:id/trash cascades to folder children', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'Parent' })
+    await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'f1' })
+    await insertFolder(db, orgId, { id: 'f2', name: 'Sub', parent: 'f1' })
+    await insertFile(db, orgId, { id: 'm2', name: 'deep.txt', parent: 'f2' })
+
+    const res = await app.request('/api/objects/f1/trash', { method: 'PATCH', headers })
+    expect(res.status).toBe(200)
+
+    const trashed = await app.request('/api/objects?status=trashed', { headers })
+    const tBody = (await trashed.json()) as { total: number }
+    // Only the root folder shows in root listing of trash
+    expect(tBody.total).toBe(1)
+
+    // But all descendants are flagged trashed: restore restores them all
+    await app.request('/api/objects/f1/restore', { method: 'PATCH', headers })
+    const childRes = await app.request('/api/objects/m2', { headers })
+    const childBody = (await childRes.json()) as Record<string, unknown>
+    expect(childBody.status).toBe('active')
+  })
+
+  it('POST /api/recycle-bin/empty purges all trashed items', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
+    await insertFile(db, orgId, { id: 'm2', name: 'b.txt', status: 'trashed' })
+
+    const res = await app.request('/api/recycle-bin/empty', { method: 'POST', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { purged: number }
+    expect(body.purged).toBe(2)
+
+    const check = await app.request('/api/objects/m1', { headers })
     expect(check.status).toBe(404)
   })
 

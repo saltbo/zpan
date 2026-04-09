@@ -103,6 +103,7 @@ const APP_SCHEMA_SQL = `
     object TEXT NOT NULL DEFAULT '',
     storage_id TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'draft',
+    trashed_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );

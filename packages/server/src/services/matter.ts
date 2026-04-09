@@ -15,6 +15,7 @@ export interface Matter {
   object: string
   storageId: string
   status: string
+  trashedAt: number | null
   createdAt: number
   updatedAt: number
 }
@@ -56,6 +57,7 @@ export async function createMatter(db: Database, input: CreateMatterInput): Prom
     object: input.object,
     storageId: input.storageId,
     status: input.status,
+    trashedAt: null,
     createdAt: now,
     updatedAt: now,
   }
@@ -77,6 +79,7 @@ export async function listMatters(
   const items = await db.all<Matter>(sql`
     SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
            parent, object, storage_id AS storageId, status,
+           trashed_at AS trashedAt,
            created_at AS createdAt, updated_at AS updatedAt
     FROM matters
     WHERE org_id = ${orgId} AND parent = ${filters.parent} AND status = ${filters.status}
@@ -91,6 +94,7 @@ export async function getMatter(db: Database, id: string, orgId: string): Promis
   const rows = await db.all<Matter>(sql`
     SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
            parent, object, storage_id AS storageId, status,
+           trashed_at AS trashedAt,
            created_at AS createdAt, updated_at AS updatedAt
     FROM matters
     WHERE id = ${id} AND org_id = ${orgId}
@@ -160,6 +164,7 @@ export async function copyMatter(
     object: newObject,
     storageId: source.storageId,
     status: 'active',
+    trashedAt: null,
     createdAt: now,
     updatedAt: now,
   }
@@ -173,6 +178,8 @@ export async function deleteMatter(db: Database, id: string, orgId: string): Pro
   return existing
 }
 
+// ─── Batch Operations ────────────────────────────────────────────────────────
+
 export async function getMatters(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
   if (ids.length === 0) return []
 
@@ -183,6 +190,7 @@ export async function getMatters(db: Database, orgId: string, ids: string[]): Pr
   return db.all<Matter>(sql`
     SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
            parent, object, storage_id AS storageId, status,
+           trashed_at AS trashedAt,
            created_at AS createdAt, updated_at AS updatedAt
     FROM matters
     WHERE org_id = ${orgId} AND id IN (${idList})
@@ -219,6 +227,7 @@ async function getChildrenRecursive(db: Database, orgId: string, parentIds: stri
   const children = await db.all<Matter>(sql`
     SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
            parent, object, storage_id AS storageId, status,
+           trashed_at AS trashedAt,
            created_at AS createdAt, updated_at AS updatedAt
     FROM matters
     WHERE org_id = ${orgId} AND parent IN (${idList})
@@ -244,12 +253,12 @@ export async function batchTrash(db: Database, orgId: string, ids: string[]): Pr
   const now = Date.now()
   for (const matter of allMatters) {
     await db.run(sql`
-      UPDATE matters SET status = 'trashed', updated_at = ${now}
+      UPDATE matters SET status = 'trashed', trashed_at = ${now}, updated_at = ${now}
       WHERE id = ${matter.id} AND org_id = ${orgId}
     `)
   }
 
-  return allMatters.map((m) => ({ ...m, status: 'trashed', updatedAt: now }))
+  return allMatters.map((m) => ({ ...m, status: 'trashed', trashedAt: now, updatedAt: now }))
 }
 
 export async function batchDelete(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
@@ -269,4 +278,103 @@ export async function batchDelete(db: Database, orgId: string, ids: string[]): P
   }
 
   return matters
+}
+
+// ─── Recycle Bin ─────────────────────────────────────────────────────────────
+
+async function collectDescendants(db: Database, orgId: string, rootId: string): Promise<Matter[]> {
+  const result: Matter[] = []
+  let frontier = [rootId]
+  while (frontier.length > 0) {
+    const next: string[] = []
+    for (const parentId of frontier) {
+      const children = await db.all<Matter>(sql`
+        SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
+               parent, object, storage_id AS storageId, status,
+               trashed_at AS trashedAt,
+               created_at AS createdAt, updated_at AS updatedAt
+        FROM matters
+        WHERE org_id = ${orgId} AND parent = ${parentId}
+      `)
+      for (const child of children) {
+        result.push(child)
+        if (child.dirtype !== 0) next.push(child.id)
+      }
+    }
+    frontier = next
+  }
+  return result
+}
+
+export async function trashMatter(db: Database, orgId: string, id: string): Promise<Matter | null> {
+  const existing = await getMatter(db, id, orgId)
+  if (!existing) return null
+  if (existing.status === 'trashed') return existing
+
+  const now = Date.now()
+  const descendants = await collectDescendants(db, orgId, existing.id)
+  const ids = [existing.id, ...descendants.map((m) => m.id)]
+  for (const targetId of ids) {
+    await db.run(sql`
+      UPDATE matters SET status = 'trashed', trashed_at = ${now}, updated_at = ${now}
+      WHERE id = ${targetId} AND org_id = ${orgId} AND status = 'active'
+    `)
+  }
+  return { ...existing, status: 'trashed', trashedAt: now, updatedAt: now }
+}
+
+export async function restoreMatter(db: Database, orgId: string, id: string): Promise<Matter | null> {
+  const existing = await getMatter(db, id, orgId)
+  if (!existing) return null
+  if (existing.status !== 'trashed') return existing
+
+  const now = Date.now()
+  const descendants = await collectDescendants(db, orgId, existing.id)
+  const ids = [existing.id, ...descendants.map((m) => m.id)]
+  for (const targetId of ids) {
+    await db.run(sql`
+      UPDATE matters SET status = 'active', trashed_at = NULL, updated_at = ${now}
+      WHERE id = ${targetId} AND org_id = ${orgId} AND status = 'trashed'
+    `)
+  }
+  return { ...existing, status: 'active', trashedAt: null, updatedAt: now }
+}
+
+export async function collectForPurge(db: Database, orgId: string, id: string): Promise<Matter[] | null> {
+  const existing = await getMatter(db, id, orgId)
+  if (!existing) return null
+  const descendants = await collectDescendants(db, orgId, existing.id)
+  return [existing, ...descendants]
+}
+
+export async function purgeMatters(db: Database, orgId: string, ids: string[]): Promise<void> {
+  for (const id of ids) {
+    await db.run(sql`DELETE FROM matters WHERE id = ${id} AND org_id = ${orgId}`)
+  }
+}
+
+export async function listTrashedRoots(db: Database, orgId: string): Promise<Matter[]> {
+  return db.all<Matter>(sql`
+    SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
+           parent, object, storage_id AS storageId, status,
+           trashed_at AS trashedAt,
+           created_at AS createdAt, updated_at AS updatedAt
+    FROM matters
+    WHERE org_id = ${orgId} AND status = 'trashed'
+  `)
+}
+
+export async function decrementUsage(
+  db: Database,
+  orgId: string,
+  bytesByStorage: Map<string, number>,
+  totalBytes: number,
+): Promise<void> {
+  for (const [storageId, bytes] of bytesByStorage) {
+    if (bytes <= 0) continue
+    await db.run(sql`UPDATE storages SET used = MAX(0, used - ${bytes}) WHERE id = ${storageId}`)
+  }
+  if (totalBytes > 0) {
+    await db.run(sql`UPDATE org_quotas SET used = MAX(0, used - ${totalBytes}) WHERE org_id = ${orgId}`)
+  }
 }
