@@ -116,7 +116,11 @@
   "common.delete": "删除",
   "common.edit": "编辑",
   "common.confirm": "确认",
+  "common.close": "关闭",
   "common.loading": "加载中...",
   "common.error": "错误",
-  "common.success": "成功"
+  "common.success": "成功",
+  "common.sidebar": "侧边栏",
+  "common.sidebarDescription": "显示移动端侧边栏。",
+  "common.toggleSidebar": "切换侧边栏"
 }
