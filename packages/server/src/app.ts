@@ -10,6 +10,7 @@ import objects from './routes/objects'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import storages from './routes/storages'
 import system from './routes/system'
+import trash from './routes/trash'
 import users from './routes/users'
 
 export function createApp(platform: Platform, auth: Auth) {
@@ -37,6 +38,7 @@ export function createApp(platform: Platform, auth: Auth) {
 
   const routes = app
     .route('/api/objects', objects)
+    .route('/api/recycle-bin', trash)
     .route('/api/admin/storages', storages)
     .route('/api/admin/users', users)
     .route('/api/admin/quotas', adminQuotas)
