@@ -17,8 +17,12 @@ import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 beforeEach(() => {
+  vi.restoreAllMocks()
   vi.spyOn(S3Service.prototype, 'deleteObject').mockResolvedValue(undefined)
   vi.spyOn(S3Service.prototype, 'deleteObjects').mockResolvedValue(undefined)
+  vi.spyOn(S3Service.prototype, 'presignUpload').mockResolvedValue('https://presigned-upload.example.com')
+  vi.spyOn(S3Service.prototype, 'presignDownload').mockResolvedValue('https://presigned-download.example.com')
+  vi.spyOn(S3Service.prototype, 'copyObject').mockResolvedValue(undefined)
 })
 
 const validStorage = {
@@ -440,6 +444,160 @@ describe('Objects API', () => {
       headers,
     })
     expect(res.status).toBe(404)
+  })
+
+  it('POST /api/objects creates a file with upload URL', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'photo.jpg', type: 'image/jpeg', size: 2048 }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('draft')
+    expect(body.uploadUrl).toBe('https://presigned-upload.example.com')
+    expect(body.object).toBeTruthy()
+  })
+
+  it('POST /api/objects/:id/copy copies a file with S3', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'doc.txt' })
+
+    const res = await app.request('/api/objects/m1/copy', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent: '' }),
+    })
+    expect(res.status).toBe(201)
+    expect(S3Service.prototype.copyObject).toHaveBeenCalled()
+  })
+
+  it('DELETE /api/objects/:id permanently deletes a trashed file with S3 cleanup', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'file.txt' })
+
+    await app.request('/api/objects/m1/trash', { method: 'PATCH', headers })
+    const res = await app.request('/api/objects/m1', { method: 'DELETE', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.deleted).toBe(true)
+    expect(S3Service.prototype.deleteObjects).toHaveBeenCalled()
+  })
+
+  it('DELETE /api/objects/:id purges folder with file children from S3', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'Folder' })
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', parent: 'f1' })
+    await insertFile(db, orgId, { id: 'm2', name: 'b.txt', parent: 'f1' })
+
+    await app.request('/api/objects/f1/trash', { method: 'PATCH', headers })
+    const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { purged: number }
+    expect(body.purged).toBe(3)
+    expect(S3Service.prototype.deleteObjects).toHaveBeenCalled()
+  })
+
+  it('PATCH /api/objects/:id/trash returns 404 for missing object', async () => {
+    const { app } = createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects/nonexistent/trash', { method: 'PATCH', headers })
+    expect(res.status).toBe(404)
+  })
+
+  it('PATCH /api/objects/:id/trash is idempotent for already-trashed item', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
+    const res = await app.request('/api/objects/m1/trash', { method: 'PATCH', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('trashed')
+  })
+
+  it('PATCH /api/objects/:id/restore returns 404 for missing object', async () => {
+    const { app } = createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/objects/nonexistent/restore', { method: 'PATCH', headers })
+    expect(res.status).toBe(404)
+  })
+
+  it('PATCH /api/objects/:id/restore is no-op for active item', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'active' })
+
+    const res = await app.request('/api/objects/m1/restore', { method: 'PATCH', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('active')
+  })
+
+  it('POST /api/recycle-bin/empty with files calls S3 deleteObjects', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', status: 'trashed' })
+
+    const res = await app.request('/api/recycle-bin/empty', { method: 'POST', headers })
+    expect(res.status).toBe(200)
+    expect(S3Service.prototype.deleteObjects).toHaveBeenCalled()
+  })
+
+  it('POST /api/recycle-bin/empty handles folders (no S3 object) and files together', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'Trash Folder' })
+    await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'f1' })
+
+    // Trash the folder (cascades to child)
+    await app.request('/api/objects/f1/trash', { method: 'PATCH', headers })
+
+    const res = await app.request('/api/recycle-bin/empty', { method: 'POST', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { purged: number }
+    expect(body.purged).toBe(2)
+  })
+
+  it('POST /api/recycle-bin/empty returns 0 when trash is empty', async () => {
+    const { app } = createTestApp()
+    const headers = await authedHeaders(app)
+    const res = await app.request('/api/recycle-bin/empty', { method: 'POST', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { purged: number }
+    expect(body.purged).toBe(0)
+  })
+
+  it('GET /api/objects/:id returns downloadUrl for files', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'doc.txt' })
+
+    const res = await app.request('/api/objects/m1', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.downloadUrl).toBe('https://presigned-download.example.com')
   })
 
   it('POST /api/objects/batch/move moves multiple items', async () => {
