@@ -28,7 +28,7 @@ export function createApp(platform: Platform, auth: Auth) {
     }),
   )
 
-  app.on(['POST', 'GET'], '/api/auth/**', async (c) => {
+  app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     const a = c.get('auth')
     return a.handler(c.req.raw)
   })
