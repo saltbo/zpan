@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect, useMatchRoute } from '@tanstack/react-router'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -15,6 +15,11 @@ export const Route = createFileRoute('/_authenticated')({
 })
 
 function AuthenticatedLayout() {
+  const matchRoute = useMatchRoute()
+  const isAdmin = matchRoute({ to: '/admin', fuzzy: true })
+
+  if (isAdmin) return <Outlet />
+
   return (
     <SidebarProvider>
       <AppSidebar />
