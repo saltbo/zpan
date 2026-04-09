@@ -1,0 +1,17 @@
+services:
+  zpan:
+    build: .
+    image: zpan:latest
+    ports:
+      - "8222:8222"
+    environment:
+      - PORT=8222
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env or shell}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:8222}
+      - DATABASE_URL=/data/zpan.db
+    volumes:
+      - zpan-data:/data
+    restart: unless-stopped
+
+volumes:
+  zpan-data:
