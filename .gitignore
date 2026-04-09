@@ -43,3 +43,7 @@ zpan.db-wal
 
 #playwright
 .playwright-mcp/
+# agent skills (managed by daemon)
+.claude/skills/
+.agents/
+skills-lock.json
