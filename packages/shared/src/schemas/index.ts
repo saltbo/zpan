@@ -34,3 +34,12 @@ export type UpdateMatterInput = z.infer<typeof updateMatterSchema>
 export const copyMatterSchema = z.object({
   parent: z.string().default(''),
 })
+
+export const batchMoveSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+  parent: z.string().default(''),
+})
+
+export const batchIdsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+})
