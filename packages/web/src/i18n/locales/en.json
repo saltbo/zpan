@@ -139,7 +139,11 @@
   "common.delete": "Delete",
   "common.edit": "Edit",
   "common.confirm": "Confirm",
+  "common.close": "Close",
   "common.loading": "Loading...",
   "common.error": "Error",
-  "common.success": "Success"
+  "common.success": "Success",
+  "common.sidebar": "Sidebar",
+  "common.sidebarDescription": "Displays the mobile sidebar.",
+  "common.toggleSidebar": "Toggle Sidebar"
 }
