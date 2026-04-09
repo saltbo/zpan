@@ -9,6 +9,7 @@ import {
   listMatters,
   updateMatter,
 } from '../services/matter.js'
+import { emptyTrash, permanentDeleteMatter, restoreMatter, trashMatter } from '../services/matter-trash.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 const validStorage = {
@@ -523,5 +524,408 @@ describe('Matter service', () => {
     expect(copy.parent).toBe('target-folder')
     expect(copy.object).toBe('copy/key')
     expect(copy.status).toBe('active')
+  })
+
+  // --- trashMatter ---
+
+  it('trashMatter sets status to trashed', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'file.txt',
+      type: 'text/plain',
+      size: 100,
+      object: 'path/key.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    const result = await trashMatter(db, matter.id, 'org-1')
+    expect(result).not.toBeNull()
+    expect(result!.status).toBe('trashed')
+
+    const inDb = await getMatter(db, matter.id, 'org-1')
+    expect(inDb!.status).toBe('trashed')
+  })
+
+  it('trashMatter returns null for non-active item', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'file.txt',
+      type: 'text/plain',
+      object: 'path/key.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    await trashMatter(db, matter.id, 'org-1')
+
+    const result = await trashMatter(db, matter.id, 'org-1')
+    expect(result).toBeNull()
+  })
+
+  it('trashMatter returns null for missing record', async () => {
+    const { db } = createTestApp()
+    const result = await trashMatter(db, 'nonexistent', 'org-1')
+    expect(result).toBeNull()
+  })
+
+  it('trashMatter cascades to folder descendants', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+
+    // Root folder
+    const folder = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'folder',
+      type: 'folder',
+      dirtype: 1,
+      object: '',
+      storageId: 's1',
+      status: 'active',
+    })
+    // Direct file child
+    const fileChild = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'child.txt',
+      type: 'text/plain',
+      parent: folder.id,
+      object: 'child.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    // Subfolder child
+    const subfolder = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'sub',
+      type: 'folder',
+      dirtype: 1,
+      parent: folder.id,
+      object: '',
+      storageId: 's1',
+      status: 'active',
+    })
+    // Nested file inside subfolder
+    const nestedFile = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'nested.txt',
+      type: 'text/plain',
+      parent: subfolder.id,
+      object: 'nested.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    await trashMatter(db, folder.id, 'org-1')
+
+    const fileChildInDb = await getMatter(db, fileChild.id, 'org-1')
+    expect(fileChildInDb!.status).toBe('trashed')
+
+    const subfolderInDb = await getMatter(db, subfolder.id, 'org-1')
+    expect(subfolderInDb!.status).toBe('trashed')
+
+    const nestedFileInDb = await getMatter(db, nestedFile.id, 'org-1')
+    expect(nestedFileInDb!.status).toBe('trashed')
+  })
+
+  // --- restoreMatter ---
+
+  it('restoreMatter sets status to active', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'file.txt',
+      type: 'text/plain',
+      object: 'path/key.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    await trashMatter(db, matter.id, 'org-1')
+
+    const result = await restoreMatter(db, matter.id, 'org-1')
+    expect(result).not.toBeNull()
+    expect(result!.status).toBe('active')
+
+    const inDb = await getMatter(db, matter.id, 'org-1')
+    expect(inDb!.status).toBe('active')
+  })
+
+  it('restoreMatter returns null for non-trashed item', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'file.txt',
+      type: 'text/plain',
+      object: 'path/key.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    const result = await restoreMatter(db, matter.id, 'org-1')
+    expect(result).toBeNull()
+  })
+
+  it('restoreMatter cascades to folder descendants', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+
+    const folder = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'folder',
+      type: 'folder',
+      dirtype: 1,
+      object: '',
+      storageId: 's1',
+      status: 'active',
+    })
+    const fileChild = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'child.txt',
+      type: 'text/plain',
+      parent: folder.id,
+      object: 'child.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    const subfolder = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'sub',
+      type: 'folder',
+      dirtype: 1,
+      parent: folder.id,
+      object: '',
+      storageId: 's1',
+      status: 'active',
+    })
+    const nestedFile = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'nested.txt',
+      type: 'text/plain',
+      parent: subfolder.id,
+      object: 'nested.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    await trashMatter(db, folder.id, 'org-1')
+    await restoreMatter(db, folder.id, 'org-1')
+
+    const fileChildInDb = await getMatter(db, fileChild.id, 'org-1')
+    expect(fileChildInDb!.status).toBe('active')
+
+    const subfolderInDb = await getMatter(db, subfolder.id, 'org-1')
+    expect(subfolderInDb!.status).toBe('active')
+
+    const nestedFileInDb = await getMatter(db, nestedFile.id, 'org-1')
+    expect(nestedFileInDb!.status).toBe('active')
+  })
+
+  // --- permanentDeleteMatter ---
+
+  it('permanentDeleteMatter removes record from DB', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'file.txt',
+      type: 'text/plain',
+      size: 100,
+      object: 'path/key.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    await trashMatter(db, matter.id, 'org-1')
+
+    const result = await permanentDeleteMatter(db, matter.id, 'org-1')
+    expect(result).not.toBeNull()
+
+    const inDb = await getMatter(db, matter.id, 'org-1')
+    expect(inDb).toBeNull()
+  })
+
+  it('permanentDeleteMatter returns null for non-trashed item', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'file.txt',
+      type: 'text/plain',
+      object: 'path/key.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    const result = await permanentDeleteMatter(db, matter.id, 'org-1')
+    expect(result).toBeNull()
+  })
+
+  it('permanentDeleteMatter cascades to folder with children', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+
+    const folder = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'folder',
+      type: 'folder',
+      dirtype: 1,
+      object: '',
+      storageId: 's1',
+      status: 'active',
+    })
+    const fileChild = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'child.txt',
+      type: 'text/plain',
+      parent: folder.id,
+      object: 'child.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    const subfolder = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'sub',
+      type: 'folder',
+      dirtype: 1,
+      parent: folder.id,
+      object: '',
+      storageId: 's1',
+      status: 'active',
+    })
+    const nestedFile = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'nested.txt',
+      type: 'text/plain',
+      parent: subfolder.id,
+      object: 'nested.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    await trashMatter(db, folder.id, 'org-1')
+    await permanentDeleteMatter(db, folder.id, 'org-1')
+
+    expect(await getMatter(db, folder.id, 'org-1')).toBeNull()
+    expect(await getMatter(db, fileChild.id, 'org-1')).toBeNull()
+    expect(await getMatter(db, subfolder.id, 'org-1')).toBeNull()
+    expect(await getMatter(db, nestedFile.id, 'org-1')).toBeNull()
+  })
+
+  it('permanentDeleteMatter updates storage.used and org_quotas.used', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 1000, 'active', ${now}, ${now})
+    `)
+    await db.run(sql`INSERT INTO org_quotas (id, org_id, quota, used) VALUES ('q1', 'org-1', 0, 1000)`)
+
+    const matter = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'file.txt',
+      type: 'text/plain',
+      size: 100,
+      object: 'path/key.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    await trashMatter(db, matter.id, 'org-1')
+    await permanentDeleteMatter(db, matter.id, 'org-1')
+
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = 's1'`)
+    expect(storageRows[0].used).toBe(900)
+
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = 'org-1'`)
+    expect(quotaRows[0].used).toBe(900)
+  })
+
+  // --- emptyTrash ---
+
+  it('emptyTrash deletes all trashed items', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+
+    const activeFile = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'keep.txt',
+      type: 'text/plain',
+      object: 'keep.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    const trashedFile1 = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'trash1.txt',
+      type: 'text/plain',
+      object: 'trash1.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    const trashedFile2 = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'trash2.txt',
+      type: 'text/plain',
+      object: 'trash2.txt',
+      storageId: 's1',
+      status: 'active',
+    })
+    await trashMatter(db, trashedFile1.id, 'org-1')
+    await trashMatter(db, trashedFile2.id, 'org-1')
+
+    const result = await emptyTrash(db, 'org-1')
+    expect(result).toHaveLength(2)
+
+    expect(await getMatter(db, trashedFile1.id, 'org-1')).toBeNull()
+    expect(await getMatter(db, trashedFile2.id, 'org-1')).toBeNull()
+    expect(await getMatter(db, activeFile.id, 'org-1')).not.toBeNull()
+  })
+
+  it('emptyTrash returns empty array when no trashed items', async () => {
+    const { db } = createTestApp()
+    const result = await emptyTrash(db, 'org-1')
+    expect(result).toEqual([])
   })
 })

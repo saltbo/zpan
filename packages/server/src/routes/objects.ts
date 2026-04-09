@@ -4,15 +4,8 @@ import type { Storage as S3Storage } from '@zpan/shared/types'
 import { Hono } from 'hono'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import {
-  confirmUpload,
-  copyMatter,
-  createMatter,
-  deleteMatter,
-  getMatter,
-  listMatters,
-  updateMatter,
-} from '../services/matter'
+import { confirmUpload, copyMatter, createMatter, getMatter, listMatters, updateMatter } from '../services/matter'
+import { emptyTrash, permanentDeleteMatter, restoreMatter, trashMatter } from '../services/matter-trash'
 import { buildObjectKey } from '../services/path-template'
 import { S3Service } from '../services/s3'
 import { getStorage, selectStorage } from '../services/storage'
@@ -80,6 +73,28 @@ const app = new Hono<Env>()
     const uploadUrl = await s3.presignUpload(storage, objectKey, type)
     return c.json({ ...matter, uploadUrl }, 201)
   })
+  .post('/trash/empty', async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const db = c.get('platform').db
+    const deleted = await emptyTrash(db, orgId)
+
+    const objectKeys = deleted.filter((m) => m.object).map((m) => ({ key: m.object, storageId: m.storageId }))
+    const byStorage = new Map<string, string[]>()
+    for (const { key, storageId } of objectKeys) {
+      const keys = byStorage.get(storageId) ?? []
+      keys.push(key)
+      byStorage.set(storageId, keys)
+    }
+
+    for (const [storageId, keys] of byStorage) {
+      const storage = (await getStorage(db, storageId)) as unknown as S3Storage
+      if (storage) await s3.deleteObjects(storage, keys)
+    }
+
+    return c.json({ deleted: deleted.length })
+  })
   .get('/:id', async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
@@ -120,17 +135,51 @@ const app = new Hono<Env>()
     if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
     return c.json(matter)
   })
+  .patch('/:id/trash', async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const db = c.get('platform').db
+    const matter = await trashMatter(db, c.req.param('id'), orgId)
+    if (!matter) return c.json({ error: 'Not found or not active' }, 404)
+    return c.json(matter)
+  })
+  .patch('/:id/restore', async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const db = c.get('platform').db
+    const matter = await restoreMatter(db, c.req.param('id'), orgId)
+    if (!matter) return c.json({ error: 'Not found or not trashed' }, 404)
+    return c.json(matter)
+  })
   .delete('/:id', async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
     const db = c.get('platform').db
-    const matter = await deleteMatter(db, c.req.param('id'), orgId)
+    const id = c.req.param('id')
+    const matter = await getMatter(db, id, orgId)
     if (!matter) return c.json({ error: 'Not found' }, 404)
 
-    if (matter.object) {
-      const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage
-      if (storage) await s3.deleteObject(storage, matter.object)
+    if (matter.status !== 'trashed') {
+      return c.json({ error: 'Only trashed items can be permanently deleted' }, 400)
+    }
+
+    const deleted = await permanentDeleteMatter(db, id, orgId)
+    if (!deleted) return c.json({ error: 'Not found' }, 404)
+
+    const objectKeys = deleted.filter((m) => m.object).map((m) => ({ key: m.object, storageId: m.storageId }))
+    const byStorage = new Map<string, string[]>()
+    for (const { key, storageId } of objectKeys) {
+      const keys = byStorage.get(storageId) ?? []
+      keys.push(key)
+      byStorage.set(storageId, keys)
+    }
+
+    for (const [storageId, keys] of byStorage) {
+      const storage = (await getStorage(db, storageId)) as unknown as S3Storage
+      if (storage) await s3.deleteObjects(storage, keys)
     }
 
     return c.json({ id: matter.id, deleted: true })
