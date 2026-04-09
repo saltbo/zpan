@@ -1,11 +1,15 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import {
+  batchDelete,
+  batchMove,
+  batchTrash,
   confirmUpload,
   copyMatter,
   createMatter,
   deleteMatter,
   getMatter,
+  getMatters,
   listMatters,
   updateMatter,
 } from '../services/matter.js'
@@ -523,5 +527,231 @@ describe('Matter service', () => {
     expect(copy.parent).toBe('target-folder')
     expect(copy.object).toBe('copy/key')
     expect(copy.status).toBe('active')
+  })
+
+  it('getMatters returns empty array for empty ids list', async () => {
+    const { db } = createTestApp()
+    const result = await getMatters(db, 'org-1', [])
+    expect(result).toEqual([])
+  })
+
+  it('batchMove moves multiple items to a new parent', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const a = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'active',
+    })
+    const b = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'b.txt',
+      type: 'text/plain',
+      object: 'b',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    const results = await batchMove(db, 'org-1', [a.id, b.id], 'folder-x')
+    expect(results).toHaveLength(2)
+    expect(results.every((m) => m.parent === 'folder-x')).toBe(true)
+
+    const check = await getMatters(db, 'org-1', [a.id, b.id])
+    expect(check.every((m) => m.parent === 'folder-x')).toBe(true)
+  })
+
+  it('batchMove throws if any ID does not belong to the org', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const a = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    await expect(batchMove(db, 'org-1', [a.id, 'nonexistent-id'], 'folder-x')).rejects.toThrow(
+      'Some IDs do not belong to this organization',
+    )
+  })
+
+  it('batchTrash sets status to trashed for multiple items', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const a = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'active',
+    })
+    const b = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'b.txt',
+      type: 'text/plain',
+      object: 'b',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    await batchTrash(db, 'org-1', [a.id, b.id])
+
+    const check = await getMatters(db, 'org-1', [a.id, b.id])
+    expect(check.every((m) => m.status === 'trashed')).toBe(true)
+  })
+
+  it('batchTrash cascades into folder children', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const folder = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'folder',
+      type: 'folder',
+      dirtype: 1,
+      object: '',
+      storageId: 's1',
+      status: 'active',
+    })
+    const child = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'child.txt',
+      type: 'text/plain',
+      object: 'c',
+      parent: folder.id,
+      storageId: 's1',
+      status: 'active',
+    })
+
+    await batchTrash(db, 'org-1', [folder.id])
+
+    const checkedFolder = await getMatter(db, folder.id, 'org-1')
+    expect(checkedFolder?.status).toBe('trashed')
+
+    const checkedChild = await getMatter(db, child.id, 'org-1')
+    expect(checkedChild?.status).toBe('trashed')
+  })
+
+  it('batchTrash throws if any ID does not belong to the org', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const a = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    await expect(batchTrash(db, 'org-1', [a.id, 'nonexistent-id'])).rejects.toThrow(
+      'Some IDs do not belong to this organization',
+    )
+  })
+
+  it('batchDelete permanently deletes trashed items', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const a = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'trashed',
+    })
+    const b = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'b.txt',
+      type: 'text/plain',
+      object: 'b',
+      storageId: 's1',
+      status: 'trashed',
+    })
+
+    const deleted = await batchDelete(db, 'org-1', [a.id, b.id])
+    expect(deleted).toHaveLength(2)
+
+    const remaining = await getMatters(db, 'org-1', [a.id, b.id])
+    expect(remaining).toHaveLength(0)
+  })
+
+  it('batchDelete throws if any item is not trashed', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const trashed = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'trashed',
+    })
+    const active = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'b.txt',
+      type: 'text/plain',
+      object: 'b',
+      storageId: 's1',
+      status: 'active',
+    })
+
+    await expect(batchDelete(db, 'org-1', [trashed.id, active.id])).rejects.toThrow(
+      'Only trashed items can be permanently deleted',
+    )
+  })
+
+  it('batchDelete throws if any ID does not belong to the org', async () => {
+    const { db } = createTestApp()
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES ('s1', 'S3', 'private', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const trashed = await createMatter(db, {
+      orgId: 'org-1',
+      name: 'a.txt',
+      type: 'text/plain',
+      object: 'a',
+      storageId: 's1',
+      status: 'trashed',
+    })
+
+    await expect(batchDelete(db, 'org-1', [trashed.id, 'nonexistent-id'])).rejects.toThrow(
+      'Some IDs do not belong to this organization',
+    )
   })
 })

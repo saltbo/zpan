@@ -1,3 +1,4 @@
+import { DirType } from '@zpan/shared/constants'
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { Database } from '../platform/interface'
@@ -170,4 +171,102 @@ export async function deleteMatter(db: Database, id: string, orgId: string): Pro
 
   await db.run(sql`DELETE FROM matters WHERE id = ${id} AND org_id = ${orgId}`)
   return existing
+}
+
+export async function getMatters(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
+  if (ids.length === 0) return []
+
+  const idList = sql.join(
+    ids.map((id) => sql`${id}`),
+    sql`, `,
+  )
+  return db.all<Matter>(sql`
+    SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
+           parent, object, storage_id AS storageId, status,
+           created_at AS createdAt, updated_at AS updatedAt
+    FROM matters
+    WHERE org_id = ${orgId} AND id IN (${idList})
+  `)
+}
+
+export async function batchMove(db: Database, orgId: string, ids: string[], newParent: string): Promise<Matter[]> {
+  const uniqueIds = [...new Set(ids)]
+  const matters = await getMatters(db, orgId, uniqueIds)
+  if (matters.length !== uniqueIds.length) {
+    throw new Error('Some IDs do not belong to this organization')
+  }
+
+  const now = Date.now()
+  for (const matter of matters) {
+    await db.run(sql`
+      UPDATE matters SET parent = ${newParent}, updated_at = ${now}
+      WHERE id = ${matter.id} AND org_id = ${orgId}
+    `)
+  }
+
+  return matters.map((m) => ({ ...m, parent: newParent, updatedAt: now }))
+}
+
+const MAX_RECURSION_DEPTH = 20
+
+async function getChildrenRecursive(db: Database, orgId: string, parentIds: string[], depth = 0): Promise<Matter[]> {
+  if (parentIds.length === 0 || depth >= MAX_RECURSION_DEPTH) return []
+
+  const idList = sql.join(
+    parentIds.map((id) => sql`${id}`),
+    sql`, `,
+  )
+  const children = await db.all<Matter>(sql`
+    SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
+           parent, object, storage_id AS storageId, status,
+           created_at AS createdAt, updated_at AS updatedAt
+    FROM matters
+    WHERE org_id = ${orgId} AND parent IN (${idList})
+  `)
+  if (children.length === 0) return []
+
+  const folderIds = children.filter((c) => c.dirtype !== DirType.FILE).map((c) => c.id)
+  const deeper = await getChildrenRecursive(db, orgId, folderIds, depth + 1)
+  return [...children, ...deeper]
+}
+
+export async function batchTrash(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
+  const uniqueIds = [...new Set(ids)]
+  const matters = await getMatters(db, orgId, uniqueIds)
+  if (matters.length !== uniqueIds.length) {
+    throw new Error('Some IDs do not belong to this organization')
+  }
+
+  const folderIds = matters.filter((m) => m.dirtype !== DirType.FILE).map((m) => m.id)
+  const children = await getChildrenRecursive(db, orgId, folderIds)
+  const allMatters = [...matters, ...children]
+
+  const now = Date.now()
+  for (const matter of allMatters) {
+    await db.run(sql`
+      UPDATE matters SET status = 'trashed', updated_at = ${now}
+      WHERE id = ${matter.id} AND org_id = ${orgId}
+    `)
+  }
+
+  return allMatters.map((m) => ({ ...m, status: 'trashed', updatedAt: now }))
+}
+
+export async function batchDelete(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
+  const uniqueIds = [...new Set(ids)]
+  const matters = await getMatters(db, orgId, uniqueIds)
+  if (matters.length !== uniqueIds.length) {
+    throw new Error('Some IDs do not belong to this organization')
+  }
+
+  const nonTrashed = matters.filter((m) => m.status !== 'trashed')
+  if (nonTrashed.length > 0) {
+    throw new Error('Only trashed items can be permanently deleted')
+  }
+
+  for (const matter of matters) {
+    await db.run(sql`DELETE FROM matters WHERE id = ${matter.id} AND org_id = ${orgId}`)
+  }
+
+  return matters
 }

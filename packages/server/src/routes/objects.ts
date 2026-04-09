@@ -1,10 +1,19 @@
 import { DirType } from '@zpan/shared/constants'
-import { copyMatterSchema, createMatterSchema, updateMatterSchema } from '@zpan/shared/schemas'
+import {
+  batchIdsSchema,
+  batchMoveSchema,
+  copyMatterSchema,
+  createMatterSchema,
+  updateMatterSchema,
+} from '@zpan/shared/schemas'
 import type { Storage as S3Storage } from '@zpan/shared/types'
 import { Hono } from 'hono'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
+  batchDelete,
+  batchMove,
+  batchTrash,
   confirmUpload,
   copyMatter,
   createMatter,
@@ -79,6 +88,67 @@ const app = new Hono<Env>()
 
     const uploadUrl = await s3.presignUpload(storage, objectKey, type)
     return c.json({ ...matter, uploadUrl }, 201)
+  })
+  .post('/batch/move', async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const raw = await c.req.json()
+    const parsed = batchMoveSchema.safeParse(raw)
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
+
+    const db = c.get('platform').db
+    try {
+      const moved = await batchMove(db, orgId, parsed.data.ids, parsed.data.parent)
+      return c.json({ moved: moved.length })
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 400)
+    }
+  })
+  .post('/batch/trash', async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const raw = await c.req.json()
+    const parsed = batchIdsSchema.safeParse(raw)
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
+
+    const db = c.get('platform').db
+    try {
+      const trashed = await batchTrash(db, orgId, parsed.data.ids)
+      return c.json({ trashed: trashed.length })
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 400)
+    }
+  })
+  .post('/batch/delete', async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const raw = await c.req.json()
+    const parsed = batchIdsSchema.safeParse(raw)
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
+
+    const db = c.get('platform').db
+    try {
+      const deleted = await batchDelete(db, orgId, parsed.data.ids)
+
+      const byStorage = new Map<string, string[]>()
+      for (const m of deleted) {
+        if (!m.object) continue
+        const keys = byStorage.get(m.storageId) ?? []
+        keys.push(m.object)
+        byStorage.set(m.storageId, keys)
+      }
+      for (const [storageId, keys] of byStorage) {
+        const storage = (await getStorage(db, storageId)) as unknown as S3Storage
+        if (storage) await s3.deleteObjects(storage, keys)
+      }
+
+      return c.json({ deleted: deleted.length })
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 400)
+    }
   })
   .get('/:id', async (c) => {
     const orgId = c.get('orgId')
