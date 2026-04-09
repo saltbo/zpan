@@ -23,7 +23,7 @@ export function DeleteStorageDialog({ open, onOpenChange, storage }: DeleteStora
 
   const mutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/storages/${id}`, {
+      const res = await fetch(`/api/admin/storages/${id}`, {
         method: 'DELETE',
         credentials: 'include',
       })

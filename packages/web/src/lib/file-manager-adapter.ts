@@ -3,28 +3,79 @@ import { DirType } from '@zpan/shared/constants'
 import type { StorageObject } from '@zpan/shared/types'
 import { copyObject, createObject, deleteObject, getObject, listObjects, updateObject } from './api'
 
-function toEntity(obj: StorageObject): IEntity {
+// SVAR uses path-based IDs (e.g. "/Music/song.mp3").
+// ZPan uses database IDs. This class manages the bidirectional mapping.
+class PathMapper {
+  private pathToDb = new Map<string, string>()
+  private dbToPath = new Map<string, string>()
+
+  register(path: string, dbId: string) {
+    this.pathToDb.set(path, dbId)
+    this.dbToPath.set(dbId, path)
+  }
+
+  toDbId(path: string): string {
+    if (path === '/') return ''
+    const dbId = this.pathToDb.get(path)
+    if (!dbId) throw new Error(`No DB mapping for path: ${path}`)
+    return dbId
+  }
+
+  toPath(dbId: string): string | undefined {
+    return this.dbToPath.get(dbId)
+  }
+
+  remove(path: string) {
+    const dbId = this.pathToDb.get(path)
+    this.pathToDb.delete(path)
+    if (dbId) this.dbToPath.delete(dbId)
+  }
+
+  rename(oldPath: string, newPath: string) {
+    const dbId = this.pathToDb.get(oldPath)
+    if (!dbId) return
+    this.pathToDb.delete(oldPath)
+    this.pathToDb.set(newPath, dbId)
+    this.dbToPath.set(dbId, newPath)
+  }
+}
+
+const mapper = new PathMapper()
+
+export function pathToDbId(path: string): string {
+  return mapper.toDbId(path)
+}
+
+function buildPath(parentPath: string, name: string): string {
+  return parentPath === '/' ? `/${name}` : `${parentPath}/${name}`
+}
+
+function parentOfPath(path: string): string {
+  const idx = path.lastIndexOf('/')
+  return idx <= 0 ? '/' : path.slice(0, idx)
+}
+
+function toEntity(obj: StorageObject, parentPath: string): IEntity {
+  const path = buildPath(parentPath, obj.name)
+  mapper.register(path, obj.id)
   return {
-    id: obj.id,
+    id: path,
     name: obj.name,
     size: obj.size,
     date: new Date(obj.updatedAt),
     type: obj.dirtype === DirType.FILE ? 'file' : 'folder',
     lazy: obj.dirtype !== DirType.FILE,
-    _alias: obj.alias,
-    _status: obj.status,
-    _parent: obj.parent,
   }
 }
 
-export async function loadFolder(parent: string): Promise<IEntity[]> {
-  const res = await listObjects(parent)
-  return res.items.map(toEntity)
+export async function loadFolder(dbParentId: string, parentPath: string): Promise<IEntity[]> {
+  const res = await listObjects(dbParentId)
+  return res.items.map((obj) => toEntity(obj, parentPath))
 }
 
-export function refreshFolder(api: IApi, parent: string): Promise<void> {
-  return loadFolder(parent).then((entities) => {
-    api.exec('provide-data', { id: parent, data: entities, skipProvider: true })
+export function refreshFolder(api: IApi, dbParentId: string, parentPath: string): Promise<void> {
+  return loadFolder(dbParentId, parentPath).then((entities) => {
+    api.exec('provide-data', { id: parentPath, data: entities, skipProvider: true })
   })
 }
 
@@ -39,43 +90,74 @@ async function settledAll<T>(ids: TID[], fn: (id: string) => Promise<T>): Promis
 
 export function connectAdapter(api: IApi) {
   api.intercept('request-data', async (ev: { id: TID }) => {
-    const data = await loadFolder(ev.id as string)
-    api.exec('provide-data', { id: ev.id, data, skipProvider: true })
+    const pathId = ev.id as string
+    const dbId = mapper.toDbId(pathId)
+    const data = await loadFolder(dbId, pathId)
+    api.exec('provide-data', { id: pathId, data, skipProvider: true })
     return false
   })
 
   api.intercept('rename-file', async (ev: { id: TID; name: string }) => {
-    await updateObject(ev.id as string, { name: ev.name })
+    const pathId = ev.id as string
+    const dbId = mapper.toDbId(pathId)
+    await updateObject(dbId, { name: ev.name })
+    const newPath = buildPath(parentOfPath(pathId), ev.name)
+    mapper.rename(pathId, newPath)
   })
 
   api.intercept('create-file', async (ev: { file: { name: string; type?: string }; parent: TID }) => {
     if (ev.file.type === 'folder') {
+      const parentPath = ev.parent as string
+      const parentDbId = mapper.toDbId(parentPath)
       const created = await createObject({
         name: ev.file.name,
         type: 'folder',
-        parent: ev.parent as string,
+        parent: parentDbId,
         dirtype: DirType.USER_FOLDER,
       })
-      return { newId: created.id }
+      const newPath = buildPath(parentPath, ev.file.name)
+      mapper.register(newPath, created.id)
+      return { newId: newPath }
     }
   })
 
   api.intercept('delete-files', async (ev: { ids: TID[] }) => {
-    await settledAll(ev.ids, deleteObject)
+    const paths = ev.ids as string[]
+    const dbIds = paths.map((p) => mapper.toDbId(p))
+    await settledAll(dbIds as TID[], deleteObject)
+    for (const p of paths) mapper.remove(p)
   })
 
   api.intercept('move-files', async (ev: { ids: TID[]; target: TID }) => {
-    const moved = await settledAll(ev.ids, (id) => updateObject(id, { parent: ev.target as string }))
-    return { newIds: moved.map((m) => m.id) }
+    const targetPath = ev.target as string
+    const targetDbId = mapper.toDbId(targetPath)
+    const paths = ev.ids as string[]
+    const dbIds = paths.map((p) => mapper.toDbId(p))
+    const moved = await settledAll(dbIds as TID[], (id) => updateObject(id, { parent: targetDbId }))
+    const newIds = moved.map((m, i) => {
+      const newPath = buildPath(targetPath, m.name)
+      mapper.rename(paths[i], newPath)
+      return newPath
+    })
+    return { newIds }
   })
 
   api.intercept('copy-files', async (ev: { ids: TID[]; target: TID }) => {
-    const copies = await settledAll(ev.ids, (id) => copyObject(id, ev.target as string))
-    return { newIds: copies.map((c) => c.id) }
+    const targetPath = ev.target as string
+    const targetDbId = mapper.toDbId(targetPath)
+    const dbIds = (ev.ids as string[]).map((p) => mapper.toDbId(p))
+    const copies = await settledAll(dbIds as TID[], (id) => copyObject(id, targetDbId))
+    const newIds = copies.map((c) => {
+      const newPath = buildPath(targetPath, c.name)
+      mapper.register(newPath, c.id)
+      return newPath
+    })
+    return { newIds }
   })
 
   api.intercept('download-file', async (ev: { id: TID }) => {
-    const obj = await getObject(ev.id as string)
+    const dbId = mapper.toDbId(ev.id as string)
+    const obj = await getObject(dbId)
     if (obj.downloadUrl) {
       window.open(obj.downloadUrl, '_blank', 'noopener,noreferrer')
     }

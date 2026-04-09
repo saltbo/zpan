@@ -17,3 +17,7 @@ binding = "DB"
 database_name = "zpan-db"
 database_id = "local"
 migrations_dir = "./migrations"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "zpan-test"

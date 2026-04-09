@@ -10,7 +10,7 @@ export interface Storage {
   secretKey: string
   filePath: string
   customHost: string
-  status: number
+  status: string
   createdAt: string
   updatedAt: string
 }

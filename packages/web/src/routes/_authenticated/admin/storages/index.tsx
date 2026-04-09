@@ -12,7 +12,7 @@ export const Route = createFileRoute('/_authenticated/admin/storages/')({
   component: StoragesPage,
 })
 
-const STORAGE_STATUS_ACTIVE = 1
+const STORAGE_STATUS_ACTIVE = 'active'
 
 function StoragesPage() {
   const { t } = useTranslation()
@@ -23,7 +23,7 @@ function StoragesPage() {
   const storagesQuery = useQuery({
     queryKey: ['admin', 'storages'],
     queryFn: async () => {
-      const res = await fetch('/api/storages', { credentials: 'include' })
+      const res = await fetch('/api/admin/storages', { credentials: 'include' })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.message ?? 'Failed to fetch storages')

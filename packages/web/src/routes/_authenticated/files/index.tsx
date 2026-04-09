@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { UploadDropzone } from '../../../components/upload/upload-dropzone'
-import { connectAdapter, loadFolder, refreshFolder } from '../../../lib/file-manager-adapter'
+import { connectAdapter, loadFolder, pathToDbId, refreshFolder } from '../../../lib/file-manager-adapter'
 
 interface FilesSearch {
   folder?: string
@@ -28,11 +28,11 @@ function FilesPage() {
   const apiRef = useRef<IApi>(null)
   const [data, setData] = useState<IEntity[] | null>(null)
   const [loading, setLoading] = useState(true)
-  const [currentParent, setCurrentParent] = useState('')
+  const [currentPath, setCurrentPath] = useState('/')
 
   useEffect(() => {
     setLoading(true)
-    loadFolder('')
+    loadFolder('', '/')
       .then(setData)
       .catch(() => toast.error(t('common.error')))
       .finally(() => setLoading(false))
@@ -44,7 +44,7 @@ function FilesPage() {
 
   const handleSetPath = useCallback(
     ({ id }: { id: string }) => {
-      setCurrentParent(id ?? '')
+      setCurrentPath(id || '/')
       navigate({ to: '/files', search: { folder: id || undefined } })
     },
     [navigate],
@@ -52,9 +52,10 @@ function FilesPage() {
 
   const handleUploadComplete = useCallback(() => {
     if (apiRef.current) {
-      refreshFolder(apiRef.current, currentParent).catch(() => toast.error(t('common.error')))
+      const dbId = pathToDbId(currentPath)
+      refreshFolder(apiRef.current, dbId, currentPath).catch(() => toast.error(t('common.error')))
     }
-  }, [currentParent, t])
+  }, [currentPath, t])
 
   if (loading) {
     return (
@@ -66,7 +67,7 @@ function FilesPage() {
 
   if (!data || data.length === 0) {
     return (
-      <UploadDropzone parent={currentParent} onUploadComplete={handleUploadComplete}>
+      <UploadDropzone parent={pathToDbId(currentPath)} onUploadComplete={handleUploadComplete}>
         <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
           <FolderOpen className="h-16 w-16" />
           <h2 className="text-xl font-medium">{t('files.title')}</h2>
@@ -77,7 +78,7 @@ function FilesPage() {
   }
 
   return (
-    <UploadDropzone parent={currentParent} onUploadComplete={handleUploadComplete}>
+    <UploadDropzone parent={pathToDbId(currentPath)} onUploadComplete={handleUploadComplete}>
       <div className="h-[calc(100vh-4rem)]">
         <Willow>
           <Filemanager ref={apiRef} data={data} init={handleInit} onsetpath={handleSetPath} />

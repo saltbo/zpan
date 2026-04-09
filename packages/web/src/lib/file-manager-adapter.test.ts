@@ -22,7 +22,7 @@ function makeStorageObject(overrides: Partial<StorageObject> = {}): StorageObjec
     type: 'text/plain',
     size: 512,
     dirtype: DirType.FILE,
-    parent: 'root',
+    parent: '',
     object: 'path/to/obj',
     storageId: 'storage1',
     status: 'active',
@@ -32,101 +32,105 @@ function makeStorageObject(overrides: Partial<StorageObject> = {}): StorageObjec
   }
 }
 
+function makeListResponse(items: StorageObject[]) {
+  return { items, total: items.length, page: 1, pageSize: 500 }
+}
+
 describe('loadFolder', () => {
   beforeEach(() => {
     vi.resetAllMocks()
   })
 
   it('returns entities mapped from listObjects items', async () => {
-    vi.mocked(api.listObjects).mockResolvedValueOnce({
-      items: [makeStorageObject()],
-      total: 1,
-      page: 1,
-      pageSize: 500,
-    })
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([makeStorageObject()]))
 
-    const result = await loadFolder('root')
+    const result = await loadFolder('', '/')
 
     expect(result).toHaveLength(1)
-    expect(result[0]).toMatchObject({
-      id: 'obj1',
-      name: 'my-file.txt',
-      size: 512,
-      type: 'file',
-    })
+    expect(result[0].name).toBe('my-file.txt')
+    expect(result[0].size).toBe(512)
+    expect(result[0].type).toBe('file')
   })
 
-  it('maps file dirtype to type "file"', async () => {
-    vi.mocked(api.listObjects).mockResolvedValueOnce({
-      items: [makeStorageObject({ dirtype: DirType.FILE })],
-      total: 1,
-      page: 1,
-      pageSize: 500,
-    })
+  it('assigns path-based id for items in the root folder', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(
+      makeListResponse([makeStorageObject({ id: 'db-id-1', name: 'song.mp3' })]),
+    )
 
-    const [entity] = await loadFolder('root')
+    const [entity] = await loadFolder('', '/')
+
+    expect(entity.id).toBe('/song.mp3')
+  })
+
+  it('assigns path-based id for items in a nested folder', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(
+      makeListResponse([makeStorageObject({ id: 'db-id-2', name: 'track.flac' })]),
+    )
+
+    const [entity] = await loadFolder('db-music', '/Music')
+
+    expect(entity.id).toBe('/Music/track.flac')
+  })
+
+  it('maps file dirtype to type "file" with lazy false', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([makeStorageObject({ dirtype: DirType.FILE })]))
+
+    const [entity] = await loadFolder('', '/')
 
     expect(entity.type).toBe('file')
     expect(entity.lazy).toBe(false)
   })
 
-  it('maps folder dirtype to type "folder" with lazy true', async () => {
-    vi.mocked(api.listObjects).mockResolvedValueOnce({
-      items: [makeStorageObject({ dirtype: DirType.USER_FOLDER })],
-      total: 1,
-      page: 1,
-      pageSize: 500,
-    })
+  it('maps user folder dirtype to type "folder" with lazy true', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(
+      makeListResponse([makeStorageObject({ dirtype: DirType.USER_FOLDER })]),
+    )
 
-    const [entity] = await loadFolder('root')
+    const [entity] = await loadFolder('', '/')
 
     expect(entity.type).toBe('folder')
     expect(entity.lazy).toBe(true)
   })
 
-  it('converts updatedAt string to Date object', async () => {
-    vi.mocked(api.listObjects).mockResolvedValueOnce({
-      items: [makeStorageObject({ updatedAt: '2024-06-01T00:00:00Z' })],
-      total: 1,
-      page: 1,
-      pageSize: 500,
-    })
+  it('converts updatedAt string to a Date instance', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(
+      makeListResponse([makeStorageObject({ updatedAt: '2024-06-01T00:00:00Z' })]),
+    )
 
-    const [entity] = await loadFolder('root')
+    const [entity] = await loadFolder('', '/')
 
     expect(entity.date).toBeInstanceOf(Date)
     expect(entity.date!.toISOString()).toBe('2024-06-01T00:00:00.000Z')
   })
 
-  it('preserves alias, status, and parent as custom fields', async () => {
-    vi.mocked(api.listObjects).mockResolvedValueOnce({
-      items: [makeStorageObject({ alias: 'my-alias', status: 'active', parent: 'folder1' })],
-      total: 1,
-      page: 1,
-      pageSize: 500,
-    })
-
-    const [entity] = await loadFolder('root')
-
-    expect((entity as Record<string, unknown>)._alias).toBe('my-alias')
-    expect((entity as Record<string, unknown>)._status).toBe('active')
-    expect((entity as Record<string, unknown>)._parent).toBe('folder1')
-  })
-
   it('returns empty array when folder has no items', async () => {
-    vi.mocked(api.listObjects).mockResolvedValueOnce({ items: [], total: 0, page: 1, pageSize: 500 })
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([]))
 
-    const result = await loadFolder('empty-folder')
+    const result = await loadFolder('empty-folder', '/Empty')
 
     expect(result).toEqual([])
   })
 
-  it('passes parent argument to listObjects', async () => {
-    vi.mocked(api.listObjects).mockResolvedValueOnce({ items: [], total: 0, page: 1, pageSize: 500 })
+  it('passes the dbParentId to listObjects', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([]))
 
-    await loadFolder('folder-abc')
+    await loadFolder('db-folder-abc', '/Docs')
 
-    expect(api.listObjects).toHaveBeenCalledWith('folder-abc')
+    expect(api.listObjects).toHaveBeenCalledWith('db-folder-abc')
+  })
+
+  it('handles multiple items, all getting correct path-based ids', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(
+      makeListResponse([
+        makeStorageObject({ id: 'id-a', name: 'alpha.txt' }),
+        makeStorageObject({ id: 'id-b', name: 'beta.pdf' }),
+      ]),
+    )
+
+    const result = await loadFolder('', '/')
+
+    expect(result[0].id).toBe('/alpha.txt')
+    expect(result[1].id).toBe('/beta.pdf')
   })
 })
 
@@ -135,45 +139,55 @@ describe('refreshFolder', () => {
     vi.resetAllMocks()
   })
 
-  it('calls loadFolder and execs provide-data with the loaded entities', async () => {
-    vi.mocked(api.listObjects).mockResolvedValueOnce({
-      items: [makeStorageObject()],
-      total: 1,
-      page: 1,
-      pageSize: 500,
-    })
+  it('calls provide-data with the parentPath as the id', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([makeStorageObject()]))
     const execMock = vi.fn()
     const apiMock = { exec: execMock } as never
 
-    await refreshFolder(apiMock, 'root')
+    await refreshFolder(apiMock, '', '/')
 
-    expect(api.listObjects).toHaveBeenCalledWith('root')
     expect(execMock).toHaveBeenCalledWith('provide-data', {
-      id: 'root',
+      id: '/',
       data: expect.any(Array),
       skipProvider: true,
     })
   })
 
-  it('passes the correct entities to provide-data', async () => {
-    vi.mocked(api.listObjects).mockResolvedValueOnce({
-      items: [makeStorageObject({ id: 'f1', name: 'report.pdf' })],
-      total: 1,
-      page: 1,
-      pageSize: 500,
-    })
+  it('passes the dbParentId to listObjects', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([]))
+    const apiMock = { exec: vi.fn() } as never
+
+    await refreshFolder(apiMock, 'db-docs', '/Docs')
+
+    expect(api.listObjects).toHaveBeenCalledWith('db-docs')
+  })
+
+  it('passes the loaded entities to provide-data', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(
+      makeListResponse([makeStorageObject({ id: 'fid', name: 'report.pdf' })]),
+    )
     const execMock = vi.fn()
     const apiMock = { exec: execMock } as never
 
-    await refreshFolder(apiMock, 'docs')
+    await refreshFolder(apiMock, '', '/')
 
     const [, payload] = execMock.mock.calls[0] as [string, { data: unknown[] }]
     expect(payload.data).toHaveLength(1)
-    expect((payload.data[0] as { id: string }).id).toBe('f1')
+    expect((payload.data[0] as { id: string }).id).toBe('/report.pdf')
+  })
+
+  it('uses the nested parentPath as the provide-data id', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([]))
+    const execMock = vi.fn()
+    const apiMock = { exec: execMock } as never
+
+    await refreshFolder(apiMock, 'db-music', '/Music')
+
+    expect(execMock).toHaveBeenCalledWith('provide-data', expect.objectContaining({ id: '/Music' }))
   })
 })
 
-// Helper to create an IApi mock with intercept recording
+// Helper that builds a fake IApi with intercept capture and trigger
 function makeApiMock() {
   const handlers: Record<string, (ev: unknown) => unknown> = {}
   return {
@@ -190,7 +204,7 @@ describe('connectAdapter', () => {
     vi.resetAllMocks()
   })
 
-  it('registers intercepts for all file manager events', () => {
+  it('registers intercepts for all required file manager events', () => {
     const apiMock = makeApiMock()
     connectAdapter(apiMock as never)
 
@@ -205,71 +219,92 @@ describe('connectAdapter', () => {
   })
 
   describe('request-data intercept', () => {
-    it('loads folder and calls provide-data with loaded entities', async () => {
-      vi.mocked(api.listObjects).mockResolvedValueOnce({
-        items: [makeStorageObject()],
-        total: 1,
-        page: 1,
-        pageSize: 500,
-      })
+    it('loads folder for the root path and calls provide-data', async () => {
+      vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([makeStorageObject()]))
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      const returnValue = await apiMock.trigger('request-data', { id: 'root' })
+      const returnValue = await apiMock.trigger('request-data', { id: '/' })
 
-      expect(api.listObjects).toHaveBeenCalledWith('root')
+      // For root path "/" resolveDbId returns '' (empty string)
+      expect(api.listObjects).toHaveBeenCalledWith('')
       expect(apiMock.exec).toHaveBeenCalledWith(
         'provide-data',
-        expect.objectContaining({
-          id: 'root',
-          skipProvider: true,
-          data: expect.any(Array),
-        }),
+        expect.objectContaining({ id: '/', skipProvider: true, data: expect.any(Array) }),
       )
       expect(returnValue).toBe(false)
+    })
+
+    it('resolves a registered path to its db id before loading folder', async () => {
+      // First load root to register mapping for /Music -> db-music
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([makeStorageObject({ id: 'db-music', name: 'Music', dirtype: DirType.USER_FOLDER })]),
+      )
+      await loadFolder('', '/')
+
+      // Now trigger request-data for /Music — it must resolve to db-music
+      vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([]))
+      const apiMock = makeApiMock()
+      connectAdapter(apiMock as never)
+
+      await apiMock.trigger('request-data', { id: '/Music' })
+
+      expect(api.listObjects).toHaveBeenCalledWith('db-music')
     })
   })
 
   describe('rename-file intercept', () => {
-    it('calls updateObject with new name', async () => {
-      vi.mocked(api.updateObject).mockResolvedValueOnce(makeStorageObject({ name: 'new-name.txt' }))
+    it('resolves path id to db id and calls updateObject with new name', async () => {
+      // Register mapping: /song.mp3 -> obj1
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([makeStorageObject({ id: 'obj1', name: 'song.mp3' })]),
+      )
+      await loadFolder('', '/')
+
+      vi.mocked(api.updateObject).mockResolvedValueOnce(makeStorageObject({ name: 'renamed.mp3' }))
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      await apiMock.trigger('rename-file', { id: 'id1', name: 'new-name.txt' })
+      await apiMock.trigger('rename-file', { id: '/song.mp3', name: 'renamed.mp3' })
 
-      expect(api.updateObject).toHaveBeenCalledWith('id1', { name: 'new-name.txt' })
+      expect(api.updateObject).toHaveBeenCalledWith('obj1', { name: 'renamed.mp3' })
     })
   })
 
   describe('create-file intercept', () => {
-    it('creates a folder object and returns newId', async () => {
-      const created = makeStorageObject({ id: 'new-folder', dirtype: DirType.USER_FOLDER })
+    it('creates a folder and returns path-based newId', async () => {
+      // Register mapping for parent: /Docs -> db-docs
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([makeStorageObject({ id: 'db-docs', name: 'Docs', dirtype: DirType.USER_FOLDER })]),
+      )
+      await loadFolder('', '/')
+
+      const created = makeStorageObject({ id: 'new-folder-id', name: 'Projects', dirtype: DirType.USER_FOLDER })
       vi.mocked(api.createObject).mockResolvedValueOnce(created)
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
       const result = await apiMock.trigger('create-file', {
-        file: { name: 'My Folder', type: 'folder' },
-        parent: 'root',
+        file: { name: 'Projects', type: 'folder' },
+        parent: '/Docs',
       })
 
       expect(api.createObject).toHaveBeenCalledWith({
-        name: 'My Folder',
+        name: 'Projects',
         type: 'folder',
-        parent: 'root',
+        parent: 'db-docs',
         dirtype: DirType.USER_FOLDER,
       })
-      expect(result).toEqual({ newId: 'new-folder' })
+      expect(result).toEqual({ newId: '/Docs/Projects' })
     })
 
-    it('does nothing and returns undefined for non-folder file type', async () => {
+    it('does not create anything for non-folder file type', async () => {
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
       const result = await apiMock.trigger('create-file', {
         file: { name: 'doc.pdf', type: 'application/pdf' },
-        parent: 'root',
+        parent: '/',
       })
 
       expect(api.createObject).not.toHaveBeenCalled()
@@ -278,17 +313,25 @@ describe('connectAdapter', () => {
   })
 
   describe('delete-files intercept', () => {
-    it('deletes all provided ids', async () => {
+    it('resolves path ids to db ids and deletes them all', async () => {
+      // Register: /a.txt -> id-a, /b.txt -> id-b
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([
+          makeStorageObject({ id: 'id-a', name: 'a.txt' }),
+          makeStorageObject({ id: 'id-b', name: 'b.txt' }),
+        ]),
+      )
+      await loadFolder('', '/')
+
       vi.mocked(api.deleteObject).mockResolvedValue({ id: 'any', deleted: true })
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      await apiMock.trigger('delete-files', { ids: ['id1', 'id2', 'id3'] })
+      await apiMock.trigger('delete-files', { ids: ['/a.txt', '/b.txt'] })
 
-      expect(api.deleteObject).toHaveBeenCalledTimes(3)
-      expect(api.deleteObject).toHaveBeenCalledWith('id1')
-      expect(api.deleteObject).toHaveBeenCalledWith('id2')
-      expect(api.deleteObject).toHaveBeenCalledWith('id3')
+      expect(api.deleteObject).toHaveBeenCalledTimes(2)
+      expect(api.deleteObject).toHaveBeenCalledWith('id-a')
+      expect(api.deleteObject).toHaveBeenCalledWith('id-b')
     })
 
     it('handles empty ids array without calling deleteObject', async () => {
@@ -301,16 +344,35 @@ describe('connectAdapter', () => {
     })
 
     it('throws with failure count when one delete fails', async () => {
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([
+          makeStorageObject({ id: 'id-c', name: 'c.txt' }),
+          makeStorageObject({ id: 'id-d', name: 'd.txt' }),
+        ]),
+      )
+      await loadFolder('', '/')
+
       vi.mocked(api.deleteObject)
-        .mockResolvedValueOnce({ id: 'id1', deleted: true })
+        .mockResolvedValueOnce({ id: 'id-c', deleted: true })
         .mockRejectedValueOnce(new Error('not found'))
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      await expect(apiMock.trigger('delete-files', { ids: ['id1', 'id2'] })).rejects.toThrow('1 operation(s) failed')
+      await expect(apiMock.trigger('delete-files', { ids: ['/c.txt', '/d.txt'] })).rejects.toThrow(
+        '1 operation(s) failed',
+      )
     })
 
     it('throws with total failure count when all deletes fail', async () => {
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([
+          makeStorageObject({ id: 'id-e', name: 'e.txt' }),
+          makeStorageObject({ id: 'id-f', name: 'f.txt' }),
+          makeStorageObject({ id: 'id-g', name: 'g.txt' }),
+        ]),
+      )
+      await loadFolder('', '/')
+
       vi.mocked(api.deleteObject)
         .mockRejectedValueOnce(new Error('err1'))
         .mockRejectedValueOnce(new Error('err2'))
@@ -318,89 +380,133 @@ describe('connectAdapter', () => {
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      await expect(apiMock.trigger('delete-files', { ids: ['a', 'b', 'c'] })).rejects.toThrow('3 operation(s) failed')
+      await expect(apiMock.trigger('delete-files', { ids: ['/e.txt', '/f.txt', '/g.txt'] })).rejects.toThrow(
+        '3 operation(s) failed',
+      )
     })
   })
 
   describe('move-files intercept', () => {
-    it('updates parent for all ids and returns newIds', async () => {
+    it('resolves path ids to db ids and moves them to the target', async () => {
+      // Register: /file1.txt -> db-id-1, /file2.txt -> db-id-2, /Dest -> db-dest
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([
+          makeStorageObject({ id: 'db-id-1', name: 'file1.txt' }),
+          makeStorageObject({ id: 'db-id-2', name: 'file2.txt' }),
+          makeStorageObject({ id: 'db-dest', name: 'Dest', dirtype: DirType.USER_FOLDER }),
+        ]),
+      )
+      await loadFolder('', '/')
+
       vi.mocked(api.updateObject)
-        .mockResolvedValueOnce(makeStorageObject({ id: 'id1', parent: 'folder2' }))
-        .mockResolvedValueOnce(makeStorageObject({ id: 'id2', parent: 'folder2' }))
+        .mockResolvedValueOnce(makeStorageObject({ id: 'db-id-1', name: 'file1.txt', parent: 'db-dest' }))
+        .mockResolvedValueOnce(makeStorageObject({ id: 'db-id-2', name: 'file2.txt', parent: 'db-dest' }))
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      const result = await apiMock.trigger('move-files', { ids: ['id1', 'id2'], target: 'folder2' })
+      const result = await apiMock.trigger('move-files', { ids: ['/file1.txt', '/file2.txt'], target: '/Dest' })
 
-      expect(api.updateObject).toHaveBeenCalledWith('id1', { parent: 'folder2' })
-      expect(api.updateObject).toHaveBeenCalledWith('id2', { parent: 'folder2' })
-      expect(result).toEqual({ newIds: ['id1', 'id2'] })
+      expect(api.updateObject).toHaveBeenCalledWith('db-id-1', { parent: 'db-dest' })
+      expect(api.updateObject).toHaveBeenCalledWith('db-id-2', { parent: 'db-dest' })
+      expect(result).toEqual({ newIds: ['/Dest/file1.txt', '/Dest/file2.txt'] })
     })
 
     it('returns empty newIds for empty ids array', async () => {
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      const result = await apiMock.trigger('move-files', { ids: [], target: 'folder2' })
+      const result = await apiMock.trigger('move-files', { ids: [], target: '/' })
 
       expect(result).toEqual({ newIds: [] })
     })
 
     it('throws with failure count when one move fails', async () => {
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([
+          makeStorageObject({ id: 'mv-a', name: 'mv-a.txt' }),
+          makeStorageObject({ id: 'mv-b', name: 'mv-b.txt' }),
+        ]),
+      )
+      await loadFolder('', '/')
+
       vi.mocked(api.updateObject)
-        .mockResolvedValueOnce(makeStorageObject({ id: 'id1', parent: 'folder2' }))
+        .mockResolvedValueOnce(makeStorageObject({ id: 'mv-a', name: 'mv-a.txt' }))
         .mockRejectedValueOnce(new Error('forbidden'))
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      await expect(apiMock.trigger('move-files', { ids: ['id1', 'id2'], target: 'folder2' })).rejects.toThrow(
+      await expect(apiMock.trigger('move-files', { ids: ['/mv-a.txt', '/mv-b.txt'], target: '/' })).rejects.toThrow(
         '1 operation(s) failed',
       )
     })
   })
 
   describe('copy-files intercept', () => {
-    it('copies all ids to target and returns newIds', async () => {
+    it('resolves path ids to db ids and copies them to the target', async () => {
+      // Register: /orig1.txt -> db-orig1, /orig2.txt -> db-orig2, /CopyDest -> db-copy-dest
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([
+          makeStorageObject({ id: 'db-orig1', name: 'orig1.txt' }),
+          makeStorageObject({ id: 'db-orig2', name: 'orig2.txt' }),
+          makeStorageObject({ id: 'db-copy-dest', name: 'CopyDest', dirtype: DirType.USER_FOLDER }),
+        ]),
+      )
+      await loadFolder('', '/')
+
       vi.mocked(api.copyObject)
-        .mockResolvedValueOnce(makeStorageObject({ id: 'copy1' }))
-        .mockResolvedValueOnce(makeStorageObject({ id: 'copy2' }))
+        .mockResolvedValueOnce(makeStorageObject({ id: 'cp1', name: 'orig1.txt' }))
+        .mockResolvedValueOnce(makeStorageObject({ id: 'cp2', name: 'orig2.txt' }))
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      const result = await apiMock.trigger('copy-files', { ids: ['orig1', 'orig2'], target: 'dest' })
+      const result = await apiMock.trigger('copy-files', { ids: ['/orig1.txt', '/orig2.txt'], target: '/CopyDest' })
 
-      expect(api.copyObject).toHaveBeenCalledWith('orig1', 'dest')
-      expect(api.copyObject).toHaveBeenCalledWith('orig2', 'dest')
-      expect(result).toEqual({ newIds: ['copy1', 'copy2'] })
+      expect(api.copyObject).toHaveBeenCalledWith('db-orig1', 'db-copy-dest')
+      expect(api.copyObject).toHaveBeenCalledWith('db-orig2', 'db-copy-dest')
+      expect(result).toEqual({ newIds: ['/CopyDest/orig1.txt', '/CopyDest/orig2.txt'] })
     })
 
     it('returns empty newIds for empty ids array', async () => {
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      const result = await apiMock.trigger('copy-files', { ids: [], target: 'dest' })
+      const result = await apiMock.trigger('copy-files', { ids: [], target: '/' })
 
       expect(result).toEqual({ newIds: [] })
     })
 
     it('throws with failure count when one copy fails', async () => {
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([
+          makeStorageObject({ id: 'cp-src-a', name: 'cp-src-a.txt' }),
+          makeStorageObject({ id: 'cp-src-b', name: 'cp-src-b.txt' }),
+        ]),
+      )
+      await loadFolder('', '/')
+
       vi.mocked(api.copyObject)
-        .mockResolvedValueOnce(makeStorageObject({ id: 'copy1' }))
+        .mockResolvedValueOnce(makeStorageObject({ id: 'cp-dst-a', name: 'cp-src-a.txt' }))
         .mockRejectedValueOnce(new Error('conflict'))
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      await expect(apiMock.trigger('copy-files', { ids: ['orig1', 'orig2'], target: 'dest' })).rejects.toThrow(
-        '1 operation(s) failed',
-      )
+      await expect(
+        apiMock.trigger('copy-files', { ids: ['/cp-src-a.txt', '/cp-src-b.txt'], target: '/' }),
+      ).rejects.toThrow('1 operation(s) failed')
     })
   })
 
   describe('download-file intercept', () => {
-    it('opens download URL in new tab when downloadUrl is present', async () => {
+    it('resolves path id to db id and opens downloadUrl in a new tab', async () => {
+      // Register: /report.pdf -> db-report
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([makeStorageObject({ id: 'db-report', name: 'report.pdf' })]),
+      )
+      await loadFolder('', '/')
+
       vi.mocked(api.getObject).mockResolvedValueOnce({
-        ...makeStorageObject(),
-        downloadUrl: 'https://s3/file.txt',
+        ...makeStorageObject({ id: 'db-report' }),
+        downloadUrl: 'https://s3/report.pdf',
       })
       const openMock = vi.fn()
       vi.stubGlobal('window', { open: openMock })
@@ -408,28 +514,80 @@ describe('connectAdapter', () => {
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      const result = await apiMock.trigger('download-file', { id: 'id1' })
+      const result = await apiMock.trigger('download-file', { id: '/report.pdf' })
 
-      expect(api.getObject).toHaveBeenCalledWith('id1')
-      expect(openMock).toHaveBeenCalledWith('https://s3/file.txt', '_blank', 'noopener,noreferrer')
+      expect(api.getObject).toHaveBeenCalledWith('db-report')
+      expect(openMock).toHaveBeenCalledWith('https://s3/report.pdf', '_blank', 'noopener,noreferrer')
       expect(result).toBe(false)
 
       vi.unstubAllGlobals()
     })
 
     it('does not open window when downloadUrl is absent', async () => {
-      vi.mocked(api.getObject).mockResolvedValueOnce(makeStorageObject())
+      vi.mocked(api.listObjects).mockResolvedValueOnce(
+        makeListResponse([makeStorageObject({ id: 'db-nodl', name: 'nodl.bin' })]),
+      )
+      await loadFolder('', '/')
+
+      vi.mocked(api.getObject).mockResolvedValueOnce(makeStorageObject({ id: 'db-nodl' }))
       const openMock = vi.fn()
       vi.stubGlobal('window', { open: openMock })
 
       const apiMock = makeApiMock()
       connectAdapter(apiMock as never)
 
-      await apiMock.trigger('download-file', { id: 'id1' })
+      await apiMock.trigger('download-file', { id: '/nodl.bin' })
 
       expect(openMock).not.toHaveBeenCalled()
 
       vi.unstubAllGlobals()
     })
+  })
+})
+
+describe('buildPath (via loadFolder)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('builds root-level path as /name when parent is /', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([makeStorageObject({ name: 'hello.txt' })]))
+
+    const [entity] = await loadFolder('', '/')
+
+    expect(entity.id).toBe('/hello.txt')
+  })
+
+  it('builds nested path as parentPath/name when parent is not /', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([makeStorageObject({ name: 'nested.txt' })]))
+
+    const [entity] = await loadFolder('db-photos', '/Photos/Vacation')
+
+    expect(entity.id).toBe('/Photos/Vacation/nested.txt')
+  })
+})
+
+describe('resolveDbId (via connectAdapter request-data)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('returns empty string for the root path "/"', async () => {
+    vi.mocked(api.listObjects).mockResolvedValueOnce(makeListResponse([]))
+    const apiMock = makeApiMock()
+    connectAdapter(apiMock as never)
+
+    await apiMock.trigger('request-data', { id: '/' })
+
+    expect(api.listObjects).toHaveBeenCalledWith('')
+  })
+
+  it('throws when no mapping is registered for the path', async () => {
+    const apiMock = makeApiMock()
+    connectAdapter(apiMock as never)
+
+    await expect(apiMock.trigger('request-data', { id: '/UnknownPath' })).rejects.toThrow(
+      'No DB mapping for path: /UnknownPath',
+    )
   })
 })

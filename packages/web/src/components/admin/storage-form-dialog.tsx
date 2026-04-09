@@ -78,7 +78,7 @@ export function StorageFormDialog({ open, onOpenChange, storage }: StorageFormDi
 
   const mutation = useMutation({
     mutationFn: async (values: StorageFormValues) => {
-      const url = isEditing ? `/api/storages/${storage.id}` : '/api/storages'
+      const url = isEditing ? `/api/admin/storages/${storage.id}` : '/api/admin/storages'
       const method = isEditing ? 'PUT' : 'POST'
       const res = await fetch(url, {
         method,
