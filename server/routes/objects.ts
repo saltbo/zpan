@@ -48,9 +48,10 @@ async function purgeRecursively(
   let totalBytes = 0
 
   for (const m of matters) {
-    if (m.dirtype === 0 && m.size > 0) {
-      bytesByStorage.set(m.storageId, (bytesByStorage.get(m.storageId) ?? 0) + m.size)
-      totalBytes += m.size
+    const size = m.size ?? 0
+    if ((m.dirtype ?? 0) === 0 && size > 0) {
+      bytesByStorage.set(m.storageId, (bytesByStorage.get(m.storageId) ?? 0) + size)
+      totalBytes += size
     }
     if (!m.object) continue
     let entry = keysByStorage.get(m.storageId)

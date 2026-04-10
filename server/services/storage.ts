@@ -1,65 +1,25 @@
-import { sql } from 'drizzle-orm'
+import { and, asc, count, eq, lt, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { CreateStorageInput, UpdateStorageInput } from '../../shared/schemas'
+import { matters, storages } from '../db/schema'
 import type { Database } from '../platform/interface'
 
-export interface Storage {
-  id: string
-  title: string
-  mode: string
-  bucket: string
-  endpoint: string
-  region: string
-  accessKey: string
-  secretKey: string
-  filePath: string
-  customHost: string
-  capacity: number
-  used: number
-  status: string
-  createdAt: number
-  updatedAt: number
-}
+export type Storage = typeof storages.$inferSelect
 
 export async function listStorages(db: Database): Promise<{ items: Storage[]; total: number }> {
-  const items = await db.all<Storage>(sql`
-    SELECT id, title, mode, bucket, endpoint, region,
-           access_key AS accessKey, secret_key AS secretKey,
-           file_path AS filePath, custom_host AS customHost,
-           capacity, used, status,
-           created_at AS createdAt, updated_at AS updatedAt
-    FROM storages
-    ORDER BY created_at ASC
-  `)
-
+  const items = await db.select().from(storages).orderBy(asc(storages.createdAt))
   return { items, total: items.length }
 }
 
 export async function getStorage(db: Database, id: string): Promise<Storage | null> {
-  const rows = await db.all<Storage>(sql`
-    SELECT id, title, mode, bucket, endpoint, region,
-           access_key AS accessKey, secret_key AS secretKey,
-           file_path AS filePath, custom_host AS customHost,
-           capacity, used, status,
-           created_at AS createdAt, updated_at AS updatedAt
-    FROM storages WHERE id = ${id}
-  `)
+  const rows = await db.select().from(storages).where(eq(storages.id, id))
   return rows[0] ?? null
 }
 
 export async function createStorage(db: Database, input: CreateStorageInput): Promise<Storage> {
-  const id = nanoid()
-  const now = Date.now()
-  const capacity = input.capacity ?? 0
-  const customHost = input.customHost ?? ''
-
-  await db.run(sql`
-    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${id}, ${input.title}, ${input.mode}, ${input.bucket}, ${input.endpoint}, ${input.region}, ${input.accessKey}, ${input.secretKey}, ${input.filePath}, ${customHost}, ${capacity}, 0, 'active', ${now}, ${now})
-  `)
-
-  return {
-    id,
+  const now = new Date()
+  const row: Storage = {
+    id: nanoid(),
     title: input.title,
     mode: input.mode,
     bucket: input.bucket,
@@ -68,20 +28,23 @@ export async function createStorage(db: Database, input: CreateStorageInput): Pr
     accessKey: input.accessKey,
     secretKey: input.secretKey,
     filePath: input.filePath,
-    customHost,
-    capacity,
+    customHost: input.customHost ?? '',
+    capacity: input.capacity ?? 0,
     used: 0,
     status: 'active',
     createdAt: now,
     updatedAt: now,
   }
+
+  await db.insert(storages).values(row)
+  return row
 }
 
 export async function updateStorage(db: Database, id: string, input: UpdateStorageInput): Promise<Storage | null> {
   const existing = await getStorage(db, id)
   if (!existing) return null
 
-  const now = Date.now()
+  const now = new Date()
   const updated = {
     title: input.title ?? existing.title,
     mode: input.mode ?? existing.mode,
@@ -94,46 +57,37 @@ export async function updateStorage(db: Database, id: string, input: UpdateStora
     customHost: input.customHost ?? existing.customHost,
     capacity: input.capacity ?? existing.capacity,
     status: input.status ?? existing.status,
+    updatedAt: now,
   }
 
-  await db.run(sql`
-    UPDATE storages SET
-      title = ${updated.title}, mode = ${updated.mode}, bucket = ${updated.bucket},
-      endpoint = ${updated.endpoint}, region = ${updated.region},
-      access_key = ${updated.accessKey}, secret_key = ${updated.secretKey},
-      file_path = ${updated.filePath}, custom_host = ${updated.customHost},
-      capacity = ${updated.capacity}, status = ${updated.status},
-      updated_at = ${now}
-    WHERE id = ${id}
-  `)
-
-  return { ...existing, ...updated, updatedAt: now }
+  await db.update(storages).set(updated).where(eq(storages.id, id))
+  return { ...existing, ...updated }
 }
 
 export async function deleteStorage(db: Database, id: string): Promise<'ok' | 'not_found' | 'in_use'> {
   const existing = await getStorage(db, id)
   if (!existing) return 'not_found'
 
-  const refs = await db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM matters WHERE storage_id = ${id}`)
+  const refs = await db.select({ count: count() }).from(matters).where(eq(matters.storageId, id))
   if ((refs[0]?.count ?? 0) > 0) return 'in_use'
 
-  await db.run(sql`DELETE FROM storages WHERE id = ${id}`)
+  await db.delete(storages).where(eq(storages.id, id))
   return 'ok'
 }
 
 export async function selectStorage(db: Database, mode: 'private' | 'public'): Promise<Storage> {
-  const rows = await db.all<Storage>(sql`
-    SELECT id, title, mode, bucket, endpoint, region,
-           access_key AS accessKey, secret_key AS secretKey,
-           file_path AS filePath, custom_host AS customHost,
-           capacity, used, status,
-           created_at AS createdAt, updated_at AS updatedAt
-    FROM storages
-    WHERE mode = ${mode} AND status = 'active'
-      AND (capacity = 0 OR used < capacity)
-    ORDER BY created_at ASC
-    LIMIT 1
-  `)
+  const rows = await db
+    .select()
+    .from(storages)
+    .where(
+      and(
+        eq(storages.mode, mode),
+        eq(storages.status, 'active'),
+        or(eq(storages.capacity, 0), lt(storages.used, storages.capacity)),
+      ),
+    )
+    .orderBy(asc(storages.createdAt))
+    .limit(1)
 
   if (rows.length === 0) throw new Error('No available storage')
   return rows[0]

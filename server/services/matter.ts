@@ -1,24 +1,10 @@
-import { sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { DirType } from '../../shared/constants'
+import { matters, orgQuotas, storages } from '../db/schema'
 import type { Database } from '../platform/interface'
 
-export interface Matter {
-  id: string
-  orgId: string
-  alias: string
-  name: string
-  type: string
-  size: number
-  dirtype: number
-  parent: string
-  object: string
-  storageId: string
-  status: string
-  trashedAt: number | null
-  createdAt: number
-  updatedAt: number
-}
+export type Matter = typeof matters.$inferSelect
 
 interface CreateMatterInput {
   orgId: string
@@ -33,27 +19,16 @@ interface CreateMatterInput {
 }
 
 export async function createMatter(db: Database, input: CreateMatterInput): Promise<Matter> {
-  const id = nanoid()
-  const alias = nanoid(10)
-  const now = Date.now()
-  const size = input.size ?? 0
-  const dirtype = input.dirtype ?? 0
-  const parent = input.parent ?? ''
-
-  await db.run(sql`
-    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-    VALUES (${id}, ${input.orgId}, ${alias}, ${input.name}, ${input.type}, ${size}, ${dirtype}, ${parent}, ${input.object}, ${input.storageId}, ${input.status}, ${now}, ${now})
-  `)
-
-  return {
-    id,
+  const now = new Date()
+  const row: Matter = {
+    id: nanoid(),
     orgId: input.orgId,
-    alias,
+    alias: nanoid(10),
     name: input.name,
     type: input.type,
-    size,
-    dirtype,
-    parent,
+    size: input.size ?? 0,
+    dirtype: input.dirtype ?? 0,
+    parent: input.parent ?? '',
     object: input.object,
     storageId: input.storageId,
     status: input.status,
@@ -61,6 +36,9 @@ export async function createMatter(db: Database, input: CreateMatterInput): Prom
     createdAt: now,
     updatedAt: now,
   }
+
+  await db.insert(matters).values(row)
+  return row
 }
 
 export async function listMatters(
@@ -69,36 +47,27 @@ export async function listMatters(
   filters: { parent: string; status: string; page: number; pageSize: number },
 ): Promise<{ items: Matter[]; total: number; page: number; pageSize: number }> {
   const offset = (filters.page - 1) * filters.pageSize
+  const where = and(eq(matters.orgId, orgId), eq(matters.parent, filters.parent), eq(matters.status, filters.status))
 
-  const countRows = await db.all<{ count: number }>(sql`
-    SELECT COUNT(*) AS count FROM matters
-    WHERE org_id = ${orgId} AND parent = ${filters.parent} AND status = ${filters.status}
-  `)
+  const countRows = await db.select({ count: count() }).from(matters).where(where)
   const total = countRows[0]?.count ?? 0
 
-  const items = await db.all<Matter>(sql`
-    SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
-           parent, object, storage_id AS storageId, status,
-           trashed_at AS trashedAt,
-           created_at AS createdAt, updated_at AS updatedAt
-    FROM matters
-    WHERE org_id = ${orgId} AND parent = ${filters.parent} AND status = ${filters.status}
-    ORDER BY dirtype DESC, created_at ASC
-    LIMIT ${filters.pageSize} OFFSET ${offset}
-  `)
+  const items = await db
+    .select()
+    .from(matters)
+    .where(where)
+    .orderBy(desc(matters.dirtype), asc(matters.createdAt))
+    .limit(filters.pageSize)
+    .offset(offset)
 
   return { items, total, page: filters.page, pageSize: filters.pageSize }
 }
 
 export async function getMatter(db: Database, id: string, orgId: string): Promise<Matter | null> {
-  const rows = await db.all<Matter>(sql`
-    SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
-           parent, object, storage_id AS storageId, status,
-           trashed_at AS trashedAt,
-           created_at AS createdAt, updated_at AS updatedAt
-    FROM matters
-    WHERE id = ${id} AND org_id = ${orgId}
-  `)
+  const rows = await db
+    .select()
+    .from(matters)
+    .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
   return rows[0] ?? null
 }
 
@@ -111,14 +80,14 @@ export async function updateMatter(
   const existing = await getMatter(db, id, orgId)
   if (!existing) return null
 
-  const now = Date.now()
+  const now = new Date()
   const name = input.name ?? existing.name
   const parent = input.parent ?? existing.parent
 
-  await db.run(sql`
-    UPDATE matters SET name = ${name}, parent = ${parent}, updated_at = ${now}
-    WHERE id = ${id} AND org_id = ${orgId}
-  `)
+  await db
+    .update(matters)
+    .set({ name, parent, updatedAt: now })
+    .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
 
   return { ...existing, name, parent, updatedAt: now }
 }
@@ -128,11 +97,11 @@ export async function confirmUpload(db: Database, id: string, orgId: string): Pr
   if (!existing) return null
   if (existing.status !== 'draft') return null
 
-  const now = Date.now()
-  await db.run(sql`
-    UPDATE matters SET status = 'active', updated_at = ${now}
-    WHERE id = ${id} AND org_id = ${orgId}
-  `)
+  const now = new Date()
+  await db
+    .update(matters)
+    .set({ status: 'active', updatedAt: now })
+    .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
 
   return { ...existing, status: 'active', updatedAt: now }
 }
@@ -143,19 +112,11 @@ export async function copyMatter(
   targetParent: string,
   newObject: string,
 ): Promise<Matter> {
-  const id = nanoid()
-  const alias = nanoid(10)
-  const now = Date.now()
-
-  await db.run(sql`
-    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-    VALUES (${id}, ${source.orgId}, ${alias}, ${source.name}, ${source.type}, ${source.size}, ${source.dirtype}, ${targetParent}, ${newObject}, ${source.storageId}, 'active', ${now}, ${now})
-  `)
-
-  return {
-    id,
+  const now = new Date()
+  const row: Matter = {
+    id: nanoid(),
     orgId: source.orgId,
-    alias,
+    alias: nanoid(10),
     name: source.name,
     type: source.type,
     size: source.size,
@@ -168,13 +129,16 @@ export async function copyMatter(
     createdAt: now,
     updatedAt: now,
   }
+
+  await db.insert(matters).values(row)
+  return row
 }
 
 export async function deleteMatter(db: Database, id: string, orgId: string): Promise<Matter | null> {
   const existing = await getMatter(db, id, orgId)
   if (!existing) return null
 
-  await db.run(sql`DELETE FROM matters WHERE id = ${id} AND org_id = ${orgId}`)
+  await db.delete(matters).where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
   return existing
 }
 
@@ -183,36 +147,28 @@ export async function deleteMatter(db: Database, id: string, orgId: string): Pro
 export async function getMatters(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
   if (ids.length === 0) return []
 
-  const idList = sql.join(
-    ids.map((id) => sql`${id}`),
-    sql`, `,
-  )
-  return db.all<Matter>(sql`
-    SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
-           parent, object, storage_id AS storageId, status,
-           trashed_at AS trashedAt,
-           created_at AS createdAt, updated_at AS updatedAt
-    FROM matters
-    WHERE org_id = ${orgId} AND id IN (${idList})
-  `)
+  return db
+    .select()
+    .from(matters)
+    .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
 }
 
 export async function batchMove(db: Database, orgId: string, ids: string[], newParent: string): Promise<Matter[]> {
   const uniqueIds = [...new Set(ids)]
-  const matters = await getMatters(db, orgId, uniqueIds)
-  if (matters.length !== uniqueIds.length) {
+  const items = await getMatters(db, orgId, uniqueIds)
+  if (items.length !== uniqueIds.length) {
     throw new Error('Some IDs do not belong to this organization')
   }
 
-  const now = Date.now()
-  for (const matter of matters) {
-    await db.run(sql`
-      UPDATE matters SET parent = ${newParent}, updated_at = ${now}
-      WHERE id = ${matter.id} AND org_id = ${orgId}
-    `)
+  const now = new Date()
+  for (const matter of items) {
+    await db
+      .update(matters)
+      .set({ parent: newParent, updatedAt: now })
+      .where(and(eq(matters.id, matter.id), eq(matters.orgId, orgId)))
   }
 
-  return matters.map((m) => ({ ...m, parent: newParent, updatedAt: now }))
+  return items.map((m) => ({ ...m, parent: newParent, updatedAt: now }))
 }
 
 const MAX_RECURSION_DEPTH = 20
@@ -220,64 +176,58 @@ const MAX_RECURSION_DEPTH = 20
 async function getChildrenRecursive(db: Database, orgId: string, parentIds: string[], depth = 0): Promise<Matter[]> {
   if (parentIds.length === 0 || depth >= MAX_RECURSION_DEPTH) return []
 
-  const idList = sql.join(
-    parentIds.map((id) => sql`${id}`),
-    sql`, `,
-  )
-  const children = await db.all<Matter>(sql`
-    SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
-           parent, object, storage_id AS storageId, status,
-           trashed_at AS trashedAt,
-           created_at AS createdAt, updated_at AS updatedAt
-    FROM matters
-    WHERE org_id = ${orgId} AND parent IN (${idList})
-  `)
+  const children = await db
+    .select()
+    .from(matters)
+    .where(and(eq(matters.orgId, orgId), inArray(matters.parent, parentIds)))
+
   if (children.length === 0) return []
 
-  const folderIds = children.filter((c) => c.dirtype !== DirType.FILE).map((c) => c.id)
+  const folderIds = children.filter((c) => (c.dirtype ?? 0) !== DirType.FILE).map((c) => c.id)
   const deeper = await getChildrenRecursive(db, orgId, folderIds, depth + 1)
   return [...children, ...deeper]
 }
 
 export async function batchTrash(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
   const uniqueIds = [...new Set(ids)]
-  const matters = await getMatters(db, orgId, uniqueIds)
-  if (matters.length !== uniqueIds.length) {
+  const items = await getMatters(db, orgId, uniqueIds)
+  if (items.length !== uniqueIds.length) {
     throw new Error('Some IDs do not belong to this organization')
   }
 
-  const folderIds = matters.filter((m) => m.dirtype !== DirType.FILE).map((m) => m.id)
+  const folderIds = items.filter((m) => (m.dirtype ?? 0) !== DirType.FILE).map((m) => m.id)
   const children = await getChildrenRecursive(db, orgId, folderIds)
-  const allMatters = [...matters, ...children]
+  const allMatters = [...items, ...children]
 
-  const now = Date.now()
+  const now = new Date()
+  const nowTs = now.getTime()
   for (const matter of allMatters) {
-    await db.run(sql`
-      UPDATE matters SET status = 'trashed', trashed_at = ${now}, updated_at = ${now}
-      WHERE id = ${matter.id} AND org_id = ${orgId}
-    `)
+    await db
+      .update(matters)
+      .set({ status: 'trashed', trashedAt: nowTs, updatedAt: now })
+      .where(and(eq(matters.id, matter.id), eq(matters.orgId, orgId)))
   }
 
-  return allMatters.map((m) => ({ ...m, status: 'trashed', trashedAt: now, updatedAt: now }))
+  return allMatters.map((m) => ({ ...m, status: 'trashed', trashedAt: nowTs, updatedAt: now }))
 }
 
 export async function batchDelete(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
   const uniqueIds = [...new Set(ids)]
-  const matters = await getMatters(db, orgId, uniqueIds)
-  if (matters.length !== uniqueIds.length) {
+  const items = await getMatters(db, orgId, uniqueIds)
+  if (items.length !== uniqueIds.length) {
     throw new Error('Some IDs do not belong to this organization')
   }
 
-  const nonTrashed = matters.filter((m) => m.status !== 'trashed')
+  const nonTrashed = items.filter((m) => m.status !== 'trashed')
   if (nonTrashed.length > 0) {
     throw new Error('Only trashed items can be permanently deleted')
   }
 
-  for (const matter of matters) {
-    await db.run(sql`DELETE FROM matters WHERE id = ${matter.id} AND org_id = ${orgId}`)
+  for (const matter of items) {
+    await db.delete(matters).where(and(eq(matters.id, matter.id), eq(matters.orgId, orgId)))
   }
 
-  return matters
+  return items
 }
 
 // ─── Recycle Bin ─────────────────────────────────────────────────────────────
@@ -288,17 +238,13 @@ async function collectDescendants(db: Database, orgId: string, rootId: string): 
   while (frontier.length > 0) {
     const next: string[] = []
     for (const parentId of frontier) {
-      const children = await db.all<Matter>(sql`
-        SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
-               parent, object, storage_id AS storageId, status,
-               trashed_at AS trashedAt,
-               created_at AS createdAt, updated_at AS updatedAt
-        FROM matters
-        WHERE org_id = ${orgId} AND parent = ${parentId}
-      `)
+      const children = await db
+        .select()
+        .from(matters)
+        .where(and(eq(matters.orgId, orgId), eq(matters.parent, parentId)))
       for (const child of children) {
         result.push(child)
-        if (child.dirtype !== 0) next.push(child.id)
+        if ((child.dirtype ?? 0) !== 0) next.push(child.id)
       }
     }
     frontier = next
@@ -311,16 +257,17 @@ export async function trashMatter(db: Database, orgId: string, id: string): Prom
   if (!existing) return null
   if (existing.status === 'trashed') return existing
 
-  const now = Date.now()
+  const now = new Date()
+  const nowTs = now.getTime()
   const descendants = await collectDescendants(db, orgId, existing.id)
   const ids = [existing.id, ...descendants.map((m) => m.id)]
   for (const targetId of ids) {
-    await db.run(sql`
-      UPDATE matters SET status = 'trashed', trashed_at = ${now}, updated_at = ${now}
-      WHERE id = ${targetId} AND org_id = ${orgId} AND status = 'active'
-    `)
+    await db
+      .update(matters)
+      .set({ status: 'trashed', trashedAt: nowTs, updatedAt: now })
+      .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId), eq(matters.status, 'active')))
   }
-  return { ...existing, status: 'trashed', trashedAt: now, updatedAt: now }
+  return { ...existing, status: 'trashed', trashedAt: nowTs, updatedAt: now }
 }
 
 export async function restoreMatter(db: Database, orgId: string, id: string): Promise<Matter | null> {
@@ -328,14 +275,14 @@ export async function restoreMatter(db: Database, orgId: string, id: string): Pr
   if (!existing) return null
   if (existing.status !== 'trashed') return existing
 
-  const now = Date.now()
+  const now = new Date()
   const descendants = await collectDescendants(db, orgId, existing.id)
   const ids = [existing.id, ...descendants.map((m) => m.id)]
   for (const targetId of ids) {
-    await db.run(sql`
-      UPDATE matters SET status = 'active', trashed_at = NULL, updated_at = ${now}
-      WHERE id = ${targetId} AND org_id = ${orgId} AND status = 'trashed'
-    `)
+    await db
+      .update(matters)
+      .set({ status: 'active', trashedAt: null, updatedAt: now })
+      .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId), eq(matters.status, 'trashed')))
   }
   return { ...existing, status: 'active', trashedAt: null, updatedAt: now }
 }
@@ -349,19 +296,15 @@ export async function collectForPurge(db: Database, orgId: string, id: string): 
 
 export async function purgeMatters(db: Database, orgId: string, ids: string[]): Promise<void> {
   for (const id of ids) {
-    await db.run(sql`DELETE FROM matters WHERE id = ${id} AND org_id = ${orgId}`)
+    await db.delete(matters).where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
   }
 }
 
 export async function listTrashedRoots(db: Database, orgId: string): Promise<Matter[]> {
-  return db.all<Matter>(sql`
-    SELECT id, org_id AS orgId, alias, name, type, size, dirtype,
-           parent, object, storage_id AS storageId, status,
-           trashed_at AS trashedAt,
-           created_at AS createdAt, updated_at AS updatedAt
-    FROM matters
-    WHERE org_id = ${orgId} AND status = 'trashed'
-  `)
+  return db
+    .select()
+    .from(matters)
+    .where(and(eq(matters.orgId, orgId), eq(matters.status, 'trashed')))
 }
 
 export async function decrementUsage(
@@ -372,9 +315,15 @@ export async function decrementUsage(
 ): Promise<void> {
   for (const [storageId, bytes] of bytesByStorage) {
     if (bytes <= 0) continue
-    await db.run(sql`UPDATE storages SET used = MAX(0, used - ${bytes}) WHERE id = ${storageId}`)
+    await db
+      .update(storages)
+      .set({ used: sql`MAX(0, ${storages.used} - ${bytes})` })
+      .where(eq(storages.id, storageId))
   }
   if (totalBytes > 0) {
-    await db.run(sql`UPDATE org_quotas SET used = MAX(0, used - ${totalBytes}) WHERE org_id = ${orgId}`)
+    await db
+      .update(orgQuotas)
+      .set({ used: sql`MAX(0, ${orgQuotas.used} - ${totalBytes})` })
+      .where(eq(orgQuotas.orgId, orgId))
   }
 }

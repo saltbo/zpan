@@ -1,8 +1,10 @@
 import { zValidator } from '@hono/zod-validator'
-import { sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
+import { organization } from '../db/auth-schema'
+import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { findPersonalOrg } from '../services/org'
@@ -15,20 +17,18 @@ const adminQuotas = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => {
     const db = c.get('platform').db
-    const rows = await db.all<{
-      id: string
-      orgId: string
-      quota: number
-      used: number
-      orgName: string
-      orgMetadata: string | null
-    }>(sql`
-      SELECT q.id, q.org_id AS orgId, q.quota, q.used,
-             o.name AS orgName, o.metadata AS orgMetadata
-      FROM org_quotas q
-      INNER JOIN organization o ON o.id = q.org_id
-      ORDER BY o.name
-    `)
+    const rows = await db
+      .select({
+        id: orgQuotas.id,
+        orgId: orgQuotas.orgId,
+        quota: orgQuotas.quota,
+        used: orgQuotas.used,
+        orgName: organization.name,
+        orgMetadata: organization.metadata,
+      })
+      .from(orgQuotas)
+      .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
+      .orderBy(organization.name)
 
     const items = rows.map((r) => ({
       id: r.id,
@@ -46,12 +46,12 @@ const adminQuotas = new Hono<Env>()
     const orgId = c.req.param('orgId')
     const { quota } = c.req.valid('json')
 
-    const existing = await db.all<{ id: string }>(sql`SELECT id FROM org_quotas WHERE org_id = ${orgId}`)
+    const existing = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
 
     if (existing.length > 0) {
-      await db.run(sql`UPDATE org_quotas SET quota = ${quota} WHERE org_id = ${orgId}`)
+      await db.update(orgQuotas).set({ quota }).where(eq(orgQuotas.orgId, orgId))
     } else {
-      await db.run(sql`INSERT INTO org_quotas (id, org_id, quota, used) VALUES (${nanoid()}, ${orgId}, ${quota}, 0)`)
+      await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used: 0 })
     }
 
     return c.json({ orgId, quota })
@@ -66,9 +66,10 @@ const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {
     return c.json({ error: 'No organization found' }, 404)
   }
 
-  const rows = await db.all<{ quota: number; used: number }>(
-    sql`SELECT quota, used FROM org_quotas WHERE org_id = ${orgId}`,
-  )
+  const rows = await db
+    .select({ quota: orgQuotas.quota, used: orgQuotas.used })
+    .from(orgQuotas)
+    .where(eq(orgQuotas.orgId, orgId))
 
   const quotaRow = rows[0] ?? { quota: 0, used: 0 }
   return c.json({ orgId, quota: quotaRow.quota, used: quotaRow.used })

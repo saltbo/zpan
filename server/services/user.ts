@@ -1,4 +1,5 @@
-import { sql } from 'drizzle-orm'
+import { count, desc, eq, sql } from 'drizzle-orm'
+import { member, organization, user } from '../db/auth-schema'
 import type { Database } from '../platform/interface'
 
 export interface UserWithOrg {
@@ -6,8 +7,8 @@ export interface UserWithOrg {
   name: string
   email: string
   role: string | null
-  banned: boolean
-  createdAt: number
+  banned: boolean | null
+  createdAt: Date
   orgId: string | null
   orgName: string | null
 }
@@ -19,44 +20,49 @@ export async function listUsers(
 ): Promise<{ items: UserWithOrg[]; total: number }> {
   const offset = (page - 1) * pageSize
 
-  const countRows = await db.all<{ total: number }>(sql`SELECT COUNT(*) AS total FROM user`)
+  const countRows = await db.select({ total: count() }).from(user)
   const total = countRows[0]?.total ?? 0
 
-  const items = await db.all<UserWithOrg>(sql`
-    SELECT
-      u.id,
-      u.name,
-      u.email,
-      u.role,
-      u.banned,
-      u.created_at AS createdAt,
-      o.id AS orgId,
-      o.name AS orgName
-    FROM user u
-    LEFT JOIN member m ON m.user_id = u.id
-    LEFT JOIN organization o ON o.id = m.organization_id
-      AND o.metadata LIKE '%"type":"personal"%'
-    GROUP BY u.id
-    ORDER BY u.created_at DESC
-    LIMIT ${pageSize} OFFSET ${offset}
-  `)
+  const items = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      banned: user.banned,
+      createdAt: user.createdAt,
+      orgId: organization.id,
+      orgName: organization.name,
+    })
+    .from(user)
+    .leftJoin(member, eq(member.userId, user.id))
+    .leftJoin(
+      organization,
+      sql`${organization.id} = ${member.organizationId} AND ${organization.metadata} LIKE '%"type":"personal"%'`,
+    )
+    .groupBy(user.id)
+    .orderBy(desc(user.createdAt))
+    .limit(pageSize)
+    .offset(offset)
 
   return { items, total }
 }
 
 export async function setUserStatus(db: Database, userId: string, status: 'active' | 'disabled'): Promise<boolean> {
-  const existing = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE id = ${userId}`)
+  const existing = await db.select({ id: user.id }).from(user).where(eq(user.id, userId))
   if (existing.length === 0) return false
 
-  const banned = status === 'disabled'
-  await db.run(sql`UPDATE user SET banned = ${banned ? 1 : 0} WHERE id = ${userId}`)
+  await db
+    .update(user)
+    .set({ banned: status === 'disabled' })
+    .where(eq(user.id, userId))
   return true
 }
 
 export async function deleteUser(db: Database, userId: string): Promise<boolean> {
-  const existing = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE id = ${userId}`)
+  const existing = await db.select({ id: user.id }).from(user).where(eq(user.id, userId))
   if (existing.length === 0) return false
 
-  await db.run(sql`DELETE FROM user WHERE id = ${userId}`)
+  await db.delete(user).where(eq(user.id, userId))
   return true
 }
