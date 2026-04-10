@@ -20,7 +20,7 @@
     "e2e": "playwright test"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1022.0",
@@ -94,5 +94,8 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json,jsonc}": "biome check --write --no-errors-on-unmatched"
+  },
+  "volta": {
+    "node": "24.14.1"
   }
 }

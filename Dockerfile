@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # -- Stage 1: install deps (cached until lockfile changes) --
-FROM node:20-slim AS deps
+FROM node:24-slim AS deps
 WORKDIR /app
 
 COPY package-lock.json package.json ./
@@ -15,7 +15,7 @@ RUN npm run build
 RUN npm run build:server
 
 # -- Stage 3: runtime --
-FROM node:20-slim
+FROM node:24-slim
 
 RUN addgroup --system zpan && adduser --system --ingroup zpan zpan
 
