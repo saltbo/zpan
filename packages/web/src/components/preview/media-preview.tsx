@@ -1,7 +1,3 @@
-import { MediaCommunitySkin, MediaOutlet, MediaPlayer } from '@vidstack/react'
-import 'vidstack/styles/defaults.css'
-import 'vidstack/styles/community-skin/video.css'
-import 'vidstack/styles/community-skin/audio.css'
 import type { PreviewType } from '@/lib/file-types'
 
 interface MediaPreviewProps {
@@ -11,12 +7,23 @@ interface MediaPreviewProps {
 }
 
 export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) {
+  if (previewType === 'audio') {
+    return (
+      <div className="flex h-full items-center justify-center p-8">
+        {/* biome-ignore lint/a11y/useMediaCaption: user-uploaded files don't have captions */}
+        <audio controls preload="metadata" className="w-full max-w-lg" title={filename}>
+          <source src={url} />
+        </audio>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-full items-center justify-center p-4">
-      <MediaPlayer title={filename} src={url} viewType={previewType === 'video' ? 'video' : 'audio'} className="w-full">
-        <MediaOutlet />
-        <MediaCommunitySkin />
-      </MediaPlayer>
+    <div className="flex h-full items-center justify-center bg-black p-4">
+      {/* biome-ignore lint/a11y/useMediaCaption: user-uploaded files don't have captions */}
+      <video controls preload="metadata" className="max-h-full max-w-full" title={filename}>
+        <source src={url} />
+      </video>
     </div>
   )
 }
