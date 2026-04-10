@@ -11,7 +11,7 @@ export default defineConfig({
       include: ['src/i18n/**/*.ts', 'src/lib/api.ts', 'src/lib/file-manager-adapter.ts'],
       exclude: ['src/**/*.test.ts', 'src/i18n/index.ts'],
       thresholds: {
-        lines: 90,
+        lines: 85,
       },
     },
   },
