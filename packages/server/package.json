@@ -17,7 +17,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1022.0",
     "@aws-sdk/s3-request-presigner": "^3.1022.0",
-    "@hono/node-server": "^1.13.0",
+    "@hono/node-server": "^1.19.13",
     "@hono/zod-validator": "^0.7.6",
     "@zpan/shared": "workspace:*",
     "better-auth": "^1.2.0",
