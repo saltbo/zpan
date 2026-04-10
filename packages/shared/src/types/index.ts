@@ -1,4 +1,4 @@
-import type { DirType, ObjectStatus, StorageMode } from '../constants'
+import type { DirType, ObjectStatus, StorageMode, StorageStatus } from '../constants'
 
 export interface StorageObject {
   id: string
@@ -28,7 +28,7 @@ export interface Storage {
   secretKey: string
   filePath: string
   customHost: string
-  status: number
+  status: StorageStatus
   createdAt: string
   updatedAt: string
 }

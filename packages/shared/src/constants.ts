@@ -20,6 +20,13 @@ export const DirType = {
 
 export type DirType = (typeof DirType)[keyof typeof DirType]
 
+export const StorageStatus = {
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+} as const
+
+export type StorageStatus = (typeof StorageStatus)[keyof typeof StorageStatus]
+
 export const ObjectStatus = {
   DRAFT: 'draft',
   ACTIVE: 'active',

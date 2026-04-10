@@ -1,18 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import type { Storage } from '@zpan/shared/types'
 import { Database, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DeleteStorageDialog } from '@/components/admin/delete-storage-dialog'
 import { StorageFormDialog } from '@/components/admin/storage-form-dialog'
 import { Button } from '@/components/ui/button'
-import type { Storage } from '@/types/storage'
 
 export const Route = createFileRoute('/_authenticated/admin/storages/')({
   component: StoragesPage,
 })
 
-const STORAGE_STATUS_ACTIVE = 'active'
+import { StorageStatus } from '@zpan/shared/constants'
 
 function StoragesPage() {
   const { t } = useTranslation()
@@ -124,7 +124,7 @@ function StorageTableRow({
 }) {
   const { t } = useTranslation()
 
-  const isActive = storage.status === STORAGE_STATUS_ACTIVE
+  const isActive = storage.status === StorageStatus.ACTIVE
 
   const modeBadge =
     storage.mode === 'public' ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-primary/10 text-primary'

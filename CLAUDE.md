@@ -25,4 +25,25 @@ Conventional Commits (`feat:`, `fix:`, `docs:`, etc.). PRs target `master`.
 
 ## Pre-commit Hooks
 
-Husky + lint-staged run biome auto-fix on every `git commit`. **Never** bypass with `--no-verify`. **Never** run `pnpm install --ignore-scripts` — the `prepare` script must run so hooks are installed. If a hook fails, fix the underlying lint error and re-commit.
+Husky runs `pnpm typecheck` + lint-staged (biome auto-fix) on every `git commit`. **Never** bypass with `--no-verify`. **Never** run `pnpm install --ignore-scripts` — the `prepare` script must run so hooks are installed. If a hook fails, fix the underlying issue and re-commit.
+
+## API Client (Hono RPC)
+
+The frontend **must** use Hono RPC client for all API calls. **Never** use raw `fetch()` with hardcoded URL strings.
+
+```typescript
+// ✅ Correct — type-safe, compile-time path validation
+import { hc } from 'hono/client'
+import type { AppType } from '@zpan/server/app'
+const client = hc<AppType>('/')
+const res = await client.api.admin.storages.$get()
+
+// ❌ Wrong — hardcoded path, no type safety
+const res = await fetch('/api/admin/storages')
+```
+
+Exception: `uploadToS3()` calls external S3 presigned URLs, not our API — raw `fetch` is OK there.
+
+## Types
+
+All shared types live in `packages/shared`. **Never** create duplicate type definitions in `packages/web` or `packages/server`. Import from `@zpan/shared/types` and `@zpan/shared/constants`.

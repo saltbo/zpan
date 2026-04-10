@@ -76,7 +76,7 @@ function makeStorage(overrides: Partial<Storage> = {}): Storage {
     secretKey: 'SECRET',
     filePath: '$UID/$RAW_NAME$RAW_EXT',
     customHost: '',
-    status: 1,
+    status: 'active',
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
     ...overrides,
