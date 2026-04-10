@@ -15,6 +15,7 @@ interface FilesToolbarProps {
   selectedCount: number
   searchQuery: string
   onSearchChange: (query: string) => void
+  onSearchSubmit: () => void
   onUpload: () => void
   onNewFolder: () => void
   onBatchTrash: () => void
@@ -30,6 +31,7 @@ export function FilesToolbar({
   selectedCount,
   searchQuery,
   onSearchChange,
+  onSearchSubmit,
   onUpload,
   onNewFolder,
   onBatchTrash,
@@ -65,6 +67,7 @@ export function FilesToolbar({
               <Input
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && onSearchSubmit()}
                 placeholder={t('files.searchPlaceholder')}
                 className="h-8 w-48 pl-8 pr-8 text-sm"
               />

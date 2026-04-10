@@ -19,6 +19,10 @@ Core architecture: clients upload directly to S3-compatible storage via presigne
 - [docs/architecture.md](docs/architecture.md) — system architecture, tech decisions, platform abstraction
 - [V2_ROADMAP.md](V2_ROADMAP.md) — product positioning, release plan (v2.0–v2.9)
 - [docs/roadmap/](docs/roadmap/) — per-version technical specs (v2.0.md–v2.9.md)
+## Full-Stack Thinking
+
+This is a full-stack project. When implementing a feature or fixing a bug, think end-to-end across frontend and backend. Don't limit yourself to only changing the frontend or only changing the backend — do what's correct for the problem. If the backend API is wrong, fix the backend. If the frontend approach is wrong, fix the frontend. If a feature needs both, change both. Always consider the full request lifecycle: URL → route → API → service → DB → response → UI.
+
 ## Commit Convention
 
 Conventional Commits (`feat:`, `fix:`, `docs:`, etc.). PRs target `master`.

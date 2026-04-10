@@ -78,21 +78,17 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
-
-  const query = useFilesQuery(currentPath, filterType, debouncedSearch || undefined)
+  const query = useFilesQuery(currentPath, filterType, searchQuery || undefined)
   const mutations = useFileMutations(currentPath)
   const items = query.data?.items ?? []
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: clear selection and search when path changes
   useEffect(() => {
     setRowSelection({})
+    setSearchInput('')
     setSearchQuery('')
   }, [currentPath])
 
@@ -205,8 +201,12 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           selectedCount={selectedIds.length}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          searchQuery={searchInput}
+          onSearchChange={(v) => {
+            setSearchInput(v)
+            if (!v) setSearchQuery('')
+          }}
+          onSearchSubmit={() => setSearchQuery(searchInput)}
           onUpload={() => dropzoneRef.current?.openFileDialog()}
           onNewFolder={() => setShowNewFolder(true)}
           onBatchTrash={() => setDeleteTargetIds(selectedIds)}
