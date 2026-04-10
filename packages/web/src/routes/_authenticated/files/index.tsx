@@ -36,7 +36,6 @@ function FilesPage() {
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
 
-  // Keep ref in sync with state for use inside SVAR callbacks
   useEffect(() => {
     currentPathRef.current = currentPath
   }, [currentPath])
@@ -56,7 +55,6 @@ function FilesPage() {
       // SVAR's built-in uploader bypasses the event bus entirely.
       // Hijack its hidden file input to run our presigned URL upload.
       const observer = new MutationObserver(() => {
-        // Find SVAR's file input (inside a wx- classed ancestor, not our UploadDropzone)
         const allInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]')
         const svarInput = Array.from(allInputs).find((el) => el.closest('[class*="wx-"]'))
         if (svarInput && !svarInput.dataset.hijacked) {
@@ -96,16 +94,16 @@ function FilesPage() {
         try {
           const dbId = pathToDbId(id)
           const obj = await getObject(dbId)
-          if (obj.downloadUrl) {
-            setPreviewFile({
-              id: dbId,
-              name: obj.name,
-              type: obj.type,
-              size: obj.size,
-              downloadUrl: obj.downloadUrl,
-            })
-            setPreviewOpen(true)
-          }
+          if (!obj.downloadUrl) return
+
+          setPreviewFile({
+            id: dbId,
+            name: obj.name,
+            type: obj.type,
+            size: obj.size,
+            downloadUrl: obj.downloadUrl,
+          })
+          setPreviewOpen(true)
         } catch {
           toast.error(t('common.error'))
         }
