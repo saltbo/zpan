@@ -21,7 +21,7 @@
     "@hono/zod-validator": "^0.7.6",
     "@zpan/shared": "workspace:*",
     "better-auth": "^1.2.0",
-    "drizzle-orm": "^0.39.0",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.7.0",
     "nanoid": "^5.1.0",
     "zod": "^3.25.76"
