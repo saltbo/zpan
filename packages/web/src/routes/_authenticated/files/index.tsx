@@ -2,11 +2,10 @@ import type { IApi, IEntity } from '@svar-ui/react-filemanager'
 import { Filemanager, Willow } from '@svar-ui/react-filemanager'
 import '@svar-ui/react-filemanager/all.css'
 
-// Hide SVAR's built-in sidebar tree and breadcrumb — we use our own App Sidebar
+// Hide SVAR's built-in sidebar tree — we use our own App Sidebar for navigation
 const svarOverrides = `
   .wx-sidebar { display: none !important; }
   .wx-left .wx-name { display: none !important; }
-  .wx-breadcrumbs { display: none !important; }
 `
 
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
