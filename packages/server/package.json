@@ -22,7 +22,7 @@
     "@zpan/shared": "workspace:*",
     "better-auth": "^1.2.0",
     "drizzle-orm": "^0.39.0",
-    "hono": "^4.7.0",
+    "hono": "^4.12.12",
     "nanoid": "^5.1.0",
     "zod": "^3.25.76"
   },

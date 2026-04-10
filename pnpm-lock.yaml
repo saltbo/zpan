@@ -37,10 +37,10 @@ importers:
         version: 3.1022.0
       '@hono/node-server':
         specifier: ^1.13.0
-        version: 1.19.12(hono@4.12.9)
+        version: 1.19.12(hono@4.12.12)
       '@hono/zod-validator':
         specifier: ^0.7.6
-        version: 0.7.6(hono@4.12.9)(zod@3.25.76)
+        version: 0.7.6(hono@4.12.12)(zod@3.25.76)
       '@zpan/shared':
         specifier: workspace:*
         version: link:../shared
@@ -51,8 +51,8 @@ importers:
         specifier: ^0.39.0
         version: 0.39.3(@cloudflare/workers-types@4.20260401.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)(kysely@0.28.14)
       hono:
-        specifier: ^4.7.0
-        version: 4.12.9
+        specifier: ^4.12.12
+        version: 4.12.12
       nanoid:
         specifier: ^5.1.0
         version: 5.1.7
@@ -164,8 +164,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.1
       hono:
-        specifier: ^4.7.0
-        version: 4.12.9
+        specifier: ^4.12.12
+        version: 4.12.12
       i18next:
         specifier: ^26.0.3
         version: 26.0.3(typescript@5.9.3)
@@ -3997,8 +3997,8 @@ packages:
   hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
 
-  hono@4.12.9:
-    resolution: {integrity: sha512-wy3T8Zm2bsEvxKZM5w21VdHDDcwVS1yUFFY6i8UobSsKfFceT7TOwhbhfKsDyx7tYQlmRM5FLpIuYvNFyjctiA==}
+  hono@4.12.12:
+    resolution: {integrity: sha512-p1JfQMKaceuCbpJKAPKVqyqviZdS0eUxH9v82oWo1kb9xjQ5wA6iP3FNVAPDFlz5/p7d45lO+BpSk1tuSZMF4Q==}
     engines: {node: '>=16.9.0'}
 
   html-escaper@2.0.2:
@@ -6377,13 +6377,13 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@hono/node-server@1.19.12(hono@4.12.9)':
+  '@hono/node-server@1.19.12(hono@4.12.12)':
     dependencies:
-      hono: 4.12.9
+      hono: 4.12.12
 
-  '@hono/zod-validator@0.7.6(hono@4.12.9)(zod@3.25.76)':
+  '@hono/zod-validator@0.7.6(hono@4.12.12)(zod@3.25.76)':
     dependencies:
-      hono: 4.12.9
+      hono: 4.12.12
       zod: 3.25.76
 
   '@hookform/resolvers@5.2.2(react-hook-form@7.72.0(react@19.2.4))':
@@ -8885,7 +8885,7 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.4
 
-  hono@4.12.9: {}
+  hono@4.12.12: {}
 
   html-escaper@2.0.2: {}
 
