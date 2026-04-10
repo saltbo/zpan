@@ -1,3 +1,4 @@
+import { zValidator } from '@hono/zod-validator'
 import { createStorageSchema, updateStorageSchema } from '@zpan/shared/schemas'
 import { Hono } from 'hono'
 import { requireAdmin } from '../middleware/auth'
@@ -11,12 +12,9 @@ const app = new Hono<Env>()
     const result = await listStorages(db)
     return c.json(result)
   })
-  .post('/', async (c) => {
+  .post('/', zValidator('json', createStorageSchema), async (c) => {
     const db = c.get('platform').db
-    const raw = await c.req.json()
-    const parsed = createStorageSchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
-    const storage = await createStorage(db, parsed.data)
+    const storage = await createStorage(db, c.req.valid('json'))
     return c.json(storage, 201)
   })
   .get('/:id', async (c) => {
@@ -26,13 +24,10 @@ const app = new Hono<Env>()
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
     return c.json(storage)
   })
-  .put('/:id', async (c) => {
+  .put('/:id', zValidator('json', updateStorageSchema), async (c) => {
     const db = c.get('platform').db
     const id = c.req.param('id')
-    const raw = await c.req.json()
-    const parsed = updateStorageSchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
-    const storage = await updateStorage(db, id, parsed.data)
+    const storage = await updateStorage(db, id, c.req.valid('json'))
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
     return c.json(storage)
   })

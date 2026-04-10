@@ -1,9 +1,15 @@
+import { zValidator } from '@hono/zod-validator'
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { nanoid } from 'nanoid'
+import { z } from 'zod'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { findPersonalOrg } from '../services/org'
+
+const updateQuotaSchema = z.object({
+  quota: z.number().min(0),
+})
 
 const adminQuotas = new Hono<Env>()
   .use(requireAdmin)
@@ -35,26 +41,20 @@ const adminQuotas = new Hono<Env>()
 
     return c.json({ items, total: items.length })
   })
-  .put('/:orgId', async (c) => {
+  .put('/:orgId', zValidator('json', updateQuotaSchema), async (c) => {
     const db = c.get('platform').db
     const orgId = c.req.param('orgId')
-    const body = await c.req.json<{ quota: number }>()
-
-    if (typeof body.quota !== 'number' || body.quota < 0) {
-      return c.json({ error: 'quota must be a non-negative number' }, 400)
-    }
+    const { quota } = c.req.valid('json')
 
     const existing = await db.all<{ id: string }>(sql`SELECT id FROM org_quotas WHERE org_id = ${orgId}`)
 
     if (existing.length > 0) {
-      await db.run(sql`UPDATE org_quotas SET quota = ${body.quota} WHERE org_id = ${orgId}`)
+      await db.run(sql`UPDATE org_quotas SET quota = ${quota} WHERE org_id = ${orgId}`)
     } else {
-      await db.run(
-        sql`INSERT INTO org_quotas (id, org_id, quota, used) VALUES (${nanoid()}, ${orgId}, ${body.quota}, 0)`,
-      )
+      await db.run(sql`INSERT INTO org_quotas (id, org_id, quota, used) VALUES (${nanoid()}, ${orgId}, ${quota}, 0)`)
     }
 
-    return c.json({ orgId, quota: body.quota })
+    return c.json({ orgId, quota })
   })
 
 const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {

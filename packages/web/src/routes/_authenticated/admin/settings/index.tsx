@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { siteOptionsQueryKey, useSiteOptions } from '@/hooks/use-site-options'
+import { setSystemOption } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/settings/')({
   component: SettingsPage,
@@ -22,19 +23,6 @@ const settingsSchema = z.object({
 })
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
-
-async function saveOption(key: string, value: string) {
-  const res = await fetch(`/api/system/options/${key}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ value, public: true }),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.message ?? `Failed to save ${key}`)
-  }
-}
 
 function SettingsPage() {
   const { t } = useTranslation()
@@ -53,8 +41,8 @@ function SettingsPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: SettingsFormValues) => {
-      await saveOption('site_name', values.siteName)
-      await saveOption('site_description', values.siteDescription)
+      await setSystemOption('site_name', values.siteName, true)
+      await setSystemOption('site_description', values.siteDescription, true)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })

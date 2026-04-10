@@ -36,18 +36,28 @@ export function createApp(platform: Platform, auth: Auth) {
 
   app.use('/api/*', authMiddleware)
 
-  const routes = app
-    .route('/api/objects', objects)
-    .route('/api/recycle-bin', trash)
-    .route('/api/admin/storages', storages)
-    .route('/api/admin/users', users)
-    .route('/api/admin/quotas', adminQuotas)
-    .route('/api/quotas', userQuotas)
-    .route('/api/system', system)
+  // Mount routes separately to avoid deep type chain accumulation.
+  // Each .route() call is independent — TypeScript doesn't stack types.
+  app.route('/api/objects', objects)
+  app.route('/api/recycle-bin', trash)
+  app.route('/api/admin/storages', storages)
+  app.route('/api/admin/users', users)
+  app.route('/api/admin/quotas', adminQuotas)
+  app.route('/api/quotas', userQuotas)
+  app.route('/api/system', system)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
-  return routes
+  return app
 }
 
 export type AppType = ReturnType<typeof createApp>
+
+// Sub-router types for RPC clients — avoids combined AppType OOM
+export type ObjectsRoute = typeof objects
+export type TrashRoute = typeof trash
+export type StoragesRoute = typeof storages
+export type UsersRoute = typeof users
+export type AdminQuotasRoute = typeof adminQuotas
+export type UserQuotasRoute = typeof userQuotas
+export type SystemRoute = typeof system

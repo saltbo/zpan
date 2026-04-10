@@ -38,6 +38,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.12(hono@4.12.9)
+      '@hono/zod-validator':
+        specifier: ^0.7.6
+        version: 0.7.6(hono@4.12.9)(zod@3.25.76)
       '@zpan/shared':
         specifier: workspace:*
         version: link:../shared
@@ -53,6 +56,9 @@ importers:
       nanoid:
         specifier: ^5.1.0
         version: 5.1.7
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
     devDependencies:
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.14.0
@@ -236,6 +242,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.2
         version: 4.1.2(vitest@4.1.2(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(vite@6.4.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.3)))
+      '@zpan/server':
+        specifier: workspace:*
+        version: link:../server
       tailwindcss:
         specifier: ^4.1.0
         version: 4.2.2
@@ -1500,6 +1509,12 @@ packages:
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
+
+  '@hono/zod-validator@0.7.6':
+    resolution: {integrity: sha512-Io1B6d011Gj1KknV4rXYz4le5+5EubcWEU/speUjuw9XMMIaP3n78yXLhjd2A3PXaXaUwEAluOiAyLqhBEJgsw==}
+    peerDependencies:
+      hono: '>=3.9.0'
+      zod: ^3.25.0 || ^4.0.0
 
   '@hookform/resolvers@5.2.2':
     resolution: {integrity: sha512-A/IxlMLShx3KjV/HeTcTfaMxdwy690+L/ZADoeaTltLx+CVuzkeVIPuybK3jrRfw7YZnmdKsVVHAlEPIAEUNlA==}
@@ -6365,6 +6380,11 @@ snapshots:
   '@hono/node-server@1.19.12(hono@4.12.9)':
     dependencies:
       hono: 4.12.9
+
+  '@hono/zod-validator@0.7.6(hono@4.12.9)(zod@3.25.76)':
+    dependencies:
+      hono: 4.12.9
+      zod: 3.25.76
 
   '@hookform/resolvers@5.2.2(react-hook-form@7.72.0(react@19.2.4))':
     dependencies:

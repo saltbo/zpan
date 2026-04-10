@@ -1,3 +1,4 @@
+import { zValidator } from '@hono/zod-validator'
 import { DirType } from '@zpan/shared/constants'
 import {
   batchIdsSchema,
@@ -89,17 +90,13 @@ const app = new Hono<Env>()
     const result = await listMatters(db, orgId, { parent, status, page, pageSize })
     return c.json(result)
   })
-  .post('/', async (c) => {
+  .post('/', zValidator('json', createMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const raw = await c.req.json()
-    const parsed = createMatterSchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
-
     const db = c.get('platform').db
     const userId = c.get('userId')!
-    const { name, type, size, parent, dirtype } = parsed.data
+    const { name, type, size, parent, dirtype } = c.req.valid('json')
     const isFolder = dirtype !== DirType.FILE
 
     const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
@@ -130,49 +127,40 @@ const app = new Hono<Env>()
     const uploadUrl = await s3.presignUpload(storage, objectKey, type)
     return c.json({ ...matter, uploadUrl }, 201)
   })
-  .post('/batch/move', async (c) => {
+  .post('/batch/move', zValidator('json', batchMoveSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const raw = await c.req.json()
-    const parsed = batchMoveSchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
-
+    const { ids, parent } = c.req.valid('json')
     const db = c.get('platform').db
     try {
-      const moved = await batchMove(db, orgId, parsed.data.ids, parsed.data.parent)
+      const moved = await batchMove(db, orgId, ids, parent)
       return c.json({ moved: moved.length })
     } catch (e) {
       return c.json({ error: (e as Error).message }, 400)
     }
   })
-  .post('/batch/trash', async (c) => {
+  .post('/batch/trash', zValidator('json', batchIdsSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const raw = await c.req.json()
-    const parsed = batchIdsSchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
-
+    const { ids } = c.req.valid('json')
     const db = c.get('platform').db
     try {
-      const trashed = await batchTrash(db, orgId, parsed.data.ids)
+      const trashed = await batchTrash(db, orgId, ids)
       return c.json({ trashed: trashed.length })
     } catch (e) {
       return c.json({ error: (e as Error).message }, 400)
     }
   })
-  .post('/batch/delete', async (c) => {
+  .post('/batch/delete', zValidator('json', batchIdsSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const raw = await c.req.json()
-    const parsed = batchIdsSchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
-
+    const { ids } = c.req.valid('json')
     const db = c.get('platform').db
     try {
-      const deleted = await batchDelete(db, orgId, parsed.data.ids)
+      const deleted = await batchDelete(db, orgId, ids)
 
       const byStorage = new Map<string, string[]>()
       for (const m of deleted) {
@@ -209,16 +197,12 @@ const app = new Hono<Env>()
     const downloadUrl = await s3.presignDownload(storage, matter.object, matter.name)
     return c.json({ ...matter, downloadUrl })
   })
-  .patch('/:id', async (c) => {
+  .patch('/:id', zValidator('json', updateMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const raw = await c.req.json()
-    const parsed = updateMatterSchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
-
     const db = c.get('platform').db
-    const matter = await updateMatter(db, c.req.param('id'), orgId, parsed.data)
+    const matter = await updateMatter(db, c.req.param('id'), orgId, c.req.valid('json'))
     if (!matter) return c.json({ error: 'Not found' }, 404)
     return c.json(matter)
   })
@@ -259,13 +243,9 @@ const app = new Hono<Env>()
     const purged = await purgeRecursively(db, orgId, ms)
     return c.json({ id: ms[0].id, deleted: true, purged })
   })
-  .post('/:id/copy', async (c) => {
+  .post('/:id/copy', zValidator('json', copyMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
-
-    const raw = await c.req.json()
-    const parsed = copyMatterSchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400)
 
     const db = c.get('platform').db
     const source = await getMatter(db, c.req.param('id'), orgId)
@@ -285,7 +265,7 @@ const app = new Hono<Env>()
       await s3.copyObject(storage, source.object, storage, newObject)
     }
 
-    const copy = await copyMatter(db, source, parsed.data.parent, newObject)
+    const copy = await copyMatter(db, source, c.req.valid('json').parent, newObject)
     return c.json(copy, 201)
   })
 

@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { updateQuota } from '@/lib/api'
 
 interface UserQuotaDialogProps {
   open: boolean
@@ -35,16 +36,7 @@ export function UserQuotaDialog({ open, onOpenChange, user }: UserQuotaDialogPro
   }, [open, user])
 
   const mutation = useMutation({
-    mutationFn: async ({ orgId, quota }: { orgId: string; quota: number }) => {
-      const res = await fetch(`/api/admin/quotas/${orgId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ quota }),
-      })
-      if (!res.ok) throw new Error('Failed to update quota')
-      return res.json()
-    },
+    mutationFn: ({ orgId, quota }: { orgId: string; quota: number }) => updateQuota(orgId, quota),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'quotas'] })

@@ -1,21 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
+import { listSystemOptions, type SiteOption } from '@/lib/api'
 
-export interface SiteOption {
-  key: string
-  value: string
-  public: boolean
-}
+export type { SiteOption }
 
 export const siteOptionsQueryKey = ['system', 'options'] as const
 
 export function useSiteOptions() {
   const { data, isLoading, isError } = useQuery({
     queryKey: siteOptionsQueryKey,
-    queryFn: async () => {
-      const res = await fetch('/api/system/options', { credentials: 'include' })
-      if (!res.ok) throw new Error('Failed to fetch site options')
-      return res.json() as Promise<{ items: SiteOption[]; total: number }>
-    },
+    queryFn: listSystemOptions,
     staleTime: 5 * 60 * 1000,
   })
 

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { createStorage, updateStorage } from '@/lib/api'
 
 const storageFormSchema = z.object({
   title: z.string().min(1),
@@ -77,21 +78,8 @@ export function StorageFormDialog({ open, onOpenChange, storage }: StorageFormDi
   }, [open, storage, form])
 
   const mutation = useMutation({
-    mutationFn: async (values: StorageFormValues) => {
-      const url = isEditing ? `/api/admin/storages/${storage.id}` : '/api/admin/storages'
-      const method = isEditing ? 'PUT' : 'POST'
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(values),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.message ?? 'Failed to save storage')
-      }
-      return res.json()
-    },
+    mutationFn: (values: StorageFormValues) =>
+      isEditing ? updateStorage(storage.id, values) : createStorage({ ...values, capacity: 0 }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
       onOpenChange(false)

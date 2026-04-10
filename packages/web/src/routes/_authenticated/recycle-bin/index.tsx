@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import type { StorageObject } from '@zpan/shared/types'
 import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { deleteObject, emptyTrash, listObjects, restoreObject } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/recycle-bin/')({
   component: RecycleBinPage,
@@ -34,26 +34,12 @@ function RecycleBinPage() {
 
   const trashQuery = useQuery({
     queryKey: [...QUERY_KEY, page, PAGE_SIZE],
-    queryFn: async () => {
-      const res = await fetch(`/api/objects?status=trashed&page=${page}&pageSize=${PAGE_SIZE}`, {
-        credentials: 'include',
-      })
-      if (!res.ok) throw new Error('Failed to fetch trashed items')
-      return res.json() as Promise<{ items: StorageObject[]; total: number }>
-    },
+    queryFn: () => listObjects('', 'trashed', page, PAGE_SIZE),
   })
 
   const restoreMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      await Promise.all(
-        ids.map(async (id) => {
-          const res = await fetch(`/api/objects/${id}/restore`, {
-            method: 'PATCH',
-            credentials: 'include',
-          })
-          if (!res.ok) throw new Error('Failed to restore item')
-        }),
-      )
+      await Promise.all(ids.map((id) => restoreObject(id)))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
@@ -67,15 +53,7 @@ function RecycleBinPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      await Promise.all(
-        ids.map(async (id) => {
-          const res = await fetch(`/api/objects/${id}`, {
-            method: 'DELETE',
-            credentials: 'include',
-          })
-          if (!res.ok) throw new Error('Failed to delete item')
-        }),
-      )
+      await Promise.all(ids.map((id) => deleteObject(id)))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
@@ -90,13 +68,7 @@ function RecycleBinPage() {
   })
 
   const emptyTrashMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/objects/trash/empty', {
-        method: 'POST',
-        credentials: 'include',
-      })
-      if (!res.ok) throw new Error('Failed to empty trash')
-    },
+    mutationFn: () => emptyTrash(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       setSelectedIds(new Set())

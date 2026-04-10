@@ -8,27 +8,11 @@ import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { UserQuotaDialog } from '@/components/admin/user-quota-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { listQuotas, listUsers, type QuotaItem, type UserWithOrg, updateUserStatus } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/users/')({
   component: UsersPage,
 })
-
-interface UserWithOrg {
-  id: string
-  name: string
-  email: string
-  role: string | null
-  banned: boolean
-  createdAt: number
-  orgId: string | null
-  orgName: string | null
-}
-
-interface QuotaItem {
-  orgId: string
-  quota: number
-  used: number
-}
 
 interface UserRow extends UserWithOrg {
   quotaUsed: number
@@ -47,33 +31,17 @@ function UsersPage() {
 
   const usersQuery = useQuery({
     queryKey: ['admin', 'users', page, pageSize],
-    queryFn: async () => {
-      const res = await fetch(`/api/admin/users?page=${page}&pageSize=${pageSize}`, { credentials: 'include' })
-      if (!res.ok) throw new Error('Failed to fetch users')
-      return res.json() as Promise<{ items: UserWithOrg[]; total: number }>
-    },
+    queryFn: () => listUsers(page, pageSize),
   })
 
   const quotasQuery = useQuery({
     queryKey: ['admin', 'quotas'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/quotas', { credentials: 'include' })
-      if (!res.ok) throw new Error('Failed to fetch quotas')
-      return res.json() as Promise<{ items: QuotaItem[]; total: number }>
-    },
+    queryFn: listQuotas,
   })
 
   const toggleStatusMutation = useMutation({
-    mutationFn: async ({ userId, status }: { userId: string; status: string }) => {
-      const res = await fetch(`/api/admin/users/${userId}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status }),
-      })
-      if (!res.ok) throw new Error('Failed to update status')
-      return res.json()
-    },
+    mutationFn: ({ userId, status }: { userId: string; status: 'active' | 'disabled' }) =>
+      updateUserStatus(userId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       toast.success(t('admin.users.statusUpdated'))

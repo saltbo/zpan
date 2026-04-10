@@ -1,7 +1,14 @@
+import { zValidator } from '@hono/zod-validator'
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+
+const setOptionSchema = z.object({
+  value: z.string(),
+  public: z.boolean().optional(),
+})
 
 type OptionRow = { key: string; value: string; public: number }
 
@@ -27,13 +34,10 @@ const app = new Hono<Env>()
     }
     return c.json(toOption(row))
   })
-  .put('/options/:key', requireAdmin, async (c) => {
+  .put('/options/:key', requireAdmin, zValidator('json', setOptionSchema), async (c) => {
     const db = c.get('platform').db
     const key = c.req.param('key')
-    const body = await c.req.json<{ value?: unknown; public?: unknown }>()
-    if (typeof body.value !== 'string') {
-      return c.json({ error: 'value must be a string' }, 400)
-    }
+    const body = c.req.valid('json')
     const isPublic = body.public === undefined ? undefined : body.public ? 1 : 0
     const existing = await db.all<{ key: string; public: number }>(
       sql`SELECT key, public FROM system_options WHERE key = ${key}`,

@@ -2,12 +2,11 @@ import { createFileRoute, Outlet, redirect, useMatchRoute } from '@tanstack/reac
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { getSession } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async () => {
-    const res = await fetch('/api/auth/get-session', { credentials: 'include' })
-    if (!res.ok) throw redirect({ to: '/sign-in' })
-    const data = await res.json()
+    const data = await getSession()
     if (!data?.session) throw redirect({ to: '/sign-in' })
     return { user: data.user }
   },

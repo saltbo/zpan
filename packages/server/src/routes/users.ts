@@ -1,7 +1,13 @@
+import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deleteUser, listUsers, setUserStatus } from '../services/user'
+
+const updateStatusSchema = z.object({
+  status: z.enum(['active', 'disabled']),
+})
 
 const app = new Hono<Env>()
   .use(requireAdmin)
@@ -13,21 +19,17 @@ const app = new Hono<Env>()
     const result = await listUsers(db, page, pageSize)
     return c.json(result)
   })
-  .put('/:id/status', async (c) => {
+  .put('/:id/status', zValidator('json', updateStatusSchema), async (c) => {
     const db = c.get('platform').db
     const userId = c.req.param('id')
-    const body = await c.req.json<{ status: string }>()
+    const { status } = c.req.valid('json')
 
-    if (body.status !== 'active' && body.status !== 'disabled') {
-      return c.json({ error: 'status must be "active" or "disabled"' }, 400)
-    }
-
-    const updated = await setUserStatus(db, userId, body.status)
+    const updated = await setUserStatus(db, userId, status)
     if (!updated) {
       return c.json({ error: 'User not found' }, 404)
     }
 
-    return c.json({ id: userId, status: body.status })
+    return c.json({ id: userId, status })
   })
   .delete('/:id', async (c) => {
     const db = c.get('platform').db

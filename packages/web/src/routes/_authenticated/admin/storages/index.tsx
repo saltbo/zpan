@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { DeleteStorageDialog } from '@/components/admin/delete-storage-dialog'
 import { StorageFormDialog } from '@/components/admin/storage-form-dialog'
 import { Button } from '@/components/ui/button'
+import { listStorages } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/storages/')({
   component: StoragesPage,
@@ -22,14 +23,7 @@ function StoragesPage() {
 
   const storagesQuery = useQuery({
     queryKey: ['admin', 'storages'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/storages', { credentials: 'include' })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.message ?? 'Failed to fetch storages')
-      }
-      return res.json() as Promise<{ items: Storage[]; total: number }>
-    },
+    queryFn: listStorages,
   })
 
   const storages = storagesQuery.data?.items ?? []

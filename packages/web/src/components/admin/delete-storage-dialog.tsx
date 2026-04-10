@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { deleteStorage } from '@/lib/api'
 
 interface DeleteStorageDialogProps {
   open: boolean
@@ -22,19 +23,7 @@ export function DeleteStorageDialog({ open, onOpenChange, storage }: DeleteStora
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/admin/storages/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-      if (res.status === 409) {
-        throw new Error(t('admin.storages.deleteHasFiles'))
-      }
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.message ?? 'Failed to delete storage')
-      }
-    },
+    mutationFn: (id: string) => deleteStorage(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
       onOpenChange(false)

@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { deleteUser } from '@/lib/api'
 
 interface DeleteUserDialogProps {
   open: boolean
@@ -22,13 +23,7 @@ export function DeleteUserDialog({ open, onOpenChange, user }: DeleteUserDialogP
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const res = await fetch(`/api/admin/users/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-      if (!res.ok) throw new Error('Failed to delete user')
-    },
+    mutationFn: (userId: string) => deleteUser(userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'quotas'] })
