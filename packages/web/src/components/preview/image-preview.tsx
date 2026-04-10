@@ -1,12 +1,24 @@
+import Lightbox from 'yet-another-react-lightbox'
+import FullscreenPlugin from 'yet-another-react-lightbox/plugins/fullscreen'
+import ZoomPlugin from 'yet-another-react-lightbox/plugins/zoom'
+import 'yet-another-react-lightbox/styles.css'
+
 interface ImagePreviewProps {
   url: string
   filename: string
+  open: boolean
+  onClose: () => void
 }
 
-export function ImagePreview({ url, filename }: ImagePreviewProps) {
+export function ImagePreview({ url, filename, open, onClose }: ImagePreviewProps) {
   return (
-    <div className="flex items-center justify-center overflow-hidden">
-      <img src={url} alt={filename} className="max-h-[calc(90vh-4rem)] max-w-[90vw] object-contain" />
-    </div>
+    <Lightbox
+      open={open}
+      close={onClose}
+      slides={[{ src: url, alt: filename }]}
+      plugins={[ZoomPlugin, FullscreenPlugin]}
+      carousel={{ finite: true }}
+      render={{ buttonPrev: () => null, buttonNext: () => null }}
+    />
   )
 }

@@ -1,13 +1,10 @@
 import { DownloadIcon, XIcon } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
-import Lightbox from 'yet-another-react-lightbox'
-import FullscreenPlugin from 'yet-another-react-lightbox/plugins/fullscreen'
-import ZoomPlugin from 'yet-another-react-lightbox/plugins/zoom'
-import 'yet-another-react-lightbox/styles.css'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { getPreviewType, type PreviewType } from '@/lib/file-types'
+import { ImagePreview } from './image-preview'
 
 const PdfPreview = lazy(() => import('./pdf-preview').then((m) => ({ default: m.PdfPreview })))
 const TextPreview = lazy(() => import('./text-preview').then((m) => ({ default: m.TextPreview })))
@@ -87,21 +84,10 @@ export function FilePreviewDialog({ file, open, onOpenChange }: FilePreviewDialo
   const { t } = useTranslation()
   const previewType = file ? getPreviewType(file.name, file.type) : 'unsupported'
 
-  // Image: fullscreen lightbox, no dialog
   if (previewType === 'image' && file) {
-    return (
-      <Lightbox
-        open={open}
-        close={() => onOpenChange(false)}
-        slides={[{ src: file.downloadUrl, alt: file.name }]}
-        plugins={[ZoomPlugin, FullscreenPlugin]}
-        carousel={{ finite: true }}
-        render={{ buttonPrev: () => null, buttonNext: () => null }}
-      />
-    )
+    return <ImagePreview url={file.downloadUrl} filename={file.name} open={open} onClose={() => onOpenChange(false)} />
   }
 
-  // Other types: dialog
   const sizeClass = dialogClass(previewType)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
