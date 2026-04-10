@@ -8,8 +8,8 @@ Core architecture: clients upload directly to S3-compatible storage via presigne
 
 ## Key Context
 
-- Monorepo: `packages/server` (Hono API), `packages/web` (React SPA), `packages/shared` (types/schemas)
-- Dual runtime: `entry-cloudflare.ts` (CF Workers + D1) and `entry-node.ts` (Node + SQLite)
+- Single package: `server/` (Hono API), `src/` (React SPA), `shared/` (types/schemas)
+- CF Pages Functions: `functions/api/[[route]].ts` (CF Pages + D1) and `server/entry-node.ts` (Node + SQLite)
 - Tests are co-located: `*.test.ts` (Node), `*.cf-test.ts` (CF Workers)
 - Migrations: drizzle-kit generates SQL → wrangler manages D1 state
 
@@ -34,7 +34,7 @@ The frontend **must** use Hono RPC client for all API calls. **Never** use raw `
 ```typescript
 // ✅ Correct — type-safe, compile-time path validation
 import { hc } from 'hono/client'
-import type { AppType } from '@zpan/server/app'
+import type { AppType } from '@server/app'
 const client = hc<AppType>('/')
 const res = await client.api.admin.storages.$get()
 
@@ -46,4 +46,4 @@ Exception: `uploadToS3()` calls external S3 presigned URLs, not our API — raw 
 
 ## Types
 
-All shared types live in `packages/shared`. **Never** create duplicate type definitions in `packages/web` or `packages/server`. Import from `@zpan/shared/types` and `@zpan/shared/constants`.
+All shared types live in `shared/`. **Never** create duplicate type definitions in `src/` or `server/`. Import from `@shared/types` and `@shared/constants`.

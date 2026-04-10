@@ -15,12 +15,12 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'pnpm --filter @zpan/server dev',
+      command: 'tsx watch server/entry-node.ts',
       port: 8222,
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: 'pnpm --filter @zpan/web dev',
+      command: 'vite',
       port: 5173,
       reuseExistingServer: !process.env.CI,
     },
