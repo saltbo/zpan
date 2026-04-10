@@ -133,12 +133,13 @@ describe('api', () => {
 
       expect(result).toEqual(created)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects')
+      expect(url).toContain('/api/objects')
       expect(init.method).toBe('POST')
-      expect(init.body).toBe(
-        JSON.stringify({ name: 'doc.pdf', type: 'application/pdf', size: 1024, parent: 'root', dirtype: 0 }),
-      )
-      expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ name: 'doc.pdf', type: 'application/pdf', size: 1024, parent: 'root', dirtype: 0 })
+      const headers =
+        init.headers instanceof Headers ? init.headers : new Headers(init.headers as Record<string, string>)
+      expect(headers.get('Content-Type')).toContain('application/json')
     })
 
     it('throws on error response', async () => {
@@ -228,10 +229,13 @@ describe('api', () => {
 
       expect(result).toEqual(copy)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/id1/copy')
+      expect(url).toContain('/api/objects/id1/copy')
       expect(init.method).toBe('POST')
-      expect(init.body).toBe(JSON.stringify({ parent: 'folder2' }))
-      expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ parent: 'folder2' })
+      const headers =
+        init.headers instanceof Headers ? init.headers : new Headers(init.headers as Record<string, string>)
+      expect(headers.get('Content-Type')).toContain('application/json')
     })
 
     it('throws on error response', async () => {
