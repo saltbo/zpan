@@ -21,9 +21,16 @@ export function listObjects(parent: string, status = 'active', page = 1, pageSiz
   )
 }
 
-export function listObjectsByPath(path: string, status = 'active', page = 1, pageSize = 500, type?: string) {
+export function listObjectsByPath(
+  path: string,
+  status = 'active',
+  page = 1,
+  pageSize = 500,
+  opts?: { type?: string; search?: string },
+) {
   const query: Record<string, string> = { path, status, page: String(page), pageSize: String(pageSize) }
-  if (type) query.type = type
+  if (opts?.type) query.type = opts.type
+  if (opts?.search) query.search = opts.search
   return unwrap<PaginatedResponse<StorageObject>>(objects.index.$get({ query }))
 }
 

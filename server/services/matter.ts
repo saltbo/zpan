@@ -68,6 +68,7 @@ interface ListFilters {
   page: number
   pageSize: number
   typeFilter?: string
+  search?: string
 }
 
 export async function listMatters(
@@ -78,7 +79,9 @@ export async function listMatters(
   const offset = (filters.page - 1) * filters.pageSize
   const conditions = [eq(matters.orgId, orgId), eq(matters.status, filters.status)]
   const typeCond = filters.typeFilter ? typeFilterCondition(filters.typeFilter) : undefined
-  if (typeCond) {
+  if (filters.search) {
+    conditions.push(like(matters.name, `%${filters.search}%`))
+  } else if (typeCond) {
     conditions.push(typeCond)
     conditions.push(eq(matters.dirtype, DirType.FILE))
   } else {

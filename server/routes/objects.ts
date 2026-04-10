@@ -85,11 +85,12 @@ const app = new Hono<Env>()
     const parent = c.req.query('path') ?? c.req.query('parent') ?? ''
     const status = c.req.query('status') ?? 'active'
     const typeFilter = c.req.query('type')
+    const search = c.req.query('search')
     const page = Number(c.req.query('page') ?? '1')
     const pageSize = Number(c.req.query('pageSize') ?? '20')
 
     const db = c.get('platform').db
-    const result = await listMatters(db, orgId, { parent, status, typeFilter, page, pageSize })
+    const result = await listMatters(db, orgId, { parent, status, typeFilter, search, page, pageSize })
     return c.json(result)
   })
   .post('/', zValidator('json', createMatterSchema), async (c) => {

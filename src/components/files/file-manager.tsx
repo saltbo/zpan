@@ -79,15 +79,16 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
 
-  const query = useFilesQuery(currentPath, filterType)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const query = useFilesQuery(currentPath, filterType, debouncedSearch || undefined)
   const mutations = useFileMutations(currentPath)
-  const allItems = query.data?.items ?? []
-  const items = useMemo(
-    () =>
-      searchQuery ? allItems.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase())) : allItems,
-    [allItems, searchQuery],
-  )
+  const items = query.data?.items ?? []
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: clear selection and search when path changes
   useEffect(() => {
