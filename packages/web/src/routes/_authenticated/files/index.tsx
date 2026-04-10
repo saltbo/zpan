@@ -6,7 +6,9 @@ import { FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { UploadDropzone } from '../../../components/upload/upload-dropzone'
+import { FilePreviewDialog, type PreviewFile } from '../../../components/preview/file-preview-dialog'
+import { UploadDropzone, type UploadDropzoneHandle } from '../../../components/upload/upload-dropzone'
+import { confirmUpload, createObject, getObject, uploadToS3 } from '../../../lib/api'
 import { connectAdapter, loadFolder, pathToDbId, refreshFolder } from '../../../lib/file-manager-adapter'
 
 interface FilesSearch {
@@ -26,9 +28,18 @@ function FilesPage() {
   const navigate = useNavigate()
 
   const apiRef = useRef<IApi>(null)
+  const dropzoneRef = useRef<UploadDropzoneHandle>(null)
+  const currentPathRef = useRef('/')
   const [data, setData] = useState<IEntity[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPath, setCurrentPath] = useState('/')
+  const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+
+  // Keep ref in sync with state for use inside SVAR callbacks
+  useEffect(() => {
+    currentPathRef.current = currentPath
+  }, [currentPath])
 
   useEffect(() => {
     setLoading(true)
@@ -38,9 +49,70 @@ function FilesPage() {
       .finally(() => setLoading(false))
   }, [t])
 
-  const handleInit = useCallback((api: IApi) => {
-    connectAdapter(api)
-  }, [])
+  const handleInit = useCallback(
+    (api: IApi) => {
+      connectAdapter(api)
+
+      // SVAR's built-in uploader bypasses the event bus entirely.
+      // Hijack its hidden file input to run our presigned URL upload.
+      const observer = new MutationObserver(() => {
+        // Find SVAR's file input (inside a wx- classed ancestor, not our UploadDropzone)
+        const allInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]')
+        const svarInput = Array.from(allInputs).find((el) => el.closest('[class*="wx-"]'))
+        if (svarInput && !svarInput.dataset.hijacked) {
+          svarInput.dataset.hijacked = 'true'
+          svarInput.addEventListener('change', async () => {
+            const files = svarInput.files
+            if (!files?.length) return
+            const parentPath = currentPathRef.current || '/'
+            const parentDbId = pathToDbId(parentPath)
+            for (const file of Array.from(files)) {
+              try {
+                const matter = await createObject({
+                  name: file.name,
+                  type: file.type || 'application/octet-stream',
+                  size: file.size,
+                  parent: parentDbId,
+                  dirtype: 0,
+                })
+                if (matter.uploadUrl) {
+                  await uploadToS3(matter.uploadUrl, file)
+                  await confirmUpload(matter.id)
+                }
+                toast.success(t('files.uploadSuccess', { name: file.name }))
+              } catch {
+                toast.error(t('files.uploadFailed', { name: file.name }))
+              }
+            }
+            refreshFolder(api, pathToDbId(parentPath), parentPath).catch(() => {})
+            svarInput.value = ''
+          })
+          observer.disconnect()
+        }
+      })
+      observer.observe(document.body, { childList: true, subtree: true })
+
+      api.on('open-file', async ({ id }: { id: string }) => {
+        try {
+          const dbId = pathToDbId(id)
+          const obj = await getObject(dbId)
+          if (obj.downloadUrl) {
+            setPreviewFile({
+              id: dbId,
+              name: obj.name,
+              type: obj.type,
+              size: obj.size,
+              downloadUrl: obj.downloadUrl,
+            })
+            setPreviewOpen(true)
+          }
+        } catch {
+          toast.error(t('common.error'))
+        }
+      })
+    },
+    [t],
+  )
 
   const handleSetPath = useCallback(
     ({ id }: { id: string }) => {
@@ -52,10 +124,11 @@ function FilesPage() {
 
   const handleUploadComplete = useCallback(() => {
     if (apiRef.current) {
-      const dbId = pathToDbId(currentPath)
-      refreshFolder(apiRef.current, dbId, currentPath).catch(() => toast.error(t('common.error')))
+      const cp = currentPathRef.current || '/'
+      const dbId = pathToDbId(cp)
+      refreshFolder(apiRef.current, dbId, cp).catch(() => toast.error(t('common.error')))
     }
-  }, [currentPath, t])
+  }, [t])
 
   if (loading) {
     return (
@@ -67,7 +140,7 @@ function FilesPage() {
 
   if (!data || data.length === 0) {
     return (
-      <UploadDropzone parent={pathToDbId(currentPath)} onUploadComplete={handleUploadComplete}>
+      <UploadDropzone ref={dropzoneRef} parent={pathToDbId(currentPath)} onUploadComplete={handleUploadComplete}>
         <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
           <FolderOpen className="h-16 w-16" />
           <h2 className="text-xl font-medium">{t('files.title')}</h2>
@@ -78,12 +151,13 @@ function FilesPage() {
   }
 
   return (
-    <UploadDropzone parent={pathToDbId(currentPath)} onUploadComplete={handleUploadComplete}>
+    <UploadDropzone ref={dropzoneRef} parent={pathToDbId(currentPath)} onUploadComplete={handleUploadComplete}>
       <div className="h-[calc(100vh-4rem)]">
         <Willow>
           <Filemanager ref={apiRef} data={data} init={handleInit} onsetpath={handleSetPath} />
         </Willow>
       </div>
+      <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />
     </UploadDropzone>
   )
 }

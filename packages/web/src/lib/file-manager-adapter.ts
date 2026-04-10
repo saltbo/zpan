@@ -1,7 +1,16 @@
 import type { IApi, IEntity, TID } from '@svar-ui/react-filemanager'
 import { DirType } from '@zpan/shared/constants'
 import type { StorageObject } from '@zpan/shared/types'
-import { copyObject, createObject, deleteObject, getObject, listObjects, updateObject } from './api'
+import {
+  confirmUpload,
+  copyObject,
+  createObject,
+  deleteObject,
+  getObject,
+  listObjects,
+  updateObject,
+  uploadToS3,
+} from './api'
 
 // SVAR uses path-based IDs (e.g. "/Music/song.mp3").
 // ZPan uses database IDs. This class manages the bidirectional mapping.
@@ -162,5 +171,28 @@ export function connectAdapter(api: IApi) {
       window.open(obj.downloadUrl, '_blank', 'noopener,noreferrer')
     }
     return false
+  })
+
+  api.intercept('upload', async (ev: { to: TID; files: File[] }) => {
+    const parentPath = (ev.to as string) || '/'
+    const parentDbId = mapper.toDbId(parentPath)
+    const newIds: string[] = []
+    for (const file of ev.files) {
+      const matter = await createObject({
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size,
+        parent: parentDbId,
+        dirtype: DirType.FILE,
+      })
+      if (matter.uploadUrl) {
+        await uploadToS3(matter.uploadUrl, file)
+        await confirmUpload(matter.id)
+      }
+      const newPath = buildPath(parentPath, file.name)
+      mapper.register(newPath, matter.id)
+      newIds.push(newPath)
+    }
+    return { newIds }
   })
 }
