@@ -38,6 +38,7 @@
   "files.colName": "Name",
   "files.colSize": "Size",
   "files.colModified": "Modified",
+  "files.searchPlaceholder": "Search files...",
   "files.upload": "Upload",
   "files.preview": "Preview",
   "files.folderNamePlaceholder": "Folder name",

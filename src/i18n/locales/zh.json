@@ -38,6 +38,7 @@
   "files.colName": "名称",
   "files.colSize": "大小",
   "files.colModified": "修改时间",
+  "files.searchPlaceholder": "搜索文件...",
   "files.upload": "上传",
   "files.preview": "预览",
   "files.folderNamePlaceholder": "文件夹名称",

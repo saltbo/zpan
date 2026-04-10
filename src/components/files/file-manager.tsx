@@ -54,7 +54,22 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
   const breadcrumb = pathToBreadcrumb(currentPath, t('files.title'))
 
   const [viewMode, setViewMode] = useViewMode()
-  const [sorting, setSorting] = useState<SortingState>([])
+  const [sorting, setSorting] = useState<SortingState>(() => {
+    try {
+      const saved = localStorage.getItem('zpan-sort')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
+  const handleSortingChange: typeof setSorting = (updater) => {
+    setSorting((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      localStorage.setItem('zpan-sort', JSON.stringify(next))
+      return next
+    })
+  }
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   const [renameTarget, setRenameTarget] = useState<StorageObject | null>(null)
@@ -63,13 +78,22 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const query = useFilesQuery(currentPath, filterType)
   const mutations = useFileMutations(currentPath)
-  const items = query.data?.items ?? []
+  const allItems = query.data?.items ?? []
+  const items = useMemo(
+    () =>
+      searchQuery ? allItems.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase())) : allItems,
+    [allItems, searchQuery],
+  )
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: clear selection when path changes
-  useEffect(() => setRowSelection({}), [currentPath])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clear selection and search when path changes
+  useEffect(() => {
+    setRowSelection({})
+    setSearchQuery('')
+  }, [currentPath])
 
   const navigateToPath = useCallback(
     (path: string) => {
@@ -136,7 +160,7 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
     data: items,
     columns,
     state: { sorting, rowSelection },
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -180,6 +204,8 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           selectedCount={selectedIds.length}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
           onUpload={() => dropzoneRef.current?.openFileDialog()}
           onNewFolder={() => setShowNewFolder(true)}
           onBatchTrash={() => setDeleteTargetIds(selectedIds)}
