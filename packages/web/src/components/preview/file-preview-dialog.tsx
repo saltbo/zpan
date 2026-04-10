@@ -1,11 +1,14 @@
 import { DownloadIcon, XIcon } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
+import Lightbox from 'yet-another-react-lightbox'
+import FullscreenPlugin from 'yet-another-react-lightbox/plugins/fullscreen'
+import ZoomPlugin from 'yet-another-react-lightbox/plugins/zoom'
+import 'yet-another-react-lightbox/styles.css'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { getPreviewType, type PreviewType } from '@/lib/file-types'
 
-const ImagePreview = lazy(() => import('./image-preview').then((m) => ({ default: m.ImagePreview })))
 const PdfPreview = lazy(() => import('./pdf-preview').then((m) => ({ default: m.PdfPreview })))
 const TextPreview = lazy(() => import('./text-preview').then((m) => ({ default: m.TextPreview })))
 const MediaPreview = lazy(() => import('./media-preview').then((m) => ({ default: m.MediaPreview })))
@@ -44,11 +47,8 @@ function DownloadButton({ url, filename }: { url: string; filename: string }) {
   )
 }
 
-// Dialog size per preview type
 function dialogClass(previewType: PreviewType): string {
   switch (previewType) {
-    case 'image':
-      return 'max-w-5xl h-[90vh]'
     case 'video':
       return 'max-w-4xl h-auto'
     case 'audio':
@@ -64,8 +64,6 @@ function PreviewBody({ file, previewType }: { file: PreviewFile; previewType: Pr
   const { t } = useTranslation()
 
   switch (previewType) {
-    case 'image':
-      return <ImagePreview url={file.downloadUrl} filename={file.name} />
     case 'pdf':
       return <PdfPreview url={file.downloadUrl} />
     case 'markdown':
@@ -88,8 +86,23 @@ function PreviewBody({ file, previewType }: { file: PreviewFile; previewType: Pr
 export function FilePreviewDialog({ file, open, onOpenChange }: FilePreviewDialogProps) {
   const { t } = useTranslation()
   const previewType = file ? getPreviewType(file.name, file.type) : 'unsupported'
-  const sizeClass = dialogClass(previewType)
 
+  // Image: fullscreen lightbox, no dialog
+  if (previewType === 'image' && file) {
+    return (
+      <Lightbox
+        open={open}
+        close={() => onOpenChange(false)}
+        slides={[{ src: file.downloadUrl, alt: file.name }]}
+        plugins={[ZoomPlugin, FullscreenPlugin]}
+        carousel={{ finite: true }}
+        render={{ buttonPrev: () => null, buttonNext: () => null }}
+      />
+    )
+  }
+
+  // Other types: dialog
+  const sizeClass = dialogClass(previewType)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {file && (
