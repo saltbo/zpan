@@ -1,6 +1,14 @@
 import type { IApi, IEntity } from '@svar-ui/react-filemanager'
 import { Filemanager, Willow } from '@svar-ui/react-filemanager'
 import '@svar-ui/react-filemanager/all.css'
+
+// Hide SVAR's built-in sidebar tree and breadcrumb — we use our own App Sidebar
+const svarOverrides = `
+  .wx-sidebar { display: none !important; }
+  .wx-left .wx-name { display: none !important; }
+  .wx-breadcrumbs { display: none !important; }
+`
+
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -150,6 +158,8 @@ function FilesPage() {
 
   return (
     <UploadDropzone ref={dropzoneRef} parent={pathToDbId(currentPath)} onUploadComplete={handleUploadComplete}>
+      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: static CSS overrides for SVAR */}
+      <style dangerouslySetInnerHTML={{ __html: svarOverrides }} />
       <div className="h-[calc(100vh-4rem)]">
         <Willow>
           <Filemanager ref={apiRef} data={data} init={handleInit} onsetpath={handleSetPath} />
