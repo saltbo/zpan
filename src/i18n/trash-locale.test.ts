@@ -134,8 +134,8 @@ describe('recycleBin locale keys — English values contract', () => {
     expect(enLocale['recycleBin.colActions']).toBe('Actions')
   })
 
-  it('nav.recycleBin is "Recycle Bin"', () => {
-    expect(enLocale['nav.recycleBin']).toBe('Recycle Bin')
+  it('nav.recycleBin is "Trash"', () => {
+    expect(enLocale['nav.recycleBin']).toBe('Trash')
   })
 })
 

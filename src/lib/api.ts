@@ -21,6 +21,12 @@ export function listObjects(parent: string, status = 'active', page = 1, pageSiz
   )
 }
 
+export function listObjectsByPath(path: string, status = 'active', page = 1, pageSize = 500, type?: string) {
+  const query: Record<string, string> = { path, status, page: String(page), pageSize: String(pageSize) }
+  if (type) query.type = type
+  return unwrap<PaginatedResponse<StorageObject>>(objects.index.$get({ query }))
+}
+
 export function getObject(id: string) {
   return unwrap<StorageObject & { downloadUrl?: string }>(objects[':id'].$get({ param: { id } }))
 }
@@ -49,8 +55,24 @@ export function copyObject(id: string, parent: string) {
   return unwrap<StorageObject>(objects[':id'].copy.$post({ param: { id }, json: { parent } }))
 }
 
+export function trashObject(id: string) {
+  return unwrap<StorageObject>(objects[':id'].trash.$patch({ param: { id } }))
+}
+
 export function restoreObject(id: string) {
   return unwrap<StorageObject>(objects[':id'].restore.$patch({ param: { id } }))
+}
+
+export function batchMoveObjects(ids: string[], parent: string) {
+  return unwrap<{ moved: number }>(objects.batch.move.$post({ json: { ids, parent } }))
+}
+
+export function batchTrashObjects(ids: string[]) {
+  return unwrap<{ trashed: number }>(objects.batch.trash.$post({ json: { ids } }))
+}
+
+export function batchDeleteObjects(ids: string[]) {
+  return unwrap<{ deleted: number }>(objects.batch.delete.$post({ json: { ids } }))
 }
 
 export function emptyTrash() {

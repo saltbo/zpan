@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  batchDeleteObjects,
+  batchMoveObjects,
+  batchTrashObjects,
   confirmUpload,
   copyObject,
   createObject,
@@ -20,6 +23,7 @@ import {
   listUsers,
   restoreObject,
   setSystemOption,
+  trashObject,
   updateObject,
   updateQuota,
   updateStorage,
@@ -697,6 +701,111 @@ describe('api', () => {
       const result = await getSession()
 
       expect(result).toBeNull()
+    })
+  })
+
+  describe('trashObject', () => {
+    it('sends PATCH to trash endpoint for the given id', async () => {
+      const obj = { id: 'id1', status: 'trashed' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
+
+      const result = await trashObject('id1')
+
+      expect(result).toEqual(obj)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/id1/trash')
+      expect(init.method).toBe('PATCH')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(trashObject('missing')).rejects.toThrow('not found')
+    })
+  })
+
+  describe('batchTrashObjects', () => {
+    it('posts ids to batch trash endpoint and returns trashed count', async () => {
+      const payload = { trashed: 3 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await batchTrashObjects(['id1', 'id2', 'id3'])
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/batch/trash')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ ids: ['id1', 'id2', 'id3'] })
+    })
+
+    it('posts an empty ids array without error', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ trashed: 0 }))
+
+      const result = await batchTrashObjects([])
+
+      expect(result).toEqual({ trashed: 0 })
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ ids: [] })
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(batchTrashObjects(['id1'])).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('batchMoveObjects', () => {
+    it('posts ids and parent to batch move endpoint and returns moved count', async () => {
+      const payload = { moved: 2 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await batchMoveObjects(['id1', 'id2'], 'folder1')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/batch/move')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ ids: ['id1', 'id2'], parent: 'folder1' })
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(batchMoveObjects(['id1'], 'missing-folder')).rejects.toThrow('not found')
+    })
+  })
+
+  describe('batchDeleteObjects', () => {
+    it('posts ids to batch delete endpoint and returns deleted count', async () => {
+      const payload = { deleted: 2 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await batchDeleteObjects(['id1', 'id2'])
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/batch/delete')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ ids: ['id1', 'id2'] })
+    })
+
+    it('posts an empty ids array without error', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ deleted: 0 }))
+
+      const result = await batchDeleteObjects([])
+
+      expect(result).toEqual({ deleted: 0 })
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'server error' }, false, 500))
+
+      await expect(batchDeleteObjects(['id1'])).rejects.toThrow('server error')
     })
   })
 })

@@ -39,11 +39,11 @@ CF Pages (wrangler)                   Docker (Node.js)
 | ORM | **Drizzle** | Prisma, Kysely | First-class D1 support, type-safe, SQL-like syntax, lightweight bundle for CF Pages Functions |
 | Auth | **Better Auth** | Lucia, Auth.js, custom JWT | Drizzle adapter, D1 support, built-in social login / OIDC / organization plugin, active development |
 | S3 SDK | **@aws-sdk/client-s3** | minio-js, custom fetch | Industry standard, works with every S3-compatible provider including R2 |
-| Package Manager | **pnpm** | npm, yarn, bun | Fast, disk efficient, good monorepo support if needed later |
+| Package Manager | **npm** | pnpm, yarn, bun | Standard, no extra tooling, Volta manages Node version |
 | Frontend Framework | **React 19 + Vite** | Vue, Solid, Svelte | Largest ecosystem, Capacitor-ready for future native apps if needed |
 | UI Components | **shadcn/ui + Tailwind CSS 4** | Ant Design, MUI | Zero runtime overhead (source code, not npm dep), best responsive/mobile support, modern aesthetic preferred by international users |
 | Admin Scaffold | **[shadcn-admin](https://github.com/satnaing/shadcn-admin)** (11.6k stars) | Custom build | Fork as starting point for the **admin backend panel**. Includes sidebar, navigation, search, dark mode, responsive layout, settings pages. Same stack: Vite + TanStack Router + shadcn/ui. The user-facing frontend is custom-built |
-| File Manager | **[SVAR React File Manager](https://svar.dev/react/filemanager/)** (MIT) | @cubone/react-file-manager | List/grid/split views, directory tree, breadcrumb, context menu, drag-and-drop, image preview, search, storage indicator, dark mode, TypeScript, backend-agnostic adapter API |
+| File Manager | **Custom** (shadcn/ui + @tanstack/react-table + @dnd-kit) | SVAR, @cubone/react-file-manager | List/grid views, directory tree, breadcrumb, context menu, drag-and-drop, file preview, type-safe, full control |
 | Routing | **TanStack Router** | React Router, Next.js | Type-safe, lightweight, no framework lock-in. Included in shadcn-admin |
 | Data Table | **TanStack Table** (via shadcn/ui Data Table) | AG Grid | Share management, user management, admin pages. Included in shadcn/ui |
 | Icons | **Lucide** | Heroicons, Phosphor | Default icon set for shadcn/ui, consistent style |
@@ -59,7 +59,7 @@ CF Pages (wrangler)                   Docker (Node.js)
 | Component | Source | Custom Work |
 |-----------|--------|-------------|
 | Layout, sidebar, navigation, dark mode | shadcn-admin | Minimal — adapt routes and menu items |
-| File manager (list, grid, tree, drag-drop) | SVAR File Manager | Write adapter to connect to ZPan API |
+| File manager (list, grid, tree, drag-drop) | Custom (shadcn/ui + react-table + dnd-kit) | Built-in, path-based navigation |
 | Upload dropzone | react-dropzone + shadcn blocks | Compose with presigned URL upload logic |
 | Data tables (shares, users, storage) | shadcn/ui Data Table | Define columns and connect to API |
 | Dialogs (share settings, file detail) | shadcn/ui Dialog/Sheet | Build forms inside pre-made shells |
@@ -74,45 +74,31 @@ Most of the heavy UI work is handled by existing components. Custom development 
 
 ## Project Structure
 
-pnpm workspace monorepo for TypeScript packages, Cargo workspace for Rust native tools (planned). All in one repo.
+Single-package structure. Cargo workspace for Rust native tools (planned).
 
 ```
 zpan/
-├── packages/                  # TypeScript (pnpm workspace)
-│   ├── server/                # Hono + Drizzle + Better Auth
-│   │   ├── src/
-│   │   │   ├── routes/        # API route handlers
-│   │   │   ├── middleware/    # Hono middleware
-│   │   │   ├── db/            # Drizzle schema
-│   │   │   ├── platform/      # CF vs Node.js adapters
-│   │   │   ├── entry-cloudflare.ts
-│   │   │   └── entry-node.ts
-│   │   ├── migrations/        # D1 migrations (drizzle-kit generated, wrangler managed)
-│   │   └── package.json
-│   ├── web/                   # React + shadcn/ui
-│   │   ├── src/
-│   │   │   ├── components/    # Shared UI components
-│   │   │   ├── routes/        # Route pages (TanStack Router file-based routing)
-│   │   │   └── lib/           # API client, utils
-│   │   └── package.json
-│   └── shared/                # Shared types and constants
-│       ├── src/
-│       │   ├── types/         # API request/response types
-│       │   └── constants/     # Shared enums, config keys
-│       └── package.json
-├── native/                    # Rust (Cargo workspace) (planned, v2.5+)
-│   ├── Cargo.toml             # Workspace definition
-│   ├── crates/
-│   │   ├── zpan-core/         # Core: S3 operations, sync, backup, file scanning
-│   │   ├── zpan-cli/          # CLI tool (depends on zpan-core)
-│   │   └── zpan-desktop/      # Tauri desktop app (depends on zpan-core)
-│   └── Cargo.lock
-├── e2e/                       # Playwright E2E tests (full user flows)
-├── wrangler.toml              # Cloudflare Workers config
-├── biome.json                 # Biome linter + formatter config
-├── lefthook.yml               # Git hooks config
-├── pnpm-workspace.yaml
-└── package.json
+├── server/                    # Hono API
+│   ├── routes/                # API route handlers
+│   ├── services/              # Business logic
+│   ├── middleware/             # Hono middleware
+│   ├── db/                    # Drizzle schema
+│   ├── platform/              # CF vs Node.js adapters
+│   ├── entry-node.ts          # Node.js entry point
+│   └── auth.ts                # Better Auth config
+├── src/                       # React frontend (Vite + shadcn/ui)
+│   ├── components/            # UI components (files/, preview/, upload/, admin/, layout/)
+│   ├── routes/                # TanStack Router file-based routing
+│   ├── lib/                   # API client (Hono RPC), utils
+│   └── i18n/                  # Translations (en.json, zh.json)
+├── shared/                    # Shared types, Zod schemas, constants
+├── functions/                 # CF Pages Functions entry
+│   └── api/[[route]].ts       # CF entry point
+├── migrations/                # D1/SQLite migrations (drizzle-kit generated)
+├── e2e/                       # Playwright E2E tests
+├── wrangler.toml              # Cloudflare Pages config
+├── biome.json                 # Lint + format config
+└── package.json               # Single package, npm
 ```
 
 ## API Communication
@@ -133,7 +119,7 @@ All frontend data fetching goes through TanStack Query for caching, loading stat
 
 **react-i18next** for frontend translations. Default language: English. Bundled translations: English, Chinese (Simplified).
 
-Translation files in `packages/web/src/i18n/locales/{en,zh}.json`. Community can contribute additional languages via PR.
+Translation files in `src/i18n/locales/{en,zh}.json`. Community can contribute additional languages via PR.
 
 Backend error messages returned as i18n keys, frontend resolves to localized strings.
 
@@ -146,17 +132,17 @@ Backend error messages returned as i18n keys, frontend resolves to localized str
 | Integration tests (CF) | **Vitest** + `@cloudflare/vitest-pool-workers` | Same routes on Cloudflare Workers runtime (Miniflare + D1) |
 | E2E tests | **Playwright** | Full user flows: login, navigation, file management |
 
-Coverage gate: 90% on server package. Playwright tests live in `e2e/` at the repo root, run against a local dev server (server + web).
+Coverage gate: 90% on server. Playwright tests live in `e2e/` at the repo root, run against a local dev server.
 
 ## CI/CD
 
 GitHub Actions:
 
 **On PR:**
-- `pnpm lint` — Biome lint + format check
-- `pnpm typecheck` — TypeScript compilation
-- `pnpm test` — Vitest unit + API tests
-- `pnpm e2e` — Playwright tests
+- `npm lint` — Biome lint + format check
+- `npm typecheck` — TypeScript compilation
+- `npm test` — Vitest unit + API tests
+- `npm e2e` — Playwright tests
 
 **On merge to master:**
 - Build + deploy to CF Pages (preview / production)
@@ -357,7 +343,7 @@ Default: keep both files. Remote version wins the original filename, local versi
 
 Location: `native/crates/zpan-desktop/`. Ships alongside v2.6 as the graphical interface for backup + sync.
 
-- Built with Tauri 2, frontend reuses React components from `packages/web/`
+- Built with Tauri 2, frontend reuses React components from `src/`
 - Core sync/backup logic imported from `zpan-core` crate (same code as CLI)
 - System tray with status menu (backup status, sync status, pause, settings)
 - Settings UI for configuring backup directories, sync folders, server connection

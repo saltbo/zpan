@@ -3,7 +3,7 @@ import type { StorageObject } from '@shared/types'
 import { File, Folder, RotateCcw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { formatDate, formatSize } from './format-utils'
+import { formatDate, formatSize } from '@/lib/format'
 
 interface TrashListProps {
   items: StorageObject[]

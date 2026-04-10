@@ -82,13 +82,14 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const parent = c.req.query('parent') ?? ''
+    const parent = c.req.query('path') ?? c.req.query('parent') ?? ''
     const status = c.req.query('status') ?? 'active'
+    const typeFilter = c.req.query('type')
     const page = Number(c.req.query('page') ?? '1')
     const pageSize = Number(c.req.query('pageSize') ?? '20')
 
     const db = c.get('platform').db
-    const result = await listMatters(db, orgId, { parent, status, page, pageSize })
+    const result = await listMatters(db, orgId, { parent, status, typeFilter, page, pageSize })
     return c.json(result)
   })
   .post('/', zValidator('json', createMatterSchema), async (c) => {

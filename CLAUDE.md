@@ -25,7 +25,7 @@ Conventional Commits (`feat:`, `fix:`, `docs:`, etc.). PRs target `master`.
 
 ## Pre-commit Hooks
 
-Husky runs `pnpm typecheck` + lint-staged (biome auto-fix) on every `git commit`. **Never** bypass with `--no-verify`. **Never** run `pnpm install --ignore-scripts` — the `prepare` script must run so hooks are installed. If a hook fails, fix the underlying issue and re-commit.
+Husky runs `npm run typecheck` + lint-staged (biome auto-fix) on every `git commit`. **Never** bypass with `--no-verify`. **Never** run `npm install --ignore-scripts` — the `prepare` script must run so hooks are installed. If a hook fails, fix the underlying issue and re-commit.
 
 ## API Client (Hono RPC)
 

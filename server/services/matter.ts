@@ -1,4 +1,5 @@
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { DirType } from '../../shared/constants'
 import { matters, orgQuotas, storages } from '../db/schema'
@@ -41,13 +42,49 @@ export async function createMatter(db: Database, input: CreateMatterInput): Prom
   return row
 }
 
+function typeFilterCondition(typeFilter: string): SQL | undefined {
+  switch (typeFilter) {
+    case 'photos':
+      return like(matters.type, 'image/%')
+    case 'videos':
+      return like(matters.type, 'video/%')
+    case 'music':
+      return like(matters.type, 'audio/%')
+    case 'documents':
+      return or(
+        like(matters.type, 'application/pdf'),
+        like(matters.type, 'application/msword'),
+        like(matters.type, 'application/vnd.%'),
+        like(matters.type, 'text/%'),
+      )
+    default:
+      return undefined
+  }
+}
+
+interface ListFilters {
+  parent?: string
+  status: string
+  page: number
+  pageSize: number
+  typeFilter?: string
+}
+
 export async function listMatters(
   db: Database,
   orgId: string,
-  filters: { parent: string; status: string; page: number; pageSize: number },
+  filters: ListFilters,
 ): Promise<{ items: Matter[]; total: number; page: number; pageSize: number }> {
   const offset = (filters.page - 1) * filters.pageSize
-  const where = and(eq(matters.orgId, orgId), eq(matters.parent, filters.parent), eq(matters.status, filters.status))
+  const conditions = [eq(matters.orgId, orgId), eq(matters.status, filters.status)]
+  const typeCond = filters.typeFilter ? typeFilterCondition(filters.typeFilter) : undefined
+  if (typeCond) {
+    conditions.push(typeCond)
+    conditions.push(eq(matters.dirtype, DirType.FILE))
+  } else {
+    conditions.push(eq(matters.parent, filters.parent ?? ''))
+  }
+  const where = and(...conditions)
 
   const countRows = await db.select({ count: count() }).from(matters).where(where)
   const total = countRows[0]?.count ?? 0
@@ -71,6 +108,10 @@ export async function getMatter(db: Database, id: string, orgId: string): Promis
   return rows[0] ?? null
 }
 
+function buildPath(parent: string, name: string): string {
+  return parent ? `${parent}/${name}` : name
+}
+
 export async function updateMatter(
   db: Database,
   id: string,
@@ -81,15 +122,44 @@ export async function updateMatter(
   if (!existing) return null
 
   const now = new Date()
-  const name = input.name ?? existing.name
-  const parent = input.parent ?? existing.parent
+  const newName = input.name ?? existing.name
+  const newParent = input.parent ?? existing.parent
+  const isFolder = existing.dirtype !== DirType.FILE
+  const renamed = input.name && input.name !== existing.name
+  const moved = input.parent !== undefined && input.parent !== existing.parent
+
+  if (isFolder && (renamed || moved)) {
+    const oldPath = buildPath(existing.parent, existing.name)
+    const newPath = buildPath(newParent, newName)
+    if (newParent === oldPath || newParent.startsWith(`${oldPath}/`)) {
+      throw new Error('Cannot move a folder into itself or its subfolder')
+    }
+    await cascadeParentPath(db, orgId, oldPath, newPath)
+  }
 
   await db
     .update(matters)
-    .set({ name, parent, updatedAt: now })
+    .set({ name: newName, parent: newParent, updatedAt: now })
     .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
 
-  return { ...existing, name, parent, updatedAt: now }
+  return { ...existing, name: newName, parent: newParent, updatedAt: now }
+}
+
+async function cascadeParentPath(db: Database, orgId: string, oldPath: string, newPath: string): Promise<void> {
+  // Direct children: parent = oldPath → parent = newPath
+  await db
+    .update(matters)
+    .set({ parent: newPath, updatedAt: new Date() })
+    .where(and(eq(matters.orgId, orgId), eq(matters.parent, oldPath)))
+
+  // Deeper descendants: parent LIKE 'oldPath/%' → replace prefix
+  await db
+    .update(matters)
+    .set({
+      parent: sql`${newPath} || SUBSTR(${matters.parent}, ${oldPath.length + 1})`,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(matters.orgId, orgId), like(matters.parent, `${oldPath}/%`)))
 }
 
 export async function confirmUpload(db: Database, id: string, orgId: string): Promise<Matter | null> {
@@ -160,32 +230,44 @@ export async function batchMove(db: Database, orgId: string, ids: string[], newP
     throw new Error('Some IDs do not belong to this organization')
   }
 
+  for (const item of items) {
+    if (item.dirtype !== DirType.FILE) {
+      const folderPath = buildPath(item.parent, item.name)
+      if (newParent === folderPath || newParent.startsWith(`${folderPath}/`)) {
+        throw new Error(`Cannot move folder '${item.name}' into itself or its subfolder`)
+      }
+    }
+  }
+
   const now = new Date()
-  for (const matter of items) {
+  for (const item of items) {
+    const isFolder = item.dirtype !== DirType.FILE
+    if (isFolder) {
+      const oldPath = buildPath(item.parent, item.name)
+      const newPath = buildPath(newParent, item.name)
+      await cascadeParentPath(db, orgId, oldPath, newPath)
+    }
     await db
       .update(matters)
       .set({ parent: newParent, updatedAt: now })
-      .where(and(eq(matters.id, matter.id), eq(matters.orgId, orgId)))
+      .where(and(eq(matters.id, item.id), eq(matters.orgId, orgId)))
   }
 
   return items.map((m) => ({ ...m, parent: newParent, updatedAt: now }))
 }
 
-const MAX_RECURSION_DEPTH = 20
-
-async function getChildrenRecursive(db: Database, orgId: string, parentIds: string[], depth = 0): Promise<Matter[]> {
-  if (parentIds.length === 0 || depth >= MAX_RECURSION_DEPTH) return []
-
-  const children = await db
+function getDescendants(db: Database, orgId: string, folderPath: string): Promise<Matter[]> {
+  return db
     .select()
     .from(matters)
-    .where(and(eq(matters.orgId, orgId), inArray(matters.parent, parentIds)))
+    .where(and(eq(matters.orgId, orgId), like(matters.parent, `${folderPath}/%`)))
+}
 
-  if (children.length === 0) return []
-
-  const folderIds = children.filter((c) => (c.dirtype ?? 0) !== DirType.FILE).map((c) => c.id)
-  const deeper = await getChildrenRecursive(db, orgId, folderIds, depth + 1)
-  return [...children, ...deeper]
+function getDirectChildren(db: Database, orgId: string, folderPath: string): Promise<Matter[]> {
+  return db
+    .select()
+    .from(matters)
+    .where(and(eq(matters.orgId, orgId), eq(matters.parent, folderPath)))
 }
 
 export async function batchTrash(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
@@ -195,17 +277,24 @@ export async function batchTrash(db: Database, orgId: string, ids: string[]): Pr
     throw new Error('Some IDs do not belong to this organization')
   }
 
-  const folderIds = items.filter((m) => (m.dirtype ?? 0) !== DirType.FILE).map((m) => m.id)
-  const children = await getChildrenRecursive(db, orgId, folderIds)
-  const allMatters = [...items, ...children]
+  const allMatters = [...items]
+  for (const item of items) {
+    if (item.dirtype !== DirType.FILE) {
+      const path = buildPath(item.parent, item.name)
+      const children = await getDirectChildren(db, orgId, path)
+      const descendants = await getDescendants(db, orgId, path)
+      allMatters.push(...children, ...descendants)
+    }
+  }
 
   const now = new Date()
   const nowTs = now.getTime()
-  for (const matter of allMatters) {
+  const allIds = [...new Set(allMatters.map((m) => m.id))]
+  for (const targetId of allIds) {
     await db
       .update(matters)
       .set({ status: 'trashed', trashedAt: nowTs, updatedAt: now })
-      .where(and(eq(matters.id, matter.id), eq(matters.orgId, orgId)))
+      .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId)))
   }
 
   return allMatters.map((m) => ({ ...m, status: 'trashed', trashedAt: nowTs, updatedAt: now }))
@@ -232,26 +321,6 @@ export async function batchDelete(db: Database, orgId: string, ids: string[]): P
 
 // ─── Recycle Bin ─────────────────────────────────────────────────────────────
 
-async function collectDescendants(db: Database, orgId: string, rootId: string): Promise<Matter[]> {
-  const result: Matter[] = []
-  let frontier = [rootId]
-  while (frontier.length > 0) {
-    const next: string[] = []
-    for (const parentId of frontier) {
-      const children = await db
-        .select()
-        .from(matters)
-        .where(and(eq(matters.orgId, orgId), eq(matters.parent, parentId)))
-      for (const child of children) {
-        result.push(child)
-        if ((child.dirtype ?? 0) !== 0) next.push(child.id)
-      }
-    }
-    frontier = next
-  }
-  return result
-}
-
 export async function trashMatter(db: Database, orgId: string, id: string): Promise<Matter | null> {
   const existing = await getMatter(db, id, orgId)
   if (!existing) return null
@@ -259,9 +328,16 @@ export async function trashMatter(db: Database, orgId: string, id: string): Prom
 
   const now = new Date()
   const nowTs = now.getTime()
-  const descendants = await collectDescendants(db, orgId, existing.id)
-  const ids = [existing.id, ...descendants.map((m) => m.id)]
-  for (const targetId of ids) {
+  const allIds = [existing.id]
+
+  if (existing.dirtype !== DirType.FILE) {
+    const path = buildPath(existing.parent, existing.name)
+    const children = await getDirectChildren(db, orgId, path)
+    const descendants = await getDescendants(db, orgId, path)
+    allIds.push(...children.map((m) => m.id), ...descendants.map((m) => m.id))
+  }
+
+  for (const targetId of allIds) {
     await db
       .update(matters)
       .set({ status: 'trashed', trashedAt: nowTs, updatedAt: now })
@@ -276,9 +352,16 @@ export async function restoreMatter(db: Database, orgId: string, id: string): Pr
   if (existing.status !== 'trashed') return existing
 
   const now = new Date()
-  const descendants = await collectDescendants(db, orgId, existing.id)
-  const ids = [existing.id, ...descendants.map((m) => m.id)]
-  for (const targetId of ids) {
+  const allIds = [existing.id]
+
+  if (existing.dirtype !== DirType.FILE) {
+    const path = buildPath(existing.parent, existing.name)
+    const children = await getDirectChildren(db, orgId, path)
+    const descendants = await getDescendants(db, orgId, path)
+    allIds.push(...children.map((m) => m.id), ...descendants.map((m) => m.id))
+  }
+
+  for (const targetId of allIds) {
     await db
       .update(matters)
       .set({ status: 'active', trashedAt: null, updatedAt: now })
@@ -290,8 +373,13 @@ export async function restoreMatter(db: Database, orgId: string, id: string): Pr
 export async function collectForPurge(db: Database, orgId: string, id: string): Promise<Matter[] | null> {
   const existing = await getMatter(db, id, orgId)
   if (!existing) return null
-  const descendants = await collectDescendants(db, orgId, existing.id)
-  return [existing, ...descendants]
+
+  if (existing.dirtype === DirType.FILE) return [existing]
+
+  const path = buildPath(existing.parent, existing.name)
+  const children = await getDirectChildren(db, orgId, path)
+  const descendants = await getDescendants(db, orgId, path)
+  return [existing, ...children, ...descendants]
 }
 
 export async function purgeMatters(db: Database, orgId: string, ids: string[]): Promise<void> {

@@ -169,10 +169,10 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
 
     await insertFolder(db, orgId, { id: 'f1', name: 'Folder A' })
-    await insertFile(db, orgId, { id: 'm1', name: 'nested.txt', parent: 'f1' })
+    await insertFile(db, orgId, { id: 'm1', name: 'nested.txt', parent: 'Folder A' })
     await insertFile(db, orgId, { id: 'm2', name: 'root.txt' })
 
-    const res = await app.request('/api/objects?parent=f1', { headers })
+    const res = await app.request(`/api/objects?parent=${encodeURIComponent('Folder A')}`, { headers })
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.total).toBe(1)
     expect(body.items[0].name).toBe('nested.txt')
@@ -244,11 +244,11 @@ describe('Objects API', () => {
     const res = await app.request('/api/objects/m1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parent: 'f1' }),
+      body: JSON.stringify({ parent: 'Target Folder' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.parent).toBe('f1')
+    expect(body.parent).toBe('Target Folder')
   })
 
   it('PATCH /api/objects/:id returns 404 for missing object', async () => {
@@ -360,8 +360,8 @@ describe('Objects API', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFolder(db, orgId, { id: 'f1', name: 'Parent' })
-    await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'f1' })
-    await insertFolder(db, orgId, { id: 'f2', name: 'Sub', parent: 'f1' })
+    await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'Parent' })
+    await insertFolder(db, orgId, { id: 'f2', name: 'Sub', parent: 'Parent' })
     await insertFile(db, orgId, { id: 'm2', name: 'deep.txt', parent: 'f2' })
 
     const res = await app.request('/api/objects/f1/trash', { method: 'PATCH', headers })
@@ -499,8 +499,8 @@ describe('Objects API', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFolder(db, orgId, { id: 'f1', name: 'Folder' })
-    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', parent: 'f1' })
-    await insertFile(db, orgId, { id: 'm2', name: 'b.txt', parent: 'f1' })
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt', parent: 'Folder' })
+    await insertFile(db, orgId, { id: 'm2', name: 'b.txt', parent: 'Folder' })
 
     await app.request('/api/objects/f1/trash', { method: 'PATCH', headers })
     const res = await app.request('/api/objects/f1', { method: 'DELETE', headers })
@@ -567,7 +567,7 @@ describe('Objects API', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFolder(db, orgId, { id: 'f1', name: 'Trash Folder' })
-    await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'f1' })
+    await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'Trash Folder' })
 
     // Trash the folder (cascades to child)
     await app.request('/api/objects/f1/trash', { method: 'PATCH', headers })
@@ -649,7 +649,7 @@ describe('Objects API', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFolder(db, orgId, { id: 'f1', name: 'folder' })
-    await insertFile(db, orgId, { id: 'c1', name: 'child.txt', parent: 'f1' })
+    await insertFile(db, orgId, { id: 'c1', name: 'child.txt', parent: 'folder' })
 
     const res = await app.request('/api/objects/batch/trash', {
       method: 'POST',
@@ -1008,7 +1008,7 @@ describe('Matter service', () => {
       name: 'child.txt',
       type: 'text/plain',
       object: 'c',
-      parent: folder.id,
+      parent: 'folder',
       storageId: 's1',
       status: 'active',
     })
