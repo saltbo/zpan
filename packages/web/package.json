@@ -23,7 +23,7 @@
     "@svar-ui/react-filemanager": "^2.5.0",
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-router": "^1.93.0",
-    "@vidstack/react": "^0.6.15",
+    "@vidstack/react": "^1.12.13",
     "@zpan/shared": "workspace:*",
     "better-auth": "^1.2.0",
     "class-variance-authority": "^0.7.0",
