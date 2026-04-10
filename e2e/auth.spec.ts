@@ -54,7 +54,7 @@ test.describe('Auth flow', () => {
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
   })
 
-  test('sidebar shows only Files and Recycle Bin for regular users', async ({ page }) => {
+  test('sidebar shows only My Files and Trash for regular users', async ({ page }) => {
     await page.goto('/sign-up')
     await page.getByLabel('Name').fill('Sidebar Test')
     await page.getByLabel('Email').fill(`sidebar-${Date.now()}@example.com`)
@@ -67,10 +67,10 @@ test.describe('Auth flow', () => {
     expect(signUpResp.status()).toBe(200)
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
 
-    // Main sidebar should show Files and Recycle Bin
+    // Main sidebar should show My Files and Trash
     const sidebar = page.locator('[data-slot="sidebar"]')
-    await expect(sidebar.getByText('Files')).toBeVisible()
-    await expect(sidebar.getByText('Recycle Bin')).toBeVisible()
+    await expect(sidebar.getByText('My Files')).toBeVisible()
+    await expect(sidebar.getByText('Trash')).toBeVisible()
 
     // Admin items should NOT be in the main sidebar
     await expect(sidebar.getByText('Storages')).not.toBeVisible()
