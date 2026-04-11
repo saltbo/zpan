@@ -1,4 +1,4 @@
-import { count, desc, eq, sql } from 'drizzle-orm'
+import { and, count, desc, eq, sql } from 'drizzle-orm'
 import { member, organization, user } from '../db/auth-schema'
 import type { Database } from '../platform/interface'
 
@@ -38,7 +38,7 @@ export async function listUsers(
     .leftJoin(member, eq(member.userId, user.id))
     .leftJoin(
       organization,
-      sql`${organization.id} = ${member.organizationId} AND ${organization.metadata} LIKE '%"type":"personal"%'`,
+      and(eq(organization.id, member.organizationId), eq(organization.slug, sql`'personal-' || ${user.id}`)),
     )
     .groupBy(user.id)
     .orderBy(desc(user.createdAt))
