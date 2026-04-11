@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin, organization } from 'better-auth/plugins'
@@ -5,6 +6,25 @@ import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import * as authSchema from './db/auth-schema'
 import type { Database } from './platform/interface'
+
+// better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
+// which blows past Cloudflare Workers' CPU budget and triggers error 1102.
+// node:crypto.scryptSync is native (OpenSSL) on both Node and Workers
+// (via nodejs_compat) and is counted as I/O rather than JS CPU time on CF.
+const SCRYPT_PARAMS = { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 }
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16)
+  const key = crypto.scryptSync(password.normalize('NFKC'), salt, 64, SCRYPT_PARAMS)
+  return `${salt.toString('hex')}:${key.toString('hex')}`
+}
+
+async function verifyPassword({ hash, password }: { hash: string; password: string }): Promise<boolean> {
+  const [saltHex, keyHex] = hash.split(':')
+  if (!saltHex || !keyHex) return false
+  const key = crypto.scryptSync(password.normalize('NFKC'), Buffer.from(saltHex, 'hex'), 64, SCRYPT_PARAMS)
+  return crypto.timingSafeEqual(key, Buffer.from(keyHex, 'hex'))
+}
 
 export function createAuth(db: Database, secret: string, baseURL?: string, trustedOrigins?: string[]) {
   return betterAuth({
@@ -14,6 +34,10 @@ export function createAuth(db: Database, secret: string, baseURL?: string, trust
     trustedOrigins,
     emailAndPassword: {
       enabled: true,
+      password: {
+        hash: hashPassword,
+        verify: verifyPassword,
+      },
     },
     session: {
       cookieCache: {
