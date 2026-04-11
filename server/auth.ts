@@ -21,7 +21,9 @@ async function hashPassword(password: string): Promise<string> {
 
 async function verifyPassword({ hash, password }: { hash: string; password: string }): Promise<boolean> {
   const [saltHex, keyHex] = hash.split(':')
-  if (!saltHex || !keyHex) return false
+  if (!saltHex || !keyHex) {
+    throw new Error('stored password hash is malformed: expected "<salt>:<key>"')
+  }
   const key = crypto.scryptSync(password.normalize('NFKC'), Buffer.from(saltHex, 'hex'), 64, SCRYPT_PARAMS)
   return crypto.timingSafeEqual(key, Buffer.from(keyHex, 'hex'))
 }
