@@ -46,7 +46,7 @@
     "better-auth": "^1.2.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
-    "drizzle-orm": "^0.39.0",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.7.0",
     "i18next": "^26.0.3",
     "i18next-browser-languagedetector": "^8.2.1",
