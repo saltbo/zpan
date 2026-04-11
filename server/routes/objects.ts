@@ -12,22 +12,22 @@ import type { Storage as S3Storage } from '../../shared/types'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
-  batchDelete,
   batchMove,
   batchTrash,
   collectForPurge,
   confirmUpload,
   copyMatter,
   createMatter,
-  decrementUsage,
   getMatter,
+  getMatters,
+  incrementUsageIfAllowed,
   listMatters,
-  purgeMatters,
   restoreMatter,
   trashMatter,
   updateMatter,
 } from '../services/matter'
 import { buildObjectKey } from '../services/path-template'
+import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
 import { getStorage, selectStorage } from '../services/storage'
 
@@ -36,44 +36,6 @@ const s3 = new S3Service()
 function fileExt(name: string): string {
   const dot = name.lastIndexOf('.')
   return dot >= 0 ? name.slice(dot) : ''
-}
-
-async function purgeRecursively(
-  db: import('../platform/interface').Database,
-  orgId: string,
-  matters: import('../services/matter').Matter[],
-): Promise<number> {
-  const keysByStorage = new Map<string, { storage: S3Storage | null; keys: string[] }>()
-  const bytesByStorage = new Map<string, number>()
-  let totalBytes = 0
-
-  for (const m of matters) {
-    const size = m.size ?? 0
-    if ((m.dirtype ?? 0) === 0 && size > 0) {
-      bytesByStorage.set(m.storageId, (bytesByStorage.get(m.storageId) ?? 0) + size)
-      totalBytes += size
-    }
-    if (!m.object) continue
-    let entry = keysByStorage.get(m.storageId)
-    if (!entry) {
-      const storage = (await getStorage(db, m.storageId)) as unknown as S3Storage | null
-      entry = { storage, keys: [] }
-      keysByStorage.set(m.storageId, entry)
-    }
-    entry.keys.push(m.object)
-  }
-
-  for (const { storage, keys } of keysByStorage.values()) {
-    if (storage && keys.length > 0) await s3.deleteObjects(storage, keys)
-  }
-
-  await purgeMatters(
-    db,
-    orgId,
-    matters.map((m) => m.id),
-  )
-  await decrementUsage(db, orgId, bytesByStorage, totalBytes)
-  return matters.length
 }
 
 const app = new Hono<Env>()
@@ -163,21 +125,21 @@ const app = new Hono<Env>()
     const { ids } = c.req.valid('json')
     const db = c.get('platform').db
     try {
-      const deleted = await batchDelete(db, orgId, ids)
-
-      const byStorage = new Map<string, string[]>()
-      for (const m of deleted) {
-        if (!m.object) continue
-        const keys = byStorage.get(m.storageId) ?? []
-        keys.push(m.object)
-        byStorage.set(m.storageId, keys)
+      const uniqueIds = [...new Set(ids)]
+      const items = await getMatters(db, orgId, uniqueIds)
+      if (items.length !== uniqueIds.length) {
+        return c.json({ error: 'Some IDs do not belong to this organization' }, 400)
       }
-      for (const [storageId, keys] of byStorage) {
-        const storage = (await getStorage(db, storageId)) as unknown as S3Storage
-        if (storage) await s3.deleteObjects(storage, keys)
+      if (items.some((m) => m.status !== 'trashed')) {
+        return c.json({ error: 'Only trashed items can be permanently deleted' }, 400)
       }
 
-      return c.json({ deleted: deleted.length })
+      let purged = 0
+      for (const item of items) {
+        const ms = await collectForPurge(db, orgId, item)
+        purged += await purgeRecursively(db, orgId, ms)
+      }
+      return c.json({ deleted: purged })
     } catch (e) {
       return c.json({ error: (e as Error).message }, 400)
     }
@@ -214,7 +176,8 @@ const app = new Hono<Env>()
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
     const db = c.get('platform').db
-    const matter = await confirmUpload(db, c.req.param('id'), orgId)
+    const { matter, quotaExceeded } = await confirmUpload(db, c.req.param('id'), orgId)
+    if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
     if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
     return c.json(matter)
   })
@@ -253,6 +216,12 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
     const source = await getMatter(db, c.req.param('id'), orgId)
     if (!source) return c.json({ error: 'Not found' }, 404)
+
+    const sourceSize = source.size ?? 0
+    if (sourceSize > 0) {
+      const allowed = await incrementUsageIfAllowed(db, orgId, source.storageId, sourceSize)
+      if (!allowed) return c.json({ error: 'Quota exceeded' }, 422)
+    }
 
     let newObject = ''
     if (source.object) {

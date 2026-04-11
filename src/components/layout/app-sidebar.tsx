@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ChevronRight,
@@ -34,8 +35,17 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { useSiteOptions } from '@/hooks/use-site-options'
+import { getUserQuota } from '@/lib/api'
 import { signOut, useSession } from '@/lib/auth-client'
 import { FolderTree } from './folder-tree'
+
+function formatSize(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  const value = bytes / 1024 ** i
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`
+}
 
 function getInitials(name: string): string {
   return name
@@ -53,6 +63,11 @@ export function AppSidebar() {
   const { siteName } = useSiteOptions()
   const user = session?.user as { name: string; role?: string } | undefined
   const isAdmin = user?.role === 'admin'
+  const { data: quota } = useQuery({
+    queryKey: ['user', 'quota'],
+    queryFn: getUserQuota,
+    enabled: !!session,
+  })
 
   async function handleSignOut() {
     await signOut()
@@ -131,6 +146,23 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      {quota && (
+        <div className="border-t px-4 py-3">
+          {quota.quota > 0 && (
+            <div className="mb-1.5 h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${Math.min(100, (quota.used / quota.quota) * 100)}%` }}
+              />
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {quota.quota > 0
+              ? t('quota.usage', { used: formatSize(quota.used), total: formatSize(quota.quota) })
+              : t('quota.usageNoLimit', { used: formatSize(quota.used) })}
+          </p>
+        </div>
+      )}
       <SidebarFooter className="border-t p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -155,6 +155,8 @@
   "preview.unsupported": "此文件类型暂不支持预览。",
   "preview.loadError": "加载文件预览失败。",
   "preview.pageOf": "{{current}} / {{total}}",
+  "quota.usage": "{{used}} / {{total}} 已使用",
+  "quota.usageNoLimit": "{{used}} 已使用",
   "common.create": "创建",
   "common.save": "保存",
   "common.cancel": "取消",

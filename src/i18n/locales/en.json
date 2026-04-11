@@ -155,6 +155,8 @@
   "preview.unsupported": "Preview is not available for this file type.",
   "preview.loadError": "Failed to load file preview.",
   "preview.pageOf": "{{current}} / {{total}}",
+  "quota.usage": "{{used}} / {{total}} used",
+  "quota.usageNoLimit": "{{used}} used",
   "common.create": "Create",
   "common.save": "Save",
   "common.cancel": "Cancel",

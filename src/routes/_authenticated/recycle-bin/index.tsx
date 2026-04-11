@@ -57,6 +57,7 @@ function RecycleBinPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
       setSelectedIds(new Set())
       setConfirmDialog(null)
       setPendingDeleteIds([])
@@ -71,6 +72,7 @@ function RecycleBinPage() {
     mutationFn: () => emptyTrash(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
       setSelectedIds(new Set())
       setConfirmDialog(null)
       toast.success(t('recycleBin.emptySuccess'))

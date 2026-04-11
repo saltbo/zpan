@@ -721,6 +721,87 @@ describe('Objects API', () => {
     })
     expect(res.status).toBe(400)
   })
+
+  it('POST /api/objects/batch/delete decrements usage for files with size > 0', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const now = Date.now()
+    // Insert two trashed files with non-zero sizes and non-empty object keys
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES ('td1', ${orgId}, 'td1-a', 'a.txt', 'text/plain', 200, 0, '', 'keys/a.txt', ${validStorage.id}, 'trashed', ${now}, ${now}),
+             ('td2', ${orgId}, 'td2-a', 'b.txt', 'text/plain', 300, 0, '', 'keys/b.txt', ${validStorage.id}, 'trashed', ${now}, ${now})
+    `)
+    // Set storage used to match total file sizes
+    await db.run(sql`UPDATE storages SET used = 500 WHERE id = ${validStorage.id}`)
+
+    const res = await app.request('/api/objects/batch/delete', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['td1', 'td2'] }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { deleted: number }
+    expect(body.deleted).toBe(2)
+    expect(S3Service.prototype.deleteObjects).toHaveBeenCalled()
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+    expect(storageRows[0].used).toBe(0)
+  })
+
+  it('POST /api/objects/batch/trash returns 400 when IDs do not belong to org', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'a.txt' })
+
+    const res = await app.request('/api/objects/batch/trash', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['m1', 'does-not-exist'] }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(typeof body.error).toBe('string')
+  })
+
+  it('POST /api/objects/batch/move returns 400 when moving folder into itself', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'ParentFolder' })
+
+    const res = await app.request('/api/objects/batch/move', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['f1'], parent: 'ParentFolder' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(typeof body.error).toBe('string')
+  })
+
+  it('POST /api/objects/batch/move cascades path when moving a folder', async () => {
+    const { app, db } = createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f1', name: 'FolderA' })
+    await insertFolder(db, orgId, { id: 'f2', name: 'Target' })
+    await insertFile(db, orgId, { id: 'm1', name: 'child.txt', parent: 'FolderA' })
+
+    const res = await app.request('/api/objects/batch/move', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['f1'], parent: 'Target' }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { moved: number }
+    expect(body.moved).toBe(1)
+  })
 })
 
 describe('Matter service', () => {
@@ -818,8 +899,8 @@ describe('Matter service', () => {
 
   it('confirmUpload returns null for missing record', async () => {
     const { db } = createTestApp()
-    const result = await confirmUpload(db, 'nonexistent', 'org-1')
-    expect(result).toBeNull()
+    const { matter } = await confirmUpload(db, 'nonexistent', 'org-1')
+    expect(matter).toBeNull()
   })
 
   it('confirmUpload returns null for non-draft status', async () => {
@@ -837,7 +918,7 @@ describe('Matter service', () => {
       storageId: 's1',
       status: 'active',
     })
-    const result = await confirmUpload(db, matter.id, 'org-1')
+    const { matter: result } = await confirmUpload(db, matter.id, 'org-1')
     expect(result).toBeNull()
   })
 

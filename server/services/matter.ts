@@ -165,18 +165,69 @@ async function cascadeParentPath(db: Database, orgId: string, oldPath: string, n
     .where(and(eq(matters.orgId, orgId), like(matters.parent, `${oldPath}/%`)))
 }
 
-export async function confirmUpload(db: Database, id: string, orgId: string): Promise<Matter | null> {
+export async function confirmUpload(
+  db: Database,
+  id: string,
+  orgId: string,
+): Promise<{ matter: Matter | null; quotaExceeded?: boolean }> {
   const existing = await getMatter(db, id, orgId)
-  if (!existing) return null
-  if (existing.status !== 'draft') return null
+  if (!existing) return { matter: null }
+  if (existing.status !== 'draft') return { matter: null }
+
+  const bytes = existing.size ?? 0
+  if (bytes > 0) {
+    const allowed = await incrementUsageIfAllowed(db, orgId, existing.storageId, bytes)
+    if (!allowed) return { matter: null, quotaExceeded: true }
+  }
 
   const now = new Date()
-  await db
+  const updated = await db
     .update(matters)
     .set({ status: 'active', updatedAt: now })
-    .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
+    .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft')))
+    .returning({ id: matters.id })
 
-  return { ...existing, status: 'active', updatedAt: now }
+  if (updated.length === 0) {
+    // Concurrent confirm won the race — rollback the quota increment
+    if (bytes > 0) {
+      await decrementUsage(db, orgId, new Map([[existing.storageId, bytes]]), bytes)
+    }
+    return { matter: null }
+  }
+
+  return { matter: { ...existing, status: 'active', updatedAt: now } }
+}
+
+export async function incrementUsageIfAllowed(
+  db: Database,
+  orgId: string,
+  storageId: string,
+  bytes: number,
+): Promise<boolean> {
+  // Check if a quota row exists and try atomic check-and-increment in one flow
+  const rows = await db
+    .select({ quota: orgQuotas.quota, used: orgQuotas.used })
+    .from(orgQuotas)
+    .where(eq(orgQuotas.orgId, orgId))
+
+  const [row] = rows
+  if (row) {
+    // quota=0 means unlimited; otherwise enforce the limit
+    if (row.quota > 0 && row.used + bytes > row.quota) return false
+
+    await db
+      .update(orgQuotas)
+      .set({ used: sql`${orgQuotas.used} + ${bytes}` })
+      .where(eq(orgQuotas.orgId, orgId))
+  }
+  // No quota row means no org-level limit — allow, but still track per-storage usage
+
+  await db
+    .update(storages)
+    .set({ used: sql`${storages.used} + ${bytes}` })
+    .where(eq(storages.id, storageId))
+
+  return true
 }
 
 export async function copyMatter(
@@ -373,8 +424,14 @@ export async function restoreMatter(db: Database, orgId: string, id: string): Pr
   return { ...existing, status: 'active', trashedAt: null, updatedAt: now }
 }
 
-export async function collectForPurge(db: Database, orgId: string, id: string): Promise<Matter[] | null> {
-  const existing = await getMatter(db, id, orgId)
+export async function collectForPurge(db: Database, orgId: string, id: string): Promise<Matter[] | null>
+export async function collectForPurge(db: Database, orgId: string, existing: Matter): Promise<Matter[]>
+export async function collectForPurge(
+  db: Database,
+  orgId: string,
+  idOrMatter: string | Matter,
+): Promise<Matter[] | null> {
+  const existing = typeof idOrMatter === 'string' ? await getMatter(db, idOrMatter, orgId) : idOrMatter
   if (!existing) return null
 
   if (existing.dirtype === DirType.FILE) return [existing]
@@ -392,10 +449,13 @@ export async function purgeMatters(db: Database, orgId: string, ids: string[]): 
 }
 
 export async function listTrashedRoots(db: Database, orgId: string): Promise<Matter[]> {
-  return db
+  const all = await db
     .select()
     .from(matters)
     .where(and(eq(matters.orgId, orgId), eq(matters.status, 'trashed')))
+
+  const trashedPaths = new Set(all.map((m) => buildPath(m.parent, m.name)))
+  return all.filter((m) => !trashedPaths.has(m.parent))
 }
 
 export async function decrementUsage(

@@ -7,7 +7,10 @@ import { batchMoveObjects, batchTrashObjects, copyObject, createObject, updateOb
 export function useFileMutations(currentPath: string) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['objects', 'active', 'path', currentPath] })
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['objects', 'active', 'path', currentPath] })
+    queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
+  }
 
   const renameMutation = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => updateObject(id, { name }),
