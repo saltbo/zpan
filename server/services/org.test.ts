@@ -25,7 +25,7 @@ async function insertOrg(db: TestDb, overrides: Partial<{ id: string; slug: stri
     id,
     name: 'Test Org',
     slug: overrides.slug ?? nanoid(),
-    metadata: overrides.metadata !== undefined ? overrides.metadata : JSON.stringify({ type: 'personal' }),
+    metadata: overrides.metadata !== undefined ? overrides.metadata : null,
     createdAt: new Date(),
   })
   return id
@@ -45,7 +45,7 @@ describe('findPersonalOrg', () => {
   it('returns the org id when a personal org exists for the user', async () => {
     const { db } = createTestApp()
     const userId = await insertUser(db)
-    const orgId = await insertOrg(db, { metadata: JSON.stringify({ type: 'personal' }) })
+    const orgId = await insertOrg(db, { slug: `personal-${userId}` })
     await insertMember(db, orgId, userId)
 
     const result = await findPersonalOrg(db, userId)
@@ -60,40 +60,10 @@ describe('findPersonalOrg', () => {
     expect(result).toBeNull()
   })
 
-  it('returns null when user only belongs to a non-personal org', async () => {
+  it("returns null when the org's slug is not the user's personal slug", async () => {
     const { db } = createTestApp()
     const userId = await insertUser(db)
-    const orgId = await insertOrg(db, { metadata: JSON.stringify({ type: 'team' }) })
-    await insertMember(db, orgId, userId)
-
-    const result = await findPersonalOrg(db, userId)
-    expect(result).toBeNull()
-  })
-
-  it('returns null when org metadata is null', async () => {
-    const { db } = createTestApp()
-    const userId = await insertUser(db)
-    const orgId = await insertOrg(db, { metadata: null })
-    await insertMember(db, orgId, userId)
-
-    const result = await findPersonalOrg(db, userId)
-    expect(result).toBeNull()
-  })
-
-  it('returns null when org metadata is invalid JSON', async () => {
-    const { db } = createTestApp()
-    const userId = await insertUser(db)
-    const orgId = await insertOrg(db, { metadata: 'not-valid-json' })
-    await insertMember(db, orgId, userId)
-
-    const result = await findPersonalOrg(db, userId)
-    expect(result).toBeNull()
-  })
-
-  it('returns null when org metadata is valid JSON but missing type field', async () => {
-    const { db } = createTestApp()
-    const userId = await insertUser(db)
-    const orgId = await insertOrg(db, { metadata: JSON.stringify({ other: 'value' }) })
+    const orgId = await insertOrg(db, { slug: 'some-team-org' })
     await insertMember(db, orgId, userId)
 
     const result = await findPersonalOrg(db, userId)
@@ -103,12 +73,22 @@ describe('findPersonalOrg', () => {
   it('finds the personal org among multiple memberships', async () => {
     const { db } = createTestApp()
     const userId = await insertUser(db)
-    const teamOrgId = await insertOrg(db, { metadata: JSON.stringify({ type: 'team' }) })
-    const personalOrgId = await insertOrg(db, { metadata: JSON.stringify({ type: 'personal' }) })
+    const teamOrgId = await insertOrg(db, { slug: 'some-team-org' })
+    const personalOrgId = await insertOrg(db, { slug: `personal-${userId}` })
     await insertMember(db, teamOrgId, userId)
     await insertMember(db, personalOrgId, userId)
 
     const result = await findPersonalOrg(db, userId)
     expect(result).toBe(personalOrgId)
+  })
+
+  it('returns null when the personal slug exists but member row was deleted', async () => {
+    const { db } = createTestApp()
+    const userId = await insertUser(db)
+    await insertOrg(db, { slug: `personal-${userId}` })
+    // No member row inserted — membership is load-bearing
+
+    const result = await findPersonalOrg(db, userId)
+    expect(result).toBeNull()
   })
 })

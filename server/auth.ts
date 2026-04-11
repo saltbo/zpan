@@ -6,6 +6,7 @@ import { count } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import * as authSchema from './db/auth-schema'
 import type { Database } from './platform/interface'
+import { findPersonalOrg } from './services/org'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
 // which blows past Cloudflare Workers' CPU budget and triggers error 1102.
@@ -63,6 +64,20 @@ export function createAuth(db: Database, secret: string, baseURL?: string, trust
           },
           after: async (user) => {
             await createPersonalOrg(db, user)
+          },
+        },
+      },
+      session: {
+        create: {
+          // Pin every new session to the user's personal org so routes that
+          // read activeOrganizationId from the cached session cookie don't
+          // have to fall back to a DB lookup on every request.
+          before: async (session) => {
+            const orgId = await findPersonalOrg(db, session.userId)
+            if (orgId) {
+              return { data: { ...session, activeOrganizationId: orgId } }
+            }
+            return { data: session }
           },
         },
       },
