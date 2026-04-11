@@ -1,0 +1,16 @@
+# Local development environment variables for `wrangler pages dev`.
+# Copy this file to `.dev.vars` (gitignored) and fill in real values.
+#
+# For the Node entry (`npm run dev` / Docker), these same variables must be
+# exported in your shell or supplied via docker run -e / .env.
+
+# Required: better-auth signing secret. Generate with: openssl rand -base64 32
+BETTER_AUTH_SECRET=replace-with-a-long-random-string
+
+# Optional: public base URL the server is reachable at.
+# Defaults to http://localhost:8222 in Node entry.
+BETTER_AUTH_URL=http://localhost:8222
+
+# Optional: comma-separated list of origins allowed to call the API.
+# Defaults to http://localhost:5173 in Node entry.
+TRUSTED_ORIGINS=http://localhost:5173

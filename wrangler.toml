@@ -2,11 +2,20 @@ name = "zpan"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
+pages_build_output_dir = "./dist"
+
+# Non-secret public config (safe to commit).
 [vars]
-BETTER_AUTH_SECRET = "zpan-test-secret"
+BETTER_AUTH_URL = "https://zpan.pages.dev"
+TRUSTED_ORIGINS = "https://zpan.pages.dev"
+
+# Secrets (BETTER_AUTH_SECRET, etc.) are NOT configured here.
+#   - Local dev:  put them in `.dev.vars` (gitignored); see `.dev.vars.example`.
+#   - Production: `wrangler pages secret put BETTER_AUTH_SECRET --project-name=zpan`
+#                  or set them in the Cloudflare Pages dashboard.
 
 [[d1_databases]]
 binding = "DB"
 database_name = "zpan-db"
-database_id = "local"
+database_id = "5bd64957-fa49-4da0-8b7b-6e0ad84037e7"
 migrations_dir = "./migrations"
