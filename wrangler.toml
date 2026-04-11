@@ -4,18 +4,45 @@ compatibility_flags = ["nodejs_compat"]
 
 pages_build_output_dir = "./dist"
 
-# Non-secret public config (safe to commit).
-[vars]
+# ----------------------------------------------------------------------------
+# Environment-specific config.
+#
+# CF Pages has exactly two environments: production and preview. Top-level
+# bindings in wrangler.toml apply to BOTH of them unless an [env.<name>] block
+# overrides — so to isolate preview from production we must declare both.
+#
+# Secrets (BETTER_AUTH_SECRET etc.) cannot live in this file. Set them via:
+#   wrangler pages secret put BETTER_AUTH_SECRET --project-name=zpan
+# For preview, the secret is managed directly via the Cloudflare API (there
+# is no per-env flag on `wrangler pages secret put` for Pages). See
+# scripts/setup-preview.sh (or the project runbook) for the PATCH command.
+# ----------------------------------------------------------------------------
+
+# --- production ---
+[env.production.vars]
 BETTER_AUTH_URL = "https://zpan.pages.dev"
 TRUSTED_ORIGINS = "https://zpan.pages.dev"
 
-# Secrets (BETTER_AUTH_SECRET, etc.) are NOT configured here.
-#   - Local dev:  put them in `.dev.vars` (gitignored); see `.dev.vars.example`.
-#   - Production: `wrangler pages secret put BETTER_AUTH_SECRET --project-name=zpan`
-#                  or set them in the Cloudflare Pages dashboard.
-
-[[d1_databases]]
+[[env.production.d1_databases]]
 binding = "DB"
 database_name = "zpan-db"
 database_id = "5bd64957-fa49-4da0-8b7b-6e0ad84037e7"
 migrations_dir = "./migrations"
+
+# --- preview ---
+# No BETTER_AUTH_URL / TRUSTED_ORIGINS so better-auth falls back to the
+# request URL — preview deployments have per-commit subdomains and cannot
+# be hardcoded here.
+[env.preview.vars]
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "zpan-db-preview"
+database_id = "a9197d7a-6524-42f0-b646-e714dcb30b3b"
+migrations_dir = "./migrations"
+
+# Observability note: Pages Functions do not support [observability] in
+# wrangler.toml or via the deployment_configs API. Logs are real-time only:
+#   npx wrangler pages deployment tail <deployment-id> --project-name=zpan
+# For persistent Workers Logs, the project would need to migrate from
+# Pages Functions to a standalone Worker.
