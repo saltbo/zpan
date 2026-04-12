@@ -17,16 +17,12 @@ migrations_dir = "./migrations"
 enabled = true
 
 # ----------------------------------------------------------------------------
-# Staging environment — deployed as a separate Worker (zpan-staging).
-# Workers Builds Version command: npx wrangler versions upload --env staging
-#
-# No BETTER_AUTH_URL / TRUSTED_ORIGINS — better-auth infers from request URL.
-#
-# Secrets must be set separately:
-#   wrangler secret put BETTER_AUTH_SECRET --env staging
+# Staging environment — used by non-production branch builds.
+# CLOUDFLARE_ENV=staging is set automatically in the build script.
+# Workers Builds creates preview versions on the same zpan Worker
+# but with staging D1 binding.
 # ----------------------------------------------------------------------------
 [env.staging]
-name = "zpan-staging"
 
 [[env.staging.d1_databases]]
 binding = "DB"
