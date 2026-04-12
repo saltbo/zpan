@@ -16,11 +16,13 @@ export default {
     if (!BETTER_AUTH_SECRET) {
       throw new Error('BETTER_AUTH_SECRET is not configured for this deployment.')
     }
+    const origin = new URL(request.url).origin
+    const baseURL = BETTER_AUTH_URL || origin
     const platform = createCloudflarePlatform(env)
     const trustedOrigins = TRUSTED_ORIGINS?.split(',')
       .map((o) => o.trim())
-      .filter(Boolean)
-    const auth = createAuth(platform.db, BETTER_AUTH_SECRET, BETTER_AUTH_URL, trustedOrigins)
+      .filter(Boolean) || [origin]
+    const auth = createAuth(platform.db, BETTER_AUTH_SECRET, baseURL, trustedOrigins)
     return createApp(platform, auth).fetch(request)
   },
 }
