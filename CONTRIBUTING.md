@@ -60,18 +60,18 @@ A code-review-only approval (reading the diff without visiting the preview) is *
 - A dev storage backend is pre-configured, so file upload works out of the box
 - If you need a clean state, coordinate with maintainers
 
-### Staging admin account
+### Staging test account
 
-A shared admin account is maintained on the staging database for preview verification and regression testing:
+A shared test account is available on the staging database for preview verification:
 
 | Field | Value |
 |-------|-------|
-| Email | `admin@zpan.dev` |
-| Password | `zpan-staging-admin-2026` |
+| Email | `reviewer@zpan.dev` |
+| Password | `zpan-staging-reviewer-2026` |
 
-Use this account to verify admin features (user management, storage config, system settings) in preview deployments. **Do not change the password** — other contributors depend on it.
+Use this account for UI regression testing in preview deployments. **Do not change the password** — other contributors depend on it.
 
-For non-admin testing, sign up a new account on the preview URL. The staging database is shared across all PRs.
+For admin feature testing, ask a maintainer for access. Admin credentials are not public.
 
 ## Database Migrations
 
