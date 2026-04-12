@@ -4,18 +4,33 @@ compatibility_date = "2026-04-12"
 compatibility_flags = ["nodejs_compat"]
 
 [assets]
+directory = "./dist/client"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
-# Production uses zpan-db, preview versions use zpan-db-staging.
-# Preview URLs (from non-production branch deploys) automatically
-# use preview_database_id instead of database_id.
 [[d1_databases]]
 binding = "DB"
 database_name = "zpan-db"
 database_id = "5bd64957-fa49-4da0-8b7b-6e0ad84037e7"
-preview_database_id = "a9197d7a-6524-42f0-b646-e714dcb30b3b"
 migrations_dir = "./migrations"
 
 [observability]
 enabled = true
+
+# ----------------------------------------------------------------------------
+# Staging environment — deployed as a separate Worker (zpan-staging).
+# Workers Builds Version command: npx wrangler versions upload --env staging
+#
+# No BETTER_AUTH_URL / TRUSTED_ORIGINS — better-auth infers from request URL.
+#
+# Secrets must be set separately:
+#   wrangler secret put BETTER_AUTH_SECRET --env staging
+# ----------------------------------------------------------------------------
+[env.staging]
+name = "zpan-staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "zpan-db-staging"
+database_id = "a9197d7a-6524-42f0-b646-e714dcb30b3b"
+migrations_dir = "./migrations"
