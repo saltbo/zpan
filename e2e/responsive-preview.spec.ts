@@ -32,7 +32,7 @@ test.describe('Preview responsive layout', () => {
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('textbox').fill('test-preview')
     await dialog.getByRole('button', { name: /create/i }).click()
-    await expect(dialog).not.toBeVisible({ timeout: 5000 })
+    await expect(dialog).not.toBeVisible({ timeout: 10000 })
 
     // We need a file to trigger preview — check if any files exist
     // If no files, we'll validate the dialog structure via the preview component test

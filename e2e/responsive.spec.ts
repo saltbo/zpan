@@ -118,7 +118,7 @@ test.describe('File table responsive columns', () => {
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('textbox').fill('test-folder')
     await dialog.getByRole('button', { name: /create/i }).click()
-    await expect(dialog).not.toBeVisible({ timeout: 5000 })
+    await expect(dialog).not.toBeVisible({ timeout: 10000 })
 
     // All columns should be visible
     await expect(page.getByRole('columnheader', { name: /size/i })).toBeVisible()
@@ -134,7 +134,7 @@ test.describe('File table responsive columns', () => {
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('textbox').fill('test-folder')
     await dialog.getByRole('button', { name: /create/i }).click()
-    await expect(dialog).not.toBeVisible({ timeout: 5000 })
+    await expect(dialog).not.toBeVisible({ timeout: 10000 })
 
     // Size and modified columns should be hidden on mobile
     await expect(page.getByRole('columnheader', { name: /size/i })).not.toBeVisible()

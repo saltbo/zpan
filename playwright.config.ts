@@ -1,15 +1,16 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const isCF = process.env.E2E_RUNTIME === 'cf'
+const envFile = process.env.CI ? '' : '--env-file=.dev.vars'
 
 const nodeServers = [
   {
-    command: 'node --env-file=.dev.vars node_modules/.bin/tsx watch server/entry-node.ts',
+    command: `node ${envFile} node_modules/.bin/tsx watch server/entry-node.ts`,
     port: 8222,
     reuseExistingServer: !process.env.CI,
   },
   {
-    command: 'node --env-file=.dev.vars node_modules/.bin/vite --mode node',
+    command: `node ${envFile} node_modules/.bin/vite --mode node`,
     port: 5173,
     reuseExistingServer: !process.env.CI,
   },

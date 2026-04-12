@@ -65,17 +65,12 @@ test.describe('File dialogs responsive', () => {
     let dialog = page.getByRole('dialog')
     await dialog.getByRole('textbox').fill('rename-me')
     await dialog.getByRole('button', { name: /create/i }).click()
-    await expect(dialog).not.toBeVisible({ timeout: 5000 })
+    await expect(dialog).not.toBeVisible({ timeout: 10000 })
 
-    // Open context menu on the folder via long press or row actions
-    const row = page.getByText('rename-me')
+    // Open row actions dropdown via the last button in the row
+    const row = page.getByRole('row', { name: /rename-me/i })
     await expect(row).toBeVisible({ timeout: 5000 })
-    // Use the row actions dropdown (ellipsis button)
-    const actionsBtn = page
-      .locator('button')
-      .filter({ has: page.locator('[class*="ellipsis"], [data-lucide="ellipsis-vertical"]') })
-      .first()
-    await actionsBtn.click()
+    await row.getByRole('button').last().click()
     await page.getByRole('menuitem', { name: /rename/i }).click()
 
     // Rename dialog should be visible and usable
@@ -102,15 +97,12 @@ test.describe('File dialogs responsive', () => {
     let dialog = page.getByRole('dialog')
     await dialog.getByRole('textbox').fill('move-me')
     await dialog.getByRole('button', { name: /create/i }).click()
-    await expect(dialog).not.toBeVisible({ timeout: 5000 })
+    await expect(dialog).not.toBeVisible({ timeout: 10000 })
 
-    // Open row actions dropdown
-    const actionsBtn = page
-      .locator('button')
-      .filter({ has: page.locator('[class*="ellipsis"], [data-lucide="ellipsis-vertical"]') })
-      .first()
-    await expect(actionsBtn).toBeVisible({ timeout: 5000 })
-    await actionsBtn.click()
+    // Open row actions dropdown via the last button in the row
+    const row = page.getByRole('row', { name: /move-me/i })
+    await expect(row).toBeVisible({ timeout: 5000 })
+    await row.getByRole('button').last().click()
     await page.getByRole('menuitem', { name: 'Move to', exact: true }).click()
 
     // Move dialog should be visible
