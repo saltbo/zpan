@@ -20,7 +20,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: 'vite',
+      command: 'vite --mode node',
       port: 5173,
       reuseExistingServer: !process.env.CI,
     },
