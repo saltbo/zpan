@@ -74,7 +74,6 @@ function makeStorage(overrides: Partial<Storage> = {}): Storage {
     region: 'us-east-1',
     accessKey: 'AKID',
     secretKey: 'SECRET',
-    filePath: '$UID/$RAW_NAME$RAW_EXT',
     customHost: '',
     capacity: 0,
     used: 0,

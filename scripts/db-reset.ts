@@ -29,7 +29,6 @@ const storageConfig = {
   region: 'auto',
   accessKey: requireEnv('DEV_STORAGE_ACCESS_KEY'),
   secretKey: requireEnv('DEV_STORAGE_SECRET_KEY'),
-  filePath: '$UID/$RAW_NAME',
   customHost: '',
 }
 

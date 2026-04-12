@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid'
 
-const DEFAULT_TEMPLATE = '$UID/$NOW_DATE/$RAND_16KEY$RAW_EXT'
+const TEMPLATE = '$ORG_ID/$UID/$NOW_DATE/$RAND_16KEY$RAW_EXT'
 
-interface TemplateVars {
+export interface TemplateVars {
   uid: string
   orgId: string
   rawName: string
@@ -10,7 +10,7 @@ interface TemplateVars {
   uuid: string
 }
 
-export function buildObjectKey(template: string, vars: TemplateVars): string {
+export function buildObjectKey(vars: TemplateVars): string {
   const now = new Date()
   const year = String(now.getFullYear())
   const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -30,7 +30,7 @@ export function buildObjectKey(template: string, vars: TemplateVars): string {
     $RAND_16KEY: nanoid(16),
   }
 
-  let result = template || DEFAULT_TEMPLATE
+  let result = TEMPLATE
   for (const [token, value] of Object.entries(replacements)) {
     result = result.replaceAll(token, value)
   }

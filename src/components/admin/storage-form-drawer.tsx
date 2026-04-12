@@ -34,7 +34,6 @@ const storageFormSchema = z.object({
   region: z.string().min(1),
   accessKey: z.string().min(1),
   secretKey: z.string().min(1),
-  filePath: z.string().min(1),
   customHost: z.string().optional(),
   capacityValue: z.coerce.number().min(0),
   capacityUnit: z.enum(['MB', 'GB', 'TB']),
@@ -50,7 +49,6 @@ const DEFAULT_VALUES: StorageFormValues = {
   region: 'auto',
   accessKey: '',
   secretKey: '',
-  filePath: '$UID/$RAW_NAME',
   customHost: '',
   capacityValue: 0,
   capacityUnit: 'GB',
@@ -85,7 +83,6 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
         region: storage.region,
         accessKey: storage.accessKey,
         secretKey: storage.secretKey,
-        filePath: storage.filePath,
         customHost: storage.customHost || '',
         capacityValue: value,
         capacityUnit: unit,
@@ -167,10 +164,6 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
                     {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-              </FormField>
-
-              <FormField label={t('admin.storages.fieldFilePath')} error={form.formState.errors.filePath?.message}>
-                <Input {...form.register('filePath')} placeholder="$UID/$RAW_NAME" />
               </FormField>
 
               <FormField label={t('admin.storages.fieldCustomHost')} error={form.formState.errors.customHost?.message}>
