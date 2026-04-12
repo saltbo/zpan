@@ -24,11 +24,11 @@ jobs:
         run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
+      - run: npm test -- --coverage
       - uses: codecov/codecov-action@v5
         if: always()
         with:
-          files: coverage/coverage.json
+          files: coverage/coverage-final.json
           fail_ci_if_error: false
       - run: mkdir -p dist
       - run: npm run test:cf
