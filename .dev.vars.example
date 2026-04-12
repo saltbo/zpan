@@ -2,4 +2,4 @@
 # Copy this file to `.dev.vars` (gitignored) and fill in real values.
 
 # Required: better-auth signing secret. Generate with: openssl rand -base64 32
-BETTER_AUTH_SECRET=replace-with-a-long-random-string
+BETTER_AUTH_SECRET=
