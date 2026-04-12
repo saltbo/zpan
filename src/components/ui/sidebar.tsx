@@ -147,6 +147,15 @@ function Sidebar({
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
   const { t } = useTranslation()
 
+  // Radix Sheet sets pointer-events:none on document.body when open.
+  // If this component unmounts while the sheet is open (e.g. navigating
+  // between layouts), Radix never cleans up. Remove it manually.
+  React.useEffect(() => {
+    return () => {
+      document.body.style.removeProperty('pointer-events')
+    }
+  }, [])
+
   if (collapsible === 'none') {
     return (
       <div
