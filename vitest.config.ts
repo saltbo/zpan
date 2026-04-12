@@ -19,6 +19,11 @@ export default defineConfig({
         'src/**/*.test.ts',
         'src/i18n/index.ts',
       ],
+      reporter: ['text', 'json-summary', 'json'],
+      reporterOptions: {
+        'json-summary': { file: 'coverage-summary.json' },
+        json: { file: 'coverage.json' },
+      },
       thresholds: {
         statements: 90,
         branches: 80,

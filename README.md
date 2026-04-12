@@ -3,6 +3,7 @@
 **The open-source, S3-native file hosting platform.**
 
 [![CI](https://github.com/saltbo/zpan/actions/workflows/ci.yml/badge.svg)](https://github.com/saltbo/zpan/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/saltbo/zpan/graph/badge.svg)](https://codecov.io/gh/saltbo/zpan)
 [![Release](https://github.com/saltbo/zpan/actions/workflows/release.yml/badge.svg)](https://github.com/saltbo/zpan/actions/workflows/release.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/saltbo/zpan)](https://github.com/saltbo/zpan/releases/latest)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-saltbo%2Fzpan-blue)](https://ghcr.io/saltbo/zpan)
