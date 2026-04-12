@@ -18,11 +18,11 @@ ZPan is a lightweight file hosting platform built on top of S3-compatible storag
 
 ## Deploy
 
-### Cloudflare Pages (Recommended)
+### Cloudflare Workers (Recommended)
 
 One-click deploy with zero server management. Free tier covers personal use.
 
-<!-- TODO: Deploy button -->
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/saltbo/zpan)
 
 ### Docker
 
@@ -38,7 +38,7 @@ docker compose up -d
 ## Why ZPan?
 
 - **Zero bandwidth bottleneck** — files transfer directly between client and S3
-- **Zero ops option** — deploy to Cloudflare Pages for free, no server needed
+- **Zero ops option** — deploy to Cloudflare Workers for free, no server needed
 - **Self-host friendly** — Docker deployment with any S3-compatible storage
 - **Tool ecosystem** — works with PicGo, ShareX, Flameshot out of the box
 - **Open source** — free forever for self-hosted users

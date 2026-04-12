@@ -5,6 +5,6 @@
     "declaration": false,
     "declarationMap": false
   },
-  "include": ["server", "shared", "functions"],
-  "exclude": ["server/**/*.cf-test.ts", "server/test/apply-migrations.ts"]
+  "include": ["server", "shared", "workers"],
+  "exclude": ["server/**/*.cf-test.ts", "workers/**/*.cf-test.ts", "server/test/apply-migrations.ts"]
 }

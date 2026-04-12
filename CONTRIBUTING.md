@@ -16,7 +16,7 @@ npm install
 
 ```sh
 npm run dev              # Start server + web dev servers (reads .dev.vars)
-npm run dev:pages        # Build & run as Cloudflare Pages locally
+npm run dev:cf           # Build & run as Cloudflare Workers locally
 ```
 
 ## Quality Gates
@@ -43,9 +43,9 @@ npm run e2e              # Playwright E2E tests
 
 ## Preview Verification
 
-Every PR that touches UI or API behavior **must** be verified in the Cloudflare Pages preview environment before merging. The verification report **must** be posted as a PR comment — a PR without a verification comment cannot be merged.
+Every PR that touches UI or API behavior **must** be verified in the Cloudflare Workers preview environment before merging. The verification report **must** be posted as a PR comment — a PR without a verification comment cannot be merged.
 
-Cloudflare Pages automatically deploys each PR to a preview URL (posted as a PR comment, e.g. `https://<hash>.zpan.pages.dev`).
+Cloudflare Workers automatically deploys each PR to a preview URL (posted as a PR comment).
 
 Before merging, the reviewer **must** verify in the preview environment and post a PR comment with:
    - **Screenshots** proving the feature works (golden path + edge cases)
@@ -68,32 +68,27 @@ Schema is defined in `server/db/schema.ts` and `server/db/auth-schema.ts`.
 ```sh
 npm run db:generate                            # Generate migration SQL after schema changes
 npm run db:migrate                             # Apply migrations (Node/SQLite)
-wrangler d1 migrations apply zpan-db --local   # Apply migrations (CF Pages local)
-wrangler d1 migrations apply zpan-db --remote  # Apply migrations (CF Pages production)
+wrangler d1 migrations apply zpan-db --local   # Apply migrations (D1 local)
+wrangler d1 migrations apply zpan-db --remote  # Apply migrations (D1 production)
 ```
 
 To reset local databases with seed data (admin user + dev storage):
 
 ```sh
 npm run db:reset                # Reset Node database (zpan.db)
-npm run db:reset:pages          # Reset D1 local database (.wrangler)
+npm run db:reset:d1             # Reset D1 local database (.wrangler)
 ```
 
 Migration files live in `migrations/` at project root. Always commit them.
 
 ## Deployment
 
-Primary target is Cloudflare Pages. Node.js (Docker) is the backup runtime.
+Primary target is Cloudflare Workers. Node.js (Docker) is the backup runtime.
 
 ```sh
-npm run build:pages      # Build frontend to dist/
-npm run deploy           # Build + deploy to Cloudflare Pages
+npm run build            # Build frontend to dist/
+npm run deploy           # Build + deploy to Cloudflare Workers
 ```
-
-The wrangler config (`wrangler.toml`) uses:
-- `main` → worker entry point (bundled by wrangler)
-- `[assets]` → static frontend with SPA fallback
-- `run_worker_first = ["/api/*"]` → only API routes hit the worker
 
 ## Project Structure
 
@@ -102,9 +97,9 @@ zpan/
 ├── server/               # Hono API (routes, middleware, auth, platform abstraction)
 ├── src/                  # React frontend (TanStack Router, shadcn/ui)
 ├── shared/               # Shared types, Zod schemas, constants
-├── functions/            # CF Pages Functions entry
+├── workers/              # Cloudflare Workers entry
 ├── migrations/           # D1/SQLite migrations (drizzle-kit generated, wrangler managed)
-├── wrangler.toml         # Cloudflare Pages + Workers config
+├── wrangler.toml         # Cloudflare Workers config
 └── biome.json            # Lint + format config
 ```
 

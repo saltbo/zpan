@@ -5,12 +5,11 @@ Technical reference for ZPan v2 development. For product roadmap, see [V2_ROADMA
 ## Global Architecture
 
 ```
-CF Pages (wrangler)                   Docker (Node.js)
+CF Workers (wrangler)                  Docker (Node.js)
 ┌─────────────────────┐
-│ [assets] → web/dist  │
-│ run_worker_first =   │               entry-node.ts
-│   ["/api/*"]         │               (serves both static + API)
-│ main: entry-cf.ts    │                      │
+│ [assets] → dist/     │
+│ SPA fallback         │               entry-node.ts
+│ main: workers/       │               (serves both static + API)
 │  exports { fetch }   │                      │
 └──────────┬──────────┘                      │
            │    Single deployment            │
@@ -35,8 +34,8 @@ CF Pages (wrangler)                   Docker (Node.js)
 
 | Layer | Choice | Alternatives Considered | Why This One |
 |-------|--------|------------------------|--------------|
-| Web Framework | **Hono** | Express, Fastify, ElysiaJS | Native CF Pages Functions + Node.js dual runtime. Lightweight, fast, web-standard Request/Response API |
-| ORM | **Drizzle** | Prisma, Kysely | First-class D1 support, type-safe, SQL-like syntax, lightweight bundle for CF Pages Functions |
+| Web Framework | **Hono** | Express, Fastify, ElysiaJS | Native CF Workers + Node.js dual runtime. Lightweight, fast, web-standard Request/Response API |
+| ORM | **Drizzle** | Prisma, Kysely | First-class D1 support, type-safe, SQL-like syntax, lightweight bundle for CF Workers |
 | Auth | **Better Auth** | Lucia, Auth.js, custom JWT | Drizzle adapter, D1 support, built-in social login / OIDC / organization plugin, active development |
 | S3 SDK | **@aws-sdk/client-s3** | minio-js, custom fetch | Industry standard, works with every S3-compatible provider including R2 |
 | Package Manager | **npm** | pnpm, yarn, bun | Standard, no extra tooling, Volta manages Node version |
@@ -92,11 +91,11 @@ zpan/
 │   ├── lib/                   # API client (Hono RPC), utils
 │   └── i18n/                  # Translations (en.json, zh.json)
 ├── shared/                    # Shared types, Zod schemas, constants
-├── functions/                 # CF Pages Functions entry
-│   └── api/[[route]].ts       # CF entry point
+├── workers/                   # CF Workers entry
+│   └── app.ts                 # CF entry point
 ├── migrations/                # D1/SQLite migrations (drizzle-kit generated)
 ├── e2e/                       # Playwright E2E tests
-├── wrangler.toml              # Cloudflare Pages config
+├── wrangler.toml              # Cloudflare Workers config
 ├── biome.json                 # Lint + format config
 └── package.json               # Single package, npm
 ```
@@ -145,7 +144,7 @@ GitHub Actions:
 - `npm e2e` — Playwright tests
 
 **On merge to master:**
-- Build + deploy to CF Pages (preview / production)
+- Build + deploy to CF Workers (preview / production)
 - Build Docker image + push to Docker Hub (planned)
 
 ## Platform Abstraction
@@ -172,8 +171,8 @@ Note: `s3` and `cron` will be added in later versions.
 
 ### Entry Points
 
-- `entry-cloudflare.ts` — exports `default { fetch }`, wrangler bundles it directly. Static frontend served by wrangler's `[assets]` config with SPA fallback. `run_worker_first = ["/api/*"]` routes only API requests to the worker.
-- `entry-node.ts` — starts Hono via `@hono/node-server`, serves both API and static frontend from `../../dist` on the same port.
+- `workers/bootstrap.ts` — exports `default { fetch }`, wrangler bundles it directly. Static frontend served by wrangler's `[assets]` config with SPA fallback.
+- `server/entry-node.ts` — starts Hono via `@hono/node-server`, serves both API and static frontend from `./dist` on the same port.
 
 ## Per-Version Technical Decisions
 

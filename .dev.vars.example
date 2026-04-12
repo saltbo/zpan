@@ -1,4 +1,4 @@
-# Local development environment variables for `wrangler pages dev`.
+# Local development environment variables for `wrangler dev`.
 # Copy this file to `.dev.vars` (gitignored) and fill in real values.
 #
 # For the Node entry (`npm run dev` / Docker), these same variables must be

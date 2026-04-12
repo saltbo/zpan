@@ -2,14 +2,14 @@
 
 ## Project Overview
 
-ZPan v2 is an open-source, S3-native file hosting platform written in TypeScript. Cloudflare Pages is the primary deployment target, Node.js (Docker) is backup.
+ZPan v2 is an open-source, S3-native file hosting platform written in TypeScript. Cloudflare Workers is the primary deployment target, Node.js (Docker) is backup.
 
 Core architecture: clients upload directly to S3-compatible storage via presigned URLs, bypassing server bandwidth.
 
 ## Key Context
 
 - Single package: `server/` (Hono API), `src/` (React SPA), `shared/` (types/schemas)
-- CF Pages Functions: `functions/api/[[route]].ts` (CF Pages + D1) and `server/entry-node.ts` (Node + SQLite)
+- CF Workers: `workers/bootstrap.ts` (CF Workers + D1) and `server/entry-node.ts` (Node + SQLite)
 - Tests are co-located: `*.test.ts` (Node), `*.cf-test.ts` (CF Workers)
 - Migrations: drizzle-kit generates SQL → wrangler manages D1 state
 

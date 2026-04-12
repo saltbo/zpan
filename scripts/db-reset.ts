@@ -10,7 +10,7 @@ import * as authSchema from '../server/db/auth-schema'
 import * as schema from '../server/db/schema'
 import type { Platform } from '../server/platform/interface'
 
-const isPages = process.argv.includes('--pages')
+const isD1 = process.argv.includes('--d1')
 
 const NODE_DB_PATH = process.env.DATABASE_URL || './zpan.db'
 const D1_STATE_DIR = '.wrangler/state/v3/d1'
@@ -34,7 +34,7 @@ const storageConfig = {
 }
 
 // ── 1. reset database ──
-const platform = isPages ? resetPages() : resetNode()
+const platform = isD1 ? resetD1() : resetNode()
 
 // ── 2. seed ──
 const secret = process.env.BETTER_AUTH_SECRET || 'dev-secret-for-seed'
@@ -80,7 +80,7 @@ function resetNode(): Platform {
   return { db, getEnv: (key) => process.env[key] }
 }
 
-function resetPages(): Platform {
+function resetD1(): Platform {
   // wipe D1 local state
   if (fs.existsSync(D1_STATE_DIR)) {
     fs.rmSync(D1_STATE_DIR, { recursive: true })

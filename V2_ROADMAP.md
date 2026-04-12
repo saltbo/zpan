@@ -40,7 +40,7 @@ Each version ships 1–2 major features. Ship small, ship often.
 
 ## Deployment Options
 
-- **Cloudflare Pages** — Zero-ops, free tier covers personal use, one-click deploy
+- **Cloudflare Workers** — Zero-ops, free tier covers personal use, one-click deploy
 - **Docker** — Self-hosted, bring your own S3, full control
 
 Same codebase, same features, two runtimes.

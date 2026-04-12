@@ -11,7 +11,7 @@
       "shared/**/*.ts",
       "src/**/*.ts",
       "src/**/*.tsx",
-      "functions/**/*.ts",
+      "workers/**/*.ts",
       "e2e/**/*.ts",
       "!src/routeTree.gen.ts"
     ],

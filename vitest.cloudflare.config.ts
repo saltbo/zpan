@@ -21,7 +21,7 @@ export default defineConfig({
   test: {
     globals: true,
     testTimeout: 15000,
-    include: ['server/**/*.cf-test.ts'],
+    include: ['server/**/*.cf-test.ts', 'workers/**/*.cf-test.ts'],
     setupFiles: ['./server/test/apply-migrations.ts'],
   },
 })

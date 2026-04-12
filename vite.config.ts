@@ -1,10 +1,12 @@
 import path from 'node:path'
+import { cloudflare } from '@cloudflare/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
+import devServer from '@hono/vite-dev-server'
 import { defineConfig } from 'vite'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -16,6 +18,9 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
+    ...(mode === 'node'
+      ? [devServer({ entry: './server/bootstrap.ts', injectClientScript: false, exclude: [/^(?!\/api\/).*/] })]
+      : [cloudflare()]),
   ],
   resolve: {
     alias: {
@@ -26,8 +31,5 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    proxy: {
-      '/api': 'http://localhost:8222',
-    },
   },
-})
+}))

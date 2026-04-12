@@ -11,7 +11,7 @@ Complete rewrite from Go to TypeScript.
 
 ### Changed
 - New tech stack: Hono + Drizzle + Better Auth
-- Dual deployment: Cloudflare Pages and Docker
+- Dual deployment: Cloudflare Workers and Docker
 - R2 as default storage backend
 - Better Auth replaces custom JWT implementation
 
