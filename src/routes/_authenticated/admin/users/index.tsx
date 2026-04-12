@@ -92,9 +92,9 @@ function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-semibold">{t('admin.users.title')}</h2>
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('admin.users.searchPlaceholder')}
@@ -110,11 +110,11 @@ function UsersPage() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 text-left font-medium">{t('admin.users.colName')}</th>
-              <th className="px-4 py-3 text-left font-medium">{t('admin.users.colEmail')}</th>
+              <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('admin.users.colEmail')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.users.colRole')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.users.colStatus')}</th>
-              <th className="px-4 py-3 text-left font-medium">{t('admin.users.colQuota')}</th>
-              <th className="px-4 py-3 text-left font-medium">{t('admin.users.colCreatedAt')}</th>
+              <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('admin.users.colQuota')}</th>
+              <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">{t('admin.users.colCreatedAt')}</th>
               <th className="px-4 py-3 text-right font-medium">{t('admin.users.colActions')}</th>
             </tr>
           </thead>
@@ -209,7 +209,7 @@ function UserTableRow({
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="px-4 py-3 font-medium">{user.name}</td>
-      <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
+      <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{user.email}</td>
       <td className="px-4 py-3">
         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${roleBadge}`}>{roleLabel}</span>
       </td>
@@ -218,8 +218,8 @@ function UserTableRow({
           {user.banned ? t('admin.users.disabled') : t('admin.users.active')}
         </span>
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{quotaLabel}</td>
-      <td className="px-4 py-3 text-muted-foreground">{formatDate(user.createdAt)}</td>
+      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{quotaLabel}</td>
+      <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{formatDate(user.createdAt)}</td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-1">
           <Button

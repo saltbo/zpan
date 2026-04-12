@@ -65,9 +65,11 @@ function StoragesPage() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colTitle')}</th>
-              <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colMode')}</th>
-              <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colBucket')}</th>
-              <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colEndpoint')}</th>
+              <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('admin.storages.colMode')}</th>
+              <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('admin.storages.colBucket')}</th>
+              <th className="hidden max-w-48 px-4 py-3 text-left font-medium lg:table-cell">
+                {t('admin.storages.colEndpoint')}
+              </th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colStatus')}</th>
               <th className="px-4 py-3 text-right font-medium">{t('admin.storages.colActions')}</th>
             </tr>
@@ -127,13 +129,13 @@ function StorageTableRow({
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="px-4 py-3 font-medium">{storage.title}</td>
-      <td className="px-4 py-3">
+      <td className="hidden px-4 py-3 sm:table-cell">
         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${modeBadge}`}>
           {storage.mode === 'public' ? t('admin.storages.modePublic') : t('admin.storages.modePrivate')}
         </span>
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{storage.bucket}</td>
-      <td className="max-w-48 truncate px-4 py-3 text-muted-foreground">{storage.endpoint}</td>
+      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{storage.bucket}</td>
+      <td className="hidden max-w-48 truncate px-4 py-3 text-muted-foreground lg:table-cell">{storage.endpoint}</td>
       <td className="px-4 py-3">
         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge}`}>
           {isActive ? t('admin.storages.statusActive') : t('admin.storages.statusInactive')}

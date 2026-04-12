@@ -28,7 +28,7 @@ function AuthenticatedLayout() {
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium">ZPan</span>
         </header>
-        <main className="flex-1 p-4">
+        <main className="min-w-0 flex-1 p-4">
           <Outlet />
         </main>
       </SidebarInset>

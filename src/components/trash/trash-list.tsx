@@ -40,9 +40,11 @@ export function TrashList({
               />
             </th>
             <th className="px-4 py-3 text-left font-medium">{t('recycleBin.colName')}</th>
-            <th className="px-4 py-3 text-left font-medium">{t('recycleBin.colOriginalLocation')}</th>
-            <th className="px-4 py-3 text-left font-medium">{t('recycleBin.colTrashedDate')}</th>
-            <th className="px-4 py-3 text-left font-medium">{t('recycleBin.colSize')}</th>
+            <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">
+              {t('recycleBin.colOriginalLocation')}
+            </th>
+            <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('recycleBin.colTrashedDate')}</th>
+            <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('recycleBin.colSize')}</th>
             <th className="px-4 py-3 text-right font-medium">{t('recycleBin.colActions')}</th>
           </tr>
         </thead>
@@ -103,9 +105,9 @@ function TrashRow({
           <span className="font-medium">{item.name}</span>
         </div>
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{item.parent || '/'}</td>
-      <td className="px-4 py-3 text-muted-foreground">{formatDate(item.updatedAt)}</td>
-      <td className="px-4 py-3 text-muted-foreground">{isFolder ? '—' : formatSize(item.size)}</td>
+      <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{item.parent || '/'}</td>
+      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{formatDate(item.updatedAt)}</td>
+      <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{isFolder ? '—' : formatSize(item.size)}</td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-1">
           <Button variant="ghost" size="icon-xs" onClick={onRestore} title={t('recycleBin.restore')}>

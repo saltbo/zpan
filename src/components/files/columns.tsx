@@ -63,6 +63,7 @@ export function getColumns(handlers: FileActionHandlers, t: (key: string) => str
         if (folderOrder !== 0) return folderOrder
         return (rowA.getValue<number>(columnId) ?? 0) - (rowB.getValue<number>(columnId) ?? 0)
       },
+      meta: { className: 'hidden sm:table-cell' },
     },
     {
       accessorKey: 'updatedAt',
@@ -73,6 +74,7 @@ export function getColumns(handlers: FileActionHandlers, t: (key: string) => str
         if (folderOrder !== 0) return folderOrder
         return new Date(rowA.getValue<string>(columnId)).getTime() - new Date(rowB.getValue<string>(columnId)).getTime()
       },
+      meta: { className: 'hidden md:table-cell' },
     },
     {
       id: 'actions',

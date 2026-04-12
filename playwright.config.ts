@@ -4,12 +4,12 @@ const isCF = process.env.E2E_RUNTIME === 'cf'
 
 const nodeServers = [
   {
-    command: 'tsx watch server/entry-node.ts',
+    command: 'node --env-file=.dev.vars node_modules/.bin/tsx watch server/entry-node.ts',
     port: 8222,
     reuseExistingServer: !process.env.CI,
   },
   {
-    command: 'vite --mode node',
+    command: 'node --env-file=.dev.vars node_modules/.bin/vite --mode node',
     port: 5173,
     reuseExistingServer: !process.env.CI,
   },
@@ -34,7 +34,22 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'tablet',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 768, height: 1024 },
+      },
+    },
+    {
+      name: 'mobile',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+      },
+    },
   ],
   webServer: isCF ? cfServers : nodeServers,
 })

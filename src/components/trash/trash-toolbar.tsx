@@ -26,7 +26,7 @@ export function TrashToolbar({
   const { t } = useTranslation()
 
   return (
-    <div className="flex items-center justify-between">
+    <div data-testid="trash-toolbar" className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="text-xl font-semibold">{t('recycleBin.title')}</h2>
       <div className="flex items-center gap-2">
         {selectedCount > 0 && (
@@ -40,8 +40,8 @@ export function TrashToolbar({
           </>
         )}
         <Button variant="destructive" size="sm" onClick={onEmptyTrash} disabled={!hasItems || isEmptying}>
-          <Trash2 className="mr-1.5 h-4 w-4" />
-          {t('recycleBin.empty')}
+          <Trash2 className="h-4 w-4" />
+          <span className="sr-only sm:not-sr-only">{t('recycleBin.empty')}</span>
         </Button>
       </div>
     </div>

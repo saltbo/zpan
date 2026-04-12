@@ -54,7 +54,10 @@ test.describe('Auth flow', () => {
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
   })
 
-  test('sidebar shows only My Files and Trash for regular users', async ({ page }) => {
+  test('sidebar shows only My Files and Trash for regular users', async ({ page }, testInfo) => {
+    // Mobile sidebar is tested separately in responsive.spec.ts
+    test.skip(testInfo.project.name === 'mobile', 'mobile sidebar tested in responsive.spec.ts')
+
     await page.goto('/sign-up')
     await page.getByLabel('Name').fill('Sidebar Test')
     await page.getByLabel('Email').fill(`sidebar-${Date.now()}@example.com`)

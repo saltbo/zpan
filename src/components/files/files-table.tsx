@@ -12,6 +12,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import type { FileActionHandlers } from './types'
 
 interface FilesTableProps {
@@ -81,12 +82,14 @@ function DraggableDroppableRow({
             if (isFolder) setDropRef(node)
           }}
           data-state={row.getIsSelected() ? 'selected' : undefined}
-          className={`${isOver ? 'bg-primary/5 ring-2 ring-primary' : ''} ${isDragging ? 'opacity-40' : ''}`}
+          className={cn(isOver && 'bg-primary/5 ring-2 ring-primary', isDragging && 'opacity-40')}
           {...cleanAttributes}
           {...listeners}
         >
           {row.getVisibleCells().map((cell) => (
-            <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+            <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
           ))}
         </TableRow>
       </ContextMenuTrigger>
@@ -110,6 +113,8 @@ function DraggableDroppableRow({
 
 export function FilesTable({ table, handlers, selectedIds, currentPath }: FilesTableProps) {
   const { t } = useTranslation()
+  const rows = table.getRowModel().rows
+  const allItems = rows.map((r) => r.original)
 
   return (
     <Table>
@@ -120,7 +125,10 @@ export function FilesTable({ table, handlers, selectedIds, currentPath }: FilesT
               <TableHead
                 key={header.id}
                 style={{ width: header.column.getSize() }}
-                className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}
+                className={cn(
+                  header.column.columnDef.meta?.className,
+                  header.column.getCanSort() && 'cursor-pointer select-none',
+                )}
                 onClick={header.column.getToggleSortingHandler()}
               >
                 {flexRender(header.column.columnDef.header, header.getContext())}
@@ -131,21 +139,21 @@ export function FilesTable({ table, handlers, selectedIds, currentPath }: FilesT
         ))}
       </TableHeader>
       <TableBody>
-        {table.getRowModel().rows.length === 0 && (
+        {rows.length === 0 && (
           <TableRow>
             <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center">
               {t('files.emptyState')}
             </TableCell>
           </TableRow>
         )}
-        {table.getRowModel().rows.map((row) => (
+        {rows.map((row) => (
           <DraggableDroppableRow
             key={row.id}
             row={row}
             handlers={handlers}
             selectedIds={selectedIds}
             currentPath={currentPath}
-            allItems={table.getRowModel().rows.map((r) => r.original)}
+            allItems={allItems}
           />
         ))}
       </TableBody>
