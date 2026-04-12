@@ -2,6 +2,7 @@
 
 # -- Stage 1: install all deps (for build) --
 FROM node:24-slim AS deps
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package-lock.json package.json ./
 RUN npm ci
@@ -11,11 +12,9 @@ FROM deps AS builder
 COPY . .
 RUN npm run build && npm run build:server
 
-# -- Stage 3: install prod-only deps (for runtime) --
-FROM node:24-slim AS deps-prod
-WORKDIR /app
-COPY package-lock.json package.json ./
-RUN npm ci --omit=dev --ignore-scripts
+# -- Stage 3: prod-only deps (reuse native builds from deps stage) --
+FROM deps AS deps-prod
+RUN npm prune --omit=dev
 
 # -- Stage 4: runtime --
 FROM node:24-slim
