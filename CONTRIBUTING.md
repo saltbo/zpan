@@ -71,7 +71,7 @@ A shared test account is available on the staging database for preview verificat
 
 Use this account for UI regression testing in preview deployments. **Do not change the password** — other contributors depend on it.
 
-For admin feature testing, ask a maintainer for access. Admin credentials are not public.
+For admin feature testing, read admin credentials from the local `.dev.vars` file (`DEV_ADMIN_PASSWORD`). The admin email is `admin@zpan.space`.
 
 ## Database Migrations
 
