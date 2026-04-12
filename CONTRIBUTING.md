@@ -43,17 +43,16 @@ npm run e2e              # Playwright E2E tests
 
 ## Preview Verification
 
-Every PR that touches UI or API behavior **must** include a verification report before merging. Cloudflare Pages automatically deploys each PR to a preview URL (posted as a comment on the PR).
+Every PR that touches UI or API behavior **must** be verified in the Cloudflare Pages preview environment before merging. The verification report **must** be posted as a PR comment — a PR without a verification comment cannot be merged.
 
-### Steps
+Cloudflare Pages automatically deploys each PR to a preview URL (posted as a PR comment, e.g. `https://<hash>.zpan.pages.dev`).
 
-1. Push your branch and create a PR
-2. Wait for the Cloudflare Pages deployment to complete — the preview URL will appear in the PR comments (e.g. `https://<hash>.zpan.pages.dev`)
-3. Open the preview URL and verify your changes work end-to-end
-4. Add a comment to the PR with:
-   - **Screenshots** of the feature or fix working in the preview environment
-   - **Test steps** you performed (e.g. "Created a storage with 10 GB capacity, verified it shows correctly in the list")
-   - **Edge cases** you checked (e.g. "Set capacity to 0, confirmed it shows Unlimited")
+Before merging, the reviewer **must** verify in the preview environment and post a PR comment with:
+   - **Screenshots** proving the feature works (golden path + edge cases)
+   - **What was tested** (e.g. "Switched theme to dark, changed language to Chinese, verified password mismatch error")
+   - **Verdict** — approve or request changes
+
+A code-review-only approval (reading the diff without visiting the preview) is **not sufficient** to merge.
 
 ### Preview environment details
 
