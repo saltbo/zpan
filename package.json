@@ -104,12 +104,6 @@
       "BETTER_AUTH_SECRET": {
         "description": "Signing secret for auth sessions. Generate with: `openssl rand -base64 32`"
       },
-      "BETTER_AUTH_URL": {
-        "description": "Public URL of your deployment, e.g. `https://zpan.your-account.workers.dev`"
-      },
-      "TRUSTED_ORIGINS": {
-        "description": "Comma-separated origins allowed to call the API, usually same as BETTER_AUTH_URL"
-      },
       "DB": {
         "description": "D1 database for storing users, files, and settings"
       }
