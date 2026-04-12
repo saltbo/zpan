@@ -15,8 +15,8 @@ npm install
 ## Development
 
 ```sh
-npm run dev              # Start server + web dev servers (reads .dev.vars)
-npm run dev:cf           # Build & run as Cloudflare Workers locally
+npm run dev              # CF Workers mode with HMR (default, uses staging D1)
+npm run dev:node         # Node.js mode with HMR (SQLite, reads .dev.vars)
 ```
 
 ## Quality Gates
@@ -58,8 +58,20 @@ A code-review-only approval (reading the diff without visiting the preview) is *
 
 - All PRs share one staging D1 database (`zpan-db-staging`) — data persists across deployments
 - A dev storage backend is pre-configured, so file upload works out of the box
-- The first user to sign up on a fresh preview DB becomes admin
 - If you need a clean state, coordinate with maintainers
+
+### Staging admin account
+
+A shared admin account is maintained on the staging database for preview verification and regression testing:
+
+| Field | Value |
+|-------|-------|
+| Email | `admin@zpan.dev` |
+| Password | `zpan-staging-admin-2026` |
+
+Use this account to verify admin features (user management, storage config, system settings) in preview deployments. **Do not change the password** — other contributors depend on it.
+
+For non-admin testing, sign up a new account on the preview URL. The staging database is shared across all PRs.
 
 ## Database Migrations
 
