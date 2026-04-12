@@ -204,17 +204,11 @@ describe('S3Service', () => {
   })
 
   describe('deleteObjects', () => {
-    it('sends DeleteObjectsCommand with keys', async () => {
-      mockSend.mockResolvedValueOnce({ $metadata: {} })
+    it('sends individual DeleteObjectCommand for each key', async () => {
+      mockSend.mockResolvedValue({ $metadata: {} })
       await service.deleteObjects(storage, ['a.jpg', 'b.jpg'])
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          input: {
-            Bucket: 'my-bucket',
-            Delete: { Objects: [{ Key: 'a.jpg' }, { Key: 'b.jpg' }] },
-          },
-        }),
-      )
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'a.jpg' } }))
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'b.jpg' } }))
     })
 
     it('skips API call for empty keys array', async () => {

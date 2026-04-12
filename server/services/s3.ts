@@ -1,7 +1,6 @@
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
-  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -89,12 +88,8 @@ export class S3Service {
 
   async deleteObjects(storage: Storage, keys: string[]): Promise<void> {
     if (keys.length === 0) return
-    const client = this.createClient(storage)
-    await client.send(
-      new DeleteObjectsCommand({
-        Bucket: storage.bucket,
-        Delete: { Objects: keys.map((Key) => ({ Key })) },
-      }),
-    )
+    // DeleteObjectsCommand returns XML which requires DOMParser to parse.
+    // Cloudflare Workers doesn't have DOMParser, so we delete one-by-one.
+    await Promise.all(keys.map((key) => this.deleteObject(storage, key)))
   }
 }
