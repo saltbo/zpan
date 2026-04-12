@@ -212,39 +212,7 @@ v1 auto-configured CORS on storage setup via provider-specific SDKs. v2 drops th
 
 ---
 
-### v2.1 — Image Bed
-
-**Upload API**
-
-New endpoint `POST /api/upload` — simplified single-endpoint upload for tool integrations. Accepts `multipart/form-data` or presigned URL flow. Returns URL in requested format (raw, markdown, html, bbcode).
-
-Separate from the existing `POST /api/matters` which is for the file manager UI (creates matter record first, then returns presigned URL).
-
-**ShareX Compatibility**
-
-ShareX Custom Uploader is a JSON spec (`.sxcu` file). ZPan generates this config file dynamically via `GET /api/integrations/sharex` with the user's API token embedded.
-
-**PicGo Compatibility**
-
-PicGo uses a simple REST API: `POST` with `multipart/form-data`, response includes `url` field. The same `/api/upload` endpoint handles this.
-
----
-
-### v2.2 — Sharing
-
-**Share Token Auth**
-
-Public shares: no auth needed, accessible by alias.
-Private shares: client sends password via `POST /api/shares/{alias}/token`, gets a short-lived JWT stored in cookie. Subsequent requests include this cookie.
-
-**Direct Links**
-
-`GET /s/{alias}` → returns the file itself (redirect to presigned S3 URL or public URL).
-`GET /s/{alias}/info` → returns the share landing page with preview.
-
----
-
-### v2.3 — Auth & Access
+### v2.1 — Auth & Access
 
 **Social Login: Better Auth built-in**
 
@@ -273,91 +241,7 @@ New table `invite_codes` (`code`, `created_by`, `used_by`, `used_at`, `expires_a
 
 ---
 
-### v2.4 — Branding & Polish
-
-**Site Branding**
-
-Stored in `system_options` table under key `core.branding`: `{ logo, title, favicon, description }`. Frontend fetches on load via `GET /api/system/options/core.branding` (public endpoint).
-
-**Custom File Domain**
-
-`custom_host` field on storage backends. When set, presigned URLs and public URLs use this host. No server-side proxy — DNS points directly to S3/R2.
-
-**Dark Mode**
-
-Frontend-only, CSS variables + user preference stored in localStorage.
-
----
-
-### v2.5 — Backup (zpan-cli)
-
-**Location**: `native/crates/zpan-cli/` (same monorepo)
-
-**Language: Rust**
-
-Rust produces small (~5MB) static binaries for every platform (macOS, Linux, Windows, ARM). No runtime dependencies. Ideal for NAS environments.
-
-Core logic lives in `zpan-core` crate, shared with the desktop app (v2.6).
-
-**Rust crate dependencies:**
-- `aws-sdk-s3` — S3 operations (upload, download, head, delete)
-- `notify` — filesystem watching for real-time backup
-- `tokio-cron-scheduler` — scheduled backup runs
-- `clap` — CLI argument parsing
-- `blake3` — fast file hashing for change detection
-- `reqwest` — HTTP client for ZPan API calls
-- `serde` / `serde_json` — serialization
-- `tokio` — async runtime
-
-**Sync Protocol**
-
-CLI authenticates with ZPan via API token. Workflow:
-1. Scan local directory, compute file hashes
-2. `POST /api/sync/check` — send hashes, get back list of files needing upload
-3. `POST /api/sync/batch-presign` — get presigned URLs for new/changed files
-4. Upload directly to S3
-5. `POST /api/sync/complete` — report uploaded files, ZPan updates matter records
-
-**ZPan API additions:**
-- `POST /api/sync/check` — file fingerprint comparison
-- `POST /api/sync/batch-presign` — batch presigned URL generation
-- `GET /api/sync/status` — backup job status for web UI
-
----
-
-### v2.6 — Sync
-
-**Change Log**
-
-New table `changes` (`id`, `matter_id`, `action`, `path`, `hash`, `device_id`, `timestamp`). Every file create/update/delete writes a change record.
-
-**Sync API:**
-- `GET /api/sync/changes?since={id}&device={deviceId}` — pull changes from other devices
-- `POST /api/sync/changes` — push local changes
-
-**Conflict Strategy**
-
-Default: keep both files. Remote version wins the original filename, local version renamed to `{name}.conflict-{device}-{date}.{ext}`. Optional `--conflict last-write-wins` flag for advanced users.
-
-**Desktop App: Tauri 2**
-
-Location: `native/crates/zpan-desktop/`. Ships alongside v2.6 as the graphical interface for backup + sync.
-
-- Built with Tauri 2, frontend reuses React components from `src/`
-- Core sync/backup logic imported from `zpan-core` crate (same code as CLI)
-- System tray with status menu (backup status, sync status, pause, settings)
-- Settings UI for configuring backup directories, sync folders, server connection
-- Auto-start on login (OS-native)
-- macOS, Windows, Linux builds via Tauri's cross-platform tooling
-
-Tauri dependencies:
-- `tauri` — app framework, system tray, window management
-- `tauri-plugin-autostart` — launch on login
-- `tauri-plugin-notification` — native notifications (sync conflict, backup complete)
-
----
-
-### v2.7 — Teams
+### v2.2 — Teams
 
 **Better Auth Organization Plugin**
 
@@ -396,6 +280,122 @@ Organization plugin creates its own tables (`organization`, `member`, `invitatio
 **User Share Homepage**
 
 Route: `GET /u/{username}` — server-side rendered page listing user's public shares. Data from `shares` table filtered by `uid` + a `public_profile` flag.
+
+---
+
+### v2.3 — Sharing
+
+**Share Token Auth**
+
+Public shares: no auth needed, accessible by alias.
+Private shares: client sends password via `POST /api/shares/{alias}/token`, gets a short-lived JWT stored in cookie. Subsequent requests include this cookie.
+
+**Direct Links**
+
+`GET /s/{alias}` → returns the file itself (redirect to presigned S3 URL or public URL).
+`GET /s/{alias}/info` → returns the share landing page with preview.
+
+---
+
+### v2.4 — Image Bed
+
+**Upload API**
+
+New endpoint `POST /api/upload` — simplified single-endpoint upload for tool integrations. Accepts `multipart/form-data` or presigned URL flow. Returns URL in requested format (raw, markdown, html, bbcode).
+
+Separate from the existing `POST /api/matters` which is for the file manager UI (creates matter record first, then returns presigned URL).
+
+**ShareX Compatibility**
+
+ShareX Custom Uploader is a JSON spec (`.sxcu` file). ZPan generates this config file dynamically via `GET /api/integrations/sharex` with the user's API token embedded.
+
+**PicGo Compatibility**
+
+PicGo uses a simple REST API: `POST` with `multipart/form-data`, response includes `url` field. The same `/api/upload` endpoint handles this.
+
+---
+
+### v2.5 — Branding & Polish
+
+**Site Branding**
+
+Stored in `system_options` table under key `core.branding`: `{ logo, title, favicon, description }`. Frontend fetches on load via `GET /api/system/options/core.branding` (public endpoint).
+
+**Custom File Domain**
+
+`custom_host` field on storage backends. When set, presigned URLs and public URLs use this host. No server-side proxy — DNS points directly to S3/R2.
+
+**Dark Mode**
+
+Frontend-only, CSS variables + user preference stored in localStorage.
+
+---
+
+### v2.6 — Backup (zpan-cli)
+
+**Location**: `native/crates/zpan-cli/` (same monorepo)
+
+**Language: Rust**
+
+Rust produces small (~5MB) static binaries for every platform (macOS, Linux, Windows, ARM). No runtime dependencies. Ideal for NAS environments.
+
+Core logic lives in `zpan-core` crate, shared with the desktop app (v2.7).
+
+**Rust crate dependencies:**
+- `aws-sdk-s3` — S3 operations (upload, download, head, delete)
+- `notify` — filesystem watching for real-time backup
+- `tokio-cron-scheduler` — scheduled backup runs
+- `clap` — CLI argument parsing
+- `blake3` — fast file hashing for change detection
+- `reqwest` — HTTP client for ZPan API calls
+- `serde` / `serde_json` — serialization
+- `tokio` — async runtime
+
+**Sync Protocol**
+
+CLI authenticates with ZPan via API token. Workflow:
+1. Scan local directory, compute file hashes
+2. `POST /api/sync/check` — send hashes, get back list of files needing upload
+3. `POST /api/sync/batch-presign` — get presigned URLs for new/changed files
+4. Upload directly to S3
+5. `POST /api/sync/complete` — report uploaded files, ZPan updates matter records
+
+**ZPan API additions:**
+- `POST /api/sync/check` — file fingerprint comparison
+- `POST /api/sync/batch-presign` — batch presigned URL generation
+- `GET /api/sync/status` — backup job status for web UI
+
+---
+
+### v2.7 — Sync & Desktop App
+
+**Change Log**
+
+New table `changes` (`id`, `matter_id`, `action`, `path`, `hash`, `device_id`, `timestamp`). Every file create/update/delete writes a change record.
+
+**Sync API:**
+- `GET /api/sync/changes?since={id}&device={deviceId}` — pull changes from other devices
+- `POST /api/sync/changes` — push local changes
+
+**Conflict Strategy**
+
+Default: keep both files. Remote version wins the original filename, local version renamed to `{name}.conflict-{device}-{date}.{ext}`. Optional `--conflict last-write-wins` flag for advanced users.
+
+**Desktop App: Tauri 2**
+
+Location: `native/crates/zpan-desktop/`. Ships alongside v2.7 as the graphical interface for backup + sync.
+
+- Built with Tauri 2, frontend reuses React components from `src/`
+- Core sync/backup logic imported from `zpan-core` crate (same code as CLI)
+- System tray with status menu (backup status, sync status, pause, settings)
+- Settings UI for configuring backup directories, sync folders, server connection
+- Auto-start on login (OS-native)
+- macOS, Windows, Linux builds via Tauri's cross-platform tooling
+
+Tauri dependencies:
+- `tauri` — app framework, system tray, window management
+- `tauri-plugin-autostart` — launch on login
+- `tauri-plugin-notification` — native notifications (sync conflict, backup complete)
 
 ---
 
