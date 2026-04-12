@@ -376,7 +376,6 @@ describe('api', () => {
       region: 'us-east-1',
       accessKey: 'key',
       secretKey: 'secret',
-      filePath: '$UID/$RAW_NAME',
       capacity: 1073741824,
     }
 

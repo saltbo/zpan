@@ -148,7 +148,6 @@
   "admin.storages.fieldRegion": "Region",
   "admin.storages.fieldAccessKey": "Access Key",
   "admin.storages.fieldSecretKey": "Secret Key",
-  "admin.storages.fieldFilePath": "File Path Template",
   "admin.storages.fieldCustomHost": "Custom Host",
   "admin.storages.fieldCapacity": "Capacity",
   "admin.storages.capacityUnlimited": "Unlimited",

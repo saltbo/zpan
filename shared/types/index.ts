@@ -26,7 +26,6 @@ export interface Storage {
   region: string
   accessKey: string
   secretKey: string
-  filePath: string
   customHost: string
   capacity: number
   used: number

@@ -34,14 +34,13 @@ const validStorage = {
   region: 'us-east-1',
   accessKey: 'AKIAIOSFODNN7EXAMPLE',
   secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-  filePath: '$UID/$RAW_NAME',
 }
 
 async function insertStorage(db: ReturnType<typeof createTestApp>['db']) {
   const now = Date.now()
   await db.run(sql`
     INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${validStorage.id}, ${validStorage.title}, ${validStorage.mode}, ${validStorage.bucket}, ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey}, ${validStorage.filePath}, '', 0, 0, 'active', ${now}, ${now})
+    VALUES (${validStorage.id}, ${validStorage.title}, ${validStorage.mode}, ${validStorage.bucket}, ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey}, '', '', 0, 0, 'active', ${now}, ${now})
   `)
 }
 

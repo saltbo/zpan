@@ -39,7 +39,6 @@ const validStorage = {
   region: 'us-east-1',
   accessKey: 'AKIAIOSFODNN7EXAMPLE',
   secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-  filePath: '$UID/$RAW_NAME',
 }
 
 describe('[CF] Admin Storages API', () => {

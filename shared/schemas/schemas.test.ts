@@ -52,7 +52,6 @@ describe('createStorageSchema', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.region).toBe('auto')
-      expect(result.data.filePath).toBe('$UID/$RAW_NAME')
     }
   })
 

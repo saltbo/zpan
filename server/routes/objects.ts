@@ -67,12 +67,10 @@ const app = new Hono<Env>()
     const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
     const objectKey = isFolder
       ? ''
-      : buildObjectKey(storage.filePath, {
+      : buildObjectKey({
           uid: userId,
           orgId,
-          rawName: name.replace(/\.[^.]+$/, '') || name,
           rawExt: fileExt(name),
-          uuid: crypto.randomUUID(),
         })
 
     const matter = await createMatter(db, {
@@ -227,12 +225,10 @@ const app = new Hono<Env>()
     if (source.object) {
       const storage = (await getStorage(db, source.storageId)) as unknown as S3Storage
       if (!storage) return c.json({ error: 'Storage not found' }, 404)
-      newObject = buildObjectKey(storage.filePath, {
+      newObject = buildObjectKey({
         uid: c.get('userId')!,
         orgId,
-        rawName: source.name.replace(/\.[^.]+$/, '') || source.name,
         rawExt: fileExt(source.name),
-        uuid: crypto.randomUUID(),
       })
       await s3.copyObject(storage, source.object, storage, newObject)
     }

@@ -8,7 +8,6 @@ export const createStorageSchema = z.object({
   region: z.string().default('auto'),
   accessKey: z.string().min(1),
   secretKey: z.string().min(1),
-  filePath: z.string().default('$UID/$RAW_NAME'),
   customHost: z.string().optional(),
   capacity: z.number().int().min(0).default(0),
 })
@@ -21,7 +20,6 @@ export const updateStorageSchema = z.object({
   region: z.string().optional(),
   accessKey: z.string().min(1).optional(),
   secretKey: z.string().min(1).optional(),
-  filePath: z.string().optional(),
   customHost: z.string().optional(),
   capacity: z.number().int().min(0).optional(),
   status: z.enum(['active', 'disabled']).optional(),
