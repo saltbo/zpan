@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "dev:node": "node --env-file=.dev.vars node_modules/vite/bin/vite.js dev --mode node",
-    "build": "vite build",
+    "build": "[ \"$WORKERS_CI\" = \"1\" ] && [ \"$WORKERS_CI_BRANCH\" != \"master\" ] && export CLOUDFLARE_ENV=staging; vite build",
     "build:server": "tsup server/entry-node.ts --format esm --outDir dist-server",
     "deploy": "vite build && wrangler deploy",
     "db:generate": "drizzle-kit generate",
