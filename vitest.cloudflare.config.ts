@@ -9,9 +9,7 @@ export default defineConfig({
       const migrations = await readD1Migrations(migrationsPath)
 
       return {
-        // D1 and vars live under [env.production] in wrangler.toml; tell the
-        // pool which environment to apply so env.DB resolves at test time.
-        wrangler: { configPath: './wrangler.toml', environment: 'production' },
+        wrangler: { configPath: './wrangler.toml' },
         miniflare: {
           bindings: { TEST_MIGRATIONS: migrations },
         },

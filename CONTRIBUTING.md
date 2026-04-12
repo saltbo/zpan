@@ -56,7 +56,7 @@ A code-review-only approval (reading the diff without visiting the preview) is *
 
 ### Preview environment details
 
-- All PRs share one preview D1 database (`zpan-db-preview`) — data persists across deployments
+- All PRs share one staging D1 database (`zpan-db-staging`) — data persists across deployments
 - A dev storage backend is pre-configured, so file upload works out of the box
 - The first user to sign up on a fresh preview DB becomes admin
 - If you need a clean state, coordinate with maintainers
