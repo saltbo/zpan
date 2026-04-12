@@ -15,8 +15,8 @@ npm install
 ## Development
 
 ```sh
-npm run dev              # Start server + web dev servers
-npm run pages:dev        # Build & run as Cloudflare Pages locally
+npm run dev              # Start server + web dev servers (reads .dev.vars)
+npm run dev:pages        # Build & run as Cloudflare Pages locally
 ```
 
 ## Quality Gates
@@ -39,20 +39,45 @@ npm run e2e              # Playwright E2E tests
 4. **Coverage** — new code must maintain 90%+ line coverage on `server/`
 5. **Commit** — use [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `docs:`, etc.)
 6. **PR** — target the `master` branch
+7. **Preview verification** — every PR must be verified in the preview environment (see below)
+
+## Preview Verification
+
+Every PR that touches UI or API behavior **must** include a verification report before merging. Cloudflare Pages automatically deploys each PR to a preview URL (posted as a comment on the PR).
+
+### Steps
+
+1. Push your branch and create a PR
+2. Wait for the Cloudflare Pages deployment to complete — the preview URL will appear in the PR comments (e.g. `https://<hash>.zpan.pages.dev`)
+3. Open the preview URL and verify your changes work end-to-end
+4. Add a comment to the PR with:
+   - **Screenshots** of the feature or fix working in the preview environment
+   - **Test steps** you performed (e.g. "Created a storage with 10 GB capacity, verified it shows correctly in the list")
+   - **Edge cases** you checked (e.g. "Set capacity to 0, confirmed it shows Unlimited")
+
+### Preview environment details
+
+- All PRs share one preview D1 database (`zpan-db-preview`) — data persists across deployments
+- A dev storage backend is pre-configured, so file upload works out of the box
+- The first user to sign up on a fresh preview DB becomes admin
+- If you need a clean state, coordinate with maintainers
 
 ## Database Migrations
 
 Schema is defined in `server/db/schema.ts` and `server/db/auth-schema.ts`.
 
 ```sh
-# After modifying schema, generate migration SQL
-npx drizzle-kit generate
+npm run db:generate                            # Generate migration SQL after schema changes
+npm run db:migrate                             # Apply migrations (Node/SQLite)
+wrangler d1 migrations apply zpan-db --local   # Apply migrations (CF Pages local)
+wrangler d1 migrations apply zpan-db --remote  # Apply migrations (CF Pages production)
+```
 
-# Apply locally
-wrangler d1 migrations apply zpan-db --local
+To reset local databases with seed data (admin user + dev storage):
 
-# Apply to production
-wrangler d1 migrations apply zpan-db --remote
+```sh
+npm run db:reset                # Reset Node database (zpan.db)
+npm run db:reset:pages          # Reset D1 local database (.wrangler)
 ```
 
 Migration files live in `migrations/` at project root. Always commit them.
