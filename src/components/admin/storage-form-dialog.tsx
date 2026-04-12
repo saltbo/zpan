@@ -12,7 +12,19 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createStorage, updateStorage } from '@/lib/api'
+import { formatSize } from '@/lib/format'
+
+const UNITS = { MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 } as const
+type Unit = keyof typeof UNITS
+
+function bytesToDisplay(bytes: number): { value: number; unit: Unit } {
+  if (bytes === 0) return { value: 0, unit: 'GB' }
+  if (bytes >= UNITS.TB && bytes % UNITS.TB === 0) return { value: bytes / UNITS.TB, unit: 'TB' }
+  if (bytes >= UNITS.GB && bytes % UNITS.GB === 0) return { value: bytes / UNITS.GB, unit: 'GB' }
+  return { value: bytes / UNITS.MB, unit: 'MB' }
+}
 
 const storageFormSchema = z.object({
   title: z.string().min(1),
@@ -24,6 +36,8 @@ const storageFormSchema = z.object({
   secretKey: z.string().min(1),
   filePath: z.string().min(1),
   customHost: z.string().optional(),
+  capacityValue: z.coerce.number().min(0),
+  capacityUnit: z.enum(['MB', 'GB', 'TB']),
 })
 
 type StorageFormValues = z.infer<typeof storageFormSchema>
@@ -38,6 +52,8 @@ const DEFAULT_VALUES: StorageFormValues = {
   secretKey: '',
   filePath: '$UID/$RAW_NAME',
   customHost: '',
+  capacityValue: 0,
+  capacityUnit: 'GB',
 }
 
 interface StorageFormDialogProps {
@@ -60,6 +76,7 @@ export function StorageFormDialog({ open, onOpenChange, storage }: StorageFormDi
   useEffect(() => {
     if (!open) return
     if (storage) {
+      const { value, unit } = bytesToDisplay(storage.capacity ?? 0)
       form.reset({
         title: storage.title,
         mode: storage.mode,
@@ -70,6 +87,8 @@ export function StorageFormDialog({ open, onOpenChange, storage }: StorageFormDi
         secretKey: storage.secretKey,
         filePath: storage.filePath,
         customHost: storage.customHost || '',
+        capacityValue: value,
+        capacityUnit: unit,
       })
     } else {
       form.reset(DEFAULT_VALUES)
@@ -78,8 +97,10 @@ export function StorageFormDialog({ open, onOpenChange, storage }: StorageFormDi
   }, [open, storage, form])
 
   const mutation = useMutation({
-    mutationFn: (values: StorageFormValues) =>
-      isEditing ? updateStorage(storage.id, values) : createStorage({ ...values, capacity: 0 }),
+    mutationFn: ({ capacityValue, capacityUnit, ...rest }: StorageFormValues) => {
+      const capacity = capacityValue * UNITS[capacityUnit]
+      return isEditing ? updateStorage(storage.id, { ...rest, capacity }) : createStorage({ ...rest, capacity })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
       onOpenChange(false)
@@ -153,6 +174,31 @@ export function StorageFormDialog({ open, onOpenChange, storage }: StorageFormDi
 
             <FormField label={t('admin.storages.fieldCustomHost')} error={form.formState.errors.customHost?.message}>
               <Input {...form.register('customHost')} placeholder={t('admin.storages.customHostPlaceholder')} />
+            </FormField>
+
+            <FormField label={t('admin.storages.fieldCapacity')} error={form.formState.errors.capacityValue?.message}>
+              <div className="flex items-center gap-2">
+                <Input type="number" min={0} step={1} className="w-32" {...form.register('capacityValue')} />
+                <Select
+                  value={form.watch('capacityUnit')}
+                  onValueChange={(v) => form.setValue('capacityUnit', v as Unit)}
+                >
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MB">MB</SelectItem>
+                    <SelectItem value="GB">GB</SelectItem>
+                    <SelectItem value="TB">TB</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground">
+                  {form.watch('capacityValue') > 0
+                    ? `= ${formatSize(form.watch('capacityValue') * UNITS[form.watch('capacityUnit')])}`
+                    : t('admin.storages.capacityUnlimited')}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">{t('admin.storages.capacityHint')}</p>
             </FormField>
           </div>
 
