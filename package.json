@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "CLOUDFLARE_ENV=staging vite dev",
     "dev:node": "node --env-file=.dev.vars node_modules/vite/bin/vite.js dev --mode node",
     "build": "[ \"$WORKERS_CI\" = \"1\" ] && [ \"$WORKERS_CI_BRANCH\" != \"master\" ] && export CLOUDFLARE_ENV=staging; vite build",
     "build:server": "tsup server/entry-node.ts --format esm --outDir dist-server",
