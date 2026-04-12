@@ -3,6 +3,10 @@ main = "./workers/bootstrap.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
+[vars]
+BETTER_AUTH_URL = "https://zpan.example.com"
+TRUSTED_ORIGINS = "https://zpan.example.com"
+
 [assets]
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
@@ -25,8 +29,6 @@ migrations_dir = "./migrations"
 # ----------------------------------------------------------------------------
 
 # --- production ---
-# TODO: Update these URLs after creating the Workers project in CF Dashboard.
-# Workers subdomain will be https://zpan.<account>.workers.dev or your custom domain.
 [env.production.vars]
 BETTER_AUTH_URL = "https://zpan.pages.dev"
 TRUSTED_ORIGINS = "https://zpan.pages.dev"
