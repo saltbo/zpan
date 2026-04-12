@@ -12,9 +12,12 @@ FROM deps AS builder
 COPY . .
 RUN npm run build && npm run build:server
 
-# -- Stage 3: prod-only deps (reuse native builds from deps stage) --
-FROM deps AS deps-prod
-RUN npm prune --omit=dev
+# -- Stage 3: prod-only deps with pre-built native binaries --
+FROM node:24-slim AS deps-prod
+WORKDIR /app
+COPY package-lock.json package.json ./
+RUN npm ci --omit=dev --ignore-scripts
+COPY --from=deps /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
 # -- Stage 4: runtime --
 FROM node:24-slim
