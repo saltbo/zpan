@@ -1,7 +1,7 @@
 name = "zpan"
 main = "./workers/bootstrap.ts"
-compatibility_date = "2025-04-01"
-compatibility_flags = ["nodejs_compat_v2"]
+compatibility_date = "2026-04-12"
+compatibility_flags = ["nodejs_compat"]
 
 [assets]
 not_found_handling = "single-page-application"
