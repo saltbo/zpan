@@ -38,6 +38,9 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.fieldFilePath',
   'admin.storages.fieldCustomHost',
   'admin.storages.customHostPlaceholder',
+  'admin.storages.fieldCapacity',
+  'admin.storages.capacityUnlimited',
+  'admin.storages.capacityHint',
 ]
 
 const ADMIN_NAV_KEYS = ['admin.nav.management', 'admin.nav.storages', 'admin.nav.users']
@@ -172,6 +175,18 @@ describe('admin.storages locale keys — English values contract', () => {
 
   it('admin.nav.users is "Users"', () => {
     expect(enLocale['admin.nav.users']).toBe('Users')
+  })
+
+  it('admin.storages.fieldCapacity is "Capacity"', () => {
+    expect(enLocale['admin.storages.fieldCapacity']).toBe('Capacity')
+  })
+
+  it('admin.storages.capacityUnlimited is "Unlimited"', () => {
+    expect(enLocale['admin.storages.capacityUnlimited']).toBe('Unlimited')
+  })
+
+  it('admin.storages.capacityHint is "Maximum storage space. 0 means unlimited."', () => {
+    expect(enLocale['admin.storages.capacityHint']).toBe('Maximum storage space. 0 means unlimited.')
   })
 })
 
@@ -327,5 +342,41 @@ describe('admin.storages locale keys — i18n runtime translation', () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
     expect(i18n.t('admin.nav.management')).toBe('管理')
+  })
+
+  it('translates admin.storages.fieldCapacity to English', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('en')
+    expect(i18n.t('admin.storages.fieldCapacity')).toBe('Capacity')
+  })
+
+  it('translates admin.storages.fieldCapacity to Chinese', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('zh')
+    expect(i18n.t('admin.storages.fieldCapacity')).toBe('可用空间')
+  })
+
+  it('translates admin.storages.capacityUnlimited to English', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('en')
+    expect(i18n.t('admin.storages.capacityUnlimited')).toBe('Unlimited')
+  })
+
+  it('translates admin.storages.capacityUnlimited to Chinese', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('zh')
+    expect(i18n.t('admin.storages.capacityUnlimited')).toBe('不限制')
+  })
+
+  it('translates admin.storages.capacityHint to English', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('en')
+    expect(i18n.t('admin.storages.capacityHint')).toBe('Maximum storage space. 0 means unlimited.')
+  })
+
+  it('translates admin.storages.capacityHint to Chinese', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('zh')
+    expect(i18n.t('admin.storages.capacityHint')).toBe('最大存储空间，0 表示不限制。')
   })
 })
