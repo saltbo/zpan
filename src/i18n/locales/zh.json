@@ -148,7 +148,6 @@
   "admin.storages.fieldRegion": "区域",
   "admin.storages.fieldAccessKey": "Access Key",
   "admin.storages.fieldSecretKey": "Secret Key",
-  "admin.storages.fieldFilePath": "文件路径模板",
   "admin.storages.fieldCustomHost": "自定义域名",
   "admin.storages.fieldCapacity": "可用空间",
   "admin.storages.capacityUnlimited": "不限制",

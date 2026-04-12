@@ -4,9 +4,7 @@ import { buildObjectKey } from './path-template.js'
 const baseVars = {
   uid: 'user123',
   orgId: 'org456',
-  rawName: 'photo',
   rawExt: '.jpg',
-  uuid: 'abc-def-ghi',
 }
 
 describe('buildObjectKey', () => {
@@ -37,8 +35,7 @@ describe('buildObjectKey', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))
 
-    const vars = { ...baseVars, rawExt: '' }
-    const result = buildObjectKey(vars)
+    const result = buildObjectKey({ ...baseVars, rawExt: '' })
     expect(result).toMatch(/^org456\/user123\/20260315\/.{16}$/)
 
     vi.useRealTimers()

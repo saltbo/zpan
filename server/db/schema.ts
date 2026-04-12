@@ -26,7 +26,7 @@ export const storages = sqliteTable('storages', {
   region: text('region').notNull().default('auto'),
   accessKey: text('access_key').notNull(),
   secretKey: text('secret_key').notNull(),
-  filePath: text('file_path').notNull().default('$UID/$RAW_NAME'),
+  filePath: text('file_path').notNull().default(''),
   customHost: text('custom_host').default(''),
   capacity: integer('capacity').notNull().default(0),
   used: integer('used').notNull().default(0),

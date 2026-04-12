@@ -70,9 +70,7 @@ const app = new Hono<Env>()
       : buildObjectKey({
           uid: userId,
           orgId,
-          rawName: name.replace(/\.[^.]+$/, '') || name,
           rawExt: fileExt(name),
-          uuid: crypto.randomUUID(),
         })
 
     const matter = await createMatter(db, {
@@ -230,9 +228,7 @@ const app = new Hono<Env>()
       newObject = buildObjectKey({
         uid: c.get('userId')!,
         orgId,
-        rawName: source.name.replace(/\.[^.]+$/, '') || source.name,
         rawExt: fileExt(source.name),
-        uuid: crypto.randomUUID(),
       })
       await s3.copyObject(storage, source.object, storage, newObject)
     }

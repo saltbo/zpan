@@ -35,7 +35,6 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.fieldRegion',
   'admin.storages.fieldAccessKey',
   'admin.storages.fieldSecretKey',
-  'admin.storages.fieldFilePath',
   'admin.storages.fieldCustomHost',
   'admin.storages.customHostPlaceholder',
   'admin.storages.fieldCapacity',
