@@ -15,7 +15,7 @@ RUN npm run build && npm run build:server
 FROM node:24-slim AS deps-prod
 WORKDIR /app
 COPY package-lock.json package.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 
 # -- Stage 4: runtime --
 FROM node:24-slim
