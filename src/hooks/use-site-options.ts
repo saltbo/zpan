@@ -18,6 +18,7 @@ export function useSiteOptions() {
   return {
     siteName: optionMap.get('site_name') ?? '',
     siteDescription: optionMap.get('site_description') ?? '',
+    defaultOrgQuota: Number(optionMap.get('default_org_quota') ?? '0'),
     isLoading,
     isError,
   }

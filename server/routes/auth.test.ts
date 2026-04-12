@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
+import * as schema from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
 
 describe('Auth API', () => {
@@ -148,5 +149,82 @@ describe('Auth API', () => {
     expect(members).toHaveLength(1)
     expect(members[0].userId).toBe(userId)
     expect(members[0].role).toBe('owner')
+  })
+
+  it('signup without default_org_quota set creates an org_quotas row with quota=10485760 (built-in default)', async () => {
+    const { app, db } = createTestApp()
+    const signUpRes = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', email: 'quota-none@example.com', password: 'password123456' }),
+    })
+    const body = (await signUpRes.json()) as { user: { id: string } }
+    const userId = body.user.id
+
+    const orgs = await db
+      .select()
+      .from(authSchema.organization)
+      .where(eq(authSchema.organization.slug, `personal-${userId}`))
+    const orgId = orgs[0].id
+
+    const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, orgId))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].quota).toBe(10485760)
+    expect(rows[0].used).toBe(0)
+  })
+
+  it('signup with default_org_quota set to 1073741824 creates an org_quotas row with quota=1073741824 and used=0', async () => {
+    const { app, db } = createTestApp()
+    await db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '1073741824' })
+    const signUpRes = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', email: 'quota-set@example.com', password: 'password123456' }),
+    })
+    const body = (await signUpRes.json()) as { user: { id: string } }
+    const userId = body.user.id
+
+    const orgs = await db
+      .select()
+      .from(authSchema.organization)
+      .where(eq(authSchema.organization.slug, `personal-${userId}`))
+    const orgId = orgs[0].id
+
+    const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, orgId))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].quota).toBe(1073741824)
+    expect(rows[0].used).toBe(0)
+  })
+
+  it('signup with default_org_quota set to 0 does NOT create an org_quotas row', async () => {
+    const { app, db } = createTestApp()
+    await db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '0' })
+    await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', email: 'quota-zero@example.com', password: 'password123456' }),
+    })
+    const rows = await db.select().from(schema.orgQuotas)
+    expect(rows).toHaveLength(0)
+  })
+
+  it('sign-in with a malformed stored password hash returns a non-200 error response', async () => {
+    const { app, db } = createTestApp()
+    await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', email: 'malformed@example.com', password: 'password123456' }),
+    })
+    // Corrupt the stored password so verifyPassword receives a hash with no colon separator
+    await db
+      .update(authSchema.account)
+      .set({ password: 'nocolonhashvalue' })
+      .where(eq(authSchema.account.providerId, 'credential'))
+    const res = await app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'malformed@example.com', password: 'password123456' }),
+    })
+    expect(res.status).not.toBe(200)
   })
 })

@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { orgQuotas } from '../db/schema.js'
@@ -59,7 +59,12 @@ async function getOrgId(db: ReturnType<typeof createTestApp>['db']): Promise<str
 }
 
 async function setOrgQuota(db: ReturnType<typeof createTestApp>['db'], orgId: string, quota: number, used = 0) {
-  await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used })
+  const existing = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
+  if (existing.length > 0) {
+    await db.update(orgQuotas).set({ quota, used }).where(eq(orgQuotas.orgId, orgId))
+  } else {
+    await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used })
+  }
 }
 
 // ─── POST /api/objects/:id/copy — quota enforcement ──────────────────────────

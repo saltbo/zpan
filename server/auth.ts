@@ -2,9 +2,10 @@ import crypto from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin, organization } from 'better-auth/plugins'
-import { count } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import * as authSchema from './db/auth-schema'
+import { orgQuotas, systemOptions } from './db/schema'
 import type { Database } from './platform/interface'
 import { findPersonalOrg } from './services/org'
 
@@ -97,6 +98,7 @@ async function createPersonalOrg(db: Database, user: { id: string; name: string 
   const orgId = nanoid()
   const now = new Date()
   const orgName = user.name ? `${user.name}'s Space` : 'Personal Space'
+  const defaultQuota = await getDefaultOrgQuota(db)
 
   await db.insert(authSchema.organization).values({
     id: orgId,
@@ -113,4 +115,21 @@ async function createPersonalOrg(db: Database, user: { id: string; name: string 
     role: 'owner',
     createdAt: now,
   })
+
+  if (defaultQuota > 0) {
+    await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota: defaultQuota, used: 0 })
+  }
+}
+
+const DEFAULT_ORG_QUOTA = 10 * 1024 * 1024 // 10 MB
+
+async function getDefaultOrgQuota(db: Database): Promise<number> {
+  const rows = await db
+    .select({ value: systemOptions.value })
+    .from(systemOptions)
+    .where(eq(systemOptions.key, 'default_org_quota'))
+  const raw = rows[0]?.value
+  if (raw == null) return DEFAULT_ORG_QUOTA
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : DEFAULT_ORG_QUOTA
 }

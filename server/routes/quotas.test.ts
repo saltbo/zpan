@@ -35,14 +35,15 @@ describe('Admin Quotas API', () => {
     expect(res.status).toBe(403)
   })
 
-  it('GET /api/admin/quotas returns empty list initially', async () => {
+  it('GET /api/admin/quotas returns the default quota row created at signup', async () => {
     const { app } = createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/quotas', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.items).toEqual([])
-    expect(body.total).toBe(0)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
+    expect(body.items).toHaveLength(1)
+    expect(body.total).toBe(1)
+    expect(body.items[0].quota).toBe(10485760)
   })
 
   it('PUT /api/admin/quotas/:orgId creates quota for org', async () => {
@@ -142,13 +143,13 @@ describe('User Quotas API — /api/quotas', () => {
     expect(res.status).toBe(401)
   })
 
-  it('GET /api/quotas/me returns zero quota when none set', async () => {
+  it('GET /api/quotas/me returns the built-in default quota of 10MB when no system option is set', async () => {
     const { app } = createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/quotas/me', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.quota).toBe(0)
+    expect(body.quota).toBe(10485760)
     expect(body.used).toBe(0)
     expect(body.orgId).toBeTruthy()
   })
