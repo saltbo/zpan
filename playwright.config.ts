@@ -1,5 +1,28 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const isCF = process.env.E2E_RUNTIME === 'cf'
+
+const nodeServers = [
+  {
+    command: 'tsx watch server/entry-node.ts',
+    port: 8222,
+    reuseExistingServer: !process.env.CI,
+  },
+  {
+    command: 'vite --mode node',
+    port: 5173,
+    reuseExistingServer: !process.env.CI,
+  },
+]
+
+const cfServers = [
+  {
+    command: 'vite dev',
+    port: 5173,
+    reuseExistingServer: !process.env.CI,
+  },
+]
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30000,
@@ -13,16 +36,5 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
-  webServer: [
-    {
-      command: 'tsx watch server/entry-node.ts',
-      port: 8222,
-      reuseExistingServer: !process.env.CI,
-    },
-    {
-      command: 'vite --mode node',
-      port: 5173,
-      reuseExistingServer: !process.env.CI,
-    },
-  ],
+  webServer: isCF ? cfServers : nodeServers,
 })
