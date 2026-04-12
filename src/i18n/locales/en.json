@@ -155,7 +155,7 @@
   "admin.storages.capacityHint": "Maximum storage space. 0 means unlimited.",
   "admin.storages.customHostPlaceholder": "Optional",
   "settings.title": "Settings",
-"settings.profile.section": "Profile",
+  "settings.profile.section": "Profile",
   "settings.profile.displayName": "Display Name",
   "settings.profile.email": "Email",
   "settings.profile.emailReadonly": "Email cannot be changed",

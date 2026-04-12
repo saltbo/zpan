@@ -156,7 +156,7 @@ function AppearanceSection() {
 
       <div className="space-y-1.5">
         <Label>{t('settings.appearance.language')}</Label>
-        <Select value={i18n.language} onValueChange={(lang) => i18n.changeLanguage(lang)}>
+        <Select value={i18n.resolvedLanguage} onValueChange={(lang) => i18n.changeLanguage(lang)}>
           <SelectTrigger className="w-48">
             <SelectValue />
           </SelectTrigger>

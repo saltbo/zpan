@@ -155,7 +155,7 @@
   "admin.storages.capacityHint": "最大存储空间，0 表示不限制。",
   "admin.storages.customHostPlaceholder": "可选",
   "settings.title": "设置",
-"settings.profile.section": "个人资料",
+  "settings.profile.section": "个人资料",
   "settings.profile.displayName": "显示名称",
   "settings.profile.email": "邮箱",
   "settings.profile.emailReadonly": "邮箱不可更改",
