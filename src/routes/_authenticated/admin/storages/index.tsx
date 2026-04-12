@@ -1,3 +1,4 @@
+import { StorageStatus } from '@shared/constants'
 import type { Storage } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
@@ -5,15 +6,13 @@ import { Database, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DeleteStorageDialog } from '@/components/admin/delete-storage-dialog'
-import { StorageFormDialog } from '@/components/admin/storage-form-dialog'
+import { StorageFormDrawer } from '@/components/admin/storage-form-drawer'
 import { Button } from '@/components/ui/button'
 import { listStorages } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/storages/')({
   component: StoragesPage,
 })
-
-import { StorageStatus } from '@shared/constants'
 
 function StoragesPage() {
   const { t } = useTranslation()
@@ -96,7 +95,7 @@ function StoragesPage() {
         </table>
       </div>
 
-      <StorageFormDialog open={formOpen} onOpenChange={handleFormOpenChange} storage={editingStorage} />
+      <StorageFormDrawer open={formOpen} onOpenChange={handleFormOpenChange} storage={editingStorage} />
 
       <DeleteStorageDialog
         open={deleteTarget !== null}
