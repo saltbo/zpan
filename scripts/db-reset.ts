@@ -14,7 +14,7 @@ const isD1 = process.argv.includes('--d1')
 
 const NODE_DB_PATH = process.env.DATABASE_URL || './zpan.db'
 const D1_STATE_DIR = '.wrangler/state/v3/d1'
-const D1_DB_NAME = 'zpan-db-local'
+const D1_DB_NAME = 'zpan-db-staging'
 
 // ── required env vars ──
 const email = 'admin@zpan.dev'
@@ -87,7 +87,7 @@ function resetD1(): Platform {
   }
 
   // re-run migrations via wrangler
-  execSync(`wrangler d1 migrations apply ${D1_DB_NAME} --local`, { stdio: 'inherit' })
+  execSync(`wrangler d1 migrations apply ${D1_DB_NAME} --local --env staging`, { stdio: 'inherit' })
   console.log('D1 local database migrated')
 
   // find the SQLite file wrangler just created

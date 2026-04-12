@@ -80,7 +80,7 @@ Schema is defined in `server/db/schema.ts` and `server/db/auth-schema.ts`.
 ```sh
 npm run db:generate                            # Generate migration SQL after schema changes
 npm run db:migrate                             # Apply migrations (Node/SQLite)
-wrangler d1 migrations apply zpan-db --local   # Apply migrations (D1 local)
+npm run db:migrate:d1                          # Apply migrations (D1 local)
 wrangler d1 migrations apply zpan-db --remote  # Apply migrations (D1 production)
 ```
 
