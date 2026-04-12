@@ -58,6 +58,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: echo "BETTER_AUTH_SECRET=ci-test-secret-that-is-at-least-32-chars" > .dev.vars
+      - run: npx wrangler d1 migrations apply DB --local
       - run: E2E_RUNTIME=cf npm run e2e
       - uses: actions/upload-artifact@v4
         if: failure()
