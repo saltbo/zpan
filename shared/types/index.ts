@@ -28,6 +28,8 @@ export interface Storage {
   secretKey: string
   filePath: string
   customHost: string
+  capacity: number
+  used: number
   status: StorageStatus
   createdAt: string
   updatedAt: string
