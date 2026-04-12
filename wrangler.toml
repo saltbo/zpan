@@ -4,6 +4,13 @@ compatibility_flags = ["nodejs_compat"]
 
 pages_build_output_dir = "./dist"
 
+# Local development D1 binding (used by `wrangler pages dev`)
+[[d1_databases]]
+binding = "DB"
+database_name = "zpan-db-local"
+database_id = "local"
+migrations_dir = "./migrations"
+
 # ----------------------------------------------------------------------------
 # Environment-specific config.
 #

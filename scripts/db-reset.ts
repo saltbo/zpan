@@ -1,9 +1,20 @@
+import { execSync } from 'node:child_process'
 import fs from 'node:fs'
+import path from 'node:path'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createApp } from '../server/app'
 import { createAuth } from '../server/auth'
-import { createNodePlatform } from '../server/platform/node'
+import * as authSchema from '../server/db/auth-schema'
+import * as schema from '../server/db/schema'
+import type { Platform } from '../server/platform/interface'
 
-const DB_PATH = process.env.DATABASE_URL || './zpan.db'
+const isPages = process.argv.includes('--pages')
+
+const NODE_DB_PATH = process.env.DATABASE_URL || './zpan.db'
+const D1_STATE_DIR = '.wrangler/state/v3/d1'
+const D1_DB_NAME = 'zpan-db-local'
 
 // ── required env vars ──
 const email = 'admin@zpan.dev'
@@ -22,25 +33,15 @@ const storageConfig = {
   customHost: '',
 }
 
-// ── 1. delete old db ──
-if (fs.existsSync(DB_PATH)) {
-  fs.unlinkSync(DB_PATH)
-  // WAL/SHM files
-  for (const ext of ['-wal', '-shm']) {
-    const p = DB_PATH + ext
-    if (fs.existsSync(p)) fs.unlinkSync(p)
-  }
-  console.log(`deleted ${DB_PATH}`)
-}
+// ── 1. reset database ──
+const platform = isPages ? resetPages() : resetNode()
 
-// ── 2. init platform (runs migrations) ──
-const platform = createNodePlatform()
+// ── 2. seed ──
 const secret = process.env.BETTER_AUTH_SECRET || 'dev-secret-for-seed'
 const auth = createAuth(platform.db, secret, 'http://localhost:8222')
 const app = createApp(platform, auth)
-console.log('database migrated')
 
-// ── 3. register admin user ──
+// register admin user
 const signUpRes = await app.request('/api/auth/sign-up/email', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -50,7 +51,7 @@ if (!signUpRes.ok) throw new Error(`sign-up failed: ${signUpRes.status} ${await 
 const cookies = signUpRes.headers.getSetCookie().join('; ')
 console.log(`registered admin: ${email}`)
 
-// ── 4. create storage ──
+// create storage
 const storageRes = await app.request('/api/admin/storages', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Cookie: cookies },
@@ -60,7 +61,51 @@ if (!storageRes.ok) throw new Error(`create storage failed: ${storageRes.status}
 const storage = (await storageRes.json()) as { id: string; title: string }
 console.log(`created storage: ${storage.title} (${storage.id})`)
 
-console.log('\ndone! run `npm run dev` to start.')
+console.log('\ndone!')
+
+// ── helpers ──
+
+function resetNode(): Platform {
+  for (const p of [NODE_DB_PATH, `${NODE_DB_PATH}-wal`, `${NODE_DB_PATH}-shm`]) {
+    if (fs.existsSync(p)) fs.unlinkSync(p)
+  }
+  console.log(`deleted ${NODE_DB_PATH}`)
+
+  const sqlite = new Database(NODE_DB_PATH)
+  sqlite.pragma('journal_mode = WAL')
+  const db = drizzle(sqlite, { schema: { ...schema, ...authSchema } })
+  migrate(db, { migrationsFolder: './migrations' })
+  console.log('database migrated')
+
+  return { db, getEnv: (key) => process.env[key] }
+}
+
+function resetPages(): Platform {
+  // wipe D1 local state
+  if (fs.existsSync(D1_STATE_DIR)) {
+    fs.rmSync(D1_STATE_DIR, { recursive: true })
+    console.log(`deleted ${D1_STATE_DIR}`)
+  }
+
+  // re-run migrations via wrangler
+  execSync(`wrangler d1 migrations apply ${D1_DB_NAME} --local`, { stdio: 'inherit' })
+  console.log('D1 local database migrated')
+
+  // find the SQLite file wrangler just created
+  const dbFile = findD1SqliteFile()
+  const sqlite = new Database(dbFile)
+  const db = drizzle(sqlite, { schema: { ...schema, ...authSchema } })
+
+  return { db, getEnv: (key) => process.env[key] }
+}
+
+function findD1SqliteFile(): string {
+  const base = path.join(D1_STATE_DIR, 'miniflare-D1DatabaseObject')
+  if (!fs.existsSync(base)) throw new Error(`D1 state dir not found: ${base}`)
+  const files = fs.readdirSync(base).filter((f) => f.endsWith('.sqlite') && f !== 'metadata.sqlite')
+  if (files.length === 0) throw new Error('No D1 SQLite database file found after migration')
+  return path.join(base, files[0])
+}
 
 function requireEnv(key: string): string {
   const val = process.env[key]

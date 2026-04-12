@@ -12,6 +12,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:reset": "tsx --env-file=.dev.vars scripts/db-reset.ts",
+    "db:reset:pages": "tsx --env-file=.dev.vars scripts/db-reset.ts --pages",
     "typecheck": "tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:cf": "vitest run --config vitest.cloudflare.config.ts",
