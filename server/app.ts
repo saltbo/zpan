@@ -7,6 +7,7 @@ import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
 import type { Platform } from './platform/interface'
 import emailConfig from './routes/email-config'
+import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
 import objects from './routes/objects'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import storages from './routes/storages'
@@ -44,6 +45,8 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/admin/storages', storages)
   app.route('/api/admin/users', users)
   app.route('/api/admin/email-config', emailConfig)
+  app.route('/api/admin/invite-codes', adminInviteCodes)
+  app.route('/api/invite-codes', publicInviteCodes)
   app.route('/api/admin/quotas', adminQuotas)
   app.route('/api/quotas', userQuotas)
   app.route('/api/system', system)
@@ -64,3 +67,5 @@ export type AdminQuotasRoute = typeof adminQuotas
 export type UserQuotasRoute = typeof userQuotas
 export type SystemRoute = typeof system
 export type EmailConfigRoute = typeof emailConfig
+export type AdminInviteCodesRoute = typeof adminInviteCodes
+export type PublicInviteCodesRoute = typeof publicInviteCodes

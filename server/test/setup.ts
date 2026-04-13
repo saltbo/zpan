@@ -137,6 +137,15 @@ const APP_SCHEMA_SQL = `
     value TEXT NOT NULL DEFAULT '',
     public INTEGER DEFAULT 0
   );
+  CREATE TABLE IF NOT EXISTS invite_codes (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    created_by TEXT NOT NULL,
+    used_by TEXT,
+    used_at INTEGER,
+    expires_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
 `
 
 export function createTestApp() {

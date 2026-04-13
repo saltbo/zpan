@@ -42,6 +42,16 @@ export const orgQuotas = sqliteTable('org_quotas', {
   used: integer('used').notNull().default(0),
 })
 
+export const inviteCodes = sqliteTable('invite_codes', {
+  id: text('id').primaryKey(),
+  code: text('code').notNull().unique(),
+  createdBy: text('created_by').notNull(),
+  usedBy: text('used_by'),
+  usedAt: integer('used_at', { mode: 'timestamp' }),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
 export const systemOptions = sqliteTable('system_options', {
   key: text('key').primaryKey(),
   value: text('value').notNull().default(''),
