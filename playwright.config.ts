@@ -25,7 +25,6 @@ const cfServers = [
 ]
 
 export default defineConfig({
-  globalSetup: './e2e/global-setup.ts',
   testDir: './e2e',
   timeout: 30000,
   retries: process.env.CI ? 2 : 0,
@@ -37,13 +36,19 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /global-setup\.ts/,
+    },
+    {
       name: 'desktop',
       grep: /@desktop|@all/,
+      dependencies: ['setup'],
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'tablet',
       grep: /@tablet|@all/,
+      dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 768, height: 1024 },
@@ -52,6 +57,7 @@ export default defineConfig({
     {
       name: 'mobile',
       grep: /@mobile|@all/,
+      dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 390, height: 844 },
