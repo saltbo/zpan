@@ -17,6 +17,8 @@ const AUTH_SCHEMA_SQL = `
     banned INTEGER DEFAULT 0,
     ban_reason TEXT,
     ban_expires INTEGER,
+    username TEXT UNIQUE,
+    display_username TEXT,
     created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
     updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
   );
