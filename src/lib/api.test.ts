@@ -16,6 +16,7 @@ import {
   getStorage,
   getSystemOption,
   getUserQuota,
+  listAuthProviders,
   listObjects,
   listQuotas,
   listStorages,
@@ -805,6 +806,75 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'server error' }, false, 500))
 
       await expect(batchDeleteObjects(['id1'])).rejects.toThrow('server error')
+    })
+  })
+
+  describe('listAuthProviders', () => {
+    it('fetches auth providers list from /api/auth-providers', async () => {
+      const payload = {
+        items: [
+          { providerId: 'github', type: 'builtin', name: 'GitHub', icon: 'github' },
+          { providerId: 'google', type: 'builtin', name: 'Google', icon: 'google' },
+        ],
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listAuthProviders()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/auth-providers')
+    })
+
+    it('returns an object with an items array', async () => {
+      const payload = { items: [] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listAuthProviders()
+
+      expect(Array.isArray(result.items)).toBe(true)
+    })
+
+    it('returns empty items array when no providers are configured', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
+
+      const result = await listAuthProviders()
+
+      expect(result.items).toHaveLength(0)
+    })
+
+    it('returns provider with correct shape including providerId, type, name, and icon', async () => {
+      const provider = { providerId: 'gitlab', type: 'oidc', name: 'GitLab', icon: 'gitlab' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [provider] }))
+
+      const result = await listAuthProviders()
+
+      expect(result.items[0]).toEqual(provider)
+      expect(result.items[0].providerId).toBe('gitlab')
+      expect(result.items[0].type).toBe('oidc')
+      expect(result.items[0].name).toBe('GitLab')
+      expect(result.items[0].icon).toBe('gitlab')
+    })
+
+    it('passes credentials: include', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
+
+      await listAuthProviders()
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(init.credentials).toBe('include')
+    })
+
+    it('throws when response is not ok', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
+
+      await expect(listAuthProviders()).rejects.toThrow('unauthorized')
+    })
+
+    it('throws with statusText when error body has no error field', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({}, false, 500))
+
+      await expect(listAuthProviders()).rejects.toThrow('Bad Request')
     })
   })
 })
