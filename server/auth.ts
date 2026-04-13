@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { admin, organization } from 'better-auth/plugins'
+import { admin, organization, username } from 'better-auth/plugins'
 import { count, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import * as authSchema from './db/auth-schema'
@@ -49,7 +49,7 @@ export function createAuth(db: Database, secret: string, baseURL?: string, trust
         maxAge: 60 * 5,
       },
     },
-    plugins: [admin(), organization()],
+    plugins: [admin(), organization(), username()],
     databaseHooks: {
       user: {
         create: {
