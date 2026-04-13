@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { createFolder, signUpAndGoToFiles } from './helpers'
+import { createFolder, seedStorage, signUpAndGoToFiles } from './helpers'
 
 // ---------------------------------------------------------------------------
 // Sidebar behavior per device
@@ -95,6 +95,7 @@ test.describe('File table responsive columns', () => {
   test('desktop: all columns visible (name, size, modified, actions)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only')
     await signUpAndGoToFiles(page)
+    await seedStorage(page)
     await createFolder(page, 'test-folder')
 
     await expect(page.getByRole('columnheader', { name: /size/i })).toBeVisible()
@@ -104,6 +105,7 @@ test.describe('File table responsive columns', () => {
   test('mobile: size and modified columns are hidden', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'mobile only')
     await signUpAndGoToFiles(page)
+    await seedStorage(page)
     await createFolder(page, 'test-folder')
 
     await expect(page.getByRole('columnheader', { name: /size/i })).not.toBeVisible()
