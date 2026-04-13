@@ -1,10 +1,15 @@
+import { SignupMode } from '@shared/constants'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { OAuthButtons } from '@/components/oauth-buttons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useSiteOptions } from '@/hooks/use-site-options'
 import { signIn } from '@/lib/auth-client'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const Route = createFileRoute('/(auth)/sign-in')({
   component: SignIn,
@@ -13,7 +18,8 @@ export const Route = createFileRoute('/(auth)/sign-in')({
 function SignIn() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const { authSignupMode, isLoading: optionsLoading } = useSiteOptions()
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -22,11 +28,11 @@ function SignIn() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const result = await signIn.email({
-      email,
-      password,
-      callbackURL: '/files',
-    })
+
+    const result = EMAIL_RE.test(identifier)
+      ? await signIn.email({ email: identifier, password, callbackURL: '/files' })
+      : await signIn.username({ username: identifier, password, callbackURL: '/files' })
+
     setLoading(false)
     if (result.error) {
       setError(result.error.message ?? t('auth.signInFailed'))
@@ -34,6 +40,8 @@ function SignIn() {
     }
     navigate({ to: '/files' })
   }
+
+  const showSignUpLink = !optionsLoading && authSignupMode !== SignupMode.CLOSED
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -44,8 +52,14 @@ function SignIn() {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">{t('auth.email')}</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Label htmlFor="identifier">{t('auth.emailOrUsername')}</Label>
+            <Input
+              id="identifier"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder={t('auth.emailOrUsernamePlaceholder')}
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">{t('auth.password')}</Label>
@@ -62,12 +76,15 @@ function SignIn() {
             {loading ? t('auth.signingIn') : t('auth.signIn')}
           </Button>
         </form>
-        <p className="text-center text-sm text-muted-foreground">
-          {t('auth.noAccount')}{' '}
-          <Link to="/sign-up" className="underline hover:text-foreground">
-            {t('auth.signUp')}
-          </Link>
-        </p>
+        <OAuthButtons />
+        {showSignUpLink && (
+          <p className="text-center text-sm text-muted-foreground">
+            {t('auth.noAccount')}{' '}
+            <Link to="/sign-up" className="underline hover:text-foreground">
+              {t('auth.signUp')}
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   )

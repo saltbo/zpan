@@ -1,6 +1,6 @@
 import type { CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
-import type { PaginatedResponse, Storage, StorageObject } from '@shared/types'
-import { adminQuotas, objects, storages, system, trash, userQuotas, users } from './rpc'
+import type { AuthProvider, PaginatedResponse, Storage, StorageObject } from '@shared/types'
+import { adminQuotas, authProviders, objects, storages, system, trash, userQuotas, users } from './rpc'
 
 export type { Storage, StorageObject }
 
@@ -179,7 +179,16 @@ export function setSystemOption(key: string, value: string, isPublic?: boolean) 
   return unwrap<SiteOption>(system.options[':key'].$put({ param: { key }, json: body }))
 }
 
-// Auth API — Better Auth passthrough, not typed via Hono RPC
+// Auth Providers API
+
+export type { AuthProvider }
+
+export function listAuthProviders() {
+  return unwrap<{ items: AuthProvider[] }>(authProviders.index.$get())
+}
+
+// Auth API — better-auth manages its own routes outside Hono's typed router,
+// so raw fetch is required here (same exception pattern as uploadToS3 above).
 export async function getSession(): Promise<{ session: unknown; user: unknown } | null> {
   const res = await fetch('/api/auth/get-session', { credentials: 'include' })
   if (!res.ok) return null

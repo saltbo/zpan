@@ -16,7 +16,9 @@ import {
   getStorage,
   getSystemOption,
   getUserQuota,
+  listAuthProviders,
   listObjects,
+  listObjectsByPath,
   listQuotas,
   listStorages,
   listSystemOptions,
@@ -805,6 +807,136 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'server error' }, false, 500))
 
       await expect(batchDeleteObjects(['id1'])).rejects.toThrow('server error')
+    })
+  })
+
+  describe('listObjectsByPath', () => {
+    it('calls correct URL with path and defaults', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+
+      await listObjectsByPath('/docs')
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('path=%2Fdocs')
+      expect(url).toContain('status=active')
+      expect(url).toContain('page=1')
+      expect(url).toContain('pageSize=500')
+    })
+
+    it('includes type query param when opts.type is provided', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+
+      await listObjectsByPath('/docs', 'active', 1, 500, { type: 'image' })
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('type=image')
+    })
+
+    it('includes search query param when opts.search is provided', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+
+      await listObjectsByPath('/docs', 'active', 1, 500, { search: 'report' })
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('search=report')
+    })
+
+    it('omits type param when opts.type is not set', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+
+      await listObjectsByPath('/docs', 'active', 1, 500, {})
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).not.toContain('type=')
+    })
+
+    it('omits search param when opts.search is not set', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+
+      await listObjectsByPath('/docs', 'active', 1, 500, {})
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).not.toContain('search=')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(listObjectsByPath('/missing')).rejects.toThrow('not found')
+    })
+
+    it('returns paginated response', async () => {
+      const payload = { items: [{ id: 'a' }], total: 1, page: 1, pageSize: 500 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listObjectsByPath('/docs')
+
+      expect(result).toEqual(payload)
+    })
+  })
+
+  describe('listAuthProviders', () => {
+    it('returns list of auth providers', async () => {
+      const payload = {
+        items: [
+          { providerId: 'github', type: 'oauth', name: 'GitHub', icon: 'github' },
+          { providerId: 'google', type: 'oauth', name: 'Google', icon: 'google' },
+        ],
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listAuthProviders()
+
+      expect(result).toEqual(payload)
+    })
+
+    it('returns empty items list when no providers configured', async () => {
+      const payload = { items: [] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listAuthProviders()
+
+      expect(result.items).toHaveLength(0)
+    })
+
+    it('calls auth-providers endpoint', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
+
+      await listAuthProviders()
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/auth-providers')
+    })
+
+    it('passes credentials: include', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
+
+      await listAuthProviders()
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(init.credentials).toBe('include')
+    })
+
+    it('throws when response is not ok', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listAuthProviders()).rejects.toThrow('forbidden')
+    })
+
+    it('falls back to statusText when error body has no error field', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({}, false, 500))
+
+      await expect(listAuthProviders()).rejects.toThrow('Bad Request')
+    })
+
+    it('returns a single provider correctly', async () => {
+      const provider = { providerId: 'discord', type: 'oauth', name: 'Discord', icon: 'discord' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [provider] }))
+
+      const result = await listAuthProviders()
+
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0]).toEqual(provider)
     })
   })
 })

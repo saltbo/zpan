@@ -1,4 +1,6 @@
+import { SignupMode } from '@shared/constants'
 import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { listSystemOptions, type SiteOption } from '@/lib/api'
 
 export type { SiteOption }
@@ -13,12 +15,13 @@ export function useSiteOptions() {
   })
 
   const items = data?.items ?? []
-  const optionMap = new Map(items.map((item) => [item.key, item.value]))
+  const optionMap = useMemo(() => new Map(items.map((item) => [item.key, item.value])), [items])
 
   return {
     siteName: optionMap.get('site_name') ?? '',
     siteDescription: optionMap.get('site_description') ?? '',
     defaultOrgQuota: Number(optionMap.get('default_org_quota') ?? '0'),
+    authSignupMode: (optionMap.get('auth_signup_mode') as SignupMode) ?? SignupMode.OPEN,
     isLoading,
     isError,
   }
