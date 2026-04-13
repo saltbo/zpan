@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 // Helper: register and go to recycle bin
 async function signUpAndGoToTrash(page: import('@playwright/test').Page) {
   await page.goto('/sign-up')
-  await page.getByLabel('Name').fill('Trash Test')
+  await page.getByLabel('Username').fill(`trash${Date.now()}`)
+  await page.getByLabel('Name', { exact: true }).fill('Trash Test')
   await page.getByLabel('Email').fill(`trash-${Date.now()}@example.com`)
   await page.getByLabel('Password').fill('password123456')
   const [resp] = await Promise.all([

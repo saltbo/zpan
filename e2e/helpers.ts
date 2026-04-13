@@ -13,7 +13,7 @@ const ADMIN_FALLBACKS = [
 export async function signInAsAdmin(page: Page) {
   for (const cred of ADMIN_FALLBACKS) {
     await page.goto('/sign-in')
-    await page.getByLabel('Email').fill(cred.email)
+    await page.getByLabel('Email or Username').fill(cred.email)
     await page.getByLabel('Password').fill(cred.password)
     const [resp] = await Promise.all([
       page.waitForResponse((r) => r.url().includes('/api/auth/sign-in')),
@@ -32,7 +32,8 @@ export async function signInAsAdmin(page: Page) {
 /** Register a fresh user and land on /files. */
 export async function signUpAndGoToFiles(page: Page) {
   await page.goto('/sign-up')
-  await page.getByLabel('Name').fill('E2E Test')
+  await page.getByLabel('Username').fill(`e2e${Date.now()}`)
+  await page.getByLabel('Name', { exact: true }).fill('E2E Test')
   await page.getByLabel('Email').fill(`e2e-${Date.now()}@example.com`)
   await page.getByLabel('Password').fill('password123456')
   const [resp] = await Promise.all([
