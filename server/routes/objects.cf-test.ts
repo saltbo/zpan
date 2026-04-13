@@ -4,9 +4,9 @@ import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 
-function buildApp() {
+async function buildApp() {
   const platform = createCloudflarePlatform(env)
-  const auth = createAuth(platform.db, env.BETTER_AUTH_SECRET)
+  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
   return createApp(platform, auth)
 }
 
@@ -23,13 +23,13 @@ async function authedHeaders(app: ReturnType<typeof buildApp>) {
 
 describe('[CF] Objects API', () => {
   it('returns 401 without auth', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const res = await app.request('/api/objects')
     expect(res.status).toBe(401)
   })
 
   it('GET /api/objects returns empty list', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', { headers })
     expect(res.status).toBe(200)
@@ -38,7 +38,7 @@ describe('[CF] Objects API', () => {
   })
 
   it('POST /api/objects returns 400 for invalid input', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
       method: 'POST',
@@ -49,7 +49,7 @@ describe('[CF] Objects API', () => {
   })
 
   it('POST /api/objects returns 500 when no storage configured', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
       method: 'POST',
@@ -60,14 +60,14 @@ describe('[CF] Objects API', () => {
   })
 
   it('GET /api/objects/:id returns 404 for missing object', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent', { headers })
     expect(res.status).toBe(404)
   })
 
   it('PATCH /api/objects/:id returns 404 for missing object', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent', {
       method: 'PATCH',
@@ -78,7 +78,7 @@ describe('[CF] Objects API', () => {
   })
 
   it('DELETE /api/objects/:id returns 404 for missing object', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent', {
       method: 'DELETE',

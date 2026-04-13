@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as schema from '../db/schema.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
-async function seedSmtpConfig(db: ReturnType<typeof createTestApp>['db']) {
+async function seedSmtpConfig(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   await db.insert(schema.systemOptions).values([
     { key: 'email_provider', value: 'smtp' },
     { key: 'email_from', value: 'no-reply@example.com' },
@@ -14,7 +14,7 @@ async function seedSmtpConfig(db: ReturnType<typeof createTestApp>['db']) {
   ])
 }
 
-async function seedHttpConfig(db: ReturnType<typeof createTestApp>['db']) {
+async function seedHttpConfig(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   await db.insert(schema.systemOptions).values([
     { key: 'email_provider', value: 'http' },
     { key: 'email_from', value: 'no-reply@example.com' },
@@ -25,13 +25,13 @@ async function seedHttpConfig(db: ReturnType<typeof createTestApp>['db']) {
 
 describe('Admin Email Config API — auth', () => {
   it('GET returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/admin/email-config')
     expect(res.status).toBe(401)
   })
 
   it('GET returns 403 for non-admin user', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     await authedHeaders(app, 'admin@example.com')
     await authedHeaders(app, 'regular@example.com')
     const signInRes = await app.request('/api/auth/sign-in/email', {
@@ -45,7 +45,7 @@ describe('Admin Email Config API — auth', () => {
   })
 
   it('PUT returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/admin/email-config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -55,7 +55,7 @@ describe('Admin Email Config API — auth', () => {
   })
 
   it('POST /test returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/admin/email-config/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,7 +67,7 @@ describe('Admin Email Config API — auth', () => {
 
 describe('Admin Email Config API — GET', () => {
   it('returns { provider: null } when no config exists', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/email-config', { headers })
     expect(res.status).toBe(200)
@@ -76,7 +76,7 @@ describe('Admin Email Config API — GET', () => {
   })
 
   it('returns masked SMTP config after SMTP config is saved', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedSmtpConfig(db)
 
@@ -97,7 +97,7 @@ describe('Admin Email Config API — GET', () => {
   })
 
   it('returns masked HTTP config after HTTP config is saved', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedHttpConfig(db)
 
@@ -111,13 +111,13 @@ describe('Admin Email Config API — GET', () => {
     // apiKey must be masked
     expect(http.apiKey).not.toBe('my-secret-key')
     expect(String(http.apiKey).endsWith('-key')).toBe(true)
-    expect(String(http.apiKey)).toMatch(/^\*+\-key$/)
+    expect(String(http.apiKey)).toMatch(/^\*+-key$/)
   })
 })
 
 describe('Admin Email Config API — PUT', () => {
   it('saves SMTP config and returns success', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/admin/email-config', {
@@ -141,7 +141,7 @@ describe('Admin Email Config API — PUT', () => {
   })
 
   it('persists SMTP config so GET reflects the saved values', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     await app.request('/api/admin/email-config', {
@@ -170,7 +170,7 @@ describe('Admin Email Config API — PUT', () => {
   })
 
   it('saves HTTP config and returns success', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/admin/email-config', {
@@ -191,7 +191,7 @@ describe('Admin Email Config API — PUT', () => {
   })
 
   it('persists HTTP config so GET reflects the saved values', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     await app.request('/api/admin/email-config', {
@@ -216,7 +216,7 @@ describe('Admin Email Config API — PUT', () => {
   })
 
   it('returns 400 for invalid provider value', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/admin/email-config', {
@@ -228,7 +228,7 @@ describe('Admin Email Config API — PUT', () => {
   })
 
   it('returns 400 for invalid from email', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/admin/email-config', {
@@ -240,7 +240,7 @@ describe('Admin Email Config API — PUT', () => {
   })
 
   it('updates existing config when PUT is called a second time', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     await app.request('/api/admin/email-config', {
@@ -281,7 +281,7 @@ describe('Admin Email Config API — POST /test', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedHttpConfig(db)
 
@@ -303,7 +303,7 @@ describe('Admin Email Config API — POST /test', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedHttpConfig(db)
 
@@ -319,7 +319,7 @@ describe('Admin Email Config API — POST /test', () => {
   })
 
   it('returns 400 when no email config is set', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/admin/email-config/test', {
@@ -334,7 +334,7 @@ describe('Admin Email Config API — POST /test', () => {
   })
 
   it('returns 400 for invalid to email', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedSmtpConfig(db)
 

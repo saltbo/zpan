@@ -36,7 +36,7 @@ const validStorage = {
   secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
 }
 
-async function insertStorage(db: ReturnType<typeof createTestApp>['db']) {
+async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   const now = Date.now()
   await db.run(sql`
     INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -45,7 +45,7 @@ async function insertStorage(db: ReturnType<typeof createTestApp>['db']) {
 }
 
 async function insertFolder(
-  db: ReturnType<typeof createTestApp>['db'],
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
   orgId: string,
   opts: { id: string; name: string; parent?: string },
 ) {
@@ -57,7 +57,7 @@ async function insertFolder(
 }
 
 async function insertFile(
-  db: ReturnType<typeof createTestApp>['db'],
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
   orgId: string,
   opts: { id: string; name: string; parent?: string; status?: string },
 ) {
@@ -69,7 +69,7 @@ async function insertFile(
   `)
 }
 
-async function getOrgId(db: ReturnType<typeof createTestApp>['db']): Promise<string> {
+async function getOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
   const rows = await db.all<{ id: string }>(sql`
     SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1
   `)
@@ -78,13 +78,13 @@ async function getOrgId(db: ReturnType<typeof createTestApp>['db']): Promise<str
 
 describe('Objects API', () => {
   it('returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/objects')
     expect(res.status).toBe(401)
   })
 
   it('GET /api/objects returns empty list', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', { headers })
     expect(res.status).toBe(200)
@@ -93,7 +93,7 @@ describe('Objects API', () => {
   })
 
   it('GET /api/objects respects pagination params', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects?page=2&pageSize=10', { headers })
     expect(res.status).toBe(200)
@@ -103,7 +103,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects creates a folder', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const res = await app.request('/api/objects', {
@@ -121,7 +121,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects returns 400 for invalid input', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
       method: 'POST',
@@ -132,7 +132,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects returns 500 when no storage available', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
       method: 'POST',
@@ -143,7 +143,7 @@ describe('Objects API', () => {
   })
 
   it('GET /api/objects lists active objects in root', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -162,7 +162,7 @@ describe('Objects API', () => {
   })
 
   it('GET /api/objects filters by parent', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -178,7 +178,7 @@ describe('Objects API', () => {
   })
 
   it('GET /api/objects filters by status', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -193,7 +193,7 @@ describe('Objects API', () => {
   })
 
   it('GET /api/objects/:id returns folder detail', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -209,14 +209,14 @@ describe('Objects API', () => {
   })
 
   it('GET /api/objects/:id returns 404 for missing object', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent', { headers })
     expect(res.status).toBe(404)
   })
 
   it('PATCH /api/objects/:id renames an object', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -233,7 +233,7 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id moves an object', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -251,7 +251,7 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id returns 404 for missing object', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent', {
       method: 'PATCH',
@@ -262,7 +262,7 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id/done confirms upload', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -278,7 +278,7 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id/done returns 404 for non-draft object', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -292,7 +292,7 @@ describe('Objects API', () => {
   })
 
   it('DELETE /api/objects/:id rejects active object (must trash first)', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -303,7 +303,7 @@ describe('Objects API', () => {
   })
 
   it('DELETE /api/objects/:id permanently deletes a trashed folder', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -323,7 +323,7 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id/trash trashes a file', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -341,7 +341,7 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id/restore restores a trashed file', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -354,7 +354,7 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id/trash cascades to folder children', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -379,7 +379,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/recycle-bin/empty purges all trashed items', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -396,7 +396,7 @@ describe('Objects API', () => {
   })
 
   it('DELETE /api/objects/:id returns 404 for missing object', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent', {
       method: 'DELETE',
@@ -406,7 +406,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/:id/copy copies a folder', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -425,7 +425,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/:id/copy returns 404 for missing source', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent/copy', {
       method: 'POST',
@@ -436,7 +436,7 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id/done returns 404 for missing object', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent/done', {
       method: 'PATCH',
@@ -446,7 +446,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects creates a file with upload URL', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const res = await app.request('/api/objects', {
@@ -462,7 +462,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/:id/copy copies a file with S3', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -478,7 +478,7 @@ describe('Objects API', () => {
   })
 
   it('DELETE /api/objects/:id permanently deletes a trashed file with S3 cleanup', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -493,7 +493,7 @@ describe('Objects API', () => {
   })
 
   it('DELETE /api/objects/:id purges folder with file children from S3', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -510,14 +510,14 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id/trash returns 404 for missing object', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent/trash', { method: 'PATCH', headers })
     expect(res.status).toBe(404)
   })
 
   it('PATCH /api/objects/:id/trash is idempotent for already-trashed item', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -529,14 +529,14 @@ describe('Objects API', () => {
   })
 
   it('PATCH /api/objects/:id/restore returns 404 for missing object', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent/restore', { method: 'PATCH', headers })
     expect(res.status).toBe(404)
   })
 
   it('PATCH /api/objects/:id/restore is no-op for active item', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -549,7 +549,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/recycle-bin/empty with files calls S3 deleteObjects', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -561,7 +561,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/recycle-bin/empty handles folders (no S3 object) and files together', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -578,7 +578,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/recycle-bin/empty returns 0 when trash is empty', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/recycle-bin/empty', { method: 'POST', headers })
     expect(res.status).toBe(200)
@@ -587,7 +587,7 @@ describe('Objects API', () => {
   })
 
   it('GET /api/objects/:id returns downloadUrl for files', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -600,7 +600,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/move moves multiple items', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -618,7 +618,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/move returns 400 for invalid input', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/batch/move', {
       method: 'POST',
@@ -629,7 +629,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/move returns 400 if any id missing from org', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -643,7 +643,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/trash trashes items and cascades', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -661,7 +661,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/trash returns 400 for invalid input', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/batch/trash', {
       method: 'POST',
@@ -672,7 +672,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/delete permanently deletes trashed items', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -695,7 +695,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/delete returns 400 if any item is not trashed', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -711,7 +711,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/delete returns 400 for invalid input', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/batch/delete', {
       method: 'POST',
@@ -722,7 +722,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/delete decrements usage for files with size > 0', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -750,7 +750,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/trash returns 400 when IDs do not belong to org', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -767,7 +767,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/move returns 400 when moving folder into itself', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -784,7 +784,7 @@ describe('Objects API', () => {
   })
 
   it('POST /api/objects/batch/move cascades path when moving a folder', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -805,7 +805,7 @@ describe('Objects API', () => {
 
 describe('Matter service', () => {
   it('createMatter applies defaults for optional fields', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -828,7 +828,7 @@ describe('Matter service', () => {
   })
 
   it('createMatter uses provided optional fields', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -852,7 +852,7 @@ describe('Matter service', () => {
   })
 
   it('listMatters returns paginated results', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -885,25 +885,25 @@ describe('Matter service', () => {
   })
 
   it('getMatter returns null for missing record', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await getMatter(db, 'nonexistent', 'org-1')
     expect(result).toBeNull()
   })
 
   it('updateMatter returns null for missing record', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await updateMatter(db, 'nonexistent', 'org-1', { name: 'new' })
     expect(result).toBeNull()
   })
 
   it('confirmUpload returns null for missing record', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const { matter } = await confirmUpload(db, 'nonexistent', 'org-1')
     expect(matter).toBeNull()
   })
 
   it('confirmUpload returns null for non-draft status', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -922,7 +922,7 @@ describe('Matter service', () => {
   })
 
   it('deleteMatter removes and returns the record', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -946,13 +946,13 @@ describe('Matter service', () => {
   })
 
   it('deleteMatter returns null for missing record', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await deleteMatter(db, 'nonexistent', 'org-1')
     expect(result).toBeNull()
   })
 
   it('copyMatter creates a new record from source', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -979,13 +979,13 @@ describe('Matter service', () => {
   })
 
   it('getMatters returns empty array for empty ids list', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await getMatters(db, 'org-1', [])
     expect(result).toEqual([])
   })
 
   it('batchMove moves multiple items to a new parent', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -1017,7 +1017,7 @@ describe('Matter service', () => {
   })
 
   it('batchMove throws if any ID does not belong to the org', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -1038,7 +1038,7 @@ describe('Matter service', () => {
   })
 
   it('batchTrash sets status to trashed for multiple items', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -1068,7 +1068,7 @@ describe('Matter service', () => {
   })
 
   it('batchTrash cascades into folder children', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -1103,7 +1103,7 @@ describe('Matter service', () => {
   })
 
   it('batchTrash throws if any ID does not belong to the org', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -1124,7 +1124,7 @@ describe('Matter service', () => {
   })
 
   it('batchDelete permanently deletes trashed items', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -1155,7 +1155,7 @@ describe('Matter service', () => {
   })
 
   it('batchDelete throws if any item is not trashed', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -1184,7 +1184,7 @@ describe('Matter service', () => {
   })
 
   it('batchDelete throws if any ID does not belong to the org', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)

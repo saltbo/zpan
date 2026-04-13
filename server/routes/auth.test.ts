@@ -6,7 +6,7 @@ import { createTestApp } from '../test/setup.js'
 
 describe('Auth API', () => {
   it('POST /api/auth/sign-up/email creates user', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -18,7 +18,7 @@ describe('Auth API', () => {
   })
 
   it('POST /api/auth/sign-in/email signs in', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     // First sign up
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -36,7 +36,7 @@ describe('Auth API', () => {
   })
 
   it('POST /api/auth/sign-in/email rejects wrong password', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -51,7 +51,7 @@ describe('Auth API', () => {
   })
 
   it('first user gets admin role after signup', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -62,7 +62,7 @@ describe('Auth API', () => {
   })
 
   it('first user gets a personal organization created after signup', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const signUpRes = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -80,7 +80,7 @@ describe('Auth API', () => {
   })
 
   it('second user does NOT get admin role', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     // First user
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -98,7 +98,7 @@ describe('Auth API', () => {
   })
 
   it('second user also gets a personal organization created', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     // First user
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -123,7 +123,7 @@ describe('Auth API', () => {
   })
 
   it('second user gets a member record with owner role in their personal org', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     // First user
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -152,7 +152,7 @@ describe('Auth API', () => {
   })
 
   it('signup without default_org_quota set creates an org_quotas row with quota=10485760 (built-in default)', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const signUpRes = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -174,7 +174,7 @@ describe('Auth API', () => {
   })
 
   it('signup with default_org_quota set to 1073741824 creates an org_quotas row with quota=1073741824 and used=0', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     await db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '1073741824' })
     const signUpRes = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -197,7 +197,7 @@ describe('Auth API', () => {
   })
 
   it('signup with default_org_quota set to 0 does NOT create an org_quotas row', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     await db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '0' })
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -209,7 +209,7 @@ describe('Auth API', () => {
   })
 
   it('sign-in with a malformed stored password hash returns a non-200 error response', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
