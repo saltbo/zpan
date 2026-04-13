@@ -1,6 +1,6 @@
 import type { CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
-import type { PaginatedResponse, Storage, StorageObject } from '@shared/types'
-import { adminQuotas, objects, storages, system, trash, userQuotas, users } from './rpc'
+import type { AuthProvider, PaginatedResponse, Storage, StorageObject } from '@shared/types'
+import { adminQuotas, authProviders, objects, storages, system, trash, userQuotas, users } from './rpc'
 
 export type { Storage, StorageObject }
 
@@ -177,6 +177,14 @@ export function setSystemOption(key: string, value: string, isPublic?: boolean) 
   const body: { value: string; public?: boolean } = { value }
   if (isPublic !== undefined) body.public = isPublic
   return unwrap<SiteOption>(system.options[':key'].$put({ param: { key }, json: body }))
+}
+
+// Auth Providers API
+
+export type { AuthProvider }
+
+export function listAuthProviders() {
+  return unwrap<{ items: AuthProvider[] }>(authProviders.index.$get())
 }
 
 // Auth API — Better Auth passthrough, not typed via Hono RPC

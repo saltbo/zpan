@@ -65,6 +65,13 @@ export interface SystemOption {
   public: boolean
 }
 
+export interface AuthProvider {
+  providerId: string
+  type: string
+  name: string
+  icon: string
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number

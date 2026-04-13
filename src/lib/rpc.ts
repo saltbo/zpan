@@ -1,5 +1,6 @@
 import type {
   AdminQuotasRoute,
+  AuthProvidersRoute,
   ObjectsRoute,
   StoragesRoute,
   SystemRoute,
@@ -18,3 +19,4 @@ export const users = hc<UsersRoute>('/api/admin/users', opts)
 export const adminQuotas = hc<AdminQuotasRoute>('/api/admin/quotas', opts)
 export const userQuotas = hc<UserQuotasRoute>('/api/quotas', opts)
 export const system = hc<SystemRoute>('/api/system', opts)
+export const authProviders = hc<AuthProvidersRoute>('/api/auth-providers', opts)

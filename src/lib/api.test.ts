@@ -16,6 +16,7 @@ import {
   getStorage,
   getSystemOption,
   getUserQuota,
+  listAuthProviders,
   listObjects,
   listQuotas,
   listStorages,
@@ -805,6 +806,57 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'server error' }, false, 500))
 
       await expect(batchDeleteObjects(['id1'])).rejects.toThrow('server error')
+    })
+  })
+
+  describe('listAuthProviders', () => {
+    it('fetches auth providers list from /api/auth-providers', async () => {
+      const payload = {
+        items: [{ providerId: 'github', type: 'oauth', name: 'GitHub', icon: '' }],
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listAuthProviders()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/auth-providers')
+    })
+
+    it('returns items array with expected provider shape', async () => {
+      const provider = { providerId: 'google', type: 'oauth', name: 'Google', icon: 'google-icon' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [provider] }))
+
+      const result = await listAuthProviders()
+
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].providerId).toBe('google')
+      expect(result.items[0].name).toBe('Google')
+      expect(result.items[0].type).toBe('oauth')
+      expect(result.items[0].icon).toBe('google-icon')
+    })
+
+    it('returns empty items array when no providers are configured', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
+
+      const result = await listAuthProviders()
+
+      expect(result.items).toHaveLength(0)
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listAuthProviders()).rejects.toThrow('forbidden')
+    })
+
+    it('passes credentials: include', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
+
+      await listAuthProviders()
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(init.credentials).toBe('include')
     })
   })
 })
