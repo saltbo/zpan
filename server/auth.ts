@@ -5,6 +5,7 @@ import { admin, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { count, eq, like } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { SignupMode } from '../shared/constants'
 import {
   BUILTIN_PROVIDER_IDS,
   OAUTH_PROVIDER_KEY_PATTERN,
@@ -14,6 +15,8 @@ import {
 import * as authSchema from './db/auth-schema'
 import { orgQuotas, systemOptions } from './db/schema'
 import type { Database } from './platform/interface'
+import { sendEmail } from './services/email'
+import { redeemInviteCode } from './services/invite'
 import { findPersonalOrg } from './services/org'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
@@ -77,6 +80,42 @@ function buildDynamicSocialProviders(db: Database) {
   return providers
 }
 
+async function getSignupMode(db: Database): Promise<SignupMode> {
+  const rows = await db
+    .select({ value: systemOptions.value })
+    .from(systemOptions)
+    .where(eq(systemOptions.key, 'auth_signup_mode'))
+  const raw = rows[0]?.value
+  if (raw === SignupMode.INVITE_ONLY || raw === SignupMode.CLOSED) return raw
+  return SignupMode.OPEN
+}
+
+async function isEmailConfigured(db: Database): Promise<boolean> {
+  const rows = await db
+    .select({ value: systemOptions.value })
+    .from(systemOptions)
+    .where(eq(systemOptions.key, 'email_provider'))
+  return !!rows[0]?.value
+}
+
+const INVITE_CODE_ERRORS: Record<string, string> = {
+  not_found: 'Invalid invite code',
+  already_used: 'Invite code already used',
+  expired: 'Invite code expired',
+}
+
+function buildVerificationEmailHtml(url: string): string {
+  if (!url.startsWith('https://') && !url.startsWith('http://')) {
+    throw new Error(`Verification URL has unsafe protocol: ${url}`)
+  }
+  return `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+<h2 style="margin:0 0 16px">Verify your email</h2>
+<p style="color:#555;line-height:1.5">Click the button below to verify your email address and activate your account.</p>
+<a href="${url}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Verify Email</a>
+<p style="color:#999;font-size:13px">If you didn't create an account, you can safely ignore this email.</p>
+</div>`
+}
+
 export async function createAuth(db: Database, secret: string, baseURL?: string, trustedOrigins?: string[]) {
   const oidcConfigs = await loadOidcConfigs(db)
 
@@ -85,12 +124,28 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
     secret,
     baseURL,
     trustedOrigins,
+    user: {
+      additionalFields: {
+        inviteCode: { type: 'string', required: false, input: true },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       password: {
         hash: hashPassword,
         verify: verifyPassword,
       },
+    },
+    emailVerification: {
+      sendVerificationEmail: async ({ user, url }) => {
+        if (!(await isEmailConfigured(db))) return
+        await sendEmail(db, {
+          to: user.email,
+          subject: 'Verify your email - ZPan',
+          html: buildVerificationEmailHtml(url),
+        })
+      },
+      autoSignInAfterVerification: true,
     },
     session: {
       cookieCache: {
@@ -116,15 +171,33 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
     databaseHooks: {
       user: {
         create: {
-          // Promote the very first signup to admin BEFORE the INSERT so the
-          // role is baked into the session cookie that the response returns.
-          // Running this in `after` left the first user with a stale `user`
-          // role in their session cookie until they re-logged in.
           before: async (user) => {
-            if (await isFirstUser(db)) {
-              return { data: { ...user, role: 'admin' } }
+            const firstUser = await isFirstUser(db)
+
+            // Registration gate: skip for the very first user so bootstrap works
+            if (!firstUser) {
+              const mode = await getSignupMode(db)
+              if (mode === SignupMode.CLOSED) {
+                throw new Error('Registration is currently closed')
+              }
+              if (mode === SignupMode.INVITE_ONLY) {
+                // better-auth passes extra sign-up body fields through to the hook
+                const inviteCode = (user as { inviteCode?: string }).inviteCode
+                if (!inviteCode) {
+                  throw new Error('An invite code is required to register')
+                }
+                // Atomic redeem: validates and marks as used in one step,
+                // preventing TOCTOU races with concurrent sign-ups
+                const result = await redeemInviteCode(db, inviteCode, user.email)
+                if (result !== 'ok') {
+                  throw new Error(INVITE_CODE_ERRORS[result] ?? 'Invalid invite code')
+                }
+              }
             }
-            return { data: user }
+
+            // Promote the very first signup to admin BEFORE the INSERT so the
+            // role is baked into the session cookie that the response returns.
+            return { data: firstUser ? { ...user, role: 'admin' } : user }
           },
           after: async (user) => {
             await createPersonalOrg(db, user)
@@ -133,9 +206,6 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
       },
       session: {
         create: {
-          // Pin every new session to the user's personal org so routes that
-          // read activeOrganizationId from the cached session cookie don't
-          // have to fall back to a DB lookup on every request.
           before: async (session) => {
             const orgId = await findPersonalOrg(db, session.userId)
             if (orgId) {

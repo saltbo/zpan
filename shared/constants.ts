@@ -34,3 +34,11 @@ export const ObjectStatus = {
 } as const
 
 export type ObjectStatus = (typeof ObjectStatus)[keyof typeof ObjectStatus]
+
+export const SignupMode = {
+  OPEN: 'open',
+  INVITE_ONLY: 'invite_only',
+  CLOSED: 'closed',
+} as const
+
+export type SignupMode = (typeof SignupMode)[keyof typeof SignupMode]
