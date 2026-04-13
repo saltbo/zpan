@@ -25,6 +25,7 @@ const cfServers = [
 ]
 
 export default defineConfig({
+  globalSetup: './e2e/global-setup.ts',
   testDir: './e2e',
   timeout: 30000,
   retries: process.env.CI ? 2 : 0,

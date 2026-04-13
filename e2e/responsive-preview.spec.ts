@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { createFolder, seedStorage, signUpAndGoToFiles } from './helpers'
+import { createFolder, signUpAndGoToFiles } from './helpers'
 
 // ---------------------------------------------------------------------------
 // Preview dialog: mobile uses full-screen drawer, desktop uses centered dialog
@@ -8,7 +8,7 @@ test.describe('Preview responsive layout', () => {
   test('mobile: preview opens as full-screen drawer (not centered dialog)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'mobile only')
     await signUpAndGoToFiles(page)
-    await seedStorage(page)
+
     await createFolder(page, 'test-preview')
 
     // We need a file to trigger preview — check if any files exist

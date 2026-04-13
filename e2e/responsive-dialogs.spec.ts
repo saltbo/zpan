@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { createFolder, seedStorage, signUpAndGoToFiles } from './helpers'
+import { createFolder, signUpAndGoToFiles } from './helpers'
 
 // ---------------------------------------------------------------------------
 // Dialogs responsive behavior
@@ -46,7 +46,7 @@ test.describe('File dialogs responsive', () => {
   test('mobile: rename dialog is usable', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'mobile only')
     await signUpAndGoToFiles(page)
-    await seedStorage(page)
+
     await createFolder(page, 'rename-me')
 
     // Open row actions dropdown via the last button in the row
@@ -73,7 +73,7 @@ test.describe('File dialogs responsive', () => {
   test('mobile: move dialog is usable', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'mobile only')
     await signUpAndGoToFiles(page)
-    await seedStorage(page)
+
     await createFolder(page, 'move-me')
 
     // Open row actions dropdown via the last button in the row
