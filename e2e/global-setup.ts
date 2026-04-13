@@ -9,7 +9,7 @@ async function globalSetup() {
   // Register first user → becomes admin
   const signUp = await fetch(`${baseURL}/api/auth/sign-up/email`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Origin: baseURL },
     body: JSON.stringify({
       name: 'E2E Admin',
       email: 'e2e-admin@test.local',
@@ -27,7 +27,7 @@ async function globalSetup() {
   // Sign in to get session cookie
   const signIn = await fetch(`${baseURL}/api/auth/sign-in/email`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Origin: baseURL },
     body: JSON.stringify({
       email: 'e2e-admin@test.local',
       password: 'password123456',
