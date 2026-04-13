@@ -2,8 +2,15 @@ import crypto from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin, organization, username } from 'better-auth/plugins'
-import { count, eq } from 'drizzle-orm'
+import { genericOAuth } from 'better-auth/plugins/generic-oauth'
+import { count, eq, like } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import {
+  BUILTIN_PROVIDER_IDS,
+  OAUTH_PROVIDER_KEY_PATTERN,
+  OAUTH_PROVIDER_KEY_PREFIX,
+  parseProviderConfig,
+} from '../shared/oauth-providers'
 import * as authSchema from './db/auth-schema'
 import { orgQuotas, systemOptions } from './db/schema'
 import type { Database } from './platform/interface'
@@ -30,7 +37,49 @@ async function verifyPassword({ hash, password }: { hash: string; password: stri
   return crypto.timingSafeEqual(key, Buffer.from(keyHex, 'hex'))
 }
 
-export function createAuth(db: Database, secret: string, baseURL?: string, trustedOrigins?: string[]) {
+async function loadProviderConfig(db: Database, providerId: string) {
+  const rows = await db
+    .select({ value: systemOptions.value })
+    .from(systemOptions)
+    .where(eq(systemOptions.key, `${OAUTH_PROVIDER_KEY_PREFIX}${providerId}`))
+  const raw = rows[0]?.value
+  if (!raw) return null
+  return parseProviderConfig(raw)
+}
+
+async function loadOidcConfigs(db: Database) {
+  const rows = await db
+    .select({ value: systemOptions.value })
+    .from(systemOptions)
+    .where(like(systemOptions.key, OAUTH_PROVIDER_KEY_PATTERN))
+  const configs = []
+  for (const r of rows) {
+    const c = parseProviderConfig(r.value)
+    if (c && c.type === 'oidc' && c.enabled) configs.push(c)
+  }
+  return configs
+}
+
+// All 35 built-in providers are registered as async functions so better-auth
+// can resolve them on demand. Unconfigured providers return enabled: false
+// and are ignored by the framework.
+function buildDynamicSocialProviders(db: Database) {
+  const providers: Record<string, () => Promise<{ clientId: string; clientSecret: string; enabled: boolean }>> = {}
+  for (const id of BUILTIN_PROVIDER_IDS) {
+    providers[id] = async () => {
+      const config = await loadProviderConfig(db, id)
+      if (!config?.enabled || config.type !== 'builtin') {
+        return { clientId: '', clientSecret: '', enabled: false }
+      }
+      return { clientId: config.clientId, clientSecret: config.clientSecret, enabled: true }
+    }
+  }
+  return providers
+}
+
+export async function createAuth(db: Database, secret: string, baseURL?: string, trustedOrigins?: string[]) {
+  const oidcConfigs = await loadOidcConfigs(db)
+
   return betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
@@ -49,7 +98,21 @@ export function createAuth(db: Database, secret: string, baseURL?: string, trust
         maxAge: 60 * 5,
       },
     },
-    plugins: [admin(), organization(), username()],
+    socialProviders: buildDynamicSocialProviders(db),
+    plugins: [
+      admin(),
+      organization(),
+      username(),
+      genericOAuth({
+        config: oidcConfigs.map((c) => ({
+          providerId: c.providerId,
+          clientId: c.clientId,
+          clientSecret: c.clientSecret,
+          discoveryUrl: c.discoveryUrl,
+          scopes: c.scopes,
+        })),
+      }),
+    ],
     databaseHooks: {
       user: {
         create: {
@@ -86,7 +149,7 @@ export function createAuth(db: Database, secret: string, baseURL?: string, trust
   })
 }
 
-export type Auth = ReturnType<typeof createAuth>
+export type Auth = Awaited<ReturnType<typeof createAuth>>
 
 async function isFirstUser(db: Database): Promise<boolean> {
   const [row] = await db.select({ c: count() }).from(authSchema.user)

@@ -16,13 +16,13 @@ async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']
 
 describe('Admin Quotas API', () => {
   it('returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/admin/quotas')
     expect(res.status).toBe(401)
   })
 
   it('returns 403 for non-admin', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     await authedHeaders(app, 'admin@example.com')
     await authedHeaders(app, 'regular@example.com')
     const signInRes = await app.request('/api/auth/sign-in/email', {
@@ -36,7 +36,7 @@ describe('Admin Quotas API', () => {
   })
 
   it('GET /api/admin/quotas returns the default quota row created at signup', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/quotas', { headers })
     expect(res.status).toBe(200)
@@ -47,7 +47,7 @@ describe('Admin Quotas API', () => {
   })
 
   it('PUT /api/admin/quotas/:orgId creates quota for org', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
     // Find the admin's personal org
@@ -72,7 +72,7 @@ describe('Admin Quotas API', () => {
   })
 
   it('PUT /api/admin/quotas/:orgId updates existing quota', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const orgs = await db.all<{ id: string }>(
@@ -99,7 +99,7 @@ describe('Admin Quotas API', () => {
   })
 
   it('PUT /api/admin/quotas/:orgId rejects negative quota', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/quotas/some-org', {
       method: 'PUT',
@@ -110,7 +110,7 @@ describe('Admin Quotas API', () => {
   })
 
   it('GET /api/admin/quotas lists quotas with org info', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const orgs = await db.all<{ id: string }>(
@@ -138,13 +138,13 @@ describe('Admin Quotas API', () => {
 
 describe('User Quotas API — /api/quotas', () => {
   it('GET /api/quotas/me returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/quotas/me')
     expect(res.status).toBe(401)
   })
 
   it('GET /api/quotas/me returns the built-in default quota of 10MB when no system option is set', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/quotas/me', { headers })
     expect(res.status).toBe(200)
@@ -155,7 +155,7 @@ describe('User Quotas API — /api/quotas', () => {
   })
 
   it('GET /api/quotas/me returns 404 when user has no org', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const _headers = await authedHeaders(app, 'noorg@example.com')
     // Delete the user's org membership and org to simulate no org
     const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'noorg@example.com'`)
@@ -172,7 +172,7 @@ describe('User Quotas API — /api/quotas', () => {
   })
 
   it('GET /api/quotas/me returns quota after admin sets it', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const adminH = await adminHeaders(app)
 
     // Find admin's org

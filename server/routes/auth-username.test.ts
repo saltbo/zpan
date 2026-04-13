@@ -24,7 +24,7 @@ describe('migration 0004_username_plugin.sql', () => {
 
 describe('username plugin — sign-up with username', () => {
   it('sign-up with username stores the username on the user record', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -40,7 +40,7 @@ describe('username plugin — sign-up with username', () => {
   })
 
   it('sign-up without username leaves the username column null', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -51,7 +51,7 @@ describe('username plugin — sign-up with username', () => {
   })
 
   it('sign-up with duplicate username returns a non-200 response', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -76,7 +76,7 @@ describe('username plugin — sign-up with username', () => {
   })
 
   it('two users with different usernames both register successfully', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const res1 = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -4,15 +4,15 @@ import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 
-function buildApp() {
+async function buildApp() {
   const platform = createCloudflarePlatform(env)
-  const auth = createAuth(platform.db, env.BETTER_AUTH_SECRET)
+  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
   return createApp(platform, auth)
 }
 
 describe('[CF] Auth API', () => {
   it('POST /api/auth/sign-up/email creates user', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const res = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -24,7 +24,7 @@ describe('[CF] Auth API', () => {
   })
 
   it('POST /api/auth/sign-in/email signs in', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const email = `cf-signin-${Date.now()}@example.com`
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',

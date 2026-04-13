@@ -4,15 +4,15 @@ import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 
-function buildApp() {
+async function buildApp() {
   const platform = createCloudflarePlatform(env)
-  const auth = createAuth(platform.db, env.BETTER_AUTH_SECRET)
+  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
   return createApp(platform, auth)
 }
 
 describe('[CF] GET /api/health', () => {
   it('returns ok', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const res = await app.request('/api/health')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ status: 'ok' })

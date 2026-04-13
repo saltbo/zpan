@@ -4,7 +4,7 @@ import * as authSchema from '../db/auth-schema.js'
 import { createTestApp } from '../test/setup.js'
 import { findPersonalOrg } from './org.js'
 
-type TestDb = ReturnType<typeof createTestApp>['db']
+type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
 async function insertUser(db: TestDb, overrides: Partial<{ id: string; name: string; email: string }> = {}) {
   const id = overrides.id ?? nanoid()
@@ -43,7 +43,7 @@ async function insertMember(db: TestDb, organizationId: string, userId: string) 
 
 describe('findPersonalOrg', () => {
   it('returns the org id when a personal org exists for the user', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const userId = await insertUser(db)
     const orgId = await insertOrg(db, { slug: `personal-${userId}` })
     await insertMember(db, orgId, userId)
@@ -53,7 +53,7 @@ describe('findPersonalOrg', () => {
   })
 
   it('returns null when user has no memberships', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const userId = await insertUser(db)
 
     const result = await findPersonalOrg(db, userId)
@@ -61,7 +61,7 @@ describe('findPersonalOrg', () => {
   })
 
   it("returns null when the org's slug is not the user's personal slug", async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const userId = await insertUser(db)
     const orgId = await insertOrg(db, { slug: 'some-team-org' })
     await insertMember(db, orgId, userId)
@@ -71,7 +71,7 @@ describe('findPersonalOrg', () => {
   })
 
   it('finds the personal org among multiple memberships', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const userId = await insertUser(db)
     const teamOrgId = await insertOrg(db, { slug: 'some-team-org' })
     const personalOrgId = await insertOrg(db, { slug: `personal-${userId}` })
@@ -83,7 +83,7 @@ describe('findPersonalOrg', () => {
   })
 
   it('returns null when the personal slug exists but member row was deleted', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const userId = await insertUser(db)
     await insertOrg(db, { slug: `personal-${userId}` })
     // No member row inserted — membership is load-bearing

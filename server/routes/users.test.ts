@@ -25,13 +25,13 @@ async function signUpUser(app: ReturnType<typeof import('../app')['createApp']>,
 
 describe('Admin Users API', () => {
   it('returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/admin/users')
     expect(res.status).toBe(401)
   })
 
   it('returns 403 for non-admin user', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     // Create first user (auto-admin), then second user (non-admin)
     await authedHeaders(app, 'admin@example.com')
     const _headers = await authedHeaders(app, 'regular@example.com')
@@ -47,7 +47,7 @@ describe('Admin Users API', () => {
   })
 
   it('GET /api/admin/users lists users with pagination', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/admin/users', { headers })
@@ -60,7 +60,7 @@ describe('Admin Users API', () => {
   })
 
   it('PUT /api/admin/users/:id/status disables a user', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
     // Create a second user
@@ -85,7 +85,7 @@ describe('Admin Users API', () => {
   })
 
   it('PUT /api/admin/users/:id/status rejects invalid status', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/users/someid/status', {
       method: 'PUT',
@@ -96,7 +96,7 @@ describe('Admin Users API', () => {
   })
 
   it('PUT /api/admin/users/:id/status returns 404 for missing user', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/users/nonexistent/status', {
       method: 'PUT',
@@ -107,7 +107,7 @@ describe('Admin Users API', () => {
   })
 
   it('DELETE /api/admin/users/:id deletes a user', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
     await signUpUser(app, 'todelete@example.com')
@@ -128,7 +128,7 @@ describe('Admin Users API', () => {
   })
 
   it('disabled user is rejected by auth middleware on existing session', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
     // Create a second user and get their session before banning
@@ -152,7 +152,7 @@ describe('Admin Users API', () => {
   })
 
   it('DELETE /api/admin/users/:id returns 404 for missing user', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/users/nonexistent', {
       method: 'DELETE',

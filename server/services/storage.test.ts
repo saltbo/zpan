@@ -5,7 +5,7 @@ import { createStorage, deleteStorage, getStorage, listStorages, selectStorage, 
 
 describe('createStorage', () => {
   it('sets filePath to empty string regardless of input', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await createStorage(db, {
       title: 'My Storage',
       mode: 'private',
@@ -20,7 +20,7 @@ describe('createStorage', () => {
   })
 
   it('sets customHost to empty string when not provided', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await createStorage(db, {
       title: 'My Storage',
       mode: 'private',
@@ -35,7 +35,7 @@ describe('createStorage', () => {
   })
 
   it('uses provided customHost when given', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await createStorage(db, {
       title: 'My Storage',
       mode: 'private',
@@ -51,7 +51,7 @@ describe('createStorage', () => {
   })
 
   it('sets capacity to 0 when not provided', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await createStorage(db, {
       title: 'My Storage',
       mode: 'private',
@@ -66,7 +66,7 @@ describe('createStorage', () => {
   })
 
   it('uses provided capacity when given', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await createStorage(db, {
       title: 'My Storage',
       mode: 'private',
@@ -81,7 +81,7 @@ describe('createStorage', () => {
   })
 
   it('initialises used to 0 and status to active', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await createStorage(db, {
       title: 'My Storage',
       mode: 'public',
@@ -97,7 +97,7 @@ describe('createStorage', () => {
   })
 
   it('persists the created row to the database', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await createStorage(db, {
       title: 'Persisted',
       mode: 'private',
@@ -115,7 +115,7 @@ describe('createStorage', () => {
 })
 
 describe('updateStorage', () => {
-  async function seed(db: ReturnType<typeof createTestApp>['db']) {
+  async function seed(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
     return createStorage(db, {
       title: 'Original',
       mode: 'private',
@@ -130,13 +130,13 @@ describe('updateStorage', () => {
   }
 
   it('returns null when storage does not exist', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await updateStorage(db, 'nonexistent', { title: 'New' })
     expect(result).toBeNull()
   })
 
   it('keeps existing values for fields not included in update', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await seed(db)
     const updated = await updateStorage(db, created.id, { title: 'Changed' })
     expect(updated?.bucket).toBe('original-bucket')
@@ -148,7 +148,7 @@ describe('updateStorage', () => {
   })
 
   it('applies all provided optional fields', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await seed(db)
     const updated = await updateStorage(db, created.id, {
       title: 'Updated',
@@ -175,7 +175,7 @@ describe('updateStorage', () => {
   })
 
   it('updates only status leaving all other fields intact', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await seed(db)
     const updated = await updateStorage(db, created.id, { status: 'disabled' })
     expect(updated?.status).toBe('disabled')
@@ -183,7 +183,7 @@ describe('updateStorage', () => {
   })
 
   it('updates the updatedAt timestamp', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await seed(db)
     const before = created.updatedAt.getTime()
     await new Promise((r) => setTimeout(r, 10))
@@ -194,13 +194,13 @@ describe('updateStorage', () => {
 
 describe('listStorages', () => {
   it('returns empty items and zero total when no storages exist', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await listStorages(db)
     expect(result).toEqual({ items: [], total: 0 })
   })
 
   it('returns all storages ordered by createdAt ascending', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await createStorage(db, {
       title: 'First',
       mode: 'private',
@@ -229,13 +229,13 @@ describe('listStorages', () => {
 
 describe('getStorage', () => {
   it('returns null when storage does not exist', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await getStorage(db, 'nonexistent')
     expect(result).toBeNull()
   })
 
   it('returns the storage when it exists', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await createStorage(db, {
       title: 'Findable',
       mode: 'private',
@@ -253,7 +253,7 @@ describe('getStorage', () => {
 
 describe('selectStorage', () => {
   async function seedActive(
-    db: ReturnType<typeof createTestApp>['db'],
+    db: Awaited<ReturnType<typeof createTestApp>>['db'],
     mode: 'private' | 'public',
     opts: { capacity?: number; used?: number; status?: string } = {},
   ) {
@@ -270,26 +270,26 @@ describe('selectStorage', () => {
   }
 
   it('returns an active private storage with unlimited capacity', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await seedActive(db, 'private')
     const found = await selectStorage(db, 'private')
     expect(found.id).toBe(created.id)
   })
 
   it('returns an active public storage when requested', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await seedActive(db, 'public')
     const found = await selectStorage(db, 'public')
     expect(found.id).toBe(created.id)
   })
 
   it('throws when no active storage exists for the requested mode', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await expect(selectStorage(db, 'private')).rejects.toThrow('No available storage')
   })
 
   it('throws when storage is present but mode does not match', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await seedActive(db, 'public')
     await expect(selectStorage(db, 'private')).rejects.toThrow('No available storage')
   })
@@ -297,13 +297,13 @@ describe('selectStorage', () => {
 
 describe('deleteStorage', () => {
   it('returns not_found when storage does not exist', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await deleteStorage(db, 'nonexistent')
     expect(result).toBe('not_found')
   })
 
   it('deletes a storage that is not referenced by any matter', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await createStorage(db, {
       title: 'Deletable',
       mode: 'private',
@@ -320,7 +320,7 @@ describe('deleteStorage', () => {
   })
 
   it('returns in_use when matters reference the storage', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const created = await createStorage(db, {
       title: 'In Use',
       mode: 'private',

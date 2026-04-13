@@ -4,15 +4,15 @@ import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 
-function buildApp() {
+async function buildApp() {
   const platform = createCloudflarePlatform(env)
-  const auth = createAuth(platform.db, env.BETTER_AUTH_SECRET)
+  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
   return createApp(platform, auth)
 }
 
 describe('[CF] System API', () => {
   it('GET /api/system/options returns empty list without auth', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const res = await app.request('/api/system/options')
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; total: number }
@@ -20,7 +20,7 @@ describe('[CF] System API', () => {
   })
 
   it('GET unknown option returns 404', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const res = await app.request('/api/system/options/nonexistent_key')
     expect(res.status).toBe(404)
   })

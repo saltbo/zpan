@@ -37,7 +37,7 @@ const platform = isD1 ? resetD1() : resetNode()
 
 // ── 2. seed ──
 const secret = process.env.BETTER_AUTH_SECRET || 'dev-secret-for-seed'
-const auth = createAuth(platform.db, secret, 'http://localhost:8222')
+const auth = await createAuth(platform.db, secret, 'http://localhost:8222')
 const app = createApp(platform, auth)
 
 // register admin user

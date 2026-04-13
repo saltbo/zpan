@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { adminHeaders, createTestApp } from '../test/setup.js'
 
 async function putOption(
-  app: ReturnType<typeof createTestApp>['app'],
+  app: Awaited<ReturnType<typeof createTestApp>>['app'],
   headers: Record<string, string>,
   key: string,
   body: Record<string, unknown>,
@@ -16,13 +16,13 @@ async function putOption(
 
 describe('System API — options CRUD', () => {
   it('GET unknown key returns 404', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/system/options/site_name')
     expect(res.status).toBe(404)
   })
 
   it('full admin CRUD lifecycle with public/private visibility', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
     // Create public option
@@ -72,7 +72,7 @@ describe('System API — options CRUD', () => {
   })
 
   it('unauthenticated mutations are rejected', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/system/options/site_name', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

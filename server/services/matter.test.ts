@@ -5,7 +5,7 @@ import { orgQuotas } from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
 import { confirmUpload, incrementUsageIfAllowed, listTrashedRoots, updateMatter } from './matter.js'
 
-type TestDb = ReturnType<typeof createTestApp>['db']
+type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
 async function insertStorage(db: TestDb, opts: { id?: string; used?: number } = {}) {
   const id = opts.id ?? 'st-1'
@@ -42,7 +42,7 @@ async function insertDraftFile(
 
 describe('incrementUsageIfAllowed', () => {
   it('returns true and increments when no quota row exists (unlimited)', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-ul', used: 0 })
 
@@ -54,7 +54,7 @@ describe('incrementUsageIfAllowed', () => {
   })
 
   it('returns true and increments when quota is 0 (unlimited)', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-q0', used: 100 })
     await insertOrgQuota(db, orgId, 0, 5000)
@@ -67,7 +67,7 @@ describe('incrementUsageIfAllowed', () => {
   })
 
   it('returns true and increments when used + bytes is within quota', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-in', used: 0 })
     await insertOrgQuota(db, orgId, 1000, 400)
@@ -78,7 +78,7 @@ describe('incrementUsageIfAllowed', () => {
   })
 
   it('returns true and increments when used + bytes is exactly at quota', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-exact', used: 0 })
     await insertOrgQuota(db, orgId, 1000, 500)
@@ -91,7 +91,7 @@ describe('incrementUsageIfAllowed', () => {
   })
 
   it('returns false and does not increment when used + bytes exceeds quota', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-over', used: 50 })
     await insertOrgQuota(db, orgId, 1000, 800)
@@ -106,7 +106,7 @@ describe('incrementUsageIfAllowed', () => {
   })
 
   it('returns false and does not increment when quota is fully consumed', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-full', used: 100 })
     await insertOrgQuota(db, orgId, 1000, 1000)
@@ -117,7 +117,7 @@ describe('incrementUsageIfAllowed', () => {
   })
 
   it('increments orgQuotas.used when within quota', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-q-inc', used: 0 })
     await insertOrgQuota(db, orgId, 5000, 200)
@@ -129,7 +129,7 @@ describe('incrementUsageIfAllowed', () => {
   })
 
   it('increments storages.used when within quota', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-s-inc', used: 100 })
     await insertOrgQuota(db, orgId, 5000, 100)
@@ -145,7 +145,7 @@ describe('incrementUsageIfAllowed', () => {
 
 describe('confirmUpload', () => {
   it('returns { matter } with status active and increments usage for a draft file with size > 0', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-conf', used: 0 })
     await insertOrgQuota(db, orgId, 10000, 0)
@@ -164,7 +164,7 @@ describe('confirmUpload', () => {
   })
 
   it('returns { matter } and does not increment usage when file size is 0', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-conf2', used: 50 })
     await insertOrgQuota(db, orgId, 10000, 50)
@@ -180,14 +180,14 @@ describe('confirmUpload', () => {
   })
 
   it('returns { matter: null } for a non-existent matter', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const result = await confirmUpload(db, 'nonexistent', 'org-x')
     expect(result.matter).toBeNull()
     expect(result.quotaExceeded).toBeUndefined()
   })
 
   it('returns { matter: null } for a matter not in draft status', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-conf3' })
     const now = Date.now()
@@ -201,7 +201,7 @@ describe('confirmUpload', () => {
   })
 
   it('returns { matter: null, quotaExceeded: true } when quota would be exceeded', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-conf4', used: 0 })
     // quota=100, used=90, file size=50 → would exceed
@@ -215,7 +215,7 @@ describe('confirmUpload', () => {
   })
 
   it('status remains draft in DB when quota would be exceeded', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-conf5', used: 0 })
     await insertOrgQuota(db, orgId, 100, 90)
@@ -232,7 +232,7 @@ describe('confirmUpload', () => {
 
 describe('updateMatter', () => {
   it('throws when moving a folder into itself', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-upd1' })
     const now = Date.now()
@@ -248,7 +248,7 @@ describe('updateMatter', () => {
   })
 
   it('throws when moving a folder into its own subfolder', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-upd2' })
     const now = Date.now()
@@ -279,7 +279,7 @@ async function insertTrashedMatter(
 
 describe('listTrashedRoots', () => {
   it('returns only the top-level trashed folder when a folder and its child file are both trashed', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-trash1' })
 
@@ -308,7 +308,7 @@ describe('listTrashedRoots', () => {
   })
 
   it('does not return the child file when it is nested inside a trashed folder', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-trash2' })
 
@@ -336,7 +336,7 @@ describe('listTrashedRoots', () => {
   })
 
   it('returns multiple independent trashed items when none is a descendant of another', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-trash3' })
 
@@ -366,7 +366,7 @@ describe('listTrashedRoots', () => {
   })
 
   it('returns an empty array when no trashed items exist for the org', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
 
     const roots = await listTrashedRoots(db, orgId)
@@ -375,7 +375,7 @@ describe('listTrashedRoots', () => {
   })
 
   it('excludes items belonging to a different org', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const otherOrgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-trash4' })
@@ -395,7 +395,7 @@ describe('listTrashedRoots', () => {
   })
 
   it('returns deeply-nested trashed folders that are themselves roots (parent folder not trashed)', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-trash5' })
 

@@ -11,6 +11,6 @@ const baseURL = process.env.BETTER_AUTH_URL || 'http://localhost:5173'
 const trustedOrigins = process.env.TRUSTED_ORIGINS?.split(',')
   .map((o) => o.trim())
   .filter(Boolean) || ['http://localhost:5173']
-const auth = createAuth(platform.db, secret, baseURL, trustedOrigins)
+const auth = await createAuth(platform.db, secret, baseURL, trustedOrigins)
 
 export default createApp(platform, auth)

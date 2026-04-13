@@ -15,13 +15,13 @@ const validStorage = {
 
 describe('Admin Storages API', () => {
   it('returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/admin/storages')
     expect(res.status).toBe(401)
   })
 
   it('returns 403 for non-admin user', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     // First user becomes admin
     await authedHeaders(app, 'admin@example.com')
     // Second user is non-admin
@@ -37,7 +37,7 @@ describe('Admin Storages API', () => {
   })
 
   it('GET / returns empty list', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/storages', { headers })
     expect(res.status).toBe(200)
@@ -46,7 +46,7 @@ describe('Admin Storages API', () => {
   })
 
   it('POST / creates a storage', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/storages', {
       method: 'POST',
@@ -65,7 +65,7 @@ describe('Admin Storages API', () => {
   })
 
   it('GET / lists created storages', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     await app.request('/api/admin/storages', {
@@ -83,7 +83,7 @@ describe('Admin Storages API', () => {
   })
 
   it('GET /:id returns storage detail', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const createRes = await app.request('/api/admin/storages', {
@@ -101,14 +101,14 @@ describe('Admin Storages API', () => {
   })
 
   it('GET /:id returns 404 for missing storage', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/storages/nonexistent', { headers })
     expect(res.status).toBe(404)
   })
 
   it('PUT /:id updates a storage', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const createRes = await app.request('/api/admin/storages', {
@@ -130,7 +130,7 @@ describe('Admin Storages API', () => {
   })
 
   it('PUT /:id returns 404 for missing storage', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/storages/nonexistent', {
       method: 'PUT',
@@ -141,7 +141,7 @@ describe('Admin Storages API', () => {
   })
 
   it('DELETE /:id deletes a storage', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const createRes = await app.request('/api/admin/storages', {
@@ -161,7 +161,7 @@ describe('Admin Storages API', () => {
   })
 
   it('DELETE /:id returns 404 for missing storage', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/storages/nonexistent', {
       method: 'DELETE',
@@ -171,7 +171,7 @@ describe('Admin Storages API', () => {
   })
 
   it('DELETE /:id returns 409 when matters reference the storage', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
     const createRes = await app.request('/api/admin/storages', {
@@ -197,7 +197,7 @@ describe('Admin Storages API', () => {
 
 // Helper to insert a storage row directly into the DB for service-level tests
 async function insertStorage(
-  db: ReturnType<typeof createTestApp>['db'],
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
   opts: {
     id: string
     mode: 'private' | 'public'
@@ -220,7 +220,7 @@ async function insertStorage(
 
 describe('selectStorage service', () => {
   it('returns the single active storage when capacity is unlimited (0)', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 0, used: 0 })
 
     const storage = await selectStorage(db, 'private')
@@ -228,7 +228,7 @@ describe('selectStorage service', () => {
   })
 
   it('returns storage when used is below capacity', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 100, used: 50 })
 
     const storage = await selectStorage(db, 'private')
@@ -236,7 +236,7 @@ describe('selectStorage service', () => {
   })
 
   it('skips storage where used equals capacity', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 100, used: 100, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'private', capacity: 200, used: 50, createdAt: 2 })
 
@@ -245,7 +245,7 @@ describe('selectStorage service', () => {
   })
 
   it('skips storage where used exceeds capacity', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 100, used: 110, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'private', capacity: 0, used: 0, createdAt: 2 })
 
@@ -254,7 +254,7 @@ describe('selectStorage service', () => {
   })
 
   it('picks the oldest active storage first (sequential fill order)', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 0, used: 0, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'private', capacity: 0, used: 0, createdAt: 2 })
 
@@ -263,7 +263,7 @@ describe('selectStorage service', () => {
   })
 
   it('ignores disabled storages', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', status: 'disabled', capacity: 0, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'private', status: 'active', capacity: 0, createdAt: 2 })
 
@@ -272,20 +272,20 @@ describe('selectStorage service', () => {
   })
 
   it('ignores storages of a different mode', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'public', capacity: 0 })
 
     await expect(selectStorage(db, 'private')).rejects.toThrow('No available storage')
   })
 
   it('throws when no active storage exists for the requested mode', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
 
     await expect(selectStorage(db, 'private')).rejects.toThrow('No available storage')
   })
 
   it('throws when all storages of the mode are at full capacity', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 50, used: 50 })
     await insertStorage(db, { id: 's2', mode: 'private', capacity: 100, used: 100 })
 
@@ -293,7 +293,7 @@ describe('selectStorage service', () => {
   })
 
   it('returns a public storage when mode is public', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'public', capacity: 0 })
 
     const storage = await selectStorage(db, 'public')
@@ -301,7 +301,7 @@ describe('selectStorage service', () => {
   })
 
   it('does not return a public storage when private mode is requested', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 0, createdAt: 1 })
     await insertStorage(db, { id: 's2', mode: 'public', capacity: 0, createdAt: 2 })
 

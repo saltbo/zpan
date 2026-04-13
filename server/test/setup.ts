@@ -148,7 +148,7 @@ const APP_SCHEMA_SQL = `
   );
 `
 
-export function createTestApp() {
+export async function createTestApp() {
   const sqlite = new Database(':memory:')
   sqlite.exec(AUTH_SCHEMA_SQL)
   sqlite.exec(APP_SCHEMA_SQL)
@@ -158,7 +158,7 @@ export function createTestApp() {
     db,
     getEnv: () => undefined,
   }
-  const auth = createAuth(db, 'test-secret', 'http://localhost:3000')
+  const auth = await createAuth(db, 'test-secret', 'http://localhost:3000')
   const app = createApp(platform, auth)
 
   return { app, db, auth }

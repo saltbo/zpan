@@ -6,9 +6,9 @@ import { createAuth } from '../auth'
 import { user } from '../db/auth-schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 
-function buildApp() {
+async function buildApp() {
   const platform = createCloudflarePlatform(env)
-  const auth = createAuth(platform.db, env.BETTER_AUTH_SECRET)
+  const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
   return createApp(platform, auth)
 }
 
@@ -43,13 +43,13 @@ const validStorage = {
 
 describe('[CF] Admin Storages API', () => {
   it('returns 401 without auth', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const res = await app.request('/api/admin/storages')
     expect(res.status).toBe(401)
   })
 
   it('GET /api/admin/storages returns empty list', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/storages', { headers })
     expect(res.status).toBe(200)
@@ -58,7 +58,7 @@ describe('[CF] Admin Storages API', () => {
   })
 
   it('POST /api/admin/storages creates a storage', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/storages', {
       method: 'POST',
@@ -73,7 +73,7 @@ describe('[CF] Admin Storages API', () => {
   })
 
   it('GET /api/admin/storages/:id returns storage detail', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await adminHeaders(app)
 
     const createRes = await app.request('/api/admin/storages', {
@@ -90,7 +90,7 @@ describe('[CF] Admin Storages API', () => {
   })
 
   it('PUT /api/admin/storages/:id updates a storage', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await adminHeaders(app)
 
     const createRes = await app.request('/api/admin/storages', {
@@ -111,7 +111,7 @@ describe('[CF] Admin Storages API', () => {
   })
 
   it('DELETE /api/admin/storages/:id deletes a storage', async () => {
-    const app = buildApp()
+    const app = await buildApp()
     const headers = await adminHeaders(app)
 
     const createRes = await app.request('/api/admin/storages', {

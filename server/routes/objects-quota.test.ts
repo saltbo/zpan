@@ -25,7 +25,7 @@ const validStorage = {
   secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
 }
 
-async function insertStorage(db: ReturnType<typeof createTestApp>['db'], used = 0) {
+async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db'], used = 0) {
   const now = Date.now()
   await db.run(sql`
     INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
@@ -36,7 +36,7 @@ async function insertStorage(db: ReturnType<typeof createTestApp>['db'], used = 
 }
 
 async function insertFile(
-  db: ReturnType<typeof createTestApp>['db'],
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
   orgId: string,
   opts: { id: string; name: string; size?: number; status?: string },
 ) {
@@ -50,14 +50,19 @@ async function insertFile(
   `)
 }
 
-async function getOrgId(db: ReturnType<typeof createTestApp>['db']): Promise<string> {
+async function getOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
   const rows = await db.all<{ id: string }>(sql`
     SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1
   `)
   return rows[0].id
 }
 
-async function setOrgQuota(db: ReturnType<typeof createTestApp>['db'], orgId: string, quota: number, used = 0) {
+async function setOrgQuota(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  orgId: string,
+  quota: number,
+  used = 0,
+) {
   const existing = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
   if (existing.length > 0) {
     await db.update(orgQuotas).set({ quota, used }).where(eq(orgQuotas.orgId, orgId))
@@ -70,7 +75,7 @@ async function setOrgQuota(db: ReturnType<typeof createTestApp>['db'], orgId: st
 
 describe('POST /api/objects/:id/copy — quota enforcement', () => {
   it('returns 422 when copying a file would exceed quota', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -89,7 +94,7 @@ describe('POST /api/objects/:id/copy — quota enforcement', () => {
   })
 
   it('returns 201 and increments orgQuotas.used when copy succeeds within quota', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -109,7 +114,7 @@ describe('POST /api/objects/:id/copy — quota enforcement', () => {
   })
 
   it('returns 201 and increments storages.used when copy succeeds', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db, 50)
     const orgId = await getOrgId(db)
@@ -127,7 +132,7 @@ describe('POST /api/objects/:id/copy — quota enforcement', () => {
   })
 
   it('returns 201 without incrementing usage when copying a zero-size file', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -152,7 +157,7 @@ describe('POST /api/objects/:id/copy — quota enforcement', () => {
   })
 
   it('returns 201 when no quota row exists (unlimited)', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -168,7 +173,7 @@ describe('POST /api/objects/:id/copy — quota enforcement', () => {
   })
 
   it('returns 201 when quota is 0 (unlimited) regardless of file size', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -184,7 +189,7 @@ describe('POST /api/objects/:id/copy — quota enforcement', () => {
   })
 
   it('returns 404 when source file does not exist', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await authedHeaders(app)
 
     const res = await app.request('/api/objects/nonexistent/copy', {
@@ -200,7 +205,7 @@ describe('POST /api/objects/:id/copy — quota enforcement', () => {
 
 describe('PATCH /api/objects/:id/done — quota enforcement via confirmUpload', () => {
   it('returns 200 and increments usage when quota allows', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -217,7 +222,7 @@ describe('PATCH /api/objects/:id/done — quota enforcement via confirmUpload', 
   })
 
   it('returns 200 and increments storages.used when quota allows', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db, 100)
     const orgId = await getOrgId(db)
@@ -231,7 +236,7 @@ describe('PATCH /api/objects/:id/done — quota enforcement via confirmUpload', 
   })
 
   it('returns 422 when confirming upload would exceed quota', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -246,7 +251,7 @@ describe('PATCH /api/objects/:id/done — quota enforcement via confirmUpload', 
   })
 
   it('does not change usage when a file with size 0 is confirmed', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db, 50)
     const orgId = await getOrgId(db)
@@ -262,7 +267,7 @@ describe('PATCH /api/objects/:id/done — quota enforcement via confirmUpload', 
   })
 
   it('returns 200 when no quota row exists (unlimited)', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
