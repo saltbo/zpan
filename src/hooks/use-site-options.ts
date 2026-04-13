@@ -19,6 +19,7 @@ export function useSiteOptions() {
     siteName: optionMap.get('site_name') ?? '',
     siteDescription: optionMap.get('site_description') ?? '',
     defaultOrgQuota: Number(optionMap.get('default_org_quota') ?? '0'),
+    authSignupMode: (optionMap.get('auth_signup_mode') ?? 'open') as 'open' | 'invite_only' | 'closed',
     isLoading,
     isError,
   }
