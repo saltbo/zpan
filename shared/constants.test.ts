@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DirType, ObjectStatus, StorageMode, UserRole } from './constants.js'
+import { DirType, ObjectStatus, SignupMode, StorageMode, UserRole } from './constants.js'
 
 describe('constants', () => {
   it('StorageMode values', () => {
@@ -22,5 +22,21 @@ describe('constants', () => {
     expect(ObjectStatus.DRAFT).toBe('draft')
     expect(ObjectStatus.ACTIVE).toBe('active')
     expect(ObjectStatus.TRASHED).toBe('trashed')
+  })
+
+  it('SignupMode.OPEN equals "open"', () => {
+    expect(SignupMode.OPEN).toBe('open')
+  })
+
+  it('SignupMode.INVITE_ONLY equals "invite_only"', () => {
+    expect(SignupMode.INVITE_ONLY).toBe('invite_only')
+  })
+
+  it('SignupMode.CLOSED equals "closed"', () => {
+    expect(SignupMode.CLOSED).toBe('closed')
+  })
+
+  it('SignupMode has exactly three members', () => {
+    expect(Object.keys(SignupMode)).toHaveLength(3)
   })
 })

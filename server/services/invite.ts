@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull } from 'drizzle-orm'
+import { and, count, desc, eq, gt, isNull, or } from 'drizzle-orm'
 import { customAlphabet, nanoid } from 'nanoid'
 import { inviteCodes } from '../db/schema'
 import type { Database } from '../platform/interface'
@@ -50,10 +50,18 @@ export async function redeemInviteCode(
   const result = await db
     .update(inviteCodes)
     .set({ usedBy: userId, usedAt: new Date() })
-    .where(and(eq(inviteCodes.code, code), isNull(inviteCodes.usedBy)))
+    .where(
+      and(
+        eq(inviteCodes.code, code),
+        isNull(inviteCodes.usedBy),
+        or(isNull(inviteCodes.expiresAt), gt(inviteCodes.expiresAt, new Date())),
+      ),
+    )
 
   // If no rows affected, another request redeemed it concurrently
-  const changes = (result as { rowsAffected?: number }).rowsAffected ?? (result as { changes?: number }).changes ?? 1
+  const changes = (result as { rowsAffected?: number }).rowsAffected ?? (result as { changes?: number }).changes
+  if (changes === undefined)
+    throw new Error('DB driver returned no rowsAffected — cannot confirm invite code redemption')
   return changes > 0 ? 'ok' : 'already_used'
 }
 
