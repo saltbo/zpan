@@ -1,18 +1,5 @@
 import { expect, test } from '@playwright/test'
-
-// Helper: register a fresh user and land on /files
-async function signUpAndGoToFiles(page: import('@playwright/test').Page) {
-  await page.goto('/sign-up')
-  await page.getByLabel('Name').fill('Responsive Test')
-  await page.getByLabel('Email').fill(`resp-${Date.now()}@example.com`)
-  await page.getByLabel('Password').fill('password123456')
-  const [resp] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes('/api/auth/sign-up')),
-    page.getByRole('button', { name: 'Sign up' }).click(),
-  ])
-  expect(resp.status()).toBe(200)
-  await expect(page).toHaveURL(/files/, { timeout: 10000 })
-}
+import { createFolder, signUpAndGoToFiles } from './helpers'
 
 // ---------------------------------------------------------------------------
 // Sidebar behavior per device
@@ -80,11 +67,9 @@ test.describe('Toolbar responsive layout', () => {
     const toolbar = page.locator('[data-testid="files-toolbar"]')
     await expect(toolbar).toBeVisible()
 
-    // Toolbar should not cause horizontal scroll
     const overflows = await toolbar.evaluate((el) => el.scrollWidth > el.clientWidth)
     expect(overflows).toBe(false)
 
-    // Upload button must be accessible
     await expect(page.getByRole('button', { name: 'Upload' })).toBeVisible()
   })
 
@@ -95,11 +80,9 @@ test.describe('Toolbar responsive layout', () => {
     const toolbar = page.locator('[data-testid="files-toolbar"]')
     await expect(toolbar).toBeVisible()
 
-    // Toolbar should not cause horizontal scroll
     const overflows = await toolbar.evaluate((el) => el.scrollWidth > el.clientWidth)
     expect(overflows).toBe(false)
 
-    // Upload and New Folder buttons must be accessible (icon-only with aria-label)
     await expect(page.getByRole('button', { name: /upload/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /new folder|folder/i })).toBeVisible()
   })
@@ -112,15 +95,8 @@ test.describe('File table responsive columns', () => {
   test('desktop: all columns visible (name, size, modified, actions)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only')
     await signUpAndGoToFiles(page)
+    await createFolder(page, 'test-folder')
 
-    // Create a folder so table renders
-    await page.getByRole('button', { name: 'New Folder' }).click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByRole('textbox').fill('test-folder')
-    await dialog.getByRole('button', { name: /create/i }).click()
-    await expect(dialog).not.toBeVisible({ timeout: 10000 })
-
-    // All columns should be visible
     await expect(page.getByRole('columnheader', { name: /size/i })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: /modified/i })).toBeVisible()
   })
@@ -128,19 +104,10 @@ test.describe('File table responsive columns', () => {
   test('mobile: size and modified columns are hidden', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'mobile only')
     await signUpAndGoToFiles(page)
+    await createFolder(page, 'test-folder')
 
-    // Create a folder so table renders (icon-only button on mobile, matched by aria-label)
-    await page.getByRole('button', { name: /new folder|folder/i }).click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByRole('textbox').fill('test-folder')
-    await dialog.getByRole('button', { name: /create/i }).click()
-    await expect(dialog).not.toBeVisible({ timeout: 10000 })
-
-    // Size and modified columns should be hidden on mobile
     await expect(page.getByRole('columnheader', { name: /size/i })).not.toBeVisible()
     await expect(page.getByRole('columnheader', { name: /modified/i })).not.toBeVisible()
-
-    // Name and actions should still be visible
     await expect(page.getByRole('columnheader', { name: /name/i })).toBeVisible()
   })
 })
