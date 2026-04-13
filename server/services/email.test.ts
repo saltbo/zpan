@@ -11,18 +11,18 @@ vi.mock('nodemailer', () => ({
 
 describe('getEmailConfig', () => {
   it('throws when email_provider is not set', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await expect(getEmailConfig(db)).rejects.toThrow('Email provider not configured')
   })
 
   it('throws when email_from is not set', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values({ key: 'email_provider', value: 'smtp' })
     await expect(getEmailConfig(db)).rejects.toThrow('Email sender not configured')
   })
 
   it('throws when SMTP host is missing', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'smtp' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -31,7 +31,7 @@ describe('getEmailConfig', () => {
   })
 
   it('throws when SMTP port is missing', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'smtp' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -41,7 +41,7 @@ describe('getEmailConfig', () => {
   })
 
   it('returns SMTP config when provider is smtp and all required options are set', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'smtp' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -63,7 +63,7 @@ describe('getEmailConfig', () => {
   })
 
   it('returns SMTP config with secure=false when email_smtp_secure is not "true"', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'smtp' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -78,7 +78,7 @@ describe('getEmailConfig', () => {
   })
 
   it('throws when HTTP url is missing', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -87,7 +87,7 @@ describe('getEmailConfig', () => {
   })
 
   it('throws when HTTP apiKey is missing', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -97,7 +97,7 @@ describe('getEmailConfig', () => {
   })
 
   it('returns HTTP config when provider is http and all required options are set', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -113,7 +113,7 @@ describe('getEmailConfig', () => {
   })
 
   it('throws when provider is an unknown value', async () => {
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'unknown' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -129,7 +129,7 @@ describe('sendEmail — SMTP provider', () => {
 
   it('calls nodemailer sendMail with correct parameters', async () => {
     sendMailMock.mockResolvedValue({})
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'smtp' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -156,7 +156,7 @@ describe('sendEmail — HTTP provider', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
@@ -189,7 +189,7 @@ describe('sendEmail — HTTP provider', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const { db } = createTestApp()
+    const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },

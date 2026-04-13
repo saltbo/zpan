@@ -6,13 +6,13 @@ import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
 describe('Admin Invite Codes API — auth guards', () => {
   it('GET / returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/admin/invite-codes')
     expect(res.status).toBe(401)
   })
 
   it('GET / returns 403 for a non-admin user', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     await adminHeaders(app) // first user becomes admin
     const headers = await authedHeaders(app, 'regular@example.com')
     const res = await app.request('/api/admin/invite-codes', { headers })
@@ -20,7 +20,7 @@ describe('Admin Invite Codes API — auth guards', () => {
   })
 
   it('POST / returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/admin/invite-codes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -30,7 +30,7 @@ describe('Admin Invite Codes API — auth guards', () => {
   })
 
   it('DELETE /:id returns 401 without auth', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/admin/invite-codes/someid', { method: 'DELETE' })
     expect(res.status).toBe(401)
   })
@@ -38,7 +38,7 @@ describe('Admin Invite Codes API — auth guards', () => {
 
 describe('Admin Invite Codes API — GET /', () => {
   it('returns an empty list when no codes exist', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes', { headers })
     expect(res.status).toBe(200)
@@ -47,7 +47,7 @@ describe('Admin Invite Codes API — GET /', () => {
   })
 
   it('returns created codes with correct total', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     await app.request('/api/admin/invite-codes', {
@@ -64,7 +64,7 @@ describe('Admin Invite Codes API — GET /', () => {
   })
 
   it('paginates with page and pageSize query params', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
     await app.request('/api/admin/invite-codes', {
@@ -83,7 +83,7 @@ describe('Admin Invite Codes API — GET /', () => {
 
 describe('Admin Invite Codes API — POST /', () => {
   it('creates the requested number of codes and returns 201', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes', {
       method: 'POST',
@@ -96,7 +96,7 @@ describe('Admin Invite Codes API — POST /', () => {
   })
 
   it('creates codes with an expiry when expiresInDays is provided', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes', {
       method: 'POST',
@@ -109,7 +109,7 @@ describe('Admin Invite Codes API — POST /', () => {
   })
 
   it('returns 400 when count is missing', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes', {
       method: 'POST',
@@ -120,7 +120,7 @@ describe('Admin Invite Codes API — POST /', () => {
   })
 
   it('returns 400 when count exceeds maximum of 100', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes', {
       method: 'POST',
@@ -131,7 +131,7 @@ describe('Admin Invite Codes API — POST /', () => {
   })
 
   it('returns 400 when count is zero', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes', {
       method: 'POST',
@@ -144,7 +144,7 @@ describe('Admin Invite Codes API — POST /', () => {
 
 describe('Admin Invite Codes API — DELETE /:id', () => {
   it('deletes an unused code and returns deleted:true', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const [row] = await generateInviteCodes(db, 'admin-user', 1)
 
@@ -159,7 +159,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
   })
 
   it('returns 404 for a nonexistent code id', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes/nonexistent', {
       method: 'DELETE',
@@ -169,7 +169,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
   })
 
   it('returns 400 when trying to delete an already-used code', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const [row] = await generateInviteCodes(db, 'admin-user', 1)
     await redeemInviteCode(db, row.code, 'user-123')
@@ -186,7 +186,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
 
 describe('Public Invite Codes API — POST /validate', () => {
   it('returns valid:true for a valid unused code', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const [row] = await generateInviteCodes(db, 'admin-1', 1)
 
     const res = await app.request('/api/invite-codes/validate', {
@@ -200,7 +200,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   })
 
   it('returns valid:false for a nonexistent code', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/invite-codes/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -213,7 +213,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   })
 
   it('returns valid:false for a used code', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const [row] = await generateInviteCodes(db, 'admin-1', 1)
     await redeemInviteCode(db, row.code, 'user-99')
 
@@ -228,7 +228,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   })
 
   it('returns valid:false for an expired code', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const past = new Date(Date.now() - 1000)
     const [row] = await generateInviteCodes(db, 'admin-1', 1, past)
 
@@ -243,7 +243,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   })
 
   it('returns 400 when code field is missing from request body', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/invite-codes/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -253,7 +253,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   })
 
   it('returns 400 when code is an empty string', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/invite-codes/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -263,7 +263,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   })
 
   it('returns 400 when code contains lowercase letters', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/invite-codes/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -273,7 +273,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   })
 
   it('returns 400 when code is fewer than 8 characters', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/invite-codes/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -283,7 +283,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   })
 
   it('returns 400 when code is more than 8 characters', async () => {
-    const { app } = createTestApp()
+    const { app } = await createTestApp()
     const res = await app.request('/api/invite-codes/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -293,7 +293,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   })
 
   it('is accessible without authentication', async () => {
-    const { app, db } = createTestApp()
+    const { app, db } = await createTestApp()
     const [row] = await generateInviteCodes(db, 'admin-1', 1)
 
     // No auth headers — should still work
