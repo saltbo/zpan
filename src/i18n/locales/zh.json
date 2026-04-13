@@ -20,6 +20,7 @@
   "auth.emailOrUsernamePlaceholder": "输入邮箱或用户名",
   "auth.inviteCode": "邀请码",
   "auth.inviteCodePlaceholder": "输入邀请码",
+  "auth.inviteCodeRequired": "请输入邀请码",
   "auth.registrationClosed": "注册已关闭。",
   "auth.orContinueWith": "或通过以下方式继续",
   "nav.main": "主要",

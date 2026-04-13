@@ -1,5 +1,5 @@
 import type { CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
-import type { PaginatedResponse, Storage, StorageObject } from '@shared/types'
+import type { AuthProvider, PaginatedResponse, Storage, StorageObject } from '@shared/types'
 import { adminQuotas, authProviders, objects, storages, system, trash, userQuotas, users } from './rpc'
 
 export type { Storage, StorageObject }
@@ -181,12 +181,7 @@ export function setSystemOption(key: string, value: string, isPublic?: boolean) 
 
 // Auth Providers API
 
-export interface AuthProvider {
-  providerId: string
-  type: 'builtin' | 'oidc'
-  name: string
-  icon: string
-}
+export type { AuthProvider }
 
 export function listAuthProviders() {
   return unwrap<{ items: AuthProvider[] }>(authProviders.index.$get())

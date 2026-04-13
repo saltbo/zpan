@@ -17,7 +17,7 @@ const USERNAME_RE = /^[a-zA-Z0-9_]{3,30}$/
 function SignUp() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { authSignupMode } = useSiteOptions()
+  const { authSignupMode, isLoading: optionsLoading } = useSiteOptions()
   const [username, setUsername] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -26,6 +26,16 @@ function SignUp() {
   const [error, setError] = useState('')
   const [usernameError, setUsernameError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  if (optionsLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="w-full max-w-sm p-6 text-center">
+          <h1 className="text-2xl font-bold">ZPan</h1>
+        </div>
+      </div>
+    )
+  }
 
   if (authSignupMode === 'closed') {
     return (
@@ -55,6 +65,10 @@ function SignUp() {
       setUsernameError(t('auth.usernameInvalid'))
       return
     }
+    if (authSignupMode === 'invite_only' && !inviteCode.trim()) {
+      setError(t('auth.inviteCodeRequired'))
+      return
+    }
     setError('')
     setLoading(true)
 
@@ -64,7 +78,7 @@ function SignUp() {
       email,
       password,
       callbackURL: '/files',
-      ...(authSignupMode === 'invite_only' && inviteCode ? { inviteCode } : {}),
+      ...(authSignupMode === 'invite_only' ? { inviteCode } : {}),
     })
     setLoading(false)
     if (result.error) {

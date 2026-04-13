@@ -1,4 +1,5 @@
 import type { DirType, ObjectStatus, StorageMode, StorageStatus } from '../constants'
+import type { OAuthProviderType } from '../oauth-providers'
 
 export interface StorageObject {
   id: string
@@ -70,4 +71,11 @@ export interface PaginatedResponse<T> {
   total: number
   page: number
   pageSize: number
+}
+
+export interface AuthProvider {
+  providerId: string
+  type: OAuthProviderType
+  name: string
+  icon: string
 }

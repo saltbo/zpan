@@ -20,6 +20,7 @@
   "auth.emailOrUsernamePlaceholder": "Enter your email or username",
   "auth.inviteCode": "Invite Code",
   "auth.inviteCodePlaceholder": "Enter your invite code",
+  "auth.inviteCodeRequired": "Invite code is required",
   "auth.registrationClosed": "Registration is currently closed.",
   "auth.orContinueWith": "or continue with",
   "nav.main": "Main",

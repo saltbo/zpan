@@ -15,7 +15,7 @@ export const Route = createFileRoute('/(auth)/sign-in')({
 function SignIn() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { authSignupMode } = useSiteOptions()
+  const { authSignupMode, isLoading: optionsLoading } = useSiteOptions()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -26,7 +26,7 @@ function SignIn() {
     setError('')
     setLoading(true)
 
-    const isEmail = identifier.includes('@')
+    const isEmail = /^[^@]+@[^@]+\.[^@]+$/.test(identifier)
     const result = isEmail
       ? await signIn.email({ email: identifier, password, callbackURL: '/files' })
       : await signIn.username({ username: identifier, password, callbackURL: '/files' })
@@ -74,7 +74,7 @@ function SignIn() {
           </Button>
         </form>
         <OAuthButtons />
-        {authSignupMode !== 'closed' && (
+        {!optionsLoading && authSignupMode !== 'closed' && (
           <p className="text-center text-sm text-muted-foreground">
             {t('auth.noAccount')}{' '}
             <Link to="/sign-up" className="underline hover:text-foreground">

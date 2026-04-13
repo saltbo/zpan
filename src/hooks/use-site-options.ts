@@ -1,3 +1,4 @@
+import { SignupMode, type SignupMode as SignupModeType } from '@shared/constants'
 import { useQuery } from '@tanstack/react-query'
 import { listSystemOptions, type SiteOption } from '@/lib/api'
 
@@ -19,7 +20,7 @@ export function useSiteOptions() {
     siteName: optionMap.get('site_name') ?? '',
     siteDescription: optionMap.get('site_description') ?? '',
     defaultOrgQuota: Number(optionMap.get('default_org_quota') ?? '0'),
-    authSignupMode: (optionMap.get('auth_signup_mode') ?? 'open') as 'open' | 'invite_only' | 'closed',
+    authSignupMode: (optionMap.get('auth_signup_mode') ?? SignupMode.OPEN) as SignupModeType,
     isLoading,
     isError,
   }
