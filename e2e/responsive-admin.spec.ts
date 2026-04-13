@@ -27,16 +27,14 @@ async function signUpAndGoToAdmin(page: import('@playwright/test').Page) {
 // Admin sidebar
 // ---------------------------------------------------------------------------
 test.describe('Admin sidebar responsive', () => {
-  test('desktop: admin sidebar is visible', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'desktop only')
+  test('desktop: admin sidebar is visible @desktop', async ({ page }) => {
     await signUpAndGoToAdmin(page)
 
     const sidebar = page.locator('[data-slot="sidebar"]')
     await expect(sidebar).toBeVisible()
   })
 
-  test('mobile: admin sidebar opens via trigger', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: admin sidebar opens via trigger @mobile', async ({ page }) => {
     await signUpAndGoToAdmin(page)
 
     const sidebar = page.locator('[data-slot="sidebar"]')
@@ -53,8 +51,7 @@ test.describe('Admin sidebar responsive', () => {
 // Admin storages page
 // ---------------------------------------------------------------------------
 test.describe('Admin storages page responsive', () => {
-  test('desktop: all storage table columns visible', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'desktop only')
+  test('desktop: all storage table columns visible @desktop', async ({ page }) => {
     await signUpAndGoToAdmin(page)
 
     const table = page.locator('table')
@@ -63,8 +60,7 @@ test.describe('Admin storages page responsive', () => {
     await expect(table.locator('th', { hasText: /endpoint/i })).toBeVisible()
   })
 
-  test('mobile: storage page has no horizontal overflow', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: storage page has no horizontal overflow @mobile', async ({ page }) => {
     await signUpAndGoToAdmin(page)
 
     const hasHScroll = await page.evaluate(
@@ -73,8 +69,7 @@ test.describe('Admin storages page responsive', () => {
     expect(hasHScroll).toBe(false)
   })
 
-  test('mobile: secondary storage columns are hidden', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: secondary storage columns are hidden @mobile', async ({ page }) => {
     await signUpAndGoToAdmin(page)
 
     const table = page.locator('table')
@@ -83,8 +78,7 @@ test.describe('Admin storages page responsive', () => {
     await expect(table.locator('th', { hasText: /title/i })).toBeVisible()
   })
 
-  test('tablet: storage page has no horizontal overflow', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'tablet', 'tablet only')
+  test('tablet: storage page has no horizontal overflow @tablet', async ({ page }) => {
     await signUpAndGoToAdmin(page)
 
     const hasHScroll = await page.evaluate(
@@ -98,8 +92,7 @@ test.describe('Admin storages page responsive', () => {
 // Admin users page
 // ---------------------------------------------------------------------------
 test.describe('Admin users page responsive', () => {
-  test('mobile: users page has no horizontal overflow', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: users page has no horizontal overflow @mobile', async ({ page }) => {
     await signUpAndGoToAdmin(page)
     await page.goto('/admin/users')
     await page.waitForURL(/admin\/users/, { timeout: 10000 })
@@ -110,8 +103,7 @@ test.describe('Admin users page responsive', () => {
     expect(hasHScroll).toBe(false)
   })
 
-  test('mobile: secondary user columns are hidden', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: secondary user columns are hidden @mobile', async ({ page }) => {
     await signUpAndGoToAdmin(page)
     await page.goto('/admin/users')
     await page.waitForURL(/admin\/users/, { timeout: 10000 })
@@ -127,25 +119,21 @@ test.describe('Admin users page responsive', () => {
 // Admin settings page
 // ---------------------------------------------------------------------------
 test.describe('Admin settings page responsive', () => {
-  for (const device of ['desktop', 'tablet', 'mobile']) {
-    test(`${device}: settings page has no horizontal overflow`, async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== device, `${device} only`)
-      await signUpAndGoToAdmin(page)
-      await page.goto('/admin/settings')
-      await page.waitForLoadState('networkidle')
-      if (!page.url().includes('/admin')) {
-        test.skip(true, 'user is not admin')
-      }
+  test('settings page has no horizontal overflow @all', async ({ page }) => {
+    await signUpAndGoToAdmin(page)
+    await page.goto('/admin/settings')
+    await page.waitForLoadState('networkidle')
+    if (!page.url().includes('/admin')) {
+      test.skip(true, 'user is not admin')
+    }
 
-      const hasHScroll = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      )
-      expect(hasHScroll).toBe(false)
-    })
-  }
+    const hasHScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    )
+    expect(hasHScroll).toBe(false)
+  })
 
-  test('mobile: settings form fields are usable', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: settings form fields are usable @mobile', async ({ page }) => {
     await signUpAndGoToAdmin(page)
     await page.goto('/admin/settings')
     await page.waitForLoadState('networkidle')

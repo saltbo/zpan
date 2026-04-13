@@ -36,9 +36,14 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'desktop',
+      grep: /@desktop|@all/,
+      use: { ...devices['Desktop Chrome'] },
+    },
     {
       name: 'tablet',
+      grep: /@tablet|@all/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 768, height: 1024 },
@@ -46,6 +51,7 @@ export default defineConfig({
     },
     {
       name: 'mobile',
+      grep: /@mobile|@all/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 390, height: 844 },

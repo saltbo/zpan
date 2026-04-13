@@ -20,20 +20,16 @@ async function signUpAndGoToTrash(page: import('@playwright/test').Page) {
 // Recycle bin page responsive
 // ---------------------------------------------------------------------------
 test.describe('Recycle bin responsive layout', () => {
-  for (const device of ['desktop', 'tablet', 'mobile']) {
-    test(`${device}: recycle bin has no horizontal overflow`, async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== device, `${device} only`)
-      await signUpAndGoToTrash(page)
+  test('recycle bin has no horizontal overflow @all', async ({ page }) => {
+    await signUpAndGoToTrash(page)
 
-      const hasHScroll = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      )
-      expect(hasHScroll).toBe(false)
-    })
-  }
+    const hasHScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    )
+    expect(hasHScroll).toBe(false)
+  })
 
-  test('mobile: trash toolbar buttons are accessible', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: trash toolbar buttons are accessible @mobile', async ({ page }) => {
     await signUpAndGoToTrash(page)
 
     // Empty trash button should be visible (icon + text or icon-only)

@@ -5,24 +5,21 @@ import { createFolder, signUpAndGoToFiles } from './helpers'
 // Sidebar behavior per device
 // ---------------------------------------------------------------------------
 test.describe('Sidebar responsive behavior', () => {
-  test('desktop: sidebar is visible by default', async ({ page, browserName }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'desktop only')
+  test('desktop: sidebar is visible by default @desktop', async ({ page, browserName }) => {
     await signUpAndGoToFiles(page)
 
     const sidebar = page.locator('[data-slot="sidebar"]')
     await expect(sidebar).toBeVisible()
   })
 
-  test('tablet: sidebar is visible by default', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'tablet', 'tablet only')
+  test('tablet: sidebar is visible by default @tablet', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     const sidebar = page.locator('[data-slot="sidebar"]')
     await expect(sidebar).toBeVisible()
   })
 
-  test('mobile: sidebar is hidden, opens as sheet via trigger', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: sidebar is hidden, opens as sheet via trigger @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     // Sidebar should not be visible initially on mobile
@@ -43,8 +40,7 @@ test.describe('Sidebar responsive behavior', () => {
 // Toolbar: no horizontal overflow, key buttons accessible
 // ---------------------------------------------------------------------------
 test.describe('Toolbar responsive layout', () => {
-  test('desktop: all toolbar buttons visible in one row', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'desktop only')
+  test('desktop: all toolbar buttons visible in one row @desktop', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     const toolbar = page.locator('[data-testid="files-toolbar"]')
@@ -60,8 +56,7 @@ test.describe('Toolbar responsive layout', () => {
     await expect(page.getByPlaceholder(/search/i)).toBeVisible()
   })
 
-  test('tablet: toolbar does not overflow horizontally', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'tablet', 'tablet only')
+  test('tablet: toolbar does not overflow horizontally @tablet', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     const toolbar = page.locator('[data-testid="files-toolbar"]')
@@ -73,8 +68,7 @@ test.describe('Toolbar responsive layout', () => {
     await expect(page.getByRole('button', { name: 'Upload' })).toBeVisible()
   })
 
-  test('mobile: toolbar does not overflow, upload button accessible', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: toolbar does not overflow, upload button accessible @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     const toolbar = page.locator('[data-testid="files-toolbar"]')
@@ -92,8 +86,7 @@ test.describe('Toolbar responsive layout', () => {
 // Table: secondary columns hidden on small screens
 // ---------------------------------------------------------------------------
 test.describe('File table responsive columns', () => {
-  test('desktop: all columns visible (name, size, modified, actions)', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'desktop only')
+  test('desktop: all columns visible (name, size, modified, actions) @desktop', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await createFolder(page, 'test-folder')
@@ -102,8 +95,7 @@ test.describe('File table responsive columns', () => {
     await expect(page.getByRole('columnheader', { name: /modified/i })).toBeVisible()
   })
 
-  test('mobile: size and modified columns are hidden', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: size and modified columns are hidden @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await createFolder(page, 'test-folder')
@@ -118,15 +110,12 @@ test.describe('File table responsive columns', () => {
 // Page-level: no horizontal scroll on any device
 // ---------------------------------------------------------------------------
 test.describe('No horizontal overflow', () => {
-  for (const device of ['desktop', 'tablet', 'mobile']) {
-    test(`${device}: page has no horizontal scrollbar`, async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== device, `${device} only`)
-      await signUpAndGoToFiles(page)
+  test('page has no horizontal scrollbar @all', async ({ page }) => {
+    await signUpAndGoToFiles(page)
 
-      const hasHScroll = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      )
-      expect(hasHScroll).toBe(false)
-    })
-  }
+    const hasHScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    )
+    expect(hasHScroll).toBe(false)
+  })
 })

@@ -4,32 +4,27 @@ import { expect, test } from '@playwright/test'
 // Auth pages: sign-in and sign-up should not overflow on any device
 // ---------------------------------------------------------------------------
 test.describe('Auth pages responsive layout', () => {
-  for (const device of ['desktop', 'tablet', 'mobile']) {
-    test(`${device}: sign-in page has no horizontal overflow`, async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== device, `${device} only`)
-      await page.goto('/sign-in')
-      await expect(page.getByRole('heading', { name: 'ZPan' })).toBeVisible()
+  test('sign-in page has no horizontal overflow @all', async ({ page }) => {
+    await page.goto('/sign-in')
+    await expect(page.getByRole('heading', { name: 'ZPan' })).toBeVisible()
 
-      const hasHScroll = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      )
-      expect(hasHScroll).toBe(false)
-    })
+    const hasHScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    )
+    expect(hasHScroll).toBe(false)
+  })
 
-    test(`${device}: sign-up page has no horizontal overflow`, async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== device, `${device} only`)
-      await page.goto('/sign-up')
-      await expect(page.getByRole('heading', { name: 'ZPan' })).toBeVisible()
+  test('sign-up page has no horizontal overflow @all', async ({ page }) => {
+    await page.goto('/sign-up')
+    await expect(page.getByRole('heading', { name: 'ZPan' })).toBeVisible()
 
-      const hasHScroll = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      )
-      expect(hasHScroll).toBe(false)
-    })
-  }
+    const hasHScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    )
+    expect(hasHScroll).toBe(false)
+  })
 
-  test('mobile: sign-in form fields are usable', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: sign-in form fields are usable @mobile', async ({ page }) => {
     await page.goto('/sign-in')
 
     // Form fields should be visible and fillable
@@ -50,8 +45,7 @@ test.describe('Auth pages responsive layout', () => {
     expect(formOverflows).toBe(false)
   })
 
-  test('mobile: sign-up form fields are usable', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: sign-up form fields are usable @mobile', async ({ page }) => {
     await page.goto('/sign-up')
 
     await expect(page.getByLabel(/name/i)).toBeVisible()

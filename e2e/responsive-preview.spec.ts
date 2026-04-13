@@ -57,8 +57,7 @@ async function setupPreviewMocks(page: Page, file: { name: string; type: string;
 // Preview per file type: mobile drawer vs desktop dialog
 // ---------------------------------------------------------------------------
 test.describe('Preview with mocked files', () => {
-  test('mobile: text file renders in full-screen drawer', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: text file renders in full-screen drawer @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await setupPreviewMocks(page, { name: 'readme.txt', type: 'text/plain', size: 50, fixture: 'sample.txt' })
@@ -88,8 +87,7 @@ test.describe('Preview with mocked files', () => {
     }
   })
 
-  test('mobile: markdown file renders in drawer', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: markdown file renders in drawer @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await setupPreviewMocks(page, { name: 'docs.md', type: 'text/markdown', size: 44, fixture: 'sample.md' })
@@ -103,8 +101,7 @@ test.describe('Preview with mocked files', () => {
     await expect(dialog.locator('p', { hasText: 'docs.md' })).toBeVisible()
   })
 
-  test('mobile: code file renders in drawer', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: code file renders in drawer @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await setupPreviewMocks(page, { name: 'config.json', type: 'application/json', size: 19, fixture: 'sample.json' })
@@ -118,8 +115,7 @@ test.describe('Preview with mocked files', () => {
     await expect(dialog.locator('p', { hasText: 'config.json' })).toBeVisible()
   })
 
-  test('desktop: text file renders in centered dialog', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'desktop only')
+  test('desktop: text file renders in centered dialog @desktop', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await setupPreviewMocks(page, { name: 'notes.txt', type: 'text/plain', size: 50, fixture: 'sample.txt' })
@@ -146,8 +142,7 @@ test.describe('Preview with mocked files', () => {
 // No overflow
 // ---------------------------------------------------------------------------
 test.describe('Preview no overflow', () => {
-  test('mobile: page has no horizontal overflow', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: page has no horizontal overflow @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     const hasHScroll = await page.evaluate(

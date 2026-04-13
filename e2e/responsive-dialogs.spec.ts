@@ -5,8 +5,7 @@ import { createFolder, signUpAndGoToFiles } from './helpers'
 // Dialogs responsive behavior
 // ---------------------------------------------------------------------------
 test.describe('File dialogs responsive', () => {
-  test('mobile: new folder dialog is usable', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: new folder dialog is usable @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     // Open new folder dialog
@@ -31,8 +30,7 @@ test.describe('File dialogs responsive', () => {
     expect(overflows).toBe(false)
   })
 
-  test('tablet: new folder dialog is usable', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'tablet', 'tablet only')
+  test('tablet: new folder dialog is usable @tablet', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await page.getByRole('button', { name: /new folder|folder/i }).click()
@@ -43,8 +41,7 @@ test.describe('File dialogs responsive', () => {
     await expect(dialog.getByRole('button', { name: /create/i })).toBeVisible()
   })
 
-  test('mobile: rename dialog is usable', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: rename dialog is usable @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await createFolder(page, 'rename-me')
@@ -70,8 +67,7 @@ test.describe('File dialogs responsive', () => {
     expect(overflows).toBe(false)
   })
 
-  test('mobile: move dialog is usable', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile only')
+  test('mobile: move dialog is usable @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await createFolder(page, 'move-me')

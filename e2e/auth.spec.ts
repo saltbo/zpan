@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test'
 
 test.describe('Auth flow', () => {
-  test('redirects to sign-in when not authenticated', async ({ page }) => {
+  test('redirects to sign-in when not authenticated @all', async ({ page }) => {
     await page.goto('/')
     await expect(page).toHaveURL(/sign-in/, { timeout: 5000 })
   })
 
-  test('sign-up and redirect to files', async ({ page }) => {
+  test('sign-up and redirect to files @all', async ({ page }) => {
     await page.goto('/sign-up')
     await expect(page.getByRole('heading', { name: 'ZPan' })).toBeVisible()
 
@@ -24,7 +24,7 @@ test.describe('Auth flow', () => {
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
   })
 
-  test('sign-in with existing account', async ({ page }) => {
+  test('sign-in with existing account @all', async ({ page }) => {
     const email = `login-${Date.now()}@example.com`
 
     // Register via UI
@@ -54,10 +54,7 @@ test.describe('Auth flow', () => {
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
   })
 
-  test('sidebar shows only My Files and Trash for regular users', async ({ page }, testInfo) => {
-    // Mobile sidebar is tested separately in responsive.spec.ts
-    test.skip(testInfo.project.name === 'mobile', 'mobile sidebar tested in responsive.spec.ts')
-
+  test('sidebar shows only My Files and Trash for regular users @desktop @tablet', async ({ page }) => {
     await page.goto('/sign-up')
     await page.getByLabel('Name').fill('Sidebar Test')
     await page.getByLabel('Email').fill(`sidebar-${Date.now()}@example.com`)
