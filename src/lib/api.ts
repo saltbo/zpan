@@ -125,6 +125,7 @@ export function deleteStorage(id: string) {
 export interface UserWithOrg {
   id: string
   name: string
+  username: string
   email: string
   role: string | null
   banned: boolean

@@ -32,9 +32,8 @@ export async function signInAsAdmin(page: Page) {
 /** Register a fresh user and land on /files. */
 export async function signUpAndGoToFiles(page: Page) {
   await page.goto('/sign-up')
-  await page.getByLabel('Username').fill(`e2e${Date.now()}`)
-  await page.getByLabel('Name', { exact: true }).fill('E2E Test')
   await page.getByLabel('Email').fill(`e2e-${Date.now()}@example.com`)
+  await page.getByLabel('Username').fill(`e2e${Date.now()}`)
   await page.getByLabel('Password').fill('password123456')
   const [resp] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/auth/sign-up')),

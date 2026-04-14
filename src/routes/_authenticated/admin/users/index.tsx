@@ -70,7 +70,9 @@ function UsersPage() {
   const filtered = useMemo(() => {
     if (!search.trim()) return users
     const term = search.toLowerCase()
-    return users.filter((u) => u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term))
+    return users.filter(
+      (u) => (u.name || u.username).toLowerCase().includes(term) || u.email.toLowerCase().includes(term),
+    )
   }, [users, search])
 
   const total = usersQuery.data?.total ?? 0
@@ -131,7 +133,7 @@ function UsersPage() {
                     status: user.banned ? 'active' : 'disabled',
                   })
                 }
-                onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name })}
+                onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name || user.username })}
               />
             ))}
             {filtered.length === 0 && (
@@ -165,7 +167,7 @@ function UsersPage() {
         user={
           quotaDialogUser?.orgId
             ? {
-                name: quotaDialogUser.name,
+                name: quotaDialogUser.name || quotaDialogUser.username,
                 orgId: quotaDialogUser.orgId,
                 quotaUsed: quotaDialogUser.quotaUsed,
                 quotaTotal: quotaDialogUser.quotaTotal,
@@ -208,7 +210,7 @@ function UserTableRow({
 
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
-      <td className="px-4 py-3 font-medium">{user.name}</td>
+      <td className="px-4 py-3 font-medium">{user.name || user.username}</td>
       <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{user.email}</td>
       <td className="px-4 py-3">
         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${roleBadge}`}>{roleLabel}</span>

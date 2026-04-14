@@ -5,6 +5,7 @@ import type { Database } from '../platform/interface'
 export interface UserWithOrg {
   id: string
   name: string
+  username: string
   email: string
   role: string | null
   banned: boolean | null
@@ -23,10 +24,11 @@ export async function listUsers(
   const countRows = await db.select({ total: count() }).from(user)
   const total = countRows[0]?.total ?? 0
 
-  const items = await db
+  const rows = await db
     .select({
       id: user.id,
       name: user.name,
+      username: user.username,
       email: user.email,
       role: user.role,
       banned: user.banned,
@@ -44,6 +46,11 @@ export async function listUsers(
     .orderBy(desc(user.createdAt))
     .limit(pageSize)
     .offset(offset)
+
+  const items: UserWithOrg[] = rows.map((row) => ({
+    ...row,
+    username: row.username ?? '',
+  }))
 
   return { items, total }
 }
