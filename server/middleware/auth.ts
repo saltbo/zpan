@@ -1,7 +1,16 @@
 import { sql } from 'drizzle-orm'
 import { createMiddleware } from 'hono/factory'
-import { findPersonalOrg } from '../services/org'
+import { findPersonalOrg, getMemberRole, isPersonalOrg } from '../services/org'
 import type { Env } from './platform'
+
+// 'member' is the better-auth schema default; map it to viewer level so
+// existing org members get read access rather than being silently denied.
+const ROLE_LEVELS: Record<string, number> = {
+  owner: 3,
+  editor: 2,
+  viewer: 1,
+  member: 1,
+}
 
 type SessionWithPlugins = {
   user: { id: string; role?: string }
@@ -52,3 +61,39 @@ export const requireAdmin = createMiddleware<Env>(async (c, next) => {
   }
   await next()
 })
+
+// requireTeamRole enforces a minimum role level for the current org.
+// Personal orgs bypass the check — the owner of a personal space has full access.
+// Must be used after requireAuth so orgId and userId are guaranteed non-null.
+export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
+  return createMiddleware<Env>(async (c, next) => {
+    const orgId = c.get('orgId')
+    const userId = c.get('userId')
+    if (!orgId || !userId) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+
+    const db = c.get('platform').db
+
+    // Query member role first — avoids an extra DB round trip for the common case.
+    // Personal org owners always have a member row (guaranteed by findPersonalOrg),
+    // so isPersonalOrg is only needed as a fallback when no member row exists.
+    const role = await getMemberRole(db, orgId, userId)
+    if (role !== null) {
+      const userLevel = ROLE_LEVELS[role] ?? 0
+      if (userLevel < ROLE_LEVELS[minRole]) {
+        return c.json({ error: 'Forbidden' }, 403)
+      }
+      await next()
+      return
+    }
+
+    // No member row — could be a personal org accessed without a session refresh.
+    if (await isPersonalOrg(db, orgId)) {
+      await next()
+      return
+    }
+
+    return c.json({ error: 'Forbidden' }, 403)
+  })
+}

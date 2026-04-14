@@ -9,7 +9,7 @@ import {
   updateMatterSchema,
 } from '../../shared/schemas'
 import type { Storage as S3Storage } from '../../shared/types'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
   batchMove,
@@ -40,7 +40,7 @@ function fileExt(name: string): string {
 
 const app = new Hono<Env>()
   .use(requireAuth)
-  .get('/', async (c) => {
+  .get('/', requireTeamRole('viewer'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -55,7 +55,7 @@ const app = new Hono<Env>()
     const result = await listMatters(db, orgId, { parent, status, typeFilter, search, page, pageSize })
     return c.json(result)
   })
-  .post('/', zValidator('json', createMatterSchema), async (c) => {
+  .post('/', requireTeamRole('editor'), zValidator('json', createMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -90,7 +90,7 @@ const app = new Hono<Env>()
     const uploadUrl = await s3.presignUpload(storage, objectKey, type)
     return c.json({ ...matter, uploadUrl }, 201)
   })
-  .post('/batch/move', zValidator('json', batchMoveSchema), async (c) => {
+  .post('/batch/move', requireTeamRole('editor'), zValidator('json', batchMoveSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -103,7 +103,7 @@ const app = new Hono<Env>()
       return c.json({ error: (e as Error).message }, 400)
     }
   })
-  .post('/batch/trash', zValidator('json', batchIdsSchema), async (c) => {
+  .post('/batch/trash', requireTeamRole('editor'), zValidator('json', batchIdsSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -116,7 +116,7 @@ const app = new Hono<Env>()
       return c.json({ error: (e as Error).message }, 400)
     }
   })
-  .post('/batch/delete', zValidator('json', batchIdsSchema), async (c) => {
+  .post('/batch/delete', requireTeamRole('editor'), zValidator('json', batchIdsSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -142,7 +142,7 @@ const app = new Hono<Env>()
       return c.json({ error: (e as Error).message }, 400)
     }
   })
-  .get('/:id', async (c) => {
+  .get('/:id', requireTeamRole('viewer'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -160,7 +160,7 @@ const app = new Hono<Env>()
     const downloadUrl = await s3.presignDownload(storage, matter.object, matter.name)
     return c.json({ ...matter, downloadUrl })
   })
-  .patch('/:id', zValidator('json', updateMatterSchema), async (c) => {
+  .patch('/:id', requireTeamRole('editor'), zValidator('json', updateMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -169,7 +169,7 @@ const app = new Hono<Env>()
     if (!matter) return c.json({ error: 'Not found' }, 404)
     return c.json(matter)
   })
-  .patch('/:id/done', async (c) => {
+  .patch('/:id/done', requireTeamRole('editor'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -179,7 +179,7 @@ const app = new Hono<Env>()
     if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
     return c.json(matter)
   })
-  .patch('/:id/trash', async (c) => {
+  .patch('/:id/trash', requireTeamRole('editor'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
     const db = c.get('platform').db
@@ -187,7 +187,7 @@ const app = new Hono<Env>()
     if (!matter) return c.json({ error: 'Not found' }, 404)
     return c.json(matter)
   })
-  .patch('/:id/restore', async (c) => {
+  .patch('/:id/restore', requireTeamRole('editor'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
     const db = c.get('platform').db
@@ -195,7 +195,7 @@ const app = new Hono<Env>()
     if (!matter) return c.json({ error: 'Not found' }, 404)
     return c.json(matter)
   })
-  .delete('/:id', async (c) => {
+  .delete('/:id', requireTeamRole('editor'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
     const db = c.get('platform').db
@@ -207,7 +207,7 @@ const app = new Hono<Env>()
     const purged = await purgeRecursively(db, orgId, ms)
     return c.json({ id: ms[0].id, deleted: true, purged })
   })
-  .post('/:id/copy', zValidator('json', copyMatterSchema), async (c) => {
+  .post('/:id/copy', requireTeamRole('editor'), zValidator('json', copyMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
