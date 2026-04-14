@@ -147,6 +147,16 @@ const APP_SCHEMA_SQL = `
     expires_at INTEGER,
     created_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS team_invite_links (
+    id TEXT PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    organization_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    inviter_id TEXT NOT NULL,
+    expires_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS team_invite_links_token_unique ON team_invite_links(token);
 `
 
 export async function createTestApp() {
