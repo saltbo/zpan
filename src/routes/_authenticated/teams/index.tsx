@@ -122,7 +122,7 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   )
 }
 
-type FullOrganization = {
+type TeamCardOrg = {
   id: string
   name: string
   slug: string
@@ -130,7 +130,7 @@ type FullOrganization = {
   members: Array<{ userId: string; role: string }>
 }
 
-function TeamCard({ org, userId }: { org: FullOrganization; userId: string }) {
+function TeamCard({ org, userId }: { org: TeamCardOrg; userId: string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const myMembership = org.members.find((m) => m.userId === userId)
@@ -189,9 +189,7 @@ function TeamsPage() {
   })
 
   const isPending = orgsLoading || fullOrgQueries.some((q) => q.isPending)
-  const teams = fullOrgQueries
-    .map((q) => q.data)
-    .filter((d): d is FullOrganization => d != null && Array.isArray(d.members))
+  const teams = fullOrgQueries.flatMap((q) => (q.data ? [q.data] : []))
 
   return (
     <div className="space-y-6">
