@@ -44,7 +44,11 @@ zpan.db-wal
 
 #playwright
 .playwright-mcp/
+
+# claude code & tanstack
+.claude/
+.tanstack/
+
 # agent skills (managed by daemon)
-.claude/skills/
 .agents/
 skills-lock.json
