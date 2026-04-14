@@ -143,14 +143,6 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link to="/teams">
-                    <Users className="h-4 w-4" />
-                    <span>{t('nav.teams')}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -190,6 +182,12 @@ export function AppSidebar() {
               <Link to="/settings">
                 <Settings className="mr-2 h-4 w-4" />
                 {t('nav.settings')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/teams">
+                <Users className="mr-2 h-4 w-4" />
+                {t('nav.teams')}
               </Link>
             </DropdownMenuItem>
             {isAdmin && (
