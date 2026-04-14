@@ -16,10 +16,20 @@ export const Route = createFileRoute('/(auth)/sign-in')({
 function SignIn() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  // Only allow same-origin relative redirects (starts with / but not //) to prevent
-  // open redirect and javascript: URI attacks.
-  const rawRedirect = new URLSearchParams(window.location.search).get('redirect')
-  const redirectTo = rawRedirect && /^\/(?!\/)/.test(rawRedirect) ? rawRedirect : null
+  // Validate the redirect param by parsing it through URL() relative to the current origin.
+  // This strips any external origin and javascript: scheme, ensuring only same-origin
+  // paths reach window.location.href (satisfies CodeQL js/xss and js/client-side-unvalidated-url-redirection).
+  const redirectTo: string | null = (() => {
+    const raw = new URLSearchParams(window.location.search).get('redirect')
+    if (!raw) return null
+    try {
+      const parsed = new URL(raw, window.location.origin)
+      if (parsed.origin !== window.location.origin) return null
+      return parsed.pathname + parsed.search + parsed.hash
+    } catch {
+      return null
+    }
+  })()
   const { authSignupMode } = useSiteOptions()
   const [identity, setIdentity] = useState('')
   const [password, setPassword] = useState('')
