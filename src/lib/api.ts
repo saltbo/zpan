@@ -294,7 +294,6 @@ export function listTeamActivities(teamId: string, page = 1, pageSize = 20) {
   )
 }
 
-
 // Auth API — Better Auth passthrough, not typed via Hono RPC
 export async function getSession(): Promise<{ session: unknown; user: unknown } | null> {
   const res = await fetch('/api/auth/get-session', { credentials: 'include' })
