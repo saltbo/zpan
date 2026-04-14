@@ -1,7 +1,9 @@
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createAuth } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
+import { inviteCodes } from './db/schema.js'
 import { generateInviteCodes } from './services/invite.js'
 import { createTestApp } from './test/setup.js'
 
@@ -121,11 +123,38 @@ describe('registration gate — invite_only mode', () => {
     await signUp(ctx, 'first@example.com')
     const pastDate = new Date(Date.now() - 1000)
     const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1, pastDate)
-    // NOTE: inviteCode is not declared as an additionalField in the better-auth config,
-    // so it will not flow through to the databaseHooks before handler. This means
-    // the expired-code check is never reached — the hook sees no inviteCode and rejects
-    // with "An invite code is required to register" instead.
     const res = await signUp(ctx, 'expired@example.com', { inviteCode: codeRow.code })
+    expect(res.status).not.toBe(200)
+  })
+
+  it('second user registers successfully with a valid invite code', async () => {
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
+    await signUp(ctx, 'first@example.com')
+    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1)
+    const res = await signUp(ctx, 'invited@example.com', { inviteCode: codeRow.code })
+    expect(res.status).toBe(200)
+  })
+
+  it('invite code usedBy is set to the new user ID after successful registration', async () => {
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
+    await signUp(ctx, 'first@example.com')
+    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1)
+    const res = await signUp(ctx, 'invited2@example.com', { inviteCode: codeRow.code })
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db.select().from(inviteCodes).where(eq(inviteCodes.code, codeRow.code))
+    expect(row.usedBy).toBe(body.user.id)
+    expect(row.usedAt).not.toBeNull()
+  })
+
+  it('same invite code cannot be used twice', async () => {
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
+    await signUp(ctx, 'first@example.com')
+    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1)
+    await signUp(ctx, 'user1@example.com', { inviteCode: codeRow.code })
+    const res = await signUp(ctx, 'user2@example.com', { inviteCode: codeRow.code })
     expect(res.status).not.toBe(200)
   })
 })
