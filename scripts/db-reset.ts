@@ -50,6 +50,23 @@ if (!signUpRes.ok) throw new Error(`sign-up failed: ${signUpRes.status} ${await 
 const cookies = signUpRes.headers.getSetCookie().join('; ')
 console.log(`registered admin: ${email}`)
 
+// configure GitHub OAuth if credentials are provided
+const githubClientId = process.env.GITHUB_CLIENT_ID
+const githubClientSecret = process.env.GITHUB_CLIENT_SECRET
+if (githubClientId && githubClientSecret) {
+  await platform.db.insert(schema.systemOptions).values({
+    key: 'oauth_provider_github',
+    value: JSON.stringify({
+      providerId: 'github',
+      type: 'builtin',
+      clientId: githubClientId,
+      clientSecret: githubClientSecret,
+      enabled: true,
+    }),
+  })
+  console.log('configured GitHub OAuth provider')
+}
+
 // create storage
 const storageRes = await app.request('/api/admin/storages', {
   method: 'POST',
