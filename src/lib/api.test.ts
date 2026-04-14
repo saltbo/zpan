@@ -3,6 +3,8 @@ import {
   batchDeleteObjects,
   batchMoveObjects,
   batchTrashObjects,
+  batchUpdateVisibility,
+  browseProfile,
   confirmUpload,
   copyObject,
   createObject,
@@ -12,6 +14,7 @@ import {
   deleteUser,
   emptyTrash,
   getObject,
+  getProfile,
   getSession,
   getStorage,
   getSystemOption,
@@ -857,6 +860,105 @@ describe('api', () => {
 
       const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(init.credentials).toBe('include')
+    })
+  })
+
+  describe('batchUpdateVisibility', () => {
+    it('posts ids and isPublic=true to batch visibility endpoint', async () => {
+      const payload = { updated: 2 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await batchUpdateVisibility(['id1', 'id2'], true)
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/batch/visibility')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ ids: ['id1', 'id2'], isPublic: true })
+    })
+
+    it('posts isPublic=false to make items private', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ updated: 1 }))
+
+      await batchUpdateVisibility(['id1'], false)
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ isPublic: false })
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(batchUpdateVisibility(['id1'], true)).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('getProfile', () => {
+    it('fetches public profile by username', async () => {
+      const payload = {
+        user: { username: 'alice', name: 'Alice', image: null },
+        shares: [],
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getProfile('alice')
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/profiles/alice')
+    })
+
+    it('returns shares with download URLs', async () => {
+      const matter = { id: 'm1', name: 'photo.jpg', dirtype: 0, downloadUrl: 'https://s3/photo.jpg' }
+      const payload = {
+        user: { username: 'bob', name: 'Bob', image: null },
+        shares: [matter],
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getProfile('bob')
+
+      expect(result.shares).toHaveLength(1)
+      expect(result.shares[0].downloadUrl).toBe('https://s3/photo.jpg')
+    })
+
+    it('throws on 404 response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'User not found' }, false, 404))
+
+      await expect(getProfile('nobody')).rejects.toThrow('User not found')
+    })
+  })
+
+  describe('browseProfile', () => {
+    it('fetches directory contents for a username and dir', async () => {
+      const payload = { items: [], breadcrumb: ['Music'] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await browseProfile('alice', 'Music')
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/profiles/alice/browse')
+      expect(url).toContain('dir=Music')
+    })
+
+    it('returns items with breadcrumb segments', async () => {
+      const items = [{ id: 'f1', name: 'Rock', dirtype: 1 }]
+      const payload = { items, breadcrumb: ['Music'] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await browseProfile('alice', 'Music')
+
+      expect(result.breadcrumb).toEqual(['Music'])
+      expect(result.items).toHaveLength(1)
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Not found' }, false, 404))
+
+      await expect(browseProfile('alice', 'Secret')).rejects.toThrow('Not found')
     })
   })
 })
