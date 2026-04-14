@@ -17,6 +17,7 @@ interface CreateMatterInput {
   object: string
   storageId: string
   status: string
+  isPublic?: boolean
 }
 
 export async function createMatter(db: Database, input: CreateMatterInput): Promise<Matter> {
@@ -32,6 +33,7 @@ export async function createMatter(db: Database, input: CreateMatterInput): Prom
     parent: input.parent ?? '',
     object: input.object,
     storageId: input.storageId,
+    isPublic: input.isPublic ?? false,
     status: input.status,
     trashedAt: null,
     createdAt: now,
@@ -119,7 +121,7 @@ export async function updateMatter(
   db: Database,
   id: string,
   orgId: string,
-  input: { name?: string; parent?: string },
+  input: { name?: string; parent?: string; isPublic?: boolean },
 ): Promise<Matter | null> {
   const existing = await getMatter(db, id, orgId)
   if (!existing) return null
@@ -127,6 +129,7 @@ export async function updateMatter(
   const now = new Date()
   const newName = input.name ?? existing.name
   const newParent = input.parent ?? existing.parent
+  const newIsPublic = input.isPublic ?? existing.isPublic
   const isFolder = existing.dirtype !== DirType.FILE
   const renamed = input.name && input.name !== existing.name
   const moved = input.parent !== undefined && input.parent !== existing.parent
@@ -142,10 +145,25 @@ export async function updateMatter(
 
   await db
     .update(matters)
-    .set({ name: newName, parent: newParent, updatedAt: now })
+    .set({ name: newName, parent: newParent, isPublic: newIsPublic, updatedAt: now })
     .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
 
-  return { ...existing, name: newName, parent: newParent, updatedAt: now }
+  return { ...existing, name: newName, parent: newParent, isPublic: newIsPublic, updatedAt: now }
+}
+
+export async function batchUpdateVisibility(
+  db: Database,
+  orgId: string,
+  ids: string[],
+  isPublic: boolean,
+): Promise<number> {
+  const uniqueIds = [...new Set(ids)]
+  const now = new Date()
+  await db
+    .update(matters)
+    .set({ isPublic, updatedAt: now })
+    .where(and(eq(matters.orgId, orgId), inArray(matters.id, uniqueIds)))
+  return uniqueIds.length
 }
 
 async function cascadeParentPath(db: Database, orgId: string, oldPath: string, newPath: string): Promise<void> {
@@ -248,6 +266,7 @@ export async function copyMatter(
     parent: targetParent,
     object: newObject,
     storageId: source.storageId,
+    isPublic: false,
     status: 'active',
     trashedAt: null,
     createdAt: now,

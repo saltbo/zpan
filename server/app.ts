@@ -10,6 +10,7 @@ import authProviders from './routes/auth-providers'
 import emailConfig from './routes/email-config'
 import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
 import objects from './routes/objects'
+import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import storages from './routes/storages'
 import system from './routes/system'
@@ -36,6 +37,9 @@ export function createApp(platform: Platform, auth: Auth) {
     const a = c.get('auth')
     return a.handler(c.req.raw)
   })
+
+  // Public routes — no auth required; mount before authMiddleware
+  app.route('/api/profiles', profile)
 
   app.use('/api/*', authMiddleware)
 
@@ -72,3 +76,4 @@ export type EmailConfigRoute = typeof emailConfig
 export type AdminInviteCodesRoute = typeof adminInviteCodes
 export type PublicInviteCodesRoute = typeof publicInviteCodes
 export type AuthProvidersRoute = typeof authProviders
+export type ProfileRoute = typeof profile

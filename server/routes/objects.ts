@@ -4,6 +4,7 @@ import { DirType } from '../../shared/constants'
 import {
   batchIdsSchema,
   batchMoveSchema,
+  batchVisibilitySchema,
   copyMatterSchema,
   createMatterSchema,
   updateMatterSchema,
@@ -14,6 +15,7 @@ import type { Env } from '../middleware/platform'
 import {
   batchMove,
   batchTrash,
+  batchUpdateVisibility,
   collectForPurge,
   confirmUpload,
   copyMatter,
@@ -138,6 +140,19 @@ const app = new Hono<Env>()
         purged += await purgeRecursively(db, orgId, ms)
       }
       return c.json({ deleted: purged })
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 400)
+    }
+  })
+  .post('/batch/visibility', requireTeamRole('editor'), zValidator('json', batchVisibilitySchema), async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const { ids, isPublic } = c.req.valid('json')
+    const db = c.get('platform').db
+    try {
+      const updated = await batchUpdateVisibility(db, orgId, ids, isPublic)
+      return c.json({ updated })
     } catch (e) {
       return c.json({ error: (e as Error).message }, 400)
     }

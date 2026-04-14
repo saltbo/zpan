@@ -43,6 +43,13 @@
       "when": 1775110000000,
       "tag": "0005_invite_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1775120000000,
+      "tag": "0006_public_profile",
+      "breakpoints": true
     }
   ]
 }

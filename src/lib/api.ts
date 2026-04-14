@@ -7,6 +7,7 @@ import {
   emailConfig,
   inviteCodes,
   objects,
+  profiles,
   storages,
   system,
   trash,
@@ -92,6 +93,10 @@ export function batchTrashObjects(ids: string[]) {
 
 export function batchDeleteObjects(ids: string[]) {
   return unwrap<{ deleted: number }>(objects.batch.delete.$post({ json: { ids } }))
+}
+
+export function batchUpdateVisibility(ids: string[], isPublic: boolean) {
+  return unwrap<{ updated: number }>(objects.batch.visibility.$post({ json: { ids, isPublic } }))
 }
 
 export function emptyTrash() {
@@ -266,6 +271,28 @@ export function saveEmailConfig(data: EmailConfigData) {
 
 export function testEmail(to: string) {
   return unwrap<{ success: boolean; error?: string }>(emailConfig.test.$post({ json: { to } }))
+}
+
+// Profile API (public, no auth)
+
+export interface PublicUser {
+  username: string
+  name: string
+  image: string | null
+}
+
+export interface PublicMatter extends StorageObject {
+  downloadUrl?: string
+}
+
+export function getProfile(username: string) {
+  return unwrap<{ user: PublicUser; shares: PublicMatter[] }>(profiles[':username'].$get({ param: { username } }))
+}
+
+export function browseProfile(username: string, dir: string) {
+  return unwrap<{ items: PublicMatter[]; breadcrumb: string[] }>(
+    profiles[':username'].browse.$get({ param: { username }, query: { dir } }),
+  )
 }
 
 // Auth API — Better Auth passthrough, not typed via Hono RPC
