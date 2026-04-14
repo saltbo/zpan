@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Plus, Users } from 'lucide-react'
 import { useState } from 'react'
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { authClient, useListOrganizations, useSession } from '@/lib/auth-client'
+import { authClient, getFullOrganization, useListOrganizations, useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/teams/')({
   component: TeamsPage,
@@ -57,12 +57,13 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       if (error) throw error
       return data
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success(t('teams.created'))
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
       onOpenChange(false)
       form.reset()
       if (data?.id) {
+        await authClient.organization.setActive({ organizationId: data.id })
         navigate({ to: '/files' })
       }
     },
@@ -121,20 +122,18 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   )
 }
 
-type Organization = {
+type TeamCardOrg = {
   id: string
   name: string
   slug: string
   logo?: string | null
-  metadata?: Record<string, unknown>
-  members?: Array<{ userId: string; role: string }>
+  members: Array<{ userId: string; role: string }>
 }
 
-function TeamCard({ org, userId }: { org: Organization; userId: string }) {
+function TeamCard({ org, userId }: { org: TeamCardOrg; userId: string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const members = org.members ?? []
-  const myMembership = members.find((m) => m.userId === userId)
+  const myMembership = org.members.find((m) => m.userId === userId)
   const role = myMembership?.role ?? ''
 
   return (
@@ -155,7 +154,7 @@ function TeamCard({ org, userId }: { org: Organization; userId: string }) {
         <p className="text-sm text-muted-foreground">@{org.slug}</p>
       </div>
       <div className="flex flex-col items-end gap-1">
-        <span className="text-sm text-muted-foreground">{t('teams.memberCount', { count: members.length })}</span>
+        <span className="text-sm text-muted-foreground">{t('teams.memberCount', { count: org.members.length })}</span>
         {role && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize text-muted-foreground">{role}</span>
         )}
@@ -164,16 +163,33 @@ function TeamCard({ org, userId }: { org: Organization; userId: string }) {
   )
 }
 
+type ListOrganization = {
+  id: string
+  slug: string
+}
+
 function TeamsPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
-  const { data: orgs, isPending } = useListOrganizations()
+  const { data: orgs, isPending: orgsLoading } = useListOrganizations()
   const [createOpen, setCreateOpen] = useState(false)
 
   const userId = session?.user?.id ?? ''
-  const teams = (orgs ?? []).filter(
-    (o: Organization) => (o.metadata as Record<string, unknown> | undefined)?.type !== 'personal',
-  )
+  const teamOrgs = (orgs ?? []).filter((o: ListOrganization) => !o.slug.startsWith('personal-'))
+
+  const fullOrgQueries = useQueries({
+    queries: teamOrgs.map((o: ListOrganization) => ({
+      queryKey: ['organization', 'full', o.id],
+      queryFn: async () => {
+        const { data, error } = await getFullOrganization({ query: { organizationId: o.id } })
+        if (error) throw error
+        return data
+      },
+    })),
+  })
+
+  const isPending = orgsLoading || fullOrgQueries.some((q) => q.isPending)
+  const teams = fullOrgQueries.flatMap((q) => (q.data ? [q.data] : []))
 
   return (
     <div className="space-y-6">
@@ -195,7 +211,7 @@ function TeamsPage() {
         <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">{t('teams.empty')}</div>
       ) : (
         <div className="space-y-2">
-          {teams.map((org: Organization) => (
+          {teams.map((org) => (
             <TeamCard key={org.id} org={org} userId={userId} />
           ))}
         </div>
