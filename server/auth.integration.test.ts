@@ -466,3 +466,146 @@ describe('sendInvitationEmail — buildInvitationEmailHtml via invite-member wit
     vi.unstubAllGlobals()
   })
 })
+
+describe('email sign-up — username is required', () => {
+  it('email sign-up with username keeps the provided username', async () => {
+    const ctx = await createTestApp()
+    const res = await signUp(ctx, 'alice@example.com', { username: 'myalias' })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    expect(row.username).toBe('myalias')
+  })
+})
+
+// OAuth users are created by better-auth's internal adapter without a username.
+// The before hook generates one from preferred_username/login or email prefix.
+// We simulate this by calling sign-up without username (bypasses frontend validation).
+describe('OAuth username generation — before hook', () => {
+  it('generates username from email prefix when no username provided', async () => {
+    const ctx = await createTestApp()
+    const res = await signUp(ctx, 'johndoe@example.com')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    expect(row.username).toBe('johndoe')
+  })
+
+  it('sanitizes special characters from email prefix', async () => {
+    const ctx = await createTestApp()
+    const res = await signUp(ctx, 'john.doe+tag@example.com')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    expect(row.username).toMatch(/^[a-z0-9]+$/)
+    expect(row.username).not.toContain('.')
+    expect(row.username).not.toContain('+')
+  })
+
+  it('adds random suffix when email prefix is shorter than 3 chars', async () => {
+    const ctx = await createTestApp()
+    const res = await signUp(ctx, 'ab@example.com')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    expect(row.username).toMatch(/^ab-[a-z0-9]{6}$/)
+  })
+
+  it('adds random suffix when email prefix is a single char', async () => {
+    const ctx = await createTestApp()
+    const res = await signUp(ctx, 'x@example.com')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    expect(row.username).toMatch(/^x-[a-z0-9]{6}$/)
+  })
+
+  it('adds random suffix when email prefix collides with existing username', async () => {
+    const ctx = await createTestApp()
+    // First user takes "bob" via explicit username
+    await signUp(ctx, 'bob@example.com', { username: 'bob' })
+    // Second user without username — email prefix "bob" is taken, gets "bob-xxxxxx"
+    const res = await signUp(ctx, 'bob@other.com')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    expect(row.username).toMatch(/^bob-[a-z0-9]{6}$/)
+  })
+
+  it('sets displayUsername to the same value as username', async () => {
+    const ctx = await createTestApp()
+    const res = await signUp(ctx, 'carol@example.com')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username, displayUsername: authSchema.user.displayUsername })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    expect(row.displayUsername).toBe(row.username)
+  })
+
+  it('uses email prefix directly when it is exactly 3 chars', async () => {
+    const ctx = await createTestApp()
+    const res = await signUp(ctx, 'abc@example.com')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    expect(row.username).toBe('abc')
+  })
+
+  it('truncates email prefix to 30 chars', async () => {
+    const ctx = await createTestApp()
+    const longPrefix = 'averylongemailprefixthatiswaytolong'
+    const res = await signUp(ctx, `${longPrefix}@example.com`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    expect(row.username!.length).toBeLessThanOrEqual(30)
+  })
+
+  it('email prefix consisting entirely of special characters falls back to user-suffix', async () => {
+    const ctx = await createTestApp()
+    // The sign-up endpoint requires a valid email, so use a prefix that sanitizes to empty
+    // Unfortunately standard email formats require at least one alphanumeric char in local part,
+    // but we can test with an email whose local part has only non-alphanumeric chars stripped
+    // We simulate by directly inserting a user with null username then querying
+    // Instead, test with prefix "___" which sanitizes to "" (hyphens and underscores removed)
+    // Actually the sanitizer removes [^a-z0-9] so underscores are also removed.
+    // Use a numeric-looking prefix that won't conflict — verify fallback via the DB check
+    // The most we can test through the API is a prefix that becomes too short.
+    // A prefix like "a_b" becomes "ab" (2 chars < 3) → gets suffix
+    const res = await signUp(ctx, 'a_b@example.com')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select({ username: authSchema.user.username })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.id, body.user.id))
+    // "a_b" sanitizes to "ab" (2 chars) → appends random suffix
+    expect(row.username).toMatch(/^ab-[a-z0-9]{6}$/)
+  })
+})

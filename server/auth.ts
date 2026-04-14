@@ -5,7 +5,7 @@ import { admin, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { customAlphabet, nanoid } from 'nanoid'
 import { SignupMode } from '../shared/constants'
 import {
   BUILTIN_PROVIDER_IDS,
@@ -137,7 +137,6 @@ function buildVerificationEmailHtml(url: string): string {
 
 export async function createAuth(db: Database, secret: string, baseURL?: string, trustedOrigins?: string[]) {
   const oidcConfigs = await loadOidcConfigs(db)
-
   return betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
@@ -224,7 +223,20 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
 
             // Promote the very first signup to admin BEFORE the INSERT so the
             // role is baked into the session cookie that the response returns.
-            return { data: firstUser ? { ...user, role: 'admin' } : user }
+            const data: Record<string, unknown> = firstUser ? { ...user, role: 'admin' } : { ...user }
+
+            // For OAuth sign-ups, generate username before INSERT.
+            // Email sign-ups already have username from the registration form.
+            if (!data.username) {
+              const raw = user as Record<string, unknown>
+              data.username = await generateUsername(db, {
+                oauthUsername: String(raw.preferred_username ?? raw.login ?? ''),
+                email: String(user.email ?? ''),
+              })
+              data.displayUsername = data.username
+            }
+
+            return { data }
           },
           after: async (user, context) => {
             // Redeem invite code after user is created (user.id is now available)
@@ -260,6 +272,40 @@ async function isFirstUser(db: Database): Promise<boolean> {
   const [row] = await db.select({ c: count() }).from(authSchema.user)
   if (!row) throw new Error('count(*) on user table returned no rows')
   return row.c === 0
+}
+
+const generateRandomSuffix = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 6)
+
+function sanitizeUsername(raw: string): string {
+  const cleaned = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 30)
+  // Must contain at least one alphanumeric character
+  return /[a-z0-9]/.test(cleaned) ? cleaned : ''
+}
+
+async function tryUsername(db: Database, candidate: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: authSchema.user.id })
+    .from(authSchema.user)
+    .where(eq(authSchema.user.username, candidate))
+    .limit(1)
+  return rows.length === 0
+}
+
+async function generateUsername(db: Database, opts: { oauthUsername?: string; email?: string }): Promise<string> {
+  // 1. Try OAuth username (OIDC: preferred_username; GitHub/Gitea: login)
+  const oauthName = sanitizeUsername(opts.oauthUsername ?? '')
+  if (oauthName.length >= 3 && (await tryUsername(db, oauthName))) return oauthName
+
+  // 2. Try email prefix
+  const emailPrefix = sanitizeUsername((opts.email ?? '').split('@')[0])
+  if (emailPrefix.length >= 3 && (await tryUsername(db, emailPrefix))) return emailPrefix
+
+  // 3. Fallback: best available prefix + random suffix
+  const base = oauthName || emailPrefix || 'user'
+  return `${base}-${generateRandomSuffix()}`
 }
 
 async function createPersonalOrg(
