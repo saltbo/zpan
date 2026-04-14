@@ -96,10 +96,6 @@ export function batchDeleteObjects(ids: string[]) {
   return unwrap<{ deleted: number }>(objects.batch.delete.$post({ json: { ids } }))
 }
 
-export function batchUpdateVisibility(ids: string[], isPublic: boolean) {
-  return unwrap<{ updated: number }>(objects.batch.visibility.$post({ json: { ids, isPublic } }))
-}
-
 export function emptyTrash() {
   return unwrap<{ purged: number }>(trash.empty.$post())
 }
@@ -288,12 +284,6 @@ export interface PublicMatter extends StorageObject {
 
 export function getProfile(username: string) {
   return unwrap<{ user: PublicUser; shares: PublicMatter[] }>(profiles[':username'].$get({ param: { username } }))
-}
-
-export function browseProfile(username: string, dir: string) {
-  return unwrap<{ items: PublicMatter[]; breadcrumb: string[] }>(
-    profiles[':username'].browse.$get({ param: { username }, query: { dir } }),
-  )
 }
 
 // Teams Activity API

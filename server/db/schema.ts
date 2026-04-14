@@ -11,7 +11,6 @@ export const matters = sqliteTable('matters', {
   parent: text('parent').notNull().default(''),
   object: text('object').notNull().default(''),
   storageId: text('storage_id').notNull(),
-  isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
   status: text('status').notNull().default('draft'), // draft, active, trashed
   trashedAt: integer('trashed_at'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),

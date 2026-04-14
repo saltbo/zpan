@@ -1,19 +1,17 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { ExternalLinkIcon } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { batchUpdateVisibility, listObjectsByPath } from '@/lib/api'
 import { authClient, useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/settings/')({
@@ -176,48 +174,7 @@ function AppearanceSection() {
 function PublicProfileSection() {
   const { t } = useTranslation()
   const { data: session } = useSession()
-  const queryClient = useQueryClient()
   const username = session?.user?.username as string | undefined
-
-  const { data: objectsData } = useQuery({
-    queryKey: ['objects', ''],
-    queryFn: () => listObjectsByPath('', 'active'),
-    enabled: !!session,
-  })
-
-  const items = objectsData?.items ?? []
-  const [publicIds, setPublicIds] = useState<Set<string>>(() => new Set())
-
-  useEffect(() => {
-    if (items.length > 0) {
-      setPublicIds(new Set(items.filter((m) => m.isPublic).map((m) => m.id)))
-    }
-  }, [items])
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const allIds = items.map((m) => m.id)
-      const toPublic = allIds.filter((id) => publicIds.has(id))
-      const toPrivate = allIds.filter((id) => !publicIds.has(id))
-
-      if (toPublic.length > 0) await batchUpdateVisibility(toPublic, true)
-      if (toPrivate.length > 0) await batchUpdateVisibility(toPrivate, false)
-    },
-    onSuccess: () => {
-      toast.success(t('settings.publicProfile.saved'))
-      queryClient.invalidateQueries({ queryKey: ['objects'] })
-    },
-    onError: (err) => toast.error(err.message ?? String(err)),
-  })
-
-  function toggleId(id: string) {
-    setPublicIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
 
   return (
     <div className="space-y-4 rounded-md border p-4">
@@ -235,29 +192,7 @@ function PublicProfileSection() {
           </a>
         )}
       </div>
-
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('settings.publicProfile.noFiles')}</p>
-      ) : (
-        <div className="space-y-2">
-          {items.map((matter) => (
-            <div key={matter.id} className="flex items-center gap-2">
-              <Checkbox
-                id={`public-${matter.id}`}
-                checked={publicIds.has(matter.id)}
-                onCheckedChange={() => toggleId(matter.id)}
-              />
-              <Label htmlFor={`public-${matter.id}`} className="cursor-pointer font-normal">
-                {matter.name}
-              </Label>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending || items.length === 0}>
-        {mutation.isPending ? t('common.loading') : t('common.save')}
-      </Button>
+      <p className="text-sm text-muted-foreground">{t('settings.publicProfile.hint')}</p>
     </div>
   )
 }
