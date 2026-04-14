@@ -15,6 +15,7 @@ import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
+import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authenticated/teams/index'
 import { Route as AuthenticatedStoragesIndexRouteImport } from './routes/_authenticated/storages/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedRecycleBinIndexRouteImport } from './routes/_authenticated/recycle-bin/index'
@@ -22,6 +23,7 @@ import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
 import { Route as AuthenticatedAdminStoragesIndexRouteImport } from './routes/_authenticated/admin/storages/index'
 import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_authenticated/admin/settings/index'
+import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_authenticated/teams/$teamId/settings'
 import { Route as AuthenticatedAdminSettingsAuthRouteImport } from './routes/_authenticated/admin/settings/auth'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -51,6 +53,11 @@ const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
 const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTeamsIndexRoute = AuthenticatedTeamsIndexRouteImport.update({
+  id: '/teams/',
+  path: '/teams/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedStoragesIndexRoute =
@@ -94,6 +101,12 @@ const AuthenticatedAdminSettingsIndexRoute =
     path: '/settings/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedTeamsTeamIdSettingsRoute =
+  AuthenticatedTeamsTeamIdSettingsRouteImport.update({
+    id: '/teams/$teamId/settings',
+    path: '/teams/$teamId/settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminSettingsAuthRoute =
   AuthenticatedAdminSettingsAuthRouteImport.update({
     id: '/settings/auth',
@@ -110,8 +123,10 @@ export interface FileRoutesByFullPath {
   '/recycle-bin/': typeof AuthenticatedRecycleBinIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/storages/': typeof AuthenticatedStoragesIndexRoute
+  '/teams/': typeof AuthenticatedTeamsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
+  '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
   '/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
   '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
@@ -125,8 +140,10 @@ export interface FileRoutesByTo {
   '/recycle-bin': typeof AuthenticatedRecycleBinIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/storages': typeof AuthenticatedStoragesIndexRoute
+  '/teams': typeof AuthenticatedTeamsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
+  '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages': typeof AuthenticatedAdminStoragesIndexRoute
   '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
@@ -142,8 +159,10 @@ export interface FileRoutesById {
   '/_authenticated/recycle-bin/': typeof AuthenticatedRecycleBinIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
+  '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
+  '/_authenticated/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
   '/_authenticated/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/_authenticated/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
   '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
@@ -159,8 +178,10 @@ export interface FileRouteTypes {
     | '/recycle-bin/'
     | '/settings/'
     | '/storages/'
+    | '/teams/'
     | '/users/'
     | '/admin/settings/auth'
+    | '/teams/$teamId/settings'
     | '/admin/settings/'
     | '/admin/storages/'
     | '/admin/users/'
@@ -174,8 +195,10 @@ export interface FileRouteTypes {
     | '/recycle-bin'
     | '/settings'
     | '/storages'
+    | '/teams'
     | '/users'
     | '/admin/settings/auth'
+    | '/teams/$teamId/settings'
     | '/admin/settings'
     | '/admin/storages'
     | '/admin/users'
@@ -190,8 +213,10 @@ export interface FileRouteTypes {
     | '/_authenticated/recycle-bin/'
     | '/_authenticated/settings/'
     | '/_authenticated/storages/'
+    | '/_authenticated/teams/'
     | '/_authenticated/users/'
     | '/_authenticated/admin/settings/auth'
+    | '/_authenticated/teams/$teamId/settings'
     | '/_authenticated/admin/settings/'
     | '/_authenticated/admin/storages/'
     | '/_authenticated/admin/users/'
@@ -247,6 +272,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/teams/': {
+      id: '/_authenticated/teams/'
+      path: '/teams'
+      fullPath: '/teams/'
+      preLoaderRoute: typeof AuthenticatedTeamsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/storages/': {
       id: '/_authenticated/storages/'
       path: '/storages'
@@ -296,6 +328,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/teams/$teamId/settings': {
+      id: '/_authenticated/teams/$teamId/settings'
+      path: '/teams/$teamId/settings'
+      fullPath: '/teams/$teamId/settings'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/settings/auth': {
       id: '/_authenticated/admin/settings/auth'
       path: '/settings/auth'
@@ -333,7 +372,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRecycleBinIndexRoute: typeof AuthenticatedRecycleBinIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedStoragesIndexRoute: typeof AuthenticatedStoragesIndexRoute
+  AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedTeamsTeamIdSettingsRoute: typeof AuthenticatedTeamsTeamIdSettingsRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -343,7 +384,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRecycleBinIndexRoute: AuthenticatedRecycleBinIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   AuthenticatedStoragesIndexRoute: AuthenticatedStoragesIndexRoute,
+  AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedTeamsTeamIdSettingsRoute: AuthenticatedTeamsTeamIdSettingsRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
