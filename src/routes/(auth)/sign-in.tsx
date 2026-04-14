@@ -16,7 +16,10 @@ export const Route = createFileRoute('/(auth)/sign-in')({
 function SignIn() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const redirectTo = new URLSearchParams(window.location.search).get('redirect')
+  // Only allow same-origin relative redirects (starts with / but not //) to prevent
+  // open redirect and javascript: URI attacks.
+  const rawRedirect = new URLSearchParams(window.location.search).get('redirect')
+  const redirectTo = rawRedirect && /^\/(?!\/)/.test(rawRedirect) ? rawRedirect : null
   const { authSignupMode } = useSiteOptions()
   const [identity, setIdentity] = useState('')
   const [password, setPassword] = useState('')

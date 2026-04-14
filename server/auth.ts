@@ -3,7 +3,7 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
-import { memberAc } from 'better-auth/plugins/organization/access'
+import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { SignupMode } from '../shared/constants'
@@ -172,6 +172,9 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
       admin(),
       organization({
         roles: {
+          owner: ownerAc,
+          admin: adminAc,
+          member: memberAc,
           editor: memberAc,
           viewer: memberAc,
         },
