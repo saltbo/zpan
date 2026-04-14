@@ -9,7 +9,14 @@ const aliases = {
 
 const coverageConfig = {
   provider: 'v8' as const,
-  include: ['server/**/*.ts', 'shared/**/*.ts', 'src/lib/**/*.ts', 'src/i18n/**/*.ts'],
+  include: [
+    'server/**/*.ts',
+    'shared/**/*.ts',
+    'src/lib/**/*.ts',
+    'src/i18n/**/*.ts',
+    'src/routes/u/**/*.tsx',
+    'src/routes/_authenticated/settings/**/*.tsx',
+  ],
   exclude: [
     'server/entry-*.ts',
     'server/**/*.test.ts',
