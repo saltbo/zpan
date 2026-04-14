@@ -310,5 +310,7 @@
   "teams.members.left": "You have left the team",
   "teams.role.owner": "Owner",
   "teams.role.admin": "Admin",
-  "teams.role.member": "Member"
+  "teams.role.member": "Member",
+  "org.mySpace": "My Space",
+  "org.switchWorkspace": "Switch Workspace"
 }

@@ -310,5 +310,7 @@
   "teams.members.left": "你已离开团队",
   "teams.role.owner": "所有者",
   "teams.role.admin": "管理员",
-  "teams.role.member": "成员"
+  "teams.role.member": "成员",
+  "org.mySpace": "我的空间",
+  "org.switchWorkspace": "切换工作区"
 }
