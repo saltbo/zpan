@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
-import { createTestApp } from '../test/setup.js'
 import { createInviteLink } from '../services/team-invite.js'
+import { createTestApp } from '../test/setup.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']

@@ -2,12 +2,7 @@ import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
 import { createTestApp } from '../test/setup.js'
-import {
-  acceptInviteLink,
-  createInviteLink,
-  getInviteLinkInfo,
-  listPendingInvitations,
-} from './team-invite.js'
+import { acceptInviteLink, createInviteLink, getInviteLinkInfo, listPendingInvitations } from './team-invite.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
