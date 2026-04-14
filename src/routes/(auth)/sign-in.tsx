@@ -16,6 +16,7 @@ export const Route = createFileRoute('/(auth)/sign-in')({
 function SignIn() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const redirectTo = new URLSearchParams(window.location.search).get('redirect')
   const { authSignupMode } = useSiteOptions()
   const [identity, setIdentity] = useState('')
   const [password, setPassword] = useState('')
@@ -36,7 +37,11 @@ function SignIn() {
         setError(result.error.message ?? t('auth.signInFailed'))
         return
       }
-      navigate({ to: '/files' })
+      if (redirectTo) {
+        window.location.href = redirectTo
+      } else {
+        navigate({ to: '/files' })
+      }
     } finally {
       setLoading(false)
     }

@@ -26,6 +26,7 @@ import { Route as AuthenticatedAdminStoragesIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_authenticated/admin/settings/index'
 import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_authenticated/teams/$teamId/settings'
 import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
+import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
 import { Route as AuthenticatedAdminSettingsAuthRouteImport } from './routes/_authenticated/admin/settings/auth'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -120,6 +121,11 @@ const AuthenticatedTeamsTeamIdMembersRoute =
     path: '/teams/$teamId/members',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTeamsInviteRoute = AuthenticatedTeamsInviteRouteImport.update({
+  id: '/teams/invite',
+  path: '/teams/invite',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminSettingsAuthRoute =
   AuthenticatedAdminSettingsAuthRouteImport.update({
     id: '/settings/auth',
@@ -138,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/storages/': typeof AuthenticatedStoragesIndexRoute
   '/teams/': typeof AuthenticatedTeamsIndexRoute
+  '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -157,6 +164,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/storages': typeof AuthenticatedStoragesIndexRoute
   '/teams': typeof AuthenticatedTeamsIndexRoute
+  '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
   '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
+  '/_authenticated/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/_authenticated/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -199,6 +208,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/storages/'
     | '/teams/'
+    | '/teams/invite'
     | '/users/'
     | '/admin/settings/auth'
     | '/teams/$teamId/members'
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/storages'
     | '/teams'
+    | '/teams/invite'
     | '/users'
     | '/admin/settings/auth'
     | '/teams/$teamId/members'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/_authenticated/storages/'
     | '/_authenticated/teams/'
+    | '/_authenticated/teams/invite'
     | '/_authenticated/users/'
     | '/_authenticated/admin/settings/auth'
     | '/_authenticated/teams/$teamId/members'
@@ -368,6 +380,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamsTeamIdSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/teams/invite': {
+      id: '/_authenticated/teams/invite'
+      path: '/teams/invite'
+      fullPath: '/teams/invite'
+      preLoaderRoute: typeof AuthenticatedTeamsInviteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/teams/$teamId/members': {
       id: '/_authenticated/teams/$teamId/members'
       path: '/teams/$teamId/members'
@@ -413,6 +432,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedStoragesIndexRoute: typeof AuthenticatedStoragesIndexRoute
   AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
+  AuthenticatedTeamsInviteRoute: typeof AuthenticatedTeamsInviteRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedTeamsTeamIdMembersRoute: typeof AuthenticatedTeamsTeamIdMembersRoute
   AuthenticatedTeamsTeamIdSettingsRoute: typeof AuthenticatedTeamsTeamIdSettingsRoute
@@ -426,6 +446,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   AuthenticatedStoragesIndexRoute: AuthenticatedStoragesIndexRoute,
   AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
+  AuthenticatedTeamsInviteRoute: AuthenticatedTeamsInviteRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedTeamsTeamIdMembersRoute: AuthenticatedTeamsTeamIdMembersRoute,
   AuthenticatedTeamsTeamIdSettingsRoute: AuthenticatedTeamsTeamIdSettingsRoute,

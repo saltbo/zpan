@@ -58,3 +58,13 @@ export const systemOptions = sqliteTable('system_options', {
   value: text('value').notNull().default(''),
   public: integer('public', { mode: 'boolean' }).default(false),
 })
+
+export const teamInviteLinks = sqliteTable('team_invite_links', {
+  id: text('id').primaryKey(),
+  token: text('token').notNull().unique(),
+  organizationId: text('organization_id').notNull(),
+  role: text('role').notNull().default('member'),
+  inviterId: text('inviter_id').notNull(),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
