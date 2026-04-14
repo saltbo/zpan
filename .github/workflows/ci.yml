@@ -24,11 +24,19 @@ jobs:
         run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test -- --coverage
+      - run: npx vitest run --project unit --coverage
       - uses: codecov/codecov-action@v5
         if: always()
         with:
           files: coverage/coverage-final.json
+          flags: unit
+          fail_ci_if_error: false
+      - run: npx vitest run --project integration --coverage
+      - uses: codecov/codecov-action@v5
+        if: always()
+        with:
+          files: coverage/coverage-final.json
+          flags: integration
           fail_ci_if_error: false
       - run: mkdir -p dist
       - run: npm run test:cf
