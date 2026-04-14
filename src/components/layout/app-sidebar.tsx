@@ -11,6 +11,7 @@ import {
   Settings,
   ShieldCheck,
   Trash2,
+  Users,
   Video,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -139,6 +140,14 @@ export function AppSidebar() {
                   <Link to="/recycle-bin">
                     <Trash2 className="h-4 w-4" />
                     <span>{t('nav.recycleBin')}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link to="/teams">
+                    <Users className="h-4 w-4" />
+                    <span>{t('nav.teams')}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
