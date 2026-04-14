@@ -4,6 +4,7 @@ import type {
   AuthProvidersRoute,
   EmailConfigRoute,
   ObjectsRoute,
+  ProfileRoute,
   StoragesRoute,
   SystemRoute,
   TrashRoute,
@@ -24,3 +25,4 @@ export const system = hc<SystemRoute>('/api/system', opts)
 export const authProviders = hc<AuthProvidersRoute>('/api/auth-providers', opts)
 export const inviteCodes = hc<AdminInviteCodesRoute>('/api/admin/invite-codes', opts)
 export const emailConfig = hc<EmailConfigRoute>('/api/admin/email-config', opts)
+export const profiles = hc<ProfileRoute>('/api/profiles')
