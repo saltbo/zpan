@@ -1,0 +1,8 @@
+coverage:
+  ignore:
+    # React components and route files cannot be unit-tested without a DOM
+    # environment. Pure logic extracted from these files is tested separately
+    # in co-located *.test.ts files. Exclude from coverage tracking to avoid
+    # false negatives on patch/project checks.
+    - "src/routes/**"
+    - "src/components/**"
