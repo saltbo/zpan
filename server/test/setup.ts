@@ -147,6 +147,18 @@ const APP_SCHEMA_SQL = `
     expires_at INTEGER,
     created_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS activity_events (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT,
+    target_name TEXT NOT NULL,
+    metadata TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS activity_events_org_id_idx ON activity_events(org_id);
 `
 
 export async function createTestApp() {

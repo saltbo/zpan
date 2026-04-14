@@ -58,3 +58,15 @@ export const systemOptions = sqliteTable('system_options', {
   value: text('value').notNull().default(''),
   public: integer('public', { mode: 'boolean' }).default(false),
 })
+
+export const activityEvents = sqliteTable('activity_events', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  action: text('action').notNull(), // 'upload', 'create', 'delete', 'rename', 'move', 'restore'
+  targetType: text('target_type').notNull(), // 'file', 'folder'
+  targetId: text('target_id'),
+  targetName: text('target_name').notNull(),
+  metadata: text('metadata'), // JSON
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})

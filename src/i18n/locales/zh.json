@@ -312,5 +312,19 @@
   "teams.role.admin": "管理员",
   "teams.role.member": "成员",
   "org.mySpace": "我的空间",
-  "org.switchWorkspace": "切换工作区"
+  "org.switchWorkspace": "切换工作区",
+  "activity.title": "动态",
+  "activity.empty": "暂无操作记录",
+  "activity.loadError": "加载动态失败",
+  "activity.action.upload": "上传了",
+  "activity.action.create": "创建了",
+  "activity.action.delete": "删除了",
+  "activity.action.rename": "重命名了",
+  "activity.action.move": "移动了",
+  "activity.action.restore": "恢复了",
+  "activity.target.file": "文件",
+  "activity.target.folder": "文件夹",
+  "activity.meta.from": "从",
+  "activity.meta.to": "到",
+  "activity.loadMore": "加载更多"
 }

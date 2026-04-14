@@ -14,6 +14,7 @@ import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import storages from './routes/storages'
 import system from './routes/system'
+import teams from './routes/teams'
 import trash from './routes/trash'
 import users from './routes/users'
 
@@ -47,6 +48,7 @@ export function createApp(platform: Platform, auth: Auth) {
   // Each .route() call is independent — TypeScript doesn't stack types.
   app.route('/api/objects', objects)
   app.route('/api/recycle-bin', trash)
+  app.route('/api/teams', teams)
   app.route('/api/admin/storages', storages)
   app.route('/api/admin/users', users)
   app.route('/api/admin/email-config', emailConfig)
@@ -77,3 +79,4 @@ export type AdminInviteCodesRoute = typeof adminInviteCodes
 export type PublicInviteCodesRoute = typeof publicInviteCodes
 export type AuthProvidersRoute = typeof authProviders
 export type ProfileRoute = typeof profile
+export type TeamsRoute = typeof teams

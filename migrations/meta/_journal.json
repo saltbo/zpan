@@ -50,6 +50,13 @@
       "when": 1775120000000,
       "tag": "0006_public_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1776000000000,
+      "tag": "0007_activity_feed",
+      "breakpoints": true
     }
   ]
 }

@@ -90,3 +90,20 @@ export interface PaginatedResponse<T> {
   page: number
   pageSize: number
 }
+
+export interface ActivityEvent {
+  id: string
+  orgId: string
+  userId: string
+  action: string
+  targetType: string
+  targetId: string | null
+  targetName: string
+  metadata: string | null
+  createdAt: string
+  user: {
+    id: string
+    name: string
+    image: string | null
+  }
+}

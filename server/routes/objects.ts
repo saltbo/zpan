@@ -77,6 +77,7 @@ const app = new Hono<Env>()
 
     const matter = await createMatter(db, {
       orgId,
+      userId,
       name,
       type: isFolder ? 'folder' : type,
       size: isFolder ? 0 : size,
@@ -98,8 +99,9 @@ const app = new Hono<Env>()
 
     const { ids, parent } = c.req.valid('json')
     const db = c.get('platform').db
+    const userId = c.get('userId')!
     try {
-      const moved = await batchMove(db, orgId, ids, parent)
+      const moved = await batchMove(db, orgId, ids, parent, userId)
       return c.json({ moved: moved.length })
     } catch (e) {
       return c.json({ error: (e as Error).message }, 400)
@@ -180,7 +182,8 @@ const app = new Hono<Env>()
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
     const db = c.get('platform').db
-    const matter = await updateMatter(db, c.req.param('id'), orgId, c.req.valid('json'))
+    const userId = c.get('userId')!
+    const matter = await updateMatter(db, c.req.param('id'), orgId, c.req.valid('json'), userId)
     if (!matter) return c.json({ error: 'Not found' }, 404)
     return c.json(matter)
   })
@@ -198,7 +201,8 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
     const db = c.get('platform').db
-    const matter = await trashMatter(db, orgId, c.req.param('id'))
+    const userId = c.get('userId')!
+    const matter = await trashMatter(db, orgId, c.req.param('id'), userId)
     if (!matter) return c.json({ error: 'Not found' }, 404)
     return c.json(matter)
   })
@@ -206,7 +210,8 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
     const db = c.get('platform').db
-    const matter = await restoreMatter(db, orgId, c.req.param('id'))
+    const userId = c.get('userId')!
+    const matter = await restoreMatter(db, orgId, c.req.param('id'), userId)
     if (!matter) return c.json({ error: 'Not found' }, 404)
     return c.json(matter)
   })

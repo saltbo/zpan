@@ -312,5 +312,19 @@
   "teams.role.admin": "Admin",
   "teams.role.member": "Member",
   "org.mySpace": "My Space",
-  "org.switchWorkspace": "Switch Workspace"
+  "org.switchWorkspace": "Switch Workspace",
+  "activity.title": "Activity",
+  "activity.empty": "No activity yet",
+  "activity.loadError": "Failed to load activity",
+  "activity.action.upload": "uploaded",
+  "activity.action.create": "created",
+  "activity.action.delete": "deleted",
+  "activity.action.rename": "renamed",
+  "activity.action.move": "moved",
+  "activity.action.restore": "restored",
+  "activity.target.file": "file",
+  "activity.target.folder": "folder",
+  "activity.meta.from": "from",
+  "activity.meta.to": "to",
+  "activity.loadMore": "Load more"
 }
