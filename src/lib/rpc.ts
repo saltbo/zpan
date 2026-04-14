@@ -7,6 +7,7 @@ import type {
   ProfileRoute,
   StoragesRoute,
   SystemRoute,
+  TeamsRoute,
   TrashRoute,
   UserQuotasRoute,
   UsersRoute,
@@ -26,3 +27,4 @@ export const authProviders = hc<AuthProvidersRoute>('/api/auth-providers', opts)
 export const inviteCodes = hc<AdminInviteCodesRoute>('/api/admin/invite-codes', opts)
 export const emailConfig = hc<EmailConfigRoute>('/api/admin/email-config', opts)
 export const profiles = hc<ProfileRoute>('/api/profiles')
+export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
