@@ -19,6 +19,8 @@
   "auth.emailOrUsernamePlaceholder": "Enter email or username",
   "auth.inviteCode": "Invite Code",
   "auth.orDivider": "or",
+  "auth.signInWithEmail": "Sign in with email",
+  "auth.signUpWithEmail": "Sign up with email",
   "auth.continueWith": "Continue with {{provider}}",
   "auth.registrationClosed": "Registration is currently closed",
   "nav.main": "Main",

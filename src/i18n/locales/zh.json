@@ -19,6 +19,8 @@
   "auth.emailOrUsernamePlaceholder": "输入邮箱或用户名",
   "auth.inviteCode": "邀请码",
   "auth.orDivider": "或",
+  "auth.signInWithEmail": "使用邮箱登录",
+  "auth.signUpWithEmail": "使用邮箱注册",
   "auth.continueWith": "使用 {{provider}} 继续",
   "auth.registrationClosed": "注册功能已关闭",
   "nav.main": "主要",

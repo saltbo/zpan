@@ -1,11 +1,13 @@
 import { SignupMode } from '@shared/constants'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { OAuthButtons } from '@/components/oauth-buttons'
+import { OAuthButtons, useOAuthProviders } from '@/components/oauth-buttons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 import { useSiteOptions } from '@/hooks/use-site-options'
 import { signUp } from '@/lib/auth-client'
 
@@ -17,12 +19,14 @@ function SignUp() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { authSignupMode, isLoading: optionsLoading } = useSiteOptions()
+  const { providers } = useOAuthProviders()
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [formExpanded, setFormExpanded] = useState(providers.length <= 3)
 
   if (authSignupMode === SignupMode.CLOSED) {
     return (
@@ -66,6 +70,8 @@ function SignUp() {
     }
   }
 
+  const showDivider = providers.length > 0
+
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-6 p-6">
@@ -73,44 +79,62 @@ function SignUp() {
           <h1 className="text-2xl font-bold">ZPan</h1>
           <p className="text-muted-foreground">{t('auth.signUpSubtitle')}</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">{t('auth.email')}</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="username">{t('auth.username')}</Label>
-            <Input
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              pattern="^[a-zA-Z0-9_]{3,30}$"
-              title={t('auth.usernameHint')}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">{t('auth.password')}</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {authSignupMode === SignupMode.INVITE_ONLY && (
-            <div className="space-y-2">
-              <Label htmlFor="inviteCode">{t('auth.inviteCode')}</Label>
-              <Input id="inviteCode" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required />
-            </div>
-          )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={loading || optionsLoading}>
-            {loading ? t('auth.creatingAccount') : t('auth.signUp')}
-          </Button>
-        </form>
         <OAuthButtons />
+        {showDivider && (
+          <div className="flex items-center gap-3">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground">{t('auth.orDivider')}</span>
+            <Separator className="flex-1" />
+          </div>
+        )}
+        {providers.length > 3 && !formExpanded ? (
+          <button
+            type="button"
+            onClick={() => setFormExpanded(true)}
+            className="flex w-full items-center justify-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            {t('auth.signUpWithEmail')}
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">{t('auth.email')}</Label>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="username">{t('auth.username')}</Label>
+              <Input
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                pattern="^[a-zA-Z0-9_]{3,30}$"
+                title={t('auth.usernameHint')}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">{t('auth.password')}</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {authSignupMode === SignupMode.INVITE_ONLY && (
+              <div className="space-y-2">
+                <Label htmlFor="inviteCode">{t('auth.inviteCode')}</Label>
+                <Input id="inviteCode" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required />
+              </div>
+            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" className="w-full" disabled={loading || optionsLoading}>
+              {loading ? t('auth.creatingAccount') : t('auth.signUp')}
+            </Button>
+          </form>
+        )}
         <p className="text-center text-sm text-muted-foreground">
           {t('auth.hasAccount')}{' '}
           <Link to="/sign-in" className="underline hover:text-foreground">
