@@ -1,3 +1,4 @@
+// Tests for src/lib/api.ts — covers all public API helper functions
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   batchDeleteObjects,
