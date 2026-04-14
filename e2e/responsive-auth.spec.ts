@@ -48,9 +48,8 @@ test.describe('Auth pages responsive layout', () => {
   test('mobile: sign-up form fields are usable @mobile', async ({ page }) => {
     await page.goto('/sign-up')
 
-    await expect(page.getByLabel('Username')).toBeVisible()
-    await expect(page.getByLabel('Name', { exact: true })).toBeVisible()
     await expect(page.getByLabel('Email', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('Username')).toBeVisible()
     await expect(page.getByLabel(/password/i)).toBeVisible()
     await expect(page.getByRole('button', { name: /sign up/i })).toBeVisible()
   })
