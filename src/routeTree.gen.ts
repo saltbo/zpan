@@ -21,8 +21,8 @@ import { Route as AuthenticatedRecycleBinIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
 import { Route as AuthenticatedAdminStoragesIndexRouteImport } from './routes/_authenticated/admin/storages/index'
-import { Route as AuthenticatedAdminSettingsAuthRouteImport } from './routes/_authenticated/admin/settings/auth'
 import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_authenticated/admin/settings/index'
+import { Route as AuthenticatedAdminSettingsAuthRouteImport } from './routes/_authenticated/admin/settings/auth'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -88,16 +88,16 @@ const AuthenticatedAdminStoragesIndexRoute =
     path: '/storages/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedAdminSettingsAuthRoute =
-  AuthenticatedAdminSettingsAuthRouteImport.update({
-    id: '/settings/auth',
-    path: '/settings/auth',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
 const AuthenticatedAdminSettingsIndexRoute =
   AuthenticatedAdminSettingsIndexRouteImport.update({
     id: '/settings/',
     path: '/settings/',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminSettingsAuthRoute =
+  AuthenticatedAdminSettingsAuthRouteImport.update({
+    id: '/settings/auth',
+    path: '/settings/auth',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
 
@@ -289,18 +289,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminStoragesIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
-    '/_authenticated/admin/settings/auth': {
-      id: '/_authenticated/admin/settings/auth'
-      path: '/settings/auth'
-      fullPath: '/admin/settings/auth'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsAuthRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
     '/_authenticated/admin/settings/': {
       id: '/_authenticated/admin/settings/'
       path: '/settings'
       fullPath: '/admin/settings/'
       preLoaderRoute: typeof AuthenticatedAdminSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/settings/auth': {
+      id: '/_authenticated/admin/settings/auth'
+      path: '/settings/auth'
+      fullPath: '/admin/settings/auth'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsAuthRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
   }
