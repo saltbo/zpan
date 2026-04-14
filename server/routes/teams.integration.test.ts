@@ -227,3 +227,435 @@ describe('POST /api/teams/join', () => {
     expect(res.status).toBe(409)
   })
 })
+
+// ─── Activity feed tests (from master) ────────────────────────────────────────
+
+import { sql } from 'drizzle-orm'
+import { authedHeaders } from '../test/setup.js'
+
+type DbType = Awaited<ReturnType<typeof createTestApp>>['db']
+
+async function getOrgId(db: DbType): Promise<string> {
+  const rows = await db.all<{ id: string }>(
+    sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
+  )
+  return rows[0].id
+}
+
+async function getUserId(db: DbType, email = 'test@example.com'): Promise<string> {
+  const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = ${email}`)
+  return rows[0].id
+}
+
+async function insertActivityEvent(
+  db: DbType,
+  opts: {
+    id: string
+    orgId: string
+    userId: string
+    action?: string
+    targetType?: string
+    targetId?: string | null
+    targetName?: string
+    metadata?: string | null
+    createdAt?: number
+  },
+) {
+  await db.run(sql`
+    INSERT INTO activity_events (id, org_id, user_id, action, target_type, target_id, target_name, metadata, created_at)
+    VALUES (
+      ${opts.id},
+      ${opts.orgId},
+      ${opts.userId},
+      ${opts.action ?? 'upload'},
+      ${opts.targetType ?? 'file'},
+      ${opts.targetId ?? null},
+      ${opts.targetName ?? 'report.pdf'},
+      ${opts.metadata ?? null},
+      ${opts.createdAt ?? Date.now()}
+    )
+  `)
+}
+
+// ─── Auth guard ────────────────────────────────────────────────────────────────
+
+describe('GET /api/teams/:teamId/activity — auth', () => {
+  it('returns 401 without auth', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/teams/some-id/activity')
+    expect(res.status).toBe(401)
+  })
+})
+
+// ─── Access control ────────────────────────────────────────────────────────────
+
+describe('GET /api/teams/:teamId/activity — access control', () => {
+  it('returns 403 when authed user is not a member of a non-personal org', async () => {
+    const { app, db } = await createTestApp()
+
+    // Sign up a user (their personal org is created automatically)
+    const headers1 = await authedHeaders(app, 'user1@example.com')
+    const userId1 = await getUserId(db, 'user1@example.com')
+
+    // Create a non-personal team org and add only user1 as a member
+    const now = Date.now()
+    await db.run(
+      sql`INSERT INTO organization (id, name, slug, metadata, created_at) VALUES ('team-org-1', 'Team One', 'team-one', '{"type":"team"}', ${now})`,
+    )
+    await db.run(
+      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES ('mem-1', 'team-org-1', ${userId1}, 'owner', ${now})`,
+    )
+
+    // Sign up user2 (not a member of the team org) and try to access it
+    const headers2 = await authedHeaders(app, 'user2@example.com')
+
+    // Suppress unused variable warning
+    void headers1
+
+    const res = await app.request('/api/teams/team-org-1/activity', { headers: headers2 })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 200 when authed user is the owner of their personal org', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 200 when authed user accesses any personal org (personal orgs are public to auth users)', async () => {
+    const { app, db } = await createTestApp()
+
+    // Sign up user1
+    await authedHeaders(app, 'user1@example.com')
+    const userId1 = await getUserId(db, 'user1@example.com')
+
+    // Get user1's personal org
+    const rows = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE slug = ${`personal-${userId1}`} LIMIT 1`,
+    )
+    const orgId1 = rows[0].id
+
+    // Sign up user2 and access user1's personal org
+    const headers2 = await authedHeaders(app, 'user2@example.com')
+
+    const res = await app.request(`/api/teams/${orgId1}/activity`, { headers: headers2 })
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 200 when authed user is a member of a non-personal team org', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const userId = await getUserId(db)
+
+    const now = Date.now()
+    await db.run(
+      sql`INSERT INTO organization (id, name, slug, metadata, created_at) VALUES ('team-org-2', 'My Team', 'my-team', '{"type":"team"}', ${now})`,
+    )
+    await db.run(
+      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES ('mem-t2', 'team-org-2', ${userId}, 'member', ${now})`,
+    )
+
+    const res = await app.request('/api/teams/team-org-2/activity', { headers })
+    expect(res.status).toBe(200)
+  })
+})
+
+// ─── Happy path ────────────────────────────────────────────────────────────────
+
+describe('GET /api/teams/:teamId/activity — happy path', () => {
+  it('returns empty items list when there are no activity events', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
+    expect(body.items).toEqual([])
+    expect(body.total).toBe(0)
+  })
+
+  it('returns activity items with user info when events exist', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    await insertActivityEvent(db, { id: 'evt-1', orgId, userId, targetName: 'document.pdf' })
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      items: Array<{ id: string; targetName: string; user: { id: string; name: string; image: string | null } }>
+      total: number
+    }
+    expect(body.total).toBe(1)
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0].id).toBe('evt-1')
+    expect(body.items[0].targetName).toBe('document.pdf')
+    expect(body.items[0].user).toMatchObject({ id: userId, name: 'Test User' })
+  })
+
+  it('includes all expected activity event fields in each item', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    await insertActivityEvent(db, {
+      id: 'evt-fields',
+      orgId,
+      userId,
+      action: 'delete',
+      targetType: 'folder',
+      targetId: 'folder-abc',
+      targetName: 'archive',
+    })
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    const body = (await res.json()) as {
+      items: Array<{
+        id: string
+        orgId: string
+        userId: string
+        action: string
+        targetType: string
+        targetId: string
+        targetName: string
+      }>
+    }
+    const item = body.items[0]
+    expect(item.orgId).toBe(orgId)
+    expect(item.userId).toBe(userId)
+    expect(item.action).toBe('delete')
+    expect(item.targetType).toBe('folder')
+    expect(item.targetId).toBe('folder-abc')
+    expect(item.targetName).toBe('archive')
+  })
+
+  it('returns user image as null when user has no image', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    await insertActivityEvent(db, { id: 'evt-img', orgId, userId })
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    const body = (await res.json()) as { items: Array<{ user: { image: string | null } }> }
+    expect(body.items[0].user.image).toBeNull()
+  })
+})
+
+// ─── Pagination ────────────────────────────────────────────────────────────────
+
+describe('GET /api/teams/:teamId/activity — pagination', () => {
+  it('returns default page=1 and pageSize=20 in response', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    const body = (await res.json()) as { page: number; pageSize: number }
+    expect(body.page).toBe(1)
+    expect(body.pageSize).toBe(20)
+  })
+
+  it('respects explicit page and pageSize query params', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+
+    const res = await app.request(`/api/teams/${orgId}/activity?page=2&pageSize=5`, { headers })
+    const body = (await res.json()) as { page: number; pageSize: number }
+    expect(body.page).toBe(2)
+    expect(body.pageSize).toBe(5)
+  })
+
+  it('returns correct total count regardless of page', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    const now = Date.now()
+    for (let i = 1; i <= 7; i++) {
+      await insertActivityEvent(db, { id: `evt-total-${i}`, orgId, userId, createdAt: now + i })
+    }
+
+    const res = await app.request(`/api/teams/${orgId}/activity?page=1&pageSize=3`, { headers })
+    const body = (await res.json()) as { items: unknown[]; total: number }
+    expect(body.total).toBe(7)
+    expect(body.items).toHaveLength(3)
+  })
+
+  it('returns correct items on second page', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    const now = Date.now()
+    for (let i = 1; i <= 5; i++) {
+      await insertActivityEvent(db, {
+        id: `evt-page-${i}`,
+        orgId,
+        userId,
+        targetName: `file-${i}.pdf`,
+        createdAt: now + i,
+      })
+    }
+
+    // Page 2 with pageSize 3 should yield 2 items (the oldest two)
+    const res = await app.request(`/api/teams/${orgId}/activity?page=2&pageSize=3`, { headers })
+    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
+    expect(body.total).toBe(5)
+    expect(body.items).toHaveLength(2)
+  })
+
+  it('returns empty items when page is beyond total results', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    await insertActivityEvent(db, { id: 'evt-single', orgId, userId })
+
+    const res = await app.request(`/api/teams/${orgId}/activity?page=99&pageSize=20`, { headers })
+    const body = (await res.json()) as { items: unknown[]; total: number }
+    expect(body.total).toBe(1)
+    expect(body.items).toHaveLength(0)
+  })
+})
+
+// ─── Ordering ─────────────────────────────────────────────────────────────────
+
+describe('GET /api/teams/:teamId/activity — ordering', () => {
+  it('returns items ordered by newest first', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    const base = Date.now()
+    await insertActivityEvent(db, { id: 'evt-old', orgId, userId, targetName: 'old.pdf', createdAt: base })
+    await insertActivityEvent(db, { id: 'evt-new', orgId, userId, targetName: 'new.pdf', createdAt: base + 1000 })
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    const body = (await res.json()) as { items: Array<{ id: string }> }
+    expect(body.items[0].id).toBe('evt-new')
+    expect(body.items[1].id).toBe('evt-old')
+  })
+})
+
+// ─── Metadata ─────────────────────────────────────────────────────────────────
+
+describe('GET /api/teams/:teamId/activity — metadata', () => {
+  it('returns metadata field as stored when metadata is present', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    await insertActivityEvent(db, {
+      id: 'evt-meta',
+      orgId,
+      userId,
+      metadata: JSON.stringify({ size: 1024, mime: 'application/pdf' }),
+    })
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    const body = (await res.json()) as { items: Array<{ metadata: string | null }> }
+    expect(body.items[0].metadata).toBe('{"size":1024,"mime":"application/pdf"}')
+  })
+
+  it('returns null metadata when no metadata was stored', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    await insertActivityEvent(db, { id: 'evt-nometa', orgId, userId, metadata: null })
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    const body = (await res.json()) as { items: Array<{ metadata: string | null }> }
+    expect(body.items[0].metadata).toBeNull()
+  })
+})
+
+// ─── Multiple events across orgs ──────────────────────────────────────────────
+
+describe('GET /api/teams/:teamId/activity — isolation', () => {
+  it('only returns events for the requested org, not other orgs', async () => {
+    const { app, db } = await createTestApp()
+    const headers1 = await authedHeaders(app, 'user1@example.com')
+    const userId1 = await getUserId(db, 'user1@example.com')
+
+    // Get user1's org
+    const allOrgs = await db.all<{ id: string; metadata: string }>(sql`SELECT id, metadata FROM organization`)
+    const org1 = allOrgs.find((r) => {
+      try {
+        return (JSON.parse(r.metadata) as { type?: string }).type === 'personal'
+      } catch {
+        return false
+      }
+    })
+    if (!org1) throw new Error('personal org for user1 not found')
+    const orgId1 = org1.id
+
+    // Sign up user2 to create a second org
+    await authedHeaders(app, 'user2@example.com')
+    const userId2 = await getUserId(db, 'user2@example.com')
+    const allOrgs2 = await db.all<{ id: string; metadata: string }>(sql`SELECT id, metadata FROM organization`)
+    const orgsWithPersonal = allOrgs2.filter((r) => {
+      try {
+        return (JSON.parse(r.metadata) as { type?: string }).type === 'personal'
+      } catch {
+        return false
+      }
+    })
+    const org2 = orgsWithPersonal.find((r) => r.id !== orgId1)
+    if (!org2) throw new Error('personal org for user2 not found')
+    const orgId2 = org2.id
+
+    await insertActivityEvent(db, { id: 'evt-org1', orgId: orgId1, userId: userId1, targetName: 'user1-file.pdf' })
+    await insertActivityEvent(db, { id: 'evt-org2', orgId: orgId2, userId: userId2, targetName: 'user2-file.pdf' })
+
+    const res = await app.request(`/api/teams/${orgId1}/activity`, { headers: headers1 })
+    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
+    expect(body.total).toBe(1)
+    expect(body.items[0].id).toBe('evt-org1')
+  })
+
+  it('returns items with all expected fields', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+
+    await insertActivityEvent(db, {
+      id: 'evt-fields',
+      orgId,
+      userId,
+      action: 'move',
+      targetType: 'folder',
+      targetId: 'folder-1',
+      targetName: 'My Folder',
+      metadata: JSON.stringify({ from: '/old', to: '/new' }),
+    })
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
+    const item = body.items[0]
+    expect(item.id).toBe('evt-fields')
+    expect(item.action).toBe('move')
+    expect(item.targetType).toBe('folder')
+    expect(item.targetId).toBe('folder-1')
+    expect(item.targetName).toBe('My Folder')
+    expect(item.metadata).toBe(JSON.stringify({ from: '/old', to: '/new' }))
+    expect(item.user).toBeDefined()
+  })
+})

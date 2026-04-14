@@ -11,7 +11,6 @@ export const matters = sqliteTable('matters', {
   parent: text('parent').notNull().default(''),
   object: text('object').notNull().default(''),
   storageId: text('storage_id').notNull(),
-  isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
   status: text('status').notNull().default('draft'), // draft, active, trashed
   trashedAt: integer('trashed_at'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
@@ -67,4 +66,16 @@ export const teamInviteLinks = sqliteTable('team_invite_links', {
   inviterId: text('inviter_id').notNull(),
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+export const activityEvents = sqliteTable('activity_events', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  action: text('action').notNull(), // 'upload', 'create', 'delete', 'rename', 'move', 'restore'
+  targetType: text('target_type').notNull(), // 'file', 'folder'
+  targetId: text('target_id'),
+  targetName: text('target_name').notNull(),
+  metadata: text('metadata'), // JSON
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })

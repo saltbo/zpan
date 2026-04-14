@@ -4,11 +4,13 @@ import { nanoid } from 'nanoid'
 import { DirType } from '../../shared/constants'
 import { matters, orgQuotas, storages } from '../db/schema'
 import type { Database } from '../platform/interface'
+import { recordActivity } from './activity'
 
 export type Matter = typeof matters.$inferSelect
 
 interface CreateMatterInput {
   orgId: string
+  userId?: string
   name: string
   type: string
   size?: number
@@ -17,7 +19,6 @@ interface CreateMatterInput {
   object: string
   storageId: string
   status: string
-  isPublic?: boolean
 }
 
 export async function createMatter(db: Database, input: CreateMatterInput): Promise<Matter> {
@@ -33,7 +34,6 @@ export async function createMatter(db: Database, input: CreateMatterInput): Prom
     parent: input.parent ?? '',
     object: input.object,
     storageId: input.storageId,
-    isPublic: input.isPublic ?? false,
     status: input.status,
     trashedAt: null,
     createdAt: now,
@@ -41,6 +41,19 @@ export async function createMatter(db: Database, input: CreateMatterInput): Prom
   }
 
   await db.insert(matters).values(row)
+
+  if (input.userId) {
+    const isFolder = (input.dirtype ?? 0) !== DirType.FILE
+    await recordActivity(db, {
+      orgId: input.orgId,
+      userId: input.userId,
+      action: isFolder ? 'create' : 'upload',
+      targetType: isFolder ? 'folder' : 'file',
+      targetId: row.id,
+      targetName: row.name,
+    })
+  }
+
   return row
 }
 
@@ -121,7 +134,8 @@ export async function updateMatter(
   db: Database,
   id: string,
   orgId: string,
-  input: { name?: string; parent?: string; isPublic?: boolean },
+  input: { name?: string; parent?: string },
+  userId?: string,
 ): Promise<Matter | null> {
   const existing = await getMatter(db, id, orgId)
   if (!existing) return null
@@ -129,7 +143,6 @@ export async function updateMatter(
   const now = new Date()
   const newName = input.name ?? existing.name
   const newParent = input.parent ?? existing.parent
-  const newIsPublic = input.isPublic ?? existing.isPublic
   const isFolder = existing.dirtype !== DirType.FILE
   const renamed = input.name && input.name !== existing.name
   const moved = input.parent !== undefined && input.parent !== existing.parent
@@ -145,25 +158,39 @@ export async function updateMatter(
 
   await db
     .update(matters)
-    .set({ name: newName, parent: newParent, isPublic: newIsPublic, updatedAt: now })
+    .set({ name: newName, parent: newParent, updatedAt: now })
     .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
 
-  return { ...existing, name: newName, parent: newParent, isPublic: newIsPublic, updatedAt: now }
-}
+  const updated = { ...existing, name: newName, parent: newParent, updatedAt: now }
 
-export async function batchUpdateVisibility(
-  db: Database,
-  orgId: string,
-  ids: string[],
-  isPublic: boolean,
-): Promise<number> {
-  const uniqueIds = [...new Set(ids)]
-  const now = new Date()
-  await db
-    .update(matters)
-    .set({ isPublic, updatedAt: now })
-    .where(and(eq(matters.orgId, orgId), inArray(matters.id, uniqueIds)))
-  return uniqueIds.length
+  if (userId) {
+    const isFolder = existing.dirtype !== DirType.FILE
+    const targetType = isFolder ? 'folder' : 'file'
+    if (renamed) {
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'rename',
+        targetType,
+        targetId: id,
+        targetName: newName,
+        metadata: { from: existing.name },
+      })
+    }
+    if (moved) {
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'move',
+        targetType,
+        targetId: id,
+        targetName: newName,
+        metadata: { from: existing.parent, to: newParent },
+      })
+    }
+  }
+
+  return updated
 }
 
 async function cascadeParentPath(db: Database, orgId: string, oldPath: string, newPath: string): Promise<void> {
@@ -266,7 +293,6 @@ export async function copyMatter(
     parent: targetParent,
     object: newObject,
     storageId: source.storageId,
-    isPublic: false,
     status: 'active',
     trashedAt: null,
     createdAt: now,
@@ -296,7 +322,13 @@ export async function getMatters(db: Database, orgId: string, ids: string[]): Pr
     .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
 }
 
-export async function batchMove(db: Database, orgId: string, ids: string[], newParent: string): Promise<Matter[]> {
+export async function batchMove(
+  db: Database,
+  orgId: string,
+  ids: string[],
+  newParent: string,
+  userId?: string,
+): Promise<Matter[]> {
   const uniqueIds = [...new Set(ids)]
   const items = await getMatters(db, orgId, uniqueIds)
   if (items.length !== uniqueIds.length) {
@@ -326,7 +358,23 @@ export async function batchMove(db: Database, orgId: string, ids: string[], newP
       .where(and(eq(matters.id, item.id), eq(matters.orgId, orgId)))
   }
 
-  return items.map((m) => ({ ...m, parent: newParent, updatedAt: now }))
+  const moved = items.map((m) => ({ ...m, parent: newParent, updatedAt: now }))
+
+  if (userId) {
+    for (const item of items) {
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'move',
+        targetType: item.dirtype !== DirType.FILE ? 'folder' : 'file',
+        targetId: item.id,
+        targetName: item.name,
+        metadata: { from: item.parent, to: newParent },
+      })
+    }
+  }
+
+  return moved
 }
 
 function getDescendants(db: Database, orgId: string, folderPath: string): Promise<Matter[]> {
@@ -394,7 +442,7 @@ export async function batchDelete(db: Database, orgId: string, ids: string[]): P
 
 // ─── Recycle Bin ─────────────────────────────────────────────────────────────
 
-export async function trashMatter(db: Database, orgId: string, id: string): Promise<Matter | null> {
+export async function trashMatter(db: Database, orgId: string, id: string, userId?: string): Promise<Matter | null> {
   const existing = await getMatter(db, id, orgId)
   if (!existing) return null
   if (existing.status === 'trashed') return existing
@@ -416,10 +464,23 @@ export async function trashMatter(db: Database, orgId: string, id: string): Prom
       .set({ status: 'trashed', trashedAt: nowTs, updatedAt: now })
       .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId), eq(matters.status, 'active')))
   }
-  return { ...existing, status: 'trashed', trashedAt: nowTs, updatedAt: now }
+  const trashed = { ...existing, status: 'trashed', trashedAt: nowTs, updatedAt: now }
+
+  if (userId) {
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'delete',
+      targetType: existing.dirtype !== DirType.FILE ? 'folder' : 'file',
+      targetId: existing.id,
+      targetName: existing.name,
+    })
+  }
+
+  return trashed
 }
 
-export async function restoreMatter(db: Database, orgId: string, id: string): Promise<Matter | null> {
+export async function restoreMatter(db: Database, orgId: string, id: string, userId?: string): Promise<Matter | null> {
   const existing = await getMatter(db, id, orgId)
   if (!existing) return null
   if (existing.status !== 'trashed') return existing
@@ -440,7 +501,20 @@ export async function restoreMatter(db: Database, orgId: string, id: string): Pr
       .set({ status: 'active', trashedAt: null, updatedAt: now })
       .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId), eq(matters.status, 'trashed')))
   }
-  return { ...existing, status: 'active', trashedAt: null, updatedAt: now }
+  const restored = { ...existing, status: 'active', trashedAt: null, updatedAt: now }
+
+  if (userId) {
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'restore',
+      targetType: existing.dirtype !== DirType.FILE ? 'folder' : 'file',
+      targetId: existing.id,
+      targetName: existing.name,
+    })
+  }
+
+  return restored
 }
 
 export async function collectForPurge(db: Database, orgId: string, id: string): Promise<Matter[] | null>

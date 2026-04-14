@@ -38,6 +38,7 @@ import {
 import { useSiteOptions } from '@/hooks/use-site-options'
 import { getUserQuota } from '@/lib/api'
 import { signOut, useSession } from '@/lib/auth-client'
+import { OrgSwitcher } from '../team/org-switcher'
 import { FolderTree } from './folder-tree'
 
 function formatSize(bytes: number): string {
@@ -82,6 +83,7 @@ export function AppSidebar() {
           <HardDrive className="h-5 w-5" />
           <span className="text-lg font-semibold">{siteName || 'ZPan'}</span>
         </div>
+        <OrgSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

@@ -104,7 +104,6 @@ const APP_SCHEMA_SQL = `
     parent TEXT NOT NULL DEFAULT '',
     object TEXT NOT NULL DEFAULT '',
     storage_id TEXT NOT NULL,
-    is_public INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'draft',
     trashed_at INTEGER,
     created_at INTEGER NOT NULL,
@@ -157,6 +156,18 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL
   );
   CREATE UNIQUE INDEX IF NOT EXISTS team_invite_links_token_unique ON team_invite_links(token);
+  CREATE TABLE IF NOT EXISTS activity_events (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT,
+    target_name TEXT NOT NULL,
+    metadata TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS activity_events_org_id_idx ON activity_events(org_id);
 `
 
 export async function createTestApp() {

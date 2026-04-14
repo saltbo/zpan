@@ -11,7 +11,6 @@ export interface StorageObject {
   parent: string
   object: string
   storageId: string
-  isPublic: boolean
   status: ObjectStatus
   createdAt: string
   updatedAt: string
@@ -89,4 +88,21 @@ export interface PaginatedResponse<T> {
   total: number
   page: number
   pageSize: number
+}
+
+export interface ActivityEvent {
+  id: string
+  orgId: string
+  userId: string
+  action: string
+  targetType: string
+  targetId: string | null
+  targetName: string
+  metadata: string | null
+  createdAt: string
+  user: {
+    id: string
+    name: string
+    image: string | null
+  }
 }

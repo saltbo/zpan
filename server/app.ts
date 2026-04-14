@@ -49,6 +49,7 @@ export function createApp(platform: Platform, auth: Auth) {
   // Each .route() call is independent — TypeScript doesn't stack types.
   app.route('/api/objects', objects)
   app.route('/api/recycle-bin', trash)
+  app.route('/api/teams', teams)
   app.route('/api/admin/storages', storages)
   app.route('/api/admin/users', users)
   app.route('/api/admin/email-config', emailConfig)
@@ -58,7 +59,6 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/quotas', userQuotas)
   app.route('/api/system', system)
   app.route('/api/auth-providers', authProviders)
-  app.route('/api/teams', teams)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
