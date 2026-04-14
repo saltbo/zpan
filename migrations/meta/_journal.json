@@ -50,6 +50,13 @@
       "when": 1776000000000,
       "tag": "0007_activity_feed",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1775130000000,
+      "tag": "0007_team_invite_links",
+      "breakpoints": true
     }
   ]
 }

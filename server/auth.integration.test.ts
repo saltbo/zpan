@@ -402,3 +402,67 @@ describe('createPersonalOrg — org name and quota edge cases', () => {
     expect(res.status).toBe(200)
   })
 })
+
+describe('sendInvitationEmail — buildInvitationEmailHtml via invite-member with email_provider configured', () => {
+  const emailProviderOptions = [
+    { key: 'email_provider', value: 'http' },
+    { key: 'email_from', value: 'no-reply@example.com' },
+    { key: 'email_http_url', value: 'https://api.mail.example.com/send' },
+    { key: 'email_http_api_key', value: 'my-api-key' },
+  ]
+
+  async function setupOwnerAndOrg(ctx: TestCtx, email: string) {
+    const signUpRes = await signUp(ctx, email)
+    const cookie = signUpRes.headers.getSetCookie().join('; ')
+    const body = (await signUpRes.json()) as { user: { id: string } }
+    const orgs = await ctx.db.select().from(authSchema.organization)
+    const orgId = orgs.find((o) => o.slug === `personal-${body.user.id}`)?.id ?? ''
+    return { cookie, orgId }
+  }
+
+  it('invitation email is sent when email_provider is configured', async () => {
+    const { vi } = await import('vitest')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values(emailProviderOptions)
+    const { cookie, orgId } = await setupOwnerAndOrg(ctx, 'inviter@example.com')
+
+    const res = await ctx.app.request('/api/auth/organization/invite-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ email: 'invitee@example.com', role: 'member', organizationId: orgId }),
+    })
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalled()
+
+    vi.unstubAllGlobals()
+  })
+
+  it('invitation email HTML contains accept-invitation link and role', async () => {
+    const { vi } = await import('vitest')
+    let capturedHtml = ''
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+      const b = JSON.parse(init?.body as string)
+      capturedHtml = b.html
+      return { ok: true }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values(emailProviderOptions)
+    const { cookie, orgId } = await setupOwnerAndOrg(ctx, 'orgowner@example.com')
+
+    await ctx.app.request('/api/auth/organization/invite-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ email: 'newmember@example.com', role: 'member', organizationId: orgId }),
+    })
+
+    expect(capturedHtml).toContain('accept-invitation')
+    expect(capturedHtml).toContain('member')
+
+    vi.unstubAllGlobals()
+  })
+})

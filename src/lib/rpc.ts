@@ -5,6 +5,7 @@ import type {
   EmailConfigRoute,
   ObjectsRoute,
   ProfileRoute,
+  PublicTeamsRoute,
   StoragesRoute,
   SystemRoute,
   TeamsRoute,
@@ -28,3 +29,4 @@ export const inviteCodes = hc<AdminInviteCodesRoute>('/api/admin/invite-codes', 
 export const emailConfig = hc<EmailConfigRoute>('/api/admin/email-config', opts)
 export const profiles = hc<ProfileRoute>('/api/profiles')
 export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
+export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')

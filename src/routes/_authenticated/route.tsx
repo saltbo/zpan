@@ -5,9 +5,12 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { getSession } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated')({
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const data = await getSession()
-    if (!data?.session) throw redirect({ to: '/sign-in' })
+    if (!data?.session) {
+      const redirectUrl = encodeURIComponent(`${location.pathname}${location.searchStr ?? ''}`)
+      throw redirect({ to: '/sign-in', search: { redirect: redirectUrl } as never })
+    }
     return { user: data.user }
   },
   component: AuthenticatedLayout,

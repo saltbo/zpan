@@ -14,7 +14,7 @@ import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import storages from './routes/storages'
 import system from './routes/system'
-import teams from './routes/teams'
+import { publicTeams, teams } from './routes/teams'
 import trash from './routes/trash'
 import users from './routes/users'
 
@@ -41,6 +41,7 @@ export function createApp(platform: Platform, auth: Auth) {
 
   // Public routes — no auth required; mount before authMiddleware
   app.route('/api/profiles', profile)
+  app.route('/api/teams', publicTeams)
 
   app.use('/api/*', authMiddleware)
 
@@ -80,3 +81,4 @@ export type PublicInviteCodesRoute = typeof publicInviteCodes
 export type AuthProvidersRoute = typeof authProviders
 export type ProfileRoute = typeof profile
 export type TeamsRoute = typeof teams
+export type PublicTeamsRoute = typeof publicTeams

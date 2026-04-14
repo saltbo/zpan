@@ -3,6 +3,7 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
+import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { SignupMode } from '../shared/constants'
@@ -98,10 +99,28 @@ async function isEmailConfigured(db: Database): Promise<boolean> {
   return !!rows[0]?.value
 }
 
-const INVITE_CODE_ERRORS: Record<string, string> = {
+const _INVITE_CODE_ERRORS: Record<string, string> = {
   not_found: 'Invalid invite code',
   already_used: 'Invite code already used',
   expired: 'Invite code expired',
+}
+
+function buildInvitationEmailHtml(data: {
+  email: string
+  role: string
+  organization: { name: string }
+  inviter: { user: { name: string; email: string } }
+  id: string
+}): string {
+  const orgName = data.organization.name
+  const inviterName = data.inviter.user.name || data.inviter.user.email
+  const acceptUrl = `/api/auth/organization/accept-invitation/${data.id}`
+  return `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+<h2 style="margin:0 0 16px">You've been invited to join ${orgName}</h2>
+<p style="color:#555;line-height:1.5">${inviterName} has invited you to join <strong>${orgName}</strong> as <strong>${data.role}</strong>.</p>
+<a href="${acceptUrl}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Accept Invitation</a>
+<p style="color:#999;font-size:13px">If you did not expect this invitation, you can safely ignore this email.</p>
+</div>`
 }
 
 function buildVerificationEmailHtml(url: string): string {
@@ -151,7 +170,23 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
     socialProviders: buildDynamicSocialProviders(db),
     plugins: [
       admin(),
-      organization(),
+      organization({
+        roles: {
+          owner: ownerAc,
+          admin: adminAc,
+          member: memberAc,
+          editor: memberAc,
+          viewer: memberAc,
+        },
+        sendInvitationEmail: async (data) => {
+          if (!(await isEmailConfigured(db))) return
+          await sendEmail(db, {
+            to: data.email,
+            subject: `You've been invited to join ${data.organization.name} - ZPan`,
+            html: buildInvitationEmailHtml(data),
+          })
+        },
+      }),
       username(),
       genericOAuth({
         config: oidcConfigs.map((c) => ({
