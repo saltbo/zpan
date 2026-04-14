@@ -27,12 +27,17 @@ describe('signInSchema', () => {
 
 describe('signUpSchema', () => {
   it('accepts valid input', () => {
-    const result = signUpSchema.safeParse({ name: 'Test', email: 'a@b.com', password: '123456' })
+    const result = signUpSchema.safeParse({ email: 'a@b.com', username: 'testuser', password: '123456' })
     expect(result.success).toBe(true)
   })
 
-  it('rejects empty name', () => {
-    const result = signUpSchema.safeParse({ name: '', email: 'a@b.com', password: '123456' })
+  it('rejects short username', () => {
+    const result = signUpSchema.safeParse({ email: 'a@b.com', username: 'ab', password: '123456' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects missing username', () => {
+    const result = signUpSchema.safeParse({ email: 'a@b.com', password: '123456' })
     expect(result.success).toBe(false)
   })
 })
