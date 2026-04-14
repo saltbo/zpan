@@ -235,6 +235,7 @@
   "settings.title": "Settings",
   "settings.profile.section": "Profile",
   "settings.profile.displayName": "Display Name",
+  "settings.profile.username": "Username",
   "settings.profile.email": "Email",
   "settings.profile.emailReadonly": "Email cannot be changed",
   "settings.profile.changePassword": "Change Password",

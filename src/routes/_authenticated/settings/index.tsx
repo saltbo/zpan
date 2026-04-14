@@ -71,6 +71,11 @@ function ProfileForm() {
       </div>
 
       <div className="space-y-1.5">
+        <Label htmlFor="username">{t('settings.profile.username')}</Label>
+        <Input id="username" value={(session?.user as { username?: string })?.username ?? ''} disabled />
+      </div>
+
+      <div className="space-y-1.5">
         <Label htmlFor="email">{t('settings.profile.email')}</Label>
         <Input id="email" value={session?.user?.email ?? ''} disabled />
         <p className="text-xs text-muted-foreground">{t('settings.profile.emailReadonly')}</p>

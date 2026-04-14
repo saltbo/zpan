@@ -235,6 +235,7 @@
   "settings.title": "设置",
   "settings.profile.section": "个人资料",
   "settings.profile.displayName": "显示名称",
+  "settings.profile.username": "用户名",
   "settings.profile.email": "邮箱",
   "settings.profile.emailReadonly": "邮箱不可更改",
   "settings.profile.changePassword": "修改密码",
