@@ -1,6 +1,18 @@
+import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type { CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
 import type { AuthProvider, PaginatedResponse, Storage, StorageObject } from '@shared/types'
-import { adminQuotas, authProviders, objects, storages, system, trash, userQuotas, users } from './rpc'
+import {
+  adminQuotas,
+  authProviders,
+  emailConfig,
+  inviteCodes,
+  objects,
+  storages,
+  system,
+  trash,
+  userQuotas,
+  users,
+} from './rpc'
 
 export type { Storage, StorageObject }
 
@@ -185,6 +197,74 @@ export type { AuthProvider }
 
 export function listAuthProviders() {
   return unwrap<{ items: AuthProvider[] }>(authProviders.index.$get())
+}
+
+export function listAdminAuthProviders() {
+  return unwrap<{ items: OAuthProviderConfig[] }>(authProviders.admin.$get())
+}
+
+export function upsertAuthProvider(providerId: string, data: Omit<OAuthProviderConfig, 'providerId'>) {
+  return unwrap<OAuthProviderConfig>(authProviders.admin[':providerId'].$put({ param: { providerId }, json: data }))
+}
+
+export function deleteAuthProvider(providerId: string) {
+  return unwrap<{ providerId: string; deleted: boolean }>(
+    authProviders.admin[':providerId'].$delete({ param: { providerId } }),
+  )
+}
+
+// Invite Codes API
+
+export interface InviteCode {
+  id: string
+  code: string
+  createdBy: string
+  usedBy: string | null
+  usedAt: string | null
+  expiresAt: string | null
+  createdAt: string
+}
+
+export function listInviteCodes(page = 1, pageSize = 20) {
+  return unwrap<{ items: InviteCode[]; total: number }>(inviteCodes.index.$get({ query: { page, pageSize } }))
+}
+
+export function generateInviteCodes(count: number, expiresInDays?: number) {
+  const body: { count: number; expiresInDays?: number } = { count }
+  if (expiresInDays !== undefined) body.expiresInDays = expiresInDays
+  return unwrap<{ codes: InviteCode[] }>(inviteCodes.index.$post({ json: body }))
+}
+
+export function deleteInviteCode(id: string) {
+  return unwrap<{ id: string; deleted: boolean }>(inviteCodes[':id'].$delete({ param: { id } }))
+}
+
+// Email Config API
+
+export interface SmtpEmailConfig {
+  provider: 'smtp'
+  from: string
+  smtp: { host: string; port: number; user: string; pass: string; secure: boolean }
+}
+
+export interface HttpEmailConfig {
+  provider: 'http'
+  from: string
+  http: { url: string; apiKey: string }
+}
+
+export type EmailConfigData = SmtpEmailConfig | HttpEmailConfig
+
+export function getEmailConfig() {
+  return unwrap<EmailConfigData | { provider: null }>(emailConfig.index.$get())
+}
+
+export function saveEmailConfig(data: EmailConfigData) {
+  return unwrap<{ success: boolean }>(emailConfig.index.$put({ json: data }))
+}
+
+export function testEmail(to: string) {
+  return unwrap<{ success: boolean; error?: string }>(emailConfig.test.$post({ json: { to } }))
 }
 
 // Auth API — Better Auth passthrough, not typed via Hono RPC
