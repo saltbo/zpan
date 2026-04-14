@@ -1,6 +1,8 @@
 import type {
+  AdminInviteCodesRoute,
   AdminQuotasRoute,
   AuthProvidersRoute,
+  EmailConfigRoute,
   ObjectsRoute,
   StoragesRoute,
   SystemRoute,
@@ -20,3 +22,5 @@ export const adminQuotas = hc<AdminQuotasRoute>('/api/admin/quotas', opts)
 export const userQuotas = hc<UserQuotasRoute>('/api/quotas', opts)
 export const system = hc<SystemRoute>('/api/system', opts)
 export const authProviders = hc<AuthProvidersRoute>('/api/auth-providers', opts)
+export const inviteCodes = hc<AdminInviteCodesRoute>('/api/admin/invite-codes', opts)
+export const emailConfig = hc<EmailConfigRoute>('/api/admin/email-config', opts)
