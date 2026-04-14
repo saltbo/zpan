@@ -124,11 +124,6 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
     secret,
     baseURL,
     trustedOrigins,
-    user: {
-      additionalFields: {
-        inviteCode: { type: 'string', required: false, input: true },
-      },
-    },
     emailAndPassword: {
       enabled: true,
       password: {
@@ -171,7 +166,7 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
     databaseHooks: {
       user: {
         create: {
-          before: async (user) => {
+          before: async (user, context) => {
             const firstUser = await isFirstUser(db)
 
             // Registration gate: skip for the very first user so bootstrap works
@@ -181,13 +176,17 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
                 throw new Error('Registration is currently closed')
               }
               if (mode === SignupMode.INVITE_ONLY) {
-                // better-auth passes extra sign-up body fields through to the hook
-                const inviteCode = (user as { inviteCode?: string }).inviteCode
+                // Read inviteCode from the request body via the endpoint context
+                const body = context
+                  ? await context.request
+                      ?.clone()
+                      .json()
+                      .catch(() => ({}))
+                  : {}
+                const inviteCode = (body as { inviteCode?: string }).inviteCode
                 if (!inviteCode) {
                   throw new Error('An invite code is required to register')
                 }
-                // Atomic redeem: validates and marks as used in one step,
-                // preventing TOCTOU races with concurrent sign-ups
                 const result = await redeemInviteCode(db, inviteCode, user.email)
                 if (result !== 'ok') {
                   throw new Error(INVITE_CODE_ERRORS[result] ?? 'Invalid invite code')
