@@ -16,7 +16,7 @@ import * as authSchema from './db/auth-schema'
 import { orgQuotas, systemOptions } from './db/schema'
 import type { Database } from './platform/interface'
 import { sendEmail } from './services/email'
-import { redeemInviteCode } from './services/invite'
+import { redeemInviteCode, validateInviteCode } from './services/invite'
 import { findPersonalOrg } from './services/org'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
@@ -176,20 +176,13 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
                 throw new Error('Registration is currently closed')
               }
               if (mode === SignupMode.INVITE_ONLY) {
-                // Read inviteCode from the request body via the endpoint context
-                const body = context
-                  ? await context.request
-                      ?.clone()
-                      .json()
-                      .catch(() => ({}))
-                  : {}
-                const inviteCode = (body as { inviteCode?: string }).inviteCode
+                const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
                 if (!inviteCode) {
                   throw new Error('An invite code is required to register')
                 }
-                const result = await redeemInviteCode(db, inviteCode, user.id)
-                if (result !== 'ok') {
-                  throw new Error(INVITE_CODE_ERRORS[result] ?? 'Invalid invite code')
+                const validation = await validateInviteCode(db, inviteCode)
+                if (!validation.valid) {
+                  throw new Error(validation.error ?? 'Invalid invite code')
                 }
               }
             }
@@ -198,7 +191,15 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
             // role is baked into the session cookie that the response returns.
             return { data: firstUser ? { ...user, role: 'admin' } : user }
           },
-          after: async (user) => {
+          after: async (user, context) => {
+            // Redeem invite code after user is created (user.id is now available)
+            const mode = await getSignupMode(db)
+            if (mode === SignupMode.INVITE_ONLY) {
+              const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
+              if (inviteCode) {
+                await redeemInviteCode(db, inviteCode, user.id)
+              }
+            }
             await createPersonalOrg(db, user)
           },
         },
