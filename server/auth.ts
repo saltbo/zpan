@@ -227,10 +227,14 @@ async function isFirstUser(db: Database): Promise<boolean> {
   return row.c === 0
 }
 
-async function createPersonalOrg(db: Database, user: { id: string; name: string }): Promise<void> {
+async function createPersonalOrg(
+  db: Database,
+  user: { id: string; name: string; username?: string | null },
+): Promise<void> {
   const orgId = nanoid()
   const now = new Date()
-  const orgName = user.name ? `${user.name}'s Space` : 'Personal Space'
+  const displayName = user.name || user.username
+  const orgName = displayName ? `${displayName}'s Space` : 'Personal Space'
   const defaultQuota = await getDefaultOrgQuota(db)
 
   await db.insert(authSchema.organization).values({

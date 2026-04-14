@@ -61,7 +61,7 @@ export function AppSidebar() {
   const navigate = useNavigate()
   const { data: session } = useSession()
   const { siteName } = useSiteOptions()
-  const user = session?.user as { name: string; role?: string } | undefined
+  const user = session?.user as { name: string; username?: string; role?: string } | undefined
   const isAdmin = user?.role === 'admin'
   const { data: quota } = useQuery({
     queryKey: ['user', 'quota'],
@@ -171,9 +171,9 @@ export function AppSidebar() {
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
             >
               <Avatar size="sm">
-                <AvatarFallback>{user?.name ? getInitials(user.name) : '?'}</AvatarFallback>
+                <AvatarFallback>{user ? getInitials(user.name || user.username || '?') : '?'}</AvatarFallback>
               </Avatar>
-              <span className="flex-1 truncate text-left font-medium">{user?.name ?? ''}</span>
+              <span className="flex-1 truncate text-left font-medium">{user?.name || user?.username}</span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-56">
