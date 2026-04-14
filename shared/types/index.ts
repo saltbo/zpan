@@ -59,6 +59,17 @@ export interface Member {
   createdAt: string
 }
 
+export interface Invitation {
+  id: string
+  organizationId: string
+  email: string
+  role: string
+  status: 'pending' | 'accepted' | 'rejected' | 'canceled'
+  expiresAt: string
+  inviterId: string
+  createdAt: string
+}
+
 export interface SystemOption {
   key: string
   value: string
