@@ -5,6 +5,7 @@ import type { Database } from '../platform/interface'
 export interface UserWithOrg {
   id: string
   name: string
+  username: string | null
   email: string
   role: string | null
   banned: boolean | null
@@ -27,6 +28,7 @@ export async function listUsers(
     .select({
       id: user.id,
       name: user.name,
+      username: user.username,
       email: user.email,
       role: user.role,
       banned: user.banned,

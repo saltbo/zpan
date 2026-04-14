@@ -62,7 +62,6 @@ describe('SignUp — invite code field visibility', () => {
 
 interface SignUpPayload {
   username: string
-  name: string
   email: string
   password: string
   callbackURL: string
@@ -71,11 +70,10 @@ interface SignUpPayload {
 
 function buildSignUpPayload(
   authSignupMode: SignupMode,
-  fields: { username: string; name: string; email: string; password: string; inviteCode: string },
+  fields: { username: string; email: string; password: string; inviteCode: string },
 ): SignUpPayload {
   return {
     username: fields.username,
-    name: fields.name,
     email: fields.email,
     password: fields.password,
     callbackURL: '/files',
@@ -85,7 +83,6 @@ function buildSignUpPayload(
 
 const baseFields = {
   username: 'johndoe',
-  name: 'John Doe',
   email: 'john@example.com',
   password: 'secret',
   inviteCode: 'INVITE-123',
@@ -122,7 +119,6 @@ describe('SignUp — submission payload construction', () => {
     const payload = buildSignUpPayload(SignupMode.OPEN, baseFields)
 
     expect(payload.username).toBe('johndoe')
-    expect(payload.name).toBe('John Doe')
     expect(payload.email).toBe('john@example.com')
     expect(payload.password).toBe('secret')
   })

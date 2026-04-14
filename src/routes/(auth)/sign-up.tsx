@@ -17,9 +17,8 @@ function SignUp() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { authSignupMode, isLoading: optionsLoading } = useSiteOptions()
-  const [username, setUsername] = useState('')
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
@@ -51,7 +50,7 @@ function SignUp() {
     try {
       const result = await signUp.email({
         username,
-        name,
+        name: '',
         email,
         password,
         callbackURL: '/files',
@@ -76,6 +75,10 @@ function SignUp() {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
+            <Label htmlFor="email">{t('auth.email')}</Label>
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="username">{t('auth.username')}</Label>
             <Input
               id="username"
@@ -85,14 +88,6 @@ function SignUp() {
               title={t('auth.usernameHint')}
               required
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="name">{t('auth.name')}</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">{t('auth.email')}</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">{t('auth.password')}</Label>
