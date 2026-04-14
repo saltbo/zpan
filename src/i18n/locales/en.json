@@ -294,5 +294,21 @@
   "teams.deleteConfirm": "Delete team \"{{name}}\"? This action cannot be undone.",
   "teams.deleted": "Team deleted",
   "teams.loadError": "Failed to load team",
-  "teams.ownerOnly": "Only the team owner can access this page."
+  "teams.ownerOnly": "Only the team owner can access this page.",
+  "teams.members.title": "Members",
+  "teams.members.you": "You",
+  "teams.members.joinedOn": "Joined {{date}}",
+  "teams.members.roleUpdated": "Role updated",
+  "teams.members.removed": "Member removed",
+  "teams.members.removeTitle": "Remove Member",
+  "teams.members.removeConfirm": "Remove {{name}} from this team?",
+  "teams.members.lastOwnerError": "Cannot demote the last owner",
+  "teams.members.leave": "Leave Team",
+  "teams.members.leaveTitle": "Leave Team",
+  "teams.members.leaveConfirm": "Are you sure you want to leave this team? You will lose access to all team resources.",
+  "teams.members.leaveDescription": "You can leave this team at any time.",
+  "teams.members.left": "You have left the team",
+  "teams.role.owner": "Owner",
+  "teams.role.admin": "Admin",
+  "teams.role.member": "Member"
 }

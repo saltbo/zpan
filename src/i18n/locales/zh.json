@@ -294,5 +294,21 @@
   "teams.deleteConfirm": "删除团队「{{name}}」？此操作无法撤销。",
   "teams.deleted": "团队已删除",
   "teams.loadError": "加载团队失败",
-  "teams.ownerOnly": "只有团队所有者才能访问此页面。"
+  "teams.ownerOnly": "只有团队所有者才能访问此页面。",
+  "teams.members.title": "成员",
+  "teams.members.you": "你",
+  "teams.members.joinedOn": "加入于 {{date}}",
+  "teams.members.roleUpdated": "角色已更新",
+  "teams.members.removed": "成员已移除",
+  "teams.members.removeTitle": "移除成员",
+  "teams.members.removeConfirm": "将 {{name}} 从此团队移除？",
+  "teams.members.lastOwnerError": "不能降级最后一个所有者",
+  "teams.members.leave": "离开团队",
+  "teams.members.leaveTitle": "离开团队",
+  "teams.members.leaveConfirm": "确定要离开此团队吗？离开后将失去所有团队资源的访问权限。",
+  "teams.members.leaveDescription": "你可以随时离开此团队。",
+  "teams.members.left": "你已离开团队",
+  "teams.role.owner": "所有者",
+  "teams.role.admin": "管理员",
+  "teams.role.member": "成员"
 }
