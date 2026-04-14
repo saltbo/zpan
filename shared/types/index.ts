@@ -11,7 +11,6 @@ export interface StorageObject {
   parent: string
   object: string
   storageId: string
-  isPublic: boolean
   status: ObjectStatus
   createdAt: string
   updatedAt: string

@@ -104,7 +104,6 @@ const APP_SCHEMA_SQL = `
     parent TEXT NOT NULL DEFAULT '',
     object TEXT NOT NULL DEFAULT '',
     storage_id TEXT NOT NULL,
-    is_public INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'draft',
     trashed_at INTEGER,
     created_at INTEGER NOT NULL,
