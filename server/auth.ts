@@ -187,7 +187,7 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
                 if (!inviteCode) {
                   throw new Error('An invite code is required to register')
                 }
-                const result = await redeemInviteCode(db, inviteCode, user.email)
+                const result = await redeemInviteCode(db, inviteCode, user.id)
                 if (result !== 'ok') {
                   throw new Error(INVITE_CODE_ERRORS[result] ?? 'Invalid invite code')
                 }
