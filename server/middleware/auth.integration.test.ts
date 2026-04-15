@@ -103,7 +103,7 @@ async function insertMember(db: TestDb, organizationId: string, userId: string, 
 }
 
 // Sign up, sign in, and return both the cookie headers and the resolved user id
-async function signUpAndGetSession(app: TestApp, db: TestDb, email: string) {
+async function signUpAndGetSession(app: TestApp, _db: TestDb, email: string) {
   const signUpRes = await app.request('/api/auth/sign-up/email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

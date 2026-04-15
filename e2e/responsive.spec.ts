@@ -5,7 +5,7 @@ import { createFolder, signUpAndGoToFiles } from './helpers'
 // Sidebar behavior per device
 // ---------------------------------------------------------------------------
 test.describe('Sidebar responsive behavior', () => {
-  test('desktop: sidebar is visible by default @desktop', async ({ page, browserName }) => {
+  test('desktop: sidebar is visible by default @desktop', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     const sidebar = page.locator('[data-slot="sidebar"]')

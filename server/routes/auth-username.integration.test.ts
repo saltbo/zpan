@@ -39,7 +39,7 @@ describe('username plugin — sign-up with username', () => {
     expect(users[0].username).toBe('alice42')
   })
 
-  it('sign-up without username leaves the username column null', async () => {
+  it('sign-up without username generates a username from the email prefix', async () => {
     const { app, db } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -47,7 +47,7 @@ describe('username plugin — sign-up with username', () => {
       body: JSON.stringify({ name: 'Bob', email: 'bob@example.com', password: 'password123456' }),
     })
     const users = await db.select().from(authSchema.user).where(eq(authSchema.user.email, 'bob@example.com'))
-    expect(users[0].username).toBeNull()
+    expect(users[0].username).toBe('bob')
   })
 
   it('sign-up with duplicate username returns a non-200 response', async () => {
