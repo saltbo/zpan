@@ -208,7 +208,6 @@ function TeamSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">{t('teams.settingsTitle')}</h2>
       <div className="max-w-lg space-y-6">
         <div className="space-y-4 rounded-md border p-4">
           <h3 className="text-sm font-medium text-muted-foreground">{t('teams.generalSection')}</h3>

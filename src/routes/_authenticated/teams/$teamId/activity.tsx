@@ -120,8 +120,6 @@ function TeamActivityPage() {
 
   return (
     <div className="space-y-2">
-      <h2 className="text-xl font-semibold">{t('activity.title')}</h2>
-
       {allItems.length === 0 ? (
         <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
           {t('activity.empty')}
