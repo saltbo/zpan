@@ -77,26 +77,14 @@ function TeamLayout() {
 
       <div className="border-b">
         <nav className="flex gap-1" aria-label="Team navigation">
-          <Link
-            to="/teams/$teamId/members"
-            params={{ teamId }}
-            className={tabClass(pathname === membersPath)}
-          >
+          <Link to="/teams/$teamId/members" params={{ teamId }} className={tabClass(pathname === membersPath)}>
             {t('teams.tabMembers')}
           </Link>
-          <Link
-            to="/teams/$teamId/activity"
-            params={{ teamId }}
-            className={tabClass(pathname === activityPath)}
-          >
+          <Link to="/teams/$teamId/activity" params={{ teamId }} className={tabClass(pathname === activityPath)}>
             {t('teams.tabActivity')}
           </Link>
           {isOwner && (
-            <Link
-              to="/teams/$teamId/settings"
-              params={{ teamId }}
-              className={tabClass(pathname === settingsPath)}
-            >
+            <Link to="/teams/$teamId/settings" params={{ teamId }} className={tabClass(pathname === settingsPath)}>
               {t('teams.tabSettings')}
             </Link>
           )}
