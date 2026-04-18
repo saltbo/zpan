@@ -139,7 +139,7 @@ function TeamCard({ org, userId }: { org: TeamCardOrg; userId: string }) {
   return (
     <button
       type="button"
-      onClick={() => navigate({ to: '/teams/$teamId/settings', params: { teamId: org.id } })}
+      onClick={() => navigate({ to: '/teams/$teamId', params: { teamId: org.id } })}
       className="flex w-full items-start gap-4 rounded-md border p-4 text-left transition-colors hover:bg-accent"
     >
       <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-muted">

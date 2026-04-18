@@ -307,16 +307,13 @@ function TeamMembersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">{t('teams.members.title')}</h2>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{t('teams.memberCount', { count: org.members.length })}</span>
-          {isOwner && (
-            <Button type="button" size="sm" onClick={() => setInviteOpen(true)}>
-              {t('teams.invite.button')}
-            </Button>
-          )}
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-muted-foreground">{t('teams.memberCount', { count: org.members.length })}</span>
+        {isOwner && (
+          <Button type="button" size="sm" onClick={() => setInviteOpen(true)}>
+            {t('teams.invite.button')}
+          </Button>
+        )}
       </div>
 
       {isOwner && <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} orgId={org.id} />}
