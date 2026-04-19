@@ -410,18 +410,20 @@ describe('Objects API', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'target', name: 'Dest' })
     await insertFolder(db, orgId, { id: 'f1', name: 'Original' })
 
     const res = await app.request('/api/objects/f1/copy', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parent: '' }),
+      body: JSON.stringify({ parent: 'Dest' }),
     })
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.name).toBe('Original')
     expect(body.id).not.toBe('f1')
     expect(body.status).toBe('active')
+    expect(body.parent).toBe('Dest')
   })
 
   it('POST /api/objects/:id/copy returns 404 for missing source', async () => {
@@ -1202,5 +1204,221 @@ describe('Matter service', () => {
     await expect(batchDelete(db, 'org-1', [trashed.id, 'nonexistent-id'])).rejects.toThrow(
       'Some IDs do not belong to this organization',
     )
+  })
+})
+
+// ─── Name-conflict route layer ────────────────────────────────────────────────
+
+describe('Objects API — name conflict (409 responses)', () => {
+  it('POST /api/objects returns 409 with NAME_CONFLICT code when folder name is already taken', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f-exist', name: 'Duplicates' })
+
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Duplicates', type: 'folder', dirtype: 1 }),
+    })
+
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('NAME_CONFLICT')
+    expect(body.conflictingName).toBe('Duplicates')
+    expect(typeof body.conflictingId).toBe('string')
+  })
+
+  it('POST /api/objects with onConflict: rename succeeds and returns auto-renamed folder', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'f-exist2', name: 'Reports' })
+
+    const res = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Reports', type: 'folder', dirtype: 1, onConflict: 'rename' }),
+    })
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.name).toBe('Reports (1)')
+  })
+
+  it('PATCH /api/objects/:id rename conflict returns 409 with NAME_CONFLICT code', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'alpha.txt' })
+    await insertFile(db, orgId, { id: 'm2', name: 'beta.txt' })
+
+    const res = await app.request('/api/objects/m1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'beta.txt' }),
+    })
+
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('NAME_CONFLICT')
+    expect(body.conflictingName).toBe('beta.txt')
+  })
+
+  it('PATCH /api/objects/:id rename with onConflict: rename succeeds', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'alpha.txt' })
+    await insertFile(db, orgId, { id: 'm2', name: 'beta.txt' })
+
+    const res = await app.request('/api/objects/m1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'beta.txt', onConflict: 'rename' }),
+    })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.name).toBe('beta (1).txt')
+  })
+
+  it('POST /api/objects/batch/move with collision and no onConflict returns 409', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'file.txt' })
+    await insertFile(db, orgId, { id: 'm2', name: 'file.txt', parent: 'Dest' })
+
+    const res = await app.request('/api/objects/batch/move', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['m1'], parent: 'Dest' }),
+    })
+
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('NAME_CONFLICT')
+  })
+
+  it('POST /api/objects/batch/move with onConflict: rename resolves collision', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'file.txt' })
+    await insertFile(db, orgId, { id: 'm2', name: 'file.txt', parent: 'Dest' })
+
+    const res = await app.request('/api/objects/batch/move', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['m1'], parent: 'Dest', onConflict: 'rename' }),
+    })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { moved: number }
+    expect(body.moved).toBe(1)
+  })
+
+  it('PATCH /api/objects/:id/done returns 409 when active sibling was created during upload', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    // Draft file whose name is now taken by an active sibling
+    await insertFile(db, orgId, { id: 'draft1', name: 'upload.txt', status: 'draft' })
+    await insertFile(db, orgId, { id: 'active1', name: 'upload.txt', status: 'active' })
+
+    const res = await app.request('/api/objects/draft1/done', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('NAME_CONFLICT')
+  })
+
+  it('PATCH /api/objects/:id/restore returns 409 when restore name is already taken', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'trashed1', name: 'note.txt', status: 'trashed' })
+    await insertFile(db, orgId, { id: 'active2', name: 'note.txt', status: 'active' })
+
+    const res = await app.request('/api/objects/trashed1/restore', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('NAME_CONFLICT')
+  })
+
+  it('PATCH /api/objects/:id/restore with onConflict: rename restores with suffix', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'trashed2', name: 'note.txt', status: 'trashed' })
+    await insertFile(db, orgId, { id: 'active3', name: 'note.txt', status: 'active' })
+
+    const res = await app.request('/api/objects/trashed2/restore', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ onConflict: 'rename' }),
+    })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.name).toBe('note (1).txt')
+    expect(body.status).toBe('active')
+  })
+
+  it('POST /api/objects/:id/copy returns 409 when onConflict: fail and target has same name', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'src1', name: 'doc.txt' })
+    await insertFile(db, orgId, { id: 'dst1', name: 'doc.txt', parent: 'Dest' })
+
+    const res = await app.request('/api/objects/src1/copy', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent: 'Dest', onConflict: 'fail' }),
+    })
+
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('NAME_CONFLICT')
+  })
+
+  it('POST /api/objects/:id/copy auto-renames by default when target has same name', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'src2', name: 'photo.jpg' })
+    await insertFile(db, orgId, { id: 'dst2', name: 'photo.jpg', parent: 'Dest' })
+
+    const res = await app.request('/api/objects/src2/copy', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent: 'Dest' }),
+    })
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.name).toBe('photo (1).jpg')
   })
 })

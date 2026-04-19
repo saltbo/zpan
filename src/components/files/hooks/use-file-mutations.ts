@@ -1,4 +1,5 @@
 import { DirType } from '@shared/constants'
+import type { ConflictStrategy } from '@shared/schemas'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -12,23 +13,26 @@ export function useFileMutations(currentPath: string) {
     queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
   }
 
+  // onError is intentionally omitted on mutations that may surface name conflicts:
+  // the caller wraps them with the conflict resolver and shows a dialog instead of
+  // a toast. Other failures still reach the caller via throw → React Query's default.
+
   const renameMutation = useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => updateObject(id, { name }),
+    mutationFn: ({ id, name, onConflict }: { id: string; name: string; onConflict?: ConflictStrategy }) =>
+      updateObject(id, { name, onConflict }),
     onSuccess: () => {
       invalidate()
       toast.success(t('files.renameSuccess'))
     },
-    onError: (err) => toast.error(err.message),
   })
 
   const createFolderMutation = useMutation({
-    mutationFn: (name: string) =>
-      createObject({ name, type: 'folder', parent: currentPath, dirtype: DirType.USER_FOLDER }),
+    mutationFn: ({ name, onConflict }: { name: string; onConflict?: ConflictStrategy }) =>
+      createObject({ name, type: 'folder', parent: currentPath, dirtype: DirType.USER_FOLDER, onConflict }),
     onSuccess: () => {
       invalidate()
       toast.success(t('files.folderCreated'))
     },
-    onError: (err) => toast.error(err.message),
   })
 
   const trashMutation = useMutation({
@@ -41,16 +45,17 @@ export function useFileMutations(currentPath: string) {
   })
 
   const moveMutation = useMutation({
-    mutationFn: ({ ids, parent }: { ids: string[]; parent: string }) => batchMoveObjects(ids, parent),
+    mutationFn: ({ ids, parent, onConflict }: { ids: string[]; parent: string; onConflict?: ConflictStrategy }) =>
+      batchMoveObjects(ids, parent, onConflict),
     onSuccess: () => {
       invalidate()
       toast.success(t('files.moveSuccess'))
     },
-    onError: (err) => toast.error(err.message),
   })
 
   const copyMutation = useMutation({
-    mutationFn: ({ id, parent }: { id: string; parent: string }) => copyObject(id, parent),
+    mutationFn: ({ id, parent, onConflict }: { id: string; parent: string; onConflict?: ConflictStrategy }) =>
+      copyObject(id, parent, onConflict),
     onSuccess: () => {
       invalidate()
       toast.success(t('files.copySuccess'))

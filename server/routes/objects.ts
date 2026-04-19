@@ -4,8 +4,10 @@ import { DirType } from '../../shared/constants'
 import {
   batchIdsSchema,
   batchMoveSchema,
+  confirmUploadSchema,
   copyMatterSchema,
   createMatterSchema,
+  restoreMatterSchema,
   updateMatterSchema,
 } from '../../shared/schemas'
 import type { Storage as S3Storage } from '../../shared/types'
@@ -26,6 +28,7 @@ import {
   trashMatter,
   updateMatter,
 } from '../services/matter'
+import { NameConflictError } from '../services/matter-name-conflict'
 import { buildObjectKey } from '../services/path-template'
 import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
@@ -36,6 +39,15 @@ const s3 = new S3Service()
 function fileExt(name: string): string {
   const dot = name.lastIndexOf('.')
   return dot >= 0 ? name.slice(dot) : ''
+}
+
+function conflictBody(err: NameConflictError) {
+  return {
+    error: err.message,
+    code: 'NAME_CONFLICT' as const,
+    conflictingName: err.conflictingName,
+    conflictingId: err.conflictingId,
+  }
 }
 
 const app = new Hono<Env>()
@@ -61,7 +73,7 @@ const app = new Hono<Env>()
 
     const db = c.get('platform').db
     const userId = c.get('userId')!
-    const { name, type, size, parent, dirtype } = c.req.valid('json')
+    const { name, type, size, parent, dirtype, onConflict } = c.req.valid('json')
     const isFolder = dirtype !== DirType.FILE
 
     const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
@@ -73,35 +85,40 @@ const app = new Hono<Env>()
           rawExt: fileExt(name),
         })
 
-    const matter = await createMatter(db, {
-      orgId,
-      userId,
-      name,
-      type: isFolder ? 'folder' : type,
-      size: isFolder ? 0 : size,
-      dirtype,
-      parent,
-      object: objectKey,
-      storageId: storage.id,
-      status: isFolder ? 'active' : 'draft',
-    })
-
-    if (isFolder) return c.json(matter, 201)
-
-    const uploadUrl = await s3.presignUpload(storage, objectKey, type)
-    return c.json({ ...matter, uploadUrl }, 201)
+    try {
+      const matter = await createMatter(db, {
+        orgId,
+        userId,
+        name,
+        type: isFolder ? 'folder' : type,
+        size: isFolder ? 0 : size,
+        dirtype,
+        parent,
+        object: objectKey,
+        storageId: storage.id,
+        status: isFolder ? 'active' : 'draft',
+        onConflict,
+      })
+      if (isFolder) return c.json(matter, 201)
+      const uploadUrl = await s3.presignUpload(storage, objectKey, type)
+      return c.json({ ...matter, uploadUrl }, 201)
+    } catch (e) {
+      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+      throw e
+    }
   })
   .post('/batch/move', requireTeamRole('editor'), zValidator('json', batchMoveSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const { ids, parent } = c.req.valid('json')
+    const { ids, parent, onConflict } = c.req.valid('json')
     const db = c.get('platform').db
     const userId = c.get('userId')!
     try {
-      const moved = await batchMove(db, orgId, ids, parent, userId)
+      const moved = await batchMove(db, orgId, ids, parent, userId, onConflict ?? 'fail')
       return c.json({ moved: moved.length })
     } catch (e) {
+      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
       return c.json({ error: (e as Error).message }, 400)
     }
   })
@@ -168,19 +185,31 @@ const app = new Hono<Env>()
 
     const db = c.get('platform').db
     const userId = c.get('userId')!
-    const matter = await updateMatter(db, c.req.param('id'), orgId, c.req.valid('json'), userId)
-    if (!matter) return c.json({ error: 'Not found' }, 404)
-    return c.json(matter)
+    try {
+      const matter = await updateMatter(db, c.req.param('id'), orgId, c.req.valid('json'), userId)
+      if (!matter) return c.json({ error: 'Not found' }, 404)
+      return c.json(matter)
+    } catch (e) {
+      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+      return c.json({ error: (e as Error).message }, 400)
+    }
   })
-  .patch('/:id/done', requireTeamRole('editor'), async (c) => {
+  .patch('/:id/done', requireTeamRole('editor'), zValidator('json', confirmUploadSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
     const db = c.get('platform').db
-    const { matter, quotaExceeded } = await confirmUpload(db, c.req.param('id'), orgId)
-    if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
-    if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
-    return c.json(matter)
+    const userId = c.get('userId')!
+    const { onConflict } = c.req.valid('json')
+    try {
+      const { matter, quotaExceeded } = await confirmUpload(db, c.req.param('id'), orgId, { onConflict, userId })
+      if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
+      if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
+      return c.json(matter)
+    } catch (e) {
+      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+      throw e
+    }
   })
   .patch('/:id/trash', requireTeamRole('editor'), async (c) => {
     const orgId = c.get('orgId')
@@ -191,14 +220,20 @@ const app = new Hono<Env>()
     if (!matter) return c.json({ error: 'Not found' }, 404)
     return c.json(matter)
   })
-  .patch('/:id/restore', requireTeamRole('editor'), async (c) => {
+  .patch('/:id/restore', requireTeamRole('editor'), zValidator('json', restoreMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
     const db = c.get('platform').db
     const userId = c.get('userId')!
-    const matter = await restoreMatter(db, orgId, c.req.param('id'), userId)
-    if (!matter) return c.json({ error: 'Not found' }, 404)
-    return c.json(matter)
+    const { onConflict } = c.req.valid('json')
+    try {
+      const matter = await restoreMatter(db, orgId, c.req.param('id'), userId, onConflict ?? 'fail')
+      if (!matter) return c.json({ error: 'Not found' }, 404)
+      return c.json(matter)
+    } catch (e) {
+      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+      throw e
+    }
   })
   .delete('/:id', requireTeamRole('editor'), async (c) => {
     const orgId = c.get('orgId')
@@ -217,6 +252,7 @@ const app = new Hono<Env>()
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
     const db = c.get('platform').db
+    const userId = c.get('userId')!
     const source = await getMatter(db, c.req.param('id'), orgId)
     if (!source) return c.json({ error: 'Not found' }, 404)
 
@@ -231,15 +267,21 @@ const app = new Hono<Env>()
       const storage = (await getStorage(db, source.storageId)) as unknown as S3Storage
       if (!storage) return c.json({ error: 'Storage not found' }, 404)
       newObject = buildObjectKey({
-        uid: c.get('userId')!,
+        uid: userId,
         orgId,
         rawExt: fileExt(source.name),
       })
       await s3.copyObject(storage, source.object, storage, newObject)
     }
 
-    const copy = await copyMatter(db, source, c.req.valid('json').parent, newObject)
-    return c.json(copy, 201)
+    const { parent, onConflict } = c.req.valid('json')
+    try {
+      const copy = await copyMatter(db, source, parent, newObject, { onConflict, userId })
+      return c.json(copy, 201)
+    } catch (e) {
+      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+      throw e
+    }
   })
 
 export default app

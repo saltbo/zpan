@@ -1,5 +1,5 @@
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
-import type { CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
+import type { ConflictStrategy, CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
 import type { ActivityEvent, AuthProvider, PaginatedResponse, Storage, StorageObject } from '@shared/types'
 import {
   adminQuotas,
@@ -18,11 +18,39 @@ import {
 
 export type { Storage, StorageObject }
 
+export interface ApiErrorBody {
+  error?: string
+  code?: string
+  [key: string]: unknown
+}
+
+export class ApiError extends Error {
+  readonly status: number
+  readonly body: ApiErrorBody
+  constructor(status: number, body: ApiErrorBody) {
+    super(body.error ?? `HTTP ${status}`)
+    this.name = 'ApiError'
+    this.status = status
+    this.body = body
+  }
+}
+
+export interface NameConflictBody extends ApiErrorBody {
+  code: 'NAME_CONFLICT'
+  conflictingName: string
+  conflictingId: string
+}
+
+export function isNameConflictError(err: unknown): err is ApiError & { body: NameConflictBody } {
+  return err instanceof ApiError && err.status === 409 && err.body.code === 'NAME_CONFLICT'
+}
+
 async function unwrap<T>(promise: Promise<Response>): Promise<T> {
   const res = await promise
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error((body as { error?: string }).error ?? res.statusText)
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    const body: ApiErrorBody = { ...parsed, error: parsed.error ?? res.statusText }
+    throw new ApiError(res.status, body)
   }
   return res.json() as Promise<T>
 }
@@ -56,36 +84,43 @@ export interface CreateObjectResult extends StorageObject {
   uploadUrl?: string
 }
 
-export function createObject(data: { name: string; type: string; size?: number; parent: string; dirtype: number }) {
+export function createObject(data: {
+  name: string
+  type: string
+  size?: number
+  parent: string
+  dirtype: number
+  onConflict?: ConflictStrategy
+}) {
   return unwrap<CreateObjectResult>(objects.index.$post({ json: data }))
 }
 
-export function updateObject(id: string, data: { name?: string; parent?: string }) {
+export function updateObject(id: string, data: { name?: string; parent?: string; onConflict?: ConflictStrategy }) {
   return unwrap<StorageObject>(objects[':id'].$patch({ param: { id }, json: data }))
 }
 
-export function confirmUpload(id: string) {
-  return unwrap<StorageObject>(objects[':id'].done.$patch({ param: { id } }))
+export function confirmUpload(id: string, onConflict?: ConflictStrategy) {
+  return unwrap<StorageObject>(objects[':id'].done.$patch({ param: { id }, json: { onConflict } }))
 }
 
 export function deleteObject(id: string) {
   return unwrap<{ id: string; deleted: boolean; purged?: number }>(objects[':id'].$delete({ param: { id } }))
 }
 
-export function copyObject(id: string, parent: string) {
-  return unwrap<StorageObject>(objects[':id'].copy.$post({ param: { id }, json: { parent } }))
+export function copyObject(id: string, parent: string, onConflict?: ConflictStrategy) {
+  return unwrap<StorageObject>(objects[':id'].copy.$post({ param: { id }, json: { parent, onConflict } }))
 }
 
 export function trashObject(id: string) {
   return unwrap<StorageObject>(objects[':id'].trash.$patch({ param: { id } }))
 }
 
-export function restoreObject(id: string) {
-  return unwrap<StorageObject>(objects[':id'].restore.$patch({ param: { id } }))
+export function restoreObject(id: string, onConflict?: ConflictStrategy) {
+  return unwrap<StorageObject>(objects[':id'].restore.$patch({ param: { id }, json: { onConflict } }))
 }
 
-export function batchMoveObjects(ids: string[], parent: string) {
-  return unwrap<{ moved: number }>(objects.batch.move.$post({ json: { ids, parent } }))
+export function batchMoveObjects(ids: string[], parent: string, onConflict?: ConflictStrategy) {
+  return unwrap<{ moved: number }>(objects.batch.move.$post({ json: { ids, parent, onConflict } }))
 }
 
 export function batchTrashObjects(ids: string[]) {

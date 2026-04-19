@@ -16,11 +16,13 @@ import { FilePreviewDialog, type PreviewFile } from '@/components/preview/file-p
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import { getObject } from '@/lib/api'
 import { getColumns } from './columns'
+import { NameConflictDialog } from './dialogs/name-conflict-dialog'
 import { DndWrapper } from './dnd-wrapper'
 import { FileManagerDialogs } from './file-manager-dialogs'
 import { FilesGrid } from './files-grid'
 import { FilesTable } from './files-table'
 import { FilesToolbar } from './files-toolbar'
+import { useConflictResolver, withConflictRetry } from './hooks/use-conflict-resolver'
 import { useFileMutations } from './hooks/use-file-mutations'
 import { useFilesQuery } from './hooks/use-files-query'
 import { useViewMode } from './hooks/use-view-mode'
@@ -83,6 +85,7 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
 
   const query = useFilesQuery(currentPath, filterType, searchQuery || undefined)
   const mutations = useFileMutations(currentPath)
+  const conflict = useConflictResolver()
   const items = query.data?.items ?? []
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: clear selection and search when path changes
@@ -144,11 +147,17 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
       onOpen: handleOpen,
       onRename: (item) => setRenameTarget(item),
       onTrash: (item) => setDeleteTargetIds([item.id]),
-      onCopy: (item) => mutations.copyMutation.mutate({ id: item.id, parent: item.parent }),
+      onCopy: (item) => {
+        const kind = item.dirtype === DirType.FILE ? 'file' : 'folder'
+        conflict.reset()
+        withConflictRetry(conflict.prompt, kind, (strategy) =>
+          mutations.copyMutation.mutateAsync({ id: item.id, parent: item.parent, onConflict: strategy }),
+        ).catch((err) => toast.error(err.message))
+      },
       onMove: (item) => setMoveTargetIds([item.id]),
       onDownload: handleDownload,
     }),
-    [handleOpen, handleDownload, mutations.copyMutation],
+    [handleOpen, handleDownload, mutations.copyMutation, conflict.prompt, conflict.reset],
   )
 
   const columns = useMemo(() => getColumns(handlers, t), [handlers, t])
@@ -168,7 +177,10 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
   const selectedIds = useMemo(() => Object.keys(rowSelection).filter((k) => rowSelection[k]), [rowSelection])
 
   function handleDndDrop(fileIds: string[], targetFolderId: string) {
-    mutations.moveMutation.mutate({ ids: fileIds, parent: targetFolderId })
+    conflict.reset()
+    withConflictRetry(conflict.prompt, 'file', (strategy) =>
+      mutations.moveMutation.mutateAsync({ ids: fileIds, parent: targetFolderId, onConflict: strategy }),
+    ).catch((err) => toast.error(err.message))
   }
 
   useEffect(() => {
@@ -193,7 +205,13 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
   }
 
   return (
-    <UploadDropzone ref={dropzoneRef} parent={currentPath} onUploadComplete={() => mutations.invalidate()}>
+    <UploadDropzone
+      ref={dropzoneRef}
+      parent={currentPath}
+      onUploadComplete={() => mutations.invalidate()}
+      conflictPrompt={conflict.prompt}
+      onConflictBatchStart={conflict.reset}
+    >
       <DndWrapper onDrop={handleDndDrop}>
         <FilesToolbar
           breadcrumb={breadcrumb}
@@ -230,15 +248,27 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
         renameTarget={renameTarget}
         onRenameClose={() => setRenameTarget(null)}
         onRenameConfirm={(name) => {
-          if (renameTarget) {
-            mutations.renameMutation.mutate({ id: renameTarget.id, name }, { onSuccess: () => setRenameTarget(null) })
-          }
+          if (!renameTarget) return
+          const kind = renameTarget.dirtype === DirType.FILE ? 'file' : 'folder'
+          conflict.reset()
+          // Finder-style: both success AND cancel close the parent dialog; only
+          // an unexpected error leaves it open so the user can see the toast.
+          withConflictRetry(conflict.prompt, kind, (strategy) =>
+            mutations.renameMutation.mutateAsync({ id: renameTarget.id, name, onConflict: strategy }),
+          )
+            .then(() => setRenameTarget(null))
+            .catch((err) => toast.error(err.message))
         }}
         renamePending={mutations.renameMutation.isPending}
         showNewFolder={showNewFolder}
         onNewFolderClose={() => setShowNewFolder(false)}
         onNewFolderConfirm={(name) => {
-          mutations.createFolderMutation.mutate(name, { onSuccess: () => setShowNewFolder(false) })
+          conflict.reset()
+          withConflictRetry(conflict.prompt, 'folder', (strategy) =>
+            mutations.createFolderMutation.mutateAsync({ name, onConflict: strategy }),
+          )
+            .then(() => setShowNewFolder(false))
+            .catch((err) => toast.error(err.message))
         }}
         newFolderPending={mutations.createFolderMutation.isPending}
         deleteTargetIds={deleteTargetIds}
@@ -255,18 +285,24 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
         moveTargetIds={moveTargetIds}
         onMoveClose={() => setMoveTargetIds([])}
         onMoveConfirm={(targetFolderId) => {
-          mutations.moveMutation.mutate(
-            { ids: moveTargetIds, parent: targetFolderId },
-            {
-              onSuccess: () => {
-                setMoveTargetIds([])
-                setRowSelection({})
-              },
-            },
+          conflict.reset()
+          withConflictRetry(
+            conflict.prompt,
+            'file',
+            (strategy) =>
+              mutations.moveMutation.mutateAsync({ ids: moveTargetIds, parent: targetFolderId, onConflict: strategy }),
+            { showApplyToAll: moveTargetIds.length > 1 },
           )
+            .then(() => {
+              setMoveTargetIds([])
+              setRowSelection({})
+            })
+            .catch((err) => toast.error(err.message))
         }}
         movePending={mutations.moveMutation.isPending}
       />
+
+      <NameConflictDialog {...conflict.dialogState} />
 
       <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />
     </UploadDropzone>

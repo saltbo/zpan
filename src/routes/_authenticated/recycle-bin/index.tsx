@@ -4,6 +4,8 @@ import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { NameConflictDialog } from '@/components/files/dialogs/name-conflict-dialog'
+import { useConflictResolver, withConflictRetry } from '@/components/files/hooks/use-conflict-resolver'
 import { TrashList } from '@/components/trash/trash-list'
 import { TrashToolbar } from '@/components/trash/trash-toolbar'
 import { Button } from '@/components/ui/button'
@@ -31,16 +33,25 @@ function RecycleBinPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [confirmDialog, setConfirmDialog] = useState<'delete' | 'empty' | null>(null)
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
+  const conflict = useConflictResolver()
 
   const trashQuery = useQuery({
     queryKey: [...QUERY_KEY, page, PAGE_SIZE],
     queryFn: () => listObjects('', 'trashed', page, PAGE_SIZE),
   })
 
+  async function runRestore(ids: string[]) {
+    conflict.reset()
+    const showApplyToAll = ids.length > 1
+    // Each item may collide with a different sibling in its original parent, so
+    // resolve per-id. The sticky "apply to all" lets one decision cover the batch.
+    for (const id of ids) {
+      await withConflictRetry(conflict.prompt, 'file', (strategy) => restoreObject(id, strategy), { showApplyToAll })
+    }
+  }
+
   const restoreMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      await Promise.all(ids.map((id) => restoreObject(id)))
-    },
+    mutationFn: runRestore,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       setSelectedIds(new Set())
@@ -186,6 +197,8 @@ function RecycleBinPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NameConflictDialog {...conflict.dialogState} />
 
       <Dialog open={confirmDialog === 'empty'} onOpenChange={(open) => !open && setConfirmDialog(null)}>
         <DialogContent>
