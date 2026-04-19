@@ -22,7 +22,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
-import { Route as AuthenticatedSettingsPublicRouteImport } from './routes/_authenticated/settings/public'
+import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedRecycleBinIndexRouteImport } from './routes/_authenticated/recycle-bin/index'
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
@@ -104,10 +104,10 @@ const AuthenticatedSettingsAppearanceRoute =
     path: '/appearance',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsPublicRoute =
-  AuthenticatedSettingsPublicRouteImport.update({
-    id: '/public',
-    path: '/public',
+const AuthenticatedSettingsPasswordRoute =
+  AuthenticatedSettingsPasswordRouteImport.update({
+    id: '/password',
+    path: '/password',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const AuthenticatedRecycleBinIndexRoute =
@@ -195,7 +195,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
-  '/settings/public': typeof AuthenticatedSettingsPublicRoute
+  '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/storages/': typeof AuthenticatedStoragesIndexRoute
   '/teams/': typeof AuthenticatedTeamsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
@@ -221,7 +221,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
-  '/settings/public': typeof AuthenticatedSettingsPublicRoute
+  '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/storages': typeof AuthenticatedStoragesIndexRoute
   '/teams': typeof AuthenticatedTeamsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
@@ -249,7 +249,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
-  '/_authenticated/settings/public': typeof AuthenticatedSettingsPublicRoute
+  '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
   '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
@@ -278,7 +278,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/settings/profile'
     | '/settings/appearance'
-    | '/settings/public'
+    | '/settings/password'
     | '/storages/'
     | '/teams/'
     | '/users/'
@@ -304,7 +304,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/settings/profile'
     | '/settings/appearance'
-    | '/settings/public'
+    | '/settings/password'
     | '/storages'
     | '/teams'
     | '/users'
@@ -331,7 +331,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/_authenticated/settings/profile'
     | '/_authenticated/settings/appearance'
-    | '/_authenticated/settings/public'
+    | '/_authenticated/settings/password'
     | '/_authenticated/storages/'
     | '/_authenticated/teams/'
     | '/_authenticated/users/'
@@ -446,11 +446,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
-    '/_authenticated/settings/public': {
-      id: '/_authenticated/settings/public'
-      path: '/public'
-      fullPath: '/settings/public'
-      preLoaderRoute: typeof AuthenticatedSettingsPublicRouteImport
+    '/_authenticated/settings/password': {
+      id: '/_authenticated/settings/password'
+      path: '/password'
+      fullPath: '/settings/password'
+      preLoaderRoute: typeof AuthenticatedSettingsPasswordRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/recycle-bin/': {
@@ -584,14 +584,14 @@ interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
-  AuthenticatedSettingsPublicRoute: typeof AuthenticatedSettingsPublicRoute
+  AuthenticatedSettingsPasswordRoute: typeof AuthenticatedSettingsPasswordRoute
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
   AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
-  AuthenticatedSettingsPublicRoute: AuthenticatedSettingsPublicRoute,
+  AuthenticatedSettingsPasswordRoute: AuthenticatedSettingsPasswordRoute,
 }
 
 const AuthenticatedSettingsRouteWithChildren =

@@ -11,8 +11,8 @@ function SettingsLayout() {
 
   const tabs = [
     { to: '/settings/profile', label: t('settings.tabProfile') },
+    { to: '/settings/password', label: t('settings.tabPassword') },
     { to: '/settings/appearance', label: t('settings.tabAppearance') },
-    { to: '/settings/public', label: t('settings.tabPublic') },
   ]
 
   return (

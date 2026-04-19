@@ -1,7 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Outlet, useParams } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { PageTabs } from '@/components/layout/page-tabs'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 import { authClient, useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/teams/$teamId')({
@@ -70,7 +78,19 @@ function TeamLayout() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">{org.name}</h2>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to="/teams">{t('nav.teams')}</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{org.name}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <div className="border-b">
         <PageTabs items={tabs} />
