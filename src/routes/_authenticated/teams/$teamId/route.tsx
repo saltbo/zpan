@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, Outlet, useParams, useRouterState } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { PageTabs } from '@/components/layout/page-tabs'
 import { authClient, useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/teams/$teamId')({
@@ -13,17 +14,10 @@ type FullOrganization = {
   members: Array<{ userId: string; role: string }>
 }
 
-function tabClass(isActive: boolean): string {
-  return isActive
-    ? 'border-b-2 border-primary -mb-px px-4 py-2 text-sm font-medium text-foreground'
-    : 'border-b-2 border-transparent -mb-px px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground'
-}
-
 function TeamLayout() {
   const { t } = useTranslation()
   const { teamId } = useParams({ from: '/_authenticated/teams/$teamId' })
   const { data: session } = useSession()
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   const {
     data: org,
@@ -67,28 +61,19 @@ function TeamLayout() {
     )
   }
 
-  const membersPath = `/teams/${teamId}/members`
-  const activityPath = `/teams/${teamId}/activity`
-  const settingsPath = `/teams/${teamId}/settings`
+  const allTabs = [
+    { to: '/teams/$teamId/members', params: { teamId }, label: t('teams.tabMembers') },
+    { to: '/teams/$teamId/activity', params: { teamId }, label: t('teams.tabActivity') },
+    { to: '/teams/$teamId/settings', params: { teamId }, label: t('teams.tabSettings'), hidden: !isOwner },
+  ]
+  const tabs = allTabs.filter((item) => !item.hidden)
 
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold">{org.name}</h2>
 
       <div className="border-b">
-        <nav className="flex gap-1" aria-label="Team navigation">
-          <Link to="/teams/$teamId/members" params={{ teamId }} className={tabClass(pathname === membersPath)}>
-            {t('teams.tabMembers')}
-          </Link>
-          <Link to="/teams/$teamId/activity" params={{ teamId }} className={tabClass(pathname === activityPath)}>
-            {t('teams.tabActivity')}
-          </Link>
-          {isOwner && (
-            <Link to="/teams/$teamId/settings" params={{ teamId }} className={tabClass(pathname === settingsPath)}>
-              {t('teams.tabSettings')}
-            </Link>
-          )}
-        </nav>
+        <PageTabs items={tabs} />
       </div>
 
       <Outlet />
