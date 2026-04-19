@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-// SettingsPage components are React rendering components. The project has no
+// ProfilePage components are React rendering components. The project has no
 // jsdom or @testing-library/react setup, so we cannot render them here.
 // We test the pure logic the components apply:
 //   - ProfileForm: display name schema validation

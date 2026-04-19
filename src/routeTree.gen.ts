@@ -18,7 +18,11 @@ import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authentic
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authenticated/teams/index'
 import { Route as AuthenticatedStoragesIndexRouteImport } from './routes/_authenticated/storages/index'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
+import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
+import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
+import { Route as AuthenticatedSettingsPublicRouteImport } from './routes/_authenticated/settings/public'
 import { Route as AuthenticatedRecycleBinIndexRouteImport } from './routes/_authenticated/recycle-bin/index'
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
@@ -77,11 +81,34 @@ const AuthenticatedStoragesIndexRoute =
     path: '/storages/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSettingsIndexRoute =
   AuthenticatedSettingsIndexRouteImport.update({
-    id: '/settings/',
-    path: '/settings/',
-    getParentRoute: () => AuthenticatedRouteRoute,
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsProfileRoute =
+  AuthenticatedSettingsProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsAppearanceRoute =
+  AuthenticatedSettingsAppearanceRouteImport.update({
+    id: '/appearance',
+    path: '/appearance',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsPublicRoute =
+  AuthenticatedSettingsPublicRouteImport.update({
+    id: '/public',
+    path: '/public',
+    getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const AuthenticatedRecycleBinIndexRoute =
   AuthenticatedRecycleBinIndexRouteImport.update({
@@ -164,7 +191,11 @@ export interface FileRoutesByFullPath {
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/files/': typeof AuthenticatedFilesIndexRoute
   '/recycle-bin/': typeof AuthenticatedRecycleBinIndexRoute
+  '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/public': typeof AuthenticatedSettingsPublicRoute
   '/storages/': typeof AuthenticatedStoragesIndexRoute
   '/teams/': typeof AuthenticatedTeamsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
@@ -187,7 +218,10 @@ export interface FileRoutesByTo {
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/files': typeof AuthenticatedFilesIndexRoute
   '/recycle-bin': typeof AuthenticatedRecycleBinIndexRoute
-  '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/public': typeof AuthenticatedSettingsPublicRoute
   '/storages': typeof AuthenticatedStoragesIndexRoute
   '/teams': typeof AuthenticatedTeamsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
@@ -211,7 +245,11 @@ export interface FileRoutesById {
   '/_authenticated/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/_authenticated/files/': typeof AuthenticatedFilesIndexRoute
   '/_authenticated/recycle-bin/': typeof AuthenticatedRecycleBinIndexRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/_authenticated/settings/public': typeof AuthenticatedSettingsPublicRoute
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
   '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
@@ -236,7 +274,11 @@ export interface FileRouteTypes {
     | '/teams/invite'
     | '/files/'
     | '/recycle-bin/'
+    | '/settings'
     | '/settings/'
+    | '/settings/profile'
+    | '/settings/appearance'
+    | '/settings/public'
     | '/storages/'
     | '/teams/'
     | '/users/'
@@ -260,6 +302,9 @@ export interface FileRouteTypes {
     | '/files'
     | '/recycle-bin'
     | '/settings'
+    | '/settings/profile'
+    | '/settings/appearance'
+    | '/settings/public'
     | '/storages'
     | '/teams'
     | '/users'
@@ -282,7 +327,11 @@ export interface FileRouteTypes {
     | '/_authenticated/teams/invite'
     | '/_authenticated/files/'
     | '/_authenticated/recycle-bin/'
+    | '/_authenticated/settings'
     | '/_authenticated/settings/'
+    | '/_authenticated/settings/profile'
+    | '/_authenticated/settings/appearance'
+    | '/_authenticated/settings/public'
     | '/_authenticated/storages/'
     | '/_authenticated/teams/'
     | '/_authenticated/users/'
@@ -369,12 +418,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStoragesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings/': {
       id: '/_authenticated/settings/'
-      path: '/settings'
+      path: '/'
       fullPath: '/settings/'
       preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/profile': {
+      id: '/_authenticated/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/appearance': {
+      id: '/_authenticated/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/public': {
+      id: '/_authenticated/settings/public'
+      path: '/public'
+      fullPath: '/settings/public'
+      preLoaderRoute: typeof AuthenticatedSettingsPublicRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/recycle-bin/': {
       id: '/_authenticated/recycle-bin/'
@@ -503,13 +580,30 @@ const AuthenticatedTeamsTeamIdRouteWithChildren =
     AuthenticatedTeamsTeamIdRouteChildren,
   )
 
+interface AuthenticatedSettingsRouteChildren {
+  AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
+  AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
+  AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
+  AuthenticatedSettingsPublicRoute: typeof AuthenticatedSettingsPublicRoute
+}
+
+const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
+  AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
+  AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
+  AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
+  AuthenticatedSettingsPublicRoute: AuthenticatedSettingsPublicRoute,
+}
+
+const AuthenticatedSettingsRouteWithChildren =
+  AuthenticatedSettingsRoute._addFileChildren(AuthenticatedSettingsRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedTeamsInviteRoute: typeof AuthenticatedTeamsInviteRoute
   AuthenticatedFilesIndexRoute: typeof AuthenticatedFilesIndexRoute
   AuthenticatedRecycleBinIndexRoute: typeof AuthenticatedRecycleBinIndexRoute
-  AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedStoragesIndexRoute: typeof AuthenticatedStoragesIndexRoute
   AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
@@ -522,7 +616,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTeamsInviteRoute: AuthenticatedTeamsInviteRoute,
   AuthenticatedFilesIndexRoute: AuthenticatedFilesIndexRoute,
   AuthenticatedRecycleBinIndexRoute: AuthenticatedRecycleBinIndexRoute,
-  AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedStoragesIndexRoute: AuthenticatedStoragesIndexRoute,
   AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
