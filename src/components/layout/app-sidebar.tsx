@@ -87,9 +87,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="gap-2 px-3 pt-3 pb-1">
         <div className="-mx-3 flex items-center gap-2.5 border-b px-4 pb-3">
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#34a853] via-[#fbbc04] to-[#ea4335] text-base font-bold text-white shadow-sm">
-            {(siteName || 'ZPan').charAt(0).toUpperCase()}
-          </div>
+          <img src="/logo.svg" alt="ZPan" className="size-8" />
           <span className="text-lg font-semibold">{siteName || 'ZPan'}</span>
         </div>
         <OrgSwitcher />
