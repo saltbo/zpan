@@ -261,6 +261,7 @@
   "preview.unsupported": "此文件类型暂不支持预览。",
   "preview.loadError": "加载文件预览失败。",
   "preview.pageOf": "{{current}} / {{total}}",
+  "quota.storage": "存储空间",
   "quota.usage": "{{used}} / {{total}} 已使用",
   "quota.usageNoLimit": "{{used}} 已使用",
   "common.create": "创建",

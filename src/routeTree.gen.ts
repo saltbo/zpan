@@ -14,23 +14,23 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as UUsernameRouteImport } from './routes/u/$username'
 import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
+import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authenticated/teams/index'
 import { Route as AuthenticatedStoragesIndexRouteImport } from './routes/_authenticated/storages/index'
-import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
-import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
-import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
-import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedRecycleBinIndexRouteImport } from './routes/_authenticated/recycle-bin/index'
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
+import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
+import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
+import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
+import { Route as AuthenticatedTeamsTeamIdRouteRouteImport } from './routes/_authenticated/teams/$teamId/route'
+import { Route as AuthenticatedTeamsTeamIdIndexRouteImport } from './routes/_authenticated/teams/$teamId/index'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
 import { Route as AuthenticatedAdminStoragesIndexRouteImport } from './routes/_authenticated/admin/storages/index'
 import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_authenticated/admin/settings/index'
-import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenticated/teams/$teamId/route'
-import { Route as AuthenticatedTeamsTeamIdIndexRouteImport } from './routes/_authenticated/teams/$teamId/index'
 import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_authenticated/teams/$teamId/settings'
 import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
 import { Route as AuthenticatedTeamsTeamIdActivityRouteImport } from './routes/_authenticated/teams/$teamId/activity'
@@ -60,6 +60,12 @@ const authSignInRoute = authSignInRouteImport.update({
   path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSettingsRouteRoute =
+  AuthenticatedSettingsRouteRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -81,34 +87,11 @@ const AuthenticatedStoragesIndexRoute =
     path: '/storages/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedSettingsIndexRoute =
   AuthenticatedSettingsIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
-const AuthenticatedSettingsProfileRoute =
-  AuthenticatedSettingsProfileRouteImport.update({
-    id: '/profile',
-    path: '/profile',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
-const AuthenticatedSettingsAppearanceRoute =
-  AuthenticatedSettingsAppearanceRouteImport.update({
-    id: '/appearance',
-    path: '/appearance',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
-const AuthenticatedSettingsPasswordRoute =
-  AuthenticatedSettingsPasswordRouteImport.update({
-    id: '/password',
-    path: '/password',
-    getParentRoute: () => AuthenticatedSettingsRoute,
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
 const AuthenticatedRecycleBinIndexRoute =
   AuthenticatedRecycleBinIndexRouteImport.update({
@@ -126,6 +109,36 @@ const AuthenticatedTeamsInviteRoute =
     id: '/teams/invite',
     path: '/teams/invite',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSettingsProfileRoute =
+  AuthenticatedSettingsProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsPasswordRoute =
+  AuthenticatedSettingsPasswordRouteImport.update({
+    id: '/password',
+    path: '/password',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsAppearanceRoute =
+  AuthenticatedSettingsAppearanceRouteImport.update({
+    id: '/appearance',
+    path: '/appearance',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdRouteRoute =
+  AuthenticatedTeamsTeamIdRouteRouteImport.update({
+    id: '/teams/$teamId',
+    path: '/teams/$teamId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdIndexRoute =
+  AuthenticatedTeamsTeamIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
   } as any)
 const AuthenticatedAdminUsersIndexRoute =
   AuthenticatedAdminUsersIndexRouteImport.update({
@@ -145,35 +158,23 @@ const AuthenticatedAdminSettingsIndexRoute =
     path: '/settings/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedTeamsTeamIdRoute =
-  AuthenticatedTeamsTeamIdRouteImport.update({
-    id: '/teams/$teamId',
-    path: '/teams/$teamId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedTeamsTeamIdIndexRoute =
-  AuthenticatedTeamsTeamIdIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRoute,
-  } as any)
 const AuthenticatedTeamsTeamIdSettingsRoute =
   AuthenticatedTeamsTeamIdSettingsRouteImport.update({
     id: '/settings',
     path: '/settings',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRoute,
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
   } as any)
 const AuthenticatedTeamsTeamIdMembersRoute =
   AuthenticatedTeamsTeamIdMembersRouteImport.update({
     id: '/members',
     path: '/members',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRoute,
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
   } as any)
 const AuthenticatedTeamsTeamIdActivityRoute =
   AuthenticatedTeamsTeamIdActivityRouteImport.update({
     id: '/activity',
     path: '/activity',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRoute,
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
   } as any)
 const AuthenticatedAdminSettingsAuthRoute =
   AuthenticatedAdminSettingsAuthRouteImport.update({
@@ -185,29 +186,29 @@ const AuthenticatedAdminSettingsAuthRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
+  '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
   '/u/$username': typeof UUsernameRoute
+  '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
+  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/password': typeof AuthenticatedSettingsPasswordRoute
+  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/files/': typeof AuthenticatedFilesIndexRoute
   '/recycle-bin/': typeof AuthenticatedRecycleBinIndexRoute
-  '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/settings/': typeof AuthenticatedSettingsIndexRoute
-  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
-  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
-  '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/storages/': typeof AuthenticatedStoragesIndexRoute
   '/teams/': typeof AuthenticatedTeamsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
-  '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteWithChildren
-  '/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
   '/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
   '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
+  '/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
@@ -215,82 +216,82 @@ export interface FileRoutesByTo {
   '/sign-up': typeof authSignUpRoute
   '/u/$username': typeof UUsernameRoute
   '/': typeof AuthenticatedIndexRoute
+  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/password': typeof AuthenticatedSettingsPasswordRoute
+  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/files': typeof AuthenticatedFilesIndexRoute
   '/recycle-bin': typeof AuthenticatedRecycleBinIndexRoute
-  '/settings': typeof AuthenticatedSettingsRouteWithChildren
-  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
-  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
-  '/settings/password': typeof AuthenticatedSettingsPasswordRoute
+  '/settings': typeof AuthenticatedSettingsIndexRoute
   '/storages': typeof AuthenticatedStoragesIndexRoute
   '/teams': typeof AuthenticatedTeamsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
-  '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteWithChildren
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages': typeof AuthenticatedAdminStoragesIndexRoute
   '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
+  '/teams/$teamId': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
+  '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/(auth)/sign-in': typeof authSignInRoute
   '/(auth)/sign-up': typeof authSignUpRoute
   '/u/$username': typeof UUsernameRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
+  '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
+  '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/_authenticated/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/_authenticated/files/': typeof AuthenticatedFilesIndexRoute
   '/_authenticated/recycle-bin/': typeof AuthenticatedRecycleBinIndexRoute
-  '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
-  '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
-  '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
-  '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
   '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
-  '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteWithChildren
-  '/_authenticated/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
   '/_authenticated/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/_authenticated/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/_authenticated/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
   '/_authenticated/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/_authenticated/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
   '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
+  '/_authenticated/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/admin'
+    | '/settings'
     | '/sign-in'
     | '/sign-up'
     | '/u/$username'
+    | '/teams/$teamId'
+    | '/settings/appearance'
+    | '/settings/password'
+    | '/settings/profile'
     | '/teams/invite'
     | '/files/'
     | '/recycle-bin/'
-    | '/settings'
     | '/settings/'
-    | '/settings/profile'
-    | '/settings/appearance'
-    | '/settings/password'
     | '/storages/'
     | '/teams/'
     | '/users/'
     | '/admin/settings/auth'
-    | '/teams/$teamId'
-    | '/teams/$teamId/'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
     | '/admin/settings/'
     | '/admin/storages/'
     | '/admin/users/'
+    | '/teams/$teamId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/admin'
@@ -298,52 +299,52 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/u/$username'
     | '/'
+    | '/settings/appearance'
+    | '/settings/password'
+    | '/settings/profile'
     | '/teams/invite'
     | '/files'
     | '/recycle-bin'
     | '/settings'
-    | '/settings/profile'
-    | '/settings/appearance'
-    | '/settings/password'
     | '/storages'
     | '/teams'
     | '/users'
     | '/admin/settings/auth'
-    | '/teams/$teamId'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
     | '/admin/settings'
     | '/admin/storages'
     | '/admin/users'
+    | '/teams/$teamId'
   id:
     | '__root__'
     | '/_authenticated'
     | '/_authenticated/admin'
+    | '/_authenticated/settings'
     | '/(auth)/sign-in'
     | '/(auth)/sign-up'
     | '/u/$username'
     | '/_authenticated/'
+    | '/_authenticated/teams/$teamId'
+    | '/_authenticated/settings/appearance'
+    | '/_authenticated/settings/password'
+    | '/_authenticated/settings/profile'
     | '/_authenticated/teams/invite'
     | '/_authenticated/files/'
     | '/_authenticated/recycle-bin/'
-    | '/_authenticated/settings'
     | '/_authenticated/settings/'
-    | '/_authenticated/settings/profile'
-    | '/_authenticated/settings/appearance'
-    | '/_authenticated/settings/password'
     | '/_authenticated/storages/'
     | '/_authenticated/teams/'
     | '/_authenticated/users/'
     | '/_authenticated/admin/settings/auth'
-    | '/_authenticated/teams/$teamId'
-    | '/_authenticated/teams/$teamId/'
     | '/_authenticated/teams/$teamId/activity'
     | '/_authenticated/teams/$teamId/members'
     | '/_authenticated/teams/$teamId/settings'
     | '/_authenticated/admin/settings/'
     | '/_authenticated/admin/storages/'
     | '/_authenticated/admin/users/'
+    | '/_authenticated/teams/$teamId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -390,6 +391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin': {
       id: '/_authenticated/admin'
       path: '/admin'
@@ -418,40 +426,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStoragesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/settings/': {
       id: '/_authenticated/settings/'
       path: '/'
       fullPath: '/settings/'
       preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/profile': {
-      id: '/_authenticated/settings/profile'
-      path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/appearance': {
-      id: '/_authenticated/settings/appearance'
-      path: '/appearance'
-      fullPath: '/settings/appearance'
-      preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/password': {
-      id: '/_authenticated/settings/password'
-      path: '/password'
-      fullPath: '/settings/password'
-      preLoaderRoute: typeof AuthenticatedSettingsPasswordRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
     '/_authenticated/recycle-bin/': {
       id: '/_authenticated/recycle-bin/'
@@ -474,6 +454,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamsInviteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings/profile': {
+      id: '/_authenticated/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/password': {
+      id: '/_authenticated/settings/password'
+      path: '/password'
+      fullPath: '/settings/password'
+      preLoaderRoute: typeof AuthenticatedSettingsPasswordRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/appearance': {
+      id: '/_authenticated/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/teams/$teamId': {
+      id: '/_authenticated/teams/$teamId'
+      path: '/teams/$teamId'
+      fullPath: '/teams/$teamId'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/teams/$teamId/': {
+      id: '/_authenticated/teams/$teamId/'
+      path: '/'
+      fullPath: '/teams/$teamId/'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdIndexRouteImport
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
+    }
     '/_authenticated/admin/users/': {
       id: '/_authenticated/admin/users/'
       path: '/users'
@@ -495,40 +510,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
-    '/_authenticated/teams/$teamId': {
-      id: '/_authenticated/teams/$teamId'
-      path: '/teams/$teamId'
-      fullPath: '/teams/$teamId'
-      preLoaderRoute: typeof AuthenticatedTeamsTeamIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/teams/$teamId/': {
-      id: '/_authenticated/teams/$teamId/'
-      path: '/'
-      fullPath: '/teams/$teamId/'
-      preLoaderRoute: typeof AuthenticatedTeamsTeamIdIndexRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRoute
-    }
     '/_authenticated/teams/$teamId/settings': {
       id: '/_authenticated/teams/$teamId/settings'
       path: '/settings'
       fullPath: '/teams/$teamId/settings'
       preLoaderRoute: typeof AuthenticatedTeamsTeamIdSettingsRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRoute
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
     }
     '/_authenticated/teams/$teamId/members': {
       id: '/_authenticated/teams/$teamId/members'
       path: '/members'
       fullPath: '/teams/$teamId/members'
       preLoaderRoute: typeof AuthenticatedTeamsTeamIdMembersRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRoute
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
     }
     '/_authenticated/teams/$teamId/activity': {
       id: '/_authenticated/teams/$teamId/activity'
       path: '/activity'
       fullPath: '/teams/$teamId/activity'
       preLoaderRoute: typeof AuthenticatedTeamsTeamIdActivityRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRoute
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
     }
     '/_authenticated/admin/settings/auth': {
       id: '/_authenticated/admin/settings/auth'
@@ -560,67 +561,73 @@ const AuthenticatedAdminRouteRouteWithChildren =
     AuthenticatedAdminRouteRouteChildren,
   )
 
-interface AuthenticatedTeamsTeamIdRouteChildren {
-  AuthenticatedTeamsTeamIdIndexRoute: typeof AuthenticatedTeamsTeamIdIndexRoute
+interface AuthenticatedSettingsRouteRouteChildren {
+  AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
+  AuthenticatedSettingsPasswordRoute: typeof AuthenticatedSettingsPasswordRoute
+  AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
+  AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
+}
+
+const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
+  {
+    AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
+    AuthenticatedSettingsPasswordRoute: AuthenticatedSettingsPasswordRoute,
+    AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
+    AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
+  }
+
+const AuthenticatedSettingsRouteRouteWithChildren =
+  AuthenticatedSettingsRouteRoute._addFileChildren(
+    AuthenticatedSettingsRouteRouteChildren,
+  )
+
+interface AuthenticatedTeamsTeamIdRouteRouteChildren {
   AuthenticatedTeamsTeamIdActivityRoute: typeof AuthenticatedTeamsTeamIdActivityRoute
   AuthenticatedTeamsTeamIdMembersRoute: typeof AuthenticatedTeamsTeamIdMembersRoute
   AuthenticatedTeamsTeamIdSettingsRoute: typeof AuthenticatedTeamsTeamIdSettingsRoute
+  AuthenticatedTeamsTeamIdIndexRoute: typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 
-const AuthenticatedTeamsTeamIdRouteChildren: AuthenticatedTeamsTeamIdRouteChildren =
+const AuthenticatedTeamsTeamIdRouteRouteChildren: AuthenticatedTeamsTeamIdRouteRouteChildren =
   {
-    AuthenticatedTeamsTeamIdIndexRoute: AuthenticatedTeamsTeamIdIndexRoute,
-    AuthenticatedTeamsTeamIdActivityRoute: AuthenticatedTeamsTeamIdActivityRoute,
+    AuthenticatedTeamsTeamIdActivityRoute:
+      AuthenticatedTeamsTeamIdActivityRoute,
     AuthenticatedTeamsTeamIdMembersRoute: AuthenticatedTeamsTeamIdMembersRoute,
-    AuthenticatedTeamsTeamIdSettingsRoute: AuthenticatedTeamsTeamIdSettingsRoute,
+    AuthenticatedTeamsTeamIdSettingsRoute:
+      AuthenticatedTeamsTeamIdSettingsRoute,
+    AuthenticatedTeamsTeamIdIndexRoute: AuthenticatedTeamsTeamIdIndexRoute,
   }
 
-const AuthenticatedTeamsTeamIdRouteWithChildren =
-  AuthenticatedTeamsTeamIdRoute._addFileChildren(
-    AuthenticatedTeamsTeamIdRouteChildren,
+const AuthenticatedTeamsTeamIdRouteRouteWithChildren =
+  AuthenticatedTeamsTeamIdRouteRoute._addFileChildren(
+    AuthenticatedTeamsTeamIdRouteRouteChildren,
   )
-
-interface AuthenticatedSettingsRouteChildren {
-  AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
-  AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
-  AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
-  AuthenticatedSettingsPasswordRoute: typeof AuthenticatedSettingsPasswordRoute
-}
-
-const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
-  AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
-  AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
-  AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
-  AuthenticatedSettingsPasswordRoute: AuthenticatedSettingsPasswordRoute,
-}
-
-const AuthenticatedSettingsRouteWithChildren =
-  AuthenticatedSettingsRoute._addFileChildren(AuthenticatedSettingsRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
+  AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedTeamsTeamIdRouteRoute: typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   AuthenticatedTeamsInviteRoute: typeof AuthenticatedTeamsInviteRoute
   AuthenticatedFilesIndexRoute: typeof AuthenticatedFilesIndexRoute
   AuthenticatedRecycleBinIndexRoute: typeof AuthenticatedRecycleBinIndexRoute
-  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedStoragesIndexRoute: typeof AuthenticatedStoragesIndexRoute
   AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
-  AuthenticatedTeamsTeamIdRoute: typeof AuthenticatedTeamsTeamIdRouteWithChildren
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
+  AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedTeamsTeamIdRouteRoute:
+    AuthenticatedTeamsTeamIdRouteRouteWithChildren,
   AuthenticatedTeamsInviteRoute: AuthenticatedTeamsInviteRoute,
   AuthenticatedFilesIndexRoute: AuthenticatedFilesIndexRoute,
   AuthenticatedRecycleBinIndexRoute: AuthenticatedRecycleBinIndexRoute,
-  AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedStoragesIndexRoute: AuthenticatedStoragesIndexRoute,
   AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
-  AuthenticatedTeamsTeamIdRoute: AuthenticatedTeamsTeamIdRouteWithChildren,
 }
 
 const AuthenticatedRouteRouteWithChildren =
