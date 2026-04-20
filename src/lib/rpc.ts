@@ -7,6 +7,7 @@ import type {
   ObjectsRoute,
   ProfileRoute,
   PublicTeamsRoute,
+  SharesRoute,
   StoragesRoute,
   SystemRoute,
   TeamsRoute,
@@ -32,3 +33,4 @@ export const profiles = hc<ProfileRoute>('/api/profiles')
 export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
 export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)
+export const sharesApi = hc<SharesRoute>('/api/shares', opts)

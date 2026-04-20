@@ -11,7 +11,6 @@ import {
   incrementViews,
   isAccessibleByUser,
   listShareRecipientUserIds,
-  listSharesByCreator,
   resolveShareByToken,
   revokeShare,
   verifyPassword,
@@ -390,71 +389,6 @@ describe('incrementDownloadsAtomic', () => {
     const results = await Promise.all(Array.from({ length: 5 }, () => incrementDownloadsAtomic(db, share.id)))
     expect(results.every((r) => r.ok)).toBe(true)
     expect(results[4].downloads).toBe(5)
-  })
-})
-
-// ─── listSharesByCreator ──────────────────────────────────────────────────────
-
-describe('listSharesByCreator', () => {
-  it('returns empty result when no shares exist for creator', async () => {
-    const { db } = await createTestApp()
-    const result = await listSharesByCreator(db, 'unknown-creator', { page: 1, pageSize: 20 })
-    expect(result).toEqual({ items: [], total: 0 })
-  })
-
-  it('returns shares with matterName and matterType joined', async () => {
-    const { db } = await createTestApp()
-    const orgId = nanoid()
-    const matter = await seedMatter(db, { orgId })
-    await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
-
-    const result = await listSharesByCreator(db, 'u1', { page: 1, pageSize: 20 })
-    expect(result.total).toBe(1)
-    expect(result.items[0].matterName).toBe(matter.name)
-    expect(result.items[0].matterType).toBe(matter.type)
-  })
-
-  it('paginates correctly', async () => {
-    const { db } = await createTestApp()
-    const orgId = nanoid()
-    for (let i = 0; i < 5; i++) {
-      const m = await seedMatter(db, { orgId })
-      await createShare(db, { matterId: m.id, orgId, creatorId: 'paginator', kind: 'landing' })
-    }
-
-    const page1 = await listSharesByCreator(db, 'paginator', { page: 1, pageSize: 3 })
-    expect(page1.total).toBe(5)
-    expect(page1.items).toHaveLength(3)
-
-    const page2 = await listSharesByCreator(db, 'paginator', { page: 2, pageSize: 3 })
-    expect(page2.items).toHaveLength(2)
-  })
-
-  it('returns shares across multiple orgs for the same creator', async () => {
-    const { db } = await createTestApp()
-    const m1 = await seedMatter(db, { orgId: 'org-x' })
-    const m2 = await seedMatter(db, { orgId: 'org-y' })
-    await createShare(db, { matterId: m1.id, orgId: 'org-x', creatorId: 'cross-org-user', kind: 'landing' })
-    await createShare(db, { matterId: m2.id, orgId: 'org-y', creatorId: 'cross-org-user', kind: 'landing' })
-
-    const result = await listSharesByCreator(db, 'cross-org-user', { page: 1, pageSize: 20 })
-    expect(result.total).toBe(2)
-  })
-
-  it('filters by status when provided', async () => {
-    const { db } = await createTestApp()
-    const orgId = nanoid()
-    const m1 = await seedMatter(db, { orgId })
-    const m2 = await seedMatter(db, { orgId })
-    await createShare(db, { matterId: m1.id, orgId, creatorId: 'u-filter', kind: 'landing' })
-    const s2 = await createShare(db, { matterId: m2.id, orgId, creatorId: 'u-filter', kind: 'landing' })
-    await revokeShare(db, s2.id, 'u-filter')
-
-    const active = await listSharesByCreator(db, 'u-filter', { page: 1, pageSize: 20, status: 'active' })
-    expect(active.total).toBe(1)
-
-    const revoked = await listSharesByCreator(db, 'u-filter', { page: 1, pageSize: 20, status: 'revoked' })
-    expect(revoked.total).toBe(1)
   })
 })
 

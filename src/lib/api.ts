@@ -5,6 +5,8 @@ import type {
   AuthProvider,
   Notification,
   PaginatedResponse,
+  ShareDetail,
+  ShareListItem,
   Storage,
   StorageObject,
 } from '@shared/types'
@@ -16,6 +18,7 @@ import {
   notificationsApi,
   objects,
   profiles,
+  sharesApi,
   storages,
   system,
   teamsApi,
@@ -367,6 +370,28 @@ export function markNotificationRead(id: string) {
 
 export function markAllNotificationsRead() {
   return unwrap<{ count: number }>(notificationsApi['read-all'].$post())
+}
+
+// Shares API
+
+export type { ShareDetail, ShareListItem }
+
+export function listShares(page = 1, pageSize = 20, status?: 'active' | 'revoked') {
+  const query: Record<string, string> = { page: String(page), pageSize: String(pageSize) }
+  if (status) query.status = status
+  return unwrap<{ items: ShareListItem[]; total: number; page: number; pageSize: number }>(
+    sharesApi.index.$get({ query }),
+  )
+}
+
+export function getShare(id: string) {
+  return unwrap<ShareDetail>(sharesApi[':id'].$get({ param: { id } }))
+}
+
+export function deleteShare(id: string) {
+  return sharesApi[':id'].$delete({ param: { id } }).then((res) => {
+    if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
+  })
 }
 
 // Auth API — Better Auth passthrough, not typed via Hono RPC
