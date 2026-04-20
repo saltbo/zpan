@@ -20,6 +20,16 @@ interface FileRowActionsProps {
 export function FileRowActions({ item, handlers }: FileRowActionsProps) {
   const { t } = useTranslation()
   const isFile = item.dirtype === DirType.FILE
+  const hasActions = !!(
+    (isFile && handlers.onDownload) ||
+    handlers.onRename ||
+    handlers.onCopy ||
+    handlers.onMove ||
+    handlers.onShare ||
+    handlers.onTrash
+  )
+
+  if (!hasActions) return null
 
   return (
     <DropdownMenu>
@@ -29,33 +39,49 @@ export function FileRowActions({ item, handlers }: FileRowActionsProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        {isFile && (
-          <DropdownMenuItem onClick={() => handlers.onDownload(item)}>
+        {isFile && handlers.onDownload && (
+          <DropdownMenuItem onClick={() => handlers.onDownload?.(item)}>
             <Download className="mr-2 h-4 w-4" />
             {t('files.download')}
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onClick={() => handlers.onRename(item)}>
-          <Pencil className="mr-2 h-4 w-4" />
-          {t('files.rename')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handlers.onCopy(item)}>
-          <Copy className="mr-2 h-4 w-4" />
-          {t('files.copy')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handlers.onMove(item)}>
-          <FolderInput className="mr-2 h-4 w-4" />
-          {t('files.moveTo')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handlers.onShare(item)}>
-          <Share2 className="mr-2 h-4 w-4" />
-          {t('share.menuItem')}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive" onClick={() => handlers.onTrash(item)}>
-          <Trash2 className="mr-2 h-4 w-4" />
-          {t('files.moveToTrash')}
-        </DropdownMenuItem>
+        {handlers.onRename && (
+          <DropdownMenuItem onClick={() => handlers.onRename?.(item)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            {t('files.rename')}
+          </DropdownMenuItem>
+        )}
+        {handlers.onCopy && (
+          <DropdownMenuItem onClick={() => handlers.onCopy?.(item)}>
+            <Copy className="mr-2 h-4 w-4" />
+            {t('files.copy')}
+          </DropdownMenuItem>
+        )}
+        {handlers.onMove && (
+          <DropdownMenuItem onClick={() => handlers.onMove?.(item)}>
+            <FolderInput className="mr-2 h-4 w-4" />
+            {t('files.moveTo')}
+          </DropdownMenuItem>
+        )}
+        {handlers.onShare && (
+          <DropdownMenuItem onClick={() => handlers.onShare?.(item)}>
+            <Share2 className="mr-2 h-4 w-4" />
+            {t('share.menuItem')}
+          </DropdownMenuItem>
+        )}
+        {handlers.onTrash && (
+          <>
+            {(handlers.onRename ||
+              handlers.onCopy ||
+              handlers.onMove ||
+              handlers.onShare ||
+              (isFile && handlers.onDownload)) && <DropdownMenuSeparator />}
+            <DropdownMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t('files.moveToTrash')}
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -502,5 +502,16 @@
   "share.loading": "Loading share...",
   "share.loadError": "Failed to load share",
   "share.previewUnavailable": "Preview not available",
-  "share.previewDownloadHint": "Download the file to view it"
+  "share.previewDownloadHint": "Download the file to view it",
+  "share.externalLabel": "External share",
+  "share.externalBadge": "Public access page",
+  "share.externalTagline": "Secure file sharing",
+  "share.externalFolderSubtitle": "Browse shared content in a read-only workspace. Download is allowed, all editing actions are disabled.",
+  "share.externalFileSubtitle": "Preview and download this file from the public share page.",
+  "share.readonlyHint": "Read-only browser. Only navigation and download are available.",
+  "share.openWorkspace": "Open workspace",
+  "share.passwordOnce": "Password is only shown once — save it before closing",
+  "share.copyShareText": "Copy share text",
+  "share.textCopied": "Share text copied to clipboard",
+  "share.shareTextTemplate": "Link: {{url}}\nPassword: {{password}}"
 }

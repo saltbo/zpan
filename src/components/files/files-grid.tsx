@@ -19,6 +19,8 @@ interface FilesGridProps {
   handlers: FileActionHandlers
   selectedIds: string[]
   currentPath: string
+  dragAndDropEnabled?: boolean
+  selectionEnabled?: boolean
 }
 
 function buildPath(parent: string, name: string): string {
@@ -95,13 +97,13 @@ function DraggableGridCard({
         <ContextMenuItem onClick={() => handlers.onOpen(item)}>
           {isFile ? t('files.preview') : t('files.open')}
         </ContextMenuItem>
-        {isFile && <ContextMenuItem onClick={() => handlers.onDownload(item)}>{t('files.download')}</ContextMenuItem>}
+        {isFile && <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>}
         <ContextMenuSeparator />
-        <ContextMenuItem onClick={() => handlers.onRename(item)}>{t('files.rename')}</ContextMenuItem>
-        <ContextMenuItem onClick={() => handlers.onCopy(item)}>{t('files.copy')}</ContextMenuItem>
-        <ContextMenuItem onClick={() => handlers.onMove(item)}>{t('files.moveTo')}</ContextMenuItem>
+        <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
+        <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
+        <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash(item)}>
+        <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
           {t('files.moveToTrash')}
         </ContextMenuItem>
       </ContextMenuContent>
@@ -109,7 +111,56 @@ function DraggableGridCard({
   )
 }
 
-export function FilesGrid({ table, handlers, selectedIds, currentPath }: FilesGridProps) {
+function PlainGridCard({ row, handlers }: { row: Row<StorageObject>; handlers: FileActionHandlers }) {
+  const { t } = useTranslation()
+  const item = row.original
+  const isFile = item.dirtype === DirType.FILE
+  const showWriteActions = !!(handlers.onRename || handlers.onCopy || handlers.onMove || handlers.onTrash)
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          type="button"
+          className="group relative flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border p-4 transition-colors hover:bg-muted/50"
+          onDoubleClick={() => handlers.onOpen(item)}
+        >
+          <FileIcon item={item} size="lg" />
+          <span className="w-full truncate text-center text-sm font-medium">{item.name}</span>
+          {isFile && <span className="text-xs text-muted-foreground">{item.type}</span>}
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onClick={() => handlers.onOpen(item)}>
+          {isFile ? t('files.preview') : t('files.open')}
+        </ContextMenuItem>
+        {isFile && handlers.onDownload && (
+          <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>
+        )}
+        {showWriteActions && <ContextMenuSeparator />}
+        {handlers.onRename && (
+          <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
+        )}
+        {handlers.onCopy && (
+          <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
+        )}
+        {handlers.onMove && (
+          <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
+        )}
+        {handlers.onTrash && (
+          <>
+            {(handlers.onRename || handlers.onCopy || handlers.onMove) && <ContextMenuSeparator />}
+            <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
+              {t('files.moveToTrash')}
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
+
+export function FilesGrid({ table, handlers, selectedIds, currentPath, dragAndDropEnabled = true }: FilesGridProps) {
   const { t } = useTranslation()
   const rows = table.getRowModel().rows
 
@@ -119,16 +170,20 @@ export function FilesGrid({ table, handlers, selectedIds, currentPath }: FilesGr
 
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 p-2">
-      {rows.map((row) => (
-        <DraggableGridCard
-          key={row.id}
-          row={row}
-          handlers={handlers}
-          selectedIds={selectedIds}
-          currentPath={currentPath}
-          allItems={table.getRowModel().rows.map((r) => r.original)}
-        />
-      ))}
+      {rows.map((row) =>
+        dragAndDropEnabled ? (
+          <DraggableGridCard
+            key={row.id}
+            row={row}
+            handlers={handlers}
+            selectedIds={selectedIds}
+            currentPath={currentPath}
+            allItems={table.getRowModel().rows.map((r) => r.original)}
+          />
+        ) : (
+          <PlainGridCard key={row.id} row={row} handlers={handlers} />
+        ),
+      )}
     </div>
   )
 }

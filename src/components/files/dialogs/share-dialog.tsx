@@ -2,16 +2,16 @@ import { DirType } from '@shared/constants'
 import type { CreateShareRequest } from '@shared/schemas'
 import type { StorageObject } from '@shared/types'
 import { useMutation } from '@tanstack/react-query'
-import { CheckCircle2, Copy, Dice6, File, Folder, Share2, TriangleAlert, X } from 'lucide-react'
+import { CheckCircle2, Copy, File, Folder, KeyRound, Share2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { type CreateShareResult, createShare } from '@/lib/api'
 import { formatSize } from '@/lib/format'
@@ -49,7 +49,7 @@ export function buildShareUrl(result: CreateShareResult, origin: string): string
 
 export function isCustomLimitInvalid(option: string, value: string): boolean {
   if (option !== 'custom') return false
-  const n = Number.parseInt(value)
+  const n = Number.parseInt(value, 10)
   return !value || Number.isNaN(n) || n < 1
 }
 
@@ -82,6 +82,11 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
     setResult(null)
   }, [open])
 
+  function handlePasswordToggle(enabled: boolean) {
+    setPasswordEnabled(enabled)
+    setPassword(enabled ? genPassword() : '')
+  }
+
   function addChip(raw: string) {
     const value = raw.trim()
     if (!value) return
@@ -99,10 +104,9 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
   }
 
   const hasInvalidChips = chips.some((c) => !c.valid)
-  const passwordInvalid = passwordEnabled && !password
   const customExpiresInvalid = expiresOption === 'custom' && (!customExpires || new Date(customExpires) <= new Date())
   const customLimitInvalid = isCustomLimitInvalid(limitOption, customLimit)
-  const canSubmit = !hasInvalidChips && !passwordInvalid && !customExpiresInvalid && !customLimitInvalid
+  const canSubmit = !hasInvalidChips && !customExpiresInvalid && !customLimitInvalid
 
   const mutation = useMutation({
     mutationFn: createShare,
@@ -120,7 +124,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
       body.expiresAt = expiresOption === 'custom' ? new Date(customExpires).toISOString() : addDays(days[expiresOption])
     }
     if (limitOption !== 'unlimited') {
-      body.downloadLimit = Number.parseInt(limitOption === 'custom' ? customLimit : limitOption)
+      body.downloadLimit = Number.parseInt(limitOption === 'custom' ? customLimit : limitOption, 10)
     }
     if (kind === 'landing' && chips.length > 0) {
       body.recipients = chips.filter((c) => c.valid).map((c) => ({ recipientEmail: c.value }))
@@ -148,6 +152,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
           <SuccessView
             result={result}
             url={shareUrl}
+            password={passwordEnabled ? password : undefined}
             recipientCount={chips.filter((c) => c.valid).length}
             onCopy={copyUrl}
             onClose={() => onOpenChange(false)}
@@ -184,13 +189,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
                     onBlur={() => addChip(chipInput)}
                     onRemove={(id) => setChips((p) => p.filter((c) => c.id !== id))}
                   />
-                  <PasswordField
-                    enabled={passwordEnabled}
-                    password={password}
-                    onToggle={setPasswordEnabled}
-                    onChange={setPassword}
-                    onGenerate={() => setPassword(genPassword())}
-                  />
+                  <PasswordField enabled={passwordEnabled} onToggle={handlePasswordToggle} />
                 </>
               )}
 
@@ -331,36 +330,15 @@ function RecipientsField({
   )
 }
 
-function PasswordField({
-  enabled,
-  password,
-  onToggle,
-  onChange,
-  onGenerate,
-}: {
-  enabled: boolean
-  password: string
-  onToggle: (v: boolean) => void
-  onChange: (v: string) => void
-  onGenerate: () => void
-}) {
+function PasswordField({ enabled, onToggle }: { enabled: boolean; onToggle: (v: boolean) => void }) {
   const { t } = useTranslation()
   return (
-    <div className="space-y-1.5">
+    <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <Checkbox id="share-pwd" checked={enabled} onCheckedChange={(v) => onToggle(v === true)} />
+        <KeyRound className="h-4 w-4 text-muted-foreground" />
         <Label htmlFor="share-pwd">{t('share.password')}</Label>
       </div>
-      {enabled && (
-        <div className="flex gap-2">
-          <Input value={password} onChange={(e) => onChange(e.target.value)} type="text" className="flex-1" />
-          <Button type="button" variant="outline" size="sm" onClick={onGenerate}>
-            <Dice6 className="mr-1 h-4 w-4" />
-            {t('share.generatePassword')}
-          </Button>
-        </div>
-      )}
-      {enabled && <p className="text-xs text-muted-foreground">{t('share.passwordHint')}</p>}
+      <Switch id="share-pwd" checked={enabled} onCheckedChange={onToggle} />
     </div>
   )
 }
@@ -442,6 +420,7 @@ function LimitField({
 function SuccessView({
   result,
   url,
+  password,
   recipientCount,
   onCopy,
   onClose,
@@ -449,6 +428,7 @@ function SuccessView({
 }: {
   result: CreateShareResult
   url: string
+  password?: string
   recipientCount: number
   onCopy: (url: string) => void
   onClose: () => void
@@ -456,6 +436,12 @@ function SuccessView({
 }) {
   const { t } = useTranslation()
   const isDirect = result.kind === 'direct'
+
+  function copyShareText() {
+    const text = t('share.shareTextTemplate', { url, password })
+    navigator.clipboard.writeText(text)
+    toast.success(t('share.textCopied'))
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-4 px-4 pb-4">
@@ -482,6 +468,23 @@ function SuccessView({
           </p>
         )}
       </div>
+
+      {password && (
+        <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-amber-800 dark:text-amber-200">{t('share.passwordLabel')}</p>
+            <Button size="sm" variant="outline" type="button" className="h-7 text-xs" onClick={copyShareText}>
+              <Copy className="mr-1 h-3 w-3" />
+              {t('share.copyShareText')}
+            </Button>
+          </div>
+          <span className="block rounded bg-background px-2 py-1 font-mono text-sm tracking-wider">{password}</span>
+          <p className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
+            <TriangleAlert className="h-3 w-3 shrink-0" />
+            {t('share.passwordOnce')}
+          </p>
+        </div>
+      )}
 
       <div className="space-y-1 text-sm">
         {recipientCount > 0 && (

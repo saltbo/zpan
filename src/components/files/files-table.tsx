@@ -20,6 +20,8 @@ interface FilesTableProps {
   handlers: FileActionHandlers
   selectedIds: string[]
   currentPath: string
+  dragAndDropEnabled?: boolean
+  selectionEnabled?: boolean
 }
 
 function SortIndicator({ direction }: { direction: false | 'asc' | 'desc' }) {
@@ -97,13 +99,13 @@ function DraggableDroppableRow({
         <ContextMenuItem onClick={() => handlers.onOpen(item)}>
           {isFile ? t('files.preview') : t('files.open')}
         </ContextMenuItem>
-        {isFile && <ContextMenuItem onClick={() => handlers.onDownload(item)}>{t('files.download')}</ContextMenuItem>}
+        {isFile && <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>}
         <ContextMenuSeparator />
-        <ContextMenuItem onClick={() => handlers.onRename(item)}>{t('files.rename')}</ContextMenuItem>
-        <ContextMenuItem onClick={() => handlers.onCopy(item)}>{t('files.copy')}</ContextMenuItem>
-        <ContextMenuItem onClick={() => handlers.onMove(item)}>{t('files.moveTo')}</ContextMenuItem>
+        <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
+        <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
+        <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash(item)}>
+        <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
           {t('files.moveToTrash')}
         </ContextMenuItem>
       </ContextMenuContent>
@@ -111,7 +113,54 @@ function DraggableDroppableRow({
   )
 }
 
-export function FilesTable({ table, handlers, selectedIds, currentPath }: FilesTableProps) {
+function PlainRow({ row, handlers }: { row: Row<StorageObject>; handlers: FileActionHandlers }) {
+  const { t } = useTranslation()
+  const item = row.original
+  const isFile = item.dirtype === DirType.FILE
+  const showWriteActions = !!(handlers.onRename || handlers.onCopy || handlers.onMove || handlers.onTrash)
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <TableRow data-state={row.getIsSelected() ? 'selected' : undefined}>
+          {row.getVisibleCells().map((cell) => (
+            <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
+          ))}
+        </TableRow>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onClick={() => handlers.onOpen(item)}>
+          {isFile ? t('files.preview') : t('files.open')}
+        </ContextMenuItem>
+        {isFile && handlers.onDownload && (
+          <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>
+        )}
+        {showWriteActions && <ContextMenuSeparator />}
+        {handlers.onRename && (
+          <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
+        )}
+        {handlers.onCopy && (
+          <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
+        )}
+        {handlers.onMove && (
+          <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
+        )}
+        {handlers.onTrash && (
+          <>
+            {(handlers.onRename || handlers.onCopy || handlers.onMove) && <ContextMenuSeparator />}
+            <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
+              {t('files.moveToTrash')}
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
+
+export function FilesTable({ table, handlers, selectedIds, currentPath, dragAndDropEnabled = true }: FilesTableProps) {
   const { t } = useTranslation()
   const rows = table.getRowModel().rows
   const allItems = rows.map((r) => r.original)
@@ -146,16 +195,20 @@ export function FilesTable({ table, handlers, selectedIds, currentPath }: FilesT
             </TableCell>
           </TableRow>
         )}
-        {rows.map((row) => (
-          <DraggableDroppableRow
-            key={row.id}
-            row={row}
-            handlers={handlers}
-            selectedIds={selectedIds}
-            currentPath={currentPath}
-            allItems={allItems}
-          />
-        ))}
+        {rows.map((row) =>
+          dragAndDropEnabled ? (
+            <DraggableDroppableRow
+              key={row.id}
+              row={row}
+              handlers={handlers}
+              selectedIds={selectedIds}
+              currentPath={currentPath}
+              allItems={allItems}
+            />
+          ) : (
+            <PlainRow key={row.id} row={row} handlers={handlers} />
+          ),
+        )}
       </TableBody>
     </Table>
   )

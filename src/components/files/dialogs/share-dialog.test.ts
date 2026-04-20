@@ -237,25 +237,20 @@ describe('hasInvalidChips', () => {
 
 function computeCanSubmit(params: {
   chips: { valid: boolean }[]
-  passwordEnabled: boolean
-  password: string
   expiresOption: string
   customExpires: string
   limitOption: string
   customLimit: string
 }): boolean {
   const badChips = params.chips.some((c) => !c.valid)
-  const badPassword = params.passwordEnabled && !params.password
   const badExpires =
     params.expiresOption === 'custom' && (!params.customExpires || new Date(params.customExpires) <= new Date())
   const badLimit = isCustomLimitInvalid(params.limitOption, params.customLimit)
-  return !badChips && !badPassword && !badExpires && !badLimit
+  return !badChips && !badExpires && !badLimit
 }
 
 const defaultParams = {
   chips: [] as { valid: boolean }[],
-  passwordEnabled: false,
-  password: '',
   expiresOption: '7d',
   customExpires: '',
   limitOption: 'unlimited',
@@ -275,16 +270,8 @@ describe('canSubmit', () => {
     expect(computeCanSubmit({ ...defaultParams, chips: [{ valid: true }, { valid: true }] })).toBe(true)
   })
 
-  it('returns false when password is enabled but empty', () => {
-    expect(computeCanSubmit({ ...defaultParams, passwordEnabled: true, password: '' })).toBe(false)
-  })
-
-  it('returns true when password is enabled and filled', () => {
-    expect(computeCanSubmit({ ...defaultParams, passwordEnabled: true, password: 'secret123' })).toBe(true)
-  })
-
-  it('returns true when password toggle is off and password is empty', () => {
-    expect(computeCanSubmit({ ...defaultParams, passwordEnabled: false, password: '' })).toBe(true)
+  it('returns true regardless of password state (password is auto-generated)', () => {
+    expect(computeCanSubmit(defaultParams)).toBe(true)
   })
 
   it('returns false when custom expires with no date', () => {
@@ -377,7 +364,7 @@ function buildPayload(params: BuildPayloadParams): PayloadResult {
         : addDays(days[params.expiresOption])
   }
   if (params.limitOption !== 'unlimited') {
-    body.downloadLimit = Number.parseInt(params.limitOption === 'custom' ? params.customLimit : params.limitOption)
+    body.downloadLimit = Number.parseInt(params.limitOption === 'custom' ? params.customLimit : params.limitOption, 10)
   }
   if (params.kind === 'landing' && params.chips.length > 0) {
     body.recipients = params.chips.filter((c) => c.valid).map((c) => ({ recipientEmail: c.value }))

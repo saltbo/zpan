@@ -502,5 +502,16 @@
   "share.loading": "加载分享中...",
   "share.loadError": "加载分享失败",
   "share.previewUnavailable": "无法预览",
-  "share.previewDownloadHint": "下载文件后查看"
+  "share.previewDownloadHint": "下载文件后查看",
+  "share.externalLabel": "外部分享访问页",
+  "share.externalBadge": "公开访问页面",
+  "share.externalTagline": "安全地分享你的文件",
+  "share.externalFolderSubtitle": "这是一个只读浏览页，可查看共享内容并下载文件，不提供任何编辑操作。",
+  "share.externalFileSubtitle": "你可以在这个外部访问页预览并下载该文件。",
+  "share.readonlyHint": "当前为只读浏览模式，仅支持导航和下载。",
+  "share.openWorkspace": "打开工作区",
+  "share.passwordOnce": "密码仅显示一次，请在关闭前保存",
+  "share.copyShareText": "复制分享文案",
+  "share.textCopied": "分享文案已复制",
+  "share.shareTextTemplate": "链接：{{url}}\n密码：{{password}}"
 }
