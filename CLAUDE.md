@@ -56,3 +56,15 @@ Exception: `uploadToS3()` calls external S3 presigned URLs, not our API — raw 
 ## Types
 
 All shared types live in `shared/`. **Never** create duplicate type definitions in `src/` or `server/`. Import from `@shared/types` and `@shared/constants`.
+
+## Migrations
+
+**Always** generate migrations with `npm run db:generate` (drizzle-kit). **Never** hand-author the `.sql` file or the `migrations/meta/_journal.json` entry.
+
+Why: drizzle-kit migrator orders migrations by the `when` timestamp in `_journal.json`. Hand-written entries with guessed timestamps break the ordering silently — drizzle sees the new migration's `when` as older than the last applied one and skips it, leaving dev databases out of sync while CI (which starts from empty) passes cleanly. Past incident: v2.3.0 T1/T2 shipped journal entries with `when = 1745000000000` (April 2025) while the last applied migration was `when = 1776200000000` (March 2026); every developer already at 0009 silently missed 0010/0011.
+
+If `drizzle-kit generate` errors about TTY in CI, **fix the CI invocation** (pass `--name`, set `CI=true`, or run it outside CI) — do **not** fall back to hand-writing the journal.
+
+## Frontend API Wrappers
+
+**Every new function added to `src/lib/api.ts` must have a corresponding test added to `src/lib/api.test.ts` in the same PR.** Codecov rejects PRs where `src/lib/api.ts` gains uncovered lines. For each wrapper, assert: correct RPC path and method, payload shape, success path resolves, error path throws `ApiError`. Follow the pattern already established for `listShares`/`getShare`/`deleteShare`/`listNotifications`/etc.
