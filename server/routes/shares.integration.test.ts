@@ -262,6 +262,38 @@ describe('POST /api/shares', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.code).toBe('DIRECT_NO_RECIPIENTS')
   })
+
+  it('returns 500 when createShare throws an unexpected error', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const matterId = nanoid()
+    await insertFile(db, orgId, { id: matterId, name: 'file.txt' })
+
+    const shareService = await import('../services/share.js')
+    vi.spyOn(shareService, 'createShare').mockRejectedValueOnce(new Error('unexpected db error'))
+
+    const res = await createShare(app, headers, { matterId, kind: 'landing' })
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 201 even when dispatchShareCreated rejects', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const matterId = nanoid()
+    await insertFile(db, orgId, { id: matterId, name: 'file.txt' })
+
+    const notifService = await import('../services/share-notification.js')
+    vi.spyOn(notifService, 'dispatchShareCreated').mockRejectedValueOnce(new Error('dispatch failed'))
+
+    const res = await createShare(app, headers, {
+      matterId,
+      kind: 'landing',
+      recipients: [{ recipientEmail: 'someone@example.com' }],
+    })
+    expect(res.status).toBe(201)
+  })
 })
 
 // ─── GET /api/shares auth guard ───────────────────────────────────────────────
