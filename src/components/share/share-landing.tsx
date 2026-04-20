@@ -1,89 +1,113 @@
-import type { ShareView } from '@shared/types'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { DirType } from '@shared/constants'
+import type { ShareView, StorageObject } from '@shared/types'
+import { Folder, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getShare } from '@/lib/api'
+import { FileManager } from '@/components/files/file-manager'
+import { Button } from '@/components/ui/button'
+import { buildShareObjectUrl, listShareObjects } from '@/lib/api'
 import { useSession } from '@/lib/auth-client'
 import { FilePreview } from './file-preview'
-import { FolderBrowser } from './folder-browser'
-import { PasswordPrompt } from './password-prompt'
 import { SaveToDriveDialog } from './save-to-drive-dialog'
-import type { ShareErrorCode } from './share-error'
-import { ShareError } from './share-error'
 
 interface ShareLandingProps {
   token: string
+  share: ShareView
+  onPasswordRequired?: () => void
 }
 
-function resolveError(share: ShareView): ShareErrorCode | null {
-  if (share.expired) return 'expired'
-  if (share.exhausted) return 'exhausted'
-  return null
+function toStorageObject(item: {
+  ref: string
+  name: string
+  type: string
+  size: number
+  isFolder: boolean
+}): StorageObject {
+  const now = new Date().toISOString()
+  return {
+    id: item.ref,
+    orgId: '',
+    alias: item.ref,
+    name: item.name,
+    type: item.type,
+    size: item.size,
+    dirtype: item.isFolder ? DirType.USER_FOLDER : DirType.FILE,
+    parent: '',
+    object: item.ref,
+    storageId: '',
+    status: 'active',
+    createdAt: now,
+    updatedAt: now,
+  }
 }
 
-export function ShareLanding({ token }: ShareLandingProps) {
+export function ShareLanding({ token, share, onPasswordRequired }: ShareLandingProps) {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const { data: session } = useSession()
   const isLoggedIn = !!session?.user
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
-  const [showPasswordAfterSave, setShowPasswordAfterSave] = useState(false)
-
-  const query = useQuery<ShareView, { status?: number }>({
-    queryKey: ['share', token],
-    queryFn: () => getShare(token),
-    retry: false,
-  })
-
-  function handleUnlocked() {
-    queryClient.invalidateQueries({ queryKey: ['share', token] })
-  }
-
-  function handlePasswordRequired() {
-    setShowPasswordAfterSave(true)
-  }
-
-  if (query.isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-muted-foreground">{t('share.loading')}</div>
-    )
-  }
-
-  if (query.isError) {
-    const err = query.error as { status?: number }
-    const code = err?.status === 410 ? 'gone' : 'not-found'
-    return <ShareError code={code} />
-  }
-
-  const share = query.data!
-
-  if (showPasswordAfterSave || share.requiresPassword) {
-    return (
-      <PasswordPrompt
-        token={token}
-        fileName={share.matter.name}
-        onUnlocked={() => {
-          setShowPasswordAfterSave(false)
-          handleUnlocked()
-        }}
-      />
-    )
-  }
-
-  const errorCode = resolveError(share)
-  if (errorCode) {
-    return <ShareError code={errorCode} />
-  }
+  const [currentPath, setCurrentPath] = useState('')
 
   return (
     <>
       {share.matter.isFolder ? (
-        <FolderBrowser
-          token={token}
-          share={share}
-          isLoggedIn={isLoggedIn}
-          onSaveToDrive={isLoggedIn ? () => setSaveDialogOpen(true) : undefined}
-        />
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-2.5 shadow-sm">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Folder className="h-4 w-4" />
+              </div>
+              <div className="flex items-center gap-2">
+                <UserRound className="size-3.5" />
+                <span>{t('share.readonlyHint')}</span>
+              </div>
+            </div>
+            {isLoggedIn && (
+              <Button variant="outline" size="sm" onClick={() => setSaveDialogOpen(true)}>
+                {t('share.saveToDrive')}
+              </Button>
+            )}
+          </div>
+
+          <FileManager
+            initialPath={currentPath}
+            onNavigatePath={setCurrentPath}
+            rootName={share.matter.name}
+            dataSource={{
+              queryKeyPrefix: ['share-objects', token],
+              list: async (path) => {
+                const response = await listShareObjects(token, path)
+                return { items: response.items.map(toStorageObject) }
+              },
+              getPreviewFile: async (item) =>
+                item.dirtype === DirType.FILE
+                  ? {
+                      id: item.id,
+                      name: item.name,
+                      type: item.type,
+                      size: item.size,
+                      downloadUrl: buildShareObjectUrl(token, item.id),
+                    }
+                  : null,
+              download: async (item) => {
+                window.open(buildShareObjectUrl(token, item.id), '_blank', 'noopener,noreferrer')
+              },
+            }}
+            capabilities={{
+              search: false,
+              selection: false,
+              dragAndDrop: false,
+              upload: false,
+              createFolder: false,
+              rename: false,
+              copy: false,
+              move: false,
+              trash: false,
+              share: false,
+            }}
+            emptyStateLabel={t('share.folderEmpty')}
+          />
+        </div>
       ) : (
         <FilePreview
           token={token}
@@ -97,7 +121,7 @@ export function ShareLanding({ token }: ShareLandingProps) {
           open={saveDialogOpen}
           onOpenChange={setSaveDialogOpen}
           token={token}
-          onPasswordRequired={handlePasswordRequired}
+          onPasswordRequired={onPasswordRequired ?? (() => {})}
         />
       )}
     </>

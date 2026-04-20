@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SRouteRouteImport } from './routes/s/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as UUsernameRouteImport } from './routes/u/$username'
@@ -38,6 +39,11 @@ import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_a
 import { Route as AuthenticatedTeamsTeamIdActivityRouteImport } from './routes/_authenticated/teams/$teamId/activity'
 import { Route as AuthenticatedAdminSettingsAuthRouteImport } from './routes/_authenticated/admin/settings/auth'
 
+const SRouteRoute = SRouteRouteImport.update({
+  id: '/s',
+  path: '/s',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
@@ -53,9 +59,9 @@ const UUsernameRoute = UUsernameRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const STokenRoute = STokenRouteImport.update({
-  id: '/s/$token',
-  path: '/s/$token',
-  getParentRoute: () => rootRouteImport,
+  id: '/$token',
+  path: '/$token',
+  getParentRoute: () => SRouteRoute,
 } as any)
 const authSignUpRoute = authSignUpRouteImport.update({
   id: '/(auth)/sign-up',
@@ -198,6 +204,7 @@ const AuthenticatedAdminSettingsAuthRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
+  '/s': typeof SRouteRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/sign-in': typeof authSignInRoute
@@ -226,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 export interface FileRoutesByTo {
+  '/s': typeof SRouteRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
@@ -255,6 +263,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/s': typeof SRouteRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/(auth)/sign-in': typeof authSignInRoute
@@ -287,6 +296,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/s'
     | '/admin'
     | '/settings'
     | '/sign-in'
@@ -315,6 +325,7 @@ export interface FileRouteTypes {
     | '/teams/$teamId/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/s'
     | '/admin'
     | '/sign-in'
     | '/sign-up'
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_authenticated'
+    | '/s'
     | '/_authenticated/admin'
     | '/_authenticated/settings'
     | '/(auth)/sign-in'
@@ -374,14 +386,21 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  SRouteRoute: typeof SRouteRouteWithChildren
   authSignInRoute: typeof authSignInRoute
   authSignUpRoute: typeof authSignUpRoute
-  STokenRoute: typeof STokenRoute
   UUsernameRoute: typeof UUsernameRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/s': {
+      id: '/s'
+      path: '/s'
+      fullPath: '/s'
+      preLoaderRoute: typeof SRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
@@ -405,10 +424,10 @@ declare module '@tanstack/react-router' {
     }
     '/s/$token': {
       id: '/s/$token'
-      path: '/s/$token'
+      path: '/$token'
       fullPath: '/s/$token'
       preLoaderRoute: typeof STokenRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof SRouteRoute
     }
     '/(auth)/sign-up': {
       id: '/(auth)/sign-up'
@@ -675,11 +694,22 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface SRouteRouteChildren {
+  STokenRoute: typeof STokenRoute
+}
+
+const SRouteRouteChildren: SRouteRouteChildren = {
+  STokenRoute: STokenRoute,
+}
+
+const SRouteRouteWithChildren =
+  SRouteRoute._addFileChildren(SRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  SRouteRoute: SRouteRouteWithChildren,
   authSignInRoute: authSignInRoute,
   authSignUpRoute: authSignUpRoute,
-  STokenRoute: STokenRoute,
   UUsernameRoute: UUsernameRoute,
 }
 export const routeTree = rootRouteImport

@@ -25,11 +25,10 @@ function detectPreviewKind(mimeType: string): PreviewKind {
 
 interface MediaPreviewProps {
   downloadUrl: string
-  mimeType: string
   kind: PreviewKind
 }
 
-function MediaPreview({ downloadUrl, mimeType, kind }: MediaPreviewProps) {
+function MediaPreview({ downloadUrl, kind }: MediaPreviewProps) {
   const { t } = useTranslation()
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -119,24 +118,21 @@ export function FilePreview({ token, share, onSaveToDrive, isLoggedIn }: FilePre
   const downloadUrl = buildShareObjectUrl(token, share.rootRef)
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-            <File className="h-6 w-6 text-muted-foreground" />
+    <div className="mx-auto max-w-4xl space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-2.5 shadow-sm">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
+            <File className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div>
-            <h1 className="text-lg font-semibold">{share.matter.name}</h1>
-            <p className="text-sm text-muted-foreground">{formatSize(share.matter.size)}</p>
-          </div>
+          <span>{formatSize(share.matter.size)}</span>
         </div>
         <div className="flex gap-2">
           {isLoggedIn && onSaveToDrive && (
-            <Button variant="outline" onClick={onSaveToDrive}>
+            <Button variant="outline" size="sm" onClick={onSaveToDrive}>
               {t('share.saveToDrive')}
             </Button>
           )}
-          <Button asChild>
+          <Button asChild size="sm">
             <a href={downloadUrl} download>
               <Download className="mr-2 h-4 w-4" />
               {t('share.download')}
@@ -145,7 +141,7 @@ export function FilePreview({ token, share, onSaveToDrive, isLoggedIn }: FilePre
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border bg-card p-4">
+      <div className="overflow-hidden rounded-xl border bg-card p-4 shadow-sm">
         {kind === 'other' ? (
           <div className="flex flex-col items-center justify-center gap-4 py-12 text-muted-foreground">
             <File className="h-16 w-16" />
@@ -153,7 +149,7 @@ export function FilePreview({ token, share, onSaveToDrive, isLoggedIn }: FilePre
             <p className="text-sm">{t('share.previewDownloadHint')}</p>
           </div>
         ) : (
-          <MediaPreview downloadUrl={downloadUrl} mimeType={share.matter.type} kind={kind} />
+          <MediaPreview downloadUrl={downloadUrl} kind={kind} />
         )}
       </div>
     </div>

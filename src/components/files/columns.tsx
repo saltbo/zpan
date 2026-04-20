@@ -14,27 +14,50 @@ function foldersFirstSort(rowA: Row<StorageObject>, rowB: Row<StorageObject>): n
   return 0
 }
 
-export function getColumns(handlers: FileActionHandlers, t: (key: string) => string): ColumnDef<StorageObject>[] {
-  return [
-    {
-      id: 'select',
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(v) => row.toggleSelected(!!v)}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ),
-      size: 28,
-      meta: { className: 'w-8 px-2' },
-      enableSorting: false,
-    },
+interface ColumnOptions {
+  selectionEnabled?: boolean
+}
+
+function hasRowActions(handlers: FileActionHandlers) {
+  return !!(
+    handlers.onDownload ||
+    handlers.onRename ||
+    handlers.onCopy ||
+    handlers.onMove ||
+    handlers.onShare ||
+    handlers.onTrash
+  )
+}
+
+export function getColumns(
+  handlers: FileActionHandlers,
+  t: (key: string) => string,
+  { selectionEnabled = true }: ColumnOptions = {},
+): ColumnDef<StorageObject>[] {
+  const columns: ColumnDef<StorageObject>[] = [
+    ...(selectionEnabled
+      ? [
+          {
+            id: 'select',
+            header: ({ table }) => (
+              <Checkbox
+                checked={table.getIsAllPageRowsSelected()}
+                onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+              />
+            ),
+            cell: ({ row }) => (
+              <Checkbox
+                checked={row.getIsSelected()}
+                onCheckedChange={(v) => row.toggleSelected(!!v)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ),
+            size: 28,
+            meta: { className: 'w-8 px-2' },
+            enableSorting: false,
+          } satisfies ColumnDef<StorageObject>,
+        ]
+      : []),
     {
       accessorKey: 'name',
       header: t('files.colName'),
@@ -76,11 +99,16 @@ export function getColumns(handlers: FileActionHandlers, t: (key: string) => str
       },
       meta: { className: 'hidden md:table-cell' },
     },
-    {
+  ]
+
+  if (hasRowActions(handlers)) {
+    columns.push({
       id: 'actions',
       cell: ({ row }) => <FileRowActions item={row.original} handlers={handlers} />,
       size: 48,
       enableSorting: false,
-    },
-  ]
+    })
+  }
+
+  return columns
 }

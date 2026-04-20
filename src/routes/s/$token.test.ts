@@ -85,6 +85,12 @@ const REQUIRED_SHARE_KEYS = [
   'share.saveButton',
   'share.loading',
   'share.previewUnavailable',
+  'share.externalLabel',
+  'share.externalBadge',
+  'share.externalFolderSubtitle',
+  'share.externalFileSubtitle',
+  'share.readonlyHint',
+  'share.openWorkspace',
 ]
 
 const enLocale = en as Record<string, string>

@@ -36,7 +36,7 @@ export function PasswordPrompt({ token, fileName, onUnlocked }: PasswordPromptPr
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-16">
+    <div className="flex min-h-[55vh] flex-col items-center justify-center px-4 py-8">
       <div className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
         <h1 className="mb-1 text-lg font-semibold">{t('share.passwordTitle')}</h1>
         <p className="mb-4 text-sm text-muted-foreground">{fileName}</p>

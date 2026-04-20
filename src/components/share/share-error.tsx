@@ -20,7 +20,7 @@ export function ShareError({ code }: ShareErrorProps) {
   const { titleKey, descKey, Icon } = config[code]
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-16">
+    <div className="flex min-h-[55vh] flex-col items-center justify-center gap-6 px-4 py-10">
       <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
         <Icon className="h-10 w-10 text-muted-foreground" />
       </div>

@@ -1,5 +1,6 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   getCoreRowModel,
@@ -14,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { FilePreviewDialog, type PreviewFile } from '@/components/preview/file-preview-dialog'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
-import { getObject } from '@/lib/api'
+import { getObject, listObjectsByPath } from '@/lib/api'
 import { getColumns } from './columns'
 import { NameConflictDialog } from './dialogs/name-conflict-dialog'
 import { DndWrapper } from './dnd-wrapper'
@@ -24,9 +25,10 @@ import { FilesTable } from './files-table'
 import { FilesToolbar } from './files-toolbar'
 import { useConflictResolver, withConflictRetry } from './hooks/use-conflict-resolver'
 import { useFileMutations } from './hooks/use-file-mutations'
-import { useFilesQuery } from './hooks/use-files-query'
 import { useViewMode } from './hooks/use-view-mode'
 import type { BreadcrumbItem, FileActionHandlers } from './types'
+
+const FILES_PAGE_SIZE = 500
 
 function pathToBreadcrumb(path: string, rootName: string): BreadcrumbItem[] {
   const root: BreadcrumbItem = { id: '', name: rootName }
@@ -45,15 +47,59 @@ function pathToBreadcrumb(path: string, rootName: string): BreadcrumbItem[] {
 interface FileManagerProps {
   initialPath?: string
   filterType?: string
+  rootName?: string
+  onNavigatePath?: (path: string) => void
+  dataSource?: {
+    queryKeyPrefix: readonly unknown[]
+    list: (path: string, opts: { filterType?: string; search?: string }) => Promise<{ items: StorageObject[] }>
+    getPreviewFile?: (item: StorageObject) => Promise<PreviewFile | null>
+    download?: (item: StorageObject) => Promise<void> | void
+  }
+  capabilities?: {
+    search?: boolean
+    selection?: boolean
+    dragAndDrop?: boolean
+    upload?: boolean
+    createFolder?: boolean
+    rename?: boolean
+    copy?: boolean
+    move?: boolean
+    trash?: boolean
+    share?: boolean
+  }
+  emptyStateLabel?: string
 }
 
-export function FileManager({ initialPath, filterType }: FileManagerProps) {
+export function FileManager({
+  initialPath,
+  filterType,
+  rootName,
+  onNavigatePath,
+  dataSource,
+  capabilities,
+  emptyStateLabel,
+}: FileManagerProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const dropzoneRef = useRef<UploadDropzoneHandle>(null)
 
   const currentPath = initialPath ?? ''
-  const breadcrumb = pathToBreadcrumb(currentPath, t('files.title'))
+  const breadcrumb = pathToBreadcrumb(currentPath, rootName ?? t('files.title'))
+  const resolvedCapabilities = useMemo(
+    () => ({
+      search: capabilities?.search ?? !dataSource,
+      selection: capabilities?.selection ?? !dataSource,
+      dragAndDrop: capabilities?.dragAndDrop ?? !dataSource,
+      upload: capabilities?.upload ?? !dataSource,
+      createFolder: capabilities?.createFolder ?? !dataSource,
+      rename: capabilities?.rename ?? !dataSource,
+      copy: capabilities?.copy ?? !dataSource,
+      move: capabilities?.move ?? !dataSource,
+      trash: capabilities?.trash ?? !dataSource,
+      share: capabilities?.share ?? !dataSource,
+    }),
+    [capabilities, dataSource],
+  )
 
   const [viewMode, setViewMode] = useViewMode()
   const [sorting, setSorting] = useState<SortingState>(() => {
@@ -84,7 +130,20 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
   const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const query = useFilesQuery(currentPath, filterType, searchQuery || undefined)
+  const query = useQuery({
+    queryKey: [
+      ...(dataSource?.queryKeyPrefix ?? ['objects', 'active', 'path']),
+      currentPath,
+      filterType ?? '',
+      searchQuery ?? '',
+    ],
+    queryFn: () =>
+      dataSource?.list(currentPath, { filterType, search: searchQuery || undefined }) ??
+      listObjectsByPath(currentPath, 'active', 1, FILES_PAGE_SIZE, {
+        type: filterType,
+        search: searchQuery || undefined,
+      }),
+  })
   const mutations = useFileMutations(currentPath)
   const conflict = useConflictResolver()
   const items = query.data?.items ?? []
@@ -98,9 +157,13 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
 
   const navigateToPath = useCallback(
     (path: string) => {
+      if (onNavigatePath) {
+        onNavigatePath(path)
+        return
+      }
       navigate({ to: '/files', search: path ? { path } : {} })
     },
-    [navigate],
+    [navigate, onNavigatePath],
   )
 
   const handleOpen = useCallback(
@@ -111,58 +174,73 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
         return
       }
       try {
-        const obj = await getObject(item.id)
-        if (!obj.downloadUrl) {
+        const file =
+          (await dataSource?.getPreviewFile?.(item)) ??
+          (await getObject(item.id).then((obj) =>
+            obj.downloadUrl
+              ? {
+                  id: obj.id,
+                  name: obj.name,
+                  type: obj.type,
+                  size: obj.size,
+                  downloadUrl: obj.downloadUrl,
+                }
+              : null,
+          ))
+        if (!file) {
           toast.error(t('common.error'))
           return
         }
-        setPreviewFile({
-          id: obj.id,
-          name: obj.name,
-          type: obj.type,
-          size: obj.size,
-          downloadUrl: obj.downloadUrl,
-        })
+        setPreviewFile(file)
         setPreviewOpen(true)
       } catch {
         toast.error(t('common.error'))
       }
     },
-    [currentPath, navigateToPath, t],
+    [currentPath, dataSource, navigateToPath, t],
   )
 
   const handleDownload = useCallback(
     async (item: StorageObject) => {
       try {
+        if (dataSource?.download) {
+          await dataSource.download(item)
+          return
+        }
         const obj = await getObject(item.id)
         if (obj.downloadUrl) window.open(obj.downloadUrl, '_blank', 'noopener,noreferrer')
       } catch {
         toast.error(t('common.error'))
       }
     },
-    [t],
+    [dataSource, t],
   )
 
   const handlers: FileActionHandlers = useMemo(
     () => ({
       onOpen: handleOpen,
-      onRename: (item) => setRenameTarget(item),
-      onTrash: (item) => setDeleteTargetIds([item.id]),
-      onCopy: (item) => {
-        const kind = item.dirtype === DirType.FILE ? 'file' : 'folder'
-        conflict.reset()
-        withConflictRetry(conflict.prompt, kind, (strategy) =>
-          mutations.copyMutation.mutateAsync({ id: item.id, parent: item.parent, onConflict: strategy }),
-        ).catch((err) => toast.error(err.message))
-      },
-      onMove: (item) => setMoveTargetIds([item.id]),
+      onRename: resolvedCapabilities.rename ? (item) => setRenameTarget(item) : undefined,
+      onTrash: resolvedCapabilities.trash ? (item) => setDeleteTargetIds([item.id]) : undefined,
+      onCopy: resolvedCapabilities.copy
+        ? (item) => {
+            const kind = item.dirtype === DirType.FILE ? 'file' : 'folder'
+            conflict.reset()
+            withConflictRetry(conflict.prompt, kind, (strategy) =>
+              mutations.copyMutation.mutateAsync({ id: item.id, parent: item.parent, onConflict: strategy }),
+            ).catch((err) => toast.error(err.message))
+          }
+        : undefined,
+      onMove: resolvedCapabilities.move ? (item) => setMoveTargetIds([item.id]) : undefined,
       onDownload: handleDownload,
-      onShare: (item) => setShareTarget(item),
+      onShare: resolvedCapabilities.share ? (item) => setShareTarget(item) : undefined,
     }),
-    [handleOpen, handleDownload, mutations.copyMutation, conflict.prompt, conflict.reset],
+    [handleOpen, handleDownload, resolvedCapabilities, mutations.copyMutation, conflict.prompt, conflict.reset],
   )
 
-  const columns = useMemo(() => getColumns(handlers, t), [handlers, t])
+  const columns = useMemo(
+    () => getColumns(handlers, t, { selectionEnabled: resolvedCapabilities.selection }),
+    [handlers, resolvedCapabilities.selection, t],
+  )
 
   const table = useReactTable({
     data: items,
@@ -172,11 +250,14 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    enableRowSelection: true,
+    enableRowSelection: resolvedCapabilities.selection,
     getRowId: (row) => row.id,
   })
 
-  const selectedIds = useMemo(() => Object.keys(rowSelection).filter((k) => rowSelection[k]), [rowSelection])
+  const selectedIds = useMemo(
+    () => (resolvedCapabilities.selection ? Object.keys(rowSelection).filter((k) => rowSelection[k]) : []),
+    [resolvedCapabilities.selection, rowSelection],
+  )
 
   const handleToolbarShare = useCallback(() => {
     const id = selectedIds[0]
@@ -193,6 +274,7 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (!resolvedCapabilities.selection) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.key === 'Delete' && selectedIds.length > 0) setDeleteTargetIds(selectedIds)
       if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
@@ -202,7 +284,7 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [selectedIds, table])
+  }, [resolvedCapabilities.selection, selectedIds, table])
 
   if (query.isLoading) {
     return (
@@ -210,6 +292,139 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
         <p>{t('common.loading')}</p>
       </div>
     )
+  }
+
+  const content = (
+    <>
+      <div className="rounded-2xl border bg-card/95 p-4 shadow-sm backdrop-blur sm:p-5">
+        <FilesToolbar
+          breadcrumb={breadcrumb}
+          onNavigate={(path) => navigateToPath(path)}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          selectedCount={selectedIds.length}
+          searchQuery={searchInput}
+          onSearchChange={
+            resolvedCapabilities.search
+              ? (v) => {
+                  setSearchInput(v)
+                  if (!v) setSearchQuery('')
+                }
+              : undefined
+          }
+          onSearchSubmit={resolvedCapabilities.search ? () => setSearchQuery(searchInput) : undefined}
+          onUpload={resolvedCapabilities.upload ? () => dropzoneRef.current?.openFileDialog() : undefined}
+          onNewFolder={resolvedCapabilities.createFolder ? () => setShowNewFolder(true) : undefined}
+          onBatchTrash={resolvedCapabilities.trash ? () => setDeleteTargetIds(selectedIds) : undefined}
+          onBatchMove={resolvedCapabilities.move ? () => setMoveTargetIds(selectedIds) : undefined}
+          onClearSelection={resolvedCapabilities.selection ? () => setRowSelection({}) : undefined}
+          onShare={resolvedCapabilities.share ? handleToolbarShare : undefined}
+        />
+
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
+            <FolderOpen className="h-16 w-16" />
+            <p className="text-sm">{emptyStateLabel ?? t('files.emptyState')}</p>
+          </div>
+        ) : viewMode === 'list' ? (
+          <FilesTable
+            table={table}
+            handlers={handlers}
+            selectedIds={selectedIds}
+            currentPath={currentPath}
+            dragAndDropEnabled={resolvedCapabilities.dragAndDrop}
+            selectionEnabled={resolvedCapabilities.selection}
+          />
+        ) : (
+          <FilesGrid
+            table={table}
+            handlers={handlers}
+            selectedIds={selectedIds}
+            currentPath={currentPath}
+            dragAndDropEnabled={resolvedCapabilities.dragAndDrop}
+            selectionEnabled={resolvedCapabilities.selection}
+          />
+        )}
+      </div>
+
+      {resolvedCapabilities.rename ||
+      resolvedCapabilities.createFolder ||
+      resolvedCapabilities.trash ||
+      resolvedCapabilities.move ||
+      resolvedCapabilities.share ? (
+        <>
+          <FileManagerDialogs
+            renameTarget={renameTarget}
+            onRenameClose={() => setRenameTarget(null)}
+            onRenameConfirm={(name) => {
+              if (!renameTarget) return
+              const kind = renameTarget.dirtype === DirType.FILE ? 'file' : 'folder'
+              conflict.reset()
+              withConflictRetry(conflict.prompt, kind, (strategy) =>
+                mutations.renameMutation.mutateAsync({ id: renameTarget.id, name, onConflict: strategy }),
+              )
+                .then(() => setRenameTarget(null))
+                .catch((err) => toast.error(err.message))
+            }}
+            renamePending={mutations.renameMutation.isPending}
+            showNewFolder={showNewFolder}
+            onNewFolderClose={() => setShowNewFolder(false)}
+            onNewFolderConfirm={(name) => {
+              conflict.reset()
+              withConflictRetry(conflict.prompt, 'folder', (strategy) =>
+                mutations.createFolderMutation.mutateAsync({ name, onConflict: strategy }),
+              )
+                .then(() => setShowNewFolder(false))
+                .catch((err) => toast.error(err.message))
+            }}
+            newFolderPending={mutations.createFolderMutation.isPending}
+            deleteTargetIds={deleteTargetIds}
+            onDeleteClose={() => setDeleteTargetIds([])}
+            onDeleteConfirm={() => {
+              mutations.trashMutation.mutate(deleteTargetIds, {
+                onSuccess: () => {
+                  setDeleteTargetIds([])
+                  setRowSelection({})
+                },
+              })
+            }}
+            deletePending={mutations.trashMutation.isPending}
+            moveTargetIds={moveTargetIds}
+            onMoveClose={() => setMoveTargetIds([])}
+            onMoveConfirm={(targetFolderId) => {
+              conflict.reset()
+              withConflictRetry(
+                conflict.prompt,
+                'file',
+                (strategy) =>
+                  mutations.moveMutation.mutateAsync({
+                    ids: moveTargetIds,
+                    parent: targetFolderId,
+                    onConflict: strategy,
+                  }),
+                { showApplyToAll: moveTargetIds.length > 1 },
+              )
+                .then(() => {
+                  setMoveTargetIds([])
+                  setRowSelection({})
+                })
+                .catch((err) => toast.error(err.message))
+            }}
+            movePending={mutations.moveMutation.isPending}
+            shareTarget={shareTarget}
+            onShareClose={() => setShareTarget(null)}
+          />
+
+          <NameConflictDialog {...conflict.dialogState} />
+        </>
+      ) : null}
+
+      <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />
+    </>
+  )
+
+  if (!resolvedCapabilities.upload && !resolvedCapabilities.dragAndDrop) {
+    return content
   }
 
   return (
@@ -220,102 +435,7 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
       conflictPrompt={conflict.prompt}
       onConflictBatchStart={conflict.reset}
     >
-      <DndWrapper onDrop={handleDndDrop}>
-        <FilesToolbar
-          breadcrumb={breadcrumb}
-          onNavigate={(path) => navigateToPath(path)}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          selectedCount={selectedIds.length}
-          searchQuery={searchInput}
-          onSearchChange={(v) => {
-            setSearchInput(v)
-            if (!v) setSearchQuery('')
-          }}
-          onSearchSubmit={() => setSearchQuery(searchInput)}
-          onUpload={() => dropzoneRef.current?.openFileDialog()}
-          onNewFolder={() => setShowNewFolder(true)}
-          onBatchTrash={() => setDeleteTargetIds(selectedIds)}
-          onBatchMove={() => setMoveTargetIds(selectedIds)}
-          onClearSelection={() => setRowSelection({})}
-          onShare={handleToolbarShare}
-        />
-
-        {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
-            <FolderOpen className="h-16 w-16" />
-            <p className="text-sm">{t('files.emptyState')}</p>
-          </div>
-        ) : viewMode === 'list' ? (
-          <FilesTable table={table} handlers={handlers} selectedIds={selectedIds} currentPath={currentPath} />
-        ) : (
-          <FilesGrid table={table} handlers={handlers} selectedIds={selectedIds} currentPath={currentPath} />
-        )}
-      </DndWrapper>
-
-      <FileManagerDialogs
-        renameTarget={renameTarget}
-        onRenameClose={() => setRenameTarget(null)}
-        onRenameConfirm={(name) => {
-          if (!renameTarget) return
-          const kind = renameTarget.dirtype === DirType.FILE ? 'file' : 'folder'
-          conflict.reset()
-          // Finder-style: both success AND cancel close the parent dialog; only
-          // an unexpected error leaves it open so the user can see the toast.
-          withConflictRetry(conflict.prompt, kind, (strategy) =>
-            mutations.renameMutation.mutateAsync({ id: renameTarget.id, name, onConflict: strategy }),
-          )
-            .then(() => setRenameTarget(null))
-            .catch((err) => toast.error(err.message))
-        }}
-        renamePending={mutations.renameMutation.isPending}
-        showNewFolder={showNewFolder}
-        onNewFolderClose={() => setShowNewFolder(false)}
-        onNewFolderConfirm={(name) => {
-          conflict.reset()
-          withConflictRetry(conflict.prompt, 'folder', (strategy) =>
-            mutations.createFolderMutation.mutateAsync({ name, onConflict: strategy }),
-          )
-            .then(() => setShowNewFolder(false))
-            .catch((err) => toast.error(err.message))
-        }}
-        newFolderPending={mutations.createFolderMutation.isPending}
-        deleteTargetIds={deleteTargetIds}
-        onDeleteClose={() => setDeleteTargetIds([])}
-        onDeleteConfirm={() => {
-          mutations.trashMutation.mutate(deleteTargetIds, {
-            onSuccess: () => {
-              setDeleteTargetIds([])
-              setRowSelection({})
-            },
-          })
-        }}
-        deletePending={mutations.trashMutation.isPending}
-        moveTargetIds={moveTargetIds}
-        onMoveClose={() => setMoveTargetIds([])}
-        onMoveConfirm={(targetFolderId) => {
-          conflict.reset()
-          withConflictRetry(
-            conflict.prompt,
-            'file',
-            (strategy) =>
-              mutations.moveMutation.mutateAsync({ ids: moveTargetIds, parent: targetFolderId, onConflict: strategy }),
-            { showApplyToAll: moveTargetIds.length > 1 },
-          )
-            .then(() => {
-              setMoveTargetIds([])
-              setRowSelection({})
-            })
-            .catch((err) => toast.error(err.message))
-        }}
-        movePending={mutations.moveMutation.isPending}
-        shareTarget={shareTarget}
-        onShareClose={() => setShareTarget(null)}
-      />
-
-      <NameConflictDialog {...conflict.dialogState} />
-
-      <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />
+      {resolvedCapabilities.dragAndDrop ? <DndWrapper onDrop={handleDndDrop}>{content}</DndWrapper> : content}
     </UploadDropzone>
   )
 }
