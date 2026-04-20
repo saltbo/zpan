@@ -12,6 +12,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:d1": "wrangler d1 migrations apply zpan-db-staging --local --env staging",
+    "db:migrate:d1:staging": "wrangler d1 migrations apply zpan-db-staging --remote --env staging",
+    "db:migrate:d1:prod": "wrangler d1 migrations apply zpan-db --remote",
     "db:reset": "tsx --env-file=.dev.vars scripts/db-reset.ts",
     "db:reset:d1": "tsx --env-file=.dev.vars scripts/db-reset.ts --d1",
     "typecheck": "tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.web.json",

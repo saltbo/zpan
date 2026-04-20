@@ -40,7 +40,11 @@ function MediaPreview({ token, mimeType, kind }: MediaPreviewProps) {
     setLoading(true)
     setError(false)
 
-    fetch(`/api/share/${token}/download`, { credentials: 'include', redirect: 'follow' })
+    // NOTE: no `credentials: 'include'` — the endpoint 302-redirects to an R2
+    // presigned URL authenticated by signature. With credentials, the browser
+    // rejects the redirect because R2 returns `Access-Control-Allow-Origin: *`
+    // which may not combine with credentialed requests.
+    fetch(`/api/share/${token}/download`, { redirect: 'follow' })
       .then((res) => {
         if (!res.ok) throw new Error('fetch failed')
         return res.blob()

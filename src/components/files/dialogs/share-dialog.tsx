@@ -157,7 +157,15 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
           <form className="flex flex-1 flex-col" onSubmit={handleSubmit}>
             <div className="flex-1 space-y-5 px-4 pb-2">
               <FilePreview item={item} />
-              <KindSelector kind={kind} isFolder={isFolder} onChange={setKind} />
+              <KindSelector
+                kind={kind}
+                isFolder={isFolder}
+                onChange={(next) => {
+                  setKind(next)
+                  // Spec defaults: landing = 7 days, direct = Never (embeds live indefinitely)
+                  setExpiresOption(next === 'direct' ? 'never' : '7d')
+                }}
+              />
 
               {kind === 'direct' && (
                 <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">

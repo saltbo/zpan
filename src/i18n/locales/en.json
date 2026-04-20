@@ -484,6 +484,7 @@
   "share.sharedBy": "Shared by {{name}}",
   "share.folderTitle": "Shared Folder",
   "share.folderRoot": "Root",
+  "share.folderEmpty": "This folder is empty.",
   "share.colName": "Name",
   "share.colSize": "Size",
   "share.colActions": "Actions",

@@ -24,11 +24,15 @@ type Organization = {
   metadata?: Record<string, unknown>
 }
 
+// Radix Select forbids empty-string values, so use a sentinel to represent
+// "root folder" in the UI and convert to '' in the request payload.
+const ROOT_PATH_SENTINEL = '__root__'
+
 export function SaveToDriveDialog({ open, onOpenChange, token, onPasswordRequired }: SaveToDriveDialogProps) {
   const { t } = useTranslation()
   const { data: orgs } = useListOrganizations()
   const [selectedOrgId, setSelectedOrgId] = useState<string>('')
-  const [selectedPath, setSelectedPath] = useState('')
+  const [selectedPath, setSelectedPath] = useState(ROOT_PATH_SENTINEL)
   const [pending, setPending] = useState(false)
 
   const allOrgs = (orgs ?? []) as Organization[]
@@ -47,7 +51,7 @@ export function SaveToDriveDialog({ open, onOpenChange, token, onPasswordRequire
     try {
       const result = await saveShareToDrive(token, {
         targetOrgId: selectedOrgId,
-        targetParent: selectedPath,
+        targetParent: selectedPath === ROOT_PATH_SENTINEL ? '' : selectedPath,
       })
       toast.success(t('share.saveSuccess', { count: result.saved.length }))
       onOpenChange(false)
@@ -86,7 +90,7 @@ export function SaveToDriveDialog({ open, onOpenChange, token, onPasswordRequire
               value={selectedOrgId}
               onValueChange={(v) => {
                 setSelectedOrgId(v)
-                setSelectedPath('')
+                setSelectedPath(ROOT_PATH_SENTINEL)
               }}
             >
               <SelectTrigger>
@@ -109,7 +113,7 @@ export function SaveToDriveDialog({ open, onOpenChange, token, onPasswordRequire
                   <SelectValue placeholder={t('share.folderPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">{t('share.folderRoot')}</SelectItem>
+                  <SelectItem value={ROOT_PATH_SENTINEL}>{t('share.folderRoot')}</SelectItem>
                   {folders.map((folder) => {
                     const fullPath = folder.parent ? `${folder.parent}/${folder.name}` : folder.name
                     return (

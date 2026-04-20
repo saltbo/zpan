@@ -125,7 +125,7 @@ export function FolderBrowser({ token, share, onSaveToDrive, isLoggedIn }: Folde
             {!query.isLoading && (query.data?.items ?? []).length === 0 && (
               <TableRow>
                 <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
-                  {t('files.emptyState')}
+                  {t('share.folderEmpty')}
                 </TableCell>
               </TableRow>
             )}

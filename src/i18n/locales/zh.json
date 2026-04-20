@@ -484,6 +484,7 @@
   "share.sharedBy": "分享者：{{name}}",
   "share.folderTitle": "共享文件夹",
   "share.folderRoot": "根目录",
+  "share.folderEmpty": "此文件夹为空。",
   "share.colName": "名称",
   "share.colSize": "大小",
   "share.colActions": "操作",

@@ -1,4 +1,5 @@
 import type { StorageObject } from '@shared/types'
+import { useNavigate } from '@tanstack/react-router'
 import { DeleteConfirmDialog } from './dialogs/delete-confirm-dialog'
 import { MoveDialog } from './dialogs/move-dialog'
 import { NewFolderDialog } from './dialogs/new-folder-dialog'
@@ -27,6 +28,7 @@ interface FileManagerDialogsProps {
 }
 
 export function FileManagerDialogs(props: FileManagerDialogsProps) {
+  const navigate = useNavigate()
   return (
     <>
       <RenameDialog
@@ -73,6 +75,10 @@ export function FileManagerDialogs(props: FileManagerDialogsProps) {
         item={props.shareTarget}
         onOpenChange={(open) => {
           if (!open) props.onShareClose()
+        }}
+        onViewShares={() => {
+          props.onShareClose()
+          navigate({ to: '/shares', search: { status: 'all', page: 1 } })
         }}
       />
     </>
