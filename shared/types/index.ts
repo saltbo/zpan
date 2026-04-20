@@ -90,6 +90,19 @@ export interface PaginatedResponse<T> {
   pageSize: number
 }
 
+export interface Notification {
+  id: string
+  userId: string
+  type: string
+  title: string
+  body: string
+  refType: string | null
+  refId: string | null
+  metadata: string | null
+  readAt: string | null
+  createdAt: string
+}
+
 export interface ActivityEvent {
   id: string
   orgId: string

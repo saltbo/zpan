@@ -168,6 +168,20 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS activity_events_org_id_idx ON activity_events(org_id);
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    ref_type TEXT,
+    ref_id TEXT,
+    metadata TEXT,
+    read_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS notifications_user_created_idx ON notifications(user_id, created_at);
+  CREATE INDEX IF NOT EXISTS notifications_user_read_idx ON notifications(user_id, read_at);
 `
 
 export async function createTestApp() {

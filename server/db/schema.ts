@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const matters = sqliteTable('matters', {
   id: text('id').primaryKey(),
@@ -67,6 +67,26 @@ export const teamInviteLinks = sqliteTable('team_invite_links', {
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+export const notifications = sqliteTable(
+  'notifications',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    type: text('type').notNull(), // e.g. 'share_received'
+    title: text('title').notNull(),
+    body: text('body').notNull().default(''),
+    refType: text('ref_type'), // e.g. 'share'
+    refId: text('ref_id'),
+    metadata: text('metadata'), // JSON string for extra context
+    readAt: integer('read_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [
+    index('notifications_user_created_idx').on(t.userId, t.createdAt),
+    index('notifications_user_read_idx').on(t.userId, t.readAt),
+  ],
+)
 
 export const activityEvents = sqliteTable('activity_events', {
   id: text('id').primaryKey(),

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export type { ListNotificationsQuery } from './notification'
+export { listNotificationsQuerySchema } from './notification'
 export type { CreateStorageInput, UpdateStorageInput } from './storage'
 export { createStorageSchema, updateStorageSchema } from './storage'
 

@@ -64,6 +64,13 @@
       "when": 1776200000000,
       "tag": "0009_matters_active_name_uniq",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1745000000000,
+      "tag": "0010_notifications",
+      "breakpoints": true
     }
   ]
 }

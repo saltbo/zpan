@@ -371,5 +371,13 @@
   "activity.target.folder": "folder",
   "activity.meta.from": "from",
   "activity.meta.to": "to",
-  "activity.loadMore": "Load more"
+  "activity.loadMore": "Load more",
+  "notification.title": "Notifications",
+  "notification.markAllRead": "Mark all as read",
+  "notification.empty": "No notifications yet",
+  "notification.viewAll": "View all",
+  "notification.justNow": "Just now",
+  "notification.minutesAgo": "{{count}}m ago",
+  "notification.hoursAgo": "{{count}}h ago",
+  "notification.daysAgo": "{{count}}d ago"
 }
