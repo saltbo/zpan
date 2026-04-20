@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const matters = sqliteTable('matters', {
   id: text('id').primaryKey(),
@@ -79,3 +79,38 @@ export const activityEvents = sqliteTable('activity_events', {
   metadata: text('metadata'), // JSON
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
+
+export const shares = sqliteTable(
+  'shares',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    kind: text('kind').notNull(), // 'landing' | 'direct'
+    matterId: text('matter_id').notNull(),
+    orgId: text('org_id').notNull(),
+    creatorId: text('creator_id').notNull(),
+    passwordHash: text('password_hash'),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }),
+    downloadLimit: integer('download_limit'),
+    views: integer('views').notNull().default(0),
+    downloads: integer('downloads').notNull().default(0),
+    status: text('status').notNull().default('active'), // 'active' | 'revoked'
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [index('shares_creator_status_created_idx').on(t.creatorId, t.status, t.createdAt)],
+)
+
+export const shareRecipients = sqliteTable(
+  'share_recipients',
+  {
+    id: text('id').primaryKey(),
+    shareId: text('share_id').notNull(),
+    recipientUserId: text('recipient_user_id'),
+    recipientEmail: text('recipient_email'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [
+    index('share_recipients_share_id_idx').on(t.shareId),
+    index('share_recipients_user_id_idx').on(t.recipientUserId),
+  ],
+)

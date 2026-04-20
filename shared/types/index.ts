@@ -90,6 +90,34 @@ export interface PaginatedResponse<T> {
   pageSize: number
 }
 
+import type { ShareKind as _ShareKind } from '../schemas/share'
+
+export type { ShareKind } from '../schemas/share'
+
+export interface Share {
+  id: string
+  token: string
+  kind: _ShareKind
+  matterId: string
+  orgId: string
+  creatorId: string
+  passwordHash: string | null
+  expiresAt: Date | null
+  downloadLimit: number | null
+  views: number
+  downloads: number
+  status: 'active' | 'revoked'
+  createdAt: Date
+}
+
+export interface ShareRecipient {
+  id: string
+  shareId: string
+  recipientUserId: string | null
+  recipientEmail: string | null
+  createdAt: Date
+}
+
 export interface ActivityEvent {
   id: string
   orgId: string
