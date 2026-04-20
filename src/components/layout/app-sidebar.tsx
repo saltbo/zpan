@@ -10,6 +10,7 @@ import {
   LogOut,
   Music,
   Settings,
+  Share2,
   ShieldCheck,
   Trash2,
   Users,
@@ -78,6 +79,7 @@ export function AppSidebar() {
   const activeFilesNav = isFiles && !fileType
   const activeFileType = (type: string) => isFiles && fileType === type
   const activeRecycleBin = pathname === '/recycle-bin'
+  const activeShares = pathname.startsWith('/shares')
 
   async function handleSignOut() {
     await signOut()
@@ -113,6 +115,14 @@ export function AppSidebar() {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={activeShares}>
+                  <Link to="/shares" search={{ status: 'all', page: 1 }}>
+                    <Share2 className="h-4 w-4" />
+                    <span>{t('nav.shares')}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={activeFileType('photos')}>
                   <Link to="/files" search={{ type: 'photos' }}>
