@@ -17,7 +17,6 @@ import {
   Video,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { NotificationBell } from '@/components/notifications/notification-bell'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -237,7 +236,6 @@ export function AppSidebar() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <NotificationBell />
             </div>
           </SidebarMenuItem>
         </SidebarMenu>

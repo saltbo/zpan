@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect, useMatchRoute } from '@tanstack/react-router'
 import { AppSidebar } from '@/components/layout/app-sidebar'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { getSession } from '@/lib/api'
@@ -30,6 +31,9 @@ function AuthenticatedLayout() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium">ZPan</span>
+          <div className="ml-auto">
+            <NotificationBell />
+          </div>
         </header>
         <main className="min-w-0 flex-1 p-4">
           <Outlet />
