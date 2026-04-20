@@ -617,6 +617,22 @@ describe('GET /s/:token/children — path traversal', () => {
     const body = (await res.json()) as { error: string }
     expect(body.error).toBe('Invalid path')
   })
+
+  it('respects explicit page and pageSize query params', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFolder(db, orgId, { id: 'pg-dir', name: 'Paged' })
+    const share = await createShare(db, { matterId: 'pg-dir', orgId, creatorId, kind: 'landing' })
+
+    const res = await app.request(`/api/share/${share.token}/children?page=2&pageSize=10`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { page: number; pageSize: number }
+    expect(body.page).toBe(2)
+    expect(body.pageSize).toBe(10)
+  })
 })
 
 // ─── No auth required on /s routes ────────────────────────────────────────────
