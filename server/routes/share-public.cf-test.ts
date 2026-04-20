@@ -6,6 +6,37 @@ import { createAuth } from '../auth'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 import { createShare } from '../services/share'
 
+// ─── CF routing regression guard ─────────────────────────────────────────────
+// Verifies that public share JSON endpoints are NOT mounted under /s/* paths.
+// CF Assets serves /s/* as SPA HTML (not routed to the Worker) unless listed
+// in run_worker_first. These assertions catch any accidental re-introduction of
+// /s/* routes before the bug reaches a preview deployment.
+describe('[CF] Routing regression — share routes must be under /api/* or /dl/*', () => {
+  it('/s/:token returns 404 (not routed) — JSON share API is not mounted at /s', async () => {
+    const platform = createCloudflarePlatform(env)
+    const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
+    const app = createApp(platform, auth)
+
+    const res = await app.request('/s/any-token')
+    // 404 means no Worker route handles /s/* — correct: CF Assets owns this path.
+    // If this becomes 200 with JSON it means a /s/* route was accidentally added.
+    expect(res.status).toBe(404)
+    const ct = res.headers.get('content-type') ?? ''
+    expect(ct).not.toContain('application/json')
+  })
+
+  it('/api/share/:token returns JSON (not SPA) — correct path for share API', async () => {
+    const platform = createCloudflarePlatform(env)
+    const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
+    const app = createApp(platform, auth)
+
+    const res = await app.request('/api/share/nonexistent')
+    expect(res.status).toBe(404)
+    const ct = res.headers.get('content-type') ?? ''
+    expect(ct).toContain('application/json')
+  })
+})
+
 const STORAGE_ID = 'st-cf-share'
 
 async function buildApp() {
@@ -62,7 +93,7 @@ describe('[CF] Public share routes — no requireAuth', () => {
     const matterId = rows[0].id
     const share = await createShare(db, { matterId, orgId, creatorId: userId, kind: 'landing' })
 
-    const res = await app.request(`/api/shares/public/${share.token}`)
+    const res = await app.request(`/api/share/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.kind).toBe('landing')
