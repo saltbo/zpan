@@ -1,4 +1,3 @@
-import crypto from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin, organization, username } from 'better-auth/plugins'
@@ -15,6 +14,7 @@ import {
 } from '../shared/oauth-providers'
 import * as authSchema from './db/auth-schema'
 import { orgQuotas, systemOptions } from './db/schema'
+import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database } from './platform/interface'
 import { sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
@@ -22,23 +22,16 @@ import { findPersonalOrg } from './services/org'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
 // which blows past Cloudflare Workers' CPU budget and triggers error 1102.
-// node:crypto.scryptSync is native (OpenSSL) on both Node and Workers
-// (via nodejs_compat) and is counted as I/O rather than JS CPU time on CF.
-const SCRYPT_PARAMS = { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 }
+// We use node:crypto.scryptSync via server/lib/password.ts (native OpenSSL,
+// counted as I/O rather than JS CPU time on CF Workers).
 
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.randomBytes(16)
-  const key = crypto.scryptSync(password.normalize('NFKC'), salt, 64, SCRYPT_PARAMS)
-  return `${salt.toString('hex')}:${key.toString('hex')}`
+async function authHashPassword(password: string): Promise<string> {
+  return hashPassword(password)
 }
 
-async function verifyPassword({ hash, password }: { hash: string; password: string }): Promise<boolean> {
-  const [saltHex, keyHex] = hash.split(':')
-  if (!saltHex || !keyHex) {
-    throw new Error('stored password hash is malformed: expected "<salt>:<key>"')
-  }
-  const key = crypto.scryptSync(password.normalize('NFKC'), Buffer.from(saltHex, 'hex'), 64, SCRYPT_PARAMS)
-  return crypto.timingSafeEqual(key, Buffer.from(keyHex, 'hex'))
+async function authVerifyPassword({ hash, password }: { hash: string; password: string }): Promise<boolean> {
+  if (!hash.includes(':')) throw new Error('stored password hash is malformed: expected "<salt>:<key>"')
+  return verifyPasswordHash(hash, password)
 }
 
 async function loadProviderConfig(db: Database, providerId: string) {
@@ -145,8 +138,8 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
     emailAndPassword: {
       enabled: true,
       password: {
-        hash: hashPassword,
-        verify: verifyPassword,
+        hash: authHashPassword,
+        verify: authVerifyPassword,
       },
     },
     emailVerification: {

@@ -69,7 +69,14 @@
       "idx": 9,
       "version": "6",
       "when": 1745000000000,
-      "tag": "0010_notifications",
+      "tag": "0010_shares",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1745100000000,
+      "tag": "0011_notifications",
       "breakpoints": true
     }
   ]
