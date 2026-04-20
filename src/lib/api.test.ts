@@ -18,6 +18,8 @@ import {
   getProfile,
   getSession,
   getShare,
+  getShareChildren,
+  getShareLanding,
   getStorage,
   getSystemOption,
   getUnreadCount,
@@ -33,6 +35,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   restoreObject,
+  saveShareToDrive,
   setSystemOption,
   trashObject,
   updateObject,
@@ -40,6 +43,7 @@ import {
   updateStorage,
   updateUserStatus,
   uploadToS3,
+  verifySharePassword,
 } from './api'
 
 function makeResponse(body: unknown, ok = true, status = 200): Response {
@@ -1092,6 +1096,143 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
 
       await expect(createShare({ matterId: 'obj-1', kind: 'landing' })).rejects.toThrow('unauthorized')
+    })
+  })
+
+  describe('getShareLanding', () => {
+    it('calls GET /api/share/:token and returns landing data', async () => {
+      const payload = {
+        kind: 'landing',
+        matterName: 'photo.jpg',
+        matterType: 'image/jpeg',
+        matterSize: 1024,
+        isFolder: false,
+        requiresPassword: false,
+        expired: false,
+        exhausted: false,
+        expiresAt: null,
+        downloadLimit: null,
+        downloads: 0,
+        views: 1,
+        creatorName: 'Alice',
+        accessibleByUser: false,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getShareLanding('tok123')
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/share/tok123')
+    })
+
+    it('throws ApiError on 404', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Share not found or revoked' }, false, 404))
+
+      await expect(getShareLanding('bad-token')).rejects.toThrow('Share not found or revoked')
+    })
+
+    it('throws ApiError on 410 (matter trashed)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'File no longer available' }, false, 410))
+
+      await expect(getShareLanding('bad-token')).rejects.toThrow('File no longer available')
+    })
+  })
+
+  describe('verifySharePassword', () => {
+    it('calls POST /api/share/:token/verify with password', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ ok: true }))
+
+      const result = await verifySharePassword('tok123', 'secret')
+
+      expect(result).toEqual({ ok: true })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/share/tok123/verify')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ password: 'secret' })
+    })
+
+    it('throws ApiError on 401 (wrong password)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Invalid password' }, false, 401))
+
+      await expect(verifySharePassword('tok123', 'wrong')).rejects.toThrow('Invalid password')
+    })
+  })
+
+  describe('getShareChildren', () => {
+    it('calls GET /api/share/:token/children with default params', async () => {
+      const payload = { items: [], total: 0, page: 1, pageSize: 50, breadcrumb: [] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getShareChildren('tok123')
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/share/tok123/children')
+      expect(url).toContain('page=1')
+      expect(url).toContain('pageSize=50')
+    })
+
+    it('passes custom path, page, and pageSize', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ items: [], total: 0, page: 2, pageSize: 10, breadcrumb: [] }),
+      )
+
+      await getShareChildren('tok123', 'Reports', 2, 10)
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('path=Reports')
+      expect(url).toContain('page=2')
+      expect(url).toContain('pageSize=10')
+    })
+
+    it('throws ApiError on 401 (password required)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Password required' }, false, 401))
+
+      await expect(getShareChildren('tok123')).rejects.toThrow('Password required')
+    })
+  })
+
+  describe('saveShareToDrive', () => {
+    it('calls POST /api/shares/:token/save with targetOrgId and targetParent', async () => {
+      const payload = { saved: [{ id: 'obj-1', name: 'photo.jpg' }], skipped: [] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload, true, 201))
+
+      const result = await saveShareToDrive('tok123', { targetOrgId: 'org-1', targetParent: 'Docs' })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/shares/tok123/save')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ targetOrgId: 'org-1', targetParent: 'Docs' })
+    })
+
+    it('throws ApiError with QUOTA_EXCEEDED code on 400', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, false, 400),
+      )
+
+      await expect(saveShareToDrive('tok123', { targetOrgId: 'org-1', targetParent: '' })).rejects.toThrow(
+        'Quota exceeded',
+      )
+    })
+
+    it('throws ApiError on 401 (password required)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: 'Authentication required for password-protected share' }, false, 401),
+      )
+
+      await expect(saveShareToDrive('tok123', { targetOrgId: 'org-1', targetParent: '' })).rejects.toThrow(
+        'Authentication required',
+      )
+    })
+
+    it('throws ApiError on 410 (share gone)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Share target has been deleted' }, false, 410))
+
+      await expect(saveShareToDrive('tok123', { targetOrgId: 'org-1', targetParent: '' })).rejects.toThrow(
+        'Share target has been deleted',
+      )
     })
   })
 })

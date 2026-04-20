@@ -600,6 +600,25 @@ describe('GET /dl/:token', () => {
   })
 })
 
+// ─── GET /s/:token/children — path traversal guard ───────────────────────────
+
+describe('GET /s/:token/children — path traversal', () => {
+  it('returns 400 when path contains ..', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFolder(db, orgId, { id: 'traversal-dir', name: 'Safe' })
+    const share = await createShare(db, { matterId: 'traversal-dir', orgId, creatorId, kind: 'landing' })
+
+    const res = await app.request(`/api/share/${share.token}/children?path=../etc`)
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('Invalid path')
+  })
+})
+
 // ─── No auth required on /s routes ────────────────────────────────────────────
 
 describe('public routes require no auth', () => {
