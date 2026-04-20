@@ -78,6 +78,7 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
   const [deleteTargetIds, setDeleteTargetIds] = useState<string[]>([])
   const [moveTargetIds, setMoveTargetIds] = useState<string[]>([])
   const [showNewFolder, setShowNewFolder] = useState(false)
+  const [shareTarget, setShareTarget] = useState<StorageObject | null>(null)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [searchInput, setSearchInput] = useState('')
@@ -156,6 +157,7 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
       },
       onMove: (item) => setMoveTargetIds([item.id]),
       onDownload: handleDownload,
+      onShare: (item) => setShareTarget(item),
     }),
     [handleOpen, handleDownload, mutations.copyMutation, conflict.prompt, conflict.reset],
   )
@@ -175,6 +177,12 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
   })
 
   const selectedIds = useMemo(() => Object.keys(rowSelection).filter((k) => rowSelection[k]), [rowSelection])
+
+  const handleToolbarShare = useCallback(() => {
+    const id = selectedIds[0]
+    const item = items.find((i) => i.id === id) ?? null
+    setShareTarget(item)
+  }, [selectedIds, items])
 
   function handleDndDrop(fileIds: string[], targetFolderId: string) {
     conflict.reset()
@@ -230,6 +238,7 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
           onBatchTrash={() => setDeleteTargetIds(selectedIds)}
           onBatchMove={() => setMoveTargetIds(selectedIds)}
           onClearSelection={() => setRowSelection({})}
+          onShare={handleToolbarShare}
         />
 
         {items.length === 0 ? (
@@ -300,6 +309,8 @@ export function FileManager({ initialPath, filterType }: FileManagerProps) {
             .catch((err) => toast.error(err.message))
         }}
         movePending={mutations.moveMutation.isPending}
+        shareTarget={shareTarget}
+        onShareClose={() => setShareTarget(null)}
       />
 
       <NameConflictDialog {...conflict.dialogState} />

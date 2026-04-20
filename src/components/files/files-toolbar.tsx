@@ -1,4 +1,4 @@
-import { FolderInput, FolderPlus, LayoutGrid, List, Search, Trash2, Upload, X } from 'lucide-react'
+import { FolderInput, FolderPlus, LayoutGrid, List, Search, Share2, Trash2, Upload, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,7 @@ interface FilesToolbarProps {
   onBatchTrash: () => void
   onBatchMove: () => void
   onClearSelection: () => void
+  onShare?: () => void
 }
 
 export function FilesToolbar({
@@ -37,6 +38,7 @@ export function FilesToolbar({
   onBatchTrash,
   onBatchMove,
   onClearSelection,
+  onShare,
 }: FilesToolbarProps) {
   const { t } = useTranslation()
 
@@ -50,6 +52,12 @@ export function FilesToolbar({
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {t('files.selectedCount', { count: selectedCount })}
             </span>
+            {selectedCount === 1 && onShare && (
+              <Button variant="outline" size="sm" onClick={onShare}>
+                <Share2 className="h-4 w-4 sm:mr-1" />
+                <span className="sr-only sm:not-sr-only">{t('files.share')}</span>
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={onBatchMove}>
               <FolderInput className="h-4 w-4 sm:mr-1" />
               <span className="sr-only sm:not-sr-only">{t('files.moveTo')}</span>

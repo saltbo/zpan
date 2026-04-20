@@ -43,6 +43,7 @@ const noopHandlers = {
   onTrash: vi.fn(),
   onCopy: vi.fn(),
   onDownload: vi.fn(),
+  onShare: vi.fn(),
 }
 
 const t = (key: string) => key

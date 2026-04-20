@@ -2,8 +2,14 @@ import { z } from 'zod'
 
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
-export type { CreateShareInput, ShareKind } from './share'
-export { createShareSchema, listSharesQuerySchema, shareKindSchema, shareRecipientSchema } from './share'
+export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'
+export {
+  createShareRequestSchema,
+  createShareSchema,
+  listSharesQuerySchema,
+  shareKindSchema,
+  shareRecipientSchema,
+} from './share'
 export type { CreateStorageInput, UpdateStorageInput } from './storage'
 export { createStorageSchema, updateStorageSchema } from './storage'
 

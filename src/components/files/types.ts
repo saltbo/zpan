@@ -7,6 +7,7 @@ export interface FileActionHandlers {
   onCopy: (item: StorageObject) => void
   onMove: (item: StorageObject) => void
   onDownload: (item: StorageObject) => void
+  onShare: (item: StorageObject) => void
 }
 
 export interface BreadcrumbItem {
