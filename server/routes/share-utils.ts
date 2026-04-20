@@ -11,6 +11,10 @@ export function cookieName(token: string): string {
   return `sharetk_${token}`
 }
 
+export function viewCookieName(token: string): string {
+  return `sharevw_${token}`
+}
+
 export function encodeChildRef(shareToken: string, matterId: string): string {
   const sig = createHmac('sha256', shareToken).update(matterId).digest('hex').slice(0, 16)
   return Buffer.from(`${matterId}.${sig}`).toString('base64url')

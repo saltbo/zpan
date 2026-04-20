@@ -41,6 +41,7 @@ import {
   PRESIGN_TTL_SECS,
   readUserId,
   s3,
+  viewCookieName,
 } from './share-utils'
 
 const ROLE_LEVELS: Record<string, number> = { owner: 3, editor: 2, viewer: 1, member: 1 }
@@ -59,6 +60,7 @@ const listObjectsQuerySchema = z.object({
 })
 
 const verifyPasswordSchema = z.object({ password: z.string() })
+const VIEW_DEDUP_TTL_SECS = 30
 
 export const publicShares = new Hono<Env>()
   .get('/:token', async (c) => {
@@ -80,7 +82,16 @@ export const publicShares = new Hono<Env>()
       return c.json({ error: 'Share not found or revoked' }, 404)
     }
 
-    if (!isCreator) await incrementViews(db, share.id)
+    const viewCookie = getCookie(c, viewCookieName(token))
+    if (!isCreator && viewCookie !== 'seen') {
+      await incrementViews(db, share.id)
+      setCookie(c, viewCookieName(token), 'seen', {
+        httpOnly: true,
+        sameSite: 'Lax',
+        secure: true,
+        maxAge: VIEW_DEDUP_TTL_SECS,
+      })
+    }
 
     const accessibleByUser = viewerId ? isAccessibleByUser(recipients, viewerId) : false
     const cookieVal = getCookie(c, cookieName(token))

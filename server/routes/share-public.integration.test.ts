@@ -104,6 +104,45 @@ describe('GET /api/shares/:token', () => {
     expect(body.id).toBeUndefined()
   })
 
+  it('increments views for a public visitor', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'f1v', name: 'visit-count.txt' })
+    const share = await createShare(db, { matterId: 'f1v', orgId, creatorId, kind: 'landing' })
+
+    const res = await app.request(`/api/shares/${share.token}`)
+    expect(res.status).toBe(200)
+
+    const rows = await db.all<{ views: number }>(sql`SELECT views FROM shares WHERE id = ${share.id}`)
+    expect(rows[0]?.views).toBe(1)
+  })
+
+  it('deduplicates repeated visitor view requests within a short window', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'f1vd', name: 'visit-dedupe.txt' })
+    const share = await createShare(db, { matterId: 'f1vd', orgId, creatorId, kind: 'landing' })
+
+    const first = await app.request(`/api/shares/${share.token}`)
+    expect(first.status).toBe(200)
+    const viewCookie = first.headers.get('set-cookie')
+    expect(viewCookie).toContain(`sharevw_${share.token}=seen`)
+
+    const second = await app.request(`/api/shares/${share.token}`, {
+      headers: viewCookie ? { Cookie: viewCookie } : undefined,
+    })
+    expect(second.status).toBe(200)
+
+    const rows = await db.all<{ views: number }>(sql`SELECT views FROM shares WHERE id = ${share.id}`)
+    expect(rows[0]?.views).toBe(1)
+  })
+
   it('returns 404 for direct share kind (visitor)', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)

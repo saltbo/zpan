@@ -24,6 +24,9 @@ export function ShareDetailPanel({ share, onClose }: ShareDetailPanelProps) {
   })
 
   const detail = detailQuery.data
+  const views = detail?.views ?? share?.views ?? 0
+  const downloads = detail?.downloads ?? share?.downloads ?? 0
+  const downloadLimit = detail?.downloadLimit ?? share?.downloadLimit ?? null
 
   return (
     <Sheet open={!!share} onOpenChange={(open) => !open && onClose()}>
@@ -66,12 +69,12 @@ export function ShareDetailPanel({ share, onClose }: ShareDetailPanelProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm font-medium text-muted-foreground mb-1">{t('shares.colViews')}</p>
-                <p className="text-sm tabular-nums">{share.views}</p>
+                <p className="text-sm tabular-nums">{views}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground mb-1">{t('shares.colDownloads')}</p>
                 <p className="text-sm tabular-nums">
-                  {share.downloadLimit != null ? `${share.downloads} / ${share.downloadLimit}` : share.downloads}
+                  {downloadLimit != null ? `${downloads} / ${downloadLimit}` : downloads}
                 </p>
               </div>
             </div>
