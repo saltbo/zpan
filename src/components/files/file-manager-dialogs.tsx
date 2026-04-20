@@ -3,6 +3,7 @@ import { DeleteConfirmDialog } from './dialogs/delete-confirm-dialog'
 import { MoveDialog } from './dialogs/move-dialog'
 import { NewFolderDialog } from './dialogs/new-folder-dialog'
 import { RenameDialog } from './dialogs/rename-dialog'
+import { ShareDialog } from './dialogs/share-dialog'
 
 interface FileManagerDialogsProps {
   renameTarget: StorageObject | null
@@ -21,6 +22,8 @@ interface FileManagerDialogsProps {
   onMoveClose: () => void
   onMoveConfirm: (targetFolderId: string) => void
   movePending: boolean
+  shareTarget: StorageObject | null
+  onShareClose: () => void
 }
 
 export function FileManagerDialogs(props: FileManagerDialogsProps) {
@@ -63,6 +66,14 @@ export function FileManagerDialogs(props: FileManagerDialogsProps) {
         onConfirm={props.onMoveConfirm}
         isPending={props.movePending}
         excludeIds={props.moveTargetIds}
+      />
+
+      <ShareDialog
+        open={!!props.shareTarget}
+        item={props.shareTarget}
+        onOpenChange={(open) => {
+          if (!open) props.onShareClose()
+        }}
       />
     </>
   )

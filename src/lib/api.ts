@@ -1,5 +1,5 @@
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
-import type { ConflictStrategy, CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
+import type { ConflictStrategy, CreateShareRequest, CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
 import type {
   ActivityEvent,
   AuthProvider,
@@ -392,6 +392,19 @@ export function deleteShare(id: string) {
   return sharesApi[':id'].$delete({ param: { id } }).then((res) => {
     if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
   })
+}
+
+export interface CreateShareResult {
+  id: string
+  token: string
+  kind: ShareDetail['kind']
+  urls: { landing?: string; direct?: string }
+  expiresAt: string | null
+  downloadLimit: number | null
+}
+
+export function createShare(data: CreateShareRequest) {
+  return unwrap<CreateShareResult>(sharesApi.index.$post({ json: data }))
 }
 
 // Auth API — Better Auth passthrough, not typed via Hono RPC
