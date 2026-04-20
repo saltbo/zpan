@@ -43,8 +43,11 @@ export function createApp(platform: Platform, auth: Auth) {
     return a.handler(c.req.raw)
   })
 
-  // Public share routes — no auth required; mount before authMiddleware
-  app.route('/s', shareLanding)
+  // Public share routes — no auth required; mount before authMiddleware.
+  // Landing API lives under /api/* (already in run_worker_first) so CF Assets
+  // routing doesn't intercept it. /dl/* is listed separately in run_worker_first.
+  // /s/:token is intentionally left for the SPA landing page (T8).
+  app.route('/api/shares/public', shareLanding)
   app.route('/dl', shareDirect)
 
   // Public routes — no auth required; mount before authMiddleware

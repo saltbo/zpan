@@ -62,7 +62,7 @@ describe('[CF] Public share routes — no requireAuth', () => {
     const matterId = rows[0].id
     const share = await createShare(db, { matterId, orgId, creatorId: userId, kind: 'landing' })
 
-    const res = await app.request(`/s/${share.token}`)
+    const res = await app.request(`/api/shares/public/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.kind).toBe('landing')

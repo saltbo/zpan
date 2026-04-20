@@ -63,7 +63,7 @@ async function insertFolder(
 describe('GET /s/:token', () => {
   it('returns 404 for unknown token', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/s/unknown-token')
+    const res = await app.request('/api/shares/public/unknown-token')
     expect(res.status).toBe(404)
   })
 
@@ -76,7 +76,7 @@ describe('GET /s/:token', () => {
     await insertFile(db, orgId, { id: 'f1', name: 'photo.jpg' })
     const share = await createShare(db, { matterId: 'f1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/s/${share.token}`)
+    const res = await app.request(`/api/shares/public/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.kind).toBe('landing')
@@ -104,7 +104,7 @@ describe('GET /s/:token', () => {
     await insertFile(db, orgId, { id: 'f2', name: 'direct.txt' })
     const share = await createShare(db, { matterId: 'f2', orgId, creatorId, kind: 'direct' })
 
-    const res = await app.request(`/s/${share.token}`)
+    const res = await app.request(`/api/shares/public/${share.token}`)
     expect(res.status).toBe(404)
   })
 
@@ -122,7 +122,7 @@ describe('GET /s/:token', () => {
       VALUES ('sh-trash', 'token-trash', 'landing', 'f3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
     `)
 
-    const res = await app.request('/s/token-trash')
+    const res = await app.request('/api/shares/public/token-trash')
     expect(res.status).toBe(410)
   })
 
@@ -136,7 +136,7 @@ describe('GET /s/:token', () => {
     const share = await createShare(db, { matterId: 'f4', orgId, creatorId, kind: 'landing' })
     await db.run(sql`UPDATE shares SET status = 'revoked' WHERE id = ${share.id}`)
 
-    const res = await app.request(`/s/${share.token}`)
+    const res = await app.request(`/api/shares/public/${share.token}`)
     expect(res.status).toBe(404)
   })
 
@@ -155,7 +155,7 @@ describe('GET /s/:token', () => {
       password: 'hunter2',
     })
 
-    const res = await app.request(`/s/${share.token}`)
+    const res = await app.request(`/api/shares/public/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.requiresPassword).toBe(true)
@@ -177,7 +177,7 @@ describe('GET /s/:token', () => {
     })
     await db.run(sql`UPDATE shares SET downloads = 3 WHERE id = ${share.id}`)
 
-    const res = await app.request(`/s/${share.token}`)
+    const res = await app.request(`/api/shares/public/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.exhausted).toBe(true)
@@ -202,7 +202,7 @@ describe('POST /s/:token/verify', () => {
       password: 'correcthorse',
     })
 
-    const res = await app.request(`/s/${share.token}/verify`, {
+    const res = await app.request(`/api/shares/public/${share.token}/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: 'correcthorse' }),
@@ -229,7 +229,7 @@ describe('POST /s/:token/verify', () => {
       password: 'correcthorse',
     })
 
-    const res = await app.request(`/s/${share.token}/verify`, {
+    const res = await app.request(`/api/shares/public/${share.token}/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: 'wrongpassword' }),
@@ -250,7 +250,7 @@ describe('GET /s/:token/download', () => {
     await insertFile(db, orgId, { id: 'dl1', name: 'file.txt' })
     const share = await createShare(db, { matterId: 'dl1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/s/${share.token}/download`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/public/${share.token}/download`, { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_PRESIGN_URL)
     expect(res.headers.get('cache-control')).toBe('no-store')
@@ -271,7 +271,7 @@ describe('GET /s/:token/download', () => {
       password: 'secret123',
     })
 
-    const res = await app.request(`/s/${share.token}/download`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/public/${share.token}/download`, { redirect: 'manual' })
     expect(res.status).toBe(401)
   })
 
@@ -290,7 +290,7 @@ describe('GET /s/:token/download', () => {
       password: 'secret123',
     })
 
-    const res = await app.request(`/s/${share.token}/download`, {
+    const res = await app.request(`/api/shares/public/${share.token}/download`, {
       redirect: 'manual',
       headers: { Cookie: `sharetk_${share.token}=ok` },
     })
@@ -313,7 +313,7 @@ describe('GET /s/:token/download', () => {
       recipients: [{ recipientUserId: userId }],
     })
 
-    const res = await app.request(`/s/${share.token}/download`, {
+    const res = await app.request(`/api/shares/public/${share.token}/download`, {
       redirect: 'manual',
       headers: userHeaders,
     })
@@ -336,7 +336,7 @@ describe('GET /s/:token/download', () => {
     })
     await db.run(sql`UPDATE shares SET downloads = 2 WHERE id = ${share.id}`)
 
-    const res = await app.request(`/s/${share.token}/download`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/public/${share.token}/download`, { redirect: 'manual' })
     expect(res.status).toBe(410)
 
     // Verify downloads counter did not increment past limit
@@ -360,7 +360,7 @@ describe('GET /s/:token/download', () => {
       expiresAt: pastDate,
     })
 
-    const res = await app.request(`/s/${share.token}/download`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/public/${share.token}/download`, { redirect: 'manual' })
     expect(res.status).toBe(410)
   })
 })
@@ -377,7 +377,7 @@ describe('GET /s/:token/children', () => {
     await insertFile(db, orgId, { id: 'ch1', name: 'flat.txt' })
     const share = await createShare(db, { matterId: 'ch1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/s/${share.token}/children`)
+    const res = await app.request(`/api/shares/public/${share.token}/children`)
     expect(res.status).toBe(400)
   })
 
@@ -392,7 +392,7 @@ describe('GET /s/:token/children', () => {
     await insertFolder(db, orgId, { id: 'dir2', name: 'vacation', parent: 'Photos' })
     const share = await createShare(db, { matterId: 'dir1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/s/${share.token}/children`)
+    const res = await app.request(`/api/shares/public/${share.token}/children`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       items: Array<Record<string, unknown>>
@@ -420,7 +420,7 @@ describe('GET /s/:token/children', () => {
     await insertFile(db, orgId, { id: 'rpt1', name: 'q1.pdf', parent: 'Docs/Reports' })
     const share = await createShare(db, { matterId: 'root1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/s/${share.token}/children?path=Reports`)
+    const res = await app.request(`/api/shares/public/${share.token}/children?path=Reports`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       items: Array<Record<string, unknown>>
@@ -449,7 +449,7 @@ describe('GET /s/:token/children', () => {
       password: 'pass123',
     })
 
-    const res = await app.request(`/s/${share.token}/children`)
+    const res = await app.request(`/api/shares/public/${share.token}/children`)
     expect(res.status).toBe(401)
   })
 })
@@ -468,11 +468,11 @@ describe('GET /s/:token/download/:childRef', () => {
     const share = await createShare(db, { matterId: 'fld1', orgId, creatorId, kind: 'landing' })
 
     // Get the child ref from /children
-    const childrenRes = await app.request(`/s/${share.token}/children`)
+    const childrenRes = await app.request(`/api/shares/public/${share.token}/children`)
     const childrenBody = (await childrenRes.json()) as { items: Array<{ id: string }> }
     const childRef = childrenBody.items[0].id
 
-    const res = await app.request(`/s/${share.token}/download/${childRef}`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/public/${share.token}/download/${childRef}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_PRESIGN_URL)
     expect(res.headers.get('cache-control')).toBe('no-store')
@@ -487,7 +487,7 @@ describe('GET /s/:token/download/:childRef', () => {
     await insertFolder(db, orgId, { id: 'fld2', name: 'Safe' })
     const share = await createShare(db, { matterId: 'fld2', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/s/${share.token}/download/invalid-ref`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/public/${share.token}/download/invalid-ref`, { redirect: 'manual' })
     expect(res.status).toBe(400)
   })
 
@@ -506,7 +506,7 @@ describe('GET /s/:token/download/:childRef', () => {
     const sig = createHmac('sha256', share.token).update('out1').digest('hex').slice(0, 16)
     const fakeRef = Buffer.from(`out1.${sig}`).toString('base64url')
 
-    const res = await app.request(`/s/${share.token}/download/${fakeRef}`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/public/${share.token}/download/${fakeRef}`, { redirect: 'manual' })
     expect(res.status).toBe(404)
   })
 })
@@ -613,7 +613,7 @@ describe('public routes require no auth', () => {
     const share = await createShare(db, { matterId: 'pub1', orgId, creatorId, kind: 'landing' })
 
     // No Cookie / Authorization header
-    const res = await app.request(`/s/${share.token}`)
+    const res = await app.request(`/api/shares/public/${share.token}`)
     expect(res.status).toBe(200)
   })
 })
