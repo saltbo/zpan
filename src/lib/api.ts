@@ -361,7 +361,7 @@ export function getUnreadCount() {
 
 export function markNotificationRead(id: string) {
   return notificationsApi[':id'].read.$post({ param: { id } }).then((res) => {
-    if (!res.ok && res.status !== 204) throw new ApiError(res.status, { error: res.statusText })
+    if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
   })
 }
 
