@@ -8,6 +8,7 @@ interface Env {
   BETTER_AUTH_SECRET: string
   BETTER_AUTH_URL?: string
   TRUSTED_ORIGINS?: string
+  ASSETS: Fetcher
   [key: string]: unknown
 }
 
@@ -15,6 +16,8 @@ interface Env {
 // for OIDC config loading. Changes to OIDC provider configs or env vars
 // (BETTER_AUTH_URL, TRUSTED_ORIGINS) take effect on isolate recycle.
 let cachedAuth: Auth | null = null
+
+const SHARE_TOKEN_RE = /^\/s\/([^/?#]+)/
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -33,6 +36,107 @@ export default {
       cachedAuth = await createAuth(platform.db, BETTER_AUTH_SECRET, baseURL, trustedOrigins)
     }
 
+    const url = new URL(request.url)
+    const shareMatch = SHARE_TOKEN_RE.exec(url.pathname)
+
+    if (shareMatch && request.method === 'GET') {
+      return handleShareSsr(request, env, shareMatch[1], platform, cachedAuth)
+    }
+
     return createApp(platform, cachedAuth).fetch(request)
   },
+}
+
+interface ShareMeta {
+  title: string
+  description: string
+  imageUrl: string
+}
+
+async function fetchShareMeta(origin: string, token: string): Promise<ShareMeta> {
+  const fallback: ShareMeta = {
+    title: 'Share unavailable',
+    description: 'Shared via ZPan',
+    imageUrl: `${origin}/logo-512.png`,
+  }
+
+  try {
+    const res = await fetch(`${origin}/api/share/${token}`, {
+      headers: { Accept: 'application/json' },
+    })
+
+    if (!res.ok) return fallback
+
+    const data = (await res.json()) as {
+      matterName?: string
+      matterType?: string
+      expiresAt?: string | null
+    }
+
+    const name = data.matterName ?? 'Shared file'
+    const expiry = data.expiresAt ? ` · Expires ${new Date(data.expiresAt).toLocaleDateString()}` : ''
+    const description = `Shared via ZPan${expiry}`
+    const isImage = typeof data.matterType === 'string' && data.matterType.startsWith('image/')
+
+    return {
+      title: name,
+      description,
+      imageUrl: isImage ? `${origin}/api/share/${token}/download` : `${origin}/logo-512.png`,
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+}
+
+function buildOgTags(meta: ShareMeta, pageUrl: string): string {
+  return [
+    `<meta property="og:title" content="${escapeAttr(meta.title)}" />`,
+    `<meta property="og:description" content="${escapeAttr(meta.description)}" />`,
+    `<meta property="og:image" content="${escapeAttr(meta.imageUrl)}" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:url" content="${escapeAttr(pageUrl)}" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="${escapeAttr(meta.title)}" />`,
+    `<meta name="twitter:description" content="${escapeAttr(meta.description)}" />`,
+    `<meta name="twitter:image" content="${escapeAttr(meta.imageUrl)}" />`,
+  ].join('\n    ')
+}
+
+async function handleShareSsr(
+  request: Request,
+  env: Env,
+  token: string,
+  platform: ReturnType<typeof createCloudflarePlatform>,
+  auth: Auth,
+): Promise<Response> {
+  const url = new URL(request.url)
+  const origin = url.origin
+
+  const [meta, spaRes] = await Promise.all([
+    fetchShareMeta(origin, token),
+    env.ASSETS.fetch(new Request(`${origin}/index.html`, { headers: request.headers })),
+  ])
+
+  if (!spaRes.ok) {
+    return createApp(platform, auth).fetch(request)
+  }
+
+  const html = await spaRes.text()
+  const ogTags = buildOgTags(meta, url.href)
+  const injected = html.replace(
+    '<title>ZPan</title>',
+    `<title>${meta.title.replace(/</g, '&lt;')} — ZPan</title>\n    ${ogTags}`,
+  )
+
+  return new Response(injected, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=UTF-8',
+      'Cache-Control': 'no-store',
+    },
+  })
 }

@@ -7,6 +7,7 @@ import type {
   ObjectsRoute,
   ProfileRoute,
   PublicTeamsRoute,
+  ShareApiRoute,
   SharesRoute,
   StoragesRoute,
   SystemRoute,
@@ -34,3 +35,7 @@ export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
 export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)
 export const sharesApi = hc<SharesRoute>('/api/shares', opts)
+// Public share landing API (no auth required)
+export const sharePublicApi = hc<ShareApiRoute>('/api/share', opts)
+// Authenticated share save API
+export const sharesSaveApi = hc<SharesRoute>('/api/shares', opts)
