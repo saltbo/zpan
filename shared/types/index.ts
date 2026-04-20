@@ -102,12 +102,12 @@ export interface Share {
   orgId: string
   creatorId: string
   passwordHash: string | null
-  expiresAt: Date | null
+  expiresAt: string | null
   downloadLimit: number | null
   views: number
   downloads: number
   status: 'active' | 'revoked'
-  createdAt: Date
+  createdAt: string
 }
 
 export interface ShareRecipient {
@@ -115,7 +115,23 @@ export interface ShareRecipient {
   shareId: string
   recipientUserId: string | null
   recipientEmail: string | null
-  createdAt: Date
+  createdAt: string
+}
+
+export interface ShareMatter {
+  name: string
+  type: string
+  dirtype: number
+}
+
+export interface ShareListItem extends Share {
+  matter: ShareMatter
+  recipientCount: number
+}
+
+export interface ShareDetail extends Share {
+  matter: ShareMatter
+  recipients: ShareRecipient[]
 }
 
 export interface Notification {

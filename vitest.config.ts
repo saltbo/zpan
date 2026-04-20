@@ -27,6 +27,7 @@ const coverageConfig = {
     'server/db/**',
     'shared/**/*.test.ts',
     'src/**/*.test.ts',
+    'src/**/*.integration.test.ts',
     'src/i18n/index.ts',
   ],
   reporter: ['text', 'json'] as const,
@@ -57,7 +58,7 @@ export default defineConfig({
         resolve: { alias: aliases },
         test: {
           name: 'integration',
-          include: ['server/**/*.integration.test.ts'],
+          include: ['server/**/*.integration.test.ts', 'src/**/*.integration.test.ts'],
           coverage: {
             ...coverageConfig,
             thresholds: {

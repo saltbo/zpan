@@ -9,7 +9,14 @@ import type { Matter } from './matter'
 
 export type Share = typeof shares.$inferSelect
 export type ShareRecipient = typeof shareRecipients.$inferSelect
-export type ShareWithMatter = Share & { matterName: string; matterType: string }
+export type ShareWithDetails = Share & {
+  matter: { name: string; type: string; dirtype: number }
+  recipients: ShareRecipient[]
+}
+export type ShareListItem = Share & {
+  matter: { name: string; type: string; dirtype: number }
+  recipientCount: number
+}
 
 export function verifyPassword(share: Share, plaintext: string): boolean {
   if (!share.passwordHash) return false
@@ -122,37 +129,6 @@ export async function incrementDownloadsAtomic(
   return { ok: false, downloads: current[0].downloads }
 }
 
-export async function listSharesByCreator(
-  db: Database,
-  creatorId: string,
-  opts: { page: number; pageSize: number; status?: string },
-): Promise<{ items: ShareWithMatter[]; total: number }> {
-  const conditions = [eq(shares.creatorId, creatorId)]
-  if (opts.status) conditions.push(eq(shares.status, opts.status))
-  const where = and(...conditions)
-
-  const [countRow] = await db.select({ count: count() }).from(shares).where(where)
-  const total = countRow?.count ?? 0
-
-  const offset = (opts.page - 1) * opts.pageSize
-  const rows = await db
-    .select({ share: shares, matterName: matters.name, matterType: matters.type })
-    .from(shares)
-    .leftJoin(matters, eq(shares.matterId, matters.id))
-    .where(where)
-    .orderBy(desc(shares.createdAt))
-    .limit(opts.pageSize)
-    .offset(offset)
-
-  const items = rows.map(({ share, matterName, matterType }) => ({
-    ...share,
-    matterName: matterName ?? '',
-    matterType: matterType ?? '',
-  }))
-
-  return { items, total }
-}
-
 export async function revokeShare(db: Database, shareId: string, creatorId: string): Promise<void> {
   const result = await db
     .update(shares)
@@ -179,4 +155,62 @@ export async function cascadeDeleteByMatter(db: Database, matterId: string): Pro
   const shareIds = shareRows.map((r) => r.id)
   await db.delete(shareRecipients).where(inArray(shareRecipients.shareId, shareIds))
   await db.delete(shares).where(inArray(shares.id, shareIds))
+}
+
+export async function getShareById(db: Database, shareId: string): Promise<ShareWithDetails | null> {
+  const rows = await db
+    .select({ share: shares, matter: matters })
+    .from(shares)
+    .innerJoin(matters, eq(shares.matterId, matters.id))
+    .where(eq(shares.id, shareId))
+
+  const row = rows[0]
+  if (!row) return null
+
+  const recipients = await db.select().from(shareRecipients).where(eq(shareRecipients.shareId, shareId))
+
+  return {
+    ...row.share,
+    matter: { name: row.matter.name, type: row.matter.type, dirtype: row.matter.dirtype ?? 0 },
+    recipients,
+  }
+}
+
+export async function listSharesForApi(
+  db: Database,
+  creatorId: string,
+  opts: { page: number; pageSize: number; status?: string },
+): Promise<{ items: ShareListItem[]; total: number }> {
+  const conditions = [eq(shares.creatorId, creatorId)]
+  if (opts.status) conditions.push(eq(shares.status, opts.status))
+  const where = and(...conditions)
+
+  const [countRow] = await db.select({ count: count() }).from(shares).where(where)
+  const total = countRow?.count ?? 0
+
+  const offset = (opts.page - 1) * opts.pageSize
+  const rows = await db
+    .select({
+      share: shares,
+      matterName: matters.name,
+      matterType: matters.type,
+      matterDirtype: matters.dirtype,
+      recipientCount: count(shareRecipients.id),
+    })
+    .from(shares)
+    .leftJoin(matters, eq(shares.matterId, matters.id))
+    .leftJoin(shareRecipients, eq(shareRecipients.shareId, shares.id))
+    .where(where)
+    .groupBy(shares.id)
+    .orderBy(desc(shares.createdAt))
+    .limit(opts.pageSize)
+    .offset(offset)
+
+  const items: ShareListItem[] = rows.map(({ share, matterName, matterType, matterDirtype, recipientCount }) => ({
+    ...share,
+    matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
+    recipientCount,
+  }))
+
+  return { items, total }
 }

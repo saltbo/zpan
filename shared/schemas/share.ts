@@ -28,6 +28,17 @@ export const listSharesQuerySchema = z.object({
   status: z.enum(['active', 'revoked']).optional(),
 })
 
+export const createShareRequestSchema = z.object({
+  matterId: z.string().min(1),
+  kind: shareKindSchema,
+  password: z.string().optional(),
+  expiresAt: z.string().datetime({ offset: true }).optional(),
+  downloadLimit: z.number().int().positive().optional(),
+  recipients: z.array(shareRecipientSchema).optional(),
+})
+
+export type CreateShareRequest = z.infer<typeof createShareRequestSchema>
+
 export const saveShareRequestSchema = z.object({
   targetOrgId: z.string().min(1),
   targetParent: z.string().default(''),
