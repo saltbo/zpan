@@ -7,6 +7,7 @@ import {
   confirmUpload,
   copyObject,
   createObject,
+  createShare,
   createStorage,
   deleteObject,
   deleteShare,
@@ -1059,6 +1060,38 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 403, statusText: 'Forbidden' } as Response)
 
       await expect(deleteShare('share-1')).rejects.toThrow('Forbidden')
+    })
+  })
+
+  describe('createShare', () => {
+    it('posts share data to /api/shares and returns created share result', async () => {
+      const payload = {
+        id: 'share-1',
+        token: 'tok123',
+        kind: 'landing' as const,
+        urls: { landing: 'https://zpan.io/s/tok123' },
+        expiresAt: null,
+        downloadLimit: null,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await createShare({ matterId: 'obj-1', kind: 'landing' })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/shares')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ matterId: 'obj-1', kind: 'landing' })
+      const headers =
+        init.headers instanceof Headers ? init.headers : new Headers(init.headers as Record<string, string>)
+      expect(headers.get('Content-Type')).toContain('application/json')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
+
+      await expect(createShare({ matterId: 'obj-1', kind: 'landing' })).rejects.toThrow('unauthorized')
     })
   })
 })
