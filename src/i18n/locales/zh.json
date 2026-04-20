@@ -371,5 +371,13 @@
   "activity.target.folder": "文件夹",
   "activity.meta.from": "从",
   "activity.meta.to": "到",
-  "activity.loadMore": "加载更多"
+  "activity.loadMore": "加载更多",
+  "notification.title": "通知",
+  "notification.markAllRead": "全部标为已读",
+  "notification.empty": "暂无通知",
+  "notification.viewAll": "查看全部",
+  "notification.justNow": "刚刚",
+  "notification.minutesAgo": "{{count}}分钟前",
+  "notification.hoursAgo": "{{count}}小时前",
+  "notification.daysAgo": "{{count}}天前"
 }

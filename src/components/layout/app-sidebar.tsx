@@ -16,6 +16,7 @@ import {
   Video,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -185,46 +186,49 @@ export function AppSidebar() {
       <SidebarFooter className="border-t p-3">
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-                  <Avatar size="sm">
-                    <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
-                      {user ? getInitials(user.name || user.username || '?') : '?'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="flex-1 truncate text-left font-medium">{user?.name || user?.username}</span>
-                  <ChevronsUpDown className="ml-auto size-4 opacity-60" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start" className="w-56">
-                <DropdownMenuItem asChild>
-                  <Link to="/settings">
-                    <Settings className="mr-2 h-4 w-4" />
-                    {t('nav.settings')}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/teams">
-                    <Users className="mr-2 h-4 w-4" />
-                    {t('nav.teams')}
-                  </Link>
-                </DropdownMenuItem>
-                {isAdmin && (
+            <div className="flex items-center gap-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton className="flex-1 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+                    <Avatar size="sm">
+                      <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
+                        {user ? getInitials(user.name || user.username || '?') : '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="flex-1 truncate text-left font-medium">{user?.name || user?.username}</span>
+                    <ChevronsUpDown className="ml-auto size-4 opacity-60" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start" className="w-56">
                   <DropdownMenuItem asChild>
-                    <Link to="/admin/storages">
-                      <ShieldCheck className="mr-2 h-4 w-4" />
-                      {t('nav.adminPanel')}
+                    <Link to="/settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      {t('nav.settings')}
                     </Link>
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  {t('auth.signOut')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuItem asChild>
+                    <Link to="/teams">
+                      <Users className="mr-2 h-4 w-4" />
+                      {t('nav.teams')}
+                    </Link>
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin/storages">
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        {t('nav.adminPanel')}
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    {t('auth.signOut')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <NotificationBell />
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

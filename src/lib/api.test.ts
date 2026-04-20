@@ -17,13 +17,17 @@ import {
   getSession,
   getStorage,
   getSystemOption,
+  getUnreadCount,
   getUserQuota,
   listAuthProviders,
+  listNotifications,
   listObjects,
   listQuotas,
   listStorages,
   listSystemOptions,
   listUsers,
+  markAllNotificationsRead,
+  markNotificationRead,
   restoreObject,
   setSystemOption,
   trashObject,
@@ -895,6 +899,94 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'User not found' }, false, 404))
 
       await expect(getProfile('nobody')).rejects.toThrow('User not found')
+    })
+  })
+
+  describe('listNotifications', () => {
+    it('calls /api/notifications with default params', async () => {
+      const payload = { items: [], total: 0, unreadCount: 0, page: 1, pageSize: 20 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listNotifications()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/notifications')
+      expect(url).toContain('page=1')
+      expect(url).toContain('pageSize=20')
+      expect(url).toContain('unread=false')
+    })
+
+    it('passes page, pageSize, and unreadOnly params', async () => {
+      const payload = { items: [], total: 5, unreadCount: 5, page: 2, pageSize: 10 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await listNotifications(2, 10, true)
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('page=2')
+      expect(url).toContain('pageSize=10')
+      expect(url).toContain('unread=true')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
+
+      await expect(listNotifications()).rejects.toThrow('unauthorized')
+    })
+  })
+
+  describe('getUnreadCount', () => {
+    it('calls /api/notifications/unread-count and returns count', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ count: 3 }))
+
+      const result = await getUnreadCount()
+
+      expect(result).toEqual({ count: 3 })
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/notifications/unread-count')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
+
+      await expect(getUnreadCount()).rejects.toThrow('unauthorized')
+    })
+  })
+
+  describe('markNotificationRead', () => {
+    it('posts to /api/notifications/:id/read and resolves on 204', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+
+      await expect(markNotificationRead('notif-1')).resolves.toBeUndefined()
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/notifications/notif-1/read')
+      expect(init.method).toBe('POST')
+    })
+
+    it('throws ApiError on non-ok response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404, statusText: 'Not Found' } as Response)
+
+      await expect(markNotificationRead('missing')).rejects.toThrow('Not Found')
+    })
+  })
+
+  describe('markAllNotificationsRead', () => {
+    it('posts to /api/notifications/read-all and returns count', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ count: 5 }))
+
+      const result = await markAllNotificationsRead()
+
+      expect(result).toEqual({ count: 5 })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/notifications/read-all')
+      expect(init.method).toBe('POST')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
+
+      await expect(markAllNotificationsRead()).rejects.toThrow('unauthorized')
     })
   })
 })

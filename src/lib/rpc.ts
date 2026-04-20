@@ -3,6 +3,7 @@ import type {
   AdminQuotasRoute,
   AuthProvidersRoute,
   EmailConfigRoute,
+  NotificationsRoute,
   ObjectsRoute,
   ProfileRoute,
   PublicTeamsRoute,
@@ -30,3 +31,4 @@ export const emailConfig = hc<EmailConfigRoute>('/api/admin/email-config', opts)
 export const profiles = hc<ProfileRoute>('/api/profiles')
 export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
 export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
+export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)

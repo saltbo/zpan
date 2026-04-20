@@ -1,11 +1,19 @@
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type { ConflictStrategy, CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
-import type { ActivityEvent, AuthProvider, PaginatedResponse, Storage, StorageObject } from '@shared/types'
+import type {
+  ActivityEvent,
+  AuthProvider,
+  Notification,
+  PaginatedResponse,
+  Storage,
+  StorageObject,
+} from '@shared/types'
 import {
   adminQuotas,
   authProviders,
   emailConfig,
   inviteCodes,
+  notificationsApi,
   objects,
   profiles,
   storages,
@@ -327,6 +335,38 @@ export function listTeamActivities(teamId: string, page = 1, pageSize = 20) {
   return unwrap<PaginatedResponse<ActivityEvent>>(
     teamsApi[':teamId'].activity.$get({ param: { teamId }, query: { page: String(page), pageSize: String(pageSize) } }),
   )
+}
+
+// Notifications API
+
+export type NotificationListResult = {
+  items: Notification[]
+  total: number
+  unreadCount: number
+  page: number
+  pageSize: number
+}
+
+export function listNotifications(page = 1, pageSize = 20, unreadOnly = false) {
+  return unwrap<NotificationListResult>(
+    notificationsApi.index.$get({
+      query: { page: String(page), pageSize: String(pageSize), unread: String(unreadOnly) },
+    }),
+  )
+}
+
+export function getUnreadCount() {
+  return unwrap<{ count: number }>(notificationsApi['unread-count'].$get())
+}
+
+export function markNotificationRead(id: string) {
+  return notificationsApi[':id'].read.$post({ param: { id } }).then((res) => {
+    if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
+  })
+}
+
+export function markAllNotificationsRead() {
+  return unwrap<{ count: number }>(notificationsApi['read-all'].$post())
 }
 
 // Auth API — Better Auth passthrough, not typed via Hono RPC

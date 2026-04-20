@@ -9,6 +9,7 @@ import type { Platform } from './platform/interface'
 import authProviders from './routes/auth-providers'
 import emailConfig from './routes/email-config'
 import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
+import { notifications } from './routes/notifications'
 import objects from './routes/objects'
 import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
@@ -61,6 +62,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/quotas', userQuotas)
   app.route('/api/system', system)
   app.route('/api/auth-providers', authProviders)
+  app.route('/api/notifications', notifications)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
@@ -85,3 +87,4 @@ export type AuthProvidersRoute = typeof authProviders
 export type ProfileRoute = typeof profile
 export type TeamsRoute = typeof teams
 export type PublicTeamsRoute = typeof publicTeams
+export type NotificationsRoute = typeof notifications

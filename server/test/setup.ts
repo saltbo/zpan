@@ -193,6 +193,20 @@ const APP_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS share_recipients_share_id_idx ON share_recipients(share_id);
   CREATE INDEX IF NOT EXISTS share_recipients_user_id_idx ON share_recipients(recipient_user_id);
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    ref_type TEXT,
+    ref_id TEXT,
+    metadata TEXT,
+    read_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS notifications_user_created_idx ON notifications(user_id, created_at);
+  CREATE INDEX IF NOT EXISTS notifications_user_read_idx ON notifications(user_id, read_at);
 `
 
 export async function createTestApp() {
