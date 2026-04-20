@@ -1,21 +1,19 @@
 import { and, eq, like, or } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
 import type { Storage as S3StorageType } from '../../shared/types'
-import { matters, orgQuotas, shareRecipients, shares } from '../db/schema'
+import { matters, orgQuotas } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { recordActivity } from './activity'
 import type { Matter } from './matter'
 import { createMatter, incrementUsageIfAllowed } from './matter'
 import { buildObjectKey } from './path-template'
 import { S3Service } from './s3'
-import type { Share, ShareRecipient } from './share'
+import type { Share, ShareResolution } from './share'
 import { getStorage, selectStorage } from './storage'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ShareResolution =
-  | { status: 'ok'; share: Share; matter: Matter; recipients: ShareRecipient[] }
-  | { status: 'not_found' | 'revoked' | 'matter_trashed' }
+export type { ShareResolution }
 
 export interface SaveShareInput {
   share: Share
@@ -48,25 +46,6 @@ async function getDirectActiveChildren(db: Database, orgId: string, folderPath: 
     .select()
     .from(matters)
     .where(and(eq(matters.orgId, orgId), eq(matters.parent, folderPath), eq(matters.status, 'active')))
-}
-
-// ─── Share resolution ─────────────────────────────────────────────────────────
-
-export async function resolveShareByToken(db: Database, token: string): Promise<ShareResolution> {
-  const rows = await db
-    .select({ share: shares, matter: matters })
-    .from(shares)
-    .innerJoin(matters, eq(shares.matterId, matters.id))
-    .where(eq(shares.token, token))
-
-  const row = rows[0]
-  if (!row) return { status: 'not_found' }
-  if (row.share.status === 'revoked') return { status: 'revoked' }
-  if (row.matter.status === 'trashed') return { status: 'matter_trashed' }
-
-  const recipientRows = await db.select().from(shareRecipients).where(eq(shareRecipients.shareId, row.share.id))
-
-  return { status: 'ok', share: row.share, matter: row.matter, recipients: recipientRows }
 }
 
 // ─── Quota helpers ────────────────────────────────────────────────────────────

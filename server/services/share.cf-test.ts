@@ -109,6 +109,6 @@ describe('[CF] cascadeDeleteByMatter on D1', () => {
     await cascadeDeleteByMatter(db, matter.id)
 
     // Share should be gone after cascade deletion
-    expect((await resolveShareByToken(db, share.token)).found).toBe(false)
+    expect((await resolveShareByToken(db, share.token)).status).toBe('not_found')
   })
 })

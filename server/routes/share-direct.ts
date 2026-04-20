@@ -10,8 +10,8 @@ const app = new Hono<Env>().get('/:token', async (c) => {
   const db = c.get('platform').db
 
   const resolved = await resolveShareByToken(db, token)
-  if (!resolved.found) {
-    if (resolved.reason === 'trashed') return c.json({ error: 'File no longer available' }, 410)
+  if (resolved.status !== 'ok') {
+    if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
     return c.json({ error: 'Share not found or revoked' }, 404)
   }
 

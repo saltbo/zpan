@@ -5,6 +5,7 @@ import type { CreateShareInput } from '../../shared/schemas/share'
 import { matters, shareRecipients, shares } from '../db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from '../lib/password'
 import type { Database } from '../platform/interface'
+import type { Matter } from './matter'
 
 export type Share = typeof shares.$inferSelect
 export type ShareRecipient = typeof shareRecipients.$inferSelect
@@ -67,8 +68,8 @@ export async function createShare(db: Database, input: CreateShareInput): Promis
 }
 
 export type ShareResolution =
-  | { found: false; reason: 'not_found' | 'revoked' | 'trashed' }
-  | { found: true; share: Share; matter: typeof matters.$inferSelect; recipients: ShareRecipient[] }
+  | { status: 'ok'; share: Share; matter: Matter; recipients: ShareRecipient[] }
+  | { status: 'not_found' | 'revoked' | 'matter_trashed' }
 
 export async function resolveShareByToken(db: Database, token: string): Promise<ShareResolution> {
   const rows = await db
@@ -78,13 +79,13 @@ export async function resolveShareByToken(db: Database, token: string): Promise<
     .where(eq(shares.token, token))
 
   const row = rows[0]
-  if (!row) return { found: false, reason: 'not_found' }
-  if (row.share.status === 'revoked') return { found: false, reason: 'revoked' }
-  if (row.matter.status === 'trashed') return { found: false, reason: 'trashed' }
+  if (!row) return { status: 'not_found' }
+  if (row.share.status === 'revoked') return { status: 'revoked' }
+  if (row.matter.status === 'trashed') return { status: 'matter_trashed' }
 
   const recipients = await db.select().from(shareRecipients).where(eq(shareRecipients.shareId, row.share.id))
 
-  return { found: true, share: row.share, matter: row.matter, recipients }
+  return { status: 'ok', share: row.share, matter: row.matter, recipients }
 }
 
 export async function incrementViews(db: Database, shareId: string): Promise<void> {

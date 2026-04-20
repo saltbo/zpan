@@ -36,8 +36,8 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
 
     const resolved = await resolveShareByToken(db, token)
-    if (!resolved.found) {
-      if (resolved.reason === 'trashed') return c.json({ error: 'File no longer available' }, 410)
+    if (resolved.status !== 'ok') {
+      if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
       return c.json({ error: 'Share not found or revoked' }, 404)
     }
 
@@ -80,7 +80,7 @@ const app = new Hono<Env>()
     const { password } = c.req.valid('json')
 
     const resolved = await resolveShareByToken(db, token)
-    if (!resolved.found) return c.json({ error: 'Share not found or revoked' }, 404)
+    if (resolved.status !== 'ok') return c.json({ error: 'Share not found or revoked' }, 404)
 
     const { share } = resolved
     if (share.kind !== 'landing') return c.json({ error: 'Share not found or revoked' }, 404)
@@ -107,8 +107,8 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
 
     const resolved = await resolveShareByToken(db, token)
-    if (!resolved.found) {
-      if (resolved.reason === 'trashed') return c.json({ error: 'File no longer available' }, 410)
+    if (resolved.status !== 'ok') {
+      if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
       return c.json({ error: 'Share not found or revoked' }, 404)
     }
 
@@ -139,8 +139,8 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
 
     const resolved = await resolveShareByToken(db, token)
-    if (!resolved.found) {
-      if (resolved.reason === 'trashed') return c.json({ error: 'File no longer available' }, 410)
+    if (resolved.status !== 'ok') {
+      if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
       return c.json({ error: 'Share not found or revoked' }, 404)
     }
 
@@ -160,8 +160,8 @@ const app = new Hono<Env>()
 
     const rawPage = parseInt(c.req.query('page') ?? '1', 10)
     const rawPageSize = parseInt(c.req.query('pageSize') ?? '50', 10)
-    const page = isNaN(rawPage) ? 1 : Math.max(1, rawPage)
-    const pageSize = isNaN(rawPageSize) ? 50 : Math.min(200, Math.max(1, rawPageSize))
+    const page = Number.isNaN(rawPage) ? 1 : Math.max(1, rawPage)
+    const pageSize = Number.isNaN(rawPageSize) ? 50 : Math.min(200, Math.max(1, rawPageSize))
 
     const root = folderRootPath(matter)
     const queryParent = relativePath ? `${root}/${relativePath}` : root
@@ -195,8 +195,8 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
 
     const resolved = await resolveShareByToken(db, token)
-    if (!resolved.found) {
-      if (resolved.reason === 'trashed') return c.json({ error: 'File no longer available' }, 410)
+    if (resolved.status !== 'ok') {
+      if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
       return c.json({ error: 'Share not found or revoked' }, 404)
     }
 
