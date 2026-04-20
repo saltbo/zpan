@@ -116,14 +116,6 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               </Collapsible>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={activeShares}>
-                  <Link to="/shares" search={{ status: 'all', page: 1 }}>
-                    <Share2 className="h-4 w-4" />
-                    <span>{t('nav.shares')}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={activeFileType('photos')}>
                   <Link to="/files" search={{ type: 'photos' }}>
                     <Image className="h-4 w-4" />
@@ -152,6 +144,14 @@ export function AppSidebar() {
                   <Link to="/files" search={{ type: 'documents' }}>
                     <FileText className="h-4 w-4" />
                     <span>{t('nav.documents')}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={activeShares}>
+                  <Link to="/shares" search={{ status: 'all', page: 1 }}>
+                    <Share2 className="h-4 w-4" />
+                    <span>{t('nav.shares')}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
