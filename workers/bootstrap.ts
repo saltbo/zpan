@@ -2,6 +2,8 @@ import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
+import { resolveShareByToken } from '../server/services/share'
+import { DirType } from '../shared/constants'
 
 interface Env {
   DB: D1Database
@@ -53,7 +55,11 @@ interface ShareMeta {
   imageUrl: string
 }
 
-async function fetchShareMeta(origin: string, token: string): Promise<ShareMeta> {
+async function fetchShareMeta(
+  platform: ReturnType<typeof createCloudflarePlatform>,
+  origin: string,
+  token: string,
+): Promise<ShareMeta> {
   const fallback: ShareMeta = {
     title: 'Share unavailable',
     description: 'Shared via ZPan',
@@ -61,25 +67,17 @@ async function fetchShareMeta(origin: string, token: string): Promise<ShareMeta>
   }
 
   try {
-    const res = await fetch(`${origin}/api/share/${token}`, {
-      headers: { Accept: 'application/json' },
-    })
+    const resolved = await resolveShareByToken(platform.db, token)
+    if (resolved.status !== 'ok') return fallback
+    if (resolved.share.kind !== 'landing') return fallback
 
-    if (!res.ok) return fallback
-
-    const data = (await res.json()) as {
-      matterName?: string
-      matterType?: string
-      expiresAt?: string | null
-    }
-
-    const name = data.matterName ?? 'Shared file'
-    const expiry = data.expiresAt ? ` · Expires ${new Date(data.expiresAt).toLocaleDateString()}` : ''
+    const { share, matter } = resolved
+    const expiry = share.expiresAt ? ` · Expires ${new Date(share.expiresAt).toLocaleDateString()}` : ''
     const description = `Shared via ZPan${expiry}`
-    const isImage = typeof data.matterType === 'string' && data.matterType.startsWith('image/')
+    const isImage = matter.type.startsWith('image/') && matter.dirtype === DirType.FILE
 
     return {
-      title: name,
+      title: matter.name,
       description,
       imageUrl: isImage ? `${origin}/api/share/${token}/download` : `${origin}/logo-512.png`,
     }
@@ -117,7 +115,7 @@ async function handleShareSsr(
   const origin = url.origin
 
   const [meta, spaRes] = await Promise.all([
-    fetchShareMeta(origin, token),
+    fetchShareMeta(platform, origin, token),
     env.ASSETS.fetch(new Request(`${origin}/index.html`, { headers: request.headers })),
   ])
 
