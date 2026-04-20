@@ -81,6 +81,24 @@ export class S3Service {
     )
   }
 
+  async streamCopy(srcStorage: Storage, srcKey: string, dstStorage: Storage, dstKey: string): Promise<void> {
+    const srcClient = this.createClient(srcStorage)
+    const getResult = await srcClient.send(new GetObjectCommand({ Bucket: srcStorage.bucket, Key: srcKey }))
+    if (!getResult.Body) throw new Error('Empty body from source object')
+
+    const dstClient = this.createClient(dstStorage)
+    await dstClient.send(
+      new PutObjectCommand({
+        Bucket: dstStorage.bucket,
+        Key: dstKey,
+        // biome-ignore lint/suspicious/noExplicitAny: AWS SDK stream type differs across Node and CF Workers runtimes
+        Body: getResult.Body as any,
+        ContentType: getResult.ContentType,
+        ContentLength: getResult.ContentLength,
+      }),
+    )
+  }
+
   async deleteObject(storage: Storage, key: string): Promise<void> {
     const client = this.createClient(storage)
     await client.send(new DeleteObjectCommand({ Bucket: storage.bucket, Key: key }))
