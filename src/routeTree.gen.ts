@@ -17,6 +17,7 @@ import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
+import { Route as AuthenticatedSharesIndexRouteImport } from './routes/_authenticated/shares/index'
 import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authenticated/teams/index'
 import { Route as AuthenticatedStoragesIndexRouteImport } from './routes/_authenticated/storages/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
@@ -76,6 +77,12 @@ const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
   path: '/users/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSharesIndexRoute =
+  AuthenticatedSharesIndexRouteImport.update({
+    id: '/shares/',
+    path: '/shares/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTeamsIndexRoute = AuthenticatedTeamsIndexRouteImport.update({
   id: '/teams/',
   path: '/teams/',
@@ -201,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/storages/': typeof AuthenticatedStoragesIndexRoute
   '/teams/': typeof AuthenticatedTeamsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
+  '/shares/': typeof AuthenticatedSharesIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -226,6 +234,7 @@ export interface FileRoutesByTo {
   '/storages': typeof AuthenticatedStoragesIndexRoute
   '/teams': typeof AuthenticatedTeamsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/shares': typeof AuthenticatedSharesIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -255,6 +264,7 @@ export interface FileRoutesById {
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
   '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/shares/': typeof AuthenticatedSharesIndexRoute
   '/_authenticated/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/_authenticated/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/_authenticated/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -284,6 +294,7 @@ export interface FileRouteTypes {
     | '/storages/'
     | '/teams/'
     | '/users/'
+    | '/shares/'
     | '/admin/settings/auth'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
@@ -309,6 +320,7 @@ export interface FileRouteTypes {
     | '/storages'
     | '/teams'
     | '/users'
+    | '/shares'
     | '/admin/settings/auth'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
@@ -337,6 +349,7 @@ export interface FileRouteTypes {
     | '/_authenticated/storages/'
     | '/_authenticated/teams/'
     | '/_authenticated/users/'
+    | '/_authenticated/shares/'
     | '/_authenticated/admin/settings/auth'
     | '/_authenticated/teams/$teamId/activity'
     | '/_authenticated/teams/$teamId/members'
@@ -410,6 +423,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users/'
       preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/shares/': {
+      id: '/_authenticated/shares/'
+      path: '/shares'
+      fullPath: '/shares/'
+      preLoaderRoute: typeof AuthenticatedSharesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/teams/': {
@@ -614,6 +634,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedStoragesIndexRoute: typeof AuthenticatedStoragesIndexRoute
   AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedSharesIndexRoute: typeof AuthenticatedSharesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -628,6 +649,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedStoragesIndexRoute: AuthenticatedStoragesIndexRoute,
   AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedSharesIndexRoute: AuthenticatedSharesIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
