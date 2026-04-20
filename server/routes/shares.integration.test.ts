@@ -245,6 +245,23 @@ describe('POST /api/shares', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.downloadLimit).toBe(5)
   })
+
+  it('returns 400 with DIRECT_NO_RECIPIENTS when creating direct share with recipients', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const matterId = nanoid()
+    await insertFile(db, orgId, { id: matterId, name: 'file.txt' })
+
+    const res = await createShare(app, headers, {
+      matterId,
+      kind: 'direct',
+      recipients: [{ recipientEmail: 'someone@example.com' }],
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('DIRECT_NO_RECIPIENTS')
+  })
 })
 
 // ─── GET /api/shares auth guard ───────────────────────────────────────────────
