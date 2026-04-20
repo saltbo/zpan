@@ -719,6 +719,77 @@ describe('POST /api/shares/:token/save', () => {
     })
     expect(res.status).toBe(401)
   })
+
+  it('bypasses 401 for password-protected share when non-recipient has valid sharetk cookie', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'sv-cookie-auth', name: 'cookie-auth.txt' })
+
+    // User A creates a password-protected share with no recipients
+    const createRes = await createShare(app, headers, {
+      matterId: 'sv-cookie-auth',
+      kind: 'landing',
+      password: 'cookiePass123',
+    })
+    const createBody = (await createRes.json()) as Record<string, unknown>
+    const token = createBody.token as string
+
+    // User B signs up; not a recipient but presents the sharetk cookie
+    const headersB = await authedHeaders(app, `cookie-norecip-${nanoid()}@example.com`)
+    const cookieHeader = `${headersB.Cookie}; sharetk_${token}=authenticated`
+    const res = await app.request(`/api/shares/${token}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
+      body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
+    })
+    // Cookie present → auth check passes; any response other than 401 is correct
+    expect(res.status).not.toBe(401)
+  })
+
+  it('returns 403 when user has a viewer role in the target org', async () => {
+    const { app, db } = await createTestApp()
+    // First user creates the share
+    const ownerHeaders = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'sv-viewer-role', name: 'viewer-role.txt' })
+
+    const createRes = await createShare(app, ownerHeaders, { matterId: 'sv-viewer-role', kind: 'landing' })
+    const createBody = (await createRes.json()) as Record<string, unknown>
+    const token = createBody.token as string
+
+    // Second user signs up — sign-up response reliably returns user.id
+    const viewerEmail = `viewer-user-${nanoid()}@example.com`
+    const signupRes = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Viewer User', email: viewerEmail, password: 'password123456' }),
+    })
+    const signupBody = (await signupRes.json()) as { user?: { id: string } }
+    const viewerId = signupBody.user?.id ?? ''
+    const viewerHeaders = { Cookie: signupRes.headers.getSetCookie().join('; ') }
+
+    // Create a team org and add viewer as a viewer member (FK requires a real user.id)
+    const teamOrgId = `viewer-team-${nanoid()}`
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata, created_at)
+      VALUES (${teamOrgId}, 'Viewer Team', ${teamOrgId}, '{"type":"team"}', ${Date.now()})
+    `)
+    await db.run(sql`
+      INSERT INTO member (id, organization_id, user_id, role, created_at)
+      VALUES (${nanoid()}, ${teamOrgId}, ${viewerId}, 'viewer', ${Date.now()})
+    `)
+
+    // Viewer tries to save to the team org → getMemberRole returns 'viewer' → 403
+    const res = await app.request(`/api/shares/${token}/save`, {
+      method: 'POST',
+      headers: { ...viewerHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetOrgId: teamOrgId, targetParent: '' }),
+    })
+    expect(res.status).toBe(403)
+  })
 })
 
 // ─── DELETE /api/shares/:id ───────────────────────────────────────────────────
