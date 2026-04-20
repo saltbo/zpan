@@ -236,6 +236,7 @@ describe('hasInvalidChips', () => {
 // Mirrors: !hasInvalidChips && !passwordInvalid && !customExpiresInvalid && !customLimitInvalid
 
 function computeCanSubmit(params: {
+  mode: ShareMode
   chips: { valid: boolean }[]
   expiresOption: string
   customExpires: string
@@ -243,13 +244,15 @@ function computeCanSubmit(params: {
   customLimit: string
 }): boolean {
   const badChips = params.chips.some((c) => !c.valid)
+  const missingRecipients = params.mode === 'targeted' && !params.chips.some((c) => c.valid)
   const badExpires =
     params.expiresOption === 'custom' && (!params.customExpires || new Date(params.customExpires) <= new Date())
   const badLimit = isCustomLimitInvalid(params.limitOption, params.customLimit)
-  return !badChips && !badExpires && !badLimit
+  return !badChips && !missingRecipients && !badExpires && !badLimit
 }
 
 const defaultParams = {
+  mode: 'page' as ShareMode,
   chips: [] as { valid: boolean }[],
   expiresOption: '7d',
   customExpires: '',
@@ -262,12 +265,18 @@ describe('canSubmit', () => {
     expect(computeCanSubmit(defaultParams)).toBe(true)
   })
 
+  it('returns false for targeted mode without recipients', () => {
+    expect(computeCanSubmit({ ...defaultParams, mode: 'targeted' })).toBe(false)
+  })
+
   it('returns false when any chip is invalid', () => {
     expect(computeCanSubmit({ ...defaultParams, chips: [{ valid: false }] })).toBe(false)
   })
 
   it('returns true when all chips are valid', () => {
-    expect(computeCanSubmit({ ...defaultParams, chips: [{ valid: true }, { valid: true }] })).toBe(true)
+    expect(computeCanSubmit({ ...defaultParams, mode: 'targeted', chips: [{ valid: true }, { valid: true }] })).toBe(
+      true,
+    )
   })
 
   it('returns true regardless of password state (password is auto-generated)', () => {
@@ -332,9 +341,15 @@ describe('backspace chip removal', () => {
 
 // ─── handleSubmit payload building ────────────────────────────────────────────
 
+type ShareMode = 'page' | 'direct' | 'targeted'
+
+function modeToKind(mode: ShareMode): 'landing' | 'direct' {
+  return mode === 'direct' ? 'direct' : 'landing'
+}
+
 interface BuildPayloadParams {
   matterId: string
-  kind: 'landing' | 'direct'
+  mode: ShareMode
   passwordEnabled: boolean
   password: string
   expiresOption: string
@@ -354,8 +369,9 @@ interface PayloadResult {
 }
 
 function buildPayload(params: BuildPayloadParams): PayloadResult {
-  const body: PayloadResult = { matterId: params.matterId, kind: params.kind }
-  if (params.kind === 'landing' && params.passwordEnabled && params.password) body.password = params.password
+  const kind = modeToKind(params.mode)
+  const body: PayloadResult = { matterId: params.matterId, kind }
+  if (params.mode === 'page' && params.passwordEnabled && params.password) body.password = params.password
   if (params.expiresOption !== 'never') {
     const days: Record<string, number> = { '1d': 1, '7d': 7, '30d': 30 }
     body.expiresAt =
@@ -366,7 +382,7 @@ function buildPayload(params: BuildPayloadParams): PayloadResult {
   if (params.limitOption !== 'unlimited') {
     body.downloadLimit = Number.parseInt(params.limitOption === 'custom' ? params.customLimit : params.limitOption, 10)
   }
-  if (params.kind === 'landing' && params.chips.length > 0) {
+  if (params.mode === 'targeted' && params.chips.length > 0) {
     body.recipients = params.chips.filter((c) => c.valid).map((c) => ({ recipientEmail: c.value }))
   }
   return body
@@ -374,7 +390,7 @@ function buildPayload(params: BuildPayloadParams): PayloadResult {
 
 const baseParams: BuildPayloadParams = {
   matterId: 'obj-1',
-  kind: 'landing',
+  mode: 'page',
   passwordEnabled: false,
   password: '',
   expiresOption: 'never',
@@ -401,7 +417,7 @@ describe('buildPayload — basic fields', () => {
 })
 
 describe('buildPayload — password', () => {
-  it('includes password when landing, enabled, and filled', () => {
+  it('includes password when access page, enabled, and filled', () => {
     const p = buildPayload({ ...baseParams, passwordEnabled: true, password: 'secret' })
     expect(p.password).toBe('secret')
   })
@@ -410,9 +426,15 @@ describe('buildPayload — password', () => {
     expect(buildPayload({ ...baseParams, passwordEnabled: false, password: 'secret' }).password).toBeUndefined()
   })
 
-  it('omits password when kind is direct even if enabled', () => {
+  it('omits password when mode is direct even if enabled', () => {
     expect(
-      buildPayload({ ...baseParams, kind: 'direct', passwordEnabled: true, password: 'secret' }).password,
+      buildPayload({ ...baseParams, mode: 'direct', passwordEnabled: true, password: 'secret' }).password,
+    ).toBeUndefined()
+  })
+
+  it('omits password when mode is targeted even if enabled', () => {
+    expect(
+      buildPayload({ ...baseParams, mode: 'targeted', passwordEnabled: true, password: 'secret' }).password,
     ).toBeUndefined()
   })
 
@@ -450,12 +472,12 @@ describe('buildPayload — downloadLimit', () => {
 })
 
 describe('buildPayload — recipients', () => {
-  it('includes valid email chips as recipients for landing kind', () => {
+  it('includes valid email chips as recipients for targeted mode', () => {
     const chips = [
       { value: 'a@b.com', valid: true },
       { value: 'c@d.com', valid: true },
     ]
-    expect(buildPayload({ ...baseParams, chips }).recipients).toEqual([
+    expect(buildPayload({ ...baseParams, mode: 'targeted', chips }).recipients).toEqual([
       { recipientEmail: 'a@b.com' },
       { recipientEmail: 'c@d.com' },
     ])
@@ -466,12 +488,17 @@ describe('buildPayload — recipients', () => {
       { value: 'a@b.com', valid: true },
       { value: 'bad', valid: false },
     ]
-    expect(buildPayload({ ...baseParams, chips }).recipients).toEqual([{ recipientEmail: 'a@b.com' }])
+    expect(buildPayload({ ...baseParams, mode: 'targeted', chips }).recipients).toEqual([{ recipientEmail: 'a@b.com' }])
   })
 
-  it('omits recipients for direct kind', () => {
+  it('omits recipients for access page mode', () => {
     const chips = [{ value: 'a@b.com', valid: true }]
-    expect(buildPayload({ ...baseParams, kind: 'direct', chips }).recipients).toBeUndefined()
+    expect(buildPayload({ ...baseParams, chips }).recipients).toBeUndefined()
+  })
+
+  it('omits recipients for direct mode', () => {
+    const chips = [{ value: 'a@b.com', valid: true }]
+    expect(buildPayload({ ...baseParams, mode: 'direct', chips }).recipients).toBeUndefined()
   })
 
   it('omits recipients when chips list is empty', () => {

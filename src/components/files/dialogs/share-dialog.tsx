@@ -7,10 +7,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { type CreateShareResult, createShare } from '@/lib/api'
@@ -53,11 +53,21 @@ export function isCustomLimitInvalid(option: string, value: string): boolean {
   return !value || Number.isNaN(n) || n < 1
 }
 
+type ShareMode = 'page' | 'direct' | 'targeted'
+
+function modeToKind(mode: ShareMode): 'landing' | 'direct' {
+  return mode === 'direct' ? 'direct' : 'landing'
+}
+
+function isTargetedMode(mode: ShareMode): boolean {
+  return mode === 'targeted'
+}
+
 export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDialogProps) {
   const { t } = useTranslation()
   const isFolder = item?.dirtype !== DirType.FILE
 
-  const [kind, setKind] = useState<'landing' | 'direct'>('landing')
+  const [mode, setMode] = useState<ShareMode>('page')
   const [chips, setChips] = useState<RecipientChip[]>([])
   const [chipInput, setChipInput] = useState('')
   const [passwordEnabled, setPasswordEnabled] = useState(false)
@@ -70,7 +80,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
 
   useEffect(() => {
     if (!open) return
-    setKind('landing')
+    setMode('page')
     setChips([])
     setChipInput('')
     setPasswordEnabled(false)
@@ -104,9 +114,11 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
   }
 
   const hasInvalidChips = chips.some((c) => !c.valid)
+  const hasValidRecipients = chips.some((c) => c.valid)
   const customExpiresInvalid = expiresOption === 'custom' && (!customExpires || new Date(customExpires) <= new Date())
   const customLimitInvalid = isCustomLimitInvalid(limitOption, customLimit)
-  const canSubmit = !hasInvalidChips && !customExpiresInvalid && !customLimitInvalid
+  const missingRecipients = isTargetedMode(mode) && !hasValidRecipients
+  const canSubmit = !hasInvalidChips && !customExpiresInvalid && !customLimitInvalid && !missingRecipients
 
   const mutation = useMutation({
     mutationFn: createShare,
@@ -117,8 +129,9 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!item || !canSubmit) return
+    const kind = modeToKind(mode)
     const body: CreateShareRequest = { matterId: item.id, kind }
-    if (kind === 'landing' && passwordEnabled && password) body.password = password
+    if (mode === 'page' && passwordEnabled && password) body.password = password
     if (expiresOption !== 'never') {
       const days: Record<string, number> = { '1d': 1, '7d': 7, '30d': 30 }
       body.expiresAt = expiresOption === 'custom' ? new Date(customExpires).toISOString() : addDays(days[expiresOption])
@@ -126,7 +139,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
     if (limitOption !== 'unlimited') {
       body.downloadLimit = Number.parseInt(limitOption === 'custom' ? customLimit : limitOption, 10)
     }
-    if (kind === 'landing' && chips.length > 0) {
+    if (isTargetedMode(mode) && chips.length > 0) {
       body.recipients = chips.filter((c) => c.valid).map((c) => ({ recipientEmail: c.value }))
     }
     mutation.mutate(body)
@@ -142,53 +155,62 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
   const shareUrl = result ? buildShareUrl(result, window.location.origin) : ''
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col overflow-y-auto" side="right">
-        <SheetHeader>
-          <SheetTitle>{t('share.title', { name: item.name })}</SheetTitle>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[min(720px,calc(100vh-2rem))] flex-col overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="border-b px-6 py-4">
+          <DialogTitle>{t('share.title', { name: item.name })}</DialogTitle>
+        </DialogHeader>
 
         {result ? (
           <SuccessView
+            mode={mode}
             result={result}
             url={shareUrl}
-            password={passwordEnabled ? password : undefined}
+            password={mode === 'page' && passwordEnabled ? password : undefined}
             recipientCount={chips.filter((c) => c.valid).length}
             onCopy={copyUrl}
             onClose={() => onOpenChange(false)}
             onViewShares={onViewShares}
           />
         ) : (
-          <form className="flex flex-1 flex-col" onSubmit={handleSubmit}>
-            <div className="flex-1 space-y-5 px-4 pb-2">
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
               <FilePreview item={item} />
               <KindSelector
-                kind={kind}
+                mode={mode}
                 isFolder={isFolder}
                 onChange={(next) => {
-                  setKind(next)
-                  // Spec defaults: landing = 7 days, direct = Never (embeds live indefinitely)
+                  setMode(next)
+                  setPasswordEnabled(false)
+                  setPassword('')
+                  if (!isTargetedMode(next)) {
+                    setChips([])
+                    setChipInput('')
+                  }
                   setExpiresOption(next === 'direct' ? 'never' : '7d')
                 }}
               />
 
-              {kind === 'direct' && (
+              {mode === 'direct' && (
                 <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>{t('share.directWarning')}</span>
                 </div>
               )}
 
-              {kind === 'landing' && (
+              {mode === 'targeted' && (
+                <RecipientsField
+                  chips={chips}
+                  input={chipInput}
+                  onInputChange={setChipInput}
+                  onKeyDown={handleChipKeyDown}
+                  onBlur={() => addChip(chipInput)}
+                  onRemove={(id) => setChips((p) => p.filter((c) => c.id !== id))}
+                />
+              )}
+
+              {mode === 'page' && (
                 <>
-                  <RecipientsField
-                    chips={chips}
-                    input={chipInput}
-                    onInputChange={setChipInput}
-                    onKeyDown={handleChipKeyDown}
-                    onBlur={() => addChip(chipInput)}
-                    onRemove={(id) => setChips((p) => p.filter((c) => c.id !== id))}
-                  />
                   <PasswordField enabled={passwordEnabled} onToggle={handlePasswordToggle} />
                 </>
               )}
@@ -207,18 +229,18 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
               />
             </div>
 
-            <SheetFooter>
+            <DialogFooter className="border-t px-6 py-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={!canSubmit || mutation.isPending}>
                 {mutation.isPending ? t('share.creating') : t('share.createButton')}
               </Button>
-            </SheetFooter>
+            </DialogFooter>
           </form>
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -240,47 +262,61 @@ function FilePreview({ item }: { item: StorageObject }) {
 }
 
 function KindSelector({
-  kind,
+  mode,
   isFolder,
   onChange,
 }: {
-  kind: 'landing' | 'direct'
+  mode: ShareMode
   isFolder: boolean
-  onChange: (v: 'landing' | 'direct') => void
+  onChange: (v: ShareMode) => void
 }) {
   const { t } = useTranslation()
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <button
-        type="button"
-        onClick={() => onChange('landing')}
-        className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${kind === 'landing' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
-      >
-        <div className="font-medium">
-          <Share2 className="mr-1 inline h-3.5 w-3.5" />
-          {t('share.typeLanding')}
-        </div>
-        <div className="text-xs text-muted-foreground">{t('share.typeLandingDesc')}</div>
-      </button>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              disabled={isFolder}
-              onClick={() => !isFolder && onChange('direct')}
-              className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${kind === 'direct' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'} ${isFolder ? 'cursor-not-allowed opacity-50' : ''}`}
-            >
-              <div className="font-medium">
-                <Copy className="mr-1 inline h-3.5 w-3.5" />
-                {t('share.typeDirect')}
-              </div>
-              <div className="text-xs text-muted-foreground">{t('share.typeDirectDesc')}</div>
-            </button>
-          </TooltipTrigger>
-          {isFolder && <TooltipContent>{t('share.typeDirectFolderTooltip')}</TooltipContent>}
-        </Tooltip>
-      </TooltipProvider>
+    <div className="space-y-2">
+      <Label>{t('share.modeLabel')}</Label>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => onChange('page')}
+          className={`rounded-md border px-3 py-3 text-left text-sm transition-colors ${mode === 'page' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+        >
+          <div className="font-medium">
+            <Share2 className="mr-1 inline h-3.5 w-3.5" />
+            {t('share.typePage')}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">{t('share.typePageDesc')}</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('targeted')}
+          className={`rounded-md border px-3 py-3 text-left text-sm transition-colors ${mode === 'targeted' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+        >
+          <div className="font-medium">
+            <Share2 className="mr-1 inline h-3.5 w-3.5" />
+            {t('share.typeTargeted')}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">{t('share.typeTargetedDesc')}</div>
+        </button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={isFolder}
+                onClick={() => !isFolder && onChange('direct')}
+                className={`rounded-md border px-3 py-3 text-left text-sm transition-colors ${mode === 'direct' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'} ${isFolder ? 'cursor-not-allowed opacity-50' : ''}`}
+              >
+                <div className="font-medium">
+                  <Copy className="mr-1 inline h-3.5 w-3.5" />
+                  {t('share.typeDirect')}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">{t('share.typeDirectDesc')}</div>
+              </button>
+            </TooltipTrigger>
+            {isFolder && <TooltipContent>{t('share.typeDirectFolderTooltip')}</TooltipContent>}
+          </Tooltip>
+        </TooltipProvider>
+      </div>
     </div>
   )
 }
@@ -333,12 +369,15 @@ function RecipientsField({
 function PasswordField({ enabled, onToggle }: { enabled: boolean; onToggle: (v: boolean) => void }) {
   const { t } = useTranslation()
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <KeyRound className="h-4 w-4 text-muted-foreground" />
-        <Label htmlFor="share-pwd">{t('share.password')}</Label>
+    <div className="space-y-1.5 rounded-md border bg-muted/30 p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-muted-foreground" />
+          <Label htmlFor="share-pwd">{t('share.password')}</Label>
+        </div>
+        <Switch id="share-pwd" checked={enabled} onCheckedChange={onToggle} />
       </div>
-      <Switch id="share-pwd" checked={enabled} onCheckedChange={onToggle} />
+      <p className="text-xs text-muted-foreground">{t('share.passwordHint')}</p>
     </div>
   )
 }
@@ -418,6 +457,7 @@ function LimitField({
 }
 
 function SuccessView({
+  mode,
   result,
   url,
   password,
@@ -426,6 +466,7 @@ function SuccessView({
   onClose,
   onViewShares,
 }: {
+  mode: ShareMode
   result: CreateShareResult
   url: string
   password?: string
@@ -436,6 +477,9 @@ function SuccessView({
 }) {
   const { t } = useTranslation()
   const isDirect = result.kind === 'direct'
+  const isTargeted = mode === 'targeted'
+  const urlLabel = isDirect ? t('share.directUrl') : t('share.pageUrl')
+  const successTitle = isTargeted ? t('share.successTargetedTitle') : t('share.successTitle')
 
   function copyShareText() {
     const text = t('share.shareTextTemplate', { url, password })
@@ -447,13 +491,11 @@ function SuccessView({
     <div className="flex flex-1 flex-col gap-4 px-4 pb-4">
       <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
         <CheckCircle2 className="h-5 w-5" />
-        <span className="font-medium">{t('share.successTitle')}</span>
+        <span className="font-medium">{successTitle}</span>
       </div>
 
       <div className="space-y-2 rounded-md border bg-muted/40 p-3">
-        <p className="text-xs font-medium text-muted-foreground">
-          {isDirect ? t('share.directUrl') : t('share.landingUrl')}
-        </p>
+        <p className="text-xs font-medium text-muted-foreground">{urlLabel}</p>
         <div className="flex items-center gap-2">
           <span className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1 text-xs font-mono">{url}</span>
           <Button size="sm" variant="outline" type="button" onClick={() => onCopy(url)}>
@@ -488,7 +530,7 @@ function SuccessView({
 
       <div className="space-y-1 text-sm">
         {recipientCount > 0 && (
-          <p className="text-muted-foreground">✓ {t('share.notifiedRecipients', { count: recipientCount })}</p>
+          <p className="text-muted-foreground">✓ {t('share.addedRecipients', { count: recipientCount })}</p>
         )}
         {result.expiresAt && (
           <p className="text-muted-foreground">

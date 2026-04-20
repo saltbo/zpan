@@ -125,7 +125,7 @@ function SharesPage() {
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 text-left font-medium">{t('shares.colFile')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('shares.colType')}</th>
-              <th className="px-4 py-3 text-left font-medium">{t('shares.colRecipients')}</th>
+              <th className="px-4 py-3 text-left font-medium">{t('shares.colAccess')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('shares.colViews')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('shares.colDownloads')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('shares.colExpires')}</th>
@@ -218,9 +218,15 @@ function ShareTableRow({
     expired: t('shares.statusExpired'),
   }[displayStatus]
 
-  const typeLabel = share.kind === 'landing' ? t('shares.typeLanding') : t('shares.typeDirect')
+  const typeLabel =
+    share.kind === 'direct'
+      ? t('shares.typeDirect')
+      : share.recipientCount > 0
+        ? t('shares.typeTargeted')
+        : t('shares.typePage')
 
-  const recipientsLabel = share.recipientCount > 0 ? String(share.recipientCount) : t('shares.recipientsPublic')
+  const accessLabel =
+    share.recipientCount > 0 ? t('shares.accessTargeted', { count: share.recipientCount }) : t('shares.accessPublic')
 
   const downloadsLabel =
     share.downloadLimit != null ? `${share.downloads} / ${share.downloadLimit}` : String(share.downloads)
@@ -244,7 +250,7 @@ function ShareTableRow({
       <td className="px-4 py-3">
         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${typeChip}`}>{typeLabel}</span>
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{recipientsLabel}</td>
+      <td className="px-4 py-3 text-muted-foreground">{accessLabel}</td>
       <td className="px-4 py-3 tabular-nums text-muted-foreground">{viewsLabel}</td>
       <td className="px-4 py-3 tabular-nums text-muted-foreground">{downloadsLabel}</td>
       <td className="px-4 py-3 text-muted-foreground">{expiresLabel}</td>
