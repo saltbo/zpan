@@ -13,7 +13,7 @@ export type ShareWithDetails = Share & {
   matter: { name: string; type: string; dirtype: number }
   recipients: ShareRecipient[]
 }
-export type ShareListItem = Share & {
+export type ShareListItem = Omit<Share, 'passwordHash'> & {
   matter: { name: string; type: string; dirtype: number }
   recipientCount: number
 }
@@ -129,16 +129,6 @@ export async function incrementDownloadsAtomic(
   return { ok: false, downloads: current[0].downloads }
 }
 
-export async function revokeShare(db: Database, shareId: string, creatorId: string): Promise<void> {
-  const result = await db
-    .update(shares)
-    .set({ status: 'revoked' })
-    .where(and(eq(shares.id, shareId), eq(shares.creatorId, creatorId)))
-    .returning({ id: shares.id })
-
-  if (result.length === 0) throw new Error('SHARE_NOT_FOUND_OR_FORBIDDEN')
-}
-
 export async function listShareRecipientUserIds(db: Database, shareId: string): Promise<string[]> {
   const rows = await db
     .select({ userId: shareRecipients.recipientUserId })
@@ -157,23 +147,19 @@ export async function cascadeDeleteByMatter(db: Database, matterId: string): Pro
   await db.delete(shares).where(inArray(shares.id, shareIds))
 }
 
-export async function getShareById(db: Database, shareId: string): Promise<ShareWithDetails | null> {
-  const rows = await db
-    .select({ share: shares, matter: matters })
-    .from(shares)
-    .innerJoin(matters, eq(shares.matterId, matters.id))
-    .where(eq(shares.id, shareId))
+export async function getShareCreatorByToken(db: Database, token: string): Promise<string | null> {
+  const rows = await db.select({ creatorId: shares.creatorId }).from(shares).where(eq(shares.token, token))
+  return rows[0]?.creatorId ?? null
+}
 
-  const row = rows[0]
-  if (!row) return null
+export async function revokeShareByToken(db: Database, token: string, creatorId: string): Promise<boolean> {
+  const result = await db
+    .update(shares)
+    .set({ status: 'revoked' })
+    .where(and(eq(shares.token, token), eq(shares.creatorId, creatorId)))
+    .returning({ id: shares.id })
 
-  const recipients = await db.select().from(shareRecipients).where(eq(shareRecipients.shareId, shareId))
-
-  return {
-    ...row.share,
-    matter: { name: row.matter.name, type: row.matter.type, dirtype: row.matter.dirtype ?? 0 },
-    recipients,
-  }
+  return result.length > 0
 }
 
 export async function listSharesForApi(
@@ -191,7 +177,18 @@ export async function listSharesForApi(
   const offset = (opts.page - 1) * opts.pageSize
   const rows = await db
     .select({
-      share: shares,
+      id: shares.id,
+      token: shares.token,
+      kind: shares.kind,
+      matterId: shares.matterId,
+      orgId: shares.orgId,
+      creatorId: shares.creatorId,
+      expiresAt: shares.expiresAt,
+      downloadLimit: shares.downloadLimit,
+      views: shares.views,
+      downloads: shares.downloads,
+      status: shares.status,
+      createdAt: shares.createdAt,
       matterName: matters.name,
       matterType: matters.type,
       matterDirtype: matters.dirtype,
@@ -206,7 +203,7 @@ export async function listSharesForApi(
     .limit(opts.pageSize)
     .offset(offset)
 
-  const items: ShareListItem[] = rows.map(({ share, matterName, matterType, matterDirtype, recipientCount }) => ({
+  const items: ShareListItem[] = rows.map(({ matterName, matterType, matterDirtype, recipientCount, ...share }) => ({
     ...share,
     matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
     recipientCount,

@@ -11,17 +11,6 @@ type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function _signUpAndGetUser(app: TestApp, email: string) {
-  const res = await app.request('/api/auth/sign-up/email', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Test User', email, password: 'password123456' }),
-  })
-  const cookies = res.headers.getSetCookie().join('; ')
-  const body = (await res.json()) as { user?: { id: string } }
-  return { headers: { Cookie: cookies }, userId: body.user?.id ?? '' }
-}
-
 const validStorage = {
   id: 'st-share-test',
   title: 'Test S3',
@@ -77,6 +66,11 @@ async function createShare(app: TestApp, headers: Record<string, string>, body: 
   })
 }
 
+async function getShareIdByToken(db: TestDb, token: string): Promise<string> {
+  const rows = await db.select({ id: shares.id }).from(shares).where(eq(shares.token, token))
+  return rows[0]?.id ?? ''
+}
+
 // ─── POST /api/shares auth guard ─────────────────────────────────────────────
 
 describe('POST /api/shares (auth guard)', () => {
@@ -110,11 +104,12 @@ describe('POST /api/shares', () => {
     expect(res.status).toBe(201)
 
     const body = (await res.json()) as Record<string, unknown>
-    expect(typeof body.id).toBe('string')
     expect(typeof body.token).toBe('string')
     expect(body.kind).toBe('landing')
     expect((body.urls as Record<string, string>).landing).toMatch(/^\/s\//)
     expect((body.urls as Record<string, string>).direct).toBeUndefined()
+    // Internal primary key is not exposed in the creation response.
+    expect(body.id).toBeUndefined()
   })
 
   it('creates a landing share with password and stores passwordHash in DB', async () => {
@@ -128,9 +123,9 @@ describe('POST /api/shares', () => {
     expect(res.status).toBe(201)
 
     const body = (await res.json()) as Record<string, unknown>
-    const shareId = body.id as string
+    const token = body.token as string
 
-    const rows = await db.select({ passwordHash: shares.passwordHash }).from(shares).where(eq(shares.id, shareId))
+    const rows = await db.select({ passwordHash: shares.passwordHash }).from(shares).where(eq(shares.token, token))
     expect(rows[0]?.passwordHash).not.toBeNull()
     expect(rows[0]?.passwordHash).not.toBe('')
   })
@@ -148,7 +143,7 @@ describe('POST /api/shares', () => {
     expect(res.status).toBe(201)
 
     const body = (await res.json()) as Record<string, unknown>
-    const shareId = body.id as string
+    const shareId = await getShareIdByToken(db, body.token as string)
 
     const rows = await db.select().from(shareRecipients).where(eq(shareRecipients.shareId, shareId))
     expect(rows).toHaveLength(2)
@@ -402,13 +397,12 @@ describe('GET /api/shares', () => {
     await insertFile(db, orgId, { id: 'st1', name: 'active.txt' })
     await insertFile(db, orgId, { id: 'st2', name: 'revoked.txt' })
 
-    const res1 = await createShare(app, headers, { matterId: 'st1', kind: 'landing' })
-    const _body1 = (await res1.json()) as Record<string, unknown>
+    await createShare(app, headers, { matterId: 'st1', kind: 'landing' })
     const res2 = await createShare(app, headers, { matterId: 'st2', kind: 'landing' })
     const body2 = (await res2.json()) as Record<string, unknown>
 
     // Revoke the second share
-    await app.request(`/api/shares/${body2.id}`, { method: 'DELETE', headers })
+    await app.request(`/api/shares/${body2.token}`, { method: 'DELETE', headers })
 
     const resActive = await app.request('/api/shares?status=active', { headers })
     const activeBody = (await resActive.json()) as { items: unknown[]; total: number }
@@ -420,25 +414,15 @@ describe('GET /api/shares', () => {
   })
 })
 
-// ─── GET /api/shares/:id auth guard ──────────────────────────────────────────
+// ─── GET /api/shares/:token (creator vs visitor views) ───────────────────────
 
-describe('GET /api/shares/:id (auth guard)', () => {
-  it('returns 401 without auth', async () => {
-    const { app } = await createTestApp()
-    const res = await app.request('/api/shares/some-id')
-    expect(res.status).toBe(401)
-  })
-})
-
-// ─── GET /api/shares/:id ──────────────────────────────────────────────────────
-
-describe('GET /api/shares/:id', () => {
+describe('GET /api/shares/:token', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(emailService, 'sendEmail').mockResolvedValue(undefined)
   })
 
-  it('returns full share data including recipients and matter for creator', async () => {
+  it('returns full detail including recipients when viewer is the creator', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -450,22 +434,23 @@ describe('GET /api/shares/:id', () => {
       kind: 'landing',
       recipients: [{ recipientEmail: 'r@example.com' }],
     })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const shareId = createBody.id as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const res = await app.request(`/api/shares/${shareId}`, { headers })
+    const res = await app.request(`/api/shares/${token}`, { headers })
     expect(res.status).toBe(200)
 
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.id).toBe(shareId)
+    expect(body.token).toBe(token)
     expect(Array.isArray(body.recipients)).toBe(true)
     expect((body.recipients as unknown[]).length).toBe(1)
-    expect(body).toHaveProperty('matter')
     const matter = body.matter as Record<string, unknown>
     expect(matter.name).toBe('get-detail.txt')
+    expect(typeof body.id).toBe('string')
+    expect(typeof body.orgId).toBe('string')
+    expect(typeof body.rootRef).toBe('string')
   })
 
-  it('returns 404 when share belongs to another user', async () => {
+  it('returns landing view without recipients or internal ids for non-creator', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
 
@@ -474,37 +459,84 @@ describe('GET /api/shares/:id', () => {
     await insertFile(db, orgId, { id: 'ga1', name: 'owned-by-a.txt' })
 
     const createRes = await createShare(app, headersA, { matterId: 'ga1', kind: 'landing' })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const shareId = createBody.id as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    // User B tries to get User A's share
     const headersB = await authedHeaders(app, `otherB-${nanoid()}@example.com`)
-    const res = await app.request(`/api/shares/${shareId}`, { headers: headersB })
+    const res = await app.request(`/api/shares/${token}`, { headers: headersB })
+    expect(res.status).toBe(200)
+
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.token).toBe(token)
+    expect(body.recipients).toBeUndefined()
+    expect(body.id).toBeUndefined()
+    expect(body.orgId).toBeUndefined()
+    expect(body.matterId).toBeUndefined()
+    expect(body.creatorId).toBeUndefined()
+  })
+
+  it('returns 404 for a non-existent token', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/shares/does-not-exist')
     expect(res.status).toBe(404)
   })
 
-  it('returns 404 for a non-existent share id', async () => {
-    const { app } = await createTestApp()
+  it('returns 404 for direct share when viewer is not the creator', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+
+    const headersA = await authedHeaders(app, `downer-${nanoid()}@example.com`)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'dgd1', name: 'direct.bin' })
+
+    const createRes = await createShare(app, headersA, { matterId: 'dgd1', kind: 'direct' })
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
+
+    const res = await app.request(`/api/shares/${token}`)
+    expect(res.status).toBe(404)
+  })
+
+  it('returns direct share detail with creator-only fields when viewer is the creator', async () => {
+    const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'dgd2', name: 'direct2.bin' })
 
-    const res = await app.request('/api/shares/nonexistent-share-id', { headers })
-    expect(res.status).toBe(404)
+    const createRes = await createShare(app, headers, { matterId: 'dgd2', kind: 'direct' })
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
+
+    const res = await app.request(`/api/shares/${token}`, { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.kind).toBe('direct')
+    expect(typeof body.id).toBe('string')
+    expect(typeof body.orgId).toBe('string')
+    expect(typeof body.creatorId).toBe('string')
+    expect(typeof body.createdAt).toBe('string')
+    expect(Array.isArray(body.recipients)).toBe(true)
+  })
+
+  it('does not increment views when viewer is the creator', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'nv1', name: 'no-view-count.txt' })
+
+    const createRes = await createShare(app, headers, { matterId: 'nv1', kind: 'landing' })
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
+
+    await app.request(`/api/shares/${token}`, { headers })
+    await app.request(`/api/shares/${token}`, { headers })
+
+    const rows = await db.select({ views: shares.views }).from(shares).where(eq(shares.token, token))
+    expect(rows[0]?.views).toBe(0)
   })
 })
 
-// ─── DELETE /api/shares/:id auth guard ───────────────────────────────────────
+// ─── POST /api/shares/:token/objects (save-to-drive) ─────────────────────────
 
-describe('DELETE /api/shares/:id (auth guard)', () => {
-  it('returns 401 without auth', async () => {
-    const { app } = await createTestApp()
-    const res = await app.request('/api/shares/some-id', { method: 'DELETE' })
-    expect(res.status).toBe(401)
-  })
-})
-
-// ─── POST /:token/save ────────────────────────────────────────────────────────
-
-describe('POST /api/shares/:token/save', () => {
+describe('POST /api/shares/:token/objects', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(emailService, 'sendEmail').mockResolvedValue(undefined)
@@ -517,7 +549,7 @@ describe('POST /api/shares/:token/save', () => {
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
 
-    const res = await app.request('/api/shares/nonexistent-token/save', {
+    const res = await app.request('/api/shares/nonexistent-token/objects', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
@@ -532,12 +564,10 @@ describe('POST /api/shares/:token/save', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'sv-direct', name: 'direct-file.txt' })
 
-    // Create direct share
     const createRes = await createShare(app, headers, { matterId: 'sv-direct', kind: 'direct' })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const token = createBody.token as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const res = await app.request(`/api/shares/${token}/save`, {
+    const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
@@ -556,13 +586,11 @@ describe('POST /api/shares/:token/save', () => {
     await insertFile(db, orgId, { id: 'sv-trashed', name: 'will-trash.txt' })
 
     const createRes = await createShare(app, headers, { matterId: 'sv-trashed', kind: 'landing' })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const token = createBody.token as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    // Trash the matter
     await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = 'sv-trashed'`)
 
-    const res = await app.request(`/api/shares/${token}/save`, {
+    const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
@@ -578,10 +606,9 @@ describe('POST /api/shares/:token/save', () => {
     await insertFile(db, orgId, { id: 'sv-ok', name: 'shareable.txt' })
 
     const createRes = await createShare(app, headers, { matterId: 'sv-ok', kind: 'landing' })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const token = createBody.token as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const res = await app.request(`/api/shares/${token}/save`, {
+    const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
@@ -591,7 +618,7 @@ describe('POST /api/shares/:token/save', () => {
 
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/shares/sometoken/save', {
+    const res = await app.request('/api/shares/sometoken/objects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: 'org1', targetParent: '' }),
@@ -604,19 +631,14 @@ describe('POST /api/shares/:token/save', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-
-    // Insert a file with non-zero size (100 bytes)
     await insertFile(db, orgId, { id: 'sv-quota', name: 'big-file.txt' })
 
-    // The personal org already has an org_quota row created during sign-up.
-    // Update it to set used=quota so adding even 1 byte will exceed it.
     await db.run(sql`UPDATE org_quotas SET quota = 1, used = 1 WHERE org_id = ${orgId}`)
 
     const createRes = await createShare(app, headers, { matterId: 'sv-quota', kind: 'landing' })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const token = createBody.token as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const res = await app.request(`/api/shares/${token}/save`, {
+    const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
@@ -635,17 +657,15 @@ describe('POST /api/shares/:token/save', () => {
     await insertFile(db, orgId, { id: 'sv-forbidden', name: 'forbidden.txt' })
 
     const createRes = await createShare(app, headers, { matterId: 'sv-forbidden', kind: 'landing' })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const token = createBody.token as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    // Use a non-existent team org as target (user has no member record there, and it's not personal)
     const fakeTeamOrgId = `team-org-${nanoid()}`
     await db.run(sql`
       INSERT INTO organization (id, name, slug, metadata, created_at)
       VALUES (${fakeTeamOrgId}, 'Team Org', ${fakeTeamOrgId}, '{"type":"team"}', ${Date.now()})
     `)
 
-    const res = await app.request(`/api/shares/${token}/save`, {
+    const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: fakeTeamOrgId, targetParent: '' }),
@@ -660,7 +680,6 @@ describe('POST /api/shares/:token/save', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'sv-recip', name: 'recipient-file.txt' })
 
-    // Sign up user B to get their userId
     const emailB = `recip-user-b-${nanoid()}@example.com`
     const signupRes = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -674,23 +693,19 @@ describe('POST /api/shares/:token/save', () => {
 
     const orgIdB = await getOrgId(db)
 
-    // User A creates a password-protected landing share with user B as recipient
     const createRes = await createShare(app, headers, {
       matterId: 'sv-recip',
       kind: 'landing',
       password: 'secretPass123',
       recipients: [{ recipientUserId: userBId }],
     })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const token = createBody.token as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    // User B saves without cookie — should be allowed because they are a recipient
-    const res = await app.request(`/api/shares/${token}/save`, {
+    const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { ...headersB, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgIdB, targetParent: '' }),
     })
-    // Should NOT get 401 — recipient bypasses cookie requirement
     expect(res.status).not.toBe(401)
   })
 
@@ -701,18 +716,15 @@ describe('POST /api/shares/:token/save', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'sv-pw', name: 'protected.txt' })
 
-    // Create share with password as user A
     const createRes = await createShare(app, headers, {
       matterId: 'sv-pw',
       kind: 'landing',
       password: 'topSecret123',
     })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const token = createBody.token as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    // User B tries to save without cookie
     const headersB = await authedHeaders(app, `pw-user-b-${nanoid()}@example.com`)
-    const res = await app.request(`/api/shares/${token}/save`, {
+    const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { ...headersB, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
@@ -727,40 +739,57 @@ describe('POST /api/shares/:token/save', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'sv-cookie-auth', name: 'cookie-auth.txt' })
 
-    // User A creates a password-protected share with no recipients
     const createRes = await createShare(app, headers, {
       matterId: 'sv-cookie-auth',
       kind: 'landing',
       password: 'cookiePass123',
     })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const token = createBody.token as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    // User B signs up; not a recipient but presents the sharetk cookie
     const headersB = await authedHeaders(app, `cookie-norecip-${nanoid()}@example.com`)
-    const cookieHeader = `${headersB.Cookie}; sharetk_${token}=authenticated`
-    const res = await app.request(`/api/shares/${token}/save`, {
+    const cookieHeader = `${headersB.Cookie}; sharetk_${token}=ok`
+    const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
     })
-    // Cookie present → auth check passes; any response other than 401 is correct
     expect(res.status).not.toBe(401)
+  })
+
+  it('still rejects password-protected save when cookie has wrong value', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'sv-bad-cookie', name: 'bad-cookie.txt' })
+
+    const createRes = await createShare(app, headers, {
+      matterId: 'sv-bad-cookie',
+      kind: 'landing',
+      password: 'cookiePass123',
+    })
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
+
+    const headersB = await authedHeaders(app, `cookie-bad-${nanoid()}@example.com`)
+    const cookieHeader = `${headersB.Cookie}; sharetk_${token}=anything-but-ok`
+    const res = await app.request(`/api/shares/${token}/objects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
+      body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
+    })
+    expect(res.status).toBe(401)
   })
 
   it('returns 403 when user has a viewer role in the target org', async () => {
     const { app, db } = await createTestApp()
-    // First user creates the share
     const ownerHeaders = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'sv-viewer-role', name: 'viewer-role.txt' })
 
     const createRes = await createShare(app, ownerHeaders, { matterId: 'sv-viewer-role', kind: 'landing' })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const token = createBody.token as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    // Second user signs up — sign-up response reliably returns user.id
     const viewerEmail = `viewer-user-${nanoid()}@example.com`
     const signupRes = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -771,7 +800,6 @@ describe('POST /api/shares/:token/save', () => {
     const viewerId = signupBody.user?.id ?? ''
     const viewerHeaders = { Cookie: signupRes.headers.getSetCookie().join('; ') }
 
-    // Create a team org and add viewer as a viewer member (FK requires a real user.id)
     const teamOrgId = `viewer-team-${nanoid()}`
     await db.run(sql`
       INSERT INTO organization (id, name, slug, metadata, created_at)
@@ -782,8 +810,7 @@ describe('POST /api/shares/:token/save', () => {
       VALUES (${nanoid()}, ${teamOrgId}, ${viewerId}, 'viewer', ${Date.now()})
     `)
 
-    // Viewer tries to save to the team org → getMemberRole returns 'viewer' → 403
-    const res = await app.request(`/api/shares/${token}/save`, {
+    const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { ...viewerHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: teamOrgId, targetParent: '' }),
@@ -792,9 +819,17 @@ describe('POST /api/shares/:token/save', () => {
   })
 })
 
-// ─── DELETE /api/shares/:id ───────────────────────────────────────────────────
+// ─── DELETE /api/shares/:token ────────────────────────────────────────────────
 
-describe('DELETE /api/shares/:id', () => {
+describe('DELETE /api/shares/:token (auth guard)', () => {
+  it('returns 401 without auth', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/shares/some-token', { method: 'DELETE' })
+    expect(res.status).toBe(401)
+  })
+})
+
+describe('DELETE /api/shares/:token', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(emailService, 'sendEmail').mockResolvedValue(undefined)
@@ -808,13 +843,12 @@ describe('DELETE /api/shares/:id', () => {
     await insertFile(db, orgId, { id: 'del1', name: 'delete-me.txt' })
 
     const createRes = await createShare(app, headers, { matterId: 'del1', kind: 'landing' })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const shareId = createBody.id as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const res = await app.request(`/api/shares/${shareId}`, { method: 'DELETE', headers })
+    const res = await app.request(`/api/shares/${token}`, { method: 'DELETE', headers })
     expect(res.status).toBe(204)
 
-    const rows = await db.select({ status: shares.status }).from(shares).where(eq(shares.id, shareId))
+    const rows = await db.select({ status: shares.status }).from(shares).where(eq(shares.token, token))
     expect(rows[0]?.status).toBe('revoked')
   })
 
@@ -827,15 +861,14 @@ describe('DELETE /api/shares/:id', () => {
     await insertFile(db, orgId, { id: 'del2', name: 'other-share.txt' })
 
     const createRes = await createShare(app, headersA, { matterId: 'del2', kind: 'landing' })
-    const createBody = (await createRes.json()) as Record<string, unknown>
-    const shareId = createBody.id as string
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
     const headersB = await authedHeaders(app, `del-other-${nanoid()}@example.com`)
-    const res = await app.request(`/api/shares/${shareId}`, { method: 'DELETE', headers: headersB })
+    const res = await app.request(`/api/shares/${token}`, { method: 'DELETE', headers: headersB })
     expect(res.status).toBe(403)
   })
 
-  it('returns 404 for non-existent share', async () => {
+  it('returns 404 for non-existent share token', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
 

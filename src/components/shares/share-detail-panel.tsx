@@ -18,8 +18,8 @@ export function ShareDetailPanel({ share, onClose }: ShareDetailPanelProps) {
   const { t } = useTranslation()
 
   const detailQuery = useQuery({
-    queryKey: ['shares', share?.id, 'detail'],
-    queryFn: () => getShare(share!.id),
+    queryKey: ['shares', share?.token, 'detail'],
+    queryFn: () => getShare(share!.token),
     enabled: !!share,
   })
 
@@ -57,7 +57,9 @@ export function ShareDetailPanel({ share, onClose }: ShareDetailPanelProps) {
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted-foreground">{t('shares.detailNoRecipients')}</p>
+                <p className="text-sm text-muted-foreground">
+                  {detailQuery.isLoading ? t('common.loading') : t('shares.detailNoRecipients')}
+                </p>
               )}
             </div>
 

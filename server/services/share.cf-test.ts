@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest'
 import { DirType } from '../../shared/constants'
 import { matters } from '../db/schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
-import { cascadeDeleteByMatter, createShare, incrementDownloadsAtomic, resolveShareByToken, revokeShare } from './share'
+import {
+  cascadeDeleteByMatter,
+  createShare,
+  incrementDownloadsAtomic,
+  resolveShareByToken,
+  revokeShareByToken,
+} from './share'
 
 function buildDb() {
   return createCloudflarePlatform(env).db
@@ -65,7 +71,7 @@ describe('[CF] incrementDownloadsAtomic — race conditions on D1', () => {
       creatorId: 'cf-user-2',
       kind: 'landing',
     })
-    await revokeShare(db, share.id, 'cf-user-2')
+    await revokeShareByToken(db, share.token, 'cf-user-2')
 
     const results = await Promise.all(Array.from({ length: 5 }, () => incrementDownloadsAtomic(db, share.id)))
     expect(results.every((r) => !r.ok)).toBe(true)

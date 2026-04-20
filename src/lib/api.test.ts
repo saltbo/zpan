@@ -4,6 +4,7 @@ import {
   batchDeleteObjects,
   batchMoveObjects,
   batchTrashObjects,
+  buildShareObjectUrl,
   confirmUpload,
   copyObject,
   createObject,
@@ -18,8 +19,6 @@ import {
   getProfile,
   getSession,
   getShare,
-  getShareChildren,
-  getShareLanding,
   getStorage,
   getSystemOption,
   getUnreadCount,
@@ -28,6 +27,7 @@ import {
   listNotifications,
   listObjects,
   listQuotas,
+  listShareObjects,
   listShares,
   listStorages,
   listSystemOptions,
@@ -1032,45 +1032,65 @@ describe('api', () => {
   })
 
   describe('getShare', () => {
-    it('calls /api/shares/:id and returns share detail', async () => {
-      const payload = { id: 'share-1', token: 'abc', kind: 'landing' }
+    it('calls GET /api/shares/:token and returns share view', async () => {
+      const payload = {
+        token: 'tok123',
+        kind: 'landing',
+        status: 'active',
+        expiresAt: null,
+        downloadLimit: null,
+        matter: { name: 'photo.jpg', type: 'image/jpeg', size: 1024, isFolder: false },
+        creatorName: 'Alice',
+        requiresPassword: false,
+        expired: false,
+        exhausted: false,
+        accessibleByUser: false,
+        downloads: 0,
+        views: 1,
+        rootRef: 'abc',
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await getShare('share-1')
+      const result = await getShare('tok123')
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/shares/share-1')
+      expect(url).toContain('/api/shares/tok123')
     })
 
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Not found' }, false, 404))
+    it('throws on 404', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Share not found or revoked' }, false, 404))
 
-      await expect(getShare('missing')).rejects.toThrow('Not found')
+      await expect(getShare('bad-token')).rejects.toThrow('Share not found or revoked')
+    })
+
+    it('throws on 410 (matter trashed)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'File no longer available' }, false, 410))
+
+      await expect(getShare('bad-token')).rejects.toThrow('File no longer available')
     })
   })
 
   describe('deleteShare', () => {
-    it('calls DELETE /api/shares/:id and resolves on 204', async () => {
+    it('calls DELETE /api/shares/:token and resolves on 204', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
 
-      await expect(deleteShare('share-1')).resolves.toBeUndefined()
+      await expect(deleteShare('tok123')).resolves.toBeUndefined()
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/shares/share-1')
+      expect(url).toContain('/api/shares/tok123')
       expect(init.method).toBe('DELETE')
     })
 
     it('throws ApiError on non-ok response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 403, statusText: 'Forbidden' } as Response)
 
-      await expect(deleteShare('share-1')).rejects.toThrow('Forbidden')
+      await expect(deleteShare('tok123')).rejects.toThrow('Forbidden')
     })
   })
 
   describe('createShare', () => {
     it('posts share data to /api/shares and returns created share result', async () => {
       const payload = {
-        id: 'share-1',
         token: 'tok123',
         kind: 'landing' as const,
         urls: { landing: 'https://zpan.io/s/tok123' },
@@ -1099,55 +1119,15 @@ describe('api', () => {
     })
   })
 
-  describe('getShareLanding', () => {
-    it('calls GET /api/share/:token and returns landing data', async () => {
-      const payload = {
-        kind: 'landing',
-        matterName: 'photo.jpg',
-        matterType: 'image/jpeg',
-        matterSize: 1024,
-        isFolder: false,
-        requiresPassword: false,
-        expired: false,
-        exhausted: false,
-        expiresAt: null,
-        downloadLimit: null,
-        downloads: 0,
-        views: 1,
-        creatorName: 'Alice',
-        accessibleByUser: false,
-      }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await getShareLanding('tok123')
-
-      expect(result).toEqual(payload)
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/share/tok123')
-    })
-
-    it('throws ApiError on 404', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Share not found or revoked' }, false, 404))
-
-      await expect(getShareLanding('bad-token')).rejects.toThrow('Share not found or revoked')
-    })
-
-    it('throws ApiError on 410 (matter trashed)', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'File no longer available' }, false, 410))
-
-      await expect(getShareLanding('bad-token')).rejects.toThrow('File no longer available')
-    })
-  })
-
   describe('verifySharePassword', () => {
-    it('calls POST /api/share/:token/verify with password', async () => {
+    it('calls POST /api/shares/:token/sessions with password', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ ok: true }))
 
       const result = await verifySharePassword('tok123', 'secret')
 
       expect(result).toEqual({ ok: true })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/share/tok123/verify')
+      expect(url).toContain('/api/shares/tok123/sessions')
       expect(init.method).toBe('POST')
       expect(JSON.parse(init.body as string)).toEqual({ password: 'secret' })
     })
@@ -1159,29 +1139,29 @@ describe('api', () => {
     })
   })
 
-  describe('getShareChildren', () => {
-    it('calls GET /api/share/:token/children with default params', async () => {
+  describe('listShareObjects', () => {
+    it('calls GET /api/shares/:token/objects with default params', async () => {
       const payload = { items: [], total: 0, page: 1, pageSize: 50, breadcrumb: [] }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await getShareChildren('tok123')
+      const result = await listShareObjects('tok123')
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/share/tok123/children')
+      expect(url).toContain('/api/shares/tok123/objects')
       expect(url).toContain('page=1')
       expect(url).toContain('pageSize=50')
     })
 
-    it('passes custom path, page, and pageSize', async () => {
+    it('passes custom parent, page, and pageSize', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(
         makeResponse({ items: [], total: 0, page: 2, pageSize: 10, breadcrumb: [] }),
       )
 
-      await getShareChildren('tok123', 'Reports', 2, 10)
+      await listShareObjects('tok123', 'Reports', 2, 10)
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('path=Reports')
+      expect(url).toContain('parent=Reports')
       expect(url).toContain('page=2')
       expect(url).toContain('pageSize=10')
     })
@@ -1189,12 +1169,18 @@ describe('api', () => {
     it('throws ApiError on 401 (password required)', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Password required' }, false, 401))
 
-      await expect(getShareChildren('tok123')).rejects.toThrow('Password required')
+      await expect(listShareObjects('tok123')).rejects.toThrow('Password required')
+    })
+  })
+
+  describe('buildShareObjectUrl', () => {
+    it('returns the canonical share object download URL', () => {
+      expect(buildShareObjectUrl('tok123', 'refABC')).toBe('/api/shares/tok123/objects/refABC')
     })
   })
 
   describe('saveShareToDrive', () => {
-    it('calls POST /api/shares/:token/save with targetOrgId and targetParent', async () => {
+    it('calls POST /api/shares/:token/objects with targetOrgId and targetParent', async () => {
       const payload = { saved: [{ id: 'obj-1', name: 'photo.jpg' }], skipped: [] }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload, true, 201))
 
@@ -1202,7 +1188,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/shares/tok123/save')
+      expect(url).toContain('/api/shares/tok123/objects')
       expect(init.method).toBe('POST')
       expect(JSON.parse(init.body as string)).toEqual({ targetOrgId: 'org-1', targetParent: 'Docs' })
     })

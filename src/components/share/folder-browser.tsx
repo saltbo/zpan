@@ -1,3 +1,4 @@
+import type { ShareView } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, Download, File, Folder, Home } from 'lucide-react'
 import { useState } from 'react'
@@ -5,13 +6,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import type { ShareChildItem, ShareLandingResponse } from '@/lib/api'
-import { getShareChildren } from '@/lib/api'
+import type { ShareChildItem } from '@/lib/api'
+import { buildShareObjectUrl, listShareObjects } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 
 interface FolderBrowserProps {
   token: string
-  share: ShareLandingResponse
+  share: ShareView
   onSaveToDrive?: () => void
   isLoggedIn: boolean
 }
@@ -21,8 +22,8 @@ export function FolderBrowser({ token, share, onSaveToDrive, isLoggedIn }: Folde
   const [currentPath, setCurrentPath] = useState('')
 
   const query = useQuery({
-    queryKey: ['share-children', token, currentPath],
-    queryFn: () => getShareChildren(token, currentPath),
+    queryKey: ['share-objects', token, currentPath],
+    queryFn: () => listShareObjects(token, currentPath),
   })
 
   const breadcrumb = query.data?.breadcrumb ?? []
@@ -48,7 +49,7 @@ export function FolderBrowser({ token, share, onSaveToDrive, isLoggedIn }: Folde
             <Folder className="h-6 w-6 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold">{share.matterName}</h1>
+            <h1 className="text-lg font-semibold">{share.matter.name}</h1>
             <p className="text-sm text-muted-foreground">{t('share.folderTitle')}</p>
           </div>
         </div>
@@ -67,7 +68,7 @@ export function FolderBrowser({ token, share, onSaveToDrive, isLoggedIn }: Folde
           onClick={() => navigateToIndex(-1)}
         >
           <Home className="h-3.5 w-3.5" />
-          <span>{share.matterName}</span>
+          <span>{share.matter.name}</span>
         </button>
         {breadcrumb.map((crumb, idx) => (
           <span key={crumb.path} className="flex items-center gap-1">
@@ -115,7 +116,7 @@ export function FolderBrowser({ token, share, onSaveToDrive, isLoggedIn }: Folde
             {!query.isLoading &&
               (query.data?.items ?? []).map((item) => (
                 <FolderRow
-                  key={item.id}
+                  key={item.ref}
                   token={token}
                   item={item}
                   currentPath={currentPath}
@@ -146,7 +147,7 @@ interface FolderRowProps {
 function FolderRow({ token, item, currentPath, onNavigate }: FolderRowProps) {
   const { t } = useTranslation()
   const childPath = currentPath ? `${currentPath}/${item.name}` : item.name
-  const downloadUrl = `/api/share/${token}/download/${item.id}`
+  const downloadUrl = buildShareObjectUrl(token, item.ref)
 
   return (
     <TableRow className={item.isFolder ? 'cursor-pointer' : ''}>

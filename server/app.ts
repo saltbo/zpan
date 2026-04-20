@@ -13,9 +13,8 @@ import { notifications } from './routes/notifications'
 import objects from './routes/objects'
 import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
-import shareApi from './routes/share-api'
 import shareDirect from './routes/share-direct'
-import shares from './routes/shares'
+import { authedShares, publicShares } from './routes/shares'
 import storages from './routes/storages'
 import system from './routes/system'
 import { publicTeams, teams } from './routes/teams'
@@ -43,14 +42,12 @@ export function createApp(platform: Platform, auth: Auth) {
     return a.handler(c.req.raw)
   })
 
-  // Public share routes — no auth required; mount before authMiddleware.
-  // /api/share/* is covered by run_worker_first=["/api/*"] in wrangler.toml.
+  // Public routes — no auth required; mount before authMiddleware.
+  // /api/shares/:token endpoints are covered by run_worker_first=["/api/*"] in wrangler.toml.
   // /dl/* is listed separately in run_worker_first.
-  // /s/:token is intentionally left for the T8 SPA landing page.
-  app.route('/api/share', shareApi)
+  // /s/:token is intentionally left for the SPA landing page.
+  app.route('/api/shares', publicShares)
   app.route('/dl', shareDirect)
-
-  // Public routes — no auth required; mount before authMiddleware
   app.route('/api/profiles', profile)
   app.route('/api/teams', publicTeams)
 
@@ -59,7 +56,7 @@ export function createApp(platform: Platform, auth: Auth) {
   // Mount routes separately to avoid deep type chain accumulation.
   // Each .route() call is independent — TypeScript doesn't stack types.
   app.route('/api/objects', objects)
-  app.route('/api/shares', shares)
+  app.route('/api/shares', authedShares)
   app.route('/api/recycle-bin', trash)
   app.route('/api/teams', teams)
   app.route('/api/admin/storages', storages)
@@ -82,8 +79,8 @@ export type AppType = ReturnType<typeof createApp>
 
 // Sub-router types for RPC clients — avoids combined AppType OOM
 export type ObjectsRoute = typeof objects
-export type ShareApiRoute = typeof shareApi
-export type SharesRoute = typeof shares
+export type PublicSharesRoute = typeof publicShares
+export type AuthedSharesRoute = typeof authedShares
 export type TrashRoute = typeof trash
 export type StoragesRoute = typeof storages
 export type UsersRoute = typeof users

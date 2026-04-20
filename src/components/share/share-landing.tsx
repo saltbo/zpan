@@ -1,8 +1,8 @@
+import type { ShareView } from '@shared/types'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ShareLandingResponse } from '@/lib/api'
-import { getShareLanding } from '@/lib/api'
+import { getShare } from '@/lib/api'
 import { useSession } from '@/lib/auth-client'
 import { FilePreview } from './file-preview'
 import { FolderBrowser } from './folder-browser'
@@ -15,7 +15,7 @@ interface ShareLandingProps {
   token: string
 }
 
-function resolveError(share: ShareLandingResponse): ShareErrorCode | null {
+function resolveError(share: ShareView): ShareErrorCode | null {
   if (share.expired) return 'expired'
   if (share.exhausted) return 'exhausted'
   return null
@@ -29,14 +29,14 @@ export function ShareLanding({ token }: ShareLandingProps) {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [showPasswordAfterSave, setShowPasswordAfterSave] = useState(false)
 
-  const query = useQuery<ShareLandingResponse, { status?: number }>({
-    queryKey: ['share-landing', token],
-    queryFn: () => getShareLanding(token),
+  const query = useQuery<ShareView, { status?: number }>({
+    queryKey: ['share', token],
+    queryFn: () => getShare(token),
     retry: false,
   })
 
   function handleUnlocked() {
-    queryClient.invalidateQueries({ queryKey: ['share-landing', token] })
+    queryClient.invalidateQueries({ queryKey: ['share', token] })
   }
 
   function handlePasswordRequired() {
@@ -61,7 +61,7 @@ export function ShareLanding({ token }: ShareLandingProps) {
     return (
       <PasswordPrompt
         token={token}
-        fileName={share.matterName}
+        fileName={share.matter.name}
         onUnlocked={() => {
           setShowPasswordAfterSave(false)
           handleUnlocked()
@@ -77,7 +77,7 @@ export function ShareLanding({ token }: ShareLandingProps) {
 
   return (
     <>
-      {share.isFolder ? (
+      {share.matter.isFolder ? (
         <FolderBrowser
           token={token}
           share={share}

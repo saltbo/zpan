@@ -50,7 +50,7 @@ function SharesPage() {
   })
 
   const revokeMutation = useMutation({
-    mutationFn: (id: string) => deleteShare(id),
+    mutationFn: (token: string) => deleteShare(token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shares'] })
       toast.success(t('shares.revokeSuccess'))
@@ -136,7 +136,7 @@ function SharesPage() {
           <tbody>
             {filteredItems.map((share) => (
               <ShareTableRow
-                key={share.id}
+                key={share.token}
                 share={share}
                 displayStatus={computeDisplayStatus(share)}
                 onRowClick={() => setDetailShare(share)}
@@ -180,7 +180,7 @@ function SharesPage() {
         onOpenChange={(open) => !open && setRevokeTarget(null)}
         filename={revokeTarget?.matter.name ?? ''}
         isPending={revokeMutation.isPending}
-        onConfirm={() => revokeTarget && revokeMutation.mutate(revokeTarget.id)}
+        onConfirm={() => revokeTarget && revokeMutation.mutate(revokeTarget.token)}
       />
     </div>
   )

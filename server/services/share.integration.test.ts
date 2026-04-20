@@ -12,7 +12,7 @@ import {
   isAccessibleByUser,
   listShareRecipientUserIds,
   resolveShareByToken,
-  revokeShare,
+  revokeShareByToken,
   verifyPassword,
 } from './share.js'
 
@@ -196,7 +196,7 @@ describe('resolveShareByToken', () => {
     const matter = await seedMatter(db, { orgId })
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
 
-    await revokeShare(db, share.id, 'u1')
+    await revokeShareByToken(db, share.token, 'u1')
     const resolved = await resolveShareByToken(db, share.token)
     expect(resolved.status === 'ok').toBe(false)
     if (resolved.status === 'ok') throw new Error('expected not found')
@@ -357,7 +357,7 @@ describe('incrementDownloadsAtomic', () => {
     const orgId = nanoid()
     const matter = await seedMatter(db, { orgId })
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
-    await revokeShare(db, share.id, 'u1')
+    await revokeShareByToken(db, share.token, 'u1')
 
     const result = await incrementDownloadsAtomic(db, share.id)
     expect(result.ok).toBe(false)
@@ -392,31 +392,34 @@ describe('incrementDownloadsAtomic', () => {
   })
 })
 
-// ─── revokeShare ─────────────────────────────────────────────────────────────
+// ─── revokeShareByToken ──────────────────────────────────────────────────────
 
-describe('revokeShare', () => {
-  it('flips share status to revoked', async () => {
+describe('revokeShareByToken', () => {
+  it('flips share status to revoked and returns true', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const matter = await seedMatter(db, { orgId })
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
 
-    await revokeShare(db, share.id, 'u1')
+    const ok = await revokeShareByToken(db, share.token, 'u1')
+    expect(ok).toBe(true)
     expect((await resolveShareByToken(db, share.token)).status).toBe('revoked')
   })
 
-  it('throws when non-creator tries to revoke', async () => {
+  it('returns false when non-creator tries to revoke', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const matter = await seedMatter(db, { orgId })
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
 
-    await expect(revokeShare(db, share.id, 'other-user')).rejects.toThrow()
+    const ok = await revokeShareByToken(db, share.token, 'other-user')
+    expect(ok).toBe(false)
   })
 
-  it('throws when share does not exist', async () => {
+  it('returns false when share does not exist', async () => {
     const { db } = await createTestApp()
-    await expect(revokeShare(db, 'nonexistent', 'u1')).rejects.toThrow()
+    const ok = await revokeShareByToken(db, 'nonexistent-token', 'u1')
+    expect(ok).toBe(false)
   })
 })
 

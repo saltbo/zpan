@@ -113,7 +113,6 @@ describe('addDays', () => {
 const makeResult = (
   overrides: Partial<Parameters<typeof buildShareUrl>[0]> = {},
 ): Parameters<typeof buildShareUrl>[0] => ({
-  id: 'share-1',
   token: 'tok',
   kind: 'landing',
   urls: { landing: '/s/tok' },

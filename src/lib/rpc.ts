@@ -1,14 +1,14 @@
 import type {
   AdminInviteCodesRoute,
   AdminQuotasRoute,
+  AuthedSharesRoute,
   AuthProvidersRoute,
   EmailConfigRoute,
   NotificationsRoute,
   ObjectsRoute,
   ProfileRoute,
+  PublicSharesRoute,
   PublicTeamsRoute,
-  ShareApiRoute,
-  SharesRoute,
   StoragesRoute,
   SystemRoute,
   TeamsRoute,
@@ -34,8 +34,8 @@ export const profiles = hc<ProfileRoute>('/api/profiles')
 export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
 export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)
-export const sharesApi = hc<SharesRoute>('/api/shares', opts)
-// Public share landing API (no auth required)
-export const sharePublicApi = hc<ShareApiRoute>('/api/share', opts)
-// Authenticated share save API
-export const sharesSaveApi = hc<SharesRoute>('/api/shares', opts)
+
+// Shares are a single resource; separate clients only because Hono RPC types
+// are split across two sub-apps (public vs. authed) mounted at the same path.
+export const publicSharesApi = hc<PublicSharesRoute>('/api/shares', opts)
+export const authedSharesApi = hc<AuthedSharesRoute>('/api/shares', opts)

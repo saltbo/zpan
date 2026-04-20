@@ -94,6 +94,7 @@ import type { ShareKind as _ShareKind } from '../schemas/share'
 
 export type { ShareKind } from '../schemas/share'
 
+// passwordHash is intentionally not part of the shared wire type; it never leaves the server.
 export interface Share {
   id: string
   token: string
@@ -101,7 +102,6 @@ export interface Share {
   matterId: string
   orgId: string
   creatorId: string
-  passwordHash: string | null
   expiresAt: string | null
   downloadLimit: number | null
   views: number
@@ -129,9 +129,28 @@ export interface ShareListItem extends Share {
   recipientCount: number
 }
 
-export interface ShareDetail extends Share {
-  matter: ShareMatter
-  recipients: ShareRecipient[]
+export interface ShareView {
+  token: string
+  kind: _ShareKind
+  status: 'active' | 'revoked'
+  expiresAt: string | null
+  downloadLimit: number | null
+  matter: { name: string; type: string; size: number; isFolder: boolean }
+  creatorName: string
+  requiresPassword: boolean
+  expired: boolean
+  exhausted: boolean
+  accessibleByUser: boolean
+  downloads: number
+  views: number
+  rootRef: string
+
+  id?: string
+  matterId?: string
+  orgId?: string
+  creatorId?: string
+  createdAt?: string
+  recipients?: ShareRecipient[]
 }
 
 export interface Notification {

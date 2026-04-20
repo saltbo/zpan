@@ -7,10 +7,9 @@ import { createCloudflarePlatform } from '../platform/cloudflare'
 import { createShare } from '../services/share'
 
 // ─── CF routing regression guard ─────────────────────────────────────────────
-// Verifies that public share JSON endpoints are NOT mounted under /s/* paths.
-// CF Assets serves /s/* as SPA HTML (not routed to the Worker) unless listed
-// in run_worker_first. These assertions catch any accidental re-introduction of
-// /s/* routes before the bug reaches a preview deployment.
+// Verifies that public share JSON endpoints live under /api/* (Worker-handled)
+// and NOT under /s/* (CF Assets serves the SPA there). These assertions catch
+// any accidental re-mount before the bug reaches a preview deployment.
 describe('[CF] Routing regression — share routes must be under /api/* or /dl/*', () => {
   it('/s/:token returns 404 (not routed) — JSON share API is not mounted at /s', async () => {
     const platform = createCloudflarePlatform(env)
@@ -25,12 +24,12 @@ describe('[CF] Routing regression — share routes must be under /api/* or /dl/*
     expect(ct).not.toContain('application/json')
   })
 
-  it('/api/share/:token returns JSON (not SPA) — correct path for share API', async () => {
+  it('/api/shares/:token returns JSON (not SPA) — correct path for share API', async () => {
     const platform = createCloudflarePlatform(env)
     const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
     const app = createApp(platform, auth)
 
-    const res = await app.request('/api/share/nonexistent')
+    const res = await app.request('/api/shares/nonexistent')
     expect(res.status).toBe(404)
     const ct = res.headers.get('content-type') ?? ''
     expect(ct).toContain('application/json')
@@ -83,7 +82,7 @@ async function insertFile(
 }
 
 describe('[CF] Public share routes — no requireAuth', () => {
-  it('GET /s/:token returns share metadata without auth', async () => {
+  it('GET /api/shares/:token returns share metadata without auth', async () => {
     const { app, db } = await buildApp()
     const { orgId, userId } = await signUpAndGetIds(app, db)
     await insertStorage(db)
@@ -93,11 +92,12 @@ describe('[CF] Public share routes — no requireAuth', () => {
     const matterId = rows[0].id
     const share = await createShare(db, { matterId, orgId, creatorId: userId, kind: 'landing' })
 
-    const res = await app.request(`/api/share/${share.token}`)
+    const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.kind).toBe('landing')
-    expect(body.matterName).toBe('cf-file.txt')
+    const matter = body.matter as Record<string, unknown>
+    expect(matter.name).toBe('cf-file.txt')
   })
 
   it('GET /dl/:token returns 404 for unknown token without auth', async () => {

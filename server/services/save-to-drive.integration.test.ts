@@ -437,7 +437,7 @@ describe('saveShareToDrive', () => {
 
 // ─── Route-level integration tests ───────────────────────────────────────────
 
-describe('POST /api/shares/:token/save', () => {
+describe('POST /api/shares/:token/objects', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(S3Service.prototype, 'copyObject').mockResolvedValue(undefined)
@@ -470,7 +470,7 @@ describe('POST /api/shares/:token/save', () => {
 
   it('returns 401 without authentication', async () => {
     const { app, share } = await setup()
-    const res = await app.request(`/api/shares/${share.token}/save`, {
+    const res = await app.request(`/api/shares/${share.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: 'any-org' }),
@@ -480,7 +480,7 @@ describe('POST /api/shares/:token/save', () => {
 
   it('returns 404 for unknown token', async () => {
     const { app, headers, personalOrgId } = await setup()
-    const res = await app.request('/api/shares/nonexistent-tok/save', {
+    const res = await app.request('/api/shares/nonexistent-tok/objects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),
@@ -492,7 +492,7 @@ describe('POST /api/shares/:token/save', () => {
     const { app, db, share, matter, headers, personalOrgId } = await setup()
     await db.run(sql`UPDATE matters SET status = 'trashed' WHERE id = ${matter.id}`)
 
-    const res = await app.request(`/api/shares/${share.token}/save`, {
+    const res = await app.request(`/api/shares/${share.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),
@@ -504,7 +504,7 @@ describe('POST /api/shares/:token/save', () => {
     const { app, db, share, headers, personalOrgId } = await setup()
     await db.run(sql`UPDATE shares SET status = 'revoked' WHERE id = ${share.id}`)
 
-    const res = await app.request(`/api/shares/${share.token}/save`, {
+    const res = await app.request(`/api/shares/${share.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),
@@ -518,7 +518,7 @@ describe('POST /api/shares/:token/save', () => {
     const m = await seedMatter(db, { orgId: srcOrgId })
     const directShare = await createShare(db, { matterId: m.id, orgId: srcOrgId, creatorId: 'u1', kind: 'direct' })
 
-    const res = await app.request(`/api/shares/${directShare.token}/save`, {
+    const res = await app.request(`/api/shares/${directShare.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),
@@ -540,7 +540,7 @@ describe('POST /api/shares/:token/save', () => {
       password: 'secret123',
     })
 
-    const res = await app.request(`/api/shares/${pwShare.token}/save`, {
+    const res = await app.request(`/api/shares/${pwShare.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),
@@ -567,7 +567,7 @@ describe('POST /api/shares/:token/save', () => {
       recipients: [{ recipientUserId: userId }],
     })
 
-    const res = await app.request(`/api/shares/${pwShare.token}/save`, {
+    const res = await app.request(`/api/shares/${pwShare.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),
@@ -594,7 +594,7 @@ describe('POST /api/shares/:token/save', () => {
       VALUES (${nanoid()}, ${viewerOrgId}, ${userId}, 'viewer', ${Date.now()})
     `)
 
-    const res = await app.request(`/api/shares/${share.token}/save`, {
+    const res = await app.request(`/api/shares/${share.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: viewerOrgId }),
@@ -624,7 +624,7 @@ describe('POST /api/shares/:token/save', () => {
     await db.insert(orgQuotas).values({ id: nanoid(), orgId: quotaOrgId, quota: 100, used: 0 })
 
     // The share from setup() has a matter with size 512 — well above the 100-byte quota
-    const res = await app.request(`/api/shares/${share.token}/save`, {
+    const res = await app.request(`/api/shares/${share.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: quotaOrgId }),
@@ -638,7 +638,7 @@ describe('POST /api/shares/:token/save', () => {
   it('successfully saves a landing single-file share', async () => {
     const { app, share, headers, personalOrgId } = await setup()
 
-    const res = await app.request(`/api/shares/${share.token}/save`, {
+    const res = await app.request(`/api/shares/${share.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),
@@ -655,7 +655,7 @@ describe('POST /api/shares/:token/save', () => {
 
     const downloadsBefore = share.downloads
 
-    await app.request(`/api/shares/${share.token}/save`, {
+    await app.request(`/api/shares/${share.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),
@@ -668,7 +668,7 @@ describe('POST /api/shares/:token/save', () => {
   it('activity_events row created with save_from_share and sourceShareId metadata', async () => {
     const { app, db, share, headers, personalOrgId } = await setup()
 
-    await app.request(`/api/shares/${share.token}/save`, {
+    await app.request(`/api/shares/${share.token}/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),

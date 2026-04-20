@@ -5,22 +5,21 @@ import type {
   AuthProvider,
   Notification,
   PaginatedResponse,
-  ShareDetail,
   ShareListItem,
+  ShareView,
   Storage,
   StorageObject,
 } from '@shared/types'
 import {
   adminQuotas,
+  authedSharesApi,
   authProviders,
   emailConfig,
   inviteCodes,
   notificationsApi,
   objects,
   profiles,
-  sharePublicApi,
-  sharesApi,
-  sharesSaveApi,
+  publicSharesApi,
   storages,
   system,
   teamsApi,
@@ -376,75 +375,44 @@ export function markAllNotificationsRead() {
 
 // Shares API
 
-export type { ShareDetail, ShareListItem }
+export type { ShareListItem, ShareView }
 
 export function listShares(page = 1, pageSize = 20, status?: 'active' | 'revoked') {
   const query: Record<string, string> = { page: String(page), pageSize: String(pageSize) }
   if (status) query.status = status
   return unwrap<{ items: ShareListItem[]; total: number; page: number; pageSize: number }>(
-    sharesApi.index.$get({ query }),
+    authedSharesApi.index.$get({ query }),
   )
 }
 
-export function getShare(id: string) {
-  return unwrap<ShareDetail>(sharesApi[':id'].$get({ param: { id } }))
+export function getShare(token: string) {
+  return unwrap<ShareView>(publicSharesApi[':token'].$get({ param: { token } }))
 }
 
-export function deleteShare(id: string) {
-  return sharesApi[':id'].$delete({ param: { id } }).then((res) => {
+export function deleteShare(token: string) {
+  return authedSharesApi[':token'].$delete({ param: { token } }).then((res) => {
     if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
   })
 }
 
 export interface CreateShareResult {
-  id: string
   token: string
-  kind: ShareDetail['kind']
+  kind: ShareView['kind']
   urls: { landing?: string; direct?: string }
   expiresAt: string | null
   downloadLimit: number | null
 }
 
 export function createShare(data: CreateShareRequest) {
-  return unwrap<CreateShareResult>(sharesApi.index.$post({ json: data }))
-}
-
-// Auth API — Better Auth passthrough, not typed via Hono RPC
-export async function getSession(): Promise<{ session: unknown; user: unknown } | null> {
-  const res = await fetch('/api/auth/get-session', { credentials: 'include' })
-  if (!res.ok) return null
-  return res.json()
-}
-
-// Public Share Landing API
-
-export interface ShareLandingResponse {
-  kind: 'landing'
-  matterName: string
-  matterType: string
-  matterSize: number
-  isFolder: boolean
-  requiresPassword: boolean
-  expired: boolean
-  exhausted: boolean
-  expiresAt: string | null
-  downloadLimit: number | null
-  downloads: number
-  views: number
-  creatorName: string
-  accessibleByUser: boolean
-}
-
-export function getShareLanding(token: string) {
-  return unwrap<ShareLandingResponse>(sharePublicApi[':token'].$get({ param: { token } }))
+  return unwrap<CreateShareResult>(authedSharesApi.index.$post({ json: data }))
 }
 
 export function verifySharePassword(token: string, password: string) {
-  return unwrap<{ ok: boolean }>(sharePublicApi[':token'].verify.$post({ param: { token }, json: { password } }))
+  return unwrap<{ ok: boolean }>(publicSharesApi[':token'].sessions.$post({ param: { token }, json: { password } }))
 }
 
 export interface ShareChildItem {
-  id: string
+  ref: string
   name: string
   type: string
   size: number
@@ -459,13 +427,17 @@ export interface ShareChildrenResponse {
   breadcrumb: Array<{ name: string; path: string }>
 }
 
-export function getShareChildren(token: string, path = '', page = 1, pageSize = 50) {
+export function listShareObjects(token: string, parent = '', page = 1, pageSize = 50) {
   return unwrap<ShareChildrenResponse>(
-    sharePublicApi[':token'].children.$get({
+    publicSharesApi[':token'].objects.$get({
       param: { token },
-      query: { path, page: String(page), pageSize: String(pageSize) },
+      query: { parent, page: String(page), pageSize: String(pageSize) },
     }),
   )
+}
+
+export function buildShareObjectUrl(token: string, ref: string): string {
+  return `/api/shares/${token}/objects/${ref}`
 }
 
 export interface SaveShareInput {
@@ -479,7 +451,14 @@ export interface SaveShareResult {
 }
 
 export function saveShareToDrive(token: string, data: SaveShareInput) {
-  return unwrap<SaveShareResult>(sharesSaveApi[':token'].save.$post({ param: { token }, json: data }))
+  return unwrap<SaveShareResult>(authedSharesApi[':token'].objects.$post({ param: { token }, json: data }))
+}
+
+// Auth API — Better Auth passthrough, not typed via Hono RPC
+export async function getSession(): Promise<{ session: unknown; user: unknown } | null> {
+  const res = await fetch('/api/auth/get-session', { credentials: 'include' })
+  if (!res.ok) return null
+  return res.json()
 }
 
 // S3 direct upload (external presigned URL, not our API)

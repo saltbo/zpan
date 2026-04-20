@@ -6,7 +6,7 @@ import { matters } from '../db/schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 import { S3Service } from './s3'
 import { saveShareToDrive } from './save-to-drive'
-import { createShare, resolveShareByToken, revokeShare } from './share'
+import { createShare, resolveShareByToken, revokeShareByToken } from './share'
 
 function buildDb() {
   return createCloudflarePlatform(env).db
@@ -70,7 +70,7 @@ describe('[CF] resolveShareByToken', () => {
     const matter = await seedMatter(db, orgId)
 
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cf-user-2', kind: 'landing' })
-    await revokeShare(db, share.id, 'cf-user-2')
+    await revokeShareByToken(db, share.token, 'cf-user-2')
 
     const result = await resolveShareByToken(db, share.token)
     expect(result.status).toBe('revoked')

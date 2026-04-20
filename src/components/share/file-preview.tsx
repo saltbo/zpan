@@ -1,13 +1,14 @@
+import type { ShareView } from '@shared/types'
 import { Download, File } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import type { ShareLandingResponse } from '@/lib/api'
+import { buildShareObjectUrl } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 
 interface FilePreviewProps {
   token: string
-  share: ShareLandingResponse
+  share: ShareView
   onSaveToDrive?: () => void
   isLoggedIn: boolean
 }
@@ -23,12 +24,12 @@ function detectPreviewKind(mimeType: string): PreviewKind {
 }
 
 interface MediaPreviewProps {
-  token: string
+  downloadUrl: string
   mimeType: string
   kind: PreviewKind
 }
 
-function MediaPreview({ token, mimeType, kind }: MediaPreviewProps) {
+function MediaPreview({ downloadUrl, mimeType, kind }: MediaPreviewProps) {
   const { t } = useTranslation()
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -44,7 +45,7 @@ function MediaPreview({ token, mimeType, kind }: MediaPreviewProps) {
     // presigned URL authenticated by signature. With credentials, the browser
     // rejects the redirect because R2 returns `Access-Control-Allow-Origin: *`
     // which may not combine with credentialed requests.
-    fetch(`/api/share/${token}/download`, { redirect: 'follow' })
+    fetch(downloadUrl, { redirect: 'follow' })
       .then((res) => {
         if (!res.ok) throw new Error('fetch failed')
         return res.blob()
@@ -70,7 +71,7 @@ function MediaPreview({ token, mimeType, kind }: MediaPreviewProps) {
         urlRef.current = null
       }
     }
-  }, [token])
+  }, [downloadUrl])
 
   if (loading) {
     return <div className="flex h-64 items-center justify-center text-muted-foreground">{t('share.loading')}</div>
@@ -114,8 +115,8 @@ function MediaPreview({ token, mimeType, kind }: MediaPreviewProps) {
 
 export function FilePreview({ token, share, onSaveToDrive, isLoggedIn }: FilePreviewProps) {
   const { t } = useTranslation()
-  const kind = detectPreviewKind(share.matterType)
-  const downloadUrl = `/api/share/${token}/download`
+  const kind = detectPreviewKind(share.matter.type)
+  const downloadUrl = buildShareObjectUrl(token, share.rootRef)
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -125,8 +126,8 @@ export function FilePreview({ token, share, onSaveToDrive, isLoggedIn }: FilePre
             <File className="h-6 w-6 text-muted-foreground" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold">{share.matterName}</h1>
-            <p className="text-sm text-muted-foreground">{formatSize(share.matterSize)}</p>
+            <h1 className="text-lg font-semibold">{share.matter.name}</h1>
+            <p className="text-sm text-muted-foreground">{formatSize(share.matter.size)}</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -152,7 +153,7 @@ export function FilePreview({ token, share, onSaveToDrive, isLoggedIn }: FilePre
             <p className="text-sm">{t('share.previewDownloadHint')}</p>
           </div>
         ) : (
-          <MediaPreview token={token} mimeType={share.matterType} kind={kind} />
+          <MediaPreview downloadUrl={downloadUrl} mimeType={share.matter.type} kind={kind} />
         )}
       </div>
     </div>

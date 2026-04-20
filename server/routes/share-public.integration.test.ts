@@ -58,16 +58,22 @@ async function insertFolder(
   `)
 }
 
-// ─── GET /s/:token ─────────────────────────────────────────────────────────────
+async function fetchRootRef(app: Awaited<ReturnType<typeof createTestApp>>['app'], token: string): Promise<string> {
+  const res = await app.request(`/api/shares/${token}`)
+  const body = (await res.json()) as { rootRef: string }
+  return body.rootRef
+}
 
-describe('GET /s/:token', () => {
+// ─── GET /api/shares/:token ───────────────────────────────────────────────────
+
+describe('GET /api/shares/:token', () => {
   it('returns 404 for unknown token', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/share/unknown-token')
+    const res = await app.request('/api/shares/unknown-token')
     expect(res.status).toBe(404)
   })
 
-  it('returns share metadata and increments views', async () => {
+  it('returns share metadata for visitor and strips internal ids', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -76,26 +82,29 @@ describe('GET /s/:token', () => {
     await insertFile(db, orgId, { id: 'f1', name: 'photo.jpg' })
     const share = await createShare(db, { matterId: 'f1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/api/share/${share.token}`)
+    // Call without auth headers to simulate a public visitor
+    void headers
+    const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.kind).toBe('landing')
-    expect(body.matterName).toBe('photo.jpg')
-    expect(body.matterType).toBe('text/plain')
-    expect(body.isFolder).toBe(false)
+    const matter = body.matter as Record<string, unknown>
+    expect(matter.name).toBe('photo.jpg')
+    expect(matter.type).toBe('text/plain')
+    expect(matter.isFolder).toBe(false)
     expect(body.requiresPassword).toBe(false)
     expect(body.expired).toBe(false)
     expect(body.exhausted).toBe(false)
-    // views is the snapshot value before the increment fires; the DB counter is updated atomically
-    expect(body.views).toBe(0)
     expect(body.accessibleByUser).toBe(false)
-    // No internal IDs leaked
+    expect(typeof body.rootRef).toBe('string')
+    // Non-creator must not see internal ids
     expect(body.matterId).toBeUndefined()
     expect(body.orgId).toBeUndefined()
     expect(body.recipients).toBeUndefined()
+    expect(body.id).toBeUndefined()
   })
 
-  it('returns 404 for direct share kind', async () => {
+  it('returns 404 for direct share kind (visitor)', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -104,7 +113,7 @@ describe('GET /s/:token', () => {
     await insertFile(db, orgId, { id: 'f2', name: 'direct.txt' })
     const share = await createShare(db, { matterId: 'f2', orgId, creatorId, kind: 'direct' })
 
-    const res = await app.request(`/api/share/${share.token}`)
+    const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(404)
   })
 
@@ -115,14 +124,13 @@ describe('GET /s/:token', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'f3', name: 'gone.txt', status: 'trashed' })
-    // Insert share directly to bypass createShare's guards
     const now = Date.now()
     await db.run(sql`
       INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
       VALUES ('sh-trash', 'token-trash', 'landing', 'f3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
     `)
 
-    const res = await app.request('/api/share/token-trash')
+    const res = await app.request('/api/shares/token-trash')
     expect(res.status).toBe(410)
   })
 
@@ -136,7 +144,7 @@ describe('GET /s/:token', () => {
     const share = await createShare(db, { matterId: 'f4', orgId, creatorId, kind: 'landing' })
     await db.run(sql`UPDATE shares SET status = 'revoked' WHERE id = ${share.id}`)
 
-    const res = await app.request(`/api/share/${share.token}`)
+    const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(404)
   })
 
@@ -155,7 +163,7 @@ describe('GET /s/:token', () => {
       password: 'hunter2',
     })
 
-    const res = await app.request(`/api/share/${share.token}`)
+    const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.requiresPassword).toBe(true)
@@ -177,16 +185,16 @@ describe('GET /s/:token', () => {
     })
     await db.run(sql`UPDATE shares SET downloads = 3 WHERE id = ${share.id}`)
 
-    const res = await app.request(`/api/share/${share.token}`)
+    const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.exhausted).toBe(true)
   })
 })
 
-// ─── POST /s/:token/verify ─────────────────────────────────────────────────────
+// ─── POST /api/shares/:token/sessions ────────────────────────────────────────
 
-describe('POST /s/:token/verify', () => {
+describe('POST /api/shares/:token/sessions', () => {
   it('returns 200 and sets cookie on correct password', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
@@ -202,7 +210,7 @@ describe('POST /s/:token/verify', () => {
       password: 'correcthorse',
     })
 
-    const res = await app.request(`/api/share/${share.token}/verify`, {
+    const res = await app.request(`/api/shares/${share.token}/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: 'correcthorse' }),
@@ -229,7 +237,7 @@ describe('POST /s/:token/verify', () => {
       password: 'correcthorse',
     })
 
-    const res = await app.request(`/api/share/${share.token}/verify`, {
+    const res = await app.request(`/api/shares/${share.token}/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: 'wrongpassword' }),
@@ -238,9 +246,9 @@ describe('POST /s/:token/verify', () => {
   })
 })
 
-// ─── GET /s/:token/download ────────────────────────────────────────────────────
+// ─── GET /api/shares/:token/objects/:ref — root file download ────────────────
 
-describe('GET /s/:token/download', () => {
+describe('GET /api/shares/:token/objects/:ref — root file', () => {
   it('returns 302 redirect with no-store cache header for public share', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
@@ -250,7 +258,8 @@ describe('GET /s/:token/download', () => {
     await insertFile(db, orgId, { id: 'dl1', name: 'file.txt' })
     const share = await createShare(db, { matterId: 'dl1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/api/share/${share.token}/download`, { redirect: 'manual' })
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_PRESIGN_URL)
     expect(res.headers.get('cache-control')).toBe('no-store')
@@ -271,7 +280,8 @@ describe('GET /s/:token/download', () => {
       password: 'secret123',
     })
 
-    const res = await app.request(`/api/share/${share.token}/download`, { redirect: 'manual' })
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
     expect(res.status).toBe(401)
   })
 
@@ -290,7 +300,8 @@ describe('GET /s/:token/download', () => {
       password: 'secret123',
     })
 
-    const res = await app.request(`/api/share/${share.token}/download`, {
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, {
       redirect: 'manual',
       headers: { Cookie: `sharetk_${share.token}=ok` },
     })
@@ -313,7 +324,8 @@ describe('GET /s/:token/download', () => {
       recipients: [{ recipientUserId: userId }],
     })
 
-    const res = await app.request(`/api/share/${share.token}/download`, {
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, {
       redirect: 'manual',
       headers: userHeaders,
     })
@@ -336,10 +348,10 @@ describe('GET /s/:token/download', () => {
     })
     await db.run(sql`UPDATE shares SET downloads = 2 WHERE id = ${share.id}`)
 
-    const res = await app.request(`/api/share/${share.token}/download`, { redirect: 'manual' })
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
     expect(res.status).toBe(410)
 
-    // Verify downloads counter did not increment past limit
     const rows = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
     expect(rows[0].downloads).toBe(2)
   })
@@ -360,17 +372,18 @@ describe('GET /s/:token/download', () => {
       expiresAt: pastDate,
     })
 
-    const res = await app.request(`/api/share/${share.token}/download`, { redirect: 'manual' })
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
     expect(res.status).toBe(410)
   })
 })
 
-// ─── GET /s/:token/children ────────────────────────────────────────────────────
+// ─── GET /api/shares/:token/objects — list folder children ───────────────────
 
-describe('GET /s/:token/children', () => {
+describe('GET /api/shares/:token/objects', () => {
   it('returns 404 for invalid token', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/share/no-such-token/children')
+    const res = await app.request('/api/shares/no-such-token/objects')
     expect(res.status).toBe(404)
   })
 
@@ -386,7 +399,7 @@ describe('GET /s/:token/children', () => {
       INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
       VALUES ('sh-trash-ch', 'token-trash-ch', 'landing', 'trashed-dir', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
     `)
-    const res = await app.request('/api/share/token-trash-ch/children')
+    const res = await app.request('/api/shares/token-trash-ch/objects')
     expect(res.status).toBe(410)
   })
 
@@ -399,7 +412,7 @@ describe('GET /s/:token/children', () => {
     await insertFile(db, orgId, { id: 'ch1', name: 'flat.txt' })
     const share = await createShare(db, { matterId: 'ch1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/api/share/${share.token}/children`)
+    const res = await app.request(`/api/shares/${share.token}/objects`)
     expect(res.status).toBe(400)
   })
 
@@ -414,7 +427,7 @@ describe('GET /s/:token/children', () => {
     await insertFolder(db, orgId, { id: 'dir2', name: 'vacation', parent: 'Photos' })
     const share = await createShare(db, { matterId: 'dir1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/api/share/${share.token}/children`)
+    const res = await app.request(`/api/shares/${share.token}/objects`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       items: Array<Record<string, unknown>>
@@ -427,11 +440,11 @@ describe('GET /s/:token/children', () => {
     expect(names).toContain('cat.jpg')
     expect(names).toContain('vacation')
 
-    // Verify IDs are synthetic (not real matter IDs)
-    expect(body.items.every((i) => i.id !== 'img1' && i.id !== 'dir2')).toBe(true)
+    // Each item exposes an opaque ref, not the raw matter id
+    expect(body.items.every((i) => typeof i.ref === 'string' && i.ref !== 'img1' && i.ref !== 'dir2')).toBe(true)
   })
 
-  it('returns subfolder contents with breadcrumb when path= provided', async () => {
+  it('returns subfolder contents with breadcrumb when parent= provided', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -442,7 +455,7 @@ describe('GET /s/:token/children', () => {
     await insertFile(db, orgId, { id: 'rpt1', name: 'q1.pdf', parent: 'Docs/Reports' })
     const share = await createShare(db, { matterId: 'root1', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/api/share/${share.token}/children?path=Reports`)
+    const res = await app.request(`/api/shares/${share.token}/objects?parent=Reports`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       items: Array<Record<string, unknown>>
@@ -471,15 +484,62 @@ describe('GET /s/:token/children', () => {
       password: 'pass123',
     })
 
-    const res = await app.request(`/api/share/${share.token}/children`)
+    const res = await app.request(`/api/shares/${share.token}/objects`)
     expect(res.status).toBe(401)
+  })
+
+  it('returns 400 when parent contains traversal segments', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFolder(db, orgId, { id: 'traversal-dir', name: 'Safe' })
+    const share = await createShare(db, { matterId: 'traversal-dir', orgId, creatorId, kind: 'landing' })
+
+    const res = await app.request(`/api/shares/${share.token}/objects?parent=../etc`)
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('Invalid path')
+  })
+
+  it('respects explicit page and pageSize query params', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFolder(db, orgId, { id: 'pg-dir', name: 'Paged' })
+    const share = await createShare(db, { matterId: 'pg-dir', orgId, creatorId, kind: 'landing' })
+
+    const res = await app.request(`/api/shares/${share.token}/objects?page=2&pageSize=10`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { page: number; pageSize: number }
+    expect(body.page).toBe(2)
+    expect(body.pageSize).toBe(10)
+  })
+
+  it('falls back to defaults when page/pageSize are non-numeric', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFolder(db, orgId, { id: 'nan-dir', name: 'NaN' })
+    const share = await createShare(db, { matterId: 'nan-dir', orgId, creatorId, kind: 'landing' })
+
+    const res = await app.request(`/api/shares/${share.token}/objects?page=abc&pageSize=xyz`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { page: number; pageSize: number }
+    expect(body.page).toBe(1)
+    expect(body.pageSize).toBe(50)
   })
 })
 
-// ─── GET /s/:token/download/:childRef ─────────────────────────────────────────
+// ─── GET /api/shares/:token/objects/:ref — descendant ref ────────────────────
 
-describe('GET /s/:token/download/:childRef', () => {
-  it('redirects for valid descendant child ref', async () => {
+describe('GET /api/shares/:token/objects/:ref — descendant', () => {
+  it('redirects for valid descendant ref', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -489,18 +549,17 @@ describe('GET /s/:token/download/:childRef', () => {
     await insertFile(db, orgId, { id: 'arc1', name: 'old.zip', parent: 'Archive' })
     const share = await createShare(db, { matterId: 'fld1', orgId, creatorId, kind: 'landing' })
 
-    // Get the child ref from /children
-    const childrenRes = await app.request(`/api/share/${share.token}/children`)
-    const childrenBody = (await childrenRes.json()) as { items: Array<{ id: string }> }
-    const childRef = childrenBody.items[0].id
+    const childrenRes = await app.request(`/api/shares/${share.token}/objects`)
+    const childrenBody = (await childrenRes.json()) as { items: Array<{ ref: string }> }
+    const ref = childrenBody.items[0].ref
 
-    const res = await app.request(`/api/share/${share.token}/download/${childRef}`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/${share.token}/objects/${ref}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_PRESIGN_URL)
     expect(res.headers.get('cache-control')).toBe('no-store')
   })
 
-  it('returns 400 for invalid/forged child ref', async () => {
+  it('returns 400 for invalid/forged ref', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -509,31 +568,30 @@ describe('GET /s/:token/download/:childRef', () => {
     await insertFolder(db, orgId, { id: 'fld2', name: 'Safe' })
     const share = await createShare(db, { matterId: 'fld2', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/api/share/${share.token}/download/invalid-ref`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/${share.token}/objects/invalid-ref`, { redirect: 'manual' })
     expect(res.status).toBe(400)
   })
 
-  it('returns 404 when matterId from childRef is not a descendant of the folder', async () => {
+  it('returns 404 when ref decodes to a matter outside the folder subtree', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFolder(db, orgId, { id: 'fld3', name: 'Folder3' })
-    await insertFile(db, orgId, { id: 'out1', name: 'outside.txt' }) // not a descendant
+    await insertFile(db, orgId, { id: 'out1', name: 'outside.txt' })
     const share = await createShare(db, { matterId: 'fld3', orgId, creatorId, kind: 'landing' })
 
-    // Build a childRef for a non-descendant matter using the correct HMAC but wrong parent
     const { createHmac } = await import('node:crypto')
     const sig = createHmac('sha256', share.token).update('out1').digest('hex').slice(0, 16)
     const fakeRef = Buffer.from(`out1.${sig}`).toString('base64url')
 
-    const res = await app.request(`/api/share/${share.token}/download/${fakeRef}`, { redirect: 'manual' })
+    const res = await app.request(`/api/shares/${share.token}/objects/${fakeRef}`, { redirect: 'manual' })
     expect(res.status).toBe(404)
   })
 })
 
-// ─── GET /dl/:token ────────────────────────────────────────────────────────────
+// ─── GET /dl/:token — unchanged public short-link for direct shares ──────────
 
 describe('GET /dl/:token', () => {
   it('returns 302 redirect for valid direct share', async () => {
@@ -616,67 +674,15 @@ describe('GET /dl/:token', () => {
     await insertFile(db, orgId, { id: 'dlx5', name: 'public.bin' })
     const share = await createShare(db, { matterId: 'dlx5', orgId, creatorId, kind: 'direct' })
 
-    // No auth headers at all
     const res = await app.request(`/dl/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
   })
 })
 
-// ─── GET /s/:token/children — path traversal guard ───────────────────────────
-
-describe('GET /s/:token/children — path traversal', () => {
-  it('returns 400 when path contains ..', async () => {
-    const { app, db } = await createTestApp()
-    await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    const creatorId = await getUserId(db)
-    await insertFolder(db, orgId, { id: 'traversal-dir', name: 'Safe' })
-    const share = await createShare(db, { matterId: 'traversal-dir', orgId, creatorId, kind: 'landing' })
-
-    const res = await app.request(`/api/share/${share.token}/children?path=../etc`)
-    expect(res.status).toBe(400)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Invalid path')
-  })
-
-  it('respects explicit page and pageSize query params', async () => {
-    const { app, db } = await createTestApp()
-    await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    const creatorId = await getUserId(db)
-    await insertFolder(db, orgId, { id: 'pg-dir', name: 'Paged' })
-    const share = await createShare(db, { matterId: 'pg-dir', orgId, creatorId, kind: 'landing' })
-
-    const res = await app.request(`/api/share/${share.token}/children?page=2&pageSize=10`)
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { page: number; pageSize: number }
-    expect(body.page).toBe(2)
-    expect(body.pageSize).toBe(10)
-  })
-
-  it('falls back to defaults when page/pageSize are non-numeric', async () => {
-    const { app, db } = await createTestApp()
-    await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getOrgId(db)
-    const creatorId = await getUserId(db)
-    await insertFolder(db, orgId, { id: 'nan-dir', name: 'NaN' })
-    const share = await createShare(db, { matterId: 'nan-dir', orgId, creatorId, kind: 'landing' })
-
-    const res = await app.request(`/api/share/${share.token}/children?page=abc&pageSize=xyz`)
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { page: number; pageSize: number }
-    expect(body.page).toBe(1)
-    expect(body.pageSize).toBe(50)
-  })
-})
-
-// ─── No auth required on /s routes ────────────────────────────────────────────
+// ─── No auth required on public share routes ─────────────────────────────────
 
 describe('public routes require no auth', () => {
-  it('GET /s/:token succeeds without any auth headers', async () => {
+  it('GET /api/shares/:token succeeds without any auth headers', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -685,8 +691,7 @@ describe('public routes require no auth', () => {
     await insertFile(db, orgId, { id: 'pub1', name: 'open.txt' })
     const share = await createShare(db, { matterId: 'pub1', orgId, creatorId, kind: 'landing' })
 
-    // No Cookie / Authorization header
-    const res = await app.request(`/api/share/${share.token}`)
+    const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(200)
   })
 })
