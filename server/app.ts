@@ -12,6 +12,7 @@ import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
 import objects from './routes/objects'
 import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
+import shares from './routes/shares'
 import storages from './routes/storages'
 import system from './routes/system'
 import { publicTeams, teams } from './routes/teams'
@@ -48,6 +49,7 @@ export function createApp(platform: Platform, auth: Auth) {
   // Mount routes separately to avoid deep type chain accumulation.
   // Each .route() call is independent — TypeScript doesn't stack types.
   app.route('/api/objects', objects)
+  app.route('/api/shares', shares)
   app.route('/api/recycle-bin', trash)
   app.route('/api/teams', teams)
   app.route('/api/admin/storages', storages)
@@ -69,6 +71,7 @@ export type AppType = ReturnType<typeof createApp>
 
 // Sub-router types for RPC clients — avoids combined AppType OOM
 export type ObjectsRoute = typeof objects
+export type SharesRoute = typeof shares
 export type TrashRoute = typeof trash
 export type StoragesRoute = typeof storages
 export type UsersRoute = typeof users

@@ -27,3 +27,11 @@ export const listSharesQuerySchema = z.object({
   pageSize: z.coerce.number().int().positive().default(20),
   status: z.enum(['active', 'revoked']).optional(),
 })
+
+export const saveShareRequestSchema = z.object({
+  targetOrgId: z.string().min(1),
+  targetParent: z.string().default(''),
+  targetSubpath: z.array(z.string()).optional(),
+})
+
+export type SaveShareRequest = z.infer<typeof saveShareRequestSchema>
