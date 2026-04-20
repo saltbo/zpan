@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { DirType } from '../../shared/constants'
 import { matters } from '../db/schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
-import { cascadeDeleteByMatter, createShare, incrementDownloadsAtomic, revokeShare } from './share'
+import { cascadeDeleteByMatter, createShare, incrementDownloadsAtomic, resolveShareByToken, revokeShare } from './share'
 
 function buildDb() {
   return createCloudflarePlatform(env).db
@@ -108,9 +108,7 @@ describe('[CF] cascadeDeleteByMatter on D1', () => {
 
     await cascadeDeleteByMatter(db, matter.id)
 
-    // Share should be gone (token lookup returns null due to deletion)
-    // We verify by checking the share lookup returns null
-    const { getShareByToken } = await import('./share')
-    expect(await getShareByToken(db, share.token)).toBeNull()
+    // Share should be gone after cascade deletion
+    expect((await resolveShareByToken(db, share.token)).found).toBe(false)
   })
 })

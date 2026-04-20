@@ -13,6 +13,8 @@ import { notifications } from './routes/notifications'
 import objects from './routes/objects'
 import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
+import shareDirect from './routes/share-direct'
+import shareLanding from './routes/share-landing'
 import shares from './routes/shares'
 import storages from './routes/storages'
 import system from './routes/system'
@@ -40,6 +42,10 @@ export function createApp(platform: Platform, auth: Auth) {
     const a = c.get('auth')
     return a.handler(c.req.raw)
   })
+
+  // Public share routes — no auth required; mount before authMiddleware
+  app.route('/s', shareLanding)
+  app.route('/dl', shareDirect)
 
   // Public routes — no auth required; mount before authMiddleware
   app.route('/api/profiles', profile)

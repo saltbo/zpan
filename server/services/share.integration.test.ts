@@ -7,12 +7,12 @@ import { createTestApp } from '../test/setup.js'
 import {
   cascadeDeleteByMatter,
   createShare,
-  getShareByToken,
   incrementDownloadsAtomic,
   incrementViews,
   isAccessibleByUser,
   listShareRecipientUserIds,
   listSharesByCreator,
+  resolveShareByToken,
   revokeShare,
   verifyPassword,
 } from './share.js'
@@ -158,10 +158,10 @@ describe('createShare', () => {
   })
 })
 
-// ─── getShareByToken ──────────────────────────────────────────────────────────
+// ─── resolveShareByToken ──────────────────────────────────────────────────────
 
-describe('getShareByToken', () => {
-  it('returns full data including matter and recipients', async () => {
+describe('resolveShareByToken', () => {
+  it('returns full data including matter and recipients when found', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const matter = await seedMatter(db, { orgId })
@@ -174,39 +174,49 @@ describe('getShareByToken', () => {
       recipients: [{ recipientUserId: 'user-42' }],
     })
 
-    const result = await getShareByToken(db, share.token)
-    expect(result).not.toBeNull()
-    expect(result!.share.id).toBe(share.id)
-    expect(result!.matter.id).toBe(matter.id)
-    expect(result!.recipients).toHaveLength(1)
-    expect(result!.recipients[0].recipientUserId).toBe('user-42')
+    const resolved = await resolveShareByToken(db, share.token)
+    expect(resolved.found).toBe(true)
+    if (!resolved.found) throw new Error('expected found')
+    expect(resolved.share.id).toBe(share.id)
+    expect(resolved.matter.id).toBe(matter.id)
+    expect(resolved.recipients).toHaveLength(1)
+    expect(resolved.recipients[0].recipientUserId).toBe('user-42')
   })
 
-  it('returns null when token does not exist', async () => {
+  it('returns not_found when token does not exist', async () => {
     const { db } = await createTestApp()
-    expect(await getShareByToken(db, 'nonexistent')).toBeNull()
+    const resolved = await resolveShareByToken(db, 'nonexistent')
+    expect(resolved.found).toBe(false)
+    if (resolved.found) throw new Error('expected not found')
+    expect(resolved.reason).toBe('not_found')
   })
 
-  it('returns null when share status is revoked', async () => {
+  it('returns revoked when share status is revoked', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const matter = await seedMatter(db, { orgId })
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
 
     await revokeShare(db, share.id, 'u1')
-    expect(await getShareByToken(db, share.token)).toBeNull()
+    const resolved = await resolveShareByToken(db, share.token)
+    expect(resolved.found).toBe(false)
+    if (resolved.found) throw new Error('expected not found')
+    expect(resolved.reason).toBe('revoked')
   })
 
-  it('returns null when underlying matter is trashed', async () => {
+  it('returns trashed when underlying matter is trashed', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const matter = await seedMatter(db, { orgId, status: 'trashed' })
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
 
-    expect(await getShareByToken(db, share.token)).toBeNull()
+    const resolved = await resolveShareByToken(db, share.token)
+    expect(resolved.found).toBe(false)
+    if (resolved.found) throw new Error('expected not found')
+    expect(resolved.reason).toBe('trashed')
   })
 
-  it('returns data again after matter is restored from trash', async () => {
+  it('returns found again after matter is restored from trash', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const matter = await seedMatter(db, { orgId, status: 'active' })
@@ -214,13 +224,14 @@ describe('getShareByToken', () => {
 
     // Trash it
     await db.update(matters).set({ status: 'trashed' }).where(eq(matters.id, matter.id))
-    expect(await getShareByToken(db, share.token)).toBeNull()
+    expect((await resolveShareByToken(db, share.token)).found).toBe(false)
 
     // Restore it
     await db.update(matters).set({ status: 'active' }).where(eq(matters.id, matter.id))
-    const result = await getShareByToken(db, share.token)
-    expect(result).not.toBeNull()
-    expect(result!.share.id).toBe(share.id)
+    const resolved = await resolveShareByToken(db, share.token)
+    expect(resolved.found).toBe(true)
+    if (!resolved.found) throw new Error('expected found')
+    expect(resolved.share.id).toBe(share.id)
   })
 })
 
@@ -299,8 +310,9 @@ describe('incrementViews', () => {
     await incrementViews(db, share.id)
     await incrementViews(db, share.id)
 
-    const result = await getShareByToken(db, share.token)
-    expect(result!.share.views).toBe(2)
+    const resolved = await resolveShareByToken(db, share.token)
+    if (!resolved.found) throw new Error('expected found')
+    expect(resolved.share.views).toBe(2)
   })
 })
 
@@ -456,7 +468,7 @@ describe('revokeShare', () => {
     const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'u1', kind: 'landing' })
 
     await revokeShare(db, share.id, 'u1')
-    expect(await getShareByToken(db, share.token)).toBeNull()
+    expect((await resolveShareByToken(db, share.token)).found).toBe(false)
   })
 
   it('throws when non-creator tries to revoke', async () => {
@@ -527,7 +539,7 @@ describe('cascadeDeleteByMatter', () => {
 
     await cascadeDeleteByMatter(db, matter.id)
 
-    expect(await getShareByToken(db, share.token)).toBeNull()
+    expect((await resolveShareByToken(db, share.token)).found).toBe(false)
     const userIds = await listShareRecipientUserIds(db, share.id)
     expect(userIds).toEqual([])
   })
@@ -549,7 +561,7 @@ describe('cascadeDeleteByMatter', () => {
 
     await cascadeDeleteByMatter(db, matter.id)
 
-    expect(await getShareByToken(db, s1.token)).toBeNull()
-    expect(await getShareByToken(db, s2.token)).toBeNull()
+    expect((await resolveShareByToken(db, s1.token)).found).toBe(false)
+    expect((await resolveShareByToken(db, s2.token)).found).toBe(false)
   })
 })

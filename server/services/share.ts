@@ -66,10 +66,11 @@ export async function createShare(db: Database, input: CreateShareInput): Promis
   return share
 }
 
-export async function getShareByToken(
-  db: Database,
-  token: string,
-): Promise<{ share: Share; matter: typeof matters.$inferSelect; recipients: ShareRecipient[] } | null> {
+export type ShareResolution =
+  | { found: false; reason: 'not_found' | 'revoked' | 'trashed' }
+  | { found: true; share: Share; matter: typeof matters.$inferSelect; recipients: ShareRecipient[] }
+
+export async function resolveShareByToken(db: Database, token: string): Promise<ShareResolution> {
   const rows = await db
     .select({ share: shares, matter: matters })
     .from(shares)
@@ -77,13 +78,13 @@ export async function getShareByToken(
     .where(eq(shares.token, token))
 
   const row = rows[0]
-  if (!row) return null
-  if (row.share.status === 'revoked') return null
-  if (row.matter.status === 'trashed') return null
+  if (!row) return { found: false, reason: 'not_found' }
+  if (row.share.status === 'revoked') return { found: false, reason: 'revoked' }
+  if (row.matter.status === 'trashed') return { found: false, reason: 'trashed' }
 
   const recipients = await db.select().from(shareRecipients).where(eq(shareRecipients.shareId, row.share.id))
 
-  return { share: row.share, matter: row.matter, recipients }
+  return { found: true, share: row.share, matter: row.matter, recipients }
 }
 
 export async function incrementViews(db: Database, shareId: string): Promise<void> {
