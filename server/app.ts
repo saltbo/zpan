@@ -13,6 +13,8 @@ import { notifications } from './routes/notifications'
 import objects from './routes/objects'
 import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
+import shareApi from './routes/share-api'
+import shareDirect from './routes/share-direct'
 import shares from './routes/shares'
 import storages from './routes/storages'
 import system from './routes/system'
@@ -40,6 +42,13 @@ export function createApp(platform: Platform, auth: Auth) {
     const a = c.get('auth')
     return a.handler(c.req.raw)
   })
+
+  // Public share routes — no auth required; mount before authMiddleware.
+  // /api/share/* is covered by run_worker_first=["/api/*"] in wrangler.toml.
+  // /dl/* is listed separately in run_worker_first.
+  // /s/:token is intentionally left for the T8 SPA landing page.
+  app.route('/api/share', shareApi)
+  app.route('/dl', shareDirect)
 
   // Public routes — no auth required; mount before authMiddleware
   app.route('/api/profiles', profile)

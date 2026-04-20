@@ -5,8 +5,8 @@ import { DirType } from '../../shared/constants'
 import { matters } from '../db/schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 import { S3Service } from './s3'
-import { resolveShareByToken, saveShareToDrive } from './save-to-drive'
-import { createShare, revokeShare } from './share'
+import { saveShareToDrive } from './save-to-drive'
+import { createShare, resolveShareByToken, revokeShare } from './share'
 
 function buildDb() {
   return createCloudflarePlatform(env).db
@@ -143,7 +143,7 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
       targetParent: '',
     })
 
-    const rows = await db.select().from(matters).where(
+    const _rows = await db.select().from(matters).where(
       // Check that the original share downloads didn't change
     )
     // Verify by re-querying the share

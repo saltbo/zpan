@@ -5,8 +5,8 @@ import { DirType } from '../../shared/constants'
 import { activityEvents, matters, orgQuotas, shares } from '../db/schema'
 import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
-import { computeSourceBytes, isQuotaSufficient, resolveShareByToken, saveShareToDrive } from './save-to-drive.js'
-import { createShare } from './share.js'
+import { computeSourceBytes, isQuotaSufficient, saveShareToDrive } from './save-to-drive.js'
+import { createShare, resolveShareByToken } from './share.js'
 
 // ─── Test fixtures ────────────────────────────────────────────────────────────
 
@@ -461,7 +461,7 @@ describe('POST /api/shares/:token/save', () => {
     const userId: string = sessionData?.user?.id ?? ''
 
     const orgRows = await db.all<{ id: string }>(sql`
-      SELECT id FROM organization WHERE slug LIKE ${'personal-' + userId} LIMIT 1
+      SELECT id FROM organization WHERE slug LIKE ${`personal-${userId}`} LIMIT 1
     `)
     const personalOrgId = orgRows[0]?.id ?? ''
 

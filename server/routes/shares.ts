@@ -5,7 +5,8 @@ import { saveShareRequestSchema } from '../../shared/schemas/share'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { getMemberRole, isPersonalOrg } from '../services/org'
-import { computeSourceBytes, isQuotaSufficient, resolveShareByToken, saveShareToDrive } from '../services/save-to-drive'
+import { computeSourceBytes, isQuotaSufficient, saveShareToDrive } from '../services/save-to-drive'
+import { resolveShareByToken } from '../services/share'
 
 const ROLE_LEVELS: Record<string, number> = {
   owner: 3,
