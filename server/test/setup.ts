@@ -168,6 +168,31 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS activity_events_org_id_idx ON activity_events(org_id);
+  CREATE TABLE IF NOT EXISTS shares (
+    id TEXT PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL,
+    matter_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    creator_id TEXT NOT NULL,
+    password_hash TEXT,
+    expires_at INTEGER,
+    download_limit INTEGER,
+    views INTEGER NOT NULL DEFAULT 0,
+    downloads INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS shares_creator_status_created_idx ON shares(creator_id, status, created_at);
+  CREATE TABLE IF NOT EXISTS share_recipients (
+    id TEXT PRIMARY KEY,
+    share_id TEXT NOT NULL,
+    recipient_user_id TEXT,
+    recipient_email TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS share_recipients_share_id_idx ON share_recipients(share_id);
+  CREATE INDEX IF NOT EXISTS share_recipients_user_id_idx ON share_recipients(recipient_user_id);
 `
 
 export async function createTestApp() {

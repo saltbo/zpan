@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export type { CreateShareInput, ShareKind } from './share'
+export { createShareSchema, listSharesQuerySchema, shareKindSchema, shareRecipientSchema } from './share'
 export type { CreateStorageInput, UpdateStorageInput } from './storage'
 export { createStorageSchema, updateStorageSchema } from './storage'
 

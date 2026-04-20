@@ -3,6 +3,7 @@ import type { Storage as S3Storage } from '../../shared/types'
 import type { Database } from '../platform/interface'
 import { decrementUsage, type Matter, purgeMatters } from './matter'
 import { S3Service } from './s3'
+import { cascadeDeleteByMatter } from './share'
 import { getStorage } from './storage'
 
 const s3 = new S3Service()
@@ -30,6 +31,10 @@ export async function purgeRecursively(db: Database, orgId: string, matters: Mat
 
   for (const { storage, keys } of keysByStorage.values()) {
     if (storage && keys.length > 0) await s3.deleteObjects(storage, keys)
+  }
+
+  for (const m of matters) {
+    await cascadeDeleteByMatter(db, m.id)
   }
 
   await purgeMatters(
