@@ -134,61 +134,72 @@ const app = new Hono<Env>()
     res.headers.set('Cache-Control', 'no-store')
     return res
   })
-  .get('/:token/children', async (c) => {
-    const token = c.req.param('token')
-    const db = c.get('platform').db
+  .get(
+    '/:token/children',
+    zValidator(
+      'query',
+      z.object({
+        path: z.string().optional(),
+        page: z.string().optional(),
+        pageSize: z.string().optional(),
+      }),
+    ),
+    async (c) => {
+      const token = c.req.param('token')
+      const db = c.get('platform').db
 
-    const resolved = await resolveShareByToken(db, token)
-    if (resolved.status !== 'ok') {
-      if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
-      return c.json({ error: 'Share not found or revoked' }, 404)
-    }
+      const resolved = await resolveShareByToken(db, token)
+      if (resolved.status !== 'ok') {
+        if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
+        return c.json({ error: 'Share not found or revoked' }, 404)
+      }
 
-    const { share, matter, recipients } = resolved
-    if (share.kind !== 'landing') return c.json({ error: 'Share not found or revoked' }, 404)
-    if (matter.dirtype === DirType.FILE) return c.json({ error: 'Not a folder share' }, 400)
+      const { share, matter, recipients } = resolved
+      if (share.kind !== 'landing') return c.json({ error: 'Share not found or revoked' }, 404)
+      if (matter.dirtype === DirType.FILE) return c.json({ error: 'Not a folder share' }, 400)
 
-    const userId = await readUserId(c)
-    const cookieVal = getCookie(c, cookieName(token))
-    const gate = checkAccessGate(share.passwordHash, recipients, userId, cookieVal)
-    if (gate === 'password_required') return c.json({ error: 'Password required' }, 401)
+      const userId = await readUserId(c)
+      const cookieVal = getCookie(c, cookieName(token))
+      const gate = checkAccessGate(share.passwordHash, recipients, userId, cookieVal)
+      if (gate === 'password_required') return c.json({ error: 'Password required' }, 401)
 
-    if (share.expiresAt && share.expiresAt < new Date()) return c.json({ error: 'Share has expired' }, 410)
+      if (share.expiresAt && share.expiresAt < new Date()) return c.json({ error: 'Share has expired' }, 410)
 
-    const relativePath = c.req.query('path') ?? ''
-    if (relativePath.includes('..')) return c.json({ error: 'Invalid path' }, 400)
+      const { path: relativePath = '', page: rawPageStr = '1', pageSize: rawPageSizeStr = '50' } = c.req.valid('query')
+      if (relativePath.includes('..')) return c.json({ error: 'Invalid path' }, 400)
 
-    const rawPage = parseInt(c.req.query('page') ?? '1', 10)
-    const rawPageSize = parseInt(c.req.query('pageSize') ?? '50', 10)
-    const page = Number.isNaN(rawPage) ? 1 : Math.max(1, rawPage)
-    const pageSize = Number.isNaN(rawPageSize) ? 50 : Math.min(200, Math.max(1, rawPageSize))
+      const rawPage = parseInt(rawPageStr, 10)
+      const rawPageSize = parseInt(rawPageSizeStr, 10)
+      const page = Number.isNaN(rawPage) ? 1 : Math.max(1, rawPage)
+      const pageSize = Number.isNaN(rawPageSize) ? 50 : Math.min(200, Math.max(1, rawPageSize))
 
-    const root = folderRootPath(matter)
-    const queryParent = relativePath ? `${root}/${relativePath}` : root
+      const root = folderRootPath(matter)
+      const queryParent = relativePath ? `${root}/${relativePath}` : root
 
-    const result = await listMatters(db, matter.orgId, {
-      parent: queryParent,
-      status: 'active',
-      page,
-      pageSize,
-    })
+      const result = await listMatters(db, matter.orgId, {
+        parent: queryParent,
+        status: 'active',
+        page,
+        pageSize,
+      })
 
-    const items = result.items.map((m) => ({
-      id: encodeChildRef(token, m.id),
-      name: m.name,
-      type: m.type,
-      size: m.size,
-      isFolder: m.dirtype !== DirType.FILE,
-    }))
+      const items = result.items.map((m) => ({
+        id: encodeChildRef(token, m.id),
+        name: m.name,
+        type: m.type,
+        size: m.size,
+        isFolder: m.dirtype !== DirType.FILE,
+      }))
 
-    return c.json({
-      items,
-      total: result.total,
-      page,
-      pageSize,
-      breadcrumb: buildBreadcrumb(matter.name, relativePath),
-    })
-  })
+      return c.json({
+        items,
+        total: result.total,
+        page,
+        pageSize,
+        breadcrumb: buildBreadcrumb(matter.name, relativePath),
+      })
+    },
+  )
   .get('/:token/download/:childRef', async (c) => {
     const token = c.req.param('token')
     const childRef = c.req.param('childRef')

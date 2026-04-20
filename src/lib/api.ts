@@ -18,7 +18,9 @@ import {
   notificationsApi,
   objects,
   profiles,
+  sharePublicApi,
   sharesApi,
+  sharesSaveApi,
   storages,
   system,
   teamsApi,
@@ -412,6 +414,72 @@ export async function getSession(): Promise<{ session: unknown; user: unknown } 
   const res = await fetch('/api/auth/get-session', { credentials: 'include' })
   if (!res.ok) return null
   return res.json()
+}
+
+// Public Share Landing API
+
+export interface ShareLandingResponse {
+  kind: 'landing'
+  matterName: string
+  matterType: string
+  matterSize: number
+  isFolder: boolean
+  requiresPassword: boolean
+  expired: boolean
+  exhausted: boolean
+  expiresAt: string | null
+  downloadLimit: number | null
+  downloads: number
+  views: number
+  creatorName: string
+  accessibleByUser: boolean
+}
+
+export function getShareLanding(token: string) {
+  return unwrap<ShareLandingResponse>(sharePublicApi[':token'].$get({ param: { token } }))
+}
+
+export function verifySharePassword(token: string, password: string) {
+  return unwrap<{ ok: boolean }>(sharePublicApi[':token'].verify.$post({ param: { token }, json: { password } }))
+}
+
+export interface ShareChildItem {
+  id: string
+  name: string
+  type: string
+  size: number
+  isFolder: boolean
+}
+
+export interface ShareChildrenResponse {
+  items: ShareChildItem[]
+  total: number
+  page: number
+  pageSize: number
+  breadcrumb: Array<{ name: string; path: string }>
+}
+
+export function getShareChildren(token: string, path = '', page = 1, pageSize = 50) {
+  return unwrap<ShareChildrenResponse>(
+    sharePublicApi[':token'].children.$get({
+      param: { token },
+      query: { path, page: String(page), pageSize: String(pageSize) },
+    }),
+  )
+}
+
+export interface SaveShareInput {
+  targetOrgId: string
+  targetParent: string
+}
+
+export interface SaveShareResult {
+  saved: Array<{ id: string; name: string }>
+  skipped: Array<{ name: string; reason: string }>
+}
+
+export function saveShareToDrive(token: string, data: SaveShareInput) {
+  return unwrap<SaveShareResult>(sharesSaveApi[':token'].save.$post({ param: { token }, json: data }))
 }
 
 // S3 direct upload (external presigned URL, not our API)

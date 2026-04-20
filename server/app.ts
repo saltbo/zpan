@@ -82,6 +82,7 @@ export type AppType = ReturnType<typeof createApp>
 
 // Sub-router types for RPC clients — avoids combined AppType OOM
 export type ObjectsRoute = typeof objects
+export type ShareApiRoute = typeof shareApi
 export type SharesRoute = typeof shares
 export type TrashRoute = typeof trash
 export type StoragesRoute = typeof storages

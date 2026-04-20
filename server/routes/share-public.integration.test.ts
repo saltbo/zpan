@@ -368,6 +368,28 @@ describe('GET /s/:token/download', () => {
 // ─── GET /s/:token/children ────────────────────────────────────────────────────
 
 describe('GET /s/:token/children', () => {
+  it('returns 404 for invalid token', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/share/no-such-token/children')
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 410 for trashed matter', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFolder(db, orgId, { id: 'trashed-dir', name: 'Gone', status: 'trashed' })
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
+      VALUES ('sh-trash-ch', 'token-trash-ch', 'landing', 'trashed-dir', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
+    `)
+    const res = await app.request('/api/share/token-trash-ch/children')
+    expect(res.status).toBe(410)
+  })
+
   it('returns 400 for non-folder share', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
@@ -597,6 +619,57 @@ describe('GET /dl/:token', () => {
     // No auth headers at all
     const res = await app.request(`/dl/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
+  })
+})
+
+// ─── GET /s/:token/children — path traversal guard ───────────────────────────
+
+describe('GET /s/:token/children — path traversal', () => {
+  it('returns 400 when path contains ..', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFolder(db, orgId, { id: 'traversal-dir', name: 'Safe' })
+    const share = await createShare(db, { matterId: 'traversal-dir', orgId, creatorId, kind: 'landing' })
+
+    const res = await app.request(`/api/share/${share.token}/children?path=../etc`)
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('Invalid path')
+  })
+
+  it('respects explicit page and pageSize query params', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFolder(db, orgId, { id: 'pg-dir', name: 'Paged' })
+    const share = await createShare(db, { matterId: 'pg-dir', orgId, creatorId, kind: 'landing' })
+
+    const res = await app.request(`/api/share/${share.token}/children?page=2&pageSize=10`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { page: number; pageSize: number }
+    expect(body.page).toBe(2)
+    expect(body.pageSize).toBe(10)
+  })
+
+  it('falls back to defaults when page/pageSize are non-numeric', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFolder(db, orgId, { id: 'nan-dir', name: 'NaN' })
+    const share = await createShare(db, { matterId: 'nan-dir', orgId, creatorId, kind: 'landing' })
+
+    const res = await app.request(`/api/share/${share.token}/children?page=abc&pageSize=xyz`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { page: number; pageSize: number }
+    expect(body.page).toBe(1)
+    expect(body.pageSize).toBe(50)
   })
 })
 
