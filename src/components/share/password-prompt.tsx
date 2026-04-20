@@ -25,7 +25,7 @@ export function PasswordPrompt({ token, fileName, onUnlocked }: PasswordPromptPr
       await verifySharePassword(token, password)
       onUnlocked()
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
+      if (err instanceof ApiError && err.status === 403) {
         setError(t('share.passwordWrong'))
       } else {
         setError(t('share.loadError'))

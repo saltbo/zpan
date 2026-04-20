@@ -85,7 +85,7 @@ const app = new Hono<Env>()
     const { share } = resolved
     if (share.kind !== 'landing') return c.json({ error: 'Share not found or revoked' }, 404)
 
-    if (!verifyPassword(share, password)) return c.json({ error: 'Invalid password' }, 401)
+    if (!verifyPassword(share, password)) return c.json({ error: 'Invalid password' }, 403)
 
     const now = new Date()
     const oneDayMs = 24 * 60 * 60 * 1000

@@ -214,7 +214,7 @@ describe('POST /s/:token/verify', () => {
     expect(cookieHeader).toContain('HttpOnly')
   })
 
-  it('returns 401 on wrong password', async () => {
+  it('returns 403 on wrong password', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -234,7 +234,7 @@ describe('POST /s/:token/verify', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: 'wrongpassword' }),
     })
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(403)
   })
 })
 

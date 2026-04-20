@@ -1152,8 +1152,8 @@ describe('api', () => {
       expect(JSON.parse(init.body as string)).toEqual({ password: 'secret' })
     })
 
-    it('throws ApiError on 401 (wrong password)', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Invalid password' }, false, 401))
+    it('throws ApiError on 403 (wrong password)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Invalid password' }, false, 403))
 
       await expect(verifySharePassword('tok123', 'wrong')).rejects.toThrow('Invalid password')
     })
