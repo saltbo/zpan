@@ -15,6 +15,8 @@ import {
   deleteStorage,
   deleteUser,
   emptyTrash,
+  enableIhostFeature,
+  getIhostConfig,
   getObject,
   getProfile,
   getSession,
@@ -1225,6 +1227,104 @@ describe('api', () => {
       await expect(saveShareToDrive('tok123', { targetOrgId: 'org-1', targetParent: '' })).rejects.toThrow(
         'Share target has been deleted',
       )
+    })
+  })
+
+  describe('getIhostConfig', () => {
+    it('calls GET /api/ihost/config and returns config when enabled', async () => {
+      const payload = {
+        enabled: true,
+        customDomain: null,
+        domainVerifiedAt: null,
+        domainStatus: 'none',
+        dnsInstructions: null,
+        refererAllowlist: null,
+        createdAt: 1700000000000,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getIhostConfig()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/ihost/config')
+    })
+
+    it('returns null when feature is not enabled', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null))
+
+      const result = await getIhostConfig()
+
+      expect(result).toBeNull()
+    })
+
+    it('passes credentials: include', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null))
+
+      await getIhostConfig()
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(init.credentials).toBe('include')
+    })
+
+    it('throws ApiError on 401', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
+
+      await expect(getIhostConfig()).rejects.toThrow('Unauthorized')
+    })
+  })
+
+  describe('enableIhostFeature', () => {
+    it('calls PUT /api/ihost/config with enabled: true and returns config', async () => {
+      const payload = {
+        enabled: true,
+        customDomain: null,
+        domainVerifiedAt: null,
+        domainStatus: 'none',
+        dnsInstructions: null,
+        refererAllowlist: null,
+        createdAt: 1700000000000,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload, true, 200))
+
+      const result = await enableIhostFeature()
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/ihost/config')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(init.body as string)).toEqual({ enabled: true })
+    })
+
+    it('passes credentials: include', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({
+          enabled: true,
+          customDomain: null,
+          domainVerifiedAt: null,
+          domainStatus: 'none',
+          dnsInstructions: null,
+          refererAllowlist: null,
+          createdAt: 1700000000000,
+        }),
+      )
+
+      await enableIhostFeature()
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(init.credentials).toBe('include')
+    })
+
+    it('throws ApiError on 403 (insufficient role)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(enableIhostFeature()).rejects.toThrow('Forbidden')
+    })
+
+    it('throws ApiError on 409 (domain already in use)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Domain already in use' }, false, 409))
+
+      await expect(enableIhostFeature()).rejects.toThrow('Domain already in use')
     })
   })
 })

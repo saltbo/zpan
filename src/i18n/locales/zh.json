@@ -31,6 +31,7 @@
   "nav.music": "音乐",
   "nav.documents": "文档",
   "nav.trash": "回收站",
+  "nav.imageHost": "图床",
   "nav.settings": "设置",
   "nav.adminPanel": "管理后台",
   "nav.teams": "团队",
@@ -531,5 +532,13 @@
   "share.passwordOnce": "密码仅显示一次，请在关闭前保存",
   "share.copyShareText": "复制分享文案",
   "share.textCopied": "分享文案已复制",
-  "share.shareTextTemplate": "链接：{{url}}\n密码：{{password}}"
+  "share.shareTextTemplate": "链接：{{url}}\n密码：{{password}}",
+
+  "ihost.title": "图床",
+  "ihost.enableCta.title": "启用图床",
+  "ihost.enableCta.description": "通过 PicGo、uPic、ShareX 或网页上传图片，获取绑定到你自己域名的永久链接。",
+  "ihost.enableCta.button": "启用",
+  "ihost.enableCta.adminOnly": "只有工作区管理员才能启用此功能。",
+  "ihost.empty.title": "暂无图片",
+  "ihost.empty.description": "拖放或粘贴图片以上传。"
 }

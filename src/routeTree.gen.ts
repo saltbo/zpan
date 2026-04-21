@@ -38,6 +38,7 @@ import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_
 import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
 import { Route as AuthenticatedTeamsTeamIdActivityRouteImport } from './routes/_authenticated/teams/$teamId/activity'
 import { Route as AuthenticatedAdminSettingsAuthRouteImport } from './routes/_authenticated/admin/settings/auth'
+import { Route as AuthenticatedImageHostIndexRouteImport } from './routes/_authenticated/image-host/index'
 
 const SRouteRoute = SRouteRouteImport.update({
   id: '/s',
@@ -200,6 +201,12 @@ const AuthenticatedAdminSettingsAuthRoute =
     path: '/settings/auth',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedImageHostIndexRoute =
+  AuthenticatedImageHostIndexRouteImport.update({
+    id: '/image-host/',
+    path: '/image-host',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/teams/': typeof AuthenticatedTeamsIndexRoute
   '/trash/': typeof AuthenticatedTrashIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
+  '/image-host/': typeof AuthenticatedImageHostIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -250,6 +258,7 @@ export interface FileRoutesByTo {
   '/teams': typeof AuthenticatedTeamsIndexRoute
   '/trash': typeof AuthenticatedTrashIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/image-host': typeof AuthenticatedImageHostIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -282,6 +291,7 @@ export interface FileRoutesById {
   '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
   '/_authenticated/trash/': typeof AuthenticatedTrashIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/image-host/': typeof AuthenticatedImageHostIndexRoute
   '/_authenticated/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/_authenticated/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/_authenticated/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/teams/'
     | '/trash/'
     | '/users/'
+    | '/image-host/'
     | '/admin/settings/auth'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/trash'
     | '/users'
+    | '/image-host'
     | '/admin/settings/auth'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
@@ -373,6 +385,7 @@ export interface FileRouteTypes {
     | '/_authenticated/teams/'
     | '/_authenticated/trash/'
     | '/_authenticated/users/'
+    | '/_authenticated/image-host/'
     | '/_authenticated/admin/settings/auth'
     | '/_authenticated/teams/$teamId/activity'
     | '/_authenticated/teams/$teamId/members'
@@ -596,6 +609,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsAuthRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/image-host/': {
+      id: '/_authenticated/image-host/'
+      path: '/image-host'
+      fullPath: '/image-host/'
+      preLoaderRoute: typeof AuthenticatedImageHostIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -673,6 +693,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
   AuthenticatedTrashIndexRoute: typeof AuthenticatedTrashIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedImageHostIndexRoute: typeof AuthenticatedImageHostIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -688,6 +709,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
   AuthenticatedTrashIndexRoute: AuthenticatedTrashIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedImageHostIndexRoute: AuthenticatedImageHostIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
