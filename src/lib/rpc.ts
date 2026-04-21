@@ -5,6 +5,7 @@ import type {
   AuthedSharesRoute,
   AuthProvidersRoute,
   EmailConfigRoute,
+  IhostConfigRoute,
   NotificationsRoute,
   ObjectsRoute,
   ProfileRoute,
@@ -41,3 +42,5 @@ export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opt
 // are split across two sub-apps (public vs. authed) mounted at the same path.
 export const publicSharesApi = hc<PublicSharesRoute>('/api/shares', opts)
 export const authedSharesApi = hc<AuthedSharesRoute>('/api/shares', opts)
+
+export const ihostConfigApi = hc<IhostConfigRoute>('/api/ihost/config', opts)

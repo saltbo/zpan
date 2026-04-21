@@ -3,6 +3,7 @@ import type { ConflictStrategy, CreateShareRequest, CreateStorageInput, UpdateSt
 import type {
   ActivityEvent,
   AuthProvider,
+  IhostConfigResponse,
   Notification,
   PaginatedResponse,
   ShareListItem,
@@ -16,6 +17,7 @@ import {
   authedSharesApi,
   authProviders,
   emailConfig,
+  ihostConfigApi,
   inviteCodes,
   notificationsApi,
   objects,
@@ -457,6 +459,18 @@ export interface SaveShareResult {
 
 export function saveShareToDrive(token: string, data: SaveShareInput) {
   return unwrap<SaveShareResult>(authedSharesApi[':token'].objects.$post({ param: { token }, json: data }))
+}
+
+// Image Host Config API
+
+export type { IhostConfigResponse }
+
+export function getIhostConfig() {
+  return unwrap<IhostConfigResponse | null>(ihostConfigApi.index.$get())
+}
+
+export function enableIhostFeature() {
+  return unwrap<IhostConfigResponse>(ihostConfigApi.index.$put({ json: { enabled: true } }))
 }
 
 // Auth API — Better Auth passthrough, not typed via Hono RPC

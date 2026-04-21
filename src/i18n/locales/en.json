@@ -31,6 +31,7 @@
   "nav.music": "Music",
   "nav.documents": "Documents",
   "nav.trash": "Trash",
+  "nav.imageHost": "Image Host",
   "nav.settings": "Settings",
   "nav.adminPanel": "Admin Panel",
   "nav.teams": "Teams",
@@ -531,5 +532,13 @@
   "share.passwordOnce": "Password is only shown once — save it before closing",
   "share.copyShareText": "Copy share text",
   "share.textCopied": "Share text copied to clipboard",
-  "share.shareTextTemplate": "Link: {{url}}\nPassword: {{password}}"
+  "share.shareTextTemplate": "Link: {{url}}\nPassword: {{password}}",
+
+  "ihost.title": "Image Hosting",
+  "ihost.enableCta.title": "Enable Image Hosting",
+  "ihost.enableCta.description": "Upload images via PicGo, uPic, ShareX or the Web UI. Get permanent URLs on your own domain.",
+  "ihost.enableCta.button": "Enable",
+  "ihost.enableCta.adminOnly": "Only workspace admins can enable this feature.",
+  "ihost.empty.title": "No images yet",
+  "ihost.empty.description": "Drag and drop or paste an image to upload."
 }

@@ -36,10 +36,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { useSiteOptions } from '@/hooks/use-site-options'
-import { getUserQuota } from '@/lib/api'
-import { signOut, useSession } from '@/lib/auth-client'
+import { getIhostConfig, getUserQuota } from '@/lib/api'
+import { signOut, useActiveOrganization, useSession } from '@/lib/auth-client'
 import { OrgSwitcher } from '../team/org-switcher'
 import { FolderTree } from './folder-tree'
 
@@ -64,12 +65,18 @@ export function AppSidebar() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { data: session } = useSession()
+  const { data: activeOrg } = useActiveOrganization()
   const { siteName } = useSiteOptions()
   const user = session?.user as { name: string; username?: string; role?: string } | undefined
   const isAdmin = user?.role === 'admin'
   const { data: quota } = useQuery({
     queryKey: ['user', 'quota'],
     queryFn: getUserQuota,
+    enabled: !!session,
+  })
+  const { data: ihostConfig } = useQuery({
+    queryKey: ['ihost', 'config', activeOrg?.id],
+    queryFn: getIhostConfig,
     enabled: !!session,
   })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
@@ -79,6 +86,7 @@ export function AppSidebar() {
   const activeFileType = (type: string) => isFiles && fileType === type
   const activeRecycleBin = pathname === '/trash'
   const activeShares = pathname.startsWith('/shares')
+  const activeImageHost = pathname === '/image-host'
 
   async function handleSignOut() {
     await signOut()
@@ -162,6 +170,19 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {ihostConfig?.enabled && (
+                <>
+                  <SidebarSeparator />
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={activeImageHost}>
+                      <Link to="/image-host">
+                        <Image className="h-4 w-4" />
+                        <span>{t('nav.imageHost')}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
