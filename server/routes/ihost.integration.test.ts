@@ -108,7 +108,7 @@ async function insertImageHosting(
 // ─── POST /images (multipart-only) — 415 for non-multipart ──────────────────
 
 describe('POST /api/ihost/images (multipart-only)', () => {
-  it('returns 415 for application/json (use /images/presign instead)', async () => {
+  it('returns 200 for application/json when authed (connection validation for tools like uPic)', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -120,12 +120,25 @@ describe('POST /api/ihost/images (multipart-only)', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
     })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('ok')
+  })
+
+  it('returns 415 for application/json without any auth', async () => {
+    const { app } = await createTestApp()
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
+    })
     expect(res.status).toBe(415)
     const body = (await res.json()) as Record<string, unknown>
     expect(String(body.error)).toContain('multipart/form-data')
   })
 
-  it('returns 415 for text/plain', async () => {
+  it('returns 200 for text/plain when authed (connection validation)', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -137,7 +150,20 @@ describe('POST /api/ihost/images (multipart-only)', () => {
       headers: { ...headers, 'Content-Type': 'text/plain' },
       body: 'hello',
     })
-    expect(res.status).toBe(415)
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 200 for Bearer token validation (uPic/PicGo validate)', async () => {
+    const { app } = await createTestApp()
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer some-key' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.status).toBe('ok')
   })
 })
 
@@ -710,6 +736,45 @@ describe('POST /api/ihost/images (multipart)', () => {
     expect(res.status).toBe(415)
     const body = (await res.json()) as Record<string, unknown>
     expect(String(body.error)).toContain('Unsupported')
+  })
+
+  it('infers MIME from file extension when type is application/octet-stream', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const formData = new FormData()
+    // Simulate uPic/PicGo sending a .png file with octet-stream MIME
+    formData.append('file', new File([new Uint8Array(100)], 'test.png', { type: 'application/octet-stream' }))
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    // Should NOT be 415 — MIME inferred as image/png from .png extension
+    // Will be 500 (no real S3) or success, but definitely not 415
+    expect(res.status).not.toBe(415)
+  })
+
+  it('infers MIME from file extension when type is empty', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(100)], 'photo.jpg', { type: '' }))
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).not.toBe(415)
   })
 
   it('returns 400 when file field is missing in multipart', async () => {

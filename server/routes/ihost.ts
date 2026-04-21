@@ -83,6 +83,12 @@ const app = new Hono<Env>()
     const contentType = c.req.header('Content-Type') ?? ''
 
     if (!contentType.includes('multipart/form-data')) {
+      // uPic and similar tools send a JSON POST to validate the connection.
+      // Return 200 so the validate check passes when auth is present.
+      const hasAuth = c.req.header('Authorization') || c.req.header('Cookie')
+      if (hasAuth) {
+        return c.json({ status: 'ok', message: 'Connection successful. Upload images using multipart/form-data.' })
+      }
       return c.json(
         { error: 'This endpoint only accepts multipart/form-data. Use POST /images/presign for JSON presign.' },
         415,
@@ -125,7 +131,20 @@ const app = new Hono<Env>()
       return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
     }
 
-    const mime = file.type || 'application/octet-stream'
+    // Infer MIME from file extension when the client doesn't set it properly
+    // (common with uPic, PicGo, and other upload tools)
+    let mime = file.type || ''
+    if (!mime || mime === 'application/octet-stream') {
+      const ext = file.name.split('.').pop()?.toLowerCase()
+      const extMap: Record<string, string> = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        gif: 'image/gif',
+        webp: 'image/webp',
+      }
+      mime = (ext && extMap[ext]) || mime || 'application/octet-stream'
+    }
     if (mime === 'image/svg+xml') return c.json({ error: 'SVG images are not allowed' }, 415)
     if (!(ALLOWED_IMAGE_MIMES as readonly string[]).includes(mime)) {
       return c.json({ error: 'Unsupported media type', allowedTypes: ALLOWED_IMAGE_MIMES }, 415)
