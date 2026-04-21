@@ -6,6 +6,7 @@ import { ApiKeysPanel } from '@/components/image-host-settings/api-keys-panel'
 import { CustomDomainPanel } from '@/components/image-host-settings/custom-domain-panel'
 import { DisableFeaturePanel } from '@/components/image-host-settings/disable-feature-panel'
 import { RefererAllowlistPanel } from '@/components/image-host-settings/referer-allowlist-panel'
+import { ToolIntegrationPanel } from '@/components/image-host-settings/tool-integration-panel'
 import { Card } from '@/components/ui/card'
 import { getIhostConfig } from '@/lib/api'
 import { useActiveOrganization, useSession } from '@/lib/auth-client'
@@ -72,6 +73,7 @@ function ImageHostSettingsPage() {
     <div className="max-w-2xl space-y-6">
       <h2 className="text-sm font-semibold">{t('settings.ihost.title')}</h2>
       <ApiKeysPanel orgId={orgId} />
+      <ToolIntegrationPanel orgId={orgId} />
       <CustomDomainPanel orgId={orgId} config={config} />
       <RefererAllowlistPanel orgId={orgId} config={config} />
       <DisableFeaturePanel orgId={orgId} />

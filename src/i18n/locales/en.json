@@ -603,5 +603,21 @@
   "settings.ihost.disable.confirmLabel": "Type DISABLE to confirm",
   "settings.ihost.disable.confirmPlaceholder": "DISABLE",
   "settings.ihost.disable.confirmButton": "Disable Image Hosting",
-  "settings.ihost.disable.success": "Image hosting disabled"
+  "settings.ihost.disable.success": "Image hosting disabled",
+  "settings.ihost.tools.section": "Tool Integration",
+  "settings.ihost.tools.description": "Upload from your favorite tools. Pick a tool below to generate its configuration.",
+  "settings.ihost.tools.noKeys": "Create an API key in the API Keys section before configuring tools.",
+  "settings.ihost.tools.keyLabel": "API Key",
+  "settings.ihost.tools.keyPlaceholder": "Select an API key",
+  "settings.ihost.tools.pasteKeyLabel": "Paste your key",
+  "settings.ihost.tools.pasteKeyPlaceholder": "Paste the plaintext key you saved at creation",
+  "settings.ihost.tools.pasteKeyHint": "Keys are only shown once at creation. Paste the key you saved. It is not stored beyond this session.",
+  "settings.ihost.tools.copy": "Copy",
+  "settings.ihost.tools.copiedLabel": "Copied!",
+  "settings.ihost.tools.copied": "Copied to clipboard",
+  "settings.ihost.tools.picgo.instructions": "Install the plugin via `picgo -e picgo-plugin-web-uploader` or the PicGo GUI Plugin Manager. Then go to Settings → Uploader → Custom Web and paste the JSON below.",
+  "settings.ihost.tools.upic.instructions": "In uPic go to Preferences → Host → New Custom and import the JSON below (File → Import Config).",
+  "settings.ihost.tools.sharex.instructions": "Download the .sxcu file and double-click it to import into ShareX. ShareX will automatically set ZPan as a custom uploader.",
+  "settings.ihost.tools.sharex.download": "Download .sxcu",
+  "settings.ihost.tools.flameshot.instructions": "Run the script below after a Flameshot capture. Requires curl, jq, and xclip. The uploaded image URL will be copied to your clipboard."
 }
