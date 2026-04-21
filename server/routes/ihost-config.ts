@@ -93,7 +93,7 @@ const app = new Hono<Env>()
 
     return c.json(buildResponse(row, cnameTarget, isCfConfigured))
   })
-  .put('/', requireTeamRole('editor'), zValidator('json', putIhostConfigSchema), async (c) => {
+  .put('/', requireTeamRole('owner'), zValidator('json', putIhostConfigSchema), async (c) => {
     const db = c.get('platform').db
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
@@ -236,7 +236,7 @@ const app = new Hono<Env>()
       ),
     )
   })
-  .delete('/', requireTeamRole('editor'), async (c) => {
+  .delete('/', requireTeamRole('owner'), async (c) => {
     const db = c.get('platform').db
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)

@@ -237,7 +237,7 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS notifications_user_read_idx ON notifications(user_id, read_at);
 `
 
-export async function createTestApp() {
+export async function createTestApp(envOverrides: Record<string, string> = {}) {
   const sqlite = new Database(':memory:')
   sqlite.exec(AUTH_SCHEMA_SQL)
   sqlite.exec(APP_SCHEMA_SQL)
@@ -245,7 +245,7 @@ export async function createTestApp() {
   const db = drizzle(sqlite, { schema: { ...schema, ...authSchema } })
   const platform: Platform = {
     db,
-    getEnv: () => undefined,
+    getEnv: (key: string) => envOverrides[key],
   }
   const auth = await createAuth(db, 'test-secret', 'http://localhost:3000')
   const app = createApp(platform, auth)
