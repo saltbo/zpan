@@ -20,10 +20,9 @@ interface FileRowActionsProps {
   handlers: FileActionHandlers
 }
 
-export function FileRowActions({ item, handlers }: FileRowActionsProps) {
-  const { t } = useTranslation()
+export function computeHasActions(item: StorageObject, handlers: Partial<FileActionHandlers>): boolean {
   const isFile = item.dirtype === DirType.FILE
-  const hasActions = !!(
+  return !!(
     (isFile && handlers.onDownload) ||
     handlers.onRename ||
     handlers.onCopy ||
@@ -33,16 +32,27 @@ export function FileRowActions({ item, handlers }: FileRowActionsProps) {
     handlers.onTrash ||
     handlers.onDelete
   )
+}
 
-  if (!hasActions) return null
-
-  const hasWriteActions = !!(
+export function computeHasWriteActions(item: StorageObject, handlers: Partial<FileActionHandlers>): boolean {
+  const isFile = item.dirtype === DirType.FILE
+  return !!(
     handlers.onRename ||
     handlers.onCopy ||
     handlers.onMove ||
     handlers.onShare ||
     (isFile && handlers.onDownload)
   )
+}
+
+export function FileRowActions({ item, handlers }: FileRowActionsProps) {
+  const { t } = useTranslation()
+  const isFile = item.dirtype === DirType.FILE
+  const hasActions = computeHasActions(item, handlers)
+
+  if (!hasActions) return null
+
+  const hasWriteActions = computeHasWriteActions(item, handlers)
 
   return (
     <DropdownMenu>

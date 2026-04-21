@@ -10,6 +10,19 @@ import { type IhostItem, imageHostDataSource } from './image-host-data-source'
 
 const IHOST_VIEW_MODE_KEY = 'zpan-ihost-view-mode'
 
+export function buildCopyText(url: string, format?: 'raw' | 'markdown' | 'html' | 'bbcode'): string {
+  switch (format) {
+    case 'markdown':
+      return `![](${url})`
+    case 'html':
+      return `<img src="${url}" />`
+    case 'bbcode':
+      return `[img]${url}[/img]`
+    default:
+      return url
+  }
+}
+
 export function ImageHostView() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -67,24 +80,7 @@ export function ImageHostView() {
 
   function handleCopyUrl(item: StorageObject, format?: 'raw' | 'markdown' | 'html' | 'bbcode') {
     const ihostItem = item as IhostItem
-    const url = ihostItem.url ?? ''
-
-    let text: string
-    switch (format) {
-      case 'markdown':
-        text = `![](${url})`
-        break
-      case 'html':
-        text = `<img src="${url}" />`
-        break
-      case 'bbcode':
-        text = `[img]${url}[/img]`
-        break
-      default:
-        text = url
-    }
-
-    copy(text, 'ihost.copy.copied')
+    copy(buildCopyText(ihostItem.url ?? '', format), 'ihost.copy.copied')
   }
 
   return (

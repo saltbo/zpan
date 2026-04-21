@@ -32,6 +32,7 @@ vi.mock('react-i18next', () => ({
 
 import { toast } from 'sonner'
 import { deleteIhostImage } from '@/lib/api'
+import { buildCopyText } from './image-host-view'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,7 +62,7 @@ function makeIhostItem(id: string, overrides: Partial<IhostItem> = {}): IhostIte
 }
 
 // ---------------------------------------------------------------------------
-// handleCopyUrl logic extracted
+// handleCopyUrl logic — delegates to buildCopyText from source
 // ---------------------------------------------------------------------------
 
 function handleCopyUrl(
@@ -70,23 +71,7 @@ function handleCopyUrl(
   copy?: (text: string, key: string) => void,
 ): string {
   const ihostItem = item as IhostItem
-  const url = ihostItem.url ?? ''
-
-  let text: string
-  switch (format) {
-    case 'markdown':
-      text = `![](${url})`
-      break
-    case 'html':
-      text = `<img src="${url}" />`
-      break
-    case 'bbcode':
-      text = `[img]${url}[/img]`
-      break
-    default:
-      text = url
-  }
-
+  const text = buildCopyText(ihostItem.url ?? '', format)
   if (copy) copy(text, 'ihost.copy.copied')
   return text
 }

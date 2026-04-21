@@ -3,10 +3,11 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
 import { describe, expect, it, vi } from 'vitest'
+import { computeHasActions, computeHasWriteActions } from './file-row-actions'
 import type { FileActionHandlers } from './types'
 
 // ---------------------------------------------------------------------------
-// Helpers — mirrors FileRowActions logic
+// Helpers
 // ---------------------------------------------------------------------------
 
 function makeObject(dirtype: DirType = DirType.FILE): StorageObject {
@@ -25,31 +26,6 @@ function makeObject(dirtype: DirType = DirType.FILE): StorageObject {
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
   }
-}
-
-function computeHasActions(item: StorageObject, handlers: Partial<FileActionHandlers>): boolean {
-  const isFile = item.dirtype === DirType.FILE
-  return !!(
-    (isFile && handlers.onDownload) ||
-    handlers.onRename ||
-    handlers.onCopy ||
-    handlers.onMove ||
-    handlers.onShare ||
-    handlers.onCopyUrl ||
-    handlers.onTrash ||
-    handlers.onDelete
-  )
-}
-
-function computeHasWriteActions(item: StorageObject, handlers: Partial<FileActionHandlers>): boolean {
-  const isFile = item.dirtype === DirType.FILE
-  return !!(
-    handlers.onRename ||
-    handlers.onCopy ||
-    handlers.onMove ||
-    handlers.onShare ||
-    (isFile && handlers.onDownload)
-  )
 }
 
 // ---------------------------------------------------------------------------

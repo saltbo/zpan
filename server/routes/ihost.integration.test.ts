@@ -1026,6 +1026,88 @@ describe('DELETE /api/ihost/images/:id', () => {
   })
 })
 
+// ─── POST /api/ihost/images — API key auth error paths ───────────────────────
+
+describe('POST /api/ihost/images — API key auth error paths', () => {
+  it('returns 401 when API key verification returns valid: false', async () => {
+    const { app, db, auth } = await createTestApp()
+    await insertStorage(db)
+    await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    // Create a valid key then mock verifyApiKey to return valid: false
+    const key = await createTestApiKey(auth, orgId, userId)
+    // biome-ignore lint/suspicious/noExplicitAny: mocking better-auth plugin
+    vi.spyOn(auth.api as any, 'verifyApiKey').mockResolvedValueOnce({
+      valid: false,
+      error: { message: 'Insufficient permissions', code: 'INSUFFICIENT_PERMISSIONS' },
+      key: null,
+    })
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(100)], 'test.png', { type: 'image/png' }))
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      body: formData,
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('Insufficient permissions')
+  })
+
+  it('returns 401 when API key verification throws an exception', async () => {
+    const { app, db, auth } = await createTestApp()
+    await insertStorage(db)
+    await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const key = await createTestApiKey(auth, orgId, userId)
+    // biome-ignore lint/suspicious/noExplicitAny: mocking better-auth plugin
+    vi.spyOn(auth.api as any, 'verifyApiKey').mockRejectedValueOnce(new Error('auth service unavailable'))
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(100)], 'test.png', { type: 'image/png' }))
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      body: formData,
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.error).toBe('Invalid API key')
+  })
+
+  it('returns 503 when no storage is configured for multipart upload via API key', async () => {
+    // Do NOT insertStorage — selectStorage will throw → 503
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const key = await createTestApiKey(auth, orgId, userId)
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(100)], 'test.png', { type: 'image/png' }))
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      body: formData,
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('storage')
+  })
+})
+
 // ─── Service unit tests (direct calls) ───────────────────────────────────────
 
 describe('image-hosting service — direct calls', () => {
