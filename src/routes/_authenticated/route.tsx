@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, useMatchRoute } from '@tanstack/react-router'
 import { AppSidebar } from '@/components/layout/app-sidebar'
+import { GlobalSearchBar } from '@/components/layout/global-search-bar'
 import { NotificationBell } from '@/components/notifications/notification-bell'
-import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { getSession } from '@/lib/api'
 
@@ -27,17 +27,16 @@ function AuthenticatedLayout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
           <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="text-sm font-medium">ZPan</span>
-          <div className="ml-auto">
+          <GlobalSearchBar />
+          <div className="ml-auto flex items-center">
             <NotificationBell />
           </div>
         </header>
-        <main className="min-w-0 flex-1 p-4">
+        <div className="min-w-0 flex-1 bg-canvas p-4">
           <Outlet />
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

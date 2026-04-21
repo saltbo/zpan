@@ -11,6 +11,8 @@
   --color-card-foreground: oklch(0.22 0 0);
   --color-popover: oklch(1 0 0);
   --color-popover-foreground: oklch(0.22 0 0);
+  /* Page canvas — the tinted layer behind elevated cards */
+  --color-canvas: oklch(0.978 0.006 247);
 
   /* ── Primary (Google Blue) ─────────────────────────── */
   --color-primary: oklch(0.587 0.201 258.4);
@@ -55,6 +57,8 @@
   --color-card-foreground: oklch(0.93 0.005 250);
   --color-popover: oklch(0.27 0.003 250);
   --color-popover-foreground: oklch(0.93 0.005 250);
+  /* Canvas darker than card to keep "card lifts off canvas" contrast */
+  --color-canvas: oklch(0.18 0.005 250);
 
   /* ── Primary (Google Blue · dark variant #8ab4f8) ──── */
   --color-primary: oklch(0.764 0.111 254.1);

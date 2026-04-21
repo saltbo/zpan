@@ -52,8 +52,8 @@ export function getColumns(
                 onClick={(e) => e.stopPropagation()}
               />
             ),
-            size: 28,
-            meta: { className: 'w-8 px-2' },
+            size: 40,
+            meta: { className: 'w-10 pl-4 pr-0' },
             enableSorting: false,
           } satisfies ColumnDef<StorageObject>,
         ]
@@ -64,7 +64,7 @@ export function getColumns(
       cell: ({ row }) => (
         <button
           type="button"
-          className="flex items-center gap-2 cursor-pointer bg-transparent border-none p-0"
+          className="flex w-full min-w-0 cursor-pointer items-center gap-2 border-none bg-transparent p-0"
           onClick={() => handlers.onOpen(row.original)}
         >
           <FileIcon item={row.original} />
@@ -76,6 +76,7 @@ export function getColumns(
         if (folderOrder !== 0) return folderOrder
         return rowA.getValue<string>(columnId).localeCompare(rowB.getValue<string>(columnId))
       },
+      meta: { flex: true },
     },
     {
       accessorKey: 'size',
@@ -86,7 +87,8 @@ export function getColumns(
         if (folderOrder !== 0) return folderOrder
         return (rowA.getValue<number>(columnId) ?? 0) - (rowB.getValue<number>(columnId) ?? 0)
       },
-      meta: { className: 'hidden sm:table-cell' },
+      size: 96,
+      meta: { className: 'hidden w-24 sm:table-cell' },
     },
     {
       accessorKey: 'updatedAt',
@@ -97,7 +99,8 @@ export function getColumns(
         if (folderOrder !== 0) return folderOrder
         return new Date(rowA.getValue<string>(columnId)).getTime() - new Date(rowB.getValue<string>(columnId)).getTime()
       },
-      meta: { className: 'hidden md:table-cell' },
+      size: 160,
+      meta: { className: 'hidden w-40 md:table-cell' },
     },
   ]
 
@@ -107,6 +110,7 @@ export function getColumns(
       cell: ({ row }) => <FileRowActions item={row.original} handlers={handlers} />,
       size: 48,
       enableSorting: false,
+      meta: { className: 'w-12 pr-2 text-right' },
     })
   }
 

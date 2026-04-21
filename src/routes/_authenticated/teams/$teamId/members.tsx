@@ -3,9 +3,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { InviteDialog } from '@/components/team/invite-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -199,7 +199,7 @@ function MemberRow({
   const joinedDate = new Date(member.createdAt as string).toLocaleDateString()
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+    <Card className="flex-row items-center justify-between gap-4 p-3 shadow-none">
       <div className="flex items-center gap-3 min-w-0">
         <Avatar className="h-9 w-9 shrink-0">
           <AvatarImage src={member.user.image ?? undefined} />
@@ -255,7 +255,7 @@ function MemberRow({
       </div>
 
       <RemoveMemberDialog open={removeOpen} onOpenChange={setRemoveOpen} member={member} orgId={orgId} />
-    </div>
+    </Card>
   )
 }
 
@@ -264,7 +264,6 @@ function TeamMembersPage() {
   const { teamId } = Route.useParams()
   const { data: session } = useSession()
   const [leaveOpen, setLeaveOpen] = useState(false)
-  const [inviteOpen, setInviteOpen] = useState(false)
 
   const {
     data: org,
@@ -309,14 +308,7 @@ function TeamMembersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-end gap-2">
         <span className="text-sm text-muted-foreground">{t('teams.memberCount', { count: org.members.length })}</span>
-        {isOwner && (
-          <Button type="button" size="sm" onClick={() => setInviteOpen(true)}>
-            {t('teams.invite.button')}
-          </Button>
-        )}
       </div>
-
-      {isOwner && <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} orgId={org.id} />}
 
       <div className="space-y-2">
         {org.members.map((member) => (

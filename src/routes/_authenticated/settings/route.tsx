@@ -1,5 +1,7 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { Settings as SettingsIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '@/components/layout/page-header'
 import { PageTabs } from '@/components/layout/page-tabs'
 
 export const Route = createFileRoute('/_authenticated/settings')({
@@ -17,7 +19,14 @@ function SettingsLayout() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">{t('settings.title')}</h2>
+      <PageHeader
+        items={[
+          {
+            label: t('settings.title'),
+            icon: <SettingsIcon className="size-4 text-muted-foreground" />,
+          },
+        ]}
+      />
       <div className="border-b">
         <PageTabs items={tabs} />
       </div>

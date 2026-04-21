@@ -74,8 +74,8 @@ describe('recycleBin locale keys — interpolation placeholder parity', () => {
 })
 
 describe('recycleBin locale keys — English values contract', () => {
-  it('recycleBin.title is "Recycle Bin"', () => {
-    expect(enLocale['recycleBin.title']).toBe('Recycle Bin')
+  it('recycleBin.title is "Trash"', () => {
+    expect(enLocale['recycleBin.title']).toBe('Trash')
   })
 
   it('recycleBin.empty is "Empty Trash"', () => {
@@ -143,7 +143,7 @@ describe('recycleBin locale keys — i18n runtime translation', () => {
   it('translates recycleBin.title to English', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('en')
-    expect(i18n.t('recycleBin.title')).toBe('Recycle Bin')
+    expect(i18n.t('recycleBin.title')).toBe('Trash')
   })
 
   it('translates recycleBin.title to Chinese', async () => {

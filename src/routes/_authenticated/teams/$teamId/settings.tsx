@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -203,24 +204,24 @@ function TeamSettingsPage() {
   }
 
   if (!isOwner) {
-    return <div className="rounded-md border p-4 text-sm text-muted-foreground">{t('teams.ownerOnly')}</div>
+    return <Card className="gap-0 p-4 text-sm text-muted-foreground shadow-none">{t('teams.ownerOnly')}</Card>
   }
 
   return (
     <div className="space-y-6">
       <div className="max-w-lg space-y-6">
-        <div className="space-y-4 rounded-md border p-4">
+        <Card className="gap-4 p-4 shadow-none">
           <h3 className="text-sm font-medium text-muted-foreground">{t('teams.generalSection')}</h3>
           <TeamSettingsForm org={org} />
-        </div>
+        </Card>
 
-        <div className="space-y-4 rounded-md border border-destructive/30 p-4">
+        <Card className="gap-4 border-destructive/30 p-4 shadow-none">
           <h3 className="text-sm font-medium text-destructive">{t('teams.dangerZone')}</h3>
           <p className="text-sm text-muted-foreground">{t('teams.deleteWarning')}</p>
           <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)}>
             {t('teams.deleteTeam')}
           </Button>
-        </div>
+        </Card>
       </div>
 
       <DeleteTeamDialog open={deleteOpen} onOpenChange={setDeleteOpen} orgId={org.id} orgName={org.name} />

@@ -94,7 +94,6 @@ export function ShareLanding({ token, share, onPasswordRequired }: ShareLandingP
               },
             }}
             capabilities={{
-              search: false,
               selection: false,
               dragAndDrop: false,
               upload: false,

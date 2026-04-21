@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { NameConflictDialog } from '@/components/files/dialogs/name-conflict-dialog'
 import { useConflictResolver, withConflictRetry } from '@/components/files/hooks/use-conflict-resolver'
+import { PageHeader } from '@/components/layout/page-header'
 import { TrashList } from '@/components/trash/trash-list'
 import { TrashToolbar } from '@/components/trash/trash-toolbar'
 import { Button } from '@/components/ui/button'
@@ -134,15 +135,32 @@ function RecycleBinPage() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        items={[
+          {
+            label: t('recycleBin.title'),
+            icon: <Trash2 className="size-4 text-muted-foreground" />,
+          },
+        ]}
+        actions={
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setConfirmDialog('empty')}
+            disabled={items.length === 0 || emptyTrashMutation.isPending}
+          >
+            <Trash2 />
+            <span className="sr-only sm:not-sr-only">{t('recycleBin.empty')}</span>
+          </Button>
+        }
+      />
+
       <TrashToolbar
         selectedCount={selectedIds.size}
-        hasItems={items.length > 0}
         onRestore={() => restoreMutation.mutate([...selectedIds])}
         onDeletePermanently={handleDeleteSelected}
-        onEmptyTrash={() => setConfirmDialog('empty')}
         isRestoring={restoreMutation.isPending}
         isDeleting={deleteMutation.isPending}
-        isEmptying={emptyTrashMutation.isPending}
       />
 
       {items.length === 0 ? (

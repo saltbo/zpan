@@ -9,11 +9,14 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { FolderOpen } from 'lucide-react'
+import { FolderOpen, FolderPlus, Upload } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { PageHeader, type PageHeaderItem } from '@/components/layout/page-header'
 import { FilePreviewDialog, type PreviewFile } from '@/components/preview/file-preview-dialog'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import { getObject, listObjectsByPath } from '@/lib/api'
 import { getColumns } from './columns'
@@ -56,7 +59,6 @@ interface FileManagerProps {
     download?: (item: StorageObject) => Promise<void> | void
   }
   capabilities?: {
-    search?: boolean
     selection?: boolean
     dragAndDrop?: boolean
     upload?: boolean
@@ -87,7 +89,6 @@ export function FileManager({
   const breadcrumb = pathToBreadcrumb(currentPath, rootName ?? t('files.title'))
   const resolvedCapabilities = useMemo(
     () => ({
-      search: capabilities?.search ?? !dataSource,
       selection: capabilities?.selection ?? !dataSource,
       dragAndDrop: capabilities?.dragAndDrop ?? !dataSource,
       upload: capabilities?.upload ?? !dataSource,
@@ -127,32 +128,22 @@ export function FileManager({
   const [shareTarget, setShareTarget] = useState<StorageObject | null>(null)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
-  const [searchInput, setSearchInput] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
 
   const query = useQuery({
-    queryKey: [
-      ...(dataSource?.queryKeyPrefix ?? ['objects', 'active', 'path']),
-      currentPath,
-      filterType ?? '',
-      searchQuery ?? '',
-    ],
+    queryKey: [...(dataSource?.queryKeyPrefix ?? ['objects', 'active', 'path']), currentPath, filterType ?? ''],
     queryFn: () =>
-      dataSource?.list(currentPath, { filterType, search: searchQuery || undefined }) ??
+      dataSource?.list(currentPath, { filterType }) ??
       listObjectsByPath(currentPath, 'active', 1, FILES_PAGE_SIZE, {
         type: filterType,
-        search: searchQuery || undefined,
       }),
   })
   const mutations = useFileMutations(currentPath)
   const conflict = useConflictResolver()
   const items = query.data?.items ?? []
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: clear selection and search when path changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clear selection when path changes
   useEffect(() => {
     setRowSelection({})
-    setSearchInput('')
-    setSearchQuery('')
   }, [currentPath])
 
   const navigateToPath = useCallback(
@@ -294,27 +285,44 @@ export function FileManager({
     )
   }
 
+  const headerItems: PageHeaderItem[] = breadcrumb.map((item, idx) => {
+    const isRoot = idx === 0
+    const isLast = idx === breadcrumb.length - 1
+    return {
+      label: item.name,
+      icon: isRoot ? <FolderOpen className="size-4 text-muted-foreground" /> : undefined,
+      onClick: !isLast ? () => navigateToPath(item.id) : undefined,
+    }
+  })
+
+  const headerActions =
+    resolvedCapabilities.createFolder || resolvedCapabilities.upload ? (
+      <>
+        {resolvedCapabilities.createFolder && (
+          <Button variant="outline" size="sm" onClick={() => setShowNewFolder(true)}>
+            <FolderPlus />
+            <span className="sr-only sm:not-sr-only">{t('files.newFolder')}</span>
+          </Button>
+        )}
+        {resolvedCapabilities.upload && (
+          <Button size="sm" onClick={() => dropzoneRef.current?.openFileDialog()}>
+            <Upload />
+            <span className="sr-only sm:not-sr-only">{t('files.upload')}</span>
+          </Button>
+        )}
+      </>
+    ) : null
+
   const content = (
-    <>
-      <div className="rounded-2xl border bg-card/95 p-4 shadow-sm backdrop-blur sm:p-5">
+    <div className="space-y-4">
+      <PageHeader items={headerItems} actions={headerActions} />
+
+      <Card className="gap-0 overflow-hidden py-0 shadow-none">
         <FilesToolbar
-          breadcrumb={breadcrumb}
-          onNavigate={(path) => navigateToPath(path)}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           selectedCount={selectedIds.length}
-          searchQuery={searchInput}
-          onSearchChange={
-            resolvedCapabilities.search
-              ? (v) => {
-                  setSearchInput(v)
-                  if (!v) setSearchQuery('')
-                }
-              : undefined
-          }
-          onSearchSubmit={resolvedCapabilities.search ? () => setSearchQuery(searchInput) : undefined}
-          onUpload={resolvedCapabilities.upload ? () => dropzoneRef.current?.openFileDialog() : undefined}
-          onNewFolder={resolvedCapabilities.createFolder ? () => setShowNewFolder(true) : undefined}
+          totalItems={items.length}
           onBatchTrash={resolvedCapabilities.trash ? () => setDeleteTargetIds(selectedIds) : undefined}
           onBatchMove={resolvedCapabilities.move ? () => setMoveTargetIds(selectedIds) : undefined}
           onClearSelection={resolvedCapabilities.selection ? () => setRowSelection({}) : undefined}
@@ -336,16 +344,18 @@ export function FileManager({
             selectionEnabled={resolvedCapabilities.selection}
           />
         ) : (
-          <FilesGrid
-            table={table}
-            handlers={handlers}
-            selectedIds={selectedIds}
-            currentPath={currentPath}
-            dragAndDropEnabled={resolvedCapabilities.dragAndDrop}
-            selectionEnabled={resolvedCapabilities.selection}
-          />
+          <div className="p-4">
+            <FilesGrid
+              table={table}
+              handlers={handlers}
+              selectedIds={selectedIds}
+              currentPath={currentPath}
+              dragAndDropEnabled={resolvedCapabilities.dragAndDrop}
+              selectionEnabled={resolvedCapabilities.selection}
+            />
+          </div>
         )}
-      </div>
+      </Card>
 
       {resolvedCapabilities.rename ||
       resolvedCapabilities.createFolder ||
@@ -420,7 +430,7 @@ export function FileManager({
       ) : null}
 
       <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />
-    </>
+    </div>
   )
 
   if (!resolvedCapabilities.upload && !resolvedCapabilities.dragAndDrop) {

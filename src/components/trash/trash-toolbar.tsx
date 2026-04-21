@@ -1,49 +1,47 @@
-import { Trash2 } from 'lucide-react'
+import { RotateCcw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 interface TrashToolbarProps {
   selectedCount: number
-  hasItems: boolean
   onRestore: () => void
   onDeletePermanently: () => void
-  onEmptyTrash: () => void
   isRestoring: boolean
   isDeleting: boolean
-  isEmptying: boolean
 }
 
 export function TrashToolbar({
   selectedCount,
-  hasItems,
   onRestore,
   onDeletePermanently,
-  onEmptyTrash,
   isRestoring,
   isDeleting,
-  isEmptying,
 }: TrashToolbarProps) {
   const { t } = useTranslation()
+  if (selectedCount === 0) return null
 
   return (
-    <div data-testid="trash-toolbar" className="flex flex-wrap items-center justify-between gap-2">
-      <h2 className="text-xl font-semibold">{t('recycleBin.title')}</h2>
-      <div className="flex items-center gap-2">
-        {selectedCount > 0 && (
-          <>
-            <Button variant="outline" size="sm" onClick={onRestore} disabled={isRestoring}>
-              {isRestoring ? t('common.loading') : t('recycleBin.restore')}
-            </Button>
-            <Button variant="destructive" size="sm" onClick={onDeletePermanently} disabled={isDeleting}>
-              {isDeleting ? t('common.loading') : t('recycleBin.deletePermanently')}
-            </Button>
-          </>
-        )}
-        <Button variant="destructive" size="sm" onClick={onEmptyTrash} disabled={!hasItems || isEmptying}>
-          <Trash2 className="h-4 w-4" />
-          <span className="sr-only sm:not-sr-only">{t('recycleBin.empty')}</span>
-        </Button>
-      </div>
+    <div data-testid="trash-toolbar" className="flex items-center gap-2 rounded-md border bg-primary/5 px-3 py-2">
+      <span className="text-sm font-medium">{t('files.selectedCount', { count: selectedCount })}</span>
+      <div className="mx-1 h-5 w-px bg-border" />
+      <Button
+        variant="outline"
+        size="icon-sm"
+        onClick={onRestore}
+        disabled={isRestoring}
+        title={t('recycleBin.restore')}
+      >
+        <RotateCcw className="text-primary" />
+      </Button>
+      <Button
+        variant="outline"
+        size="icon-sm"
+        onClick={onDeletePermanently}
+        disabled={isDeleting}
+        title={t('recycleBin.deletePermanently')}
+      >
+        <Trash2 className="text-destructive" />
+      </Button>
     </div>
   )
 }

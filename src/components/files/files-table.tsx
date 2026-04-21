@@ -166,14 +166,14 @@ export function FilesTable({ table, handlers, selectedIds, currentPath, dragAndD
   const allItems = rows.map((r) => r.original)
 
   return (
-    <Table>
+    <Table className="table-fixed">
       <TableHeader>
         {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id}>
+          <TableRow key={headerGroup.id} className="bg-muted/50 hover:bg-muted/50">
             {headerGroup.headers.map((header) => (
               <TableHead
                 key={header.id}
-                style={{ width: header.column.getSize() }}
+                style={header.column.columnDef.meta?.flex ? undefined : { width: header.column.getSize() }}
                 className={cn(
                   header.column.columnDef.meta?.className,
                   header.column.getCanSort() && 'cursor-pointer select-none',

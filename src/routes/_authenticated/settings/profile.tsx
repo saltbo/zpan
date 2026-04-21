@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authClient, useSession } from '@/lib/auth-client'
@@ -78,10 +79,10 @@ function ProfilePage() {
 
   return (
     <div className="max-w-lg">
-      <div className="space-y-4 rounded-md border p-4">
+      <Card className="gap-4 p-4 shadow-none">
         <h3 className="text-sm font-medium text-muted-foreground">{t('settings.profile.section')}</h3>
         <ProfileForm />
-      </div>
+      </Card>
     </div>
   )
 }

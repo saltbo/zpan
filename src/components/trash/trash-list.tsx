@@ -3,6 +3,7 @@ import type { StorageObject } from '@shared/types'
 import { File, Folder, RotateCcw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { formatDate, formatSize } from '@/lib/format'
 
 interface TrashListProps {
@@ -26,11 +27,11 @@ export function TrashList({
   const allSelected = items.length > 0 && selectedIds.size === items.length
 
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <Card className="gap-0 overflow-x-auto py-0 shadow-none">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/50">
-            <th className="w-10 px-4 py-3">
+            <th className="w-10 pl-4 pr-0 py-3 text-left">
               <input
                 type="checkbox"
                 checked={allSelected}
@@ -68,7 +69,7 @@ export function TrashList({
           )}
         </tbody>
       </table>
-    </div>
+    </Card>
   )
 }
 
@@ -90,7 +91,7 @@ function TrashRow({
 
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
-      <td className="px-4 py-3">
+      <td className="pl-4 pr-0 py-3">
         <input
           type="checkbox"
           checked={selected}

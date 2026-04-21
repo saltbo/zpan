@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useTheme } from 'next-themes'
 import { useTranslation } from 'react-i18next'
+import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -14,7 +15,7 @@ function AppearancePage() {
 
   return (
     <div className="max-w-lg">
-      <div className="space-y-4 rounded-md border p-4">
+      <Card className="gap-4 p-4 shadow-none">
         <h3 className="text-sm font-medium text-muted-foreground">{t('settings.appearance.section')}</h3>
 
         <div className="space-y-1.5">
@@ -43,7 +44,7 @@ function AppearancePage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

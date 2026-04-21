@@ -1,15 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, Outlet, useParams } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useParams } from '@tanstack/react-router'
+import { UserPlus, Users } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '@/components/layout/page-header'
 import { PageTabs } from '@/components/layout/page-tabs'
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb'
+import { InviteDialog } from '@/components/team/invite-dialog'
+import { Button } from '@/components/ui/button'
 import { authClient, useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/teams/$teamId')({
@@ -26,6 +23,7 @@ function TeamLayout() {
   const { t } = useTranslation()
   const { teamId } = useParams({ from: '/_authenticated/teams/$teamId' })
   const { data: session } = useSession()
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   const {
     data: org,
@@ -78,25 +76,32 @@ function TeamLayout() {
 
   return (
     <div className="space-y-4">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to="/teams">{t('nav.teams')}</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{org.name}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <PageHeader
+        items={[
+          {
+            label: t('nav.teams'),
+            icon: <Users className="size-4 text-muted-foreground" />,
+            to: '/teams',
+          },
+          { label: org.name },
+        ]}
+        actions={
+          isOwner ? (
+            <Button size="sm" onClick={() => setInviteOpen(true)}>
+              <UserPlus />
+              <span className="sr-only sm:not-sr-only">{t('teams.invite.button')}</span>
+            </Button>
+          ) : null
+        }
+      />
 
       <div className="border-b">
         <PageTabs items={tabs} />
       </div>
 
       <Outlet />
+
+      {isOwner && <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} orgId={org.id} />}
     </div>
   )
 }

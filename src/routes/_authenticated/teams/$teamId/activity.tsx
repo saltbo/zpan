@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { listTeamActivities } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/teams/$teamId/activity')({
@@ -125,11 +126,11 @@ function TeamActivityPage() {
           {t('activity.empty')}
         </div>
       ) : (
-        <div className="divide-y rounded-md border px-4">
+        <Card className="gap-0 divide-y px-4 py-0 shadow-none">
           {allItems.map((event) => (
             <ActivityItem key={event.id} event={event} />
           ))}
-        </div>
+        </Card>
       )}
 
       {hasNextPage && (

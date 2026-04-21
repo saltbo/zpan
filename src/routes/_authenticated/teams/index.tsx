@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -140,7 +141,7 @@ function TeamCard({ org, userId }: { org: TeamCardOrg; userId: string }) {
     <button
       type="button"
       onClick={() => navigate({ to: '/teams/$teamId', params: { teamId: org.id } })}
-      className="flex w-full items-start gap-4 rounded-md border p-4 text-left transition-colors hover:bg-accent"
+      className="flex w-full items-start gap-4 rounded-md border bg-card p-4 text-left transition-colors hover:bg-accent"
     >
       <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-muted">
         {org.logo ? (
@@ -193,13 +194,20 @@ function TeamsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">{t('teams.title')}</h2>
-        <Button onClick={() => setCreateOpen(true)} size="sm">
-          <Plus className="mr-1.5 h-4 w-4" />
-          {t('teams.createNew')}
-        </Button>
-      </div>
+      <PageHeader
+        items={[
+          {
+            label: t('teams.title'),
+            icon: <Users className="size-4 text-muted-foreground" />,
+          },
+        ]}
+        actions={
+          <Button onClick={() => setCreateOpen(true)} size="sm">
+            <Plus />
+            <span className="sr-only sm:not-sr-only">{t('teams.createNew')}</span>
+          </Button>
+        }
+      />
 
       {isPending ? (
         <div className="space-y-2">
