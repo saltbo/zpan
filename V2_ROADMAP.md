@@ -1,7 +1,7 @@
 # ZPan 2.0 Roadmap
 
 > **The open-source, S3-native file hosting platform.**
-> Free to self-host. One-click deploy to Cloudflare. Image bed, file sharing, and backup — all in one.
+> Free to self-host. One-click deploy to Cloudflare. Image hosting, file sharing, and backup — all in one.
 
 ## Product Positioning
 
@@ -9,7 +9,7 @@ ZPan is a lightweight file hosting platform built on S3-compatible storage. Not 
 
 Three scenarios, one platform:
 
-- **Image Bed** — Upload via PicGo / ShareX / API, get a URL
+- **Image Hosting** — Upload via PicGo / uPic / ShareX / API, get a permanent URL on your own domain
 - **File Sharing** — Upload, generate a link, distribute
 - **File Backup & Sync** — CLI agent syncs local directories to S3/R2
 
@@ -31,7 +31,7 @@ Each version ships 1–2 major features. Ship small, ship often.
 | [v2.1](docs/roadmap/v2.1.md) | **Auth & Access** | Social login, OIDC, invite codes, registration controls |
 | [v2.2](docs/roadmap/v2.2.md) | **Teams** | Team workspaces, shared folders, member roles |
 | [v2.3](docs/roadmap/v2.3.md) | **Sharing** | Share links, direct links, password / expiration / limits |
-| [v2.4](docs/roadmap/v2.4.md) | **Image Bed** | Upload API, PicGo / ShareX integration |
+| [v2.4](docs/roadmap/v2.4.md) | **Image Hosting** | Upload API, PicGo / uPic / ShareX integration, custom domain |
 | [v2.5](docs/roadmap/v2.5.md) | **Branding & Polish** | Custom logo / title, dark mode, custom file domain |
 | [v2.6](docs/roadmap/v2.6.md) | **Backup** | zpan-cli (Rust) one-way backup for NAS / desktop |
 | [v2.7](docs/roadmap/v2.7.md) | **Sync & Desktop** | Bidirectional sync + Tauri desktop tray app |
