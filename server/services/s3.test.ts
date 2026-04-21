@@ -242,4 +242,29 @@ describe('S3Service', () => {
       expect(mockSend).not.toHaveBeenCalled()
     })
   })
+
+  describe('putObject', () => {
+    it('sends PutObjectCommand with correct params for Uint8Array body', async () => {
+      mockSend.mockResolvedValueOnce({ $metadata: {} })
+      const body = new Uint8Array([1, 2, 3])
+      await service.putObject(storage, 'images/test.png', body, 'image/png')
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: {
+            Bucket: 'my-bucket',
+            Key: 'images/test.png',
+            Body: body,
+            ContentType: 'image/png',
+          },
+        }),
+      )
+    })
+
+    it('propagates S3 errors', async () => {
+      mockSend.mockRejectedValueOnce(new Error('S3 put failed'))
+      await expect(service.putObject(storage, 'fail.png', new Uint8Array(), 'image/png')).rejects.toThrow(
+        'S3 put failed',
+      )
+    })
+  })
 })

@@ -205,6 +205,24 @@ export interface IhostConfigResponse {
 
 export type ImageHostingStatus = 'draft' | 'active'
 
+export interface IhostImageDraftResponse {
+  id: string
+  token: string
+  path: string
+  uploadUrl: string
+  storageKey: string
+}
+
+export interface IhostImageToolResponse {
+  data: {
+    url: string
+    urlAlt: string
+    markdown: string
+    html: string
+    bbcode: string
+  }
+}
+
 export interface ImageHosting {
   id: string
   orgId: string

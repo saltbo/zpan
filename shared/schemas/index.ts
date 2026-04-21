@@ -106,6 +106,8 @@ export const batchDeleteSchema = z.object({
   ids: z.array(z.string().min(1)).min(1),
 })
 
+// ─── Image Hosting Config ─────────────────────────────────────────────────────
+
 // Valid hostname regex: lowercase labels separated by dots, max 253 chars total,
 // each label max 63 chars, no leading/trailing dots, no port.
 const hostnameRegex = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/
@@ -124,3 +126,27 @@ export const putIhostConfigSchema = z.object({
 })
 
 export type PutIhostConfigInput = z.infer<typeof putIhostConfigSchema>
+
+// ─── Image Hosting ────────────────────────────────────────────────────────────
+
+export const MAX_IMAGE_SIZE = 20 * 1024 * 1024
+export const ALLOWED_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const
+export type AllowedImageMime = (typeof ALLOWED_IMAGE_MIMES)[number]
+
+export const createIhostImageSchema = z.object({
+  path: z.string().min(1).max(256),
+  mime: z.enum(ALLOWED_IMAGE_MIMES),
+  size: z.number().int().positive().max(MAX_IMAGE_SIZE),
+})
+
+export type CreateIhostImageInput = z.infer<typeof createIhostImageSchema>
+
+export const patchIhostImageSchema = z.discriminatedUnion('action', [z.object({ action: z.literal('confirm') })])
+
+export type PatchIhostImageInput = z.infer<typeof patchIhostImageSchema>
+
+export const listIhostImagesSchema = z.object({
+  pathPrefix: z.string().optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+})

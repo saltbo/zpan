@@ -9,6 +9,7 @@ import { platformMiddleware } from './middleware/platform'
 import type { Platform } from './platform/interface'
 import { adminAuthProviders, publicAuthProviders } from './routes/auth-providers'
 import emailConfig from './routes/email-config'
+import ihost from './routes/ihost'
 import ihostConfig from './routes/ihost-config'
 import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
 import { notifications } from './routes/notifications'
@@ -73,6 +74,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/system', system)
   app.route('/api/admin/auth-providers', adminAuthProviders)
   app.route('/api/notifications', notifications)
+  app.route('/api/ihost', ihost)
   app.route('/api/ihost/config', ihostConfig)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
@@ -101,4 +103,5 @@ export type ProfileRoute = typeof profile
 export type TeamsRoute = typeof teams
 export type PublicTeamsRoute = typeof publicTeams
 export type NotificationsRoute = typeof notifications
+export type IhostRoute = typeof ihost
 export type IhostConfigRoute = typeof ihostConfig

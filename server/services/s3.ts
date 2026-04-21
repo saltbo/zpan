@@ -110,6 +110,24 @@ export class S3Service {
     )
   }
 
+  async putObject(
+    storage: Storage,
+    key: string,
+    body: ReadableStream | Uint8Array,
+    contentType: string,
+  ): Promise<void> {
+    const client = this.createClient(storage)
+    await client.send(
+      new PutObjectCommand({
+        Bucket: storage.bucket,
+        Key: key,
+        // biome-ignore lint/suspicious/noExplicitAny: AWS SDK stream type differs across Node and CF Workers runtimes
+        Body: body as any,
+        ContentType: contentType,
+      }),
+    )
+  }
+
   async deleteObject(storage: Storage, key: string): Promise<void> {
     const client = this.createClient(storage)
     await client.send(new DeleteObjectCommand({ Bucket: storage.bucket, Key: key }))
