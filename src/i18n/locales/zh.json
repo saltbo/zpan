@@ -603,5 +603,21 @@
   "settings.ihost.disable.confirmLabel": "输入 DISABLE 以确认",
   "settings.ihost.disable.confirmPlaceholder": "DISABLE",
   "settings.ihost.disable.confirmButton": "禁用图床",
-  "settings.ihost.disable.success": "图床已禁用"
+  "settings.ihost.disable.success": "图床已禁用",
+  "settings.ihost.tools.section": "工具集成",
+  "settings.ihost.tools.description": "从您喜欢的工具上传图片。选择下方工具以生成配置。",
+  "settings.ihost.tools.noKeys": "请先在 API 密钥栏目创建 API 密钥，再配置工具。",
+  "settings.ihost.tools.keyLabel": "API 密钥",
+  "settings.ihost.tools.keyPlaceholder": "选择一个 API 密钥",
+  "settings.ihost.tools.pasteKeyLabel": "粘贴密钥",
+  "settings.ihost.tools.pasteKeyPlaceholder": "粘贴创建时保存的明文密钥",
+  "settings.ihost.tools.pasteKeyHint": "密钥仅在创建时显示一次，请粘贴您保存的密钥。密钥不会在本次会话之外持久化。",
+  "settings.ihost.tools.copy": "复制",
+  "settings.ihost.tools.copiedLabel": "已复制！",
+  "settings.ihost.tools.copied": "已复制到剪贴板",
+  "settings.ihost.tools.picgo.instructions": "通过 `picgo -e picgo-plugin-web-uploader` 或 PicGo GUI 插件管理器安装插件，然后前往设置 → 图床 → 自定义 Web 并粘贴以下 JSON。",
+  "settings.ihost.tools.upic.instructions": "在 uPic 中前往偏好设置 → 图床 → 新建自定义，然后通过文件 → 导入配置导入以下 JSON。",
+  "settings.ihost.tools.sharex.instructions": "下载 .sxcu 文件并双击以导入 ShareX，ShareX 将自动将 ZPan 设置为自定义上传器。",
+  "settings.ihost.tools.sharex.download": "下载 .sxcu",
+  "settings.ihost.tools.flameshot.instructions": "在 Flameshot 截图后运行以下脚本，需要 curl、jq 和 xclip。上传后的图片 URL 将自动复制到剪贴板。"
 }
