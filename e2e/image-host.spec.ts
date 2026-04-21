@@ -25,32 +25,37 @@ async function signUpAndGoToImageHost(page: import('@playwright/test').Page) {
   ])
   expect(resp.status()).toBe(200)
   await expect(page).toHaveURL(/files/, { timeout: 10000 })
-  await page.goto('/image-host')
-  await expect(page).toHaveURL(/image-host/, { timeout: 10000 })
+}
+
+async function enableImageHostFromSettings(page: import('@playwright/test').Page) {
+  await page.goto('/settings/ihost')
+  await expect(page).toHaveURL(/settings\/ihost/, { timeout: 10000 })
+  const enableBtn = page.getByRole('button', { name: /enable|activate/i })
+  await expect(enableBtn).toBeVisible({ timeout: 10000 })
+  await enableBtn.click()
+  // Wait for config to update
+  await page.waitForResponse((r) => r.url().includes('/api/ihost/config'), { timeout: 10000 })
 }
 
 // ---------------------------------------------------------------------------
 // Image Host feature gate
 // ---------------------------------------------------------------------------
 test.describe('Image Host @all', () => {
-  test('shows enable-feature prompt before activation', async ({ page }) => {
+  test('shows enable-feature prompt in settings before activation', async ({ page }) => {
     await signUpAndGoToImageHost(page)
-    // Page shows an enable/activate button or empty state with enable prompt
+    await page.goto('/settings/ihost')
+    // Settings page shows an enable/activate button
     const enableBtn = page.getByRole('button', { name: /enable|activate/i })
     await expect(enableBtn).toBeVisible({ timeout: 10000 })
   })
 
   test('gallery is accessible after enabling the feature', async ({ page }) => {
     await signUpAndGoToImageHost(page)
+    await enableImageHostFromSettings(page)
 
-    // Click the enable button
-    const enableBtn = page.getByRole('button', { name: /enable|activate/i })
-    await enableBtn.click()
-
-    const [configResp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/ihost/config')),
-      page.waitForTimeout(100),
-    ])
+    // Navigate to the image host page
+    await page.goto('/image-host')
+    await expect(page).toHaveURL(/image-host/, { timeout: 10000 })
     // After enable, the gallery / empty state should be visible
     await expect(page.getByText(/drag and drop|no image/i)).toBeVisible({ timeout: 10000 })
   })
@@ -63,15 +68,9 @@ test.describe('Image Host gallery golden path @all', () => {
   // Sign up, enable image hosting, and return to the page
   async function setupImageHost(page: import('@playwright/test').Page) {
     await signUpAndGoToImageHost(page)
-
-    const enableBtn = page.getByRole('button', { name: /enable|activate/i })
-    if (await enableBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const [enableResp] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/ihost/config') && r.request().method() === 'PUT'),
-        enableBtn.click(),
-      ])
-      expect(enableResp.ok()).toBe(true)
-    }
+    await enableImageHostFromSettings(page)
+    await page.goto('/image-host')
+    await expect(page).toHaveURL(/image-host/, { timeout: 10000 })
     // Wait for gallery to load
     await page.waitForTimeout(500)
   }
