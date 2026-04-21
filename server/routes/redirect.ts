@@ -59,7 +59,11 @@ async function handleImageHosting(c: Context<Env>, db: Database, token: string):
   const { image, refererAllowlist } = resolved
   const refererHeader = c.req.header('Referer') ?? null
 
-  if (!checkReferer(refererAllowlist, refererHeader)) {
+  // Allow same-origin requests (e.g. Web UI viewing its own images)
+  const requestOrigin = new URL(c.req.url).origin
+  const isSameOrigin = refererHeader ? new URL(refererHeader).origin === requestOrigin : false
+
+  if (!isSameOrigin && !checkReferer(refererAllowlist, refererHeader)) {
     return c.json({ error: 'forbidden referer' }, 403)
   }
 

@@ -209,7 +209,7 @@ export async function listImageHostings(
   orgId: string,
   opts: ListImagesOptions,
 ): Promise<{ items: ImageHostingRow[]; nextCursor: string | null }> {
-  const conditions = [eq(imageHostings.orgId, orgId)]
+  const conditions = [eq(imageHostings.orgId, orgId), eq(imageHostings.status, 'active')]
 
   if (opts.pathPrefix) {
     conditions.push(like(imageHostings.path, `${opts.pathPrefix}%`))

@@ -919,6 +919,23 @@ describe('GET /api/ihost/images', () => {
     }
   })
 
+  it('excludes draft images from listing', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    await insertImageHosting(db, orgId, { path: 'active.png', status: 'active' })
+    await insertImageHosting(db, orgId, { path: 'draft.png', status: 'draft' })
+
+    const res = await app.request('/api/ihost/images', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ path: string }> }
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0].path).toBe('active.png')
+  })
+
   it('paginates with cursor', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
