@@ -1,9 +1,16 @@
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
-import type { ConflictStrategy, CreateShareRequest, CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
+import type {
+  AllowedImageMime,
+  ConflictStrategy,
+  CreateShareRequest,
+  CreateStorageInput,
+  UpdateStorageInput,
+} from '@shared/schemas'
 import type {
   ActivityEvent,
   AuthProvider,
   IhostConfigResponse,
+  ImageHosting,
   Notification,
   PaginatedResponse,
   ShareListItem,
@@ -17,6 +24,7 @@ import {
   authedSharesApi,
   authProviders,
   emailConfig,
+  ihostApi,
   ihostConfigApi,
   inviteCodes,
   notificationsApi,
@@ -552,4 +560,45 @@ export function uploadToS3(url: string, file: File): Promise<void> {
   }).then((res) => {
     if (!res.ok) throw new Error('Upload failed')
   })
+}
+
+// Image Host Images API
+
+export type { ImageHosting }
+
+export interface IhostImageListResult {
+  items: ImageHosting[]
+  nextCursor: string | null
+}
+
+export interface IhostImageDraft {
+  id: string
+  token: string
+  path: string
+  uploadUrl: string
+  storageKey: string
+}
+
+export function listIhostImages(opts?: { pathPrefix?: string; cursor?: string; limit?: number }) {
+  const query: Record<string, string> = {}
+  if (opts?.pathPrefix) query.pathPrefix = opts.pathPrefix
+  if (opts?.cursor) query.cursor = opts.cursor
+  if (opts?.limit != null) query.limit = String(opts.limit)
+  return unwrap<IhostImageListResult>(ihostApi.images.$get({ query }))
+}
+
+export function createIhostImagePresign(data: { path: string; mime: AllowedImageMime; size: number }) {
+  return unwrap<IhostImageDraft>(ihostApi.images.presign.$post({ json: data }))
+}
+
+export function confirmIhostImage(id: string) {
+  return unwrap<ImageHosting>(ihostApi.images[':id'].$patch({ param: { id }, json: { action: 'confirm' as const } }))
+}
+
+export async function deleteIhostImage(id: string) {
+  const res = await ihostApi.images[':id'].$delete({ param: { id } })
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
 }

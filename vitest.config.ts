@@ -1,4 +1,5 @@
 import path from 'node:path'
+import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vitest/config'
 
 const aliases = {
@@ -38,10 +39,12 @@ export default defineConfig({
     globals: true,
     projects: [
       {
+        plugins: [react()],
         resolve: { alias: aliases },
         test: {
           name: 'unit',
-          include: ['server/**/*.test.ts', 'shared/**/*.test.ts', 'src/**/*.test.ts'],
+          environment: 'jsdom',
+          include: ['server/**/*.test.ts', 'shared/**/*.test.ts', 'src/**/*.test.ts', 'src/**/*.test.tsx'],
           exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts'],
           coverage: {
             ...coverageConfig,

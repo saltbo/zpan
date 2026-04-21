@@ -2,6 +2,7 @@ import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
 import type { Row, Table as TanstackTable } from '@tanstack/react-table'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -9,6 +10,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { FileIcon } from './file-icon'
@@ -21,10 +25,26 @@ interface FilesGridProps {
   currentPath: string
   dragAndDropEnabled?: boolean
   selectionEnabled?: boolean
+  getThumbnailUrl?: (item: StorageObject) => string | null
 }
 
 function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
+}
+
+function ThumbnailImage({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return null
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className="h-full w-full rounded-md object-cover"
+    />
+  )
 }
 
 function DraggableGridCard({
@@ -33,12 +53,14 @@ function DraggableGridCard({
   selectedIds,
   currentPath,
   allItems,
+  getThumbnailUrl,
 }: {
   row: Row<StorageObject>
   handlers: FileActionHandlers
   selectedIds: string[]
   currentPath: string
   allItems: StorageObject[]
+  getThumbnailUrl?: (item: StorageObject) => string | null
 }) {
   const { t } = useTranslation()
   const item = row.original
@@ -88,7 +110,14 @@ function DraggableGridCard({
               onPointerDown={(e) => e.stopPropagation()}
             />
           </div>
-          <FileIcon item={item} size="lg" />
+          {getThumbnailUrl && item.type?.startsWith('image/') ? (
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md bg-muted">
+              <ThumbnailImage src={getThumbnailUrl(item) ?? ''} alt={item.name} />
+              {!getThumbnailUrl(item) && <FileIcon item={item} size="lg" />}
+            </div>
+          ) : (
+            <FileIcon item={item} size="lg" />
+          )}
           <span className="w-full truncate text-center text-sm font-medium">{item.name}</span>
           {isFile && <span className="text-xs text-muted-foreground">{item.type}</span>}
         </div>
@@ -97,25 +126,71 @@ function DraggableGridCard({
         <ContextMenuItem onClick={() => handlers.onOpen(item)}>
           {isFile ? t('files.preview') : t('files.open')}
         </ContextMenuItem>
-        {isFile && <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>}
+        {isFile && handlers.onDownload && (
+          <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>
+        )}
+        {handlers.onCopyUrl && (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>{t('ihost.copy.url')}</ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'raw')}>{t('ihost.copy.raw')}</ContextMenuItem>
+              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'markdown')}>
+                {t('ihost.copy.markdown')}
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'html')}>
+                {t('ihost.copy.html')}
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'bbcode')}>
+                {t('ihost.copy.bbcode')}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
         <ContextMenuSeparator />
-        <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
-        <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
-        <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
-          {t('files.moveToTrash')}
-        </ContextMenuItem>
+        {handlers.onRename && (
+          <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
+        )}
+        {handlers.onCopy && (
+          <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
+        )}
+        {handlers.onMove && (
+          <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
+        )}
+        {handlers.onTrash && (
+          <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
+            {t('files.moveToTrash')}
+          </ContextMenuItem>
+        )}
+        {handlers.onDelete && (
+          <ContextMenuItem className="text-destructive" onClick={() => handlers.onDelete?.(item)}>
+            {t('common.delete')}
+          </ContextMenuItem>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   )
 }
 
-function PlainGridCard({ row, handlers }: { row: Row<StorageObject>; handlers: FileActionHandlers }) {
+function PlainGridCard({
+  row,
+  handlers,
+  getThumbnailUrl,
+}: {
+  row: Row<StorageObject>
+  handlers: FileActionHandlers
+  getThumbnailUrl?: (item: StorageObject) => string | null
+}) {
   const { t } = useTranslation()
   const item = row.original
   const isFile = item.dirtype === DirType.FILE
-  const showWriteActions = !!(handlers.onRename || handlers.onCopy || handlers.onMove || handlers.onTrash)
+  const showWriteActions = !!(
+    handlers.onRename ||
+    handlers.onCopy ||
+    handlers.onMove ||
+    handlers.onTrash ||
+    handlers.onDelete
+  )
+  const thumbnailUrl = getThumbnailUrl && item.type?.startsWith('image/') ? getThumbnailUrl(item) : null
 
   return (
     <ContextMenu>
@@ -125,7 +200,13 @@ function PlainGridCard({ row, handlers }: { row: Row<StorageObject>; handlers: F
           className="group relative flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border p-4 transition-colors hover:bg-muted/50"
           onDoubleClick={() => handlers.onOpen(item)}
         >
-          <FileIcon item={item} size="lg" />
+          {thumbnailUrl ? (
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md bg-muted">
+              <ThumbnailImage src={thumbnailUrl} alt={item.name} />
+            </div>
+          ) : (
+            <FileIcon item={item} size="lg" />
+          )}
           <span className="w-full truncate text-center text-sm font-medium">{item.name}</span>
           {isFile && <span className="text-xs text-muted-foreground">{item.type}</span>}
         </button>
@@ -136,6 +217,23 @@ function PlainGridCard({ row, handlers }: { row: Row<StorageObject>; handlers: F
         </ContextMenuItem>
         {isFile && handlers.onDownload && (
           <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>
+        )}
+        {handlers.onCopyUrl && (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>{t('ihost.copy.url')}</ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'raw')}>{t('ihost.copy.raw')}</ContextMenuItem>
+              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'markdown')}>
+                {t('ihost.copy.markdown')}
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'html')}>
+                {t('ihost.copy.html')}
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'bbcode')}>
+                {t('ihost.copy.bbcode')}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
         )}
         {showWriteActions && <ContextMenuSeparator />}
         {handlers.onRename && (
@@ -155,12 +253,24 @@ function PlainGridCard({ row, handlers }: { row: Row<StorageObject>; handlers: F
             </ContextMenuItem>
           </>
         )}
+        {handlers.onDelete && (
+          <ContextMenuItem className="text-destructive" onClick={() => handlers.onDelete?.(item)}>
+            {t('common.delete')}
+          </ContextMenuItem>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   )
 }
 
-export function FilesGrid({ table, handlers, selectedIds, currentPath, dragAndDropEnabled = true }: FilesGridProps) {
+export function FilesGrid({
+  table,
+  handlers,
+  selectedIds,
+  currentPath,
+  dragAndDropEnabled = true,
+  getThumbnailUrl,
+}: FilesGridProps) {
   const { t } = useTranslation()
   const rows = table.getRowModel().rows
 
@@ -179,9 +289,10 @@ export function FilesGrid({ table, handlers, selectedIds, currentPath, dragAndDr
             selectedIds={selectedIds}
             currentPath={currentPath}
             allItems={table.getRowModel().rows.map((r) => r.original)}
+            getThumbnailUrl={getThumbnailUrl}
           />
         ) : (
-          <PlainGridCard key={row.id} row={row} handlers={handlers} />
+          <PlainGridCard key={row.id} row={row} handlers={handlers} getThumbnailUrl={getThumbnailUrl} />
         ),
       )}
     </div>

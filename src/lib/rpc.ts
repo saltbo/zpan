@@ -6,6 +6,7 @@ import type {
   AuthProvidersRoute,
   EmailConfigRoute,
   IhostConfigRoute,
+  IhostRoute,
   NotificationsRoute,
   ObjectsRoute,
   ProfileRoute,
@@ -44,3 +45,4 @@ export const publicSharesApi = hc<PublicSharesRoute>('/api/shares', opts)
 export const authedSharesApi = hc<AuthedSharesRoute>('/api/shares', opts)
 
 export const ihostConfigApi = hc<IhostConfigRoute>('/api/ihost/config', opts)
+export const ihostApi = hc<IhostRoute>('/api/ihost', opts)

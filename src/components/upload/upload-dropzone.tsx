@@ -15,6 +15,12 @@ interface UploadDropzoneProps {
   conflictPrompt?: Prompt
   /** Reset the resolver's "apply to all" before a new batch of drops. */
   onConflictBatchStart?: () => void
+  /**
+   * Custom upload function. When provided, bypasses the default object-upload
+   * flow (create-draft → S3 PUT → confirm) and calls this instead.
+   * Used by Image Host to upload via /api/ihost/images.
+   */
+  uploadFn?: (file: File) => Promise<void>
   children: React.ReactNode
 }
 
@@ -75,11 +81,33 @@ async function uploadFile(
 }
 
 export const UploadDropzone = forwardRef<UploadDropzoneHandle, UploadDropzoneProps>(
-  ({ parent, onUploadComplete, conflictPrompt, onConflictBatchStart, children }, ref) => {
+  ({ parent, onUploadComplete, conflictPrompt, onConflictBatchStart, uploadFn, children }, ref) => {
     const { t } = useTranslation()
 
     const onDrop = useCallback(
       async (files: File[]) => {
+        // Custom upload path (e.g. image host)
+        if (uploadFn) {
+          let anySuccess = false
+          for (const file of files) {
+            const p = uploadFn(file)
+            toast.promise(p, {
+              loading: t('files.uploading', { name: file.name }),
+              success: t('files.uploadSuccess', { name: file.name }),
+              error: t('files.uploadFailed', { name: file.name }),
+            })
+            try {
+              await p
+              anySuccess = true
+            } catch {
+              // Toast already surfaced the error — continue.
+            }
+          }
+          if (anySuccess) onUploadComplete()
+          return
+        }
+
+        // Default object-upload path
         onConflictBatchStart?.()
         const showApplyToAll = files.length > 1
         let anySuccess = false
@@ -119,7 +147,7 @@ export const UploadDropzone = forwardRef<UploadDropzoneHandle, UploadDropzonePro
 
         if (anySuccess) onUploadComplete()
       },
-      [parent, onUploadComplete, conflictPrompt, onConflictBatchStart, t],
+      [parent, uploadFn, onUploadComplete, conflictPrompt, onConflictBatchStart, t],
     )
 
     const { getRootProps, getInputProps, isDragActive, open } = useDropzone({

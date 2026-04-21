@@ -2,13 +2,13 @@ import { useState } from 'react'
 
 export type ViewMode = 'list' | 'grid'
 
-const STORAGE_KEY = 'zpan-view-mode'
+const DEFAULT_STORAGE_KEY = 'zpan-view-mode'
 
-export function useViewMode() {
-  const [mode, setMode] = useState<ViewMode>(() => (localStorage.getItem(STORAGE_KEY) as ViewMode) || 'list')
+export function useViewMode(storageKey = DEFAULT_STORAGE_KEY) {
+  const [mode, setMode] = useState<ViewMode>(() => (localStorage.getItem(storageKey) as ViewMode) || 'list')
 
   function set(m: ViewMode) {
-    localStorage.setItem(STORAGE_KEY, m)
+    localStorage.setItem(storageKey, m)
     setMode(m)
   }
 
