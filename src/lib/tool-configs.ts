@@ -1,6 +1,6 @@
 // Pure functions that build config fields for tool integrations.
 // PicGo and uPic return field lists (for GUI field-by-field entry).
-// ShareX returns a downloadable .sxcu JSON. Flameshot returns a shell script.
+// ShareX returns a downloadable .sxcu JSON.
 
 export interface ToolConfigParams {
   appHost: string
@@ -53,17 +53,4 @@ export function buildShareXConfig(params: ToolConfigParams): object {
 
 export function buildShareXConfigString(params: ToolConfigParams): string {
   return JSON.stringify(buildShareXConfig(params), null, 2)
-}
-
-export function buildFlameshotScript(params: ToolConfigParams): string {
-  const { appHost, userKey } = params
-  return [
-    `IHOST_KEY="${userKey}"`,
-    'flameshot gui --raw | curl \\',
-    '  -H "Authorization: Bearer $IHOST_KEY" \\',
-    '  -F "file=@-" \\',
-    `  -F "path=screenshots/$(date +%Y/%m)/$(date +%s).png" \\`,
-    `  ${appHost}/api/ihost/images \\`,
-    "  | jq -r '.data.url' | xclip -selection clipboard",
-  ].join('\n')
 }

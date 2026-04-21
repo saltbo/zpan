@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  buildFlameshotScript,
-  buildPicGoFields,
-  buildShareXConfig,
-  buildShareXConfigString,
-  buildUPicFields,
-} from './tool-configs'
+import { buildPicGoFields, buildShareXConfig, buildShareXConfigString, buildUPicFields } from './tool-configs'
 
 const paramsWithKey = { appHost: 'https://zpan.example.com', userKey: 'test-key-123' }
 const paramsNoKey = { appHost: 'https://zpan.example.com', userKey: '<userKey>' }
@@ -114,34 +108,5 @@ describe('buildShareXConfig', () => {
   it('uses placeholder when key is not set', () => {
     const str = buildShareXConfigString(paramsNoKey)
     expect(str).toContain('<userKey>')
-  })
-})
-
-describe('buildFlameshotScript', () => {
-  it('contains the upload URL', () => {
-    const result = buildFlameshotScript(paramsWithKey)
-    expect(result).toContain('https://zpan.example.com/api/ihost/images')
-  })
-
-  it('contains the key', () => {
-    const result = buildFlameshotScript(paramsWithKey)
-    expect(result).toContain('test-key-123')
-  })
-
-  it('matches snapshot with key', () => {
-    expect(buildFlameshotScript(paramsWithKey)).toMatchInlineSnapshot(`
-      "IHOST_KEY="test-key-123"
-      flameshot gui --raw | curl \\
-        -H "Authorization: Bearer $IHOST_KEY" \\
-        -F "file=@-" \\
-        -F "path=screenshots/$(date +%Y/%m)/$(date +%s).png" \\
-        https://zpan.example.com/api/ihost/images \\
-        | jq -r '.data.url' | xclip -selection clipboard"
-    `)
-  })
-
-  it('uses placeholder when key is not set', () => {
-    const result = buildFlameshotScript(paramsNoKey)
-    expect(result).toContain('<userKey>')
   })
 })

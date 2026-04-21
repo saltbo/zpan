@@ -633,6 +633,5 @@
   "settings.ihost.tools.picgo.instructions": "Install picgo-plugin-web-uploader via the PicGo Plugin Manager. Then go to Settings → Uploader → Custom Web and fill in each field below:",
   "settings.ihost.tools.upic.instructions": "In uPic, go to Preferences → Host → Add → Custom. Fill in each field below. Add the Authorization header via the Headers button:",
   "settings.ihost.tools.sharex.instructions": "Download the .sxcu file and double-click it to import into ShareX. ShareX will automatically set ZPan as a custom uploader.",
-  "settings.ihost.tools.sharex.download": "Download .sxcu",
-  "settings.ihost.tools.flameshot.instructions": "Run the script below after a Flameshot capture. Requires curl, jq, and xclip. The uploaded image URL will be copied to your clipboard."
+  "settings.ihost.tools.sharex.download": "Download .sxcu"
 }

@@ -7,18 +7,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { listIhostApiKeys } from '@/lib/api'
-import { FlameshotGenerator } from './tool-generators/flameshot'
 import { PicGoGenerator } from './tool-generators/picgo'
 import { ShareXGenerator } from './tool-generators/sharex'
 import { UPicGenerator } from './tool-generators/upic'
 
-type ToolId = 'picgo' | 'upic' | 'sharex' | 'flameshot'
+type ToolId = 'picgo' | 'upic' | 'sharex'
 
 const TOOLS: { id: ToolId; label: string }[] = [
   { id: 'picgo', label: 'PicGo / PicList' },
   { id: 'upic', label: 'uPic' },
   { id: 'sharex', label: 'ShareX' },
-  { id: 'flameshot', label: 'Flameshot' },
 ]
 
 interface ToolIntegrationPanelProps {
@@ -103,7 +101,6 @@ export function ToolIntegrationPanel({ orgId }: ToolIntegrationPanelProps) {
         {activeTool === 'picgo' && <PicGoGenerator appHost={appHost} userKey={resolvedKey} />}
         {activeTool === 'upic' && <UPicGenerator appHost={appHost} userKey={resolvedKey} />}
         {activeTool === 'sharex' && <ShareXGenerator appHost={appHost} userKey={resolvedKey} />}
-        {activeTool === 'flameshot' && <FlameshotGenerator appHost={appHost} userKey={resolvedKey} />}
       </div>
     </Card>
   )
