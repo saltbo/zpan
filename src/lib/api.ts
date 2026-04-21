@@ -4,6 +4,7 @@ import type {
   ActivityEvent,
   AuthProvider,
   IhostConfigResponse,
+  ImageHosting,
   Notification,
   PaginatedResponse,
   ShareListItem,
@@ -552,4 +553,65 @@ export function uploadToS3(url: string, file: File): Promise<void> {
   }).then((res) => {
     if (!res.ok) throw new Error('Upload failed')
   })
+}
+
+// Image Host Images API
+// Note: Raw fetch is used here because IhostRoute's complex multi-content-type
+// handlers prevent Hono RPC from inferring full types.
+
+export type { ImageHosting }
+
+export interface IhostImageListResult {
+  items: ImageHosting[]
+  nextCursor: string | null
+}
+
+export interface IhostImageDraft {
+  id: string
+  token: string
+  path: string
+  uploadUrl: string
+  storageKey: string
+}
+
+async function ihostFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`/api/ihost${path}`, { credentials: 'include', ...options })
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
+  return res.json() as Promise<T>
+}
+
+export function listIhostImages(opts?: { pathPrefix?: string; cursor?: string; limit?: number }) {
+  const params = new URLSearchParams()
+  if (opts?.pathPrefix) params.set('pathPrefix', opts.pathPrefix)
+  if (opts?.cursor) params.set('cursor', opts.cursor)
+  if (opts?.limit != null) params.set('limit', String(opts.limit))
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  return ihostFetch<IhostImageListResult>(`/images${qs}`)
+}
+
+export function createIhostImagePresign(data: { path: string; mime: string; size: number }) {
+  return ihostFetch<IhostImageDraft>('/images', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export function confirmIhostImage(id: string) {
+  return ihostFetch<ImageHosting>(`/images/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'confirm' }),
+  })
+}
+
+export async function deleteIhostImage(id: string) {
+  const res = await fetch(`/api/ihost/images/${id}`, { method: 'DELETE', credentials: 'include' })
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
 }

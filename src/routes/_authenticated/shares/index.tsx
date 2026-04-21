@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useClipboard } from '@/hooks/use-clipboard'
 import { deleteShare, listShares, type ShareListItem } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/shares/')({
@@ -45,6 +46,7 @@ function computeDisplayStatus(share: ShareListItem): 'active' | 'revoked' | 'exp
 
 function SharesPage() {
   const { t } = useTranslation()
+  const { copy } = useClipboard()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { status: statusFilter, page } = useSearch({ from: '/_authenticated/shares/' })
@@ -181,8 +183,7 @@ function SharesPage() {
                   onCopyUrl={() => {
                     const base = window.location.origin
                     const url = share.kind === 'landing' ? `${base}/s/${share.token}` : `${base}/r/${share.token}`
-                    navigator.clipboard.writeText(url)
-                    toast.success(t('shares.urlCopied'))
+                    copy(url, 'shares.urlCopied')
                   }}
                   onRevoke={() => setRevokeTarget(share)}
                 />

@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Image } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { EnableFeatureEmpty } from '@/components/image-host/enable-feature-empty'
-import { PageHeader } from '@/components/layout/page-header'
+import { ImageHostView } from '@/components/image-host/image-host-view'
 import { enableIhostFeature, getIhostConfig } from '@/lib/api'
 import { useActiveOrganization, useSession } from '@/lib/auth-client'
 
@@ -61,21 +60,5 @@ function ImageHostPage() {
     )
   }
 
-  // TODO T7: Replace this stub with the full Image Host gallery page
-  return (
-    <div className="space-y-4">
-      <PageHeader
-        items={[
-          {
-            label: t('ihost.title'),
-            icon: <Image className="size-4 text-muted-foreground" />,
-          },
-        ]}
-      />
-      <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
-        <Image className="h-16 w-16" />
-        <p className="text-sm">{t('ihost.empty.description')}</p>
-      </div>
-    </div>
-  )
+  return <ImageHostView />
 }

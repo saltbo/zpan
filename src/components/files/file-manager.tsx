@@ -57,6 +57,7 @@ interface FileManagerProps {
     list: (path: string, opts: { filterType?: string; search?: string }) => Promise<{ items: StorageObject[] }>
     getPreviewFile?: (item: StorageObject) => Promise<PreviewFile | null>
     download?: (item: StorageObject) => Promise<void> | void
+    upload?: (file: File, onProgress?: (pct: number) => void) => Promise<void>
   }
   capabilities?: {
     selection?: boolean
@@ -68,8 +69,14 @@ interface FileManagerProps {
     move?: boolean
     trash?: boolean
     share?: boolean
+    copyUrl?: boolean
+    delete?: boolean
   }
   emptyStateLabel?: string
+  getThumbnailUrl?: (item: StorageObject) => string | null
+  onDeleteItems?: (ids: string[]) => void
+  onCopyUrl?: (item: StorageObject, format?: 'raw' | 'markdown' | 'html' | 'bbcode') => void
+  viewModeStorageKey?: string
 }
 
 export function FileManager({
@@ -80,6 +87,10 @@ export function FileManager({
   dataSource,
   capabilities,
   emptyStateLabel,
+  getThumbnailUrl,
+  onDeleteItems,
+  onCopyUrl,
+  viewModeStorageKey,
 }: FileManagerProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -98,11 +109,13 @@ export function FileManager({
       move: capabilities?.move ?? !dataSource,
       trash: capabilities?.trash ?? !dataSource,
       share: capabilities?.share ?? !dataSource,
+      copyUrl: capabilities?.copyUrl ?? false,
+      delete: capabilities?.delete ?? false,
     }),
     [capabilities, dataSource],
   )
 
-  const [viewMode, setViewMode] = useViewMode()
+  const [viewMode, setViewMode] = useViewMode(viewModeStorageKey)
   const [sorting, setSorting] = useState<SortingState>(() => {
     try {
       const saved = localStorage.getItem('zpan-sort')
@@ -212,6 +225,7 @@ export function FileManager({
       onOpen: handleOpen,
       onRename: resolvedCapabilities.rename ? (item) => setRenameTarget(item) : undefined,
       onTrash: resolvedCapabilities.trash ? (item) => setDeleteTargetIds([item.id]) : undefined,
+      onDelete: resolvedCapabilities.delete && onDeleteItems ? (item) => onDeleteItems([item.id]) : undefined,
       onCopy: resolvedCapabilities.copy
         ? (item) => {
             const kind = item.dirtype === DirType.FILE ? 'file' : 'folder'
@@ -224,8 +238,18 @@ export function FileManager({
       onMove: resolvedCapabilities.move ? (item) => setMoveTargetIds([item.id]) : undefined,
       onDownload: handleDownload,
       onShare: resolvedCapabilities.share ? (item) => setShareTarget(item) : undefined,
+      onCopyUrl: resolvedCapabilities.copyUrl && onCopyUrl ? onCopyUrl : undefined,
     }),
-    [handleOpen, handleDownload, resolvedCapabilities, mutations.copyMutation, conflict.prompt, conflict.reset],
+    [
+      handleOpen,
+      handleDownload,
+      resolvedCapabilities,
+      onDeleteItems,
+      onCopyUrl,
+      mutations.copyMutation,
+      conflict.prompt,
+      conflict.reset,
+    ],
   )
 
   const columns = useMemo(
@@ -352,6 +376,7 @@ export function FileManager({
               currentPath={currentPath}
               dragAndDropEnabled={resolvedCapabilities.dragAndDrop}
               selectionEnabled={resolvedCapabilities.selection}
+              getThumbnailUrl={getThumbnailUrl}
             />
           </div>
         )}
@@ -441,9 +466,10 @@ export function FileManager({
     <UploadDropzone
       ref={dropzoneRef}
       parent={currentPath}
-      onUploadComplete={() => mutations.invalidate()}
-      conflictPrompt={conflict.prompt}
-      onConflictBatchStart={conflict.reset}
+      onUploadComplete={dataSource?.upload ? () => query.refetch() : () => mutations.invalidate()}
+      uploadFn={dataSource?.upload ? (file) => dataSource.upload!(file) : undefined}
+      conflictPrompt={dataSource?.upload ? undefined : conflict.prompt}
+      onConflictBatchStart={dataSource?.upload ? undefined : conflict.reset}
     >
       {resolvedCapabilities.dragAndDrop ? <DndWrapper onDrop={handleDndDrop}>{content}</DndWrapper> : content}
     </UploadDropzone>

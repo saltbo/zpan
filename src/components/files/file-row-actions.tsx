@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
-import { Copy, Download, EllipsisVertical, FolderInput, Pencil, Share2, Trash2 } from 'lucide-react'
+import { Copy, Download, EllipsisVertical, FolderInput, Link, Pencil, Share2, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -8,6 +8,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { FileActionHandlers } from './types'
@@ -26,10 +29,20 @@ export function FileRowActions({ item, handlers }: FileRowActionsProps) {
     handlers.onCopy ||
     handlers.onMove ||
     handlers.onShare ||
-    handlers.onTrash
+    handlers.onCopyUrl ||
+    handlers.onTrash ||
+    handlers.onDelete
   )
 
   if (!hasActions) return null
+
+  const hasWriteActions = !!(
+    handlers.onRename ||
+    handlers.onCopy ||
+    handlers.onMove ||
+    handlers.onShare ||
+    (isFile && handlers.onDownload)
+  )
 
   return (
     <DropdownMenu>
@@ -44,6 +57,28 @@ export function FileRowActions({ item, handlers }: FileRowActionsProps) {
             <Download className="mr-2 h-4 w-4" />
             {t('files.download')}
           </DropdownMenuItem>
+        )}
+        {handlers.onCopyUrl && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Link className="mr-2 h-4 w-4" />
+              {t('ihost.copy.url')}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onClick={() => handlers.onCopyUrl?.(item, 'raw')}>
+                {t('ihost.copy.raw')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handlers.onCopyUrl?.(item, 'markdown')}>
+                {t('ihost.copy.markdown')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handlers.onCopyUrl?.(item, 'html')}>
+                {t('ihost.copy.html')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handlers.onCopyUrl?.(item, 'bbcode')}>
+                {t('ihost.copy.bbcode')}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         )}
         {handlers.onRename && (
           <DropdownMenuItem onClick={() => handlers.onRename?.(item)}>
@@ -71,14 +106,19 @@ export function FileRowActions({ item, handlers }: FileRowActionsProps) {
         )}
         {handlers.onTrash && (
           <>
-            {(handlers.onRename ||
-              handlers.onCopy ||
-              handlers.onMove ||
-              handlers.onShare ||
-              (isFile && handlers.onDownload)) && <DropdownMenuSeparator />}
+            {hasWriteActions && <DropdownMenuSeparator />}
             <DropdownMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
               <Trash2 className="mr-2 h-4 w-4" />
               {t('files.moveToTrash')}
+            </DropdownMenuItem>
+          </>
+        )}
+        {handlers.onDelete && (
+          <>
+            {hasWriteActions && <DropdownMenuSeparator />}
+            <DropdownMenuItem className="text-destructive" onClick={() => handlers.onDelete?.(item)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t('common.delete')}
             </DropdownMenuItem>
           </>
         )}

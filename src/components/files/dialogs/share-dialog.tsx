@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useClipboard } from '@/hooks/use-clipboard'
 import { type CreateShareResult, createShare } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 
@@ -65,6 +66,7 @@ function isTargetedMode(mode: ShareMode): boolean {
 
 export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDialogProps) {
   const { t } = useTranslation()
+  const { copy } = useClipboard()
   const isFolder = item?.dirtype !== DirType.FILE
 
   const [mode, setMode] = useState<ShareMode>('page')
@@ -146,8 +148,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
   }
 
   function copyUrl(url: string) {
-    navigator.clipboard.writeText(url)
-    toast.success(t('share.urlCopied'))
+    copy(url, 'share.urlCopied')
   }
 
   if (!item) return null
@@ -476,6 +477,7 @@ function SuccessView({
   onViewShares?: () => void
 }) {
   const { t } = useTranslation()
+  const { copy } = useClipboard()
   const isDirect = result.kind === 'direct'
   const isTargeted = mode === 'targeted'
   const urlLabel = isDirect ? t('share.directUrl') : t('share.pageUrl')
@@ -483,8 +485,7 @@ function SuccessView({
 
   function copyShareText() {
     const text = t('share.shareTextTemplate', { url, password })
-    navigator.clipboard.writeText(text)
-    toast.success(t('share.textCopied'))
+    copy(text, 'share.textCopied')
   }
 
   return (

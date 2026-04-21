@@ -5,13 +5,16 @@ import {
   batchMoveObjects,
   batchTrashObjects,
   buildShareObjectUrl,
+  confirmIhostImage,
   confirmUpload,
   copyObject,
   createIhostApiKey,
+  createIhostImagePresign,
   createObject,
   createShare,
   createStorage,
   deleteIhostConfig,
+  deleteIhostImage,
   deleteObject,
   deleteShare,
   deleteStorage,
@@ -29,6 +32,7 @@ import {
   getUserQuota,
   listAuthProviders,
   listIhostApiKeys,
+  listIhostImages,
   listNotifications,
   listObjects,
   listQuotas,
@@ -1543,6 +1547,137 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Key not found' }, false, 404))
 
       await expect(revokeIhostApiKey('key-1')).rejects.toThrow('Key not found')
+    })
+  })
+
+  describe('listIhostImages', () => {
+    it('calls GET /api/ihost/images', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextCursor: null }))
+
+      await listIhostImages()
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/ihost/images')
+    })
+
+    it('passes pathPrefix, cursor, and limit as query params', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextCursor: null }))
+
+      await listIhostImages({ pathPrefix: 'foo/', cursor: 'abc', limit: 20 })
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('pathPrefix=foo%2F')
+      expect(url).toContain('cursor=abc')
+      expect(url).toContain('limit=20')
+    })
+
+    it('resolves with items and nextCursor', async () => {
+      const payload = { items: [{ id: 'img-1' }], nextCursor: 'next' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listIhostImages()
+
+      expect(result).toEqual(payload)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(listIhostImages()).rejects.toThrow('Forbidden')
+    })
+  })
+
+  describe('createIhostImagePresign', () => {
+    it('calls POST /api/ihost/images with JSON body', async () => {
+      const draft = {
+        id: 'd1',
+        token: 'ih_abc',
+        path: 'foo/bar.png',
+        uploadUrl: 'https://s3/...',
+        storageKey: 'ih/...',
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(draft, true, 201))
+
+      await createIhostImagePresign({ path: 'foo/bar.png', mime: 'image/png', size: 1024 })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/ihost/images')
+      expect(init.method).toBe('POST')
+      const body = JSON.parse(init.body as string)
+      expect(body.path).toBe('foo/bar.png')
+      expect(body.mime).toBe('image/png')
+      expect(body.size).toBe(1024)
+    })
+
+    it('resolves with draft object', async () => {
+      const draft = {
+        id: 'd1',
+        token: 'ih_abc',
+        path: 'foo/bar.png',
+        uploadUrl: 'https://s3/...',
+        storageKey: 'ih/...',
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(draft, true, 201))
+
+      const result = await createIhostImagePresign({ path: 'foo/bar.png', mime: 'image/png', size: 1024 })
+
+      expect(result).toEqual(draft)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Quota exceeded' }, false, 422))
+
+      await expect(createIhostImagePresign({ path: 'a.png', mime: 'image/png', size: 100 })).rejects.toThrow(
+        'Quota exceeded',
+      )
+    })
+  })
+
+  describe('confirmIhostImage', () => {
+    it('calls PATCH /api/ihost/images/:id with action confirm', async () => {
+      const image = { id: 'img-1', status: 'active' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(image))
+
+      await confirmIhostImage('img-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/ihost/images/img-1')
+      expect(init.method).toBe('PATCH')
+      const body = JSON.parse(init.body as string)
+      expect(body.action).toBe('confirm')
+    })
+
+    it('resolves with confirmed image', async () => {
+      const image = { id: 'img-1', status: 'active', token: 'ih_x' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(image))
+
+      const result = await confirmIhostImage('img-1')
+
+      expect(result).toEqual(image)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Not found' }, false, 404))
+
+      await expect(confirmIhostImage('bad-id')).rejects.toThrow('Not found')
+    })
+  })
+
+  describe('deleteIhostImage', () => {
+    it('calls DELETE /api/ihost/images/:id', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204, json: async () => null } as unknown as Response)
+
+      await deleteIhostImage('img-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/ihost/images/img-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Not found' }, false, 404))
+
+      await expect(deleteIhostImage('bad-id')).rejects.toThrow()
     })
   })
 })
