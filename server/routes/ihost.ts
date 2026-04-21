@@ -304,4 +304,5 @@ app.delete('/images/:id', requireAuth, requireTeamRole('editor'), async (c) => {
   return new Response(null, { status: 204 })
 })
 
+// re-export for RPC type inference
 export default app
