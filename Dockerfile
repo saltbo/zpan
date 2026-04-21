@@ -31,6 +31,8 @@ COPY --from=deps-prod /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/migrations ./migrations
 
+COPY --from=builder /app/scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
+
 RUN mkdir -p /data && chown zpan:zpan /data
 
 USER zpan
@@ -39,4 +41,5 @@ ENV NODE_ENV=production
 ENV PORT=8222
 EXPOSE 8222
 
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["node", "dist-server/entry-node.js"]

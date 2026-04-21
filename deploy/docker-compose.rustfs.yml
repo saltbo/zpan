@@ -1,0 +1,40 @@
+# ZPan + RustFS (S3-compatible storage)
+# Usage: docker compose -f deploy/docker-compose.rustfs.yml up -d
+#
+# RustFS console: http://localhost:9001  (admin / admin123)
+# After startup, create a bucket in the RustFS console,
+# then configure the storage provider in ZPan's admin panel.
+
+services:
+  zpan:
+    image: ghcr.io/saltbo/zpan:latest
+    ports:
+      - "8222:8222"
+    environment:
+      - PORT=8222
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:8222}
+      - DATABASE_URL=/data/zpan.db
+    volumes:
+      - zpan-data:/data
+    depends_on:
+      rustfs:
+        condition: service_started
+    restart: unless-stopped
+
+  rustfs:
+    image: ghcr.io/rustfs/rustfs:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - RUSTFS_ROOT_USER=admin
+      - RUSTFS_ROOT_PASSWORD=admin123
+    volumes:
+      - rustfs-data:/data
+    restart: unless-stopped
+
+volumes:
+  zpan-data:
+  rustfs-data:

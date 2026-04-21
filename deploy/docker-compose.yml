@@ -1,9 +1,9 @@
-# Build from source
-# Usage: docker compose -f docker-compose.build.yml up -d --build
+# Pull pre-built image from GHCR
+# Usage: docker compose -f deploy/docker-compose.yml up -d
 
 services:
   zpan:
-    build: .
+    image: ghcr.io/saltbo/zpan:latest
     ports:
       - "8222:8222"
     environment:
