@@ -1,3 +1,4 @@
+import { apiKey } from '@better-auth/api-key'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin, organization, username } from 'better-auth/plugins'
@@ -188,6 +189,16 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
           discoveryUrl: c.discoveryUrl,
           scopes: c.scopes,
         })),
+      }),
+      apiKey({
+        // Keys belong to the organization, not the individual user
+        references: 'organization',
+        // Rate limiting and lastRequest tracking are on by default
+        rateLimit: { enabled: true },
+        // Declare the image-hosting:upload permission so upload routes can require it
+        permissions: {
+          defaultPermissions: { 'image-hosting': ['upload'] },
+        },
       }),
     ],
     databaseHooks: {

@@ -1,4 +1,5 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { organization } from './auth-schema'
 
 export const matters = sqliteTable('matters', {
   id: text('id').primaryKey(),
@@ -132,5 +133,48 @@ export const shareRecipients = sqliteTable(
   (t) => [
     index('share_recipients_share_id_idx').on(t.shareId),
     index('share_recipients_user_id_idx').on(t.recipientUserId),
+  ],
+)
+
+// image_hosting_configs — per-org singleton; row exists => feature enabled
+export const imageHostingConfigs = sqliteTable('image_hosting_configs', {
+  orgId: text('org_id')
+    .primaryKey()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  customDomain: text('custom_domain').unique(),
+  cfHostnameId: text('cf_hostname_id'),
+  domainVerifiedAt: integer('domain_verified_at', { mode: 'timestamp_ms' }),
+  refererAllowlist: text('referer_allowlist'), // JSON array of strings; null/empty => allow all
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+// image_hostings — one row per hosted image
+export const imageHostings = sqliteTable(
+  'image_hostings',
+  {
+    id: text('id').primaryKey(), // nanoid(12)
+    orgId: text('org_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    token: text('token').notNull().unique(), // "ih_" + nanoid(10)
+    path: text('path').notNull(), // virtual path e.g. "blog/2026/04/shot.png"
+    storageId: text('storage_id')
+      .notNull()
+      .references(() => storages.id),
+    storageKey: text('storage_key').notNull(), // "ih/<orgId>/<id>.<ext>"
+    size: integer('size').notNull(),
+    mime: text('mime').notNull(),
+    width: integer('width'),
+    height: integer('height'),
+    status: text('status').notNull().default('draft'), // 'draft' | 'active'
+    accessCount: integer('access_count').notNull().default(0),
+    lastAccessedAt: integer('last_accessed_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('image_hostings_org_path_uniq').on(t.orgId, t.path),
+    index('image_hostings_org_created_idx').on(t.orgId, t.createdAt),
+    index('image_hostings_token_idx').on(t.token),
   ],
 )
