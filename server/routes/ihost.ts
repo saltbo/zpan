@@ -200,6 +200,10 @@ const app = new Hono<Env>()
 
       const { path: requestedPath, mime, size } = c.req.valid('json')
 
+      if (size > MAX_IMAGE_SIZE) {
+        return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
+      }
+
       const pathErr = validatePath(requestedPath)
       if (pathErr) return c.json(pathErr, 400)
 

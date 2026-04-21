@@ -1486,7 +1486,7 @@ describe('api', () => {
       expect(init.method).toBe('POST')
     })
 
-    it('sends organizationId, name, and image-hosting:upload permission', async () => {
+    it('sends organizationId and name (permissions set by server defaults)', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(createdKey))
 
       await createIhostApiKey('org-1', 'Test Key')
@@ -1495,7 +1495,7 @@ describe('api', () => {
       const body = JSON.parse(init.body as string)
       expect(body.organizationId).toBe('org-1')
       expect(body.name).toBe('Test Key')
-      expect(body.permissions).toEqual({ 'image-hosting': ['upload'] })
+      expect(body.permissions).toBeUndefined()
     })
 
     it('resolves with the full key on success', async () => {

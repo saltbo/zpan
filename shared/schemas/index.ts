@@ -136,7 +136,7 @@ export type AllowedImageMime = (typeof ALLOWED_IMAGE_MIMES)[number]
 export const createIhostImageSchema = z.object({
   path: z.string().min(1).max(256),
   mime: z.enum(ALLOWED_IMAGE_MIMES),
-  size: z.number().int().positive().max(MAX_IMAGE_SIZE),
+  size: z.number().int().positive(),
 })
 
 export type CreateIhostImageInput = z.infer<typeof createIhostImageSchema>

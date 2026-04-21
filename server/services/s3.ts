@@ -117,12 +117,23 @@ export class S3Service {
     contentType: string,
   ): Promise<void> {
     const client = this.createClient(storage)
+
+    // AWS SDK on Node expects Node Readable or Uint8Array, not Web
+    // ReadableStream.  Convert to Uint8Array for cross-runtime compat
+    // (the file is already buffered in memory by Hono's multipart parser).
+    let payload: Uint8Array
+    if (body instanceof Uint8Array) {
+      payload = body
+    } else {
+      const response = new Response(body)
+      payload = new Uint8Array(await response.arrayBuffer())
+    }
+
     await client.send(
       new PutObjectCommand({
         Bucket: storage.bucket,
         Key: key,
-        // biome-ignore lint/suspicious/noExplicitAny: AWS SDK stream type differs across Node and CF Workers runtimes
-        Body: body as any,
+        Body: payload,
         ContentType: contentType,
       }),
     )

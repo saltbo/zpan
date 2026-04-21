@@ -275,12 +275,23 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
             // is inserted but before the session row and cookie cache are
             // written, so activeOrganizationId is correct from the start.
             if (!orgId) {
-              const [user] = await db
-                .select({ id: authSchema.user.id, name: authSchema.user.name, username: authSchema.user.username })
-                .from(authSchema.user)
-                .where(eq(authSchema.user.id, session.userId))
-              if (user) {
-                orgId = await createPersonalOrg(db, user)
+              // Only create if the org row doesn't already exist. The org
+              // could exist without membership (e.g. admin revoked access).
+              const slug = `personal-${session.userId}`
+              const [existing] = await db
+                .select({ id: authSchema.organization.id })
+                .from(authSchema.organization)
+                .where(eq(authSchema.organization.slug, slug))
+                .limit(1)
+
+              if (!existing) {
+                const [user] = await db
+                  .select({ id: authSchema.user.id, name: authSchema.user.name, username: authSchema.user.username })
+                  .from(authSchema.user)
+                  .where(eq(authSchema.user.id, session.userId))
+                if (user) {
+                  orgId = await createPersonalOrg(db, user)
+                }
               }
             }
 

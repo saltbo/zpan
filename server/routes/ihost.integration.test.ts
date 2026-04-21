@@ -291,8 +291,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 for size exceeding 20 MB', async () => {
-    // zValidator rejects oversized uploads with 400 (Zod max check)
+  it('returns 413 for size exceeding 20 MB', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -304,7 +303,7 @@ describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'big.png', mime: 'image/png', size: 21 * 1024 * 1024 }),
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(413)
   })
 
   it('auto-suffixes path on collision', async () => {

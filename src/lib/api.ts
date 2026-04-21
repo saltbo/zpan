@@ -531,7 +531,6 @@ export function createIhostApiKey(organizationId: string, name: string) {
     body: JSON.stringify({
       name,
       organizationId,
-      permissions: { 'image-hosting': ['upload'] },
     }),
   })
 }
