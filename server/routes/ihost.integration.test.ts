@@ -989,6 +989,21 @@ describe('GET /api/ihost/images/:id', () => {
 // ─── DELETE ──────────────────────────────────────────────────────────────────
 
 describe('DELETE /api/ihost/images/:id', () => {
+  it('returns 403 when image hosting is not configured', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    // Do NOT call insertImageHostingConfig — config row will be absent
+
+    const res = await app.request('/api/ihost/images/fake-id', {
+      method: 'DELETE',
+      headers,
+    })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('image hosting not enabled')
+  })
+
   it('returns 404 for non-existent image', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -1021,6 +1036,33 @@ describe('DELETE /api/ihost/images/:id', () => {
     expect(S3Service.prototype.deleteObject).toHaveBeenCalledTimes(1)
 
     // Row gone — verify via GET
+    const checkRes = await app.request(`/api/ihost/images/${id}`, { headers })
+    expect(checkRes.status).toBe(404)
+  })
+
+  it('still deletes DB row when storage record is missing (S3 delete skipped)', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    // Insert image referencing a storage id that will be deleted
+    const { id } = await insertImageHosting(db, orgId, { path: 'orphan.png', size: 512 })
+
+    // Remove the storage row so getStorage returns null
+    await db.run(sql`DELETE FROM storages WHERE id = ${validStorage.id}`)
+
+    const res = await app.request(`/api/ihost/images/${id}`, {
+      method: 'DELETE',
+      headers,
+    })
+    expect(res.status).toBe(204)
+
+    // S3 deleteObject should NOT have been called (storage was null)
+    expect(S3Service.prototype.deleteObject).not.toHaveBeenCalled()
+
+    // DB row must be gone
     const checkRes = await app.request(`/api/ihost/images/${id}`, { headers })
     expect(checkRes.status).toBe(404)
   })

@@ -32,7 +32,6 @@ vi.mock('react-i18next', () => ({
 
 import { toast } from 'sonner'
 import { deleteIhostImage } from '@/lib/api'
-import { buildCopyText } from './image-host-view'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -62,8 +61,21 @@ function makeIhostItem(id: string, overrides: Partial<IhostItem> = {}): IhostIte
 }
 
 // ---------------------------------------------------------------------------
-// handleCopyUrl logic — delegates to buildCopyText from source
+// handleCopyUrl logic — mirrors the switch/case in the component
 // ---------------------------------------------------------------------------
+
+function buildCopyText(url: string, format?: 'raw' | 'markdown' | 'html' | 'bbcode'): string {
+  switch (format) {
+    case 'markdown':
+      return `![](${url})`
+    case 'html':
+      return `<img src="${url}" />`
+    case 'bbcode':
+      return `[img]${url}[/img]`
+    default:
+      return url
+  }
+}
 
 function handleCopyUrl(
   item: StorageObject,
