@@ -196,7 +196,7 @@ describe('api', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/objects/id1')
       expect(init.method).toBe('PATCH')
-      expect(init.body).toBe(JSON.stringify({ name: 'renamed.txt' }))
+      expect(init.body).toBe(JSON.stringify({ action: 'update', name: 'renamed.txt' }))
     })
 
     it('patches object by id with parent', async () => {
@@ -206,7 +206,7 @@ describe('api', () => {
       await updateObject('id1', { parent: 'folder2' })
 
       const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(init.body).toBe(JSON.stringify({ parent: 'folder2' }))
+      expect(init.body).toBe(JSON.stringify({ action: 'update', parent: 'folder2' }))
     })
 
     it('throws on error response', async () => {
@@ -217,7 +217,7 @@ describe('api', () => {
   })
 
   describe('confirmUpload', () => {
-    it('patches /done endpoint', async () => {
+    it('patches with action: confirm', async () => {
       const obj = { id: 'id1', status: 'active' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
 
@@ -225,8 +225,10 @@ describe('api', () => {
 
       expect(result).toEqual(obj)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/id1/done')
+      expect(url).toBe('/api/objects/id1')
       expect(init.method).toBe('PATCH')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ action: 'confirm' })
     })
 
     it('throws on error response', async () => {
@@ -257,7 +259,7 @@ describe('api', () => {
   })
 
   describe('copyObject', () => {
-    it('posts to /copy endpoint with parent in body', async () => {
+    it('posts to /copy endpoint with copyFrom and parent in body', async () => {
       const copy = { id: 'copy1', name: 'file.txt' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(copy))
 
@@ -265,10 +267,10 @@ describe('api', () => {
 
       expect(result).toEqual(copy)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/id1/copy')
+      expect(url).toContain('/api/objects/copy')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ parent: 'folder2' })
+      expect(body).toMatchObject({ copyFrom: 'id1', parent: 'folder2' })
       const headers =
         init.headers instanceof Headers ? init.headers : new Headers(init.headers as Record<string, string>)
       expect(headers.get('Content-Type')).toContain('application/json')
@@ -324,7 +326,7 @@ describe('api', () => {
   })
 
   describe('restoreObject', () => {
-    it('sends PATCH to restore endpoint for the given id', async () => {
+    it('sends PATCH with action: restore for the given id', async () => {
       const obj = { id: 'id1', status: 'active' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
 
@@ -332,8 +334,10 @@ describe('api', () => {
 
       expect(result).toEqual(obj)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/id1/restore')
+      expect(url).toContain('/api/objects/id1')
       expect(init.method).toBe('PATCH')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ action: 'restore' })
     })
 
     it('throws on error response', async () => {
@@ -344,7 +348,7 @@ describe('api', () => {
   })
 
   describe('emptyTrash', () => {
-    it('sends POST to empty trash endpoint', async () => {
+    it('sends DELETE to trash endpoint', async () => {
       const payload = { purged: 5 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
@@ -352,8 +356,8 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/recycle-bin/empty')
-      expect(init.method).toBe('POST')
+      expect(url).toContain('/api/trash')
+      expect(init.method).toBe('DELETE')
     })
 
     it('throws on error response', async () => {
@@ -501,7 +505,7 @@ describe('api', () => {
   })
 
   describe('updateUserStatus', () => {
-    it('puts user status and returns updated user', async () => {
+    it('patches user and returns updated user', async () => {
       const updated = { id: 'u1', status: 'active' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(updated))
 
@@ -509,8 +513,8 @@ describe('api', () => {
 
       expect(result).toEqual(updated)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/u1/status')
-      expect(init.method).toBe('PUT')
+      expect(url).toContain('/api/admin/users/u1')
+      expect(init.method).toBe('PATCH')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ status: 'active' })
     })
@@ -719,7 +723,7 @@ describe('api', () => {
   })
 
   describe('trashObject', () => {
-    it('sends PATCH to trash endpoint for the given id', async () => {
+    it('sends PATCH with action: trash for the given id', async () => {
       const obj = { id: 'id1', status: 'trashed' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(obj))
 
@@ -727,8 +731,10 @@ describe('api', () => {
 
       expect(result).toEqual(obj)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/id1/trash')
+      expect(url).toContain('/api/objects/id1')
       expect(init.method).toBe('PATCH')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ action: 'trash' })
     })
 
     it('throws on error response', async () => {
@@ -739,7 +745,7 @@ describe('api', () => {
   })
 
   describe('batchTrashObjects', () => {
-    it('posts ids to batch trash endpoint and returns trashed count', async () => {
+    it('patches batch endpoint with action: trash and returns trashed count', async () => {
       const payload = { trashed: 3 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
@@ -747,10 +753,10 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/batch/trash')
-      expect(init.method).toBe('POST')
+      expect(url).toContain('/api/objects/batch')
+      expect(init.method).toBe('PATCH')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ ids: ['id1', 'id2', 'id3'] })
+      expect(body).toMatchObject({ action: 'trash', ids: ['id1', 'id2', 'id3'] })
     })
 
     it('posts an empty ids array without error', async () => {
@@ -761,7 +767,7 @@ describe('api', () => {
       expect(result).toEqual({ trashed: 0 })
       const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ ids: [] })
+      expect(body).toMatchObject({ action: 'trash', ids: [] })
     })
 
     it('throws on error response', async () => {
@@ -772,7 +778,7 @@ describe('api', () => {
   })
 
   describe('batchMoveObjects', () => {
-    it('posts ids and parent to batch move endpoint and returns moved count', async () => {
+    it('patches batch endpoint with action: move and returns moved count', async () => {
       const payload = { moved: 2 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
@@ -780,10 +786,10 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/batch/move')
-      expect(init.method).toBe('POST')
+      expect(url).toContain('/api/objects/batch')
+      expect(init.method).toBe('PATCH')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ ids: ['id1', 'id2'], parent: 'folder1' })
+      expect(body).toMatchObject({ action: 'move', ids: ['id1', 'id2'], parent: 'folder1' })
     })
 
     it('throws on error response', async () => {
@@ -794,7 +800,7 @@ describe('api', () => {
   })
 
   describe('batchDeleteObjects', () => {
-    it('posts ids to batch delete endpoint and returns deleted count', async () => {
+    it('sends DELETE to batch endpoint and returns deleted count', async () => {
       const payload = { deleted: 2 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
@@ -802,8 +808,8 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/batch/delete')
-      expect(init.method).toBe('POST')
+      expect(url).toContain('/api/objects/batch')
+      expect(init.method).toBe('DELETE')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ ids: ['id1', 'id2'] })
     })
@@ -945,14 +951,14 @@ describe('api', () => {
   })
 
   describe('getUnreadCount', () => {
-    it('calls /api/notifications/unread-count and returns count', async () => {
+    it('calls /api/notifications/stats and returns count', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ count: 3 }))
 
       const result = await getUnreadCount()
 
       expect(result).toEqual({ count: 3 })
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/notifications/unread-count')
+      expect(url).toContain('/api/notifications/stats')
     })
 
     it('throws on error response', async () => {
@@ -963,13 +969,13 @@ describe('api', () => {
   })
 
   describe('markNotificationRead', () => {
-    it('posts to /api/notifications/:id/read and resolves on 204', async () => {
+    it('patches /api/notifications/:id and resolves on 204', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
 
       await expect(markNotificationRead('notif-1')).resolves.toBeUndefined()
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/notifications/notif-1/read')
-      expect(init.method).toBe('POST')
+      expect(url).toContain('/api/notifications/notif-1')
+      expect(init.method).toBe('PATCH')
     })
 
     it('throws ApiError on non-ok response', async () => {
@@ -980,15 +986,15 @@ describe('api', () => {
   })
 
   describe('markAllNotificationsRead', () => {
-    it('posts to /api/notifications/read-all and returns count', async () => {
+    it('patches /api/notifications and returns count', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ count: 5 }))
 
       const result = await markAllNotificationsRead()
 
       expect(result).toEqual({ count: 5 })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/notifications/read-all')
-      expect(init.method).toBe('POST')
+      expect(url).toContain('/api/notifications')
+      expect(init.method).toBe('PATCH')
     })
 
     it('throws on error response', async () => {

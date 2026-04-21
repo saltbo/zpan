@@ -19,7 +19,7 @@ const app = new Hono<Env>()
     const result = await listUsers(db, page, pageSize)
     return c.json(result)
   })
-  .put('/:id/status', zValidator('json', updateStatusSchema), async (c) => {
+  .patch('/:id', zValidator('json', updateStatusSchema), async (c) => {
     const db = c.get('platform').db
     const userId = c.req.param('id')
     const { status } = c.req.valid('json')

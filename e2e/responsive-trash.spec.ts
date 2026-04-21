@@ -12,8 +12,8 @@ async function signUpAndGoToTrash(page: import('@playwright/test').Page) {
   ])
   expect(resp.status()).toBe(200)
   await expect(page).toHaveURL(/files/, { timeout: 10000 })
-  await page.goto('/recycle-bin')
-  await expect(page).toHaveURL(/recycle-bin/, { timeout: 10000 })
+  await page.goto('/trash')
+  await expect(page).toHaveURL(/trash/, { timeout: 10000 })
 }
 
 // ---------------------------------------------------------------------------

@@ -32,28 +32,30 @@ const upsertSchema = z.object({
   scopes: z.array(z.string()).optional(),
 })
 
-const app = new Hono<Env>()
-  // Public: enabled providers only, no secrets (for login page buttons)
+// Public: enabled providers only, no secrets (for login page buttons)
+export const publicAuthProviders = new Hono<Env>().get('/', async (c) => {
+  const db = c.get('platform').db
+  const rows = await db.select().from(systemOptions).where(like(systemOptions.key, OAUTH_PROVIDER_KEY_PATTERN))
+  const items = rows
+    .map((r) => {
+      const config = parseProviderConfig(r.value)
+      if (!config?.enabled) return null
+      const meta = OAuthProviderMeta[config.providerId]
+      return {
+        providerId: config.providerId,
+        type: config.type,
+        name: meta?.name ?? config.providerId,
+        icon: meta?.icon ?? config.providerId,
+      }
+    })
+    .filter((item) => item !== null)
+  return c.json({ items })
+})
+
+// Admin: full CRUD with secrets masked
+export const adminAuthProviders = new Hono<Env>()
+  .use(requireAdmin)
   .get('/', async (c) => {
-    const db = c.get('platform').db
-    const rows = await db.select().from(systemOptions).where(like(systemOptions.key, OAUTH_PROVIDER_KEY_PATTERN))
-    const items = rows
-      .map((r) => {
-        const config = parseProviderConfig(r.value)
-        if (!config?.enabled) return null
-        const meta = OAuthProviderMeta[config.providerId]
-        return {
-          providerId: config.providerId,
-          type: config.type,
-          name: meta?.name ?? config.providerId,
-          icon: meta?.icon ?? config.providerId,
-        }
-      })
-      .filter((item) => item !== null)
-    return c.json({ items })
-  })
-  // Admin: list all provider configs (secrets masked)
-  .get('/admin', requireAdmin, async (c) => {
     const db = c.get('platform').db
     const rows = await db.select().from(systemOptions).where(like(systemOptions.key, OAUTH_PROVIDER_KEY_PATTERN))
     const items = rows
@@ -65,8 +67,7 @@ const app = new Hono<Env>()
       .filter((item) => item !== null)
     return c.json({ items })
   })
-  // Admin: upsert a provider config
-  .put('/admin/:providerId', requireAdmin, zValidator('json', upsertSchema), async (c) => {
+  .put('/:providerId', zValidator('json', upsertSchema), async (c) => {
     const db = c.get('platform').db
     const providerId = c.req.param('providerId')
     const body = c.req.valid('json')
@@ -94,8 +95,7 @@ const app = new Hono<Env>()
 
     return c.json({ ...config, clientSecret: maskSecret(config.clientSecret) })
   })
-  // Admin: delete a provider config
-  .delete('/admin/:providerId', requireAdmin, async (c) => {
+  .delete('/:providerId', async (c) => {
     const db = c.get('platform').db
     const providerId = c.req.param('providerId')
     if (!isValidProviderId(providerId)) {
@@ -104,5 +104,3 @@ const app = new Hono<Env>()
     await db.delete(systemOptions).where(eq(systemOptions.key, optionKey(providerId)))
     return c.json({ providerId, deleted: true })
   })
-
-export default app

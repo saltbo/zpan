@@ -39,6 +39,7 @@ export const createMatterSchema = z.object({
 export type CreateMatterInput = z.infer<typeof createMatterSchema>
 
 export const updateMatterSchema = z.object({
+  action: z.literal('update').optional().default('update'),
   name: z.string().min(1).optional(),
   parent: z.string().optional(),
   onConflict: conflictStrategySchema.optional(),
@@ -46,25 +47,61 @@ export const updateMatterSchema = z.object({
 
 export type UpdateMatterInput = z.infer<typeof updateMatterSchema>
 
-export const copyMatterSchema = z.object({
-  parent: z.string().default(''),
+export const confirmMatterSchema = z.object({
+  action: z.literal('confirm'),
   onConflict: conflictStrategySchema.optional(),
 })
 
-export const batchMoveSchema = z.object({
-  ids: z.array(z.string().min(1)).min(1),
-  parent: z.string().default(''),
-  onConflict: conflictStrategySchema.optional(),
-})
-
-export const batchIdsSchema = z.object({
-  ids: z.array(z.string().min(1)).min(1),
-})
-
-export const confirmUploadSchema = z.object({
-  onConflict: conflictStrategySchema.optional(),
+export const trashMatterSchema = z.object({
+  action: z.literal('trash'),
 })
 
 export const restoreMatterSchema = z.object({
+  action: z.literal('restore'),
   onConflict: conflictStrategySchema.optional(),
+})
+
+export const patchMatterSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('update'),
+    name: z.string().min(1).optional(),
+    parent: z.string().optional(),
+    onConflict: conflictStrategySchema.optional(),
+  }),
+  z.object({
+    action: z.literal('confirm'),
+    onConflict: conflictStrategySchema.optional(),
+  }),
+  z.object({
+    action: z.literal('trash'),
+  }),
+  z.object({
+    action: z.literal('restore'),
+    onConflict: conflictStrategySchema.optional(),
+  }),
+])
+
+export type PatchMatterInput = z.infer<typeof patchMatterSchema>
+
+export const copyMatterSchema = z.object({
+  copyFrom: z.string().min(1),
+  parent: z.string().default(''),
+  onConflict: conflictStrategySchema.optional(),
+})
+
+export const batchPatchSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('move'),
+    ids: z.array(z.string().min(1)).min(1),
+    parent: z.string().default(''),
+    onConflict: conflictStrategySchema.optional(),
+  }),
+  z.object({
+    action: z.literal('trash'),
+    ids: z.array(z.string().min(1)).min(1),
+  }),
+])
+
+export const batchDeleteSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
 })

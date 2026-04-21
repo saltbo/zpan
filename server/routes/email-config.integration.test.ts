@@ -56,7 +56,7 @@ describe('Admin Email Config API — auth', () => {
 
   it('POST /test returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/admin/email-config/test', {
+    const res = await app.request('/api/admin/email-config/test-messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'a@b.com' }),
@@ -285,7 +285,7 @@ describe('Admin Email Config API — POST /test', () => {
     const headers = await adminHeaders(app)
     await seedHttpConfig(db)
 
-    const res = await app.request('/api/admin/email-config/test', {
+    const res = await app.request('/api/admin/email-config/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'recipient@example.com' }),
@@ -307,7 +307,7 @@ describe('Admin Email Config API — POST /test', () => {
     const headers = await adminHeaders(app)
     await seedHttpConfig(db)
 
-    const res = await app.request('/api/admin/email-config/test', {
+    const res = await app.request('/api/admin/email-config/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'recipient@example.com' }),
@@ -322,7 +322,7 @@ describe('Admin Email Config API — POST /test', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/email-config/test', {
+    const res = await app.request('/api/admin/email-config/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'recipient@example.com' }),
@@ -338,7 +338,7 @@ describe('Admin Email Config API — POST /test', () => {
     const headers = await adminHeaders(app)
     await seedSmtpConfig(db)
 
-    const res = await app.request('/api/admin/email-config/test', {
+    const res = await app.request('/api/admin/email-config/test-messages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'not-an-email' }),

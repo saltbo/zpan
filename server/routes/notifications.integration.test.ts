@@ -80,7 +80,11 @@ describe('GET /api/notifications', () => {
     const n1 = await createNotification(db, { userId, type: 'test', title: 'Read' })
     await createNotification(db, { userId, type: 'test', title: 'Unread' })
 
-    await app.request(`/api/notifications/${n1.id}/read`, { method: 'POST', headers })
+    await app.request(`/api/notifications/${n1.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: true }),
+    })
 
     const res = await app.request('/api/notifications?unread=true', { headers })
     expect(res.status).toBe(200)
@@ -102,9 +106,9 @@ describe('GET /api/notifications', () => {
   })
 })
 
-// ─── GET /api/notifications/unread-count ─────────────────────────────────────
+// ─── GET /api/notifications/stats ─────────────────────────────────────
 
-describe('GET /api/notifications/unread-count', () => {
+describe('GET /api/notifications/stats', () => {
   it('returns correct count', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
@@ -112,25 +116,29 @@ describe('GET /api/notifications/unread-count', () => {
     await createNotification(db, { userId, type: 'test', title: 'A' })
     await createNotification(db, { userId, type: 'test', title: 'B' })
 
-    const res = await app.request('/api/notifications/unread-count', { headers })
+    const res = await app.request('/api/notifications/stats', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { count: number }
     expect(body.count).toBe(2)
   })
 })
 
-// ─── POST /api/notifications/:id/read ────────────────────────────────────────
+// ─── PATCH /api/notifications/:id ────────────────────────────────────────
 
-describe('POST /api/notifications/:id/read', () => {
+describe('PATCH /api/notifications/:id', () => {
   it('marks notification as read and returns 204', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
     const n = await createNotification(db, { userId, type: 'test', title: 'Test' })
 
-    const res = await app.request(`/api/notifications/${n.id}/read`, { method: 'POST', headers })
+    const res = await app.request(`/api/notifications/${n.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: true }),
+    })
     expect(res.status).toBe(204)
 
-    const countRes = await app.request('/api/notifications/unread-count', { headers })
+    const countRes = await app.request('/api/notifications/stats', { headers })
     const body = (await countRes.json()) as { count: number }
     expect(body.count).toBe(0)
   })
@@ -140,8 +148,16 @@ describe('POST /api/notifications/:id/read', () => {
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
     const n = await createNotification(db, { userId, type: 'test', title: 'Test' })
 
-    await app.request(`/api/notifications/${n.id}/read`, { method: 'POST', headers })
-    const res = await app.request(`/api/notifications/${n.id}/read`, { method: 'POST', headers })
+    await app.request(`/api/notifications/${n.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: true }),
+    })
+    const res = await app.request(`/api/notifications/${n.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: true }),
+    })
     expect(res.status).toBe(204)
   })
 
@@ -151,7 +167,11 @@ describe('POST /api/notifications/:id/read', () => {
     const otherId = await insertUser(db)
     const n = await createNotification(db, { userId: otherId, type: 'test', title: 'Other' })
 
-    const res = await app.request(`/api/notifications/${n.id}/read`, { method: 'POST', headers })
+    const res = await app.request(`/api/notifications/${n.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: true }),
+    })
     expect(res.status).toBe(404)
   })
 
@@ -159,14 +179,18 @@ describe('POST /api/notifications/:id/read', () => {
     const { app } = await createTestApp()
     const { headers } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 
-    const res = await app.request('/api/notifications/nonexistent/read', { method: 'POST', headers })
+    const res = await app.request('/api/notifications/nonexistent', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: true }),
+    })
     expect(res.status).toBe(404)
   })
 })
 
-// ─── POST /api/notifications/read-all ────────────────────────────────────────
+// ─── PATCH /api/notifications ────────────────────────────────────────
 
-describe('POST /api/notifications/read-all', () => {
+describe('PATCH /api/notifications', () => {
   it('marks all notifications as read and returns count', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
@@ -174,12 +198,16 @@ describe('POST /api/notifications/read-all', () => {
     await createNotification(db, { userId, type: 'test', title: 'A' })
     await createNotification(db, { userId, type: 'test', title: 'B' })
 
-    const res = await app.request('/api/notifications/read-all', { method: 'POST', headers })
+    const res = await app.request('/api/notifications', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: true }),
+    })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { count: number }
     expect(body.count).toBe(2)
 
-    const countRes = await app.request('/api/notifications/unread-count', { headers })
+    const countRes = await app.request('/api/notifications/stats', { headers })
     const countBody = (await countRes.json()) as { count: number }
     expect(countBody.count).toBe(0)
   })
@@ -190,7 +218,11 @@ describe('POST /api/notifications/read-all', () => {
     const otherId = await insertUser(db)
     await createNotification(db, { userId: otherId, type: 'test', title: 'Other' })
 
-    const res = await app.request('/api/notifications/read-all', { method: 'POST', headers })
+    const res = await app.request('/api/notifications', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: true }),
+    })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { count: number }
     expect(body.count).toBe(0)
@@ -200,7 +232,11 @@ describe('POST /api/notifications/read-all', () => {
     const { app } = await createTestApp()
     const { headers } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 
-    const res = await app.request('/api/notifications/read-all', { method: 'POST', headers })
+    const res = await app.request('/api/notifications', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: true }),
+    })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { count: number }
     expect(body.count).toBe(0)

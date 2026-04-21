@@ -111,7 +111,7 @@ const app = new Hono<Env>()
     await saveOptions(db, entries)
     return c.json({ success: true })
   })
-  .post('/test', zValidator('json', testEmailSchema), async (c) => {
+  .post('/test-messages', zValidator('json', testEmailSchema), async (c) => {
     const db = c.get('platform').db
     const { to } = c.req.valid('json')
     try {

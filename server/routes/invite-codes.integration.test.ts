@@ -189,7 +189,7 @@ describe('Public Invite Codes API — POST /validate', () => {
     const { app, db } = await createTestApp()
     const [row] = await generateInviteCodes(db, 'admin-1', 1)
 
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: row.code }),
@@ -201,7 +201,7 @@ describe('Public Invite Codes API — POST /validate', () => {
 
   it('returns valid:false for a nonexistent code', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: 'NOSUCHCD' }),
@@ -217,7 +217,7 @@ describe('Public Invite Codes API — POST /validate', () => {
     const [row] = await generateInviteCodes(db, 'admin-1', 1)
     await redeemInviteCode(db, row.code, 'user-99')
 
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: row.code }),
@@ -232,7 +232,7 @@ describe('Public Invite Codes API — POST /validate', () => {
     const past = new Date(Date.now() - 1000)
     const [row] = await generateInviteCodes(db, 'admin-1', 1, past)
 
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: row.code }),
@@ -244,7 +244,7 @@ describe('Public Invite Codes API — POST /validate', () => {
 
   it('returns 400 when code field is missing from request body', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -254,7 +254,7 @@ describe('Public Invite Codes API — POST /validate', () => {
 
   it('returns 400 when code is an empty string', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: '' }),
@@ -264,7 +264,7 @@ describe('Public Invite Codes API — POST /validate', () => {
 
   it('returns 400 when code contains lowercase letters', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: 'abcd1234' }),
@@ -274,7 +274,7 @@ describe('Public Invite Codes API — POST /validate', () => {
 
   it('returns 400 when code is fewer than 8 characters', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: 'ABC123' }),
@@ -284,7 +284,7 @@ describe('Public Invite Codes API — POST /validate', () => {
 
   it('returns 400 when code is more than 8 characters', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: 'ABCD12345' }),
@@ -297,7 +297,7 @@ describe('Public Invite Codes API — POST /validate', () => {
     const [row] = await generateInviteCodes(db, 'admin-1', 1)
 
     // No auth headers — should still work
-    const res = await app.request('/api/invite-codes/validate', {
+    const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: row.code }),

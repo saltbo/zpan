@@ -105,16 +105,22 @@ describe('updateMatterSchema', () => {
 })
 
 describe('copyMatterSchema', () => {
-  it('accepts empty object with default parent', () => {
+  it('requires copyFrom field', () => {
     const result = copyMatterSchema.safeParse({})
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts copyFrom with default parent', () => {
+    const result = copyMatterSchema.safeParse({ copyFrom: 'source-id' })
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.parent).toBe('')
+      expect(result.data.copyFrom).toBe('source-id')
     }
   })
 
-  it('accepts explicit parent', () => {
-    const result = copyMatterSchema.safeParse({ parent: 'folder-id' })
+  it('accepts copyFrom with explicit parent', () => {
+    const result = copyMatterSchema.safeParse({ copyFrom: 'source-id', parent: 'folder-id' })
     expect(result.success).toBe(true)
   })
 })

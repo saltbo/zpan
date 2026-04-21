@@ -6,7 +6,7 @@ import { accessLog } from './middleware/logger'
 import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
 import type { Platform } from './platform/interface'
-import authProviders from './routes/auth-providers'
+import { adminAuthProviders, publicAuthProviders } from './routes/auth-providers'
 import emailConfig from './routes/email-config'
 import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
 import { notifications } from './routes/notifications'
@@ -50,6 +50,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/dl', shareDirect)
   app.route('/api/profiles', profile)
   app.route('/api/teams', publicTeams)
+  app.route('/api/auth-providers', publicAuthProviders)
 
   app.use('/api/*', authMiddleware)
 
@@ -57,7 +58,7 @@ export function createApp(platform: Platform, auth: Auth) {
   // Each .route() call is independent — TypeScript doesn't stack types.
   app.route('/api/objects', objects)
   app.route('/api/shares', authedShares)
-  app.route('/api/recycle-bin', trash)
+  app.route('/api/trash', trash)
   app.route('/api/teams', teams)
   app.route('/api/admin/storages', storages)
   app.route('/api/admin/users', users)
@@ -67,7 +68,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/admin/quotas', adminQuotas)
   app.route('/api/quotas', userQuotas)
   app.route('/api/system', system)
-  app.route('/api/auth-providers', authProviders)
+  app.route('/api/admin/auth-providers', adminAuthProviders)
   app.route('/api/notifications', notifications)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
@@ -90,7 +91,8 @@ export type SystemRoute = typeof system
 export type EmailConfigRoute = typeof emailConfig
 export type AdminInviteCodesRoute = typeof adminInviteCodes
 export type PublicInviteCodesRoute = typeof publicInviteCodes
-export type AuthProvidersRoute = typeof authProviders
+export type AuthProvidersRoute = typeof publicAuthProviders
+export type AdminAuthProvidersRoute = typeof adminAuthProviders
 export type ProfileRoute = typeof profile
 export type TeamsRoute = typeof teams
 export type PublicTeamsRoute = typeof publicTeams

@@ -77,7 +77,7 @@ export function AppSidebar() {
   const isFiles = pathname === '/files'
   const activeFilesNav = isFiles && !fileType
   const activeFileType = (type: string) => isFiles && fileType === type
-  const activeRecycleBin = pathname === '/recycle-bin'
+  const activeRecycleBin = pathname === '/trash'
   const activeShares = pathname.startsWith('/shares')
 
   async function handleSignOut() {
@@ -156,7 +156,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={activeRecycleBin}>
-                  <Link to="/recycle-bin">
+                  <Link to="/trash">
                     <Trash2 className="h-4 w-4" />
                     <span>{t('nav.trash')}</span>
                   </Link>

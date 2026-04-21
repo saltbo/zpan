@@ -4,7 +4,7 @@ import type { Env } from '../middleware/platform'
 import { collectForPurge, listTrashedRoots } from '../services/matter'
 import { purgeRecursively } from '../services/purge'
 
-const app = new Hono<Env>().use(requireAuth).post('/empty', requireTeamRole('editor'), async (c) => {
+const app = new Hono<Env>().use(requireAuth).delete('/', requireTeamRole('editor'), async (c) => {
   const orgId = c.get('orgId')
   if (!orgId) return c.json({ error: 'No active organization' }, 400)
   const db = c.get('platform').db

@@ -48,7 +48,7 @@ export const adminInviteCodes = new Hono<Env>()
     return c.json({ id, deleted: true })
   })
 
-export const publicInviteCodes = new Hono<Env>().post('/validate', zValidator('json', validateSchema), async (c) => {
+export const publicInviteCodes = new Hono<Env>().post('/validations', zValidator('json', validateSchema), async (c) => {
   const db = c.get('platform').db
   const { code } = c.req.valid('json')
   const result = await validateInviteCode(db, code)

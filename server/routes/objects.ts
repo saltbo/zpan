@@ -2,13 +2,11 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { DirType } from '../../shared/constants'
 import {
-  batchIdsSchema,
-  batchMoveSchema,
-  confirmUploadSchema,
+  batchDeleteSchema,
+  batchPatchSchema,
   copyMatterSchema,
   createMatterSchema,
-  restoreMatterSchema,
-  updateMatterSchema,
+  patchMatterSchema,
 } from '../../shared/schemas'
 import type { Storage as S3Storage } from '../../shared/types'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
@@ -107,35 +105,35 @@ const app = new Hono<Env>()
       throw e
     }
   })
-  .post('/batch/move', requireTeamRole('editor'), zValidator('json', batchMoveSchema), async (c) => {
+  .patch('/batch', requireTeamRole('editor'), zValidator('json', batchPatchSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const { ids, parent, onConflict } = c.req.valid('json')
+    const body = c.req.valid('json')
     const db = c.get('platform').db
-    const userId = c.get('userId')!
-    try {
-      const moved = await batchMove(db, orgId, ids, parent, userId, onConflict ?? 'fail')
-      return c.json({ moved: moved.length })
-    } catch (e) {
-      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
-      return c.json({ error: (e as Error).message }, 400)
-    }
-  })
-  .post('/batch/trash', requireTeamRole('editor'), zValidator('json', batchIdsSchema), async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const { ids } = c.req.valid('json')
-    const db = c.get('platform').db
-    try {
-      const trashed = await batchTrash(db, orgId, ids)
-      return c.json({ trashed: trashed.length })
-    } catch (e) {
-      return c.json({ error: (e as Error).message }, 400)
+    switch (body.action) {
+      case 'move': {
+        const userId = c.get('userId')!
+        try {
+          const moved = await batchMove(db, orgId, body.ids, body.parent, userId, body.onConflict ?? 'fail')
+          return c.json({ moved: moved.length })
+        } catch (e) {
+          if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+          return c.json({ error: (e as Error).message }, 400)
+        }
+      }
+      case 'trash': {
+        try {
+          const trashed = await batchTrash(db, orgId, body.ids)
+          return c.json({ trashed: trashed.length })
+        } catch (e) {
+          return c.json({ error: (e as Error).message }, 400)
+        }
+      }
     }
   })
-  .post('/batch/delete', requireTeamRole('editor'), zValidator('json', batchIdsSchema), async (c) => {
+  .delete('/batch', requireTeamRole('editor'), zValidator('json', batchDeleteSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -179,60 +177,54 @@ const app = new Hono<Env>()
     const downloadUrl = await s3.presignDownload(storage, matter.object, matter.name)
     return c.json({ ...matter, downloadUrl })
   })
-  .patch('/:id', requireTeamRole('editor'), zValidator('json', updateMatterSchema), async (c) => {
+  .patch('/:id', requireTeamRole('editor'), zValidator('json', patchMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
     const db = c.get('platform').db
     const userId = c.get('userId')!
-    try {
-      const matter = await updateMatter(db, c.req.param('id'), orgId, c.req.valid('json'), userId)
-      if (!matter) return c.json({ error: 'Not found' }, 404)
-      return c.json(matter)
-    } catch (e) {
-      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
-      return c.json({ error: (e as Error).message }, 400)
-    }
-  })
-  .patch('/:id/done', requireTeamRole('editor'), zValidator('json', confirmUploadSchema), async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    const body = c.req.valid('json')
 
-    const db = c.get('platform').db
-    const userId = c.get('userId')!
-    const { onConflict } = c.req.valid('json')
-    try {
-      const { matter, quotaExceeded } = await confirmUpload(db, c.req.param('id'), orgId, { onConflict, userId })
-      if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
-      if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
-      return c.json(matter)
-    } catch (e) {
-      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
-      throw e
-    }
-  })
-  .patch('/:id/trash', requireTeamRole('editor'), async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
-    const db = c.get('platform').db
-    const userId = c.get('userId')!
-    const matter = await trashMatter(db, orgId, c.req.param('id'), userId)
-    if (!matter) return c.json({ error: 'Not found' }, 404)
-    return c.json(matter)
-  })
-  .patch('/:id/restore', requireTeamRole('editor'), zValidator('json', restoreMatterSchema), async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
-    const db = c.get('platform').db
-    const userId = c.get('userId')!
-    const { onConflict } = c.req.valid('json')
-    try {
-      const matter = await restoreMatter(db, orgId, c.req.param('id'), userId, onConflict ?? 'fail')
-      if (!matter) return c.json({ error: 'Not found' }, 404)
-      return c.json(matter)
-    } catch (e) {
-      if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
-      throw e
+    switch (body.action) {
+      case 'update': {
+        try {
+          const matter = await updateMatter(db, c.req.param('id'), orgId, body, userId)
+          if (!matter) return c.json({ error: 'Not found' }, 404)
+          return c.json(matter)
+        } catch (e) {
+          if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+          return c.json({ error: (e as Error).message }, 400)
+        }
+      }
+      case 'confirm': {
+        try {
+          const { matter, quotaExceeded } = await confirmUpload(db, c.req.param('id'), orgId, {
+            onConflict: body.onConflict,
+            userId,
+          })
+          if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
+          if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
+          return c.json(matter)
+        } catch (e) {
+          if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+          throw e
+        }
+      }
+      case 'trash': {
+        const matter = await trashMatter(db, orgId, c.req.param('id'), userId)
+        if (!matter) return c.json({ error: 'Not found' }, 404)
+        return c.json(matter)
+      }
+      case 'restore': {
+        try {
+          const matter = await restoreMatter(db, orgId, c.req.param('id'), userId, body.onConflict ?? 'fail')
+          if (!matter) return c.json({ error: 'Not found' }, 404)
+          return c.json(matter)
+        } catch (e) {
+          if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
+          throw e
+        }
+      }
     }
   })
   .delete('/:id', requireTeamRole('editor'), async (c) => {
@@ -247,13 +239,14 @@ const app = new Hono<Env>()
     const purged = await purgeRecursively(db, orgId, ms)
     return c.json({ id: ms[0].id, deleted: true, purged })
   })
-  .post('/:id/copy', requireTeamRole('editor'), zValidator('json', copyMatterSchema), async (c) => {
+  .post('/copy', requireTeamRole('editor'), zValidator('json', copyMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
     const db = c.get('platform').db
     const userId = c.get('userId')!
-    const source = await getMatter(db, c.req.param('id'), orgId)
+    const { copyFrom, parent, onConflict } = c.req.valid('json')
+    const source = await getMatter(db, copyFrom, orgId)
     if (!source) return c.json({ error: 'Not found' }, 404)
 
     const sourceSize = source.size ?? 0
@@ -274,7 +267,6 @@ const app = new Hono<Env>()
       await s3.copyObject(storage, source.object, storage, newObject)
     }
 
-    const { parent, onConflict } = c.req.valid('json')
     try {
       const copy = await copyMatter(db, source, parent, newObject, { onConflict, userId })
       return c.json(copy, 201)

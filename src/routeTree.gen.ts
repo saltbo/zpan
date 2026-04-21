@@ -19,11 +19,11 @@ import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
+import { Route as AuthenticatedTrashIndexRouteImport } from './routes/_authenticated/trash/index'
 import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authenticated/teams/index'
 import { Route as AuthenticatedStoragesIndexRouteImport } from './routes/_authenticated/storages/index'
 import { Route as AuthenticatedSharesIndexRouteImport } from './routes/_authenticated/shares/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
-import { Route as AuthenticatedRecycleBinIndexRouteImport } from './routes/_authenticated/recycle-bin/index'
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
@@ -89,6 +89,11 @@ const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
   path: '/users/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedTrashIndexRoute = AuthenticatedTrashIndexRouteImport.update({
+  id: '/trash/',
+  path: '/trash/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTeamsIndexRoute = AuthenticatedTeamsIndexRouteImport.update({
   id: '/teams/',
   path: '/teams/',
@@ -111,12 +116,6 @@ const AuthenticatedSettingsIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedRecycleBinIndexRoute =
-  AuthenticatedRecycleBinIndexRouteImport.update({
-    id: '/recycle-bin/',
-    path: '/recycle-bin/',
-    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedFilesIndexRoute = AuthenticatedFilesIndexRouteImport.update({
   id: '/files/',
@@ -217,11 +216,11 @@ export interface FileRoutesByFullPath {
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/files/': typeof AuthenticatedFilesIndexRoute
-  '/recycle-bin/': typeof AuthenticatedRecycleBinIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/shares/': typeof AuthenticatedSharesIndexRoute
   '/storages/': typeof AuthenticatedStoragesIndexRoute
   '/teams/': typeof AuthenticatedTeamsIndexRoute
+  '/trash/': typeof AuthenticatedTrashIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
@@ -245,11 +244,11 @@ export interface FileRoutesByTo {
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/files': typeof AuthenticatedFilesIndexRoute
-  '/recycle-bin': typeof AuthenticatedRecycleBinIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/shares': typeof AuthenticatedSharesIndexRoute
   '/storages': typeof AuthenticatedStoragesIndexRoute
   '/teams': typeof AuthenticatedTeamsIndexRoute
+  '/trash': typeof AuthenticatedTrashIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
@@ -277,11 +276,11 @@ export interface FileRoutesById {
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/_authenticated/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/_authenticated/files/': typeof AuthenticatedFilesIndexRoute
-  '/_authenticated/recycle-bin/': typeof AuthenticatedRecycleBinIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/shares/': typeof AuthenticatedSharesIndexRoute
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
   '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
+  '/_authenticated/trash/': typeof AuthenticatedTrashIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/_authenticated/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
@@ -309,11 +308,11 @@ export interface FileRouteTypes {
     | '/settings/profile'
     | '/teams/invite'
     | '/files/'
-    | '/recycle-bin/'
     | '/settings/'
     | '/shares/'
     | '/storages/'
     | '/teams/'
+    | '/trash/'
     | '/users/'
     | '/admin/settings/auth'
     | '/teams/$teamId/activity'
@@ -337,11 +336,11 @@ export interface FileRouteTypes {
     | '/settings/profile'
     | '/teams/invite'
     | '/files'
-    | '/recycle-bin'
     | '/settings'
     | '/shares'
     | '/storages'
     | '/teams'
+    | '/trash'
     | '/users'
     | '/admin/settings/auth'
     | '/teams/$teamId/activity'
@@ -368,11 +367,11 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/profile'
     | '/_authenticated/teams/invite'
     | '/_authenticated/files/'
-    | '/_authenticated/recycle-bin/'
     | '/_authenticated/settings/'
     | '/_authenticated/shares/'
     | '/_authenticated/storages/'
     | '/_authenticated/teams/'
+    | '/_authenticated/trash/'
     | '/_authenticated/users/'
     | '/_authenticated/admin/settings/auth'
     | '/_authenticated/teams/$teamId/activity'
@@ -464,6 +463,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/trash/': {
+      id: '/_authenticated/trash/'
+      path: '/trash'
+      fullPath: '/trash/'
+      preLoaderRoute: typeof AuthenticatedTrashIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/teams/': {
       id: '/_authenticated/teams/'
       path: '/teams'
@@ -491,13 +497,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/'
       preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/recycle-bin/': {
-      id: '/_authenticated/recycle-bin/'
-      path: '/recycle-bin'
-      fullPath: '/recycle-bin/'
-      preLoaderRoute: typeof AuthenticatedRecycleBinIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/files/': {
       id: '/_authenticated/files/'
@@ -669,10 +668,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTeamsTeamIdRouteRoute: typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   AuthenticatedTeamsInviteRoute: typeof AuthenticatedTeamsInviteRoute
   AuthenticatedFilesIndexRoute: typeof AuthenticatedFilesIndexRoute
-  AuthenticatedRecycleBinIndexRoute: typeof AuthenticatedRecycleBinIndexRoute
   AuthenticatedSharesIndexRoute: typeof AuthenticatedSharesIndexRoute
   AuthenticatedStoragesIndexRoute: typeof AuthenticatedStoragesIndexRoute
   AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
+  AuthenticatedTrashIndexRoute: typeof AuthenticatedTrashIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
 }
 
@@ -684,10 +683,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedTeamsTeamIdRouteRouteWithChildren,
   AuthenticatedTeamsInviteRoute: AuthenticatedTeamsInviteRoute,
   AuthenticatedFilesIndexRoute: AuthenticatedFilesIndexRoute,
-  AuthenticatedRecycleBinIndexRoute: AuthenticatedRecycleBinIndexRoute,
   AuthenticatedSharesIndexRoute: AuthenticatedSharesIndexRoute,
   AuthenticatedStoragesIndexRoute: AuthenticatedStoragesIndexRoute,
   AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
+  AuthenticatedTrashIndexRoute: AuthenticatedTrashIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
 }
 

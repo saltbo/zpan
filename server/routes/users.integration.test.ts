@@ -59,7 +59,7 @@ describe('Admin Users API', () => {
     expect(body.items[0].orgName).toBeTruthy()
   })
 
-  it('PUT /api/admin/users/:id/status disables a user', async () => {
+  it('PATCH /api/admin/users/:id disables a user', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -70,8 +70,8 @@ describe('Admin Users API', () => {
     const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'user2@example.com'`)
     const userId = users[0].id
 
-    const res = await app.request(`/api/admin/users/${userId}/status`, {
-      method: 'PUT',
+    const res = await app.request(`/api/admin/users/${userId}`, {
+      method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'disabled' }),
     })
@@ -84,22 +84,22 @@ describe('Admin Users API', () => {
     expect(updated[0].banned).toBe(1)
   })
 
-  it('PUT /api/admin/users/:id/status rejects invalid status', async () => {
+  it('PATCH /api/admin/users/:id rejects invalid status', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/users/someid/status', {
-      method: 'PUT',
+    const res = await app.request('/api/admin/users/someid', {
+      method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'invalid' }),
     })
     expect(res.status).toBe(400)
   })
 
-  it('PUT /api/admin/users/:id/status returns 404 for missing user', async () => {
+  it('PATCH /api/admin/users/:id returns 404 for missing user', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/users/nonexistent/status', {
-      method: 'PUT',
+    const res = await app.request('/api/admin/users/nonexistent', {
+      method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'disabled' }),
     })
@@ -138,8 +138,8 @@ describe('Admin Users API', () => {
     const userId = users[0].id
 
     // Disable the user while they have an active session
-    await app.request(`/api/admin/users/${userId}/status`, {
-      method: 'PUT',
+    await app.request(`/api/admin/users/${userId}`, {
+      method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'disabled' }),
     })

@@ -20,14 +20,14 @@ import {
 } from '@/components/ui/dialog'
 import { deleteObject, emptyTrash, listObjects, restoreObject } from '@/lib/api'
 
-export const Route = createFileRoute('/_authenticated/recycle-bin/')({
-  component: RecycleBinPage,
+export const Route = createFileRoute('/_authenticated/trash/')({
+  component: TrashPage,
 })
 
 const QUERY_KEY = ['objects', 'trashed']
 const PAGE_SIZE = 20
 
-function RecycleBinPage() {
+function TrashPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)

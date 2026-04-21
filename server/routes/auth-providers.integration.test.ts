@@ -23,7 +23,7 @@ async function putProvider(
   providerId: string,
   body: Record<string, unknown>,
 ) {
-  return app.request(`/api/auth-providers/admin/${providerId}`, {
+  return app.request(`/api/admin/auth-providers/${providerId}`, {
     method: 'PUT',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -105,7 +105,7 @@ describe('Auth Providers — public list', () => {
 describe('Auth Providers — admin list', () => {
   it('returns 401 without authentication', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/auth-providers/admin')
+    const res = await app.request('/api/admin/auth-providers')
     expect(res.status).toBe(401)
   })
 
@@ -120,14 +120,14 @@ describe('Auth Providers — admin list', () => {
       body: JSON.stringify({ email: 'regular@example.com', password: 'password123456' }),
     })
     const freshHeaders = { Cookie: signInRes.headers.getSetCookie().join('; ') }
-    const res = await app.request('/api/auth-providers/admin', { headers: freshHeaders })
+    const res = await app.request('/api/admin/auth-providers', { headers: freshHeaders })
     expect(res.status).toBe(403)
   })
 
   it('returns empty items when no providers are configured', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
-    const res = await app.request('/api/auth-providers/admin', { headers: admin })
+    const res = await app.request('/api/admin/auth-providers', { headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[] }
     expect(body.items).toEqual([])
@@ -140,7 +140,7 @@ describe('Auth Providers — admin list', () => {
     await putProvider(app, admin, 'github', { ...githubConfig, enabled: true })
     await putProvider(app, admin, 'google', { ...githubConfig, clientId: 'google-id', enabled: false })
 
-    const res = await app.request('/api/auth-providers/admin', { headers: admin })
+    const res = await app.request('/api/admin/auth-providers', { headers: admin })
     const body = (await res.json()) as { items: Array<Record<string, unknown>> }
     expect(body.items).toHaveLength(2)
   })
@@ -151,7 +151,7 @@ describe('Auth Providers — admin list', () => {
 
     await putProvider(app, admin, 'github', githubConfig)
 
-    const res = await app.request('/api/auth-providers/admin', { headers: admin })
+    const res = await app.request('/api/admin/auth-providers', { headers: admin })
     const body = (await res.json()) as { items: Array<Record<string, unknown>> }
     const secret = body.items[0].clientSecret as string
     expect(secret).toMatch(/^\*+alue$/)
@@ -164,7 +164,7 @@ describe('Auth Providers — admin list', () => {
 
     await putProvider(app, admin, 'github', { ...githubConfig, clientSecret: 'abc' })
 
-    const res = await app.request('/api/auth-providers/admin', { headers: admin })
+    const res = await app.request('/api/admin/auth-providers', { headers: admin })
     const body = (await res.json()) as { items: Array<Record<string, unknown>> }
     expect(body.items[0].clientSecret).toBe('****')
   })
@@ -173,7 +173,7 @@ describe('Auth Providers — admin list', () => {
 describe('Auth Providers — admin upsert (PUT)', () => {
   it('returns 401 without authentication', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/auth-providers/admin/github', {
+    const res = await app.request('/api/admin/auth-providers/github', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(githubConfig),
@@ -216,7 +216,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(body.enabled).toBe(false)
 
     // Admin list should still have only one entry
-    const listRes = await app.request('/api/auth-providers/admin', { headers: admin })
+    const listRes = await app.request('/api/admin/auth-providers', { headers: admin })
     const listBody = (await listRes.json()) as { items: unknown[] }
     expect(listBody.items).toHaveLength(1)
   })
@@ -284,7 +284,7 @@ describe('Auth Providers — admin upsert (PUT)', () => {
 describe('Auth Providers — admin delete', () => {
   it('returns 401 without authentication', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/auth-providers/admin/github', { method: 'DELETE' })
+    const res = await app.request('/api/admin/auth-providers/github', { method: 'DELETE' })
     expect(res.status).toBe(401)
   })
 
@@ -294,7 +294,7 @@ describe('Auth Providers — admin delete', () => {
 
     await putProvider(app, admin, 'github', githubConfig)
 
-    const res = await app.request('/api/auth-providers/admin/github', { method: 'DELETE', headers: admin })
+    const res = await app.request('/api/admin/auth-providers/github', { method: 'DELETE', headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.deleted).toBe(true)
@@ -306,7 +306,7 @@ describe('Auth Providers — admin delete', () => {
     const admin = await adminHeaders(app)
 
     await putProvider(app, admin, 'github', githubConfig)
-    await app.request('/api/auth-providers/admin/github', { method: 'DELETE', headers: admin })
+    await app.request('/api/admin/auth-providers/github', { method: 'DELETE', headers: admin })
 
     const res = await app.request('/api/auth-providers')
     const body = (await res.json()) as { items: unknown[] }
@@ -318,9 +318,9 @@ describe('Auth Providers — admin delete', () => {
     const admin = await adminHeaders(app)
 
     await putProvider(app, admin, 'github', githubConfig)
-    await app.request('/api/auth-providers/admin/github', { method: 'DELETE', headers: admin })
+    await app.request('/api/admin/auth-providers/github', { method: 'DELETE', headers: admin })
 
-    const res = await app.request('/api/auth-providers/admin', { headers: admin })
+    const res = await app.request('/api/admin/auth-providers', { headers: admin })
     const body = (await res.json()) as { items: unknown[] }
     expect(body.items).toHaveLength(0)
   })
@@ -329,7 +329,7 @@ describe('Auth Providers — admin delete', () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
-    const res = await app.request('/api/auth-providers/admin/github', { method: 'DELETE', headers: admin })
+    const res = await app.request('/api/admin/auth-providers/github', { method: 'DELETE', headers: admin })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.deleted).toBe(true)

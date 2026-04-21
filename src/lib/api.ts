@@ -11,6 +11,7 @@ import type {
   StorageObject,
 } from '@shared/types'
 import {
+  adminAuthProviders,
   adminQuotas,
   authedSharesApi,
   authProviders,
@@ -108,11 +109,13 @@ export function createObject(data: {
 }
 
 export function updateObject(id: string, data: { name?: string; parent?: string; onConflict?: ConflictStrategy }) {
-  return unwrap<StorageObject>(objects[':id'].$patch({ param: { id }, json: data }))
+  return unwrap<StorageObject>(objects[':id'].$patch({ param: { id }, json: { action: 'update' as const, ...data } }))
 }
 
 export function confirmUpload(id: string, onConflict?: ConflictStrategy) {
-  return unwrap<StorageObject>(objects[':id'].done.$patch({ param: { id }, json: { onConflict } }))
+  return unwrap<StorageObject>(
+    objects[':id'].$patch({ param: { id }, json: { action: 'confirm' as const, onConflict } }),
+  )
 }
 
 export function deleteObject(id: string) {
@@ -120,31 +123,33 @@ export function deleteObject(id: string) {
 }
 
 export function copyObject(id: string, parent: string, onConflict?: ConflictStrategy) {
-  return unwrap<StorageObject>(objects[':id'].copy.$post({ param: { id }, json: { parent, onConflict } }))
+  return unwrap<StorageObject>(objects.copy.$post({ json: { copyFrom: id, parent, onConflict } }))
 }
 
 export function trashObject(id: string) {
-  return unwrap<StorageObject>(objects[':id'].trash.$patch({ param: { id } }))
+  return unwrap<StorageObject>(objects[':id'].$patch({ param: { id }, json: { action: 'trash' as const } }))
 }
 
 export function restoreObject(id: string, onConflict?: ConflictStrategy) {
-  return unwrap<StorageObject>(objects[':id'].restore.$patch({ param: { id }, json: { onConflict } }))
+  return unwrap<StorageObject>(
+    objects[':id'].$patch({ param: { id }, json: { action: 'restore' as const, onConflict } }),
+  )
 }
 
 export function batchMoveObjects(ids: string[], parent: string, onConflict?: ConflictStrategy) {
-  return unwrap<{ moved: number }>(objects.batch.move.$post({ json: { ids, parent, onConflict } }))
+  return unwrap<{ moved: number }>(objects.batch.$patch({ json: { action: 'move' as const, ids, parent, onConflict } }))
 }
 
 export function batchTrashObjects(ids: string[]) {
-  return unwrap<{ trashed: number }>(objects.batch.trash.$post({ json: { ids } }))
+  return unwrap<{ trashed: number }>(objects.batch.$patch({ json: { action: 'trash' as const, ids } }))
 }
 
 export function batchDeleteObjects(ids: string[]) {
-  return unwrap<{ deleted: number }>(objects.batch.delete.$post({ json: { ids } }))
+  return unwrap<{ deleted: number }>(objects.batch.$delete({ json: { ids } }))
 }
 
 export function emptyTrash() {
-  return unwrap<{ purged: number }>(trash.empty.$post())
+  return unwrap<{ purged: number }>(trash.index.$delete())
 }
 
 // Admin Storages API
@@ -190,7 +195,7 @@ export function listUsers(page: number, pageSize: number) {
 }
 
 export function updateUserStatus(userId: string, status: 'active' | 'disabled') {
-  return unwrap<{ id: string; status: string }>(users[':id'].status.$put({ param: { id: userId }, json: { status } }))
+  return unwrap<{ id: string; status: string }>(users[':id'].$patch({ param: { id: userId }, json: { status } }))
 }
 
 export function deleteUser(userId: string) {
@@ -250,16 +255,16 @@ export function listAuthProviders() {
 }
 
 export function listAdminAuthProviders() {
-  return unwrap<{ items: OAuthProviderConfig[] }>(authProviders.admin.$get())
+  return unwrap<{ items: OAuthProviderConfig[] }>(adminAuthProviders.index.$get())
 }
 
 export function upsertAuthProvider(providerId: string, data: Omit<OAuthProviderConfig, 'providerId'>) {
-  return unwrap<OAuthProviderConfig>(authProviders.admin[':providerId'].$put({ param: { providerId }, json: data }))
+  return unwrap<OAuthProviderConfig>(adminAuthProviders[':providerId'].$put({ param: { providerId }, json: data }))
 }
 
 export function deleteAuthProvider(providerId: string) {
   return unwrap<{ providerId: string; deleted: boolean }>(
-    authProviders.admin[':providerId'].$delete({ param: { providerId } }),
+    adminAuthProviders[':providerId'].$delete({ param: { providerId } }),
   )
 }
 
@@ -314,7 +319,7 @@ export function saveEmailConfig(data: EmailConfigData) {
 }
 
 export function testEmail(to: string) {
-  return unwrap<{ success: boolean; error?: string }>(emailConfig.test.$post({ json: { to } }))
+  return unwrap<{ success: boolean; error?: string }>(emailConfig['test-messages'].$post({ json: { to } }))
 }
 
 // Profile API (public, no auth)
@@ -360,17 +365,17 @@ export function listNotifications(page = 1, pageSize = 20, unreadOnly = false) {
 }
 
 export function getUnreadCount() {
-  return unwrap<{ count: number }>(notificationsApi['unread-count'].$get())
+  return unwrap<{ count: number }>(notificationsApi.stats.$get())
 }
 
 export function markNotificationRead(id: string) {
-  return notificationsApi[':id'].read.$post({ param: { id } }).then((res) => {
+  return notificationsApi[':id'].$patch({ param: { id } }).then((res) => {
     if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
   })
 }
 
 export function markAllNotificationsRead() {
-  return unwrap<{ count: number }>(notificationsApi['read-all'].$post())
+  return unwrap<{ count: number }>(notificationsApi.index.$patch())
 }
 
 // Shares API

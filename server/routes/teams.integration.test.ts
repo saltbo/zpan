@@ -166,12 +166,12 @@ describe('GET /api/teams/:teamId/invitations', () => {
   })
 })
 
-// ─── POST /join ────────────────────────────────────────────────────────────────
+// ─── POST /:teamId/members ─────────────────────────────────────────────────────
 
-describe('POST /api/teams/join', () => {
+describe('POST /api/teams/:teamId/members', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/teams/join', {
+    const res = await app.request('/api/teams/some-team/members', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: 'some-token' }),
@@ -184,7 +184,7 @@ describe('POST /api/teams/join', () => {
     const email = `joiner-${nanoid()}@example.com`
     const { headers } = await signUpAndGetUser(app, email)
 
-    const res = await app.request('/api/teams/join', {
+    const res = await app.request('/api/teams/some-team/members', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: 'invalid-token' }),
@@ -201,7 +201,7 @@ describe('POST /api/teams/join', () => {
     const email = `newmember-${nanoid()}@example.com`
     const { headers } = await signUpAndGetUser(app, email)
 
-    const res = await app.request('/api/teams/join', {
+    const res = await app.request(`/api/teams/${orgId}/members`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: link.token }),
@@ -219,7 +219,7 @@ describe('POST /api/teams/join', () => {
     const { headers, userId } = await signUpAndGetUser(app, email)
     await insertMember(db, orgId, userId, 'viewer')
 
-    const res = await app.request('/api/teams/join', {
+    const res = await app.request(`/api/teams/${orgId}/members`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: link.token }),

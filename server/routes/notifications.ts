@@ -18,13 +18,13 @@ export const notifications = new Hono<Env>()
     const result = await listNotifications(db, userId, { page, pageSize, unreadOnly })
     return c.json({ ...result, page, pageSize })
   })
-  .get('/unread-count', async (c) => {
+  .get('/stats', async (c) => {
     const db = c.get('platform').db
     const userId = c.get('userId')!
     const count = await unreadCount(db, userId)
     return c.json({ count })
   })
-  .post('/:id/read', async (c) => {
+  .patch('/:id', async (c) => {
     const db = c.get('platform').db
     const userId = c.get('userId')!
     const { id } = c.req.param()
@@ -34,7 +34,7 @@ export const notifications = new Hono<Env>()
 
     return new Response(null, { status: 204 })
   })
-  .post('/read-all', async (c) => {
+  .patch('/', async (c) => {
     const db = c.get('platform').db
     const userId = c.get('userId')!
     const result = await markAllAsRead(db, userId)

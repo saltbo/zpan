@@ -58,7 +58,7 @@ export const teams = new Hono<Env>()
     const invitations = await listPendingInvitations(db, teamId)
     return c.json({ invitations })
   })
-  .post('/join', zValidator('json', joinSchema), async (c) => {
+  .post('/:teamId/members', zValidator('json', joinSchema), async (c) => {
     const db = c.get('platform').db
     const userId = c.get('userId')!
     const { token } = c.req.valid('json')
