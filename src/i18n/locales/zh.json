@@ -630,8 +630,8 @@
   "settings.ihost.tools.copy": "复制",
   "settings.ihost.tools.copiedLabel": "已复制！",
   "settings.ihost.tools.copied": "已复制到剪贴板",
-  "settings.ihost.tools.picgo.instructions": "通过 `picgo -e picgo-plugin-web-uploader` 或 PicGo GUI 插件管理器安装插件，然后前往设置 → 图床 → 自定义 Web 并粘贴以下 JSON。",
-  "settings.ihost.tools.upic.instructions": "在 uPic 中前往偏好设置 → 图床 → 新建自定义，然后通过文件 → 导入配置导入以下 JSON。",
+  "settings.ihost.tools.picgo.instructions": "在 PicGo 插件管理器中安装 picgo-plugin-web-uploader，然后前往 设置 → 图床 → 自定义 Web，逐个填入以下字段：",
+  "settings.ihost.tools.upic.instructions": "在 uPic 中前往 偏好设置 → 图床 → 添加 → 自定义，逐个填入以下字段。通过「请求头」按钮添加 Authorization：",
   "settings.ihost.tools.sharex.instructions": "下载 .sxcu 文件并双击以导入 ShareX，ShareX 将自动将 ZPan 设置为自定义上传器。",
   "settings.ihost.tools.sharex.download": "下载 .sxcu",
   "settings.ihost.tools.flameshot.instructions": "在 Flameshot 截图后运行以下脚本，需要 curl、jq 和 xclip。上传后的图片 URL 将自动复制到剪贴板。"
