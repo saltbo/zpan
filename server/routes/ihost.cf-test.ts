@@ -28,7 +28,7 @@ describe('[CF] IHost API routing regression', () => {
     expect(res.status).toBe(401)
   })
 
-  it('POST /api/ihost/images returns 415 for JSON (multipart-only endpoint)', async () => {
+  it('POST /api/ihost/images returns 403 when image hosting not enabled', async () => {
     const app = await buildApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/ihost/images', {
@@ -36,8 +36,7 @@ describe('[CF] IHost API routing regression', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
     })
-    // 415 = POST /images only accepts multipart/form-data; use /images/presign for JSON
-    expect(res.status).toBe(415)
+    expect(res.status).toBe(403)
   })
 
   it('POST /api/ihost/images/presign returns 403 when image hosting not enabled', async () => {
