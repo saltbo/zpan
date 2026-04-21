@@ -698,9 +698,15 @@ describe('GET /api/ihost/images/:id', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    // Create an image belonging to a fake org — not the authenticated user's org
-    const fakeOrgId = 'other-org-id'
-    await insertImageHosting(db, fakeOrgId, { id: 'cross-org-img' })
+    // Create a second org (FK constraint requires org to exist) and insert an
+    // image for it — the authenticated user should NOT see it.
+    const otherOrgId = `other-org-${nanoid(6)}`
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, created_at)
+      VALUES (${otherOrgId}, 'Other Org', ${`slug-${otherOrgId}`}, ${now})
+    `)
+    await insertImageHosting(db, otherOrgId, { id: 'cross-org-img' })
 
     const res = await app.request('/api/ihost/images/cross-org-img', { headers })
     expect(res.status).toBe(404)
