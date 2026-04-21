@@ -268,14 +268,11 @@ app.patch(
 
     const { action } = c.req.valid('json')
 
-    if (action === 'confirm') {
-      const { row, quotaExceeded } = await confirmImageHosting(db, c.req.param('id'), orgId)
-      if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
-      if (!row) return c.json({ error: 'Not found or not in draft status' }, 404)
-      return c.json(row)
-    }
-
-    return c.json({ error: 'Unknown action' }, 400)
+    // action === 'confirm' is the only value the discriminated union allows
+    const { row, quotaExceeded } = await confirmImageHosting(db, c.req.param('id'), orgId)
+    if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
+    if (!row) return c.json({ error: 'Not found or not in draft status' }, 404)
+    return c.json(row)
   },
 )
 

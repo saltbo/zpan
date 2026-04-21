@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { confirmImageHosting, deleteImageHosting } from '../services/image-hosting.js'
 import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
@@ -130,6 +131,23 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     expect(res.status).toBe(403)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.error).toContain('image hosting not enabled')
+  })
+
+  it('returns 503 when no storage is configured', async () => {
+    // Do NOT insertStorage — selectStorage will throw → 503
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
+    })
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('storage')
   })
 
   it('returns 201 with draft row and presigned uploadUrl', async () => {
@@ -335,6 +353,170 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     })
     expect(res.status).toBe(401)
   })
+
+  it('returns 415 for unsupported content type (not JSON, not multipart)', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'text/plain' },
+      body: 'hello',
+    })
+    expect(res.status).toBe(415)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('Unsupported content type')
+  })
+
+  it('returns 400 for JSON body missing required fields (zod failure)', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mime: 'image/png' }), // missing path and size
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.error).toBe('Invalid input')
+    expect(Array.isArray(body.issues)).toBe(true)
+  })
+
+  it('returns 400 for path containing //', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'a//b.png', mime: 'image/png', size: 1024 }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.error).toBe('invalid path')
+    expect(String(body.detail)).toContain('//')
+  })
+
+  it('returns 400 for path starting with / (multipart, no zod guard)', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(50)], 'test.png', { type: 'image/png' }))
+    formData.append('path', '/absolute/path.png') // starts with /
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.error).toBe('invalid path')
+    expect(String(body.detail)).toContain('must not start with /')
+  })
+
+  it('returns 400 for path ending with / (multipart)', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(50)], 'test.png', { type: 'image/png' }))
+    formData.append('path', 'folder/') // ends with /
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.error).toBe('invalid path')
+    expect(String(body.detail)).toContain('must not end with /')
+  })
+
+  it('returns 400 for path with invalid characters (multipart)', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(50)], 'test.png', { type: 'image/png' }))
+    formData.append('path', 'images/$bad.png') // $ not in [a-zA-Z0-9._/-]
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.error).toBe('invalid path')
+    expect(String(body.detail)).toContain('invalid characters')
+  })
+
+  it('derives default path from blob filename (uses nanoid fallback)', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const formData = new FormData()
+    // Filename 'blob' triggers deriveDefaultPath's nanoid fallback
+    formData.append('file', new File([new Uint8Array(50)], 'blob', { type: 'image/png' }))
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { data: { url: string } }
+    expect(body.data.url).toBeTruthy()
+  })
+
+  it('returns 400 for path exceeding 256 characters (multipart, bypasses zod)', async () => {
+    // JSON path is guarded by zod max(256), so use multipart to reach validatePath length check
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const veryLongPath = `${'a'.repeat(253)}.png` // 257 chars — exceeds MAX_PATH_LENGTH (256)
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(50)], 'test.png', { type: 'image/png' }))
+    formData.append('path', veryLongPath)
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.error).toBe('invalid path')
+    expect(String(body.detail)).toContain('exceeds')
+  })
 })
 
 // ─── POST multipart stream-proxy ─────────────────────────────────────────────
@@ -423,6 +605,30 @@ describe('POST /api/ihost/images (multipart)', () => {
       method: 'POST',
       headers,
       body: formData,
+    })
+    expect(res.status).toBe(413)
+  })
+
+  it('returns 413 from Content-Length header before parsing body', async () => {
+    // Sends explicit Content-Length > MAX_IMAGE_SIZE with a tiny body — triggers
+    // the header-based early reject (before formData.get('file') is called)
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const boundary = '----FormBoundary'
+    const bodyText = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="x.png"\r\nContent-Type: image/png\r\n\r\nXX\r\n--${boundary}--`
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': String(21 * 1024 * 1024), // claim oversized
+      },
+      body: bodyText,
     })
     expect(res.status).toBe(413)
   })
@@ -526,6 +732,99 @@ describe('POST /api/ihost/images (multipart)', () => {
       headers: { Authorization: `Bearer ${key}` },
     })
     expect(res.status).toBe(201)
+  })
+
+  it('returns 415 for non-image MIME (application/pdf) in multipart', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(100)], 'doc.pdf', { type: 'application/pdf' }))
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).toBe(415)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('Unsupported')
+  })
+
+  it('returns 400 when file field is missing in multipart', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const formData = new FormData()
+    formData.append('other', 'value') // no 'file' field
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('file field')
+  })
+
+  it('returns 422 when quota is exceeded on multipart upload', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    // Set quota to 50 bytes so a 100-byte upload exceeds it
+    await db.run(sql`UPDATE org_quotas SET quota = 50 WHERE org_id = ${orgId}`)
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(100)], 'big.png', { type: 'image/png' }))
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('Quota')
+  })
+
+  it('uses nanoid fallback path after exhausting collision retries', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    // Mock Math.random so randomHex4() always returns '8000'
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+
+    // Seed original + the single retry candidate so all 5 retries collide
+    await insertImageHosting(db, orgId, { path: 'retry.png' })
+    await insertImageHosting(db, orgId, { path: 'retry-8000.png' })
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: (() => {
+        const fd = new FormData()
+        fd.append('file', new File([new Uint8Array(50)], 'retry.png', { type: 'image/png' }))
+        fd.append('path', 'retry.png')
+        return fd
+      })(),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { data: { url: string } }
+    // The resolved path is not in the response for multipart — just verify success
+    expect(body.data.url).toBeTruthy()
   })
 })
 
@@ -765,5 +1064,35 @@ describe('DELETE /api/ihost/images/:id', () => {
     // Row gone — verify via GET
     const checkRes = await app.request(`/api/ihost/images/${id}`, { headers })
     expect(checkRes.status).toBe(404)
+  })
+})
+
+// ─── Service unit tests (direct calls) ───────────────────────────────────────
+
+describe('image-hosting service — direct calls', () => {
+  it('deleteImageHosting returns null for nonexistent image', async () => {
+    const { db } = await createTestApp()
+    const result = await deleteImageHosting(db, 'no-such-id', 'no-such-org')
+    expect(result).toBeNull()
+  })
+
+  it('confirmImageHosting with size=0 skips quota and confirms successfully', async () => {
+    const { db } = await createTestApp()
+    const orgId = `org-sz0-${nanoid(6)}`
+    const now = Date.now()
+    await db.run(
+      sql`INSERT INTO organization (id, name, slug, created_at) VALUES (${orgId}, 'T', ${`slug-${orgId}`}, ${now})`,
+    )
+
+    const id = nanoid(12)
+    const token = `ih_${nanoid(10)}`
+    await db.run(sql`
+      INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
+      VALUES (${id}, ${orgId}, ${token}, 'sz0.png', 'st1', 'ih/x/y.png', 0, 'image/png', 'draft', 0, ${now})
+    `)
+
+    const result = await confirmImageHosting(db, id, orgId)
+    expect(result.row).toBeTruthy()
+    expect(result.row?.status).toBe('active')
   })
 })
