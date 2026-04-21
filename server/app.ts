@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
 import { authMiddleware } from './middleware/auth'
+import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
 import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
@@ -26,6 +27,7 @@ export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
 
   app.use('/*', platformMiddleware(platform, auth))
+  app.use('/*', imageHostingDomain)
   app.use('/api/*', accessLog)
 
   app.use(
