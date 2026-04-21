@@ -7,9 +7,11 @@ import {
   buildShareObjectUrl,
   confirmUpload,
   copyObject,
+  createIhostApiKey,
   createObject,
   createShare,
   createStorage,
+  deleteIhostConfig,
   deleteObject,
   deleteShare,
   deleteStorage,
@@ -26,6 +28,7 @@ import {
   getUnreadCount,
   getUserQuota,
   listAuthProviders,
+  listIhostApiKeys,
   listNotifications,
   listObjects,
   listQuotas,
@@ -37,9 +40,11 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   restoreObject,
+  revokeIhostApiKey,
   saveShareToDrive,
   setSystemOption,
   trashObject,
+  updateIhostConfig,
   updateObject,
   updateQuota,
   updateStorage,
@@ -1325,6 +1330,219 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Domain already in use' }, false, 409))
 
       await expect(enableIhostFeature()).rejects.toThrow('Domain already in use')
+    })
+  })
+
+  describe('updateIhostConfig', () => {
+    const baseConfig = {
+      enabled: true,
+      customDomain: null,
+      domainVerifiedAt: null,
+      domainStatus: 'none',
+      dnsInstructions: null,
+      refererAllowlist: null,
+      createdAt: 1700000000000,
+    }
+
+    it('sends PUT with enabled:true and customDomain', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(baseConfig))
+
+      await updateIhostConfig({ customDomain: 'img.example.com' })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/ihost/config')
+      expect(init.method).toBe('PUT')
+      const body = JSON.parse(init.body as string)
+      expect(body.enabled).toBe(true)
+      expect(body.customDomain).toBe('img.example.com')
+    })
+
+    it('sends PUT with refererAllowlist', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(baseConfig))
+
+      await updateIhostConfig({ refererAllowlist: ['https://example.com'] })
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const body = JSON.parse(init.body as string)
+      expect(body.refererAllowlist).toEqual(['https://example.com'])
+    })
+
+    it('resolves with updated config on success', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(baseConfig))
+
+      const result = await updateIhostConfig({})
+
+      expect(result).toEqual(baseConfig)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(updateIhostConfig({})).rejects.toThrow('Forbidden')
+    })
+  })
+
+  describe('deleteIhostConfig', () => {
+    it('sends DELETE to /api/ihost/config', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
+
+      await deleteIhostConfig()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/ihost/config')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('resolves without error on 204', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
+
+      await expect(deleteIhostConfig()).resolves.toBeUndefined()
+    })
+
+    it('throws ApiError on non-ok response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(deleteIhostConfig()).rejects.toBeInstanceOf(Error)
+    })
+  })
+
+  describe('listIhostApiKeys', () => {
+    const sampleKey = {
+      id: 'key-1',
+      name: 'My Key',
+      start: 'abc',
+      prefix: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      lastRequest: null,
+      permissions: { 'image-hosting': ['upload'] },
+      referenceId: 'org-1',
+      enabled: true,
+    }
+
+    it('calls GET /api/auth/api-key/list with organizationId', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ apiKeys: [sampleKey] }))
+
+      await listIhostApiKeys('org-1')
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/auth/api-key/list')
+      expect(url).toContain('organizationId=org-1')
+    })
+
+    it('filters to image-hosting:upload permission only', async () => {
+      const otherKey = {
+        ...sampleKey,
+        id: 'key-2',
+        permissions: { 'other-scope': ['read'] },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ apiKeys: [sampleKey, otherKey] }))
+
+      const result = await listIhostApiKeys('org-1')
+
+      expect(result).toHaveLength(1)
+      expect(result[0].id).toBe('key-1')
+    })
+
+    it('returns empty array when no matching keys', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ apiKeys: [] }))
+
+      const result = await listIhostApiKeys('org-1')
+
+      expect(result).toEqual([])
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
+
+      await expect(listIhostApiKeys('org-1')).rejects.toThrow('Unauthorized')
+    })
+  })
+
+  describe('createIhostApiKey', () => {
+    const createdKey = {
+      id: 'new-key',
+      key: 'sk_live_abc123xyz',
+      name: 'Test Key',
+      start: 'sk_',
+      prefix: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      lastRequest: null,
+      permissions: { 'image-hosting': ['upload'] },
+      referenceId: 'org-1',
+      enabled: true,
+    }
+
+    it('calls POST /api/auth/api-key/create', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(createdKey))
+
+      await createIhostApiKey('org-1', 'Test Key')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/auth/api-key/create')
+      expect(init.method).toBe('POST')
+    })
+
+    it('sends organizationId, name, and image-hosting:upload permission', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(createdKey))
+
+      await createIhostApiKey('org-1', 'Test Key')
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const body = JSON.parse(init.body as string)
+      expect(body.organizationId).toBe('org-1')
+      expect(body.name).toBe('Test Key')
+      expect(body.permissions).toEqual({ 'image-hosting': ['upload'] })
+    })
+
+    it('resolves with the full key on success', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(createdKey))
+
+      const result = await createIhostApiKey('org-1', 'Test Key')
+
+      expect(result.key).toBe('sk_live_abc123xyz')
+      expect(result.id).toBe('new-key')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Name required' }, false, 400))
+
+      await expect(createIhostApiKey('org-1', '')).rejects.toThrow('Name required')
+    })
+  })
+
+  describe('revokeIhostApiKey', () => {
+    it('calls POST /api/auth/api-key/delete', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+
+      await revokeIhostApiKey('key-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/auth/api-key/delete')
+      expect(init.method).toBe('POST')
+    })
+
+    it('sends keyId in request body', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+
+      await revokeIhostApiKey('key-1')
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const body = JSON.parse(init.body as string)
+      expect(body.keyId).toBe('key-1')
+    })
+
+    it('resolves with success response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+
+      const result = await revokeIhostApiKey('key-1')
+
+      expect(result).toEqual({ success: true })
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Key not found' }, false, 404))
+
+      await expect(revokeIhostApiKey('key-1')).rejects.toThrow('Key not found')
     })
   })
 })

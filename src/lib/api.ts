@@ -473,6 +473,69 @@ export function enableIhostFeature() {
   return unwrap<IhostConfigResponse>(ihostConfigApi.index.$put({ json: { enabled: true } }))
 }
 
+export function updateIhostConfig(data: { customDomain?: string | null; refererAllowlist?: string[] | null }) {
+  return unwrap<IhostConfigResponse>(ihostConfigApi.index.$put({ json: { enabled: true, ...data } }))
+}
+
+export function deleteIhostConfig() {
+  return ihostConfigApi.index.$delete().then((res) => {
+    if (!res.ok) throw new ApiError(res.status, { error: res.statusText })
+  })
+}
+
+// Image Host API Keys (via better-auth apiKey plugin)
+
+export interface IhostApiKey {
+  id: string
+  name: string | null
+  start: string | null
+  prefix: string | null
+  createdAt: string
+  lastRequest: string | null
+  permissions: Record<string, string[]> | null
+  referenceId: string
+  enabled: boolean
+}
+
+export interface CreateIhostApiKeyResult extends IhostApiKey {
+  key: string
+}
+
+async function apiKeyFetch<T>(path: string, options: RequestInit): Promise<T> {
+  const res = await fetch(`/api/auth${path}`, { credentials: 'include', ...options })
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
+  return res.json() as Promise<T>
+}
+
+export function listIhostApiKeys(organizationId: string) {
+  return apiKeyFetch<{ apiKeys: IhostApiKey[] }>(`/api-key/list?organizationId=${encodeURIComponent(organizationId)}`, {
+    method: 'GET',
+  }).then((res) => res.apiKeys.filter((k) => k.permissions?.['image-hosting']?.includes('upload')))
+}
+
+export function createIhostApiKey(organizationId: string, name: string) {
+  return apiKeyFetch<CreateIhostApiKeyResult>('/api-key/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      organizationId,
+      permissions: { 'image-hosting': ['upload'] },
+    }),
+  })
+}
+
+export function revokeIhostApiKey(keyId: string) {
+  return apiKeyFetch<{ success: boolean }>('/api-key/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyId }),
+  })
+}
+
 // Auth API — Better Auth passthrough, not typed via Hono RPC
 export async function getSession(): Promise<{ session: unknown; user: unknown } | null> {
   const res = await fetch('/api/auth/get-session', { credentials: 'include' })

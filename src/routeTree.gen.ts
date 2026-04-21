@@ -29,6 +29,7 @@ import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
 import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
+import { Route as AuthenticatedSettingsIhostRouteImport } from './routes/_authenticated/settings/ihost'
 import { Route as AuthenticatedTeamsTeamIdRouteRouteImport } from './routes/_authenticated/teams/$teamId/route'
 import { Route as AuthenticatedTeamsTeamIdIndexRouteImport } from './routes/_authenticated/teams/$teamId/index'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
@@ -147,6 +148,12 @@ const AuthenticatedSettingsAppearanceRoute =
     path: '/appearance',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedSettingsIhostRoute =
+  AuthenticatedSettingsIhostRouteImport.update({
+    id: '/ihost',
+    path: '/ihost',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
 const AuthenticatedTeamsTeamIdRouteRoute =
   AuthenticatedTeamsTeamIdRouteRouteImport.update({
     id: '/teams/$teamId',
@@ -219,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/u/$username': typeof UUsernameRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
@@ -248,6 +256,7 @@ export interface FileRoutesByTo {
   '/u/$username': typeof UUsernameRoute
   '/': typeof AuthenticatedIndexRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
@@ -281,6 +290,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/_authenticated/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/_authenticated/teams/invite': typeof AuthenticatedTeamsInviteRoute
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/u/$username'
     | '/teams/$teamId'
     | '/settings/appearance'
+    | '/settings/ihost'
     | '/settings/password'
     | '/settings/profile'
     | '/teams/invite'
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/u/$username'
     | '/'
     | '/settings/appearance'
+    | '/settings/ihost'
     | '/settings/password'
     | '/settings/profile'
     | '/teams/invite'
@@ -375,6 +387,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/teams/$teamId'
     | '/_authenticated/settings/appearance'
+    | '/_authenticated/settings/ihost'
     | '/_authenticated/settings/password'
     | '/_authenticated/settings/profile'
     | '/_authenticated/teams/invite'
@@ -546,6 +559,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/settings/ihost': {
+      id: '/_authenticated/settings/ihost'
+      path: '/ihost'
+      fullPath: '/settings/ihost'
+      preLoaderRoute: typeof AuthenticatedSettingsIhostRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
     '/_authenticated/teams/$teamId': {
       id: '/_authenticated/teams/$teamId'
       path: '/teams/$teamId'
@@ -641,6 +661,7 @@ const AuthenticatedAdminRouteRouteWithChildren =
 
 interface AuthenticatedSettingsRouteRouteChildren {
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
+  AuthenticatedSettingsIhostRoute: typeof AuthenticatedSettingsIhostRoute
   AuthenticatedSettingsPasswordRoute: typeof AuthenticatedSettingsPasswordRoute
   AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
@@ -649,6 +670,7 @@ interface AuthenticatedSettingsRouteRouteChildren {
 const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
   {
     AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
+    AuthenticatedSettingsIhostRoute: AuthenticatedSettingsIhostRoute,
     AuthenticatedSettingsPasswordRoute: AuthenticatedSettingsPasswordRoute,
     AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
     AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
