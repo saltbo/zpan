@@ -10,7 +10,6 @@ import {
   patchIhostImageSchema,
 } from '../../shared/schemas'
 import type { Storage as S3Storage } from '../../shared/types'
-import { apikey } from '../db/auth-schema'
 import { imageHostings } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -33,51 +32,48 @@ import { PRESIGN_TTL_SECS } from './share-utils'
 
 const s3 = new S3Service()
 
-// resolveApiKeyOrgId extracts the Bearer token, verifies it, and returns the
-// orgId (= apikey.referenceId). Returns null if no Bearer token is present.
+// resolveApiKeyOrgId extracts the Bearer token, verifies it via the
+// better-auth API-key plugin, and returns the orgId (= apikey.referenceId).
+// Returns null if no Bearer token is present, or an error object if invalid.
+// Invalid key and insufficient permissions both return 401 — the plugin does
+// not distinguish them in its response.
 async function resolveApiKeyOrgId(
   c: Context<Env>,
-  requiredPermission: string,
-): Promise<{ orgId: string } | { error: string; status: 401 | 403 } | null> {
+  resource: string,
+  action: string,
+): Promise<{ orgId: string } | { error: string; status: 401 } | null> {
   const authHeader = c.req.raw.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) return null
 
   const rawKey = authHeader.slice('Bearer '.length).trim()
   if (!rawKey) return null
 
-  const db = c.get('platform').db
-  const rows = await db.select().from(apikey).where(eq(apikey.key, rawKey)).limit(1)
-  const keyRow = rows[0]
-  if (!keyRow?.enabled) return { error: 'Invalid or disabled API key', status: 401 }
-  if (keyRow.expiresAt && keyRow.expiresAt < new Date()) {
-    return { error: 'API key expired', status: 401 }
-  }
-
-  const [resource, action] = requiredPermission.split(':')
-
-  if (keyRow.permissions) {
-    try {
-      const statements = JSON.parse(keyRow.permissions) as Array<{
-        resource: string
-        actions: string[]
-      }>
-      const granted = statements.some((s) => s.resource === resource && s.actions.includes(action))
-      if (!granted) return { error: 'API key missing required permission', status: 403 }
-    } catch {
-      return { error: 'API key has malformed permissions', status: 403 }
+  const auth = c.get('auth')
+  try {
+    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
+    const result = (await (auth.api as any).verifyApiKey({
+      body: { key: rawKey, permissions: { [resource]: [action] } },
+    })) as {
+      valid: boolean
+      error: { message: string; code: string } | null
+      key: { referenceId: string } | null
     }
+    if (!result?.valid || !result.key) {
+      return { error: result?.error?.message ?? 'Invalid or unauthorized API key', status: 401 }
+    }
+    return { orgId: result.key.referenceId }
+  } catch {
+    return { error: 'Invalid API key', status: 401 }
   }
-  // If permissions is null, the key was created with defaultPermissions which includes
-  // image-hosting:upload — allow it.
-
-  return { orgId: keyRow.referenceId }
 }
 
 const app = new Hono<Env>()
 
 // ── POST /api/ihost/images ───────────────────────────────────────────────────
 // Accepts session auth OR API key with image-hosting:upload permission.
-// Two content types:
+// requireAuth is intentionally omitted — unauthenticated requests fall through
+// to the API-key resolver below; 401 is returned there if neither auth method
+// succeeds. Two content types are supported:
 //   - application/json   → two-stage draft creation + presigned URL
 //   - multipart/form-data → stream-proxy upload to R2 (PicGo-compatible)
 
@@ -89,7 +85,7 @@ app.post('/images', async (c) => {
   let orgId = c.get('orgId')
 
   if (!orgId) {
-    const apiKeyResult = await resolveApiKeyOrgId(c, 'image-hosting:upload')
+    const apiKeyResult = await resolveApiKeyOrgId(c, 'image-hosting', 'upload')
     if (apiKeyResult === null) return c.json({ error: 'Unauthorized' }, 401)
     if ('error' in apiKeyResult) return c.json({ error: apiKeyResult.error }, apiKeyResult.status)
     orgId = apiKeyResult.orgId
@@ -98,7 +94,12 @@ app.post('/images', async (c) => {
   const config = await getImageHostingConfig(db, orgId)
   if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
-  const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+  let storage: S3Storage
+  try {
+    storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+  } catch {
+    return c.json({ error: 'No storage configured' }, 503)
+  }
 
   // ── Multipart: stream-proxy upload ────────────────────────────────────────
   if (contentType.includes('multipart/form-data')) {
@@ -106,7 +107,7 @@ app.post('/images', async (c) => {
     // before exposing it as a File object. This is a v2.4 known limitation.
     // The 20 MB cap below prevents OOM on CF Workers.
     const contentLength = Number(c.req.header('Content-Length') ?? '0')
-    if (contentLength > MAX_IMAGE_SIZE) {
+    if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_SIZE) {
       return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
     }
 
@@ -175,14 +176,28 @@ app.post('/images', async (c) => {
   }
 
   // ── JSON: two-stage draft creation ────────────────────────────────────────
-  const parseResult = createIhostImageSchema.safeParse(await c.req.json())
+  if (!contentType.includes('application/json')) {
+    return c.json({ error: 'Unsupported content type' }, 415)
+  }
+
+  const raw = await c.req.json()
+
+  // Check MIME and size before zod so we return the correct HTTP status codes.
+  const { mime: rawMime, size: rawSize } = raw as Record<string, unknown>
+  if (typeof rawSize === 'number' && rawSize > MAX_IMAGE_SIZE) {
+    return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
+  }
+  if (rawMime === 'image/svg+xml') return c.json({ error: 'SVG images are not allowed' }, 415)
+  if (typeof rawMime === 'string' && !(ALLOWED_IMAGE_MIMES as readonly string[]).includes(rawMime)) {
+    return c.json({ error: 'Unsupported media type', allowedTypes: ALLOWED_IMAGE_MIMES }, 415)
+  }
+
+  const parseResult = createIhostImageSchema.safeParse(raw)
   if (!parseResult.success) {
     return c.json({ error: 'Invalid input', issues: parseResult.error.issues }, 400)
   }
 
   const { path: requestedPath, mime, size } = parseResult.data
-
-  if (mime === ('image/svg+xml' as string)) return c.json({ error: 'SVG images are not allowed' }, 415)
 
   const pathErr = validatePath(requestedPath)
   if (pathErr) return c.json(pathErr, 400)

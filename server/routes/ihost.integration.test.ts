@@ -23,6 +23,7 @@ const validStorage = {
 }
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
+type TestAuth = Awaited<ReturnType<typeof createTestApp>>['auth']
 
 async function insertStorage(db: TestDb) {
   const now = Date.now()
@@ -48,22 +49,33 @@ async function getOrgId(db: TestDb): Promise<string> {
   const rows = await db.all<{ id: string }>(sql`
     SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1
   `)
+  if (!rows[0]) throw new Error('No personal org found — was authedHeaders called?')
   return rows[0].id
 }
 
-async function insertApiKey(
-  db: TestDb,
+async function getUserId(db: TestDb): Promise<string> {
+  const rows = await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`)
+  if (!rows[0]) throw new Error('No user found — was authedHeaders called?')
+  return rows[0].id
+}
+
+// Creates an API key via the real better-auth plugin (keys are properly hashed).
+// Returns the raw key string that can be used as a Bearer token.
+async function createTestApiKey(
+  auth: TestAuth,
   orgId: string,
-  opts: { key?: string; permissions?: string | null; enabled?: boolean; expiresAt?: number | null } = {},
-) {
-  const now = Date.now()
-  const key = opts.key ?? `test_apikey_${nanoid(10)}`
-  const enabled = opts.enabled ?? true
-  await db.run(sql`
-    INSERT INTO apikey (id, config_id, reference_id, key, enabled, rate_limit_enabled, request_count, created_at, updated_at, permissions, expires_at)
-    VALUES (${nanoid()}, 'default', ${orgId}, ${key}, ${enabled ? 1 : 0}, 1, 0, ${now}, ${now}, ${opts.permissions ?? null}, ${opts.expiresAt ?? null})
-  `)
-  return key
+  userId: string,
+  permissions?: Record<string, string[]>,
+): Promise<string> {
+  // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
+  const result = (await (auth.api as any).createApiKey({
+    body: {
+      organizationId: orgId,
+      userId,
+      ...(permissions ? { permissions } : {}),
+    },
+  })) as { key: string }
+  return result.key
 }
 
 async function insertImageHosting(
@@ -176,7 +188,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     expect(String(body.detail)).toContain('depth')
   })
 
-  it('returns 400 for image/svg+xml (rejected by zod enum)', async () => {
+  it('returns 415 for image/svg+xml', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -188,11 +200,12 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'icon.svg', mime: 'image/svg+xml', size: 512 }),
     })
-    // zod enum rejects svg+xml since it's not in ALLOWED_IMAGE_MIMES
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(415)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('SVG')
   })
 
-  it('returns 400 for application/pdf mime (rejected by zod enum)', async () => {
+  it('returns 415 for application/pdf mime', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -204,10 +217,12 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'doc.pdf', mime: 'application/pdf', size: 1024 }),
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(415)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('Unsupported')
   })
 
-  it('returns 400 for size exceeding 20 MB (rejected by zod max)', async () => {
+  it('returns 413 for size exceeding 20 MB', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -219,7 +234,9 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'big.png', mime: 'image/png', size: 21 * 1024 * 1024 }),
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(413)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('too large')
   })
 
   it('auto-suffixes path on collision', async () => {
@@ -248,35 +265,35 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     expect(String(body2.path)).toMatch(/^shot-[0-9a-f]{4}\.png$/)
   })
 
-  it('returns 403 for apiKey missing image-hosting:upload permission', async () => {
-    const { app, db } = await createTestApp()
+  it('returns 401 for apiKey missing image-hosting:upload permission', async () => {
+    const { app, db, auth } = await createTestApp()
     await insertStorage(db)
-    // Sign up to create the personal org
-    await authedHeaders(app)
+    await authedHeaders(app) // creates test user so getOrgId/getUserId have rows
     const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const key = await insertApiKey(db, orgId, {
-      permissions: JSON.stringify([{ resource: 'other', actions: ['read'] }]),
-    })
+    // Key with a different permission — no image-hosting:upload
+    const key = await createTestApiKey(auth, orgId, userId, { other: ['read'] })
 
     const res = await app.request('/api/ihost/images', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
     })
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(401)
   })
 
-  it('accepts apiKey with image-hosting:upload permission (null permissions = default allowed)', async () => {
-    const { app, db } = await createTestApp()
+  it('accepts apiKey with default permissions (includes image-hosting:upload)', async () => {
+    const { app, db, auth } = await createTestApp()
     await insertStorage(db)
     await authedHeaders(app)
     const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
     await insertImageHostingConfig(db, orgId)
 
-    // null permissions means the key uses defaultPermissions which includes image-hosting:upload
-    const key = await insertApiKey(db, orgId, { permissions: null })
+    // No permissions arg → defaultPermissions { 'image-hosting': ['upload'] } applied
+    const key = await createTestApiKey(auth, orgId, userId)
 
     const res = await app.request('/api/ihost/images', {
       method: 'POST',
@@ -287,15 +304,14 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
   })
 
   it('accepts apiKey with explicit image-hosting:upload permission', async () => {
-    const { app, db } = await createTestApp()
+    const { app, db, auth } = await createTestApp()
     await insertStorage(db)
     await authedHeaders(app)
     const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const key = await insertApiKey(db, orgId, {
-      permissions: JSON.stringify([{ resource: 'image-hosting', actions: ['upload'] }]),
-    })
+    const key = await createTestApiKey(auth, orgId, userId, { 'image-hosting': ['upload'] })
 
     const res = await app.request('/api/ihost/images', {
       method: 'POST',
@@ -303,6 +319,21 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
       body: JSON.stringify({ path: 'explicit-perm.png', mime: 'image/png', size: 1024 }),
     })
     expect(res.status).toBe(201)
+  })
+
+  it('returns 401 for invalid Bearer token', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer not-a-real-key' },
+      body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
+    })
+    expect(res.status).toBe(401)
   })
 })
 
@@ -441,6 +472,61 @@ describe('POST /api/ihost/images (multipart)', () => {
     expect(body.data.url).toBe(body.data.urlAlt)
     expect(String(body.data.url)).toMatch(/\/r\/ih_/)
   })
+
+  it('cleans up DB row and refunds quota when S3 put fails', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    vi.spyOn(S3Service.prototype, 'putObject').mockRejectedValueOnce(new Error('S3 failure'))
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(100)], 'fail.png', { type: 'image/png' }))
+    formData.append('path', 'fail/upload.png')
+
+    // Hono catches the thrown error and returns 500
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    expect(res.status).toBe(500)
+
+    // Row should NOT exist in DB after cleanup
+    const rows = await db.all<{ id: string }>(sql`
+      SELECT id FROM image_hostings WHERE org_id = ${orgId} AND path = 'fail/upload.png' LIMIT 1
+    `)
+    expect(rows).toHaveLength(0)
+
+    // Quota should be refunded — used must be back to 0
+    const quota = await db.all<{ used: number }>(sql`
+      SELECT used FROM org_quotas WHERE org_id = ${orgId} LIMIT 1
+    `)
+    expect(quota[0]?.used).toBe(0)
+  })
+
+  it('accepts apiKey with default permissions for multipart upload', async () => {
+    const { app, db, auth } = await createTestApp()
+    await insertStorage(db)
+    await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const key = await createTestApiKey(auth, orgId, userId)
+
+    const formData = new FormData()
+    formData.append('file', new File([new Uint8Array(100)], 'apikey.png', { type: 'image/png' }))
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      body: formData,
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    expect(res.status).toBe(201)
+  })
 })
 
 // ─── PATCH action=confirm ────────────────────────────────────────────────────
@@ -500,6 +586,36 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
       body: JSON.stringify({ action: 'confirm' }),
     })
     expect(res.status).toBe(404)
+  })
+
+  it('returns 422 when org quota is exceeded on confirm', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    // Sign-up creates an org_quotas row with the default quota.
+    // Lower it to 50 bytes so a 100-byte image exceeds it.
+    await db.run(sql`UPDATE org_quotas SET quota = 50 WHERE org_id = ${orgId}`)
+
+    const createRes = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'quota-test.png', mime: 'image/png', size: 100 }),
+    })
+    expect(createRes.status).toBe(201)
+    const { id } = (await createRes.json()) as { id: string }
+
+    // Confirm should fail — size (100) > quota (50)
+    const patchRes = await app.request(`/api/ihost/images/${id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'confirm' }),
+    })
+    expect(patchRes.status).toBe(422)
+    const body = (await patchRes.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('Quota')
   })
 })
 
