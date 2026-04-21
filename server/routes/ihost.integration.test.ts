@@ -105,10 +105,10 @@ async function insertImageHosting(
   return { id, token, path, status, size }
 }
 
-// ─── POST /images (multipart-only) — 415 for non-multipart ──────────────────
+// ─── POST /images — content type handling ────────────────────────────────────
 
-describe('POST /api/ihost/images (multipart-only)', () => {
-  it('returns 200 for application/json when authed (connection validation for tools like uPic)', async () => {
+describe('POST /api/ihost/images (content type handling)', () => {
+  it('returns 400 for application/json without base64 file field', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -120,25 +120,23 @@ describe('POST /api/ihost/images (multipart-only)', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
     })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(400)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.status).toBe('ok')
+    expect(String(body.error)).toContain('file field')
   })
 
-  it('returns 415 for application/json without any auth', async () => {
+  it('returns 401 for application/json without any auth', async () => {
     const { app } = await createTestApp()
 
     const res = await app.request('/api/ihost/images', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
+      body: JSON.stringify({ file: 'abc' }),
     })
-    expect(res.status).toBe(415)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('multipart/form-data')
+    expect(res.status).toBe(401)
   })
 
-  it('returns 200 for text/plain when authed (connection validation)', async () => {
+  it('returns 415 for text/plain', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -150,20 +148,45 @@ describe('POST /api/ihost/images (multipart-only)', () => {
       headers: { ...headers, 'Content-Type': 'text/plain' },
       body: 'hello',
     })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(415)
   })
 
-  it('returns 200 for Bearer token validation (uPic/PicGo validate)', async () => {
-    const { app } = await createTestApp()
+  it('accepts base64 PNG via application/json (uPic upload)', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    // Minimal 1x1 white PNG as base64
+    const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
 
     const res = await app.request('/api/ihost/images', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer some-key' },
-      body: JSON.stringify({}),
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: pngBase64 }),
     })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.status).toBe('ok')
+    const data = body.data as Record<string, unknown>
+    expect(data.url).toBeDefined()
+  })
+
+  it('returns 400 for invalid base64 in JSON', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: '!!!not-base64!!!' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('base64')
   })
 })
 

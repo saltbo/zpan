@@ -67,33 +67,44 @@ async function resolveApiKeyOrgId(
   }
 }
 
+// Detect image MIME type from the first few bytes (magic numbers)
+function detectMimeFromBytes(bytes: Uint8Array): string | null {
+  if (bytes.length < 4) return null
+  // PNG: 89 50 4E 47
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'image/png'
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg'
+  // GIF: 47 49 46 38
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return 'image/gif'
+  // WEBP: 52 49 46 46 ... 57 45 42 50
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  )
+    return 'image/webp'
+  return null
+}
+
 // ── POST /api/ihost/images ───────────────────────────────────────────────────
-// Multipart-only upload endpoint for API-key clients (PicGo-compatible).
+// Upload endpoint for external tools. Accepts two formats:
+// 1. multipart/form-data — PicGo, ShareX (file in form field)
+// 2. application/json — uPic (base64-encoded file in {"file": "..."})
 // Accepts session auth OR API key with image-hosting:upload permission.
 // requireAuth is intentionally omitted — unauthenticated requests fall through
 // to the API-key resolver below; 401 is returned there if neither auth method
 // succeeds.
-// Note: this handler has no zValidator because multipart bodies are read
-// manually. See POST /images/presign for the typed JSON presign flow used
-// by the browser client.
 
 const app = new Hono<Env>()
   .post('/images', async (c) => {
     const db = c.get('platform').db
     const contentType = c.req.header('Content-Type') ?? ''
-
-    if (!contentType.includes('multipart/form-data')) {
-      // uPic and similar tools send a JSON POST to validate the connection.
-      // Return 200 so the validate check passes when auth is present.
-      const hasAuth = c.req.header('Authorization') || c.req.header('Cookie')
-      if (hasAuth) {
-        return c.json({ status: 'ok', message: 'Connection successful. Upload images using multipart/form-data.' })
-      }
-      return c.json(
-        { error: 'This endpoint only accepts multipart/form-data. Use POST /images/presign for JSON presign.' },
-        415,
-      )
-    }
 
     // Resolve principal: session takes priority; fall back to API key
     let orgId = c.get('orgId')
@@ -115,27 +126,64 @@ const app = new Hono<Env>()
       return c.json({ error: 'No storage configured' }, 503)
     }
 
-    // NOTE: Hono's built-in multipart parser buffers the entire file in memory
-    // before exposing it as a File object. This is a v2.4 known limitation.
-    // The 20 MB cap below prevents OOM on CF Workers.
-    const contentLength = Number(c.req.header('Content-Length') ?? '0')
-    if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_SIZE) {
+    // Parse the upload from either multipart/form-data or JSON base64.
+    // uPic sends JSON: {"file": "<base64>"}; PicGo/ShareX send multipart.
+    let fileBytes: Uint8Array
+    let fileName: string
+    let fileMime: string
+    let explicitPath: string | null = null
+
+    if (contentType.includes('application/json')) {
+      let body: Record<string, unknown>
+      try {
+        body = (await c.req.json()) as Record<string, unknown>
+      } catch {
+        return c.json({ error: 'Invalid JSON body' }, 400)
+      }
+      const b64 = body.file
+      if (typeof b64 !== 'string' || !b64) {
+        return c.json({ error: 'file field (base64 string) is required' }, 400)
+      }
+      try {
+        fileBytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))
+      } catch {
+        return c.json({ error: 'Invalid base64 in file field' }, 400)
+      }
+      fileName = typeof body.filename === 'string' && body.filename ? body.filename : 'upload'
+      fileMime = detectMimeFromBytes(fileBytes) || 'application/octet-stream'
+    } else if (contentType.includes('multipart/form-data')) {
+      const contentLength = Number(c.req.header('Content-Length') ?? '0')
+      if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_SIZE) {
+        return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
+      }
+      const formData = await c.req.formData()
+      const file = formData.get('file')
+      if (!(file instanceof File)) return c.json({ error: 'file field is required' }, 400)
+      fileBytes = new Uint8Array(await file.arrayBuffer())
+      fileName = file.name || 'upload'
+      fileMime = file.type || ''
+      const pathParam = formData.get('path')
+      if (typeof pathParam === 'string' && pathParam) {
+        explicitPath = pathParam
+      }
+    } else {
+      return c.json(
+        { error: 'Unsupported Content-Type. Use multipart/form-data or application/json with base64.' },
+        415,
+      )
+    }
+
+    if (fileBytes.byteLength > MAX_IMAGE_SIZE) {
       return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
     }
 
-    const formData = await c.req.formData()
-    const file = formData.get('file')
-    if (!(file instanceof File)) return c.json({ error: 'file field is required' }, 400)
-
-    if (file.size > MAX_IMAGE_SIZE) {
-      return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
-    }
-
-    // Infer MIME from file extension when the client doesn't set it properly
-    // (common with uPic, PicGo, and other upload tools)
-    let mime = file.type || ''
+    // Infer MIME from magic bytes or file extension when the client doesn't set it
+    let mime = fileMime
     if (!mime || mime === 'application/octet-stream') {
-      const ext = file.name.split('.').pop()?.toLowerCase()
+      mime = detectMimeFromBytes(fileBytes) || ''
+    }
+    if (!mime || mime === 'application/octet-stream') {
+      const ext = fileName.split('.').pop()?.toLowerCase()
       const extMap: Record<string, string> = {
         png: 'image/png',
         jpg: 'image/jpeg',
@@ -150,30 +198,28 @@ const app = new Hono<Env>()
       return c.json({ error: 'Unsupported media type', allowedTypes: ALLOWED_IMAGE_MIMES }, 415)
     }
 
-    const pathParam = formData.get('path')
-    const requestedPath = typeof pathParam === 'string' && pathParam ? pathParam : deriveDefaultPath(file.name, mime)
-
+    const requestedPath = explicitPath || deriveDefaultPath(fileName, mime)
     const pathErr = validatePath(requestedPath)
     if (pathErr) return c.json(pathErr, 400)
 
-    const allowed = await incrementImageQuotaIfAllowed(db, orgId, storage.id, file.size)
+    const allowed = await incrementImageQuotaIfAllowed(db, orgId, storage.id, fileBytes.byteLength)
     if (!allowed) return c.json({ error: 'Quota exceeded' }, 422)
 
     const row = await createImageHosting(db, {
       orgId,
       path: requestedPath,
       mime: mime as (typeof ALLOWED_IMAGE_MIMES)[number],
-      size: file.size,
+      size: fileBytes.byteLength,
       storageId: storage.id,
       status: 'draft',
     })
 
     try {
-      await s3.putObject(storage, row.storageKey, file.stream(), mime)
+      await s3.putObject(storage, row.storageKey, fileBytes, mime)
     } catch (err) {
       // S3 put failed — remove DB row and refund the quota we already incremented
       await db.delete(imageHostings).where(and(eq(imageHostings.id, row.id), eq(imageHostings.orgId, orgId)))
-      await decrementImageQuota(db, orgId, storage.id, file.size)
+      await decrementImageQuota(db, orgId, storage.id, fileBytes.byteLength)
       throw err
     }
 
