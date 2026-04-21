@@ -193,6 +193,16 @@ export interface ImageHostingConfig {
   updatedAt: string
 }
 
+export interface IhostConfigResponse {
+  enabled: boolean
+  customDomain: string | null
+  domainVerifiedAt: number | null
+  domainStatus: 'none' | 'pending' | 'verified'
+  dnsInstructions: { recordType: string; name: string; target: string } | null
+  refererAllowlist: string[] | null
+  createdAt: number
+}
+
 export type ImageHostingStatus = 'draft' | 'active'
 
 export interface ImageHosting {
