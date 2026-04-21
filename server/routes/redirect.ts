@@ -16,7 +16,10 @@ function stripExtension(token: string): string {
 
 function checkReferer(refererAllowlist: string[], refererHeader: string | null): boolean {
   if (refererAllowlist.length === 0) return true
-  if (!refererHeader) return false
+  // Allow empty referer — direct access from tools, address bar, or privacy
+  // extensions should not be blocked. The allowlist targets hotlinking from
+  // unauthorized *websites*, which always send a Referer header.
+  if (!refererHeader) return true
   try {
     const origin = new URL(refererHeader).origin
     return refererAllowlist.includes(origin)

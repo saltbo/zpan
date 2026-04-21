@@ -194,7 +194,11 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
         // Keys belong to the organization, not the individual user
         references: 'organization',
         // Rate limiting and lastRequest tracking are on by default
-        rateLimit: { enabled: true },
+        rateLimit: {
+          enabled: true,
+          timeWindow: 60_000, // 60 seconds
+          maxRequests: 60, // 60 requests per window ≈ 1 req/s sustained
+        },
         // Declare the image-hosting:upload permission so upload routes can require it
         permissions: {
           defaultPermissions: { 'image-hosting': ['upload'] },

@@ -172,6 +172,23 @@ describe('POST /api/ihost/images (content type handling)', () => {
     expect(data.url).toBeDefined()
   })
 
+  it('accepts explicit path in JSON base64 upload', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: pngBase64, path: 'blog/hero.png' }),
+    })
+    expect(res.status).toBe(201)
+  })
+
   it('returns 400 for invalid base64 in JSON', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)

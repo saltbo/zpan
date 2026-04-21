@@ -151,6 +151,9 @@ const app = new Hono<Env>()
       }
       fileName = typeof body.filename === 'string' && body.filename ? body.filename : 'upload'
       fileMime = detectMimeFromBytes(fileBytes) || 'application/octet-stream'
+      if (typeof body.path === 'string' && body.path) {
+        explicitPath = body.path
+      }
     } else if (contentType.includes('multipart/form-data')) {
       const contentLength = Number(c.req.header('Content-Length') ?? '0')
       if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_SIZE) {

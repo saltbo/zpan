@@ -233,7 +233,7 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     expect(res.status).toBe(302)
   })
 
-  it('returns 403 when referer is missing and allowlist is set', async () => {
+  it('allows access when referer is missing (direct access from tools/address bar)', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -242,9 +242,7 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     await insertImageHostingConfig(db, orgId, { refererAllowlist: ['https://myblog.com'] })
 
     const res = await app.request('/r/ih_reftest3', { redirect: 'manual' })
-    expect(res.status).toBe(403)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('forbidden referer')
+    expect(res.status).toBe(302)
   })
 
   it('returns 403 when referer is from a different origin', async () => {
@@ -285,7 +283,10 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     await insertImageHosting(db, orgId, { id: 'ih-ref6', token: 'ih_reftest6' })
     await insertImageHostingConfig(db, orgId, { refererAllowlist: ['https://myblog.com'] })
 
-    await app.request('/r/ih_reftest6', { redirect: 'manual' })
+    await app.request('/r/ih_reftest6', {
+      redirect: 'manual',
+      headers: { Referer: 'https://evil.com/page' },
+    })
     expect(await getAccessCount(db, 'ih-ref6')).toBe(0)
   })
 })
