@@ -105,3 +105,22 @@ export const batchPatchSchema = z.discriminatedUnion('action', [
 export const batchDeleteSchema = z.object({
   ids: z.array(z.string().min(1)).min(1),
 })
+
+// Valid hostname regex: lowercase labels separated by dots, max 253 chars total,
+// each label max 63 chars, no leading/trailing dots, no port.
+const hostnameRegex = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/
+
+// Valid referer origin: protocol + host + optional port, no path/query.
+const refererOriginRegex = /^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?$/
+
+export const putIhostConfigSchema = z.object({
+  enabled: z.literal(true),
+  customDomain: z.string().max(253).regex(hostnameRegex, 'Invalid hostname format').nullable().optional(),
+  refererAllowlist: z
+    .array(z.string().regex(refererOriginRegex, 'Each entry must be a valid origin (e.g. https://example.com)'))
+    .max(50)
+    .nullable()
+    .optional(),
+})
+
+export type PutIhostConfigInput = z.infer<typeof putIhostConfigSchema>
