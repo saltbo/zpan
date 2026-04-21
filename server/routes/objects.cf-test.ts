@@ -72,7 +72,7 @@ describe('[CF] Objects API', () => {
     const res = await app.request('/api/objects/nonexistent', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Nope' }),
+      body: JSON.stringify({ action: 'update', name: 'Nope' }),
     })
     expect(res.status).toBe(404)
   })
