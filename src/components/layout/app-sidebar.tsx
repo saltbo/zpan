@@ -158,7 +158,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={activeRecycleBin}>
                   <Link to="/recycle-bin">
                     <Trash2 className="h-4 w-4" />
-                    <span>{t('nav.recycleBin')}</span>
+                    <span>{t('nav.trash')}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -36,17 +36,15 @@ export function TrashList({
                 type="checkbox"
                 checked={allSelected}
                 onChange={onToggleSelectAll}
-                aria-label={t('recycleBin.selectAll')}
+                aria-label={t('trash.selectAll')}
                 className="h-4 w-4 rounded border-gray-300"
               />
             </th>
-            <th className="px-4 py-3 text-left font-medium">{t('recycleBin.colName')}</th>
-            <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">
-              {t('recycleBin.colOriginalLocation')}
-            </th>
-            <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('recycleBin.colTrashedDate')}</th>
-            <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('recycleBin.colSize')}</th>
-            <th className="px-4 py-3 text-right font-medium">{t('recycleBin.colActions')}</th>
+            <th className="px-4 py-3 text-left font-medium">{t('trash.colName')}</th>
+            <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('trash.colOriginalLocation')}</th>
+            <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('trash.colTrashedDate')}</th>
+            <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('trash.colSize')}</th>
+            <th className="px-4 py-3 text-right font-medium">{t('trash.colActions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -63,7 +61,7 @@ export function TrashList({
           {items.length === 0 && (
             <tr>
               <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                {t('recycleBin.noItems')}
+                {t('trash.noItems')}
               </td>
             </tr>
           )}
@@ -96,7 +94,7 @@ function TrashRow({
           type="checkbox"
           checked={selected}
           onChange={onToggleSelect}
-          aria-label={t('recycleBin.selectItem', { name: item.name })}
+          aria-label={t('trash.selectItem', { name: item.name })}
           className="h-4 w-4 rounded border-gray-300"
         />
       </td>
@@ -111,15 +109,10 @@ function TrashRow({
       <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{isFolder ? '—' : formatSize(item.size)}</td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="icon-xs" onClick={onRestore} title={t('recycleBin.restore')}>
+          <Button variant="ghost" size="icon-xs" onClick={onRestore} title={t('trash.restore')}>
             <RotateCcw />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onDeletePermanently}
-            title={t('recycleBin.deletePermanently')}
-          >
+          <Button variant="ghost" size="icon-xs" onClick={onDeletePermanently} title={t('trash.deletePermanently')}>
             <Trash2 className="text-destructive" />
           </Button>
         </div>

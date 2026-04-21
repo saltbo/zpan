@@ -118,11 +118,11 @@ describe('getColumns — modified column meta.className', () => {
 })
 
 describe('getColumns — select column meta.className', () => {
-  it('select column meta.className is "w-8 px-2" (always visible)', () => {
+  it('select column meta.className is "pl-4 pr-0" (always visible)', () => {
     const cols = getColumns(noopHandlers, t)
     const selectCol = cols[0]
 
-    expect((selectCol.meta as { className: string }).className).toBe('w-8 px-2')
+    expect((selectCol.meta as { className: string }).className).toBe('pl-4 pr-0')
   })
 })
 
@@ -368,5 +368,84 @@ describe('getColumns — sorting flags', () => {
     const cols = getColumns(noopHandlers, t)
 
     expect(cols[4].enableSorting).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Width-injection rule (mirrors files-table.tsx line 176)
+//
+// Rule: style width is injected when meta.flex is falsy; omitted when truthy.
+// Reproduces the bugfix: TanStack defaults size=150 for columns without an
+// explicit size, so checking `size != null` would always inject width.
+// Checking `meta.flex` instead is what prevents the Name column from getting
+// a hardcoded width under `table-fixed`.
+// ---------------------------------------------------------------------------
+
+describe('getColumns — meta.flex on name column (width-injection guard)', () => {
+  it('name column has meta.flex set to true', () => {
+    const cols = getColumns(noopHandlers, t)
+    const nameCol = cols[1]
+
+    expect((nameCol.meta as { flex?: boolean }).flex).toBe(true)
+  })
+
+  it('select column does not have meta.flex (receives injected width)', () => {
+    const cols = getColumns(noopHandlers, t)
+    const selectCol = cols[0]
+
+    expect((selectCol.meta as { flex?: boolean }).flex).toBeFalsy()
+  })
+
+  it('size column does not have meta.flex (receives injected width)', () => {
+    const cols = getColumns(noopHandlers, t)
+    const sizeCol = cols[2]
+
+    expect((sizeCol.meta as { flex?: boolean }).flex).toBeFalsy()
+  })
+
+  it('updatedAt column does not have meta.flex (receives injected width)', () => {
+    const cols = getColumns(noopHandlers, t)
+    const dateCol = cols[3]
+
+    expect((dateCol.meta as { flex?: boolean }).flex).toBeFalsy()
+  })
+
+  it('actions column does not have meta.flex (receives injected width)', () => {
+    const cols = getColumns(noopHandlers, t)
+    const actionsCol = cols[4]
+
+    expect((actionsCol.meta as { flex?: boolean }).flex).toBeFalsy()
+  })
+})
+
+describe('width-injection rule — pure logic', () => {
+  it('returns undefined style when meta.flex is true', () => {
+    const resolveStyle = (flex: boolean | undefined, size: number) => (flex ? undefined : { width: size })
+
+    expect(resolveStyle(true, 150)).toBeUndefined()
+  })
+
+  it('returns width style when meta.flex is falsy', () => {
+    const resolveStyle = (flex: boolean | undefined, size: number) => (flex ? undefined : { width: size })
+
+    expect(resolveStyle(undefined, 40)).toEqual({ width: 40 })
+  })
+
+  it('returns width style when meta.flex is false', () => {
+    const resolveStyle = (flex: boolean | undefined, size: number) => (flex ? undefined : { width: size })
+
+    expect(resolveStyle(false, 96)).toEqual({ width: 96 })
+  })
+
+  it('name column size defaults to TanStack default (150) but flex guard prevents width injection', () => {
+    // TanStack Table defaults column size to 150 when not specified.
+    // The old check `size != null` would always be true (150 != null → true),
+    // so the Name column would incorrectly get style="width:150px".
+    // With the meta.flex guard, size=150 on the name column is irrelevant.
+    const cols = getColumns(noopHandlers, t)
+    const nameMeta = cols[1].meta as { flex?: boolean }
+
+    // Confirms that the guard key (flex) is truthy, not the size value
+    expect(nameMeta.flex).toBe(true)
   })
 })

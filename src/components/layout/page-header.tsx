@@ -23,12 +23,12 @@ type PageHeaderProps = {
   actions?: ReactNode
 }
 
-const MAX_VISIBLE = 4
+const COLLAPSE_THRESHOLD = 4
 
 type Entry = { kind: 'item'; item: PageHeaderItem } | { kind: 'ellipsis' }
 
 function collapseItems(items: PageHeaderItem[]): Entry[] {
-  if (items.length <= MAX_VISIBLE) {
+  if (items.length <= COLLAPSE_THRESHOLD) {
     return items.map((item) => ({ kind: 'item', item }))
   }
   return [

@@ -53,7 +53,7 @@ export function getColumns(
               />
             ),
             size: 40,
-            meta: { className: 'w-10 pl-4 pr-0' },
+            meta: { className: 'pl-4 pr-0' },
             enableSorting: false,
           } satisfies ColumnDef<StorageObject>,
         ]
@@ -88,7 +88,7 @@ export function getColumns(
         return (rowA.getValue<number>(columnId) ?? 0) - (rowB.getValue<number>(columnId) ?? 0)
       },
       size: 96,
-      meta: { className: 'hidden w-24 sm:table-cell' },
+      meta: { className: 'hidden sm:table-cell' },
     },
     {
       accessorKey: 'updatedAt',
@@ -100,7 +100,7 @@ export function getColumns(
         return new Date(rowA.getValue<string>(columnId)).getTime() - new Date(rowB.getValue<string>(columnId)).getTime()
       },
       size: 160,
-      meta: { className: 'hidden w-40 md:table-cell' },
+      meta: { className: 'hidden md:table-cell' },
     },
   ]
 
@@ -110,7 +110,7 @@ export function getColumns(
       cell: ({ row }) => <FileRowActions item={row.original} handlers={handlers} />,
       size: 48,
       enableSorting: false,
-      meta: { className: 'w-12 pr-2 text-right' },
+      meta: { className: 'pr-2 text-right' },
     })
   }
 

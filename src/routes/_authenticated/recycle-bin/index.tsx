@@ -56,7 +56,7 @@ function RecycleBinPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       setSelectedIds(new Set())
-      toast.success(t('recycleBin.restoreSuccess'))
+      toast.success(t('trash.restoreSuccess'))
     },
     onError: (err) => {
       toast.error(err.message)
@@ -73,7 +73,7 @@ function RecycleBinPage() {
       setSelectedIds(new Set())
       setConfirmDialog(null)
       setPendingDeleteIds([])
-      toast.success(t('recycleBin.deleteSuccess'))
+      toast.success(t('trash.deleteSuccess'))
     },
     onError: (err) => {
       toast.error(err.message)
@@ -87,7 +87,7 @@ function RecycleBinPage() {
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
       setSelectedIds(new Set())
       setConfirmDialog(null)
-      toast.success(t('recycleBin.emptySuccess'))
+      toast.success(t('trash.emptySuccess'))
     },
     onError: (err) => {
       toast.error(err.message)
@@ -138,7 +138,7 @@ function RecycleBinPage() {
       <PageHeader
         items={[
           {
-            label: t('recycleBin.title'),
+            label: t('trash.title'),
             icon: <Trash2 className="size-4 text-muted-foreground" />,
           },
         ]}
@@ -150,7 +150,7 @@ function RecycleBinPage() {
             disabled={items.length === 0 || emptyTrashMutation.isPending}
           >
             <Trash2 />
-            <span className="sr-only sm:not-sr-only">{t('recycleBin.empty')}</span>
+            <span className="sr-only sm:not-sr-only">{t('trash.empty')}</span>
           </Button>
         }
       />
@@ -166,7 +166,7 @@ function RecycleBinPage() {
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
           <Trash2 className="h-16 w-16" />
-          <p className="text-sm">{t('recycleBin.placeholder')}</p>
+          <p className="text-sm">{t('trash.placeholder')}</p>
         </div>
       ) : (
         <>
@@ -182,13 +182,11 @@ function RecycleBinPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-end gap-2">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                {t('recycleBin.prevPage')}
+                {t('trash.prevPage')}
               </Button>
-              <span className="text-sm text-muted-foreground">
-                {t('recycleBin.pageInfo', { page, total: totalPages })}
-              </span>
+              <span className="text-sm text-muted-foreground">{t('trash.pageInfo', { page, total: totalPages })}</span>
               <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                {t('recycleBin.nextPage')}
+                {t('trash.nextPage')}
               </Button>
             </div>
           )}
@@ -198,8 +196,8 @@ function RecycleBinPage() {
       <Dialog open={confirmDialog === 'delete'} onOpenChange={(open) => !open && setConfirmDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('recycleBin.deleteTitle')}</DialogTitle>
-            <DialogDescription>{t('recycleBin.confirmDelete', { count: pendingDeleteIds.length })}</DialogDescription>
+            <DialogTitle>{t('trash.deleteTitle')}</DialogTitle>
+            <DialogDescription>{t('trash.confirmDelete', { count: pendingDeleteIds.length })}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDialog(null)}>
@@ -210,7 +208,7 @@ function RecycleBinPage() {
               onClick={() => deleteMutation.mutate(pendingDeleteIds)}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? t('common.loading') : t('recycleBin.deletePermanently')}
+              {deleteMutation.isPending ? t('common.loading') : t('trash.deletePermanently')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -221,8 +219,8 @@ function RecycleBinPage() {
       <Dialog open={confirmDialog === 'empty'} onOpenChange={(open) => !open && setConfirmDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('recycleBin.emptyTitle')}</DialogTitle>
-            <DialogDescription>{t('recycleBin.confirmEmpty')}</DialogDescription>
+            <DialogTitle>{t('trash.emptyTitle')}</DialogTitle>
+            <DialogDescription>{t('trash.confirmEmpty')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDialog(null)}>
@@ -233,7 +231,7 @@ function RecycleBinPage() {
               onClick={() => emptyTrashMutation.mutate()}
               disabled={emptyTrashMutation.isPending}
             >
-              {emptyTrashMutation.isPending ? t('common.loading') : t('recycleBin.empty')}
+              {emptyTrashMutation.isPending ? t('common.loading') : t('trash.empty')}
             </Button>
           </DialogFooter>
         </DialogContent>
