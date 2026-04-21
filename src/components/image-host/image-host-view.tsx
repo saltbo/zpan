@@ -67,7 +67,8 @@ export function ImageHostView() {
 
   function handleCopyUrl(item: StorageObject, format?: 'raw' | 'markdown' | 'html' | 'bbcode') {
     const ihostItem = item as IhostItem
-    const url = ihostItem.url ?? ''
+    const path = ihostItem.url ?? ''
+    const url = path.startsWith('/') ? `${window.location.origin}${path}` : path
     let text: string
     switch (format) {
       case 'markdown':

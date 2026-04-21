@@ -83,7 +83,9 @@ function handleCopyUrl(
   copy?: (text: string, key: string) => void,
 ): string {
   const ihostItem = item as IhostItem
-  const text = buildCopyText(ihostItem.url ?? '', format)
+  const path = ihostItem.url ?? ''
+  const url = path.startsWith('/') ? `${window.location.origin}${path}` : path
+  const text = buildCopyText(url, format)
   if (copy) copy(text, 'ihost.copy.copied')
   return text
 }
@@ -164,7 +166,7 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
 
     const text = handleCopyUrl(item, 'raw')
 
-    expect(text).toBe('/r/tok_img-1.png')
+    expect(text).toBe('http://localhost:3000/r/tok_img-1.png')
   })
 
   it('returns markdown format', () => {
@@ -172,7 +174,7 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
 
     const text = handleCopyUrl(item, 'markdown')
 
-    expect(text).toBe('![]( /r/tok_img-1.png)'.replace(' ', ''))
+    expect(text).toBe('![](http://localhost:3000/r/tok_img-1.png)')
   })
 
   it('returns html img tag', () => {
@@ -180,7 +182,7 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
 
     const text = handleCopyUrl(item, 'html')
 
-    expect(text).toBe('<img src="/r/tok_img-1.png" />')
+    expect(text).toBe('<img src="http://localhost:3000/r/tok_img-1.png" />')
   })
 
   it('returns bbcode format', () => {
@@ -188,7 +190,7 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
 
     const text = handleCopyUrl(item, 'bbcode')
 
-    expect(text).toBe('[img]/r/tok_img-1.png[/img]')
+    expect(text).toBe('[img]http://localhost:3000/r/tok_img-1.png[/img]')
   })
 
   it('returns plain url when no format provided (default)', () => {
@@ -196,7 +198,7 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
 
     const text = handleCopyUrl(item)
 
-    expect(text).toBe('/r/tok_img-1.png')
+    expect(text).toBe('http://localhost:3000/r/tok_img-1.png')
   })
 
   it('calls copy with "ihost.copy.copied" key', () => {
@@ -205,7 +207,7 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
 
     handleCopyUrl(item, 'raw', copy)
 
-    expect(copy).toHaveBeenCalledWith('/r/tok_img-1.png', 'ihost.copy.copied')
+    expect(copy).toHaveBeenCalledWith('http://localhost:3000/r/tok_img-1.png', 'ihost.copy.copied')
   })
 
   it('calls copy with markdown text', () => {
@@ -214,7 +216,7 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
 
     handleCopyUrl(item, 'markdown', copy)
 
-    expect(copy).toHaveBeenCalledWith('![](/r/tok_img-1.png)', 'ihost.copy.copied')
+    expect(copy).toHaveBeenCalledWith('![](http://localhost:3000/r/tok_img-1.png)', 'ihost.copy.copied')
   })
 
   it('calls copy with html text', () => {
@@ -223,7 +225,7 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
 
     handleCopyUrl(item, 'html', copy)
 
-    expect(copy).toHaveBeenCalledWith('<img src="/r/tok_img-1.png" />', 'ihost.copy.copied')
+    expect(copy).toHaveBeenCalledWith('<img src="http://localhost:3000/r/tok_img-1.png" />', 'ihost.copy.copied')
   })
 
   it('calls copy with bbcode text', () => {
@@ -232,7 +234,7 @@ describe('ImageHostView — handleCopyUrl format logic', () => {
 
     handleCopyUrl(item, 'bbcode', copy)
 
-    expect(copy).toHaveBeenCalledWith('[img]/r/tok_img-1.png[/img]', 'ihost.copy.copied')
+    expect(copy).toHaveBeenCalledWith('[img]http://localhost:3000/r/tok_img-1.png[/img]', 'ihost.copy.copied')
   })
 
   it('uses empty string url when item has no url', () => {

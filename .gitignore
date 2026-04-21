@@ -44,6 +44,7 @@ zpan.db-wal
 
 #playwright
 .playwright-mcp/
+.playwright-cli/
 
 # claude code & tanstack
 .claude/
