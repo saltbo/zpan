@@ -1,8 +1,6 @@
 // Pure functions that build config strings/JSON for tool integrations.
 // No side effects. Suitable for snapshot testing.
 
-const PLACEHOLDER_KEY = '<userKey>'
-
 export interface ToolConfigParams {
   appHost: string
   userKey: string
@@ -65,11 +63,4 @@ export function buildFlameshotScript(params: ToolConfigParams): string {
     `  ${appHost}/api/ihost/images \\`,
     "  | jq -r '.data.url' | xclip -selection clipboard",
   ].join('\n')
-}
-
-export function defaultParams(userKey?: string): ToolConfigParams {
-  return {
-    appHost: typeof window !== 'undefined' ? window.location.origin : '',
-    userKey: userKey ?? PLACEHOLDER_KEY,
-  }
 }
