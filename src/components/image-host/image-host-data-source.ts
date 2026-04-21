@@ -77,6 +77,20 @@ export const imageHostDataSource = {
     await deleteIhostImage(id)
   },
 
+  async getPreviewFile(
+    item: StorageObject,
+  ): Promise<{ id: string; name: string; type: string; size: number; downloadUrl: string } | null> {
+    const ihostItem = item as IhostItem
+    if (!ihostItem.url) return null
+    return {
+      id: ihostItem.id,
+      name: ihostItem.name,
+      type: ihostItem.type,
+      size: ihostItem.size,
+      downloadUrl: ihostItem.url,
+    }
+  },
+
   getThumbnailUrl(item: StorageObject): string | null {
     const ihostItem = item as IhostItem
     if (!ihostItem.token) return null

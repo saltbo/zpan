@@ -473,6 +473,66 @@ describe('imageHostDataSource.getShareUrl', () => {
 })
 
 // ---------------------------------------------------------------------------
+// getPreviewFile()
+// ---------------------------------------------------------------------------
+
+describe('imageHostDataSource.getPreviewFile', () => {
+  it('returns PreviewFile with downloadUrl from item.url', async () => {
+    const item = {
+      id: 'img-1',
+      orgId: 'org-1',
+      alias: '',
+      name: 'photo.png',
+      type: 'image/png',
+      size: 1024,
+      dirtype: DirType.FILE,
+      parent: '',
+      object: '',
+      storageId: '',
+      status: 'active' as const,
+      createdAt: '',
+      updatedAt: '',
+      token: 'tok_abc',
+      url: '/r/tok_abc.png',
+      dimensions: null,
+      accessCount: 0,
+    }
+
+    const result = await imageHostDataSource.getPreviewFile(item)
+
+    expect(result).toEqual({
+      id: 'img-1',
+      name: 'photo.png',
+      type: 'image/png',
+      size: 1024,
+      downloadUrl: '/r/tok_abc.png',
+    })
+  })
+
+  it('returns null when url is falsy', async () => {
+    const item = {
+      id: 'img-1',
+      orgId: 'org-1',
+      alias: '',
+      name: 'photo.png',
+      type: 'image/png',
+      size: 0,
+      dirtype: DirType.FILE,
+      parent: '',
+      object: '',
+      storageId: '',
+      status: 'active' as const,
+      createdAt: '',
+      updatedAt: '',
+    }
+
+    const result = await imageHostDataSource.getPreviewFile(item as never)
+
+    expect(result).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // queryKeyPrefix
 // ---------------------------------------------------------------------------
 
