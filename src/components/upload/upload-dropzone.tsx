@@ -132,7 +132,7 @@ export const UploadDropzone = forwardRef<UploadDropzoneHandle, UploadDropzonePro
 
     return (
       <div {...getRootProps()} className="relative h-full">
-        <input {...getInputProps()} />
+        <input {...getInputProps({ className: 'hidden' })} />
         {children}
         {isDragActive && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary bg-primary/5 backdrop-blur-sm">

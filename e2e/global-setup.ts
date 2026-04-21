@@ -43,6 +43,14 @@ setup('seed admin and storage', async ({ request }) => {
     }
   }
 
+  // E2E specs rely on self-service sign-up to create isolated users. Force the
+  // local test environment into OPEN mode so existing dev DB settings do not
+  // make the suite depend on invite codes.
+  await request.put('/api/system/options/auth_signup_mode', {
+    headers,
+    data: { value: 'open', public: true },
+  })
+
   // Check if storage already exists
   const list = await request.get('/api/admin/storages', { headers })
   if (list.ok()) {

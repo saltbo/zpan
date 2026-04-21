@@ -27,10 +27,10 @@ function AuthenticatedLayout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+        <header className="flex h-14 min-w-0 shrink-0 items-center gap-3 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <GlobalSearchBar />
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex shrink-0 items-center">
             <NotificationBell />
           </div>
         </header>

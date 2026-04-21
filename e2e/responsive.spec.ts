@@ -46,14 +46,14 @@ test.describe('Toolbar responsive layout', () => {
     const toolbar = page.locator('[data-testid="files-toolbar"]')
     await expect(toolbar).toBeVisible()
 
-    // All action buttons should be visible with text labels
+    // Primary file actions live in the page header on desktop.
+    await expect(page.getByTestId('page-header')).toBeVisible()
     await expect(page.getByRole('button', { name: /Upload/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /New Folder/i })).toBeVisible()
     await expect(page.getByLabel('List view')).toBeVisible()
     await expect(page.getByLabel('Grid view')).toBeVisible()
 
-    // Search input should be visible
-    await expect(page.getByPlaceholder(/search/i)).toBeVisible()
+    await expect(page.getByTestId('global-search')).toBeVisible()
   })
 
   test('tablet: toolbar does not overflow horizontally @tablet', async ({ page }) => {

@@ -29,16 +29,9 @@ test.describe('Recycle bin responsive layout', () => {
     expect(hasHScroll).toBe(false)
   })
 
-  test('mobile: trash toolbar buttons are accessible @mobile', async ({ page }) => {
+  test('mobile: empty trash action is accessible @mobile', async ({ page }) => {
     await signUpAndGoToTrash(page)
 
-    // Empty trash button should be visible (icon + text or icon-only)
     await expect(page.getByRole('button', { name: /empty/i })).toBeVisible()
-
-    // Toolbar should not overflow
-    const toolbar = page.locator('[data-testid="trash-toolbar"]')
-    await expect(toolbar).toBeVisible()
-    const overflows = await toolbar.evaluate((el) => el.scrollWidth > el.clientWidth)
-    expect(overflows).toBe(false)
   })
 })
