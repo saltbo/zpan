@@ -251,14 +251,39 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
                 await redeemInviteCode(db, inviteCode, user.id)
               }
             }
-            await createPersonalOrg(db, user)
+
+            // Create personal org as part of registration.
+            // This hook is deferred until after the transaction commits, so
+            // when autoSignIn is enabled the org is actually created by
+            // session.create.before (which runs earlier, inside the txn).
+            // The idempotent check ensures no duplicate is created.
+            const existing = await findPersonalOrg(db, user.id)
+            if (!existing) {
+              await createPersonalOrg(db, user)
+            }
           },
         },
       },
       session: {
         create: {
           before: async (session) => {
-            const orgId = await findPersonalOrg(db, session.userId)
+            // Look up existing personal org (returning users)
+            let orgId = await findPersonalOrg(db, session.userId)
+
+            // For new sign-ups the org doesn't exist yet — create it now.
+            // This runs inside the sign-up transaction, after the user row
+            // is inserted but before the session row and cookie cache are
+            // written, so activeOrganizationId is correct from the start.
+            if (!orgId) {
+              const [user] = await db
+                .select({ id: authSchema.user.id, name: authSchema.user.name, username: authSchema.user.username })
+                .from(authSchema.user)
+                .where(eq(authSchema.user.id, session.userId))
+              if (user) {
+                orgId = await createPersonalOrg(db, user)
+              }
+            }
+
             if (orgId) {
               return { data: { ...session, activeOrganizationId: orgId } }
             }
@@ -315,7 +340,7 @@ async function generateUsername(db: Database, opts: { oauthUsername?: string; em
 async function createPersonalOrg(
   db: Database,
   user: { id: string; name: string; username?: string | null },
-): Promise<void> {
+): Promise<string> {
   const orgId = nanoid()
   const now = new Date()
   const displayName = user.name || user.username
@@ -341,6 +366,8 @@ async function createPersonalOrg(
   if (defaultQuota > 0) {
     await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota: defaultQuota, used: 0 })
   }
+
+  return orgId
 }
 
 const DEFAULT_ORG_QUOTA = 10 * 1024 * 1024 // 10 MB

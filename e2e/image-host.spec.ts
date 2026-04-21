@@ -52,7 +52,7 @@ test.describe('Image Host @all', () => {
       page.waitForTimeout(100),
     ])
     // After enable, the gallery / empty state should be visible
-    await expect(page.getByText(/no image|empty|drop|upload/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/drag and drop|no image/i)).toBeVisible({ timeout: 10000 })
   })
 })
 
