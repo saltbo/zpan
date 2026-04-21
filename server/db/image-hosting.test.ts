@@ -1,3 +1,4 @@
+import { getTableConfig } from 'drizzle-orm/sqlite-core'
 import { describe, expect, it } from 'vitest'
 import { apikey } from './auth-schema.js'
 import { imageHostingConfigs, imageHostings } from './schema.js'
@@ -39,6 +40,14 @@ describe('imageHostingConfigs table', () => {
   it('has not-null created_at and updated_at timestamps', () => {
     expect(imageHostingConfigs.createdAt.notNull).toBe(true)
     expect(imageHostingConfigs.updatedAt.notNull).toBe(true)
+  })
+
+  it('org_id has a cascade-delete FK to organization', () => {
+    const { foreignKeys } = getTableConfig(imageHostingConfigs)
+    expect(foreignKeys).toHaveLength(1)
+    const ref = foreignKeys[0].reference()
+    expect(ref.foreignColumns).toHaveLength(1)
+    expect(ref.foreignColumns[0].name).toBe('id')
   })
 })
 
@@ -96,6 +105,17 @@ describe('imageHostings table', () => {
 
   it('has not-null created_at timestamp', () => {
     expect(imageHostings.createdAt.notNull).toBe(true)
+  })
+
+  it('org_id and storage_id have cascade/no-action FKs', () => {
+    const { foreignKeys } = getTableConfig(imageHostings)
+    expect(foreignKeys).toHaveLength(2)
+    // Both FKs resolve to a single-column reference on 'id'
+    for (const fk of foreignKeys) {
+      const ref = fk.reference()
+      expect(ref.foreignColumns).toHaveLength(1)
+      expect(ref.foreignColumns[0].name).toBe('id')
+    }
   })
 })
 
