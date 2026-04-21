@@ -1,14 +1,16 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { EnableFeatureEmpty } from '@/components/image-host/enable-feature-empty'
 import { ApiKeysPanel } from '@/components/image-host-settings/api-keys-panel'
 import { CustomDomainPanel } from '@/components/image-host-settings/custom-domain-panel'
 import { DisableFeaturePanel } from '@/components/image-host-settings/disable-feature-panel'
 import { RefererAllowlistPanel } from '@/components/image-host-settings/referer-allowlist-panel'
 import { ToolIntegrationPanel } from '@/components/image-host-settings/tool-integration-panel'
 import { Card } from '@/components/ui/card'
-import { getIhostConfig } from '@/lib/api'
+import { enableIhostFeature, getIhostConfig } from '@/lib/api'
 import { useActiveOrganization, useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/settings/ihost')({
@@ -28,6 +30,7 @@ function LockedState() {
 
 function ImageHostSettingsPage() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
 
@@ -40,6 +43,16 @@ function ImageHostSettingsPage() {
     queryKey: ['ihost', 'config', orgId],
     queryFn: getIhostConfig,
     enabled: !!session && !!orgId,
+  })
+
+  const enableMutation = useMutation({
+    mutationFn: enableIhostFeature,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ihost', 'config', orgId] })
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
   })
 
   if (!isOwnerOrAdmin) {
@@ -63,9 +76,11 @@ function ImageHostSettingsPage() {
 
   if (!config?.enabled || !orgId) {
     return (
-      <div className="flex items-center justify-center py-10 text-muted-foreground">
-        <p className="text-sm">{t('common.loading')}</p>
-      </div>
+      <EnableFeatureEmpty
+        canEnable={isOwnerOrAdmin}
+        isEnabling={enableMutation.isPending}
+        onEnable={() => enableMutation.mutate()}
+      />
     )
   }
 
