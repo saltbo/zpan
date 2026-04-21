@@ -22,8 +22,7 @@ describe('buildPicGoConfig', () => {
         "url": "https://zpan.example.com/api/ihost/images",
         "paramName": "file",
         "jsonPath": "data.url",
-        "customHeader": "{\\"Authorization\\":\\"Bearer test-key-123\\"}",
-        "customBody": "{\\"path\\":\\"{year}/{month}/{fileName}\\"}"
+        "customHeader": "{\\"Authorization\\":\\"Bearer test-key-123\\"}"
       }"
     `)
   })
@@ -49,15 +48,19 @@ describe('buildUPicConfig', () => {
     expect(buildUPicConfig(paramsWithKey)).toMatchInlineSnapshot(`
       "{
         "type": "custom",
+        "method": "POST",
         "url": "https://zpan.example.com/api/ihost/images",
         "fileFormData": "file",
         "headers": {
           "Authorization": "Bearer test-key-123"
         },
         "body": {
-          "path": "{year}/{month}/{filename}.{ext}"
+          "path": "{filename}"
         },
-        "responseField": "data.url"
+        "responseURL": [
+          "data",
+          "url"
+        ]
       }"
     `)
   })
@@ -78,9 +81,6 @@ describe('buildShareXConfig', () => {
   it('matches snapshot with key', () => {
     expect(buildShareXConfig(paramsWithKey)).toMatchInlineSnapshot(`
       {
-        "Arguments": {
-          "path": "%y/%mo/$filename$",
-        },
         "Body": "MultipartFormData",
         "DestinationType": "ImageUploader, FileUploader",
         "ErrorMessage": "{json:error}",
