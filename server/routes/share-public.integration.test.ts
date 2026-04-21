@@ -630,9 +630,9 @@ describe('GET /api/shares/:token/objects/:ref — descendant', () => {
   })
 })
 
-// ─── GET /dl/:token — unchanged public short-link for direct shares ──────────
+// ─── GET /r/:token — unified redirect for direct shares (ds_) ────────────────
 
-describe('GET /dl/:token', () => {
+describe('GET /r/:token (ds_ direct shares)', () => {
   it('returns 302 redirect for valid direct share', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
@@ -642,13 +642,13 @@ describe('GET /dl/:token', () => {
     await insertFile(db, orgId, { id: 'dlx1', name: 'direct.bin' })
     const share = await createShare(db, { matterId: 'dlx1', orgId, creatorId, kind: 'direct' })
 
-    const res = await app.request(`/dl/${share.token}`, { redirect: 'manual' })
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_PRESIGN_URL)
     expect(res.headers.get('cache-control')).toContain('no-store')
   })
 
-  it('returns 404 for landing share via /dl/', async () => {
+  it('returns 404 for landing share token at /r/', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -657,13 +657,13 @@ describe('GET /dl/:token', () => {
     await insertFile(db, orgId, { id: 'dlx2', name: 'landing.txt' })
     const share = await createShare(db, { matterId: 'dlx2', orgId, creatorId, kind: 'landing' })
 
-    const res = await app.request(`/dl/${share.token}`, { redirect: 'manual' })
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(404)
   })
 
-  it('returns 404 for unknown token', async () => {
+  it('returns 404 for unknown prefix token', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/dl/nosuchthing', { redirect: 'manual' })
+    const res = await app.request('/r/nosuchthing', { redirect: 'manual' })
     expect(res.status).toBe(404)
   })
 
@@ -677,10 +677,10 @@ describe('GET /dl/:token', () => {
     const now = Date.now()
     await db.run(sql`
       INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
-      VALUES ('sh-dltrash', 'token-dltrash', 'direct', 'dlx3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
+      VALUES ('sh-dltrash', 'ds_token-dltrash', 'direct', 'dlx3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
     `)
 
-    const res = await app.request('/dl/token-dltrash', { redirect: 'manual' })
+    const res = await app.request('/r/ds_token-dltrash', { redirect: 'manual' })
     expect(res.status).toBe(410)
   })
 
@@ -700,7 +700,7 @@ describe('GET /dl/:token', () => {
     })
     await db.run(sql`UPDATE shares SET downloads = 1 WHERE id = ${share.id}`)
 
-    const res = await app.request(`/dl/${share.token}`, { redirect: 'manual' })
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(410)
   })
 
@@ -713,7 +713,7 @@ describe('GET /dl/:token', () => {
     await insertFile(db, orgId, { id: 'dlx5', name: 'public.bin' })
     const share = await createShare(db, { matterId: 'dlx5', orgId, creatorId, kind: 'direct' })
 
-    const res = await app.request(`/dl/${share.token}`, { redirect: 'manual' })
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
   })
 })

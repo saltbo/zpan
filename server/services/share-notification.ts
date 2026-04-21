@@ -49,7 +49,7 @@ export async function dispatchShareCreated(
   creatorName: string,
   matterName: string,
 ): Promise<void> {
-  const shareUrl = share.kind === 'landing' ? `/s/${share.token}` : `/dl/${share.token}`
+  const shareUrl = share.kind === 'landing' ? `/s/${share.token}` : `/r/${share.token}`
   const emailEnabled = await isEmailConfigured(db)
 
   for (const r of recipients) {

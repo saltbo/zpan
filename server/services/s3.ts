@@ -54,6 +54,17 @@ export class S3Service {
     return getSignedUrl(client, command, { expiresIn })
   }
 
+  async presignInline(storage: Storage, key: string, mime: string, expiresIn = DEFAULT_EXPIRES_IN): Promise<string> {
+    const client = this.createClient(storage)
+    const command = new GetObjectCommand({
+      Bucket: storage.bucket,
+      Key: key,
+      ResponseContentDisposition: 'inline',
+      ResponseContentType: mime,
+    })
+    return getSignedUrl(client, command, { expiresIn })
+  }
+
   getPublicUrl(storage: Storage, key: string): string {
     if (storage.customHost) {
       return `${storage.customHost.replace(/\/$/, '')}/${key}`

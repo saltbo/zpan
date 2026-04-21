@@ -161,7 +161,7 @@ describe('POST /api/shares', () => {
 
     const body = (await res.json()) as Record<string, unknown>
     expect(body.kind).toBe('direct')
-    expect((body.urls as Record<string, string>).direct).toMatch(/^\/dl\//)
+    expect((body.urls as Record<string, string>).direct).toMatch(/^\/r\/ds_/)
     expect((body.urls as Record<string, string>).landing).toBeUndefined()
   })
 

@@ -47,7 +47,7 @@ import {
 const ROLE_LEVELS: Record<string, number> = { owner: 3, editor: 2, viewer: 1, member: 1 }
 
 function shareUrls(kind: string, token: string): { landing?: string; direct?: string } {
-  return kind === 'landing' ? { landing: `/s/${token}` } : { direct: `/dl/${token}` }
+  return kind === 'landing' ? { landing: `/s/${token}` } : { direct: `/r/${token}` }
 }
 
 // ─── PUBLIC SEGMENT ──────────────────────────────────────────────────────────
