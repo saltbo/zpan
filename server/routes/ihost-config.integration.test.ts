@@ -757,6 +757,126 @@ describe('PUT /api/ihost/config', () => {
     })
     expect(res.status).toBe(409)
   })
+
+  it('propagates non-CfConflict CF register error on INSERT path', async () => {
+    const { app, db } = await createTestApp({
+      CF_API_TOKEN: 'tok',
+      CF_ZONE_ID: 'zone',
+      CF_CNAME_TARGET: 'ssl.zpan.io',
+    })
+    const { headers, userId } = await signUpAndGetHeaders(app, `put-cf-insert-err-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'owner')
+    const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
+
+    // No existing config row — triggers INSERT path
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Internal Server Error', { status: 500 })))
+
+    const res = await app.request('/api/ihost/config', {
+      method: 'PUT',
+      headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, customDomain: 'img.cf-insert-err.com' }),
+    })
+    expect(res.status).toBeGreaterThanOrEqual(500)
+  })
+
+  it('CF delete failure on domain change is best-effort: warns and continues (UPDATE path)', async () => {
+    const { app, db } = await createTestApp({
+      CF_API_TOKEN: 'tok',
+      CF_ZONE_ID: 'zone',
+      CF_CNAME_TARGET: 'ssl.zpan.io',
+    })
+    const { headers, userId } = await signUpAndGetHeaders(app, `put-cf-del-warn-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'owner')
+    const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
+
+    await seedConfig(db, orgId, { customDomain: 'old.warn.com', cfHostnameId: 'cf-warn-id' })
+
+    // DELETE returns 403 (triggers console.warn), POST (register) returns 200
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'DELETE') {
+          return new Response('Forbidden', { status: 403 })
+        }
+        return new Response(JSON.stringify({ result: { id: 'cf-new-warn-id' } }), { status: 200 })
+      }),
+    )
+
+    const res = await app.request('/api/ihost/config', {
+      method: 'PUT',
+      headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, customDomain: 'new.warn.com' }),
+    })
+    // Best-effort: delete failure should not abort the request
+    expect(res.status).toBe(200)
+
+    const rows = await db.select().from(schema.imageHostingConfigs).where(eq(schema.imageHostingConfigs.orgId, orgId))
+    expect(rows[0].customDomain).toBe('new.warn.com')
+    expect(rows[0].cfHostnameId).toBe('cf-new-warn-id')
+  })
+
+  it('propagates non-CfConflict CF register error on UPDATE path (domain change)', async () => {
+    const { app, db } = await createTestApp({
+      CF_API_TOKEN: 'tok',
+      CF_ZONE_ID: 'zone',
+      CF_CNAME_TARGET: 'ssl.zpan.io',
+    })
+    const { headers, userId } = await signUpAndGetHeaders(app, `put-cf-update-err-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'owner')
+    const updatedCookies = await setActiveOrg(app, headers.Cookie, orgId)
+
+    await seedConfig(db, orgId, { customDomain: 'old.update-err.com', cfHostnameId: 'cf-update-err-id' })
+
+    // DELETE succeeds, POST (register) returns 500
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'DELETE') {
+          return new Response('{}', { status: 200 })
+        }
+        return new Response('Internal Server Error', { status: 500 })
+      }),
+    )
+
+    const res = await app.request('/api/ihost/config', {
+      method: 'PUT',
+      headers: { Cookie: updatedCookies, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, customDomain: 'new.update-err.com' }),
+    })
+    expect(res.status).toBeGreaterThanOrEqual(500)
+  })
+
+  it('returns 409 when UPDATE path hits DB unique constraint (org2 takes org1 domain)', async () => {
+    const { app, db } = await createTestApp()
+
+    const email1 = `put-upd-dup1-${nanoid()}@example.com`
+    const email2 = `put-upd-dup2-${nanoid()}@example.com`
+    const { userId: uid1 } = await signUpAndGetHeaders(app, email1)
+    const { headers: h2, userId: uid2 } = await signUpAndGetHeaders(app, email2)
+
+    const orgId1 = await insertOrg(db)
+    const orgId2 = await insertOrg(db)
+    await insertMember(db, orgId1, uid1, 'owner')
+    await insertMember(db, orgId2, uid2, 'owner')
+
+    const cookies2 = await setActiveOrg(app, h2.Cookie, orgId2)
+
+    // Org1 owns 'claimed.example.com'
+    await seedConfig(db, orgId1, { customDomain: 'claimed.example.com' })
+    // Org2 already has its own config with a different domain
+    await seedConfig(db, orgId2, { customDomain: 'other.example.com' })
+
+    // Org2 attempts to UPDATE its domain to org1's already-claimed domain
+    const res = await app.request('/api/ihost/config', {
+      method: 'PUT',
+      headers: { Cookie: cookies2, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, customDomain: 'claimed.example.com' }),
+    })
+    expect(res.status).toBe(409)
+  })
 })
 
 // ─── DELETE ────────────────────────────────────────────────────────────────────
