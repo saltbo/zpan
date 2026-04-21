@@ -207,6 +207,34 @@ const APP_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS notifications_user_created_idx ON notifications(user_id, created_at);
   CREATE INDEX IF NOT EXISTS notifications_user_read_idx ON notifications(user_id, read_at);
+  CREATE TABLE IF NOT EXISTS image_hosting_configs (
+    org_id TEXT PRIMARY KEY,
+    custom_domain TEXT UNIQUE,
+    cf_hostname_id TEXT,
+    domain_verified_at INTEGER,
+    referer_allowlist TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS image_hostings (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    path TEXT NOT NULL,
+    storage_id TEXT NOT NULL,
+    storage_key TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    mime TEXT NOT NULL,
+    width INTEGER,
+    height INTEGER,
+    status TEXT NOT NULL DEFAULT 'draft',
+    access_count INTEGER NOT NULL DEFAULT 0,
+    last_accessed_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS image_hostings_org_path_uniq ON image_hostings(org_id, path);
+  CREATE INDEX IF NOT EXISTS image_hostings_org_created_idx ON image_hostings(org_id, created_at);
+  CREATE INDEX IF NOT EXISTS image_hostings_token_idx ON image_hostings(token);
 `
 
 export async function createTestApp() {

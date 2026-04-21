@@ -135,6 +135,30 @@ describe('S3Service', () => {
     })
   })
 
+  describe('presignInline', () => {
+    it('returns a signed URL with inline Content-Disposition and ResponseContentType', async () => {
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+      const url = await service.presignInline(storage, 'images/photo.jpg', 'image/jpeg')
+      expect(url).toBe('https://signed-url.example.com')
+      expect(getSignedUrl).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          input: expect.objectContaining({
+            ResponseContentDisposition: 'inline',
+            ResponseContentType: 'image/jpeg',
+          }),
+        }),
+        expect.anything(),
+      )
+    })
+
+    it('respects custom expiresIn', async () => {
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+      await service.presignInline(storage, 'img.png', 'image/png', 600)
+      expect(getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 600 })
+    })
+  })
+
   describe('getPublicUrl', () => {
     it('uses customHost when available', () => {
       const s = makeStorage({ customHost: 'https://cdn.example.com' })

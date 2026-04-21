@@ -42,9 +42,10 @@ export async function createShare(db: Database, input: CreateShareInput): Promis
   if (input.kind === 'direct' && matter.dirtype !== DirType.FILE) throw new Error('DIRECT_NO_FOLDER')
 
   const now = new Date()
+  const token = input.kind === 'direct' ? `ds_${nanoid(10)}` : nanoid(10)
   const share: Share = {
     id: nanoid(),
-    token: nanoid(10),
+    token,
     kind: input.kind,
     matterId: input.matterId,
     orgId: input.orgId,

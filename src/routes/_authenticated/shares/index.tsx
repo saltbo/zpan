@@ -180,7 +180,7 @@ function SharesPage() {
                   onRowClick={() => setDetailShare(share)}
                   onCopyUrl={() => {
                     const base = window.location.origin
-                    const url = share.kind === 'landing' ? `${base}/s/${share.token}` : `${base}/dl/${share.token}`
+                    const url = share.kind === 'landing' ? `${base}/s/${share.token}` : `${base}/r/${share.token}`
                     navigator.clipboard.writeText(url)
                     toast.success(t('shares.urlCopied'))
                   }}

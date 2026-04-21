@@ -198,7 +198,7 @@ describe('dispatchShareCreated', () => {
     expect(metadata.kind).toBe('landing')
   })
 
-  it('uses /dl/{token} URL for direct shares in notification metadata', async () => {
+  it('uses /r/{token} URL for direct shares in notification metadata', async () => {
     const { db } = await createTestApp()
     const user = await insertUser(db)
     const share = makeShare({ kind: 'direct', token: 'directtoken1' })

@@ -10,7 +10,7 @@ import { createShare } from '../services/share'
 // Verifies that public share JSON endpoints live under /api/* (Worker-handled)
 // and NOT under /s/* (CF Assets serves the SPA there). These assertions catch
 // any accidental re-mount before the bug reaches a preview deployment.
-describe('[CF] Routing regression — share routes must be under /api/* or /dl/*', () => {
+describe('[CF] Routing regression — share routes must be under /api/* or /r/*', () => {
   it('/s/:token returns 404 (not routed) — JSON share API is not mounted at /s', async () => {
     const platform = createCloudflarePlatform(env)
     const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET)
@@ -100,9 +100,9 @@ describe('[CF] Public share routes — no requireAuth', () => {
     expect(matter.name).toBe('cf-file.txt')
   })
 
-  it('GET /dl/:token returns 404 for unknown token without auth', async () => {
+  it('GET /r/unknown-prefix returns 404 for unknown token without auth', async () => {
     const { app } = await buildApp()
-    const res = await app.request('/dl/nonexistent-cf-token')
+    const res = await app.request('/r/nonexistent-cf-token')
     expect(res.status).toBe(404)
   })
 })
@@ -126,7 +126,7 @@ describe('[CF] Concurrent downloads — atomic limit enforcement', () => {
 
     // Fire 20 concurrent requests
     const results = await Promise.all(
-      Array.from({ length: 20 }, () => app.request(`/dl/${share.token}`, { redirect: 'manual' }).then((r) => r.status)),
+      Array.from({ length: 20 }, () => app.request(`/r/${share.token}`, { redirect: 'manual' }).then((r) => r.status)),
     )
 
     // Note: presignDownload will throw in CF test env (no real S3),

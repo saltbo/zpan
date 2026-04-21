@@ -123,13 +123,13 @@ const makeResult = (
 
 describe('buildShareUrl', () => {
   it('prefers landing URL when available', () => {
-    const result = makeResult({ urls: { landing: '/s/tok', direct: '/dl/tok' } })
+    const result = makeResult({ urls: { landing: '/s/tok', direct: '/r/ds_tok' } })
     expect(buildShareUrl(result, 'https://example.com')).toBe('https://example.com/s/tok')
   })
 
   it('falls back to direct URL when landing is absent', () => {
-    const result = makeResult({ kind: 'direct', urls: { direct: '/dl/tok' } })
-    expect(buildShareUrl(result, 'https://example.com')).toBe('https://example.com/dl/tok')
+    const result = makeResult({ kind: 'direct', urls: { direct: '/r/ds_tok' } })
+    expect(buildShareUrl(result, 'https://example.com')).toBe('https://example.com/r/ds_tok')
   })
 
   it('returns just the origin when both URLs are absent', () => {

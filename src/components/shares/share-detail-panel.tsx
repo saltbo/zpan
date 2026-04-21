@@ -11,7 +11,7 @@ interface ShareDetailPanelProps {
 
 function shareUrl(share: ShareListItem): string {
   const base = window.location.origin
-  return share.kind === 'landing' ? `${base}/s/${share.token}` : `${base}/dl/${share.token}`
+  return share.kind === 'landing' ? `${base}/s/${share.token}` : `${base}/r/${share.token}`
 }
 
 export function ShareDetailPanel({ share, onClose }: ShareDetailPanelProps) {

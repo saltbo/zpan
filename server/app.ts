@@ -13,7 +13,7 @@ import { notifications } from './routes/notifications'
 import objects from './routes/objects'
 import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
-import shareDirect from './routes/share-direct'
+import redirect from './routes/redirect'
 import { authedShares, publicShares } from './routes/shares'
 import storages from './routes/storages'
 import system from './routes/system'
@@ -44,10 +44,10 @@ export function createApp(platform: Platform, auth: Auth) {
 
   // Public routes — no auth required; mount before authMiddleware.
   // /api/shares/:token endpoints are covered by run_worker_first=["/api/*"] in wrangler.toml.
-  // /dl/* is listed separately in run_worker_first.
+  // /r/* is listed separately in run_worker_first.
   // /s/:token is intentionally left for the SPA landing page.
   app.route('/api/shares', publicShares)
-  app.route('/dl', shareDirect)
+  app.route('/r', redirect)
   app.route('/api/profiles', profile)
   app.route('/api/teams', publicTeams)
   app.route('/api/auth-providers', publicAuthProviders)
