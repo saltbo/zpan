@@ -52,3 +52,6 @@ zpan.db-wal
 # agent skills (managed by daemon)
 .agents/
 skills-lock.json
+
+# agent skills (managed by daemon)
+.claude/skills/

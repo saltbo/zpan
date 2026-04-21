@@ -182,3 +182,32 @@ export interface ActivityEvent {
     image: string | null
   }
 }
+
+export interface ImageHostingConfig {
+  orgId: string
+  customDomain: string | null
+  cfHostnameId: string | null
+  domainVerifiedAt: string | null
+  refererAllowlist: string | null // JSON array of strings; null/empty => allow all
+  createdAt: string
+  updatedAt: string
+}
+
+export type ImageHostingStatus = 'draft' | 'active'
+
+export interface ImageHosting {
+  id: string
+  orgId: string
+  token: string
+  path: string
+  storageId: string
+  storageKey: string
+  size: number
+  mime: string
+  width: number | null
+  height: number | null
+  status: ImageHostingStatus
+  accessCount: number
+  lastAccessedAt: string | null
+  createdAt: string
+}
