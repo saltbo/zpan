@@ -263,6 +263,33 @@ const APP_SCHEMA_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS image_hostings_org_path_uniq ON image_hostings(org_id, path);
   CREATE INDEX IF NOT EXISTS image_hostings_org_created_idx ON image_hostings(org_id, created_at);
   CREATE INDEX IF NOT EXISTS image_hostings_token_idx ON image_hostings(token);
+  CREATE TABLE IF NOT EXISTS apikey (
+    id TEXT PRIMARY KEY,
+    config_id TEXT NOT NULL DEFAULT 'default',
+    name TEXT,
+    start TEXT,
+    reference_id TEXT NOT NULL,
+    prefix TEXT,
+    key TEXT NOT NULL,
+    refill_interval INTEGER,
+    refill_amount INTEGER,
+    last_refill_at INTEGER,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    rate_limit_enabled INTEGER NOT NULL DEFAULT 1,
+    rate_limit_time_window INTEGER,
+    rate_limit_max INTEGER,
+    request_count INTEGER NOT NULL DEFAULT 0,
+    remaining INTEGER,
+    last_request INTEGER,
+    expires_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    permissions TEXT,
+    metadata TEXT
+  );
+  CREATE INDEX IF NOT EXISTS apikey_config_id_idx ON apikey(config_id);
+  CREATE INDEX IF NOT EXISTS apikey_reference_id_idx ON apikey(reference_id);
+  CREATE INDEX IF NOT EXISTS apikey_key_idx ON apikey(key);
 `
 
 export async function createTestApp(envOverrides: Record<string, string> = {}) {
