@@ -67,42 +67,48 @@ async function resolveApiKeyOrgId(
   }
 }
 
-const app = new Hono<Env>()
-
 // ── POST /api/ihost/images ───────────────────────────────────────────────────
+// Multipart-only upload endpoint for API-key clients (PicGo-compatible).
 // Accepts session auth OR API key with image-hosting:upload permission.
 // requireAuth is intentionally omitted — unauthenticated requests fall through
 // to the API-key resolver below; 401 is returned there if neither auth method
-// succeeds. Two content types are supported:
-//   - application/json   → two-stage draft creation + presigned URL
-//   - multipart/form-data → stream-proxy upload to R2 (PicGo-compatible)
+// succeeds.
+// Note: this handler has no zValidator because multipart bodies are read
+// manually. See POST /images/presign for the typed JSON presign flow used
+// by the browser client.
 
-app.post('/images', async (c) => {
-  const db = c.get('platform').db
-  const contentType = c.req.header('Content-Type') ?? ''
+const app = new Hono<Env>()
+  .post('/images', async (c) => {
+    const db = c.get('platform').db
+    const contentType = c.req.header('Content-Type') ?? ''
 
-  // Resolve principal: session takes priority; fall back to API key
-  let orgId = c.get('orgId')
+    if (!contentType.includes('multipart/form-data')) {
+      return c.json(
+        { error: 'This endpoint only accepts multipart/form-data. Use POST /images/presign for JSON presign.' },
+        415,
+      )
+    }
 
-  if (!orgId) {
-    const apiKeyResult = await resolveApiKeyOrgId(c, 'image-hosting', 'upload')
-    if (apiKeyResult === null) return c.json({ error: 'Unauthorized' }, 401)
-    if ('error' in apiKeyResult) return c.json({ error: apiKeyResult.error }, apiKeyResult.status)
-    orgId = apiKeyResult.orgId
-  }
+    // Resolve principal: session takes priority; fall back to API key
+    let orgId = c.get('orgId')
 
-  const config = await getImageHostingConfig(db, orgId)
-  if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+    if (!orgId) {
+      const apiKeyResult = await resolveApiKeyOrgId(c, 'image-hosting', 'upload')
+      if (apiKeyResult === null) return c.json({ error: 'Unauthorized' }, 401)
+      if ('error' in apiKeyResult) return c.json({ error: apiKeyResult.error }, apiKeyResult.status)
+      orgId = apiKeyResult.orgId
+    }
 
-  let storage: S3Storage
-  try {
-    storage = (await selectStorage(db, 'private')) as unknown as S3Storage
-  } catch {
-    return c.json({ error: 'No storage configured' }, 503)
-  }
+    const config = await getImageHostingConfig(db, orgId)
+    if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
-  // ── Multipart: stream-proxy upload ────────────────────────────────────────
-  if (contentType.includes('multipart/form-data')) {
+    let storage: S3Storage
+    try {
+      storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+    } catch {
+      return c.json({ error: 'No storage configured' }, 503)
+    }
+
     // NOTE: Hono's built-in multipart parser buffers the entire file in memory
     // before exposing it as a File object. This is a v2.4 known limitation.
     // The 20 MB cap below prevents OOM on CF Workers.
@@ -173,92 +179,64 @@ app.post('/images', async (c) => {
       },
       201,
     )
-  }
-
-  // ── JSON: two-stage draft creation ────────────────────────────────────────
-  if (!contentType.includes('application/json')) {
-    return c.json({ error: 'Unsupported content type' }, 415)
-  }
-
-  const raw = await c.req.json()
-
-  // Check MIME and size before zod so we return the correct HTTP status codes.
-  const { mime: rawMime, size: rawSize } = raw as Record<string, unknown>
-  if (typeof rawSize === 'number' && rawSize > MAX_IMAGE_SIZE) {
-    return c.json({ error: 'File too large', maxBytes: MAX_IMAGE_SIZE }, 413)
-  }
-  if (rawMime === 'image/svg+xml') return c.json({ error: 'SVG images are not allowed' }, 415)
-  if (typeof rawMime === 'string' && !(ALLOWED_IMAGE_MIMES as readonly string[]).includes(rawMime)) {
-    return c.json({ error: 'Unsupported media type', allowedTypes: ALLOWED_IMAGE_MIMES }, 415)
-  }
-
-  const parseResult = createIhostImageSchema.safeParse(raw)
-  if (!parseResult.success) {
-    return c.json({ error: 'Invalid input', issues: parseResult.error.issues }, 400)
-  }
-
-  const { path: requestedPath, mime, size } = parseResult.data
-
-  const pathErr = validatePath(requestedPath)
-  if (pathErr) return c.json(pathErr, 400)
-
-  const row = await createImageHosting(db, {
-    orgId,
-    path: requestedPath,
-    mime,
-    size,
-    storageId: storage.id,
-    status: 'draft',
   })
 
-  const uploadUrl = await s3.presignUpload(storage, row.storageKey, mime, PRESIGN_TTL_SECS)
+  // ── POST /api/ihost/images/presign ─────────────────────────────────────────
+  // Typed JSON presign endpoint used by the browser client.
+  // Creates a draft image record and returns a presigned S3 upload URL.
+  // Follow up with PATCH /images/:id to confirm after uploading to S3.
+  .post(
+    '/images/presign',
+    requireAuth,
+    requireTeamRole('editor'),
+    zValidator('json', createIhostImageSchema),
+    async (c) => {
+      const orgId = c.get('orgId')
+      if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-  return c.json(
-    {
-      id: row.id,
-      token: row.token,
-      path: row.path,
-      uploadUrl,
-      storageKey: row.storageKey,
+      const db = c.get('platform').db
+      const config = await getImageHostingConfig(db, orgId)
+      if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+
+      const { path: requestedPath, mime, size } = c.req.valid('json')
+
+      const pathErr = validatePath(requestedPath)
+      if (pathErr) return c.json(pathErr, 400)
+
+      let storage: S3Storage
+      try {
+        storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+      } catch {
+        return c.json({ error: 'No storage configured' }, 503)
+      }
+
+      const row = await createImageHosting(db, {
+        orgId,
+        path: requestedPath,
+        mime,
+        size,
+        storageId: storage.id,
+        status: 'draft',
+      })
+
+      const uploadUrl = await s3.presignUpload(storage, row.storageKey, mime, PRESIGN_TTL_SECS)
+
+      return c.json(
+        {
+          id: row.id,
+          token: row.token,
+          path: row.path,
+          uploadUrl,
+          storageKey: row.storageKey,
+        },
+        201,
+      )
     },
-    201,
   )
-})
 
-// ── Session-only routes ──────────────────────────────────────────────────────
+  // ── Session-only routes ────────────────────────────────────────────────────
 
-app.get('/images', requireAuth, requireTeamRole('viewer'), zValidator('query', listIhostImagesSchema), async (c) => {
-  const orgId = c.get('orgId')
-  if (!orgId) return c.json({ error: 'No active organization' }, 400)
-
-  const db = c.get('platform').db
-  const config = await getImageHostingConfig(db, orgId)
-  if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
-
-  const { pathPrefix, cursor, limit } = c.req.valid('query')
-  const result = await listImageHostings(db, orgId, { pathPrefix, cursor, limit })
-  return c.json(result)
-})
-
-app.get('/images/:id', requireAuth, requireTeamRole('viewer'), async (c) => {
-  const orgId = c.get('orgId')
-  if (!orgId) return c.json({ error: 'No active organization' }, 400)
-
-  const db = c.get('platform').db
-  const config = await getImageHostingConfig(db, orgId)
-  if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
-
-  const row = await getImageHosting(db, c.req.param('id'), orgId)
-  if (!row) return c.json({ error: 'Not found' }, 404)
-  return c.json(row)
-})
-
-app.patch(
-  '/images/:id',
-  requireAuth,
-  requireTeamRole('editor'),
-  zValidator('json', patchIhostImageSchema),
-  async (c) => {
+  .get('/images', requireAuth, requireTeamRole('viewer'), zValidator('query', listIhostImagesSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
@@ -266,40 +244,68 @@ app.patch(
     const config = await getImageHostingConfig(db, orgId)
     if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
-    const { action } = c.req.valid('json')
+    const { pathPrefix, cursor, limit } = c.req.valid('query')
+    const result = await listImageHostings(db, orgId, { pathPrefix, cursor, limit })
+    return c.json(result)
+  })
 
-    // action === 'confirm' is the only value the discriminated union allows
-    const { row, quotaExceeded } = await confirmImageHosting(db, c.req.param('id'), orgId)
-    if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
-    if (!row) return c.json({ error: 'Not found or not in draft status' }, 404)
+  .get('/images/:id', requireAuth, requireTeamRole('viewer'), async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const db = c.get('platform').db
+    const config = await getImageHostingConfig(db, orgId)
+    if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+
+    const row = await getImageHosting(db, c.req.param('id'), orgId)
+    if (!row) return c.json({ error: 'Not found' }, 404)
     return c.json(row)
-  },
-)
+  })
 
-app.delete('/images/:id', requireAuth, requireTeamRole('editor'), async (c) => {
-  const orgId = c.get('orgId')
-  if (!orgId) return c.json({ error: 'No active organization' }, 400)
+  .patch(
+    '/images/:id',
+    requireAuth,
+    requireTeamRole('editor'),
+    zValidator('json', patchIhostImageSchema),
+    async (c) => {
+      const orgId = c.get('orgId')
+      if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-  const db = c.get('platform').db
-  const config = await getImageHostingConfig(db, orgId)
-  if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+      const db = c.get('platform').db
+      const config = await getImageHostingConfig(db, orgId)
+      if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
-  const existing = await getImageHosting(db, c.req.param('id'), orgId)
-  if (!existing) return c.json({ error: 'Not found' }, 404)
+      // action === 'confirm' is the only value the discriminated union allows
+      const { row, quotaExceeded } = await confirmImageHosting(db, c.req.param('id'), orgId)
+      if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
+      if (!row) return c.json({ error: 'Not found or not in draft status' }, 404)
+      return c.json(row)
+    },
+  )
 
-  const storage = await getStorage(db, existing.storageId)
-  if (storage) {
-    try {
-      await s3.deleteObject(storage as unknown as S3Storage, existing.storageKey)
-    } catch {
-      // Best-effort S3 delete — proceed with DB cleanup regardless
+  .delete('/images/:id', requireAuth, requireTeamRole('editor'), async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const db = c.get('platform').db
+    const config = await getImageHostingConfig(db, orgId)
+    if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
+
+    const existing = await getImageHosting(db, c.req.param('id'), orgId)
+    if (!existing) return c.json({ error: 'Not found' }, 404)
+
+    const storage = await getStorage(db, existing.storageId)
+    if (storage) {
+      try {
+        await s3.deleteObject(storage as unknown as S3Storage, existing.storageKey)
+      } catch {
+        // Best-effort S3 delete — proceed with DB cleanup regardless
+      }
     }
-  }
 
-  await deleteImageHosting(db, existing.id, orgId)
+    await deleteImageHosting(db, existing.id, orgId)
 
-  return new Response(null, { status: 204 })
-})
+    return new Response(null, { status: 204 })
+  })
 
-// re-export for RPC type inference
 export default app

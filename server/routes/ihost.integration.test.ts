@@ -105,14 +105,67 @@ async function insertImageHosting(
   return { id, token, path, status, size }
 }
 
-// ─── POST JSON two-stage ──────────────────────────────────────────────────────
+// ─── POST /images (multipart-only) — 415 for non-multipart ──────────────────
 
-describe('POST /api/ihost/images (JSON two-stage)', () => {
-  it('returns 401 without auth', async () => {
-    const { app } = await createTestApp()
+describe('POST /api/ihost/images (multipart-only)', () => {
+  it('returns 415 for application/json (use /images/presign instead)', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
     const res = await app.request('/api/ihost/images', {
       method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
+    })
+    expect(res.status).toBe(415)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(String(body.error)).toContain('multipart/form-data')
+  })
+
+  it('returns 415 for text/plain', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const res = await app.request('/api/ihost/images', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'text/plain' },
+      body: 'hello',
+    })
+    expect(res.status).toBe(415)
+  })
+})
+
+// ─── POST /images/presign (JSON two-stage) ────────────────────────────────────
+
+describe('POST /api/ihost/images/presign (JSON two-stage)', () => {
+  it('returns 401 without auth', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/ihost/images/presign', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
+    })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 401 for API key (presign requires session auth)', async () => {
+    const { app, db, auth } = await createTestApp()
+    await insertStorage(db)
+    await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+    await insertImageHostingConfig(db, orgId)
+
+    const key = await createTestApiKey(auth, orgId, userId)
+    const res = await app.request('/api/ihost/images/presign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
     })
     expect(res.status).toBe(401)
@@ -123,7 +176,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     await insertStorage(db)
     const headers = await authedHeaders(app)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
@@ -140,7 +193,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
@@ -157,7 +210,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'blog/2026/shot.png', mime: 'image/png', size: 2048 }),
@@ -178,7 +231,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: '../etc/passwd.png', mime: 'image/png', size: 1024 }),
@@ -195,7 +248,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'a/b/c/d/e/f.png', mime: 'image/png', size: 1024 }),
@@ -206,55 +259,52 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     expect(String(body.detail)).toContain('depth')
   })
 
-  it('returns 415 for image/svg+xml', async () => {
+  it('returns 400 for disallowed mime (image/svg+xml)', async () => {
+    // zValidator rejects disallowed mimes with 400 (Zod enum check)
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'icon.svg', mime: 'image/svg+xml', size: 512 }),
     })
-    expect(res.status).toBe(415)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('SVG')
+    expect(res.status).toBe(400)
   })
 
-  it('returns 415 for application/pdf mime', async () => {
+  it('returns 400 for disallowed mime (application/pdf)', async () => {
+    // zValidator rejects disallowed mimes with 400 (Zod enum check)
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'doc.pdf', mime: 'application/pdf', size: 1024 }),
     })
-    expect(res.status).toBe(415)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('Unsupported')
+    expect(res.status).toBe(400)
   })
 
-  it('returns 413 for size exceeding 20 MB', async () => {
+  it('returns 400 for size exceeding 20 MB', async () => {
+    // zValidator rejects oversized uploads with 400 (Zod max check)
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'big.png', mime: 'image/png', size: 21 * 1024 * 1024 }),
     })
-    expect(res.status).toBe(413)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('too large')
+    expect(res.status).toBe(400)
   })
 
   it('auto-suffixes path on collision', async () => {
@@ -264,7 +314,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res1 = await app.request('/api/ihost/images', {
+    const res1 = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'shot.png', mime: 'image/png', size: 1024 }),
@@ -272,7 +322,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     expect(res1.status).toBe(201)
 
     // Same path — should auto-suffix
-    const res2 = await app.request('/api/ihost/images', {
+    const res2 = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'shot.png', mime: 'image/png', size: 1024 }),
@@ -283,94 +333,6 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     expect(String(body2.path)).toMatch(/^shot-[0-9a-f]{4}\.png$/)
   })
 
-  it('returns 401 for apiKey missing image-hosting:upload permission', async () => {
-    const { app, db, auth } = await createTestApp()
-    await insertStorage(db)
-    await authedHeaders(app) // creates test user so getOrgId/getUserId have rows
-    const orgId = await getOrgId(db)
-    const userId = await getUserId(db)
-    await insertImageHostingConfig(db, orgId)
-
-    // Key with a different permission — no image-hosting:upload
-    const key = await createTestApiKey(auth, orgId, userId, { other: ['read'] })
-
-    const res = await app.request('/api/ihost/images', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
-    })
-    expect(res.status).toBe(401)
-  })
-
-  it('accepts apiKey with default permissions (includes image-hosting:upload)', async () => {
-    const { app, db, auth } = await createTestApp()
-    await insertStorage(db)
-    await authedHeaders(app)
-    const orgId = await getOrgId(db)
-    const userId = await getUserId(db)
-    await insertImageHostingConfig(db, orgId)
-
-    // No permissions arg → defaultPermissions { 'image-hosting': ['upload'] } applied
-    const key = await createTestApiKey(auth, orgId, userId)
-
-    const res = await app.request('/api/ihost/images', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ path: 'api-key-upload.png', mime: 'image/png', size: 1024 }),
-    })
-    expect(res.status).toBe(201)
-  })
-
-  it('accepts apiKey with explicit image-hosting:upload permission', async () => {
-    const { app, db, auth } = await createTestApp()
-    await insertStorage(db)
-    await authedHeaders(app)
-    const orgId = await getOrgId(db)
-    const userId = await getUserId(db)
-    await insertImageHostingConfig(db, orgId)
-
-    const key = await createTestApiKey(auth, orgId, userId, { 'image-hosting': ['upload'] })
-
-    const res = await app.request('/api/ihost/images', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ path: 'explicit-perm.png', mime: 'image/png', size: 1024 }),
-    })
-    expect(res.status).toBe(201)
-  })
-
-  it('returns 401 for invalid Bearer token', async () => {
-    const { app, db } = await createTestApp()
-    await insertStorage(db)
-    await authedHeaders(app)
-    const orgId = await getOrgId(db)
-    await insertImageHostingConfig(db, orgId)
-
-    const res = await app.request('/api/ihost/images', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer not-a-real-key' },
-      body: JSON.stringify({ path: 'test.png', mime: 'image/png', size: 1024 }),
-    })
-    expect(res.status).toBe(401)
-  })
-
-  it('returns 415 for unsupported content type (not JSON, not multipart)', async () => {
-    const { app, db } = await createTestApp()
-    await insertStorage(db)
-    const headers = await authedHeaders(app)
-    const orgId = await getOrgId(db)
-    await insertImageHostingConfig(db, orgId)
-
-    const res = await app.request('/api/ihost/images', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'text/plain' },
-      body: 'hello',
-    })
-    expect(res.status).toBe(415)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('Unsupported content type')
-  })
-
   it('returns 400 for JSON body missing required fields (zod failure)', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -378,15 +340,12 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ mime: 'image/png' }), // missing path and size
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('Invalid input')
-    expect(Array.isArray(body.issues)).toBe(true)
   })
 
   it('returns 400 for path containing //', async () => {
@@ -396,7 +355,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const res = await app.request('/api/ihost/images', {
+    const res = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'a//b.png', mime: 'image/png', size: 1024 }),
@@ -407,7 +366,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
     expect(String(body.detail)).toContain('//')
   })
 
-  it('returns 400 for path starting with / (multipart, no zod guard)', async () => {
+  it('returns 400 for path starting with / (multipart)', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -495,7 +454,7 @@ describe('POST /api/ihost/images (JSON two-stage)', () => {
   })
 
   it('returns 400 for path exceeding 256 characters (multipart, bypasses zod)', async () => {
-    // JSON path is guarded by zod max(256), so use multipart to reach validatePath length check
+    // presign path is guarded by zod max(256), so use multipart to reach validatePath length check
     const { app, db } = await createTestApp()
     await insertStorage(db)
     const headers = await authedHeaders(app)
@@ -838,7 +797,7 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    const createRes = await app.request('/api/ihost/images', {
+    const createRes = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'confirm-test.png', mime: 'image/png', size: 512 }),
@@ -898,7 +857,7 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
     // Lower it to 50 bytes so a 100-byte image exceeds it.
     await db.run(sql`UPDATE org_quotas SET quota = 50 WHERE org_id = ${orgId}`)
 
-    const createRes = await app.request('/api/ihost/images', {
+    const createRes = await app.request('/api/ihost/images/presign', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'quota-test.png', mime: 'image/png', size: 100 }),

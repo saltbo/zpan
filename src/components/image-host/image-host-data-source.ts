@@ -1,4 +1,5 @@
 import { DirType } from '@shared/constants'
+import type { AllowedImageMime } from '@shared/schemas'
 import type { ImageHosting, StorageObject } from '@shared/types'
 import { confirmIhostImage, createIhostImagePresign, deleteIhostImage, listIhostImages, uploadToS3 } from '@/lib/api'
 
@@ -57,7 +58,7 @@ function deriveDefaultPath(file: File): string {
 
 async function uploadImage(file: File): Promise<void> {
   const path = deriveDefaultPath(file)
-  const draft = await createIhostImagePresign({ path, mime: file.type, size: file.size })
+  const draft = await createIhostImagePresign({ path, mime: file.type as AllowedImageMime, size: file.size })
   await uploadToS3(draft.uploadUrl, file)
   await confirmIhostImage(draft.id)
 }

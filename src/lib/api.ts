@@ -1,5 +1,11 @@
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
-import type { ConflictStrategy, CreateShareRequest, CreateStorageInput, UpdateStorageInput } from '@shared/schemas'
+import type {
+  AllowedImageMime,
+  ConflictStrategy,
+  CreateShareRequest,
+  CreateStorageInput,
+  UpdateStorageInput,
+} from '@shared/schemas'
 import type {
   ActivityEvent,
   AuthProvider,
@@ -18,6 +24,7 @@ import {
   authedSharesApi,
   authProviders,
   emailConfig,
+  ihostApi,
   ihostConfigApi,
   inviteCodes,
   notificationsApi,
@@ -556,8 +563,6 @@ export function uploadToS3(url: string, file: File): Promise<void> {
 }
 
 // Image Host Images API
-// Note: Raw fetch is used here because IhostRoute's complex multi-content-type
-// handlers prevent Hono RPC from inferring full types.
 
 export type { ImageHosting }
 
@@ -574,42 +579,24 @@ export interface IhostImageDraft {
   storageKey: string
 }
 
-async function ihostFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`/api/ihost${path}`, { credentials: 'include', ...options })
-  if (!res.ok) {
-    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
-    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
-  }
-  return res.json() as Promise<T>
-}
-
 export function listIhostImages(opts?: { pathPrefix?: string; cursor?: string; limit?: number }) {
-  const params = new URLSearchParams()
-  if (opts?.pathPrefix) params.set('pathPrefix', opts.pathPrefix)
-  if (opts?.cursor) params.set('cursor', opts.cursor)
-  if (opts?.limit != null) params.set('limit', String(opts.limit))
-  const qs = params.toString() ? `?${params.toString()}` : ''
-  return ihostFetch<IhostImageListResult>(`/images${qs}`)
+  const query: Record<string, string> = {}
+  if (opts?.pathPrefix) query.pathPrefix = opts.pathPrefix
+  if (opts?.cursor) query.cursor = opts.cursor
+  if (opts?.limit != null) query.limit = String(opts.limit)
+  return unwrap<IhostImageListResult>(ihostApi.images.$get({ query }))
 }
 
-export function createIhostImagePresign(data: { path: string; mime: string; size: number }) {
-  return ihostFetch<IhostImageDraft>('/images', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
+export function createIhostImagePresign(data: { path: string; mime: AllowedImageMime; size: number }) {
+  return unwrap<IhostImageDraft>(ihostApi.images.presign.$post({ json: data }))
 }
 
 export function confirmIhostImage(id: string) {
-  return ihostFetch<ImageHosting>(`/images/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'confirm' }),
-  })
+  return unwrap<ImageHosting>(ihostApi.images[':id'].$patch({ param: { id }, json: { action: 'confirm' as const } }))
 }
 
 export async function deleteIhostImage(id: string) {
-  const res = await fetch(`/api/ihost/images/${id}`, { method: 'DELETE', credentials: 'include' })
+  const res = await ihostApi.images[':id'].$delete({ param: { id } })
   if (!res.ok) {
     const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
     throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })

@@ -1588,7 +1588,7 @@ describe('api', () => {
   })
 
   describe('createIhostImagePresign', () => {
-    it('calls POST /api/ihost/images with JSON body', async () => {
+    it('calls POST /api/ihost/images/presign with JSON body', async () => {
       const draft = {
         id: 'd1',
         token: 'ih_abc',
@@ -1601,12 +1601,12 @@ describe('api', () => {
       await createIhostImagePresign({ path: 'foo/bar.png', mime: 'image/png', size: 1024 })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/ihost/images')
+      expect(url).toContain('/api/ihost/images/presign')
       expect(init.method).toBe('POST')
-      const body = JSON.parse(init.body as string)
-      expect(body.path).toBe('foo/bar.png')
-      expect(body.mime).toBe('image/png')
-      expect(body.size).toBe(1024)
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body?.path).toBe('foo/bar.png')
+      expect(body?.mime).toBe('image/png')
+      expect(body?.size).toBe(1024)
     })
 
     it('resolves with draft object', async () => {
@@ -1643,8 +1643,8 @@ describe('api', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/ihost/images/img-1')
       expect(init.method).toBe('PATCH')
-      const body = JSON.parse(init.body as string)
-      expect(body.action).toBe('confirm')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body?.action).toBe('confirm')
     })
 
     it('resolves with confirmed image', async () => {
