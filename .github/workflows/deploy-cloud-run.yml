@@ -32,9 +32,9 @@ jobs:
           HAS_TURSO_URL: ${{ secrets.TURSO_DATABASE_URL != '' }}
         run: |
           missing=()
-          [ "$HAS_GCP_KEY" != "true" ]     && missing+=(GCP_SERVICE_ACCOUNT_KEY)
-          [ "$HAS_GCP_PROJECT" != "true" ]  && missing+=(GCP_PROJECT_ID)
-          [ "$HAS_TURSO_URL" != "true" ]    && missing+=(TURSO_DATABASE_URL)
+          [ "$HAS_GCP_KEY" != "true" ]    && missing+=(GCP_SERVICE_ACCOUNT_KEY)
+          [ "$HAS_GCP_PROJECT" != "true" ] && missing+=(GCP_PROJECT_ID)
+          [ "$HAS_TURSO_URL" != "true" ]   && missing+=(TURSO_DATABASE_URL)
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required secrets: ${missing[*]}. Go to Settings → Secrets and variables → Actions."
             exit 1
@@ -85,7 +85,27 @@ jobs:
           npm ci
           npm run db:migrate
 
-      - name: Ensure BETTER_AUTH_SECRET exists in Secret Manager
+      - name: Store required secrets in Secret Manager
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+        run: |
+          upsert_secret() {
+            local name="$1" value="$2"
+            EXISTS=$(gcloud secrets describe "$name" \
+              --project "$GCP_PROJECT_ID" \
+              --format="value(name)" 2>/dev/null || true)
+            if [ -z "$EXISTS" ]; then
+              printf '%s' "$value" | gcloud secrets create "$name" \
+                --project "$GCP_PROJECT_ID" --data-file=-
+            else
+              printf '%s' "$value" | gcloud secrets versions add "$name" \
+                --project "$GCP_PROJECT_ID" --data-file=-
+            fi
+          }
+          upsert_secret turso-database-url "$TURSO_DATABASE_URL"
+
+      - name: Ensure BETTER_AUTH_SECRET in Secret Manager
         id: auth_secret
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -96,73 +116,103 @@ jobs:
             --format="value(name)" 2>/dev/null || true)
           if [ -n "$USER_SECRET" ]; then
             if [ -z "$EXISTS" ]; then
-              echo "$USER_SECRET" | gcloud secrets create better-auth-secret \
-                --project "$GCP_PROJECT_ID" \
-                --data-file=-
+              printf '%s' "$USER_SECRET" | gcloud secrets create better-auth-secret \
+                --project "$GCP_PROJECT_ID" --data-file=-
             else
-              echo "$USER_SECRET" | gcloud secrets versions add better-auth-secret \
-                --project "$GCP_PROJECT_ID" \
-                --data-file=-
+              printf '%s' "$USER_SECRET" | gcloud secrets versions add better-auth-secret \
+                --project "$GCP_PROJECT_ID" --data-file=-
             fi
             echo "Set BETTER_AUTH_SECRET from GitHub secret."
           elif [ -z "$EXISTS" ]; then
             openssl rand -base64 32 | gcloud secrets create better-auth-secret \
-              --project "$GCP_PROJECT_ID" \
-              --data-file=-
+              --project "$GCP_PROJECT_ID" --data-file=-
             echo "auto_generated=true" >> "$GITHUB_OUTPUT"
             echo "Auto-generated BETTER_AUTH_SECRET and stored in Secret Manager."
           else
             echo "BETTER_AUTH_SECRET already exists in Secret Manager, skipping."
           fi
 
-      - name: Store runtime secrets in Secret Manager
+      - name: Build container image
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
-          store_secret() {
-            local name="$1"
-            local value="$2"
-            [ -z "$value" ] && return
-            EXISTS=$(gcloud secrets describe "$name" \
-              --project "$GCP_PROJECT_ID" \
-              --format="value(name)" 2>/dev/null || true)
-            if [ -z "$EXISTS" ]; then
-              echo "$value" | gcloud secrets create "$name" \
-                --project "$GCP_PROJECT_ID" \
-                --data-file=-
-            else
-              echo "$value" | gcloud secrets versions add "$name" \
-                --project "$GCP_PROJECT_ID" \
-                --data-file=-
-            fi
-          }
-          store_secret turso-database-url "$TURSO_DATABASE_URL"
-          store_secret turso-auth-token   "$TURSO_AUTH_TOKEN"
-          store_secret better-auth-url    "$BETTER_AUTH_URL"
+          gcloud builds submit \
+            --tag "gcr.io/$GCP_PROJECT_ID/zpan:$VERSION" \
+            --project "$GCP_PROJECT_ID" \
+            .
 
-      - name: Deploy to Cloud Run
+      - name: Deploy service from manifest
         id: deploy
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           REGION: ${{ inputs.region || 'us-central1' }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
-          SERVICE_URL=$(gcloud run deploy zpan \
-            --source . \
+          # Substitute PROJECT_ID placeholder and pin the image tag
+          sed -i \
+            -e "s|PROJECT_ID|$GCP_PROJECT_ID|g" \
+            -e "s|zpan:latest|zpan:$VERSION|g" \
+            deploy/cloud-run/service.yaml
+
+          # Create or update the service from the manifest
+          gcloud run services replace deploy/cloud-run/service.yaml \
+            --region "$REGION" \
+            --project "$GCP_PROJECT_ID"
+
+          # Allow public unauthenticated access
+          gcloud run services add-iam-policy-binding zpan \
             --region "$REGION" \
             --project "$GCP_PROJECT_ID" \
-            --allow-unauthenticated \
-            --port 8222 \
-            --set-secrets="TURSO_DATABASE_URL=turso-database-url:latest,TURSO_AUTH_TOKEN=turso-auth-token:latest,BETTER_AUTH_SECRET=better-auth-secret:latest,BETTER_AUTH_URL=better-auth-url:latest" \
-            --min-instances 0 \
-            --max-instances 10 \
-            --memory 512Mi \
-            --cpu 1 \
-            --format="value(status.url)" \
-            --quiet)
+            --member=allUsers \
+            --role=roles/run.invoker
+
+          # Capture the service URL for the post-deploy step
+          SERVICE_URL=$(gcloud run services describe zpan \
+            --region "$REGION" \
+            --project "$GCP_PROJECT_ID" \
+            --format="value(status.url)")
           echo "url=$SERVICE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Wire BETTER_AUTH_URL and optional secrets
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          REGION: ${{ inputs.region || 'us-central1' }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
+          SERVICE_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          upsert_secret() {
+            local name="$1" value="$2"
+            EXISTS=$(gcloud secrets describe "$name" \
+              --project "$GCP_PROJECT_ID" \
+              --format="value(name)" 2>/dev/null || true)
+            if [ -z "$EXISTS" ]; then
+              printf '%s' "$value" | gcloud secrets create "$name" \
+                --project "$GCP_PROJECT_ID" --data-file=-
+            else
+              printf '%s' "$value" | gcloud secrets versions add "$name" \
+                --project "$GCP_PROJECT_ID" --data-file=-
+            fi
+          }
+
+          # BETTER_AUTH_URL: user-supplied custom domain takes priority; fall back to the
+          # service URL assigned by Cloud Run on first deploy.
+          EFFECTIVE_URL="${BETTER_AUTH_URL:-$SERVICE_URL}"
+          upsert_secret better-auth-url "$EFFECTIVE_URL"
+          UPDATE_SECRETS="BETTER_AUTH_URL=better-auth-url:latest"
+
+          # TURSO_AUTH_TOKEN is optional (omit for file:// local Turso URLs).
+          if [ -n "$TURSO_AUTH_TOKEN" ]; then
+            upsert_secret turso-auth-token "$TURSO_AUTH_TOKEN"
+            UPDATE_SECRETS="$UPDATE_SECRETS,TURSO_AUTH_TOKEN=turso-auth-token:latest"
+          fi
+
+          gcloud run services update zpan \
+            --region "$REGION" \
+            --project "$GCP_PROJECT_ID" \
+            --update-secrets="$UPDATE_SECRETS"
+
           echo "**Deployed to:** $SERVICE_URL" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ steps.auth_secret.outputs.auto_generated }}" = "true" ]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"

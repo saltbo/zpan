@@ -28,20 +28,10 @@ spec:
                 secretKeyRef:
                   name: turso-database-url
                   key: latest
-            - name: TURSO_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: turso-auth-token
-                  key: latest
             - name: BETTER_AUTH_SECRET
               valueFrom:
                 secretKeyRef:
                   name: better-auth-secret
-                  key: latest
-            - name: BETTER_AUTH_URL
-              valueFrom:
-                secretKeyRef:
-                  name: better-auth-url
                   key: latest
           resources:
             limits:
