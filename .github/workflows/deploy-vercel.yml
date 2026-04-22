@@ -1,0 +1,112 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to deploy (e.g. v2.5.0). Leave empty for latest.'
+        required: false
+
+# Prevent overlapping deployments.
+concurrency:
+  group: deploy-vercel
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    # Only run on forks — upstream repo uses Cloudflare Workers Builds.
+    if: github.repository != 'saltbo/zpan'
+    steps:
+      - name: Check required secrets
+        env:
+          HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
+          HAS_ORG: ${{ secrets.VERCEL_ORG_ID != '' }}
+          HAS_PROJECT: ${{ secrets.VERCEL_PROJECT_ID != '' }}
+          HAS_TURSO_URL: ${{ secrets.TURSO_DATABASE_URL != '' }}
+          HAS_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET != '' }}
+        run: |
+          missing=()
+          [ "$HAS_TOKEN" != "true" ] && missing+=(VERCEL_TOKEN)
+          [ "$HAS_ORG" != "true" ] && missing+=(VERCEL_ORG_ID)
+          [ "$HAS_PROJECT" != "true" ] && missing+=(VERCEL_PROJECT_ID)
+          [ "$HAS_TURSO_URL" != "true" ] && missing+=(TURSO_DATABASE_URL)
+          [ "$HAS_AUTH_SECRET" != "true" ] && missing+=(BETTER_AUTH_SECRET)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}. Go to Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Resolve release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            TAG="$INPUT_VERSION"
+          else
+            TAG=$(gh api repos/saltbo/zpan/releases/latest --jq '.tag_name')
+          fi
+          if [ -z "$TAG" ]; then
+            echo "::error::No release found in saltbo/zpan"
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "### 🚀 Deploying $TAG to Vercel" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v6
+        with:
+          repository: saltbo/zpan
+          ref: ${{ steps.release.outputs.version }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run migrations (Turso)
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: npm run db:migrate
+
+      - name: Build
+        run: npm run build:vercel
+
+      - name: Link or create Vercel project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          cp deploy/vercel/vercel.json vercel.json
+          npx vercel link --yes \
+            --token "$VERCEL_TOKEN" \
+            --scope "$VERCEL_ORG_ID"
+
+      - name: Deploy to Vercel
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
+          TRUSTED_ORIGINS: ${{ secrets.TRUSTED_ORIGINS }}
+        run: |
+          DEPLOY_URL=$(npx vercel deploy --prod --token "$VERCEL_TOKEN" \
+            --env TURSO_DATABASE_URL="$TURSO_DATABASE_URL" \
+            --env TURSO_AUTH_TOKEN="$TURSO_AUTH_TOKEN" \
+            --env BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+            --env BETTER_AUTH_URL="$BETTER_AUTH_URL" \
+            --env TRUSTED_ORIGINS="$TRUSTED_ORIGINS")
+          echo "url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+          echo "**Deployed to:** $DEPLOY_URL" >> "$GITHUB_STEP_SUMMARY"
