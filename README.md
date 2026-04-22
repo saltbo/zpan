@@ -28,11 +28,10 @@ ZPan is a lightweight file hosting platform built on top of S3-compatible storag
 Deploy via GitHub Actions with zero server management. Free tier covers personal use.
 
 1. **Fork** this repository
-2. Create a [Cloudflare API Token](https://dash.cloudflare.com/profile/api-tokens) with **Workers Scripts:Edit** and **D1:Edit** permissions
-3. In your fork, go to **Settings → Secrets and variables → Actions** and add:
-   - `CLOUDFLARE_API_TOKEN` — the token from step 2
-   - `CLOUDFLARE_ACCOUNT_ID` — found on the Cloudflare dashboard sidebar
-4. Go to the **Actions** tab, select **Deploy to Cloudflare Workers**, and click **Run workflow**
+2. In your fork, go to **Settings → Secrets and variables → Actions** and add:
+   - `CLOUDFLARE_ACCOUNT_ID` — found on the [Cloudflare dashboard](https://dash.cloudflare.com/) sidebar
+   - `CLOUDFLARE_API_TOKEN` — create one [here](https://dash.cloudflare.com/profile/api-tokens) with **Workers Scripts:Edit** and **D1:Edit** permissions
+3. Go to the **Actions** tab, select **Deploy to Cloudflare Workers**, and click **Run workflow**
 
 After initial setup, the workflow runs automatically every time you sync your fork with the latest release.
 
