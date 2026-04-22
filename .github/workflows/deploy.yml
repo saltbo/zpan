@@ -75,13 +75,26 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          DB_ID=$(npx wrangler d1 list --json | jq -r '.[] | select(.name == "zpan-db") | .uuid')
+          # 直接调用 Cloudflare REST API 查询 D1 数据库列表
+          RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json")
+          
+          DB_ID=$(echo "$RESPONSE" | jq -r '.result[] | select(.name == "zpan-db") | .uuid')
+          
           if [ -z "$DB_ID" ]; then
-            DB_ID=$(npx wrangler d1 create zpan-db --json | jq -r '.uuid')
+            CREATE=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data '{"name":"zpan-db"}')
+            DB_ID=$(echo "$CREATE" | jq -r '.result.uuid')
             echo "Created D1 database: $DB_ID"
           else
             echo "Reusing D1 database: $DB_ID"
           fi
+          
           echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
 
       - name: Patch wrangler.toml with D1 database ID
