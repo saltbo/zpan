@@ -108,7 +108,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           USER_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
         run: |
-          EXISTS=$(npx wrangler secret list --json | jq -r '.[] | select(.name == "BETTER_AUTH_SECRET") | .name')
+          EXISTS=$(npx wrangler secret list --format json | jq -r '.[] | select(.name == "BETTER_AUTH_SECRET") | .name')
           if [ -n "$USER_SECRET" ]; then
             echo "$USER_SECRET" | npx wrangler secret put BETTER_AUTH_SECRET
             echo "Set BETTER_AUTH_SECRET from GitHub secret"
