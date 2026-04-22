@@ -5,6 +5,7 @@ import {
   batchMoveObjects,
   batchTrashObjects,
   buildShareObjectUrl,
+  commitAvatar,
   confirmIhostImage,
   confirmUpload,
   copyObject,
@@ -13,6 +14,7 @@ import {
   createObject,
   createShare,
   createStorage,
+  deleteAvatar,
   deleteIhostConfig,
   deleteIhostImage,
   deleteObject,
@@ -43,6 +45,7 @@ import {
   listUsers,
   markAllNotificationsRead,
   markNotificationRead,
+  requestAvatarUpload,
   restoreObject,
   revokeIhostApiKey,
   saveShareToDrive,
@@ -1678,6 +1681,88 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Not found' }, false, 404))
 
       await expect(deleteIhostImage('bad-id')).rejects.toThrow()
+    })
+  })
+
+  describe('requestAvatarUpload', () => {
+    it('calls POST /api/profile/avatar with mime and size', async () => {
+      const draft = { uploadUrl: 'https://s3/presigned', key: '_system/avatars/user-1.png' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(draft, true, 201))
+
+      await requestAvatarUpload({ mime: 'image/png', size: 1024 })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/profile/avatar')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body?.mime).toBe('image/png')
+      expect(body?.size).toBe(1024)
+    })
+
+    it('resolves with uploadUrl and key', async () => {
+      const draft = { uploadUrl: 'https://s3/presigned', key: '_system/avatars/user-1.png' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(draft, true, 201))
+
+      const result = await requestAvatarUpload({ mime: 'image/png', size: 1024 })
+
+      expect(result).toEqual(draft)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'File too large' }, false, 400))
+
+      await expect(requestAvatarUpload({ mime: 'image/png', size: 999 })).rejects.toThrow('File too large')
+    })
+  })
+
+  describe('commitAvatar', () => {
+    it('calls POST /api/profile/avatar/commit with mime', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ image: 'https://example.com/avatar.jpg' }))
+
+      await commitAvatar({ mime: 'image/jpeg' })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/profile/avatar/commit')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body?.mime).toBe('image/jpeg')
+    })
+
+    it('resolves with image URL', async () => {
+      const payload = { image: 'https://example.com/avatar.jpg' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await commitAvatar({ mime: 'image/jpeg' })
+
+      expect(result).toEqual(payload)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Object not found' }, false, 400))
+
+      await expect(commitAvatar({ mime: 'image/png' })).rejects.toThrow('Object not found')
+    })
+  })
+
+  describe('deleteAvatar', () => {
+    it('calls DELETE /api/profile/avatar', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+      } as unknown as Response)
+
+      await deleteAvatar()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/profile/avatar')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
+
+      await expect(deleteAvatar()).rejects.toThrow()
     })
   })
 })
