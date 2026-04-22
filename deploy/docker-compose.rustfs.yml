@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
 
   rustfs:
-    image: ghcr.io/rustfs/rustfs:latest
+    image: rustfs/rustfs:latest
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
