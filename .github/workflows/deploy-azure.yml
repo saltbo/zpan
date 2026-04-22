@@ -1,0 +1,219 @@
+name: Deploy to Azure Functions
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: 'Azure Resource Group name (created if absent)'
+        required: true
+        default: 'zpan-rg'
+      location:
+        description: 'Azure region (e.g. eastus)'
+        required: true
+        default: 'eastus'
+      version:
+        description: 'Release tag to deploy (e.g. v2.5.0). Leave empty for latest.'
+        required: false
+
+# Prevent overlapping deployments.
+concurrency:
+  group: deploy-azure
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    # Only run on forks that have configured Azure credentials.
+    # The upstream repo uses Cloudflare Workers Builds; Azure is for self-hosters.
+    if: github.repository != 'saltbo/zpan'
+    steps:
+      # ------------------------------------------------------------------
+      # Step 1 — Verify all required secrets are present before doing work.
+      # ------------------------------------------------------------------
+      - name: Check required secrets
+        env:
+          HAS_AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS != '' }}
+          HAS_TURSO_URL: ${{ secrets.TURSO_DATABASE_URL != '' }}
+          HAS_TURSO_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN != '' }}
+        run: |
+          MISSING=()
+          [ "$HAS_AZURE_CREDENTIALS" != "true" ] && MISSING+=("AZURE_CREDENTIALS")
+          [ "$HAS_TURSO_URL"         != "true" ] && MISSING+=("TURSO_DATABASE_URL")
+          [ "$HAS_TURSO_TOKEN"       != "true" ] && MISSING+=("TURSO_AUTH_TOKEN")
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${MISSING[*]}"
+            echo "Go to Settings → Secrets and variables → Actions and add the missing secrets."
+            exit 1
+          fi
+
+      # ------------------------------------------------------------------
+      # Step 2 — Resolve release tag and check out that version.
+      # ------------------------------------------------------------------
+      - name: Resolve release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            TAG="$INPUT_VERSION"
+          else
+            TAG=$(gh api repos/saltbo/zpan/releases/latest --jq '.tag_name')
+          fi
+          if [ -z "$TAG" ]; then
+            echo "::error::No release found in saltbo/zpan"
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "### 🚀 Deploying $TAG to Azure Functions" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: saltbo/zpan
+          ref: ${{ steps.release.outputs.version }}
+
+      # ------------------------------------------------------------------
+      # Step 3 — Node.js setup + install dependencies.
+      # ------------------------------------------------------------------
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # ------------------------------------------------------------------
+      # Step 4 — Log in to Azure using the service-principal credentials.
+      # ------------------------------------------------------------------
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # ------------------------------------------------------------------
+      # Step 5 — Provision infrastructure (idempotent create-or-update).
+      # ------------------------------------------------------------------
+      - name: Resolve inputs (push vs. dispatch)
+        id: params
+        run: |
+          echo "resource_group=${{ inputs.resource_group || 'zpan-rg' }}" >> "$GITHUB_OUTPUT"
+          echo "location=${{ inputs.location || 'eastus' }}"              >> "$GITHUB_OUTPUT"
+
+      - name: Ensure Resource Group exists
+        run: |
+          az group create \
+            --name "${{ steps.params.outputs.resource_group }}" \
+            --location "${{ steps.params.outputs.location }}" \
+            --output none
+
+      - name: Deploy Bicep template
+        id: bicep
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: |
+          OUTPUT=$(az deployment group create \
+            --resource-group "${{ steps.params.outputs.resource_group }}" \
+            --template-file deploy/azure-functions/main.bicep \
+            --parameters \
+                tursoDatabaseUrl="$TURSO_DATABASE_URL" \
+                tursoAuthToken="$TURSO_AUTH_TOKEN" \
+            --query "properties.outputs" \
+            --output json)
+
+          FUNC_NAME=$(echo "$OUTPUT" | jq -r '.functionAppName.value')
+          FUNC_URL=$(echo "$OUTPUT"  | jq -r '.functionAppUrl.value')
+          echo "functionAppName=$FUNC_NAME" >> "$GITHUB_OUTPUT"
+          echo "functionAppUrl=$FUNC_URL"   >> "$GITHUB_OUTPUT"
+          echo "Function App: $FUNC_NAME ($FUNC_URL)" >> "$GITHUB_STEP_SUMMARY"
+
+      # ------------------------------------------------------------------
+      # Step 6a — Set BETTER_AUTH_SECRET before publish.
+      # The Function App exists after Bicep; setting the secret now means
+      # the very first invocation after publish already has it configured.
+      # bootstrap.ts throws 'BETTER_AUTH_SECRET is required' if it is absent,
+      # so publishing before this step would cause 500s until the step ran.
+      # ------------------------------------------------------------------
+      - name: Set BETTER_AUTH_SECRET (generate once, never overwrite)
+        env:
+          USER_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+        run: |
+          FUNC_NAME="${{ steps.bicep.outputs.functionAppName }}"
+          RG="${{ steps.params.outputs.resource_group }}"
+
+          EXISTS=$(az functionapp config appsettings list \
+            --name "$FUNC_NAME" \
+            --resource-group "$RG" \
+            --query "[?name=='BETTER_AUTH_SECRET'].value" \
+            --output tsv)
+
+          if [ -n "$USER_SECRET" ]; then
+            az functionapp config appsettings set \
+              --name "$FUNC_NAME" \
+              --resource-group "$RG" \
+              --settings "BETTER_AUTH_SECRET=$USER_SECRET" \
+              --output none
+            echo "Set BETTER_AUTH_SECRET from GitHub secret."
+          elif [ -z "$EXISTS" ]; then
+            GENERATED=$(openssl rand -base64 32)
+            az functionapp config appsettings set \
+              --name "$FUNC_NAME" \
+              --resource-group "$RG" \
+              --settings "BETTER_AUTH_SECRET=$GENERATED" \
+              --output none
+            echo "Auto-generated BETTER_AUTH_SECRET."
+          else
+            echo "BETTER_AUTH_SECRET already set — skipping."
+          fi
+
+      # ------------------------------------------------------------------
+      # Step 6b — Patch APP_URL / BETTER_AUTH_URL to the real hostname.
+      # Bicep sets both from the `appUrl` parameter (defaults to an empty
+      # placeholder when not provided). Finalise before publish so auth
+      # redirects are correct from the first request.
+      # ------------------------------------------------------------------
+      - name: Update APP_URL to real function app URL
+        run: |
+          FUNC_NAME="${{ steps.bicep.outputs.functionAppName }}"
+          FUNC_URL="${{ steps.bicep.outputs.functionAppUrl }}"
+          RG="${{ steps.params.outputs.resource_group }}"
+          az functionapp config appsettings set \
+            --name "$FUNC_NAME" \
+            --resource-group "$RG" \
+            --settings "APP_URL=$FUNC_URL" "BETTER_AUTH_URL=$FUNC_URL" \
+            --output none
+          echo "APP_URL set to $FUNC_URL"
+
+      # ------------------------------------------------------------------
+      # Step 7 — Build frontend + Azure Functions bundle.
+      # ------------------------------------------------------------------
+      - name: Build
+        run: npm run build:azure
+
+      # ------------------------------------------------------------------
+      # Step 8 — Run database migrations against Turso.
+      # ------------------------------------------------------------------
+      - name: Run database migrations
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: npm run db:migrate
+
+      # ------------------------------------------------------------------
+      # Step 9 — Install Azure Functions Core Tools and publish.
+      # All required app settings (BETTER_AUTH_SECRET, APP_URL, Turso creds)
+      # are already in place before this step runs.
+      # ------------------------------------------------------------------
+      - name: Install Azure Functions Core Tools
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      - name: Publish to Azure Functions
+        working-directory: azure-functions
+        run: func azure functionapp publish "${{ steps.bicep.outputs.functionAppName }}" --node
+
+      - name: Deployment summary
+        run: |
+          echo "### ✅ Deployed: ${{ steps.bicep.outputs.functionAppUrl }}" >> "$GITHUB_STEP_SUMMARY"

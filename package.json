@@ -11,6 +11,7 @@
     "build:lambda": "tsup server/entry-lambda.ts --format cjs --outDir dist-lambda --external @libsql/client",
     "build:vercel": "vite build --mode node && tsup server/entry-vercel.ts --format esm --outDir api --external @libsql/client",
     "build:netlify": "tsup server/entry-netlify.ts --format esm --outDir netlify/functions --external @libsql/client",
+    "build:azure": "vite build && tsup server/entry-azure.ts --format esm --outDir azure-functions --external @azure/functions --external @libsql/client && cp server/azure-host.json azure-functions/host.json && cp -r dist azure-functions/dist",
     "deploy": "npm run db:migrate:d1:prod && wrangler deploy",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -36,6 +37,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1022.0",
     "@aws-sdk/s3-request-presigner": "^3.1022.0",
+    "@azure/functions": "^4.12.0",
     "@better-auth/api-key": "^1.6.2",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
