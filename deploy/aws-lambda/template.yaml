@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: ZPan — S3-native file hosting platform on AWS Lambda
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: nodejs22.x
+    Architectures:
+      - x86_64
+
+Parameters:
+  TursoDatabaseUrl:
+    Type: String
+    Description: Turso database URL (e.g. libsql://your-db.turso.io)
+    NoEcho: true
+  TursoAuthToken:
+    Type: String
+    Description: Turso auth token
+    NoEcho: true
+  BetterAuthSecret:
+    Type: String
+    Description: Signing secret for auth sessions
+    NoEcho: true
+  AppUrl:
+    Type: String
+    Description: Public Function URL of the deployed application (set after first deploy)
+    Default: ''
+
+Resources:
+  ZPanFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: zpan
+      CodeUri: ../../dist-lambda-pkg/
+      Handler: entry-lambda.handler
+      Description: ZPan file hosting platform
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          NODE_ENV: production
+          TURSO_DATABASE_URL: !Ref TursoDatabaseUrl
+          TURSO_AUTH_TOKEN: !Ref TursoAuthToken
+          BETTER_AUTH_SECRET: !Ref BetterAuthSecret
+          APP_URL: !Ref AppUrl
+          BETTER_AUTH_URL: !Ref AppUrl
+
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowHeaders:
+            - '*'
+          AllowMethods:
+            - '*'
+
+Outputs:
+  FunctionUrl:
+    Description: ZPan public URL
+    Value: !GetAtt ZPanFunctionUrl.FunctionUrl

@@ -44,7 +44,7 @@ v2.0–v2.4 ship on two runtimes. v2.5 expands to seven.
 
 - **Cloudflare Workers** — Zero-ops, free tier covers personal use, one-click deploy (all versions)
 - **Docker** — Self-hosted, bring your own S3, full control (all versions)
-- **AWS Lambda** — For teams on AWS; SAM template + one-click CloudFormation (v2.5+)
+- **AWS Lambda** — For teams on AWS; SAM template + GitHub Actions workflow ([docs](docs/deploy/aws-lambda.md)) (v2.5+)
 - **Vercel** — One-click "Deploy to Vercel" via GitHub (v2.5+)
 - **Netlify** — One-click "Deploy to Netlify" (v2.5+)
 - **Azure Functions** — Bicep template; for Azure-mandated environments (v2.5+)

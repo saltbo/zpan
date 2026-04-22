@@ -5,6 +5,9 @@ node_modules/
 dist/
 dist-server/
 api/
+dist-lambda/
+dist-lambda-pkg/
+.aws-sam/
 .wrangler/
 
 # Environment
