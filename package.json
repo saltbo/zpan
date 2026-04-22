@@ -8,6 +8,7 @@
     "dev:node": "node --env-file=.dev.vars node_modules/vite/bin/vite.js dev --mode node",
     "build": "[ \"$WORKERS_CI\" = \"1\" ] && [ \"$WORKERS_CI_BRANCH\" != \"master\" ] && export CLOUDFLARE_ENV=staging; vite build",
     "build:node": "vite build --mode node && tsup server/entry-node.ts --format esm --outDir dist-server --external better-sqlite3 --external @libsql/client",
+    "build:lambda": "tsup server/entry-lambda.ts --format cjs --outDir dist-lambda --external @libsql/client",
     "build:vercel": "vite build --mode node && tsup server/entry-vercel.ts --format esm --outDir api --external @libsql/client",
     "deploy": "npm run db:migrate:d1:prod && wrangler deploy",
     "db:generate": "drizzle-kit generate",

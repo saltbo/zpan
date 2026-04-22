@@ -1,0 +1,208 @@
+name: Deploy to AWS Lambda
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to deploy (e.g. v2.5.0). Leave empty for latest.'
+        required: false
+
+# Prevent overlapping deployments.
+concurrency:
+  group: deploy-aws-lambda
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    # Only run on forks — the upstream repo does not deploy itself.
+    if: github.repository != 'saltbo/zpan'
+
+    steps:
+      - name: Disable upstream-only workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for workflow in ci.yml release.yml; do
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$workflow/disable" 2>/dev/null && \
+              echo "Disabled $workflow" || echo "$workflow already disabled"
+          done
+
+      - name: Check required secrets
+        env:
+          HAS_TURSO_URL: ${{ secrets.TURSO_DATABASE_URL != '' }}
+          HAS_TURSO_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN != '' }}
+          HAS_AWS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+          HAS_AWS_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}
+          HAS_AWS_REGION: ${{ secrets.AWS_REGION != '' }}
+        run: |
+          missing=""
+          [ "$HAS_TURSO_URL" != "true" ] && missing="$missing TURSO_DATABASE_URL"
+          [ "$HAS_TURSO_TOKEN" != "true" ] && missing="$missing TURSO_AUTH_TOKEN"
+          [ "$HAS_AWS_KEY" != "true" ] && missing="$missing AWS_ACCESS_KEY_ID"
+          [ "$HAS_AWS_SECRET" != "true" ] && missing="$missing AWS_SECRET_ACCESS_KEY"
+          [ "$HAS_AWS_REGION" != "true" ] && missing="$missing AWS_REGION"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:$missing. Go to Settings → Secrets and variables → Actions and add them."
+            exit 1
+          fi
+
+      - name: Resolve release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            TAG="$INPUT_VERSION"
+          else
+            TAG=$(gh api repos/saltbo/zpan/releases/latest --jq '.tag_name')
+          fi
+          if [ -z "$TAG" ]; then
+            echo "::error::No release found in saltbo/zpan"
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "### 🚀 Deploying $TAG to AWS Lambda" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: saltbo/zpan
+          ref: ${{ steps.release.outputs.version }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - run: npm ci
+
+      - name: Ensure SAM artifact bucket exists
+        id: bucket
+        run: |
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="zpan-sam-artifacts-${ACCOUNT}-${{ secrets.AWS_REGION }}"
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            aws s3 mb "s3://$BUCKET" --region "${{ secrets.AWS_REGION }}"
+            echo "Created SAM artifact bucket: $BUCKET"
+          else
+            echo "Reusing SAM artifact bucket: $BUCKET"
+          fi
+          echo "name=$BUCKET" >> "$GITHUB_OUTPUT"
+
+      - name: Apply Turso migrations
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: npx drizzle-kit migrate
+
+      - name: Resolve existing deployment state
+        id: state
+        env:
+          USER_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+        run: |
+          # Read current function config if it exists (redeployment case)
+          FUNC_JSON=$(aws lambda get-function-configuration --function-name zpan 2>/dev/null || echo "")
+
+          if [ -n "$FUNC_JSON" ]; then
+            EXISTING_SECRET=$(echo "$FUNC_JSON" | jq -r '.Environment.Variables.BETTER_AUTH_SECRET // empty')
+            EXISTING_URL=$(aws lambda get-function-url-config --function-name zpan \
+              --query FunctionUrl --output text 2>/dev/null || echo "")
+          fi
+
+          # Determine BETTER_AUTH_SECRET (priority: user-supplied > existing > auto-generate)
+          if [ -n "$USER_SECRET" ]; then
+            SECRET="$USER_SECRET"
+            echo "Using BETTER_AUTH_SECRET from GitHub secret"
+          elif [ -n "$EXISTING_SECRET" ]; then
+            SECRET="$EXISTING_SECRET"
+            echo "Reusing existing BETTER_AUTH_SECRET"
+          else
+            SECRET=$(openssl rand -base64 32)
+            echo "Auto-generated BETTER_AUTH_SECRET"
+          fi
+
+          echo "secret=$SECRET" >> "$GITHUB_OUTPUT"
+          echo "app_url=${EXISTING_URL:-}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          npx vite build --mode node
+
+          # Bundle Lambda entry; @libsql/client is external (native binding)
+          npx tsup server/entry-lambda.ts --format cjs --outDir dist-lambda --external @libsql/client
+
+          # Assemble minimal Lambda deployment package
+          mkdir -p dist-lambda-pkg
+          cp dist-lambda/entry-lambda.cjs dist-lambda-pkg/
+          cp -r dist dist-lambda-pkg/
+          cp -r migrations dist-lambda-pkg/
+
+          # Minimal package.json so SAM installs only @libsql/client
+          node -e "
+            const p = require('./package.json');
+            const pkg = {
+              name: 'zpan-lambda',
+              version: p.version,
+              dependencies: { '@libsql/client': p.dependencies['@libsql/client'] }
+            };
+            require('fs').writeFileSync('dist-lambda-pkg/package.json', JSON.stringify(pkg, null, 2));
+          "
+
+      - name: SAM build
+        run: sam build --template-file deploy/aws-lambda/template.yaml
+
+      - name: SAM deploy
+        run: |
+          sam deploy \
+            --stack-name zpan \
+            --s3-bucket "${{ steps.bucket.outputs.name }}" \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              TursoDatabaseUrl="${{ secrets.TURSO_DATABASE_URL }}" \
+              TursoAuthToken="${{ secrets.TURSO_AUTH_TOKEN }}" \
+              BetterAuthSecret="${{ steps.state.outputs.secret }}" \
+              AppUrl="${{ steps.state.outputs.app_url }}"
+
+      - name: Finalize — set BETTER_AUTH_URL and write summary
+        run: |
+          # Get the actual Function URL from CloudFormation outputs
+          URL=$(aws cloudformation describe-stacks \
+            --stack-name zpan \
+            --query "Stacks[0].Outputs[?OutputKey=='FunctionUrl'].OutputValue" \
+            --output text)
+
+          # On first deploy AppUrl was empty; patch the live function so auth works immediately.
+          CURRENT_URL="${{ steps.state.outputs.app_url }}"
+          if [ "$URL" != "$CURRENT_URL" ]; then
+            aws lambda update-function-configuration \
+              --function-name zpan \
+              --environment "Variables={
+                NODE_ENV=production,
+                TURSO_DATABASE_URL=${{ secrets.TURSO_DATABASE_URL }},
+                TURSO_AUTH_TOKEN=${{ secrets.TURSO_AUTH_TOKEN }},
+                BETTER_AUTH_SECRET=${{ steps.state.outputs.secret }},
+                APP_URL=$URL,
+                BETTER_AUTH_URL=$URL
+              }" > /dev/null
+            echo "Updated BETTER_AUTH_URL → $URL"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**URL:** $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Next step:** Open the URL, register the first admin account, then go to Admin → Storages to configure your S3-compatible bucket." >> "$GITHUB_STEP_SUMMARY"

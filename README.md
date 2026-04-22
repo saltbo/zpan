@@ -35,6 +35,18 @@ Deploy via GitHub Actions with zero server management. Free tier covers personal
 
 After initial setup, the workflow runs automatically every time you sync your fork with the latest release.
 
+### AWS Lambda
+
+Deploy via GitHub Actions using SAM. Lambda Function URL provides HTTPS with no API Gateway needed.
+
+1. **Fork** this repository
+2. In your fork, go to **Settings → Secrets and variables → Actions** and add:
+   - `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` — from [Turso](https://turso.tech) (free, no credit card)
+   - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
+3. Go to the **Actions** tab, select **Deploy to AWS Lambda**, and click **Run workflow**
+
+See [docs/deploy/aws-lambda.md](docs/deploy/aws-lambda.md) for full setup instructions and IAM permissions.
+
 ### Docker
 
 **Quick start** — pull the pre-built image and bring your own S3 storage:
