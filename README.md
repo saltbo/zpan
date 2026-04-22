@@ -37,21 +37,31 @@ After initial setup, the workflow runs automatically every time you sync your fo
 
 ### Docker
 
-**Quick start** — pull the pre-built image:
+**Quick start** — pull the pre-built image and bring your own S3 storage:
 
 ```bash
 curl -O https://raw.githubusercontent.com/saltbo/zpan/master/deploy/docker-compose.yml
 docker compose up -d
 ```
 
-**With RustFS** (self-hosted S3-compatible storage):
+**With RustFS** (self-hosted S3-compatible storage, no external dependencies):
 
 ```bash
 curl -O https://raw.githubusercontent.com/saltbo/zpan/master/deploy/docker-compose.rustfs.yml
 docker compose -f docker-compose.rustfs.yml up -d
 ```
 
-RustFS console will be at `http://localhost:9001` (admin / admin123). Create a bucket there, then configure the storage in ZPan's admin panel.
+After startup:
+
+1. Open the RustFS console at `http://localhost:9001` (admin / admin123) and create a bucket (e.g. `zpan-bucket`)
+2. Open ZPan at `http://localhost:8222`, register a user (first user gets admin role)
+3. Go to **Admin → Storage** and add the RustFS storage:
+   - **Endpoint**: `http://localhost:9000` (must be reachable from your browser, not the Docker internal hostname)
+   - **Bucket**: the bucket name you created in step 1
+   - **Region**: `us-east-1`
+   - **Access Key / Secret Key**: `admin` / `admin123`
+
+> **Important:** The storage endpoint must be accessible from the **client browser**, since files upload directly to S3 via presigned URLs. Use `http://localhost:9000` for local development, or your server's public URL for production.
 
 ## Documentation
 
