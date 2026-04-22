@@ -21,6 +21,15 @@ jobs:
     # Only run on forks — the upstream repo uses Cloudflare Workers Builds.
     if: github.repository != 'saltbo/zpan'
     steps:
+      - name: Disable upstream-only workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for workflow in ci.yml release.yml; do
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$workflow/disable" 2>/dev/null && \
+              echo "Disabled $workflow" || echo "$workflow already disabled"
+          done
+
       - name: Check required secrets
         env:
           HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
