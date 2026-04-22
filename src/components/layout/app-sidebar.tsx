@@ -17,7 +17,7 @@ import {
   Video,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   DropdownMenu,
@@ -67,7 +67,7 @@ export function AppSidebar() {
   const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
   const { siteName } = useSiteOptions()
-  const user = session?.user as { name: string; username?: string; role?: string } | undefined
+  const user = session?.user as { name: string; username?: string; role?: string; image?: string | null } | undefined
   const isAdmin = user?.role === 'admin'
   const { data: quota } = useQuery({
     queryKey: ['user', 'quota'],
@@ -221,6 +221,7 @@ export function AppSidebar() {
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton className="flex-1 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                     <Avatar size="sm">
+                      {user?.image && <AvatarImage src={user.image} alt={user.name || user.username || ''} />}
                       <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
                         {user ? getInitials(user.name || user.username || '?') : '?'}
                       </AvatarFallback>

@@ -1,6 +1,7 @@
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
   AllowedImageMime,
+  AvatarMime,
   ConflictStrategy,
   CreateShareRequest,
   CreateStorageInput,
@@ -29,6 +30,7 @@ import {
   inviteCodes,
   notificationsApi,
   objects,
+  profileMeApi,
   profiles,
   publicSharesApi,
   storages,
@@ -596,6 +598,29 @@ export function confirmIhostImage(id: string) {
 
 export async function deleteIhostImage(id: string) {
   const res = await ihostApi.images[':id'].$delete({ param: { id } })
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
+}
+
+// Avatar Upload API
+
+export interface AvatarUploadDraft {
+  uploadUrl: string
+  key: string
+}
+
+export function requestAvatarUpload(data: { mime: AvatarMime; size: number }) {
+  return unwrap<AvatarUploadDraft>(profileMeApi.avatar.$post({ json: data }))
+}
+
+export function commitAvatar(data: { mime: AvatarMime }) {
+  return unwrap<{ image: string }>(profileMeApi.avatar.commit.$post({ json: data }))
+}
+
+export async function deleteAvatar() {
+  const res = await profileMeApi.avatar.$delete()
   if (!res.ok) {
     const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
     throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
