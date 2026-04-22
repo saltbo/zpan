@@ -37,9 +37,21 @@ After initial setup, the workflow runs automatically every time you sync your fo
 
 ### Docker
 
+**Quick start** — pull the pre-built image:
+
 ```bash
+curl -O https://raw.githubusercontent.com/saltbo/zpan/master/deploy/docker-compose.yml
 docker compose up -d
 ```
+
+**With RustFS** (self-hosted S3-compatible storage):
+
+```bash
+curl -O https://raw.githubusercontent.com/saltbo/zpan/master/deploy/docker-compose.rustfs.yml
+docker compose -f docker-compose.rustfs.yml up -d
+```
+
+RustFS console will be at `http://localhost:9001` (admin / admin123). Create a bucket there, then configure the storage in ZPan's admin panel.
 
 ## Documentation
 
