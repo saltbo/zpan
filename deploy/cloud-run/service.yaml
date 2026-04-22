@@ -1,0 +1,39 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: zpan
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: gcr.io/PROJECT_ID/zpan:latest
+          ports:
+            - name: http1
+              containerPort: 8222
+          env:
+            - name: PORT
+              value: "8222"
+            - name: NODE_ENV
+              value: production
+            - name: TURSO_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: turso-database-url
+                  key: latest
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: better-auth-secret
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
