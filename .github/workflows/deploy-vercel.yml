@@ -27,14 +27,12 @@ jobs:
           HAS_ORG: ${{ secrets.VERCEL_ORG_ID != '' }}
           HAS_PROJECT: ${{ secrets.VERCEL_PROJECT_ID != '' }}
           HAS_TURSO_URL: ${{ secrets.TURSO_DATABASE_URL != '' }}
-          HAS_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET != '' }}
         run: |
           missing=()
           [ "$HAS_TOKEN" != "true" ] && missing+=(VERCEL_TOKEN)
           [ "$HAS_ORG" != "true" ] && missing+=(VERCEL_ORG_ID)
           [ "$HAS_PROJECT" != "true" ] && missing+=(VERCEL_PROJECT_ID)
           [ "$HAS_TURSO_URL" != "true" ] && missing+=(TURSO_DATABASE_URL)
-          [ "$HAS_AUTH_SECRET" != "true" ] && missing+=(BETTER_AUTH_SECRET)
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required secrets: ${missing[*]}. Go to Settings → Secrets and variables → Actions."
             exit 1
@@ -90,6 +88,27 @@ jobs:
             --token "$VERCEL_TOKEN" \
             --scope "$VERCEL_ORG_ID"
 
+      - name: Ensure BETTER_AUTH_SECRET (first deploy only)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          USER_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+        run: |
+          EXISTS=$(npx vercel env ls production --token "$VERCEL_TOKEN" 2>/dev/null | grep -c "^BETTER_AUTH_SECRET" || true)
+          if [ -n "$USER_SECRET" ]; then
+            # User supplied their own secret — persist it (upsert).
+            echo "$USER_SECRET" | npx vercel env add BETTER_AUTH_SECRET production --token "$VERCEL_TOKEN" --force
+            echo "Set BETTER_AUTH_SECRET from GitHub secret."
+          elif [ "$EXISTS" -eq 0 ]; then
+            # First deploy and no user secret — auto-generate and persist.
+            SECRET=$(openssl rand -base64 32)
+            echo "$SECRET" | npx vercel env add BETTER_AUTH_SECRET production --token "$VERCEL_TOKEN"
+            echo "auto_generated=true" >> "$GITHUB_OUTPUT"
+            echo "Auto-generated BETTER_AUTH_SECRET and stored in Vercel project env."
+          else
+            echo "BETTER_AUTH_SECRET already set in Vercel project env, skipping."
+          fi
+        id: auth_secret
+
       - name: Deploy to Vercel
         id: deploy
         env:
@@ -98,15 +117,17 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
           TRUSTED_ORIGINS: ${{ secrets.TRUSTED_ORIGINS }}
         run: |
           DEPLOY_URL=$(npx vercel deploy --prod --token "$VERCEL_TOKEN" \
             --env TURSO_DATABASE_URL="$TURSO_DATABASE_URL" \
             --env TURSO_AUTH_TOKEN="$TURSO_AUTH_TOKEN" \
-            --env BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
             --env BETTER_AUTH_URL="$BETTER_AUTH_URL" \
             --env TRUSTED_ORIGINS="$TRUSTED_ORIGINS")
           echo "url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
           echo "**Deployed to:** $DEPLOY_URL" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.auth_secret.outputs.auto_generated }}" = "true" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> ⚠️ **BETTER_AUTH_SECRET was auto-generated** and stored in your Vercel project env. Back it up from the Vercel dashboard before rotating." >> "$GITHUB_STEP_SUMMARY"
+          fi

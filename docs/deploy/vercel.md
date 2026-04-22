@@ -23,15 +23,15 @@ Set these in your fork's GitHub repository under **Settings → Secrets and vari
 | `VERCEL_ORG_ID` | Your Vercel team/org ID. Found in `vercel link` output or team settings |
 | `VERCEL_PROJECT_ID` | Project ID after first `vercel link`. Found in `.vercel/project.json` |
 | `TURSO_DATABASE_URL` | Turso database URL, e.g. `libsql://your-db.turso.io` |
-| `TURSO_AUTH_TOKEN` | Turso auth token. Create with `turso db tokens create your-db` |
-| `BETTER_AUTH_SECRET` | Signing secret for auth sessions. Generate with `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | Your Vercel deployment URL, e.g. `https://your-app.vercel.app` |
 
 ### Optional Secrets
 
 | Secret | Description |
 |--------|-------------|
-| `TRUSTED_ORIGINS` | Comma-separated list of additional trusted origins |
+| `TURSO_AUTH_TOKEN` | Turso auth token. Create with `turso db tokens create your-db`. Required for remote Turso URLs; can be omitted for `file://` local databases. |
+| `BETTER_AUTH_SECRET` | Signing secret for auth sessions. If not provided, the workflow generates one on first deploy and persists it in your Vercel project env. Back it up from the Vercel dashboard before rotating. To bring your own: `openssl rand -base64 32`. |
+| `TRUSTED_ORIGINS` | Comma-separated list of additional trusted origins. |
 
 ## Quick Start (Fork + Deploy)
 
@@ -50,7 +50,7 @@ Set these in your fork's GitHub repository under **Settings → Secrets and vari
    # Note the VERCEL_ORG_ID and VERCEL_PROJECT_ID from .vercel/project.json
    ```
 
-4. **Add all required secrets** to your fork (see table above).
+4. **Add the required secrets** to your fork (see table above). `BETTER_AUTH_SECRET` is optional — the workflow auto-generates one on first deploy and stores it in your Vercel project env.
 
 5. **Push to `master`** — the `deploy-vercel.yml` workflow runs automatically and deploys to production.
 
