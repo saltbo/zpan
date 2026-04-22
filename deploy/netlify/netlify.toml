@@ -1,0 +1,19 @@
+[build]
+  # Build the React SPA then compile the Netlify Function.
+  command  = "npm run build && npm run build:netlify"
+  publish  = "dist"
+
+[functions]
+  directory    = "netlify/functions"
+  # esbuild bundler resolves @libsql/client (external in tsup) from node_modules.
+  node_bundler = "esbuild"
+  # Include migration SQL files so createLibsqlPlatform can run migrate() at cold start.
+  included_files = ["migrations/**"]
+
+# SPA fallback — must come last; Netlify applies the first matching rule.
+# /api/* and /r/* are handled by the Netlify Function (entry-netlify.ts config.path).
+# /.netlify/functions/* is excluded from [[redirects]] automatically by Netlify.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
