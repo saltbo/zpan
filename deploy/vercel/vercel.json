@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/entry-vercel.js": {
+      "runtime": "nodejs22.x",
+      "memory": 512,
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/entry-vercel"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/entry-vercel"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
