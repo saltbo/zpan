@@ -11,9 +11,6 @@ param tursoDatabaseUrl string
 @description('Turso auth token.')
 param tursoAuthToken string
 
-@description('Public URL of the deployed function app, e.g. https://zpan-func-xxx.azurewebsites.net')
-param appUrl string
-
 // Unique suffix derived from the resource group so re-runs produce the same names (idempotent).
 var suffix = uniqueString(resourceGroup().id)
 var storageAccountName = take('${toLower(replace(appName, '-', ''))}${suffix}', 24)
@@ -72,8 +69,6 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' }
         { name: 'TURSO_DATABASE_URL', value: tursoDatabaseUrl }
         { name: 'TURSO_AUTH_TOKEN', value: tursoAuthToken }
-        { name: 'APP_URL', value: appUrl }
-        { name: 'BETTER_AUTH_URL', value: appUrl }
       ]
     }
   }

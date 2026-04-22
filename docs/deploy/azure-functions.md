@@ -77,13 +77,17 @@ In your fork go to **Settings → Secrets and variables → Actions** and add:
 
 ## 4 — Run the workflow
 
-Go to **Actions → Deploy to Azure Functions → Run workflow**.
+The workflow triggers automatically on every push to `master` **and** can be triggered manually via **Actions → Deploy to Azure Functions → Run workflow**.
 
-| Input | Description |
+> The workflow includes `if: github.repository != 'saltbo/zpan'` so it is a no-op in the upstream repo. It only runs in your fork.
+
+| Manual dispatch input | Description |
 |---|---|
 | `resource_group` | Azure Resource Group name — created automatically if it does not exist (default: `zpan-rg`) |
 | `location` | Azure region (default: `eastus`) |
 | `version` | Release tag (e.g. `v2.5.0`). Leave empty to use the latest release. |
+
+> When triggered by a push, defaults are used for `resource_group` (`zpan-rg`) and `location` (`eastus`).
 
 ### What the workflow does
 

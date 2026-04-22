@@ -27,6 +27,17 @@ app.http('zpan', {
   authLevel: 'anonymous',
   route: '{*path}',
   handler: async (request: HttpRequest, _context: InvocationContext): Promise<Response> => {
-    return server.fetch(request as unknown as Request)
+    // Construct a standards-compliant Request so Hono body-reading works correctly
+    // on POST/PUT/PATCH routes. Azure HttpRequest v4 has additional properties and
+    // a single-read stream; wrapping it avoids silent breakage on body-reading routes.
+    // The body cast and duplex option are required for Node 22's undici-based fetch.
+    const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
+    const webReq = new Request(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body: hasBody ? (request.body as BodyInit) : undefined,
+      ...(hasBody ? { duplex: 'half' } : {}),
+    } as RequestInit)
+    return server.fetch(webReq)
   },
 })
