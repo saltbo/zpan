@@ -1,0 +1,121 @@
+name: Deploy to Netlify
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to deploy (e.g. v2.5.0). Leave empty for latest.'
+        required: false
+
+# Prevent overlapping deployments.
+concurrency:
+  group: deploy-netlify
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    # Only run on forks — the upstream repo does not deploy itself to Netlify.
+    if: github.repository != 'saltbo/zpan'
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+    steps:
+      - name: Check required secrets
+        env:
+          HAS_TURSO_URL:   ${{ secrets.TURSO_DATABASE_URL != '' }}
+          HAS_TURSO_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN != '' }}
+          HAS_NETLIFY_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN != '' }}
+          HAS_NETLIFY_SITE:  ${{ secrets.NETLIFY_SITE_ID != '' }}
+        run: |
+          MISSING=""
+          [ "$HAS_TURSO_URL"     != "true" ] && MISSING="$MISSING TURSO_DATABASE_URL"
+          [ "$HAS_TURSO_TOKEN"   != "true" ] && MISSING="$MISSING TURSO_AUTH_TOKEN"
+          [ "$HAS_NETLIFY_TOKEN" != "true" ] && MISSING="$MISSING NETLIFY_AUTH_TOKEN"
+          [ "$HAS_NETLIFY_SITE"  != "true" ] && MISSING="$MISSING NETLIFY_SITE_ID"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing required secrets:$MISSING"
+            echo "Go to Settings → Secrets and variables → Actions to add them."
+            exit 1
+          fi
+
+      - name: Resolve release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            TAG="$INPUT_VERSION"
+          else
+            TAG=$(gh api repos/saltbo/zpan/releases/latest --jq '.tag_name')
+          fi
+          if [ -z "$TAG" ]; then
+            echo "::error::No release found in saltbo/zpan"
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "### 🚀 Deploying $TAG to Netlify" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: saltbo/zpan
+          ref: ${{ steps.release.outputs.version }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: npm ci
+
+      - name: Apply Turso migrations
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN:   ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: npx drizzle-kit migrate
+
+      - name: Build
+        run: |
+          npm run build
+          npm run build:netlify
+
+      - name: Deploy
+        id: deploy
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN:   ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: |
+          OUTPUT=$(npx netlify deploy \
+            --prod \
+            --dir=dist \
+            --functions=netlify/functions \
+            --json 2>/dev/null)
+          SITE_URL=$(echo "$OUTPUT" | jq -r '.url // .deploy_url')
+          echo "url=$SITE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Set BETTER_AUTH_SECRET (first deploy only)
+        env:
+          USER_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+        run: |
+          EXISTING=$(npx netlify env:get BETTER_AUTH_SECRET 2>/dev/null || true)
+          if [ -n "$USER_SECRET" ]; then
+            npx netlify env:set BETTER_AUTH_SECRET "$USER_SECRET" --context production
+            echo "Set BETTER_AUTH_SECRET from GitHub secret"
+          elif [ -z "$EXISTING" ]; then
+            npx netlify env:set BETTER_AUTH_SECRET "$(openssl rand -base64 32)" --context production
+            echo "Auto-generated BETTER_AUTH_SECRET"
+          else
+            echo "BETTER_AUTH_SECRET already set, skipping"
+          fi
+
+      - name: Write deploy summary
+        run: |
+          echo "**Site URL:** ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Next steps:" >> "$GITHUB_STEP_SUMMARY"
+          echo "1. Open the site URL and sign up as the first admin" >> "$GITHUB_STEP_SUMMARY"
+          echo "2. Go to Admin → Storages → Add storage and configure your S3 bucket" >> "$GITHUB_STEP_SUMMARY"
