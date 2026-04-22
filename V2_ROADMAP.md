@@ -32,18 +32,25 @@ Each version ships 1–2 major features. Ship small, ship often.
 | [v2.2](docs/roadmap/v2.2.md) | **Teams** | Team workspaces, shared folders, member roles |
 | [v2.3](docs/roadmap/v2.3.md) | **Sharing** | Share links, direct links, password / expiration / limits |
 | [v2.4](docs/roadmap/v2.4.md) | **Image Hosting** | Upload API, PicGo / uPic / ShareX integration, custom domain |
-| [v2.5](docs/roadmap/v2.5.md) | **Branding & Polish** | Custom logo / title, dark mode, custom file domain |
+| [v2.5](docs/roadmap/v2.5.md) | **Multi-Platform Deployment** | 7 first-class targets via Turso (CF, Docker, AWS Lambda, Vercel, Netlify, Azure, GCP); avatar upload |
 | [v2.6](docs/roadmap/v2.6.md) | **Backup** | zpan-cli (Rust) one-way backup for NAS / desktop |
 | [v2.7](docs/roadmap/v2.7.md) | **Sync & Desktop** | Bidirectional sync + Tauri desktop tray app |
-| [v2.8](docs/roadmap/v2.8.md) | **Managed Service** | Payments, analytics, webhooks, audit log |
+| [v2.8](docs/roadmap/v2.8.md) | **Managed Service** | Payments, analytics, webhooks, audit log, site branding (white-label) |
 | [v2.9](docs/roadmap/v2.9.md) | **Managed Advanced** | Content moderation, server-side processing, custom domain provisioning |
 
 ## Deployment Options
 
-- **Cloudflare Workers** — Zero-ops, free tier covers personal use, one-click deploy
-- **Docker** — Self-hosted, bring your own S3, full control
+v2.0–v2.4 ship on two runtimes. v2.5 expands to seven.
 
-Same codebase, same features, two runtimes.
+- **Cloudflare Workers** — Zero-ops, free tier covers personal use, one-click deploy (all versions)
+- **Docker** — Self-hosted, bring your own S3, full control (all versions)
+- **AWS Lambda** — For teams on AWS; SAM template + one-click CloudFormation (v2.5+)
+- **Vercel** — One-click "Deploy to Vercel" via GitHub (v2.5+)
+- **Netlify** — One-click "Deploy to Netlify" (v2.5+)
+- **Azure Functions** — Bicep template; for Azure-mandated environments (v2.5+)
+- **Google Cloud Run** — Container-based; reuses the Docker image (v2.5+)
+
+Same codebase, same features, seven runtimes. Turso provides the database for every non-CF target (9 GB free tier, no credit card). Object storage is decoupled — users bring any S3-compatible bucket (R2, S3, B2, Tigris), which is what makes Azure and GCP viable targets without adapting to their non-S3 native blob stores.
 
 ## Free vs Paid
 
