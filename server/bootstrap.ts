@@ -9,7 +9,8 @@ export async function createBootstrap(platform: Platform) {
   }
 
   const baseURL = platform.getEnv('BETTER_AUTH_URL') || 'http://localhost:5173'
-  const trustedOrigins = platform.getEnv('TRUSTED_ORIGINS')
+  const trustedOrigins = platform
+    .getEnv('TRUSTED_ORIGINS')
     ?.split(',')
     .map((o) => o.trim())
     .filter(Boolean) || ['http://localhost:5173']
