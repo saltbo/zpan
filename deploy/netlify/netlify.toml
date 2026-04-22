@@ -4,9 +4,11 @@
   publish  = "dist"
 
 [functions]
-  # tsup outputs the pre-bundled ESM function; Netlify ships it as-is.
   directory    = "netlify/functions"
-  node_bundler = "none"
+  # esbuild bundler resolves @libsql/client (external in tsup) from node_modules.
+  node_bundler = "esbuild"
+  # Include migration SQL files so createLibsqlPlatform can run migrate() at cold start.
+  included_files = ["migrations/**"]
 
 # SPA fallback — must come last; Netlify applies the first matching rule.
 # /api/* and /r/* are handled by the Netlify Function (entry-netlify.ts config.path).

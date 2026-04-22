@@ -27,8 +27,8 @@ jobs:
     steps:
       - name: Check required secrets
         env:
-          HAS_TURSO_URL:   ${{ secrets.TURSO_DATABASE_URL != '' }}
-          HAS_TURSO_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN != '' }}
+          HAS_TURSO_URL:     ${{ secrets.TURSO_DATABASE_URL != '' }}
+          HAS_TURSO_TOKEN:   ${{ secrets.TURSO_AUTH_TOKEN != '' }}
           HAS_NETLIFY_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN != '' }}
           HAS_NETLIFY_SITE:  ${{ secrets.NETLIFY_SITE_ID != '' }}
         run: |
@@ -78,6 +78,21 @@ jobs:
           TURSO_AUTH_TOKEN:   ${{ secrets.TURSO_AUTH_TOKEN }}
         run: npx drizzle-kit migrate
 
+      - name: Ensure BETTER_AUTH_SECRET is set (first deploy only)
+        env:
+          USER_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+        run: |
+          EXISTING=$(npx netlify env:get BETTER_AUTH_SECRET 2>&1 || true)
+          if [ -n "$USER_SECRET" ]; then
+            npx netlify env:set BETTER_AUTH_SECRET "$USER_SECRET" --context production
+            echo "Set BETTER_AUTH_SECRET from GitHub secret"
+          elif [ -z "$EXISTING" ]; then
+            npx netlify env:set BETTER_AUTH_SECRET "$(openssl rand -base64 32)" --context production
+            echo "Auto-generated BETTER_AUTH_SECRET"
+          else
+            echo "BETTER_AUTH_SECRET already set, skipping"
+          fi
+
       - name: Build
         run: |
           npm run build
@@ -93,24 +108,9 @@ jobs:
             --prod \
             --dir=dist \
             --functions=netlify/functions \
-            --json 2>/dev/null)
+            --json 2>&1)
           SITE_URL=$(echo "$OUTPUT" | jq -r '.url // .deploy_url')
           echo "url=$SITE_URL" >> "$GITHUB_OUTPUT"
-
-      - name: Set BETTER_AUTH_SECRET (first deploy only)
-        env:
-          USER_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-        run: |
-          EXISTING=$(npx netlify env:get BETTER_AUTH_SECRET 2>/dev/null || true)
-          if [ -n "$USER_SECRET" ]; then
-            npx netlify env:set BETTER_AUTH_SECRET "$USER_SECRET" --context production
-            echo "Set BETTER_AUTH_SECRET from GitHub secret"
-          elif [ -z "$EXISTING" ]; then
-            npx netlify env:set BETTER_AUTH_SECRET "$(openssl rand -base64 32)" --context production
-            echo "Auto-generated BETTER_AUTH_SECRET"
-          else
-            echo "BETTER_AUTH_SECRET already set, skipping"
-          fi
 
       - name: Write deploy summary
         run: |
