@@ -28,7 +28,6 @@ jobs:
     name: Docker Image
     runs-on: ubuntu-latest
     needs: check
-    if: github.repository == 'saltbo/zpan'
     permissions:
       contents: read
       packages: write
@@ -67,7 +66,6 @@ jobs:
     name: GitHub Release
     runs-on: ubuntu-latest
     needs: [check, docker]
-    if: github.repository == 'saltbo/zpan'
     permissions:
       contents: write
     steps:
