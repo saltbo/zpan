@@ -1,7 +1,18 @@
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
-import app from './bootstrap'
+import { createBootstrap } from './bootstrap'
+import { createLibsqlPlatform } from './platform/libsql'
+import { createNodePlatform } from './platform/node'
+
+const platform = process.env.TURSO_DATABASE_URL
+  ? await createLibsqlPlatform({
+      TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL,
+      TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
+    })
+  : createNodePlatform()
+
+const app = await createBootstrap(platform)
 
 const server = new Hono()
 server.route('/', app)

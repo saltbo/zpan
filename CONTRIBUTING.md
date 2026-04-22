@@ -93,6 +93,24 @@ npm run db:reset:d1             # Reset D1 local database (.wrangler)
 
 Migration files live in `migrations/` at project root. Always commit them.
 
+### Turso (libSQL) migrate path
+
+When deploying the Node/Docker image against a Turso (libSQL) database, set `TURSO_DATABASE_URL` (and `TURSO_AUTH_TOKEN` for remote URLs) before running `db:migrate`. `drizzle.config.ts` detects the env var and switches to the `turso` dialect automatically:
+
+```sh
+TURSO_DATABASE_URL=libsql://your-db.turso.io \
+TURSO_AUTH_TOKEN=your-token \
+npm run db:migrate
+```
+
+For local libSQL files the token can be omitted:
+
+```sh
+TURSO_DATABASE_URL=file:./zpan.db npm run db:migrate
+```
+
+Migrations run automatically at Docker container startup when `TURSO_DATABASE_URL` is set. See [docs/deploy/docker.md](docs/deploy/docker.md) for the full Docker + Turso setup.
+
 ## Deployment
 
 Primary target is Cloudflare Workers. Node.js (Docker) is the backup runtime.

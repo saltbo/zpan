@@ -23,6 +23,7 @@ const coverageConfig = {
     'server/**/*.test.ts',
     'server/**/*.integration.test.ts',
     'server/**/*.cf-test.ts',
+    'server/**/*.libsql-test.ts',
     'server/test/**',
     'server/platform/**',
     'server/db/**',

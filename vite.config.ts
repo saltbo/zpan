@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     tailwindcss(),
     ...(mode === 'node'
-      ? [devServer({ entry: './server/bootstrap.ts', injectClientScript: false, exclude: [/^(?!\/api\/).*/] })]
+      ? [devServer({ entry: './server/dev.ts', injectClientScript: false, exclude: [/^(?!\/api\/).*/] })]
       : [cloudflare()]),
   ],
   resolve: {
