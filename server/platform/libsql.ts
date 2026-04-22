@@ -12,6 +12,7 @@ interface LibsqlEnv {
 
 export async function createLibsqlPlatform(env: LibsqlEnv): Promise<Platform> {
   const migrationsFolder = process.env.MIGRATIONS_DIR || './migrations'
+  const envRecord: Record<string, string | undefined> = { ...env }
 
   const client = createClient({
     url: env.TURSO_DATABASE_URL,
@@ -25,7 +26,7 @@ export async function createLibsqlPlatform(env: LibsqlEnv): Promise<Platform> {
   return {
     db,
     getEnv(key: string) {
-      return process.env[key]
+      return envRecord[key] ?? process.env[key]
     },
   }
 }
