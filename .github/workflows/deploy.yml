@@ -77,10 +77,15 @@ jobs:
         run: |
           DB_ID=$(npx wrangler d1 list --json | jq -r '.[] | select(.name == "zpan-db") | .uuid')
           if [ -z "$DB_ID" ]; then
-            DB_ID=$(npx wrangler d1 create zpan-db --json | jq -r '.uuid')
+            # wrangler d1 create does not support --json; parse the TOML snippet it prints.
+            DB_ID=$(npx wrangler d1 create zpan-db | awk -F'"' '/database_id/{print $2; exit}')
             echo "Created D1 database: $DB_ID"
           else
             echo "Reusing D1 database: $DB_ID"
+          fi
+          if [ -z "$DB_ID" ]; then
+            echo "::error::Failed to obtain D1 database UUID"
+            exit 1
           fi
           echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
 
