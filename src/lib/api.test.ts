@@ -6,6 +6,7 @@ import {
   batchTrashObjects,
   buildShareObjectUrl,
   commitAvatar,
+  commitOrgLogo,
   confirmIhostImage,
   confirmUpload,
   copyObject,
@@ -18,6 +19,7 @@ import {
   deleteIhostConfig,
   deleteIhostImage,
   deleteObject,
+  deleteOrgLogo,
   deleteShare,
   deleteStorage,
   deleteUser,
@@ -46,6 +48,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   requestAvatarUpload,
+  requestOrgLogoUpload,
   restoreObject,
   revokeIhostApiKey,
   saveShareToDrive,
@@ -1763,6 +1766,66 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
 
       await expect(deleteAvatar()).rejects.toThrow()
+    })
+  })
+
+  describe('requestOrgLogoUpload', () => {
+    it('calls POST /api/teams/:teamId/logo with mime + size', async () => {
+      const draft = { uploadUrl: 'https://s3/presigned', key: '_system/org-logos/org-1.png' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(draft, true, 201))
+      await requestOrgLogoUpload('org-1', { mime: 'image/png', size: 2048 })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/teams/org-1/logo')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body?.mime).toBe('image/png')
+      expect(body?.size).toBe(2048)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+      await expect(requestOrgLogoUpload('org-1', { mime: 'image/png', size: 1024 })).rejects.toThrow('Forbidden')
+    })
+  })
+
+  describe('commitOrgLogo', () => {
+    it('calls POST /api/teams/:teamId/logo/commit with mime', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ logo: 'https://example.com/logo.jpg' }))
+      await commitOrgLogo('org-1', { mime: 'image/jpeg' })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/teams/org-1/logo/commit')
+      expect(init.method).toBe('POST')
+    })
+
+    it('resolves with logo URL', async () => {
+      const payload = { logo: 'https://example.com/logo.jpg' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+      const result = await commitOrgLogo('org-1', { mime: 'image/jpeg' })
+      expect(result).toEqual(payload)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Not found' }, false, 400))
+      await expect(commitOrgLogo('org-1', { mime: 'image/png' })).rejects.toThrow()
+    })
+  })
+
+  describe('deleteOrgLogo', () => {
+    it('calls DELETE /api/teams/:teamId/logo', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+      } as unknown as Response)
+      await deleteOrgLogo('org-1')
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/teams/org-1/logo')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+      await expect(deleteOrgLogo('org-1')).rejects.toThrow()
     })
   })
 })
