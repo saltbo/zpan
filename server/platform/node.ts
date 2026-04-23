@@ -20,5 +20,10 @@ export function createNodePlatform(): Platform {
     getEnv(key: string) {
       return process.env[key]
     },
+    // Node has no platform-native bindings — callers always fall back to
+    // whatever the non-binding path does (e.g. DB-configured S3 storage).
+    getBinding<T = unknown>(_key: string): T | undefined {
+      return undefined
+    },
   }
 }
