@@ -30,7 +30,7 @@ Deploy via GitHub Actions with zero server management. Free tier covers personal
 1. **Fork** this repository
 2. In your fork, go to **Settings → Secrets and variables → Actions** and add:
    - `CLOUDFLARE_ACCOUNT_ID` — found on the [Cloudflare dashboard](https://dash.cloudflare.com/) sidebar
-   - `CLOUDFLARE_API_TOKEN` — create one [here](https://dash.cloudflare.com/profile/api-tokens) with **Workers Scripts:Edit** and **D1:Edit** permissions
+   - `CLOUDFLARE_API_TOKEN` — create one [here](https://dash.cloudflare.com/profile/api-tokens) with **Workers Scripts:Edit**, **D1:Edit**, and **R2 Storage:Edit** permissions (R2 scope is needed to auto-provision the avatar/logo bucket)
 3. Go to the **Actions** tab, select **Deploy to Cloudflare Workers**, and click **Run workflow**
 
 After initial setup, the workflow runs automatically every time you sync your fork with the latest release.
