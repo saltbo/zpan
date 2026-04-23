@@ -3,6 +3,7 @@ import type { AvatarMime } from '@shared/schemas'
 import { AVATAR_MIMES, MAX_AVATAR_SIZE } from '@shared/schemas'
 import { useMutation } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { Camera, Loader2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -10,9 +11,8 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { commitAvatar, deleteAvatar, requestAvatarUpload, uploadToS3 } from '@/lib/api'
 import { authClient, useSession } from '@/lib/auth-client'
 
@@ -35,18 +35,19 @@ function getInitials(name: string): string {
     .slice(0, 2)
 }
 
-// refreshSession forces the auth client to re-fetch the session from the server
-// so that useSession() reflects DB changes made outside better-auth's updateUser.
+// Refresh the session so useSession() sees DB changes made outside
+// better-auth.updateUser (e.g. avatar commit / delete).
 async function refreshSession() {
   await authClient.getSession()
 }
 
-export function AvatarSection() {
+function AvatarCard() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const user = session?.user
+  const displayName = user?.name || (user as { username?: string })?.username || '?'
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -74,66 +75,65 @@ export function AvatarSection() {
     onError: (err) => toast.error(err instanceof Error ? err.message : String(err)),
   })
 
+  const isPending = uploadMutation.isPending || deleteMutation.isPending
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) uploadMutation.mutate(file)
     e.target.value = ''
   }
 
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault()
+  function triggerPicker() {
+    if (!isPending) fileInputRef.current?.click()
   }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    const file = e.dataTransfer.files?.[0]
-    if (file) uploadMutation.mutate(file)
-  }
-
-  const isPending = uploadMutation.isPending || deleteMutation.isPending
-  const displayName = user?.name || (user as { username?: string })?.username || '?'
 
   return (
-    <section
-      className="flex items-center gap-6"
-      aria-label={t('settings.profile.avatar.dropZone')}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      <div className="relative">
-        <Avatar size="lg" className="size-16">
-          {user?.image && <AvatarImage src={user.image} alt={displayName} />}
-          <AvatarFallback className="text-lg font-semibold">{getInitials(displayName)}</AvatarFallback>
-        </Avatar>
-        {isPending && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
-            <span className="text-xs text-white">{t('common.loading')}</span>
-          </div>
-        )}
+    <Card className="overflow-hidden">
+      <div className="flex items-start justify-between gap-6 px-6">
+        <div className="space-y-1.5">
+          <CardTitle>{t('settings.profile.avatar.section')}</CardTitle>
+          <CardDescription>{t('settings.profile.avatar.description')}</CardDescription>
+        </div>
+        <button
+          type="button"
+          onClick={triggerPicker}
+          disabled={isPending}
+          aria-label={t('settings.profile.avatar.upload')}
+          className="group relative flex-shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <Avatar className="size-20 border">
+            {user?.image && <AvatarImage src={user.image} alt={displayName} />}
+            <AvatarFallback className="text-xl font-semibold">{getInitials(displayName)}</AvatarFallback>
+          </Avatar>
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+            {isPending ? (
+              <Loader2 className="size-5 animate-spin text-white" />
+            ) : (
+              <Camera className="size-5 text-white" />
+            )}
+          </span>
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={AVATAR_MIMES.join(',')}
+          className="hidden"
+          onChange={handleFileChange}
+        />
       </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={AVATAR_MIMES.join(',')}
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      <div className="flex flex-col gap-2">
-        <Button variant="outline" size="sm" disabled={isPending} onClick={() => fileInputRef.current?.click()}>
-          {t('settings.profile.avatar.upload')}
-        </Button>
+      <CardFooter className="justify-between border-t bg-muted/30">
+        <p className="text-sm text-muted-foreground">{t('settings.profile.avatar.hint')}</p>
         {user?.image && (
-          <Button variant="ghost" size="sm" disabled={isPending} onClick={() => deleteMutation.mutate()}>
+          <Button variant="outline" size="sm" disabled={isPending} onClick={() => deleteMutation.mutate()}>
             {t('settings.profile.avatar.remove')}
           </Button>
         )}
-        <p className="text-xs text-muted-foreground">{t('settings.profile.avatar.hint')}</p>
-      </div>
-    </section>
+      </CardFooter>
+    </Card>
   )
 }
 
-export function ProfileForm() {
+function DisplayNameCard() {
   const { t } = useTranslation()
   const { data: session } = useSession()
 
@@ -153,51 +153,91 @@ export function ProfileForm() {
       const { error } = await authClient.updateUser({ name: values.displayName })
       if (error) throw error
     },
-    onSuccess: () => toast.success(t('settings.profile.saved')),
+    onSuccess: () => {
+      toast.success(t('settings.profile.saved'))
+      form.reset(form.getValues())
+    },
     onError: (err) => toast.error(err.message ?? String(err)),
   })
 
   return (
-    <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="displayName">{t('settings.profile.displayName')}</Label>
-        <Input id="displayName" {...form.register('displayName')} />
-        {form.formState.errors.displayName && (
-          <p className="text-xs text-destructive">{form.formState.errors.displayName.message}</p>
-        )}
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="username">{t('settings.profile.username')}</Label>
-        <Input id="username" value={(session?.user as { username?: string })?.username ?? ''} disabled />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="email">{t('settings.profile.email')}</Label>
-        <Input id="email" value={session?.user?.email ?? ''} disabled />
-        <p className="text-xs text-muted-foreground">{t('settings.profile.emailReadonly')}</p>
-      </div>
-
-      <Button type="submit" disabled={!form.formState.isDirty || mutation.isPending}>
-        {mutation.isPending ? t('common.loading') : t('common.save')}
-      </Button>
+    <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))}>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('settings.profile.displayName')}</CardTitle>
+          <CardDescription>{t('settings.profile.displayName.description')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Input {...form.register('displayName')} maxLength={100} />
+          {form.formState.errors.displayName && (
+            <p className="mt-1.5 text-xs text-destructive">{form.formState.errors.displayName.message}</p>
+          )}
+        </CardContent>
+        <CardFooter className="justify-between border-t bg-muted/30">
+          <p className="text-sm text-muted-foreground">{t('settings.profile.displayName.hint')}</p>
+          <Button type="submit" size="sm" disabled={!form.formState.isDirty || mutation.isPending}>
+            {mutation.isPending ? t('common.loading') : t('common.save')}
+          </Button>
+        </CardFooter>
+      </Card>
     </form>
   )
 }
 
-function ProfilePage() {
+function UsernameCard() {
   const { t } = useTranslation()
+  const { data: session } = useSession()
+  const username = (session?.user as { username?: string })?.username ?? ''
 
   return (
-    <div className="max-w-lg space-y-4">
-      <Card className="gap-4 p-4 shadow-none">
-        <h3 className="text-sm font-medium text-muted-foreground">{t('settings.profile.avatar.section')}</h3>
-        <AvatarSection />
-      </Card>
-      <Card className="gap-4 p-4 shadow-none">
-        <h3 className="text-sm font-medium text-muted-foreground">{t('settings.profile.section')}</h3>
-        <ProfileForm />
-      </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('settings.profile.username')}</CardTitle>
+        <CardDescription>{t('settings.profile.username.description')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex">
+          <span className="inline-flex select-none items-center rounded-l-md border border-r-0 bg-muted px-3 text-sm text-muted-foreground">
+            @
+          </span>
+          <Input value={username} disabled className="rounded-l-none" />
+        </div>
+      </CardContent>
+      <CardFooter className="border-t bg-muted/30">
+        <p className="text-sm text-muted-foreground">{t('settings.profile.username.hint')}</p>
+      </CardFooter>
+    </Card>
+  )
+}
+
+function EmailCard() {
+  const { t } = useTranslation()
+  const { data: session } = useSession()
+  const email = session?.user?.email ?? ''
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('settings.profile.email')}</CardTitle>
+        <CardDescription>{t('settings.profile.email.description')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Input value={email} disabled />
+      </CardContent>
+      <CardFooter className="border-t bg-muted/30">
+        <p className="text-sm text-muted-foreground">{t('settings.profile.emailReadonly')}</p>
+      </CardFooter>
+    </Card>
+  )
+}
+
+function ProfilePage() {
+  return (
+    <div className="max-w-2xl space-y-6">
+      <AvatarCard />
+      <DisplayNameCard />
+      <UsernameCard />
+      <EmailCard />
     </div>
   )
 }

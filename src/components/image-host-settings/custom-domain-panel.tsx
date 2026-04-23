@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -181,51 +181,54 @@ export function CustomDomainPanel({ orgId, config }: CustomDomainPanelProps) {
 
   return (
     <>
-      <Card className="gap-4 p-4 shadow-none">
-        <h3 className="text-sm font-medium text-muted-foreground">{t('settings.ihost.customDomain.section')}</h3>
-        <p className="text-xs text-muted-foreground">{t('settings.ihost.customDomain.description')}</p>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="customDomain">{t('settings.ihost.customDomain.label')}</Label>
-          <div className="flex gap-2">
-            <Input
-              id="customDomain"
-              placeholder={t('settings.ihost.customDomain.placeholder')}
-              value={domain}
-              onChange={(e) => {
-                setDomain(e.target.value)
-                setDomainError('')
-              }}
-            />
-            <Button onClick={handleSave} disabled={!isDirty || saveMutation.isPending}>
-              {saveMutation.isPending ? t('common.loading') : t('settings.ihost.customDomain.save')}
-            </Button>
-          </div>
-          {domainError && <p className="text-xs text-destructive">{domainError}</p>}
-        </div>
-
-        {config.customDomain && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <StatusBadge status={config.domainStatus} />
-              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={saveMutation.isPending}>
-                {t('settings.ihost.customDomain.refresh')}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('settings.ihost.customDomain.section')}</CardTitle>
+          <CardDescription>{t('settings.ihost.customDomain.description')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="customDomain">{t('settings.ihost.customDomain.label')}</Label>
+            <div className="flex gap-2">
+              <Input
+                id="customDomain"
+                placeholder={t('settings.ihost.customDomain.placeholder')}
+                value={domain}
+                onChange={(e) => {
+                  setDomain(e.target.value)
+                  setDomainError('')
+                }}
+              />
+              <Button onClick={handleSave} disabled={!isDirty || saveMutation.isPending}>
+                {saveMutation.isPending ? t('common.loading') : t('settings.ihost.customDomain.save')}
               </Button>
             </div>
-
-            {pollingStopped && config.domainStatus === 'pending' && (
-              <p className="text-xs text-muted-foreground">{t('settings.ihost.customDomain.pollingStopped')}</p>
-            )}
-
-            {config.domainStatus !== 'verified' && <DnsInstructions config={config} />}
-
-            {config.domainStatus === 'verified' && (
-              <Button variant="destructive" size="sm" onClick={() => setRemoveOpen(true)}>
-                {t('settings.ihost.customDomain.remove')}
-              </Button>
-            )}
+            {domainError && <p className="text-xs text-destructive">{domainError}</p>}
           </div>
-        )}
+
+          {config.customDomain && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <StatusBadge status={config.domainStatus} />
+                <Button variant="outline" size="sm" onClick={handleRefresh} disabled={saveMutation.isPending}>
+                  {t('settings.ihost.customDomain.refresh')}
+                </Button>
+              </div>
+
+              {pollingStopped && config.domainStatus === 'pending' && (
+                <p className="text-xs text-muted-foreground">{t('settings.ihost.customDomain.pollingStopped')}</p>
+              )}
+
+              {config.domainStatus !== 'verified' && <DnsInstructions config={config} />}
+
+              {config.domainStatus === 'verified' && (
+                <Button variant="destructive" size="sm" onClick={() => setRemoveOpen(true)}>
+                  {t('settings.ihost.customDomain.remove')}
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       <Dialog open={removeOpen} onOpenChange={setRemoveOpen}>
