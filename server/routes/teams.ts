@@ -1,11 +1,29 @@
 import { zValidator } from '@hono/zod-validator'
+import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { commitOrgLogoSchema, ORG_LOGO_MIMES, requestOrgLogoUploadSchema } from '../../shared/schemas'
+import type { Storage as S3Storage } from '../../shared/types'
+import { organization } from '../db/auth-schema'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { listActivities } from '../services/activity'
 import { getMemberRole, isPersonalOrg } from '../services/org'
+import { S3Service } from '../services/s3'
+import { selectStorage } from '../services/storage'
 import { acceptInviteLink, createInviteLink, getInviteLinkInfo, listPendingInvitations } from '../services/team-invite'
+
+const s3 = new S3Service()
+
+const MIME_TO_EXT: Record<(typeof ORG_LOGO_MIMES)[number], string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+}
+
+function orgLogoKey(orgId: string, mime: (typeof ORG_LOGO_MIMES)[number]): string {
+  return `_system/org-logos/${orgId}.${MIME_TO_EXT[mime]}`
+}
 
 const createLinkSchema = z.object({
   role: z.enum(['editor', 'viewer']).default('viewer'),
@@ -85,4 +103,74 @@ export const teams = new Hono<Env>()
     const pageSize = Number(pageSizeStr ?? '20')
     const result = await listActivities(db, teamId, { page, pageSize })
     return c.json({ ...result, page, pageSize })
+  })
+  // ── Org Logo Upload ──────────────────────────────────────────────────────────
+  // Stored in the workspace's public-mode S3 bucket so the URL is directly
+  // embeddable. Mirrors the /api/profile/avatar flow.
+  .post('/:teamId/logo', zValidator('json', requestOrgLogoUploadSchema), async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const { teamId } = c.req.param()
+    const { mime } = c.req.valid('json')
+
+    const role = await getMemberRole(db, teamId, userId)
+    if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
+
+    let storage: S3Storage
+    try {
+      storage = (await selectStorage(db, 'public')) as unknown as S3Storage
+    } catch {
+      return c.json({ error: 'No public storage configured for logos' }, 503)
+    }
+
+    const key = orgLogoKey(teamId, mime)
+    const uploadUrl = await s3.presignUpload(storage, key, mime)
+    return c.json({ uploadUrl, key }, 201)
+  })
+  .post('/:teamId/logo/commit', zValidator('json', commitOrgLogoSchema), async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const { teamId } = c.req.param()
+    const { mime } = c.req.valid('json')
+
+    const role = await getMemberRole(db, teamId, userId)
+    if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
+
+    let storage: S3Storage
+    try {
+      storage = (await selectStorage(db, 'public')) as unknown as S3Storage
+    } catch {
+      return c.json({ error: 'No public storage configured for logos' }, 503)
+    }
+
+    const key = orgLogoKey(teamId, mime)
+    try {
+      await s3.headObject(storage, key)
+    } catch {
+      return c.json({ error: 'Logo object not found. Upload the file first.' }, 400)
+    }
+
+    const logoUrl = s3.getPublicUrl(storage, key)
+    await db.update(organization).set({ logo: logoUrl }).where(eq(organization.id, teamId))
+
+    return c.json({ logo: logoUrl })
+  })
+  .delete('/:teamId/logo', async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const { teamId } = c.req.param()
+
+    const role = await getMemberRole(db, teamId, userId)
+    if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
+
+    await db.update(organization).set({ logo: null }).where(eq(organization.id, teamId))
+
+    try {
+      const storage = (await selectStorage(db, 'public')) as unknown as S3Storage
+      await Promise.allSettled(ORG_LOGO_MIMES.map((mime) => s3.deleteObject(storage, orgLogoKey(teamId, mime))))
+    } catch (err) {
+      console.warn('[teams/logo delete] S3 cleanup skipped:', err)
+    }
+
+    return c.json({ ok: true })
   })

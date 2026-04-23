@@ -167,3 +167,21 @@ export type RequestAvatarUploadInput = z.infer<typeof requestAvatarUploadSchema>
 export const commitAvatarSchema = z.object({
   mime: z.enum(AVATAR_MIMES),
 })
+
+// ─── Org Logo Upload ──────────────────────────────────────────────────────────
+// Same constraints as avatars; separate names so they can diverge later.
+
+export const ORG_LOGO_MIMES = AVATAR_MIMES
+export type OrgLogoMime = AvatarMime
+export const MAX_ORG_LOGO_SIZE = MAX_AVATAR_SIZE
+
+export const requestOrgLogoUploadSchema = z.object({
+  mime: z.enum(ORG_LOGO_MIMES),
+  size: z.number().int().positive().max(MAX_ORG_LOGO_SIZE),
+})
+
+export type RequestOrgLogoUploadInput = z.infer<typeof requestOrgLogoUploadSchema>
+
+export const commitOrgLogoSchema = z.object({
+  mime: z.enum(ORG_LOGO_MIMES),
+})
