@@ -5,6 +5,7 @@ import type {
   ConflictStrategy,
   CreateShareRequest,
   CreateStorageInput,
+  OrgLogoMime,
   UpdateStorageInput,
 } from '@shared/schemas'
 import type {
@@ -621,6 +622,29 @@ export function commitAvatar(data: { mime: AvatarMime }) {
 
 export async function deleteAvatar() {
   const res = await profileMeApi.avatar.$delete()
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
+}
+
+// Org Logo Upload API
+
+export interface OrgLogoUploadDraft {
+  uploadUrl: string
+  key: string
+}
+
+export function requestOrgLogoUpload(teamId: string, data: { mime: OrgLogoMime; size: number }) {
+  return unwrap<OrgLogoUploadDraft>(teamsApi[':teamId'].logo.$post({ param: { teamId }, json: data }))
+}
+
+export function commitOrgLogo(teamId: string, data: { mime: OrgLogoMime }) {
+  return unwrap<{ logo: string }>(teamsApi[':teamId'].logo.commit.$post({ param: { teamId }, json: data }))
+}
+
+export async function deleteOrgLogo(teamId: string) {
+  const res = await teamsApi[':teamId'].logo.$delete({ param: { teamId } })
   if (!res.ok) {
     const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
     throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
