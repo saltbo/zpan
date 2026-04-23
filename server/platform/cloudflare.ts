@@ -14,7 +14,12 @@ export function createCloudflarePlatform(env: CloudflareEnv): Platform {
   return {
     db,
     getEnv(key: string) {
-      return env[key] as string | undefined
+      const v = env[key]
+      return typeof v === 'string' ? v : undefined
+    },
+    getBinding<T = unknown>(key: string): T | undefined {
+      const v = env[key]
+      return typeof v === 'object' && v !== null ? (v as T) : undefined
     },
   }
 }

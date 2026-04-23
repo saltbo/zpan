@@ -28,5 +28,8 @@ export async function createLibsqlPlatform(env: LibsqlEnv): Promise<Platform> {
     getEnv(key: string) {
       return envRecord[key] ?? process.env[key]
     },
+    getBinding<T = unknown>(_key: string): T | undefined {
+      return undefined
+    },
   }
 }

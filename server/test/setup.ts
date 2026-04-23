@@ -273,6 +273,7 @@ export async function createTestApp(envOverrides: Record<string, string> = {}) {
   const platform: Platform = {
     db,
     getEnv: (key: string) => envOverrides[key],
+    getBinding: () => undefined,
   }
   const auth = await createAuth(db, 'test-secret', 'http://localhost:3000')
   const app = createApp(platform, auth)
