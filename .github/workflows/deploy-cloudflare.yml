@@ -151,10 +151,11 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        # Deploy from the @cloudflare/vite-plugin build output so wrangler uses
-        # the generated dist/zpan/wrangler.json (correct assets directory,
-        # prebuilt worker) — matches how Cloudflare Workers Builds deploys.
-        working-directory: dist/zpan
+        # Run wrangler from the repo root so it uses the @cloudflare/vite-plugin's
+        # redirect config (.wrangler/deploy/config.json) which points at the
+        # built Worker (dist/zpan/wrangler.json). Cd'ing into dist/zpan instead
+        # causes wrangler 4.x to error on conflicting base paths between the
+        # two configs.
         run: npx wrangler deploy
 
       - name: Set BETTER_AUTH_SECRET (first deploy only)
