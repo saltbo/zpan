@@ -9,7 +9,7 @@ import { CustomDomainPanel } from '@/components/image-host-settings/custom-domai
 import { DisableFeaturePanel } from '@/components/image-host-settings/disable-feature-panel'
 import { RefererAllowlistPanel } from '@/components/image-host-settings/referer-allowlist-panel'
 import { ToolIntegrationPanel } from '@/components/image-host-settings/tool-integration-panel'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { enableIhostFeature, getIhostConfig } from '@/lib/api'
 import { useActiveOrganization, useSession } from '@/lib/auth-client'
 
@@ -20,10 +20,12 @@ export const Route = createFileRoute('/_authenticated/settings/ihost')({
 function LockedState() {
   const { t } = useTranslation()
   return (
-    <Card className="flex flex-col items-center gap-3 p-8 shadow-none">
-      <Lock className="h-8 w-8 text-muted-foreground" />
-      <p className="text-sm font-medium">{t('settings.ihost.lockedTitle')}</p>
-      <p className="text-xs text-muted-foreground text-center">{t('settings.ihost.lockedDescription')}</p>
+    <Card>
+      <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+        <Lock className="h-8 w-8 text-muted-foreground" />
+        <p className="text-sm font-medium">{t('settings.ihost.lockedTitle')}</p>
+        <p className="text-sm text-muted-foreground">{t('settings.ihost.lockedDescription')}</p>
+      </CardContent>
     </Card>
   )
 }
@@ -57,8 +59,7 @@ function ImageHostSettingsPage() {
 
   if (!isOwnerOrAdmin) {
     return (
-      <div className="max-w-2xl space-y-4">
-        <h2 className="text-sm font-semibold">{t('settings.ihost.title')}</h2>
+      <div className="max-w-2xl">
         <LockedState />
       </div>
     )
@@ -86,7 +87,6 @@ function ImageHostSettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h2 className="text-sm font-semibold">{t('settings.ihost.title')}</h2>
       <ApiKeysPanel orgId={orgId} />
       <ToolIntegrationPanel orgId={orgId} />
       <CustomDomainPanel orgId={orgId} config={config} />

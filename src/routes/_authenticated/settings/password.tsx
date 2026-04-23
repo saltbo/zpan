@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authClient } from '@/lib/auth-client'
@@ -52,41 +52,56 @@ export function ChangePasswordForm() {
   })
 
   return (
-    <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="currentPassword">{t('settings.profile.currentPassword')}</Label>
-        <Input id="currentPassword" type="password" {...form.register('currentPassword')} />
-      </div>
+    <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))}>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('settings.profile.changePassword')}</CardTitle>
+          <CardDescription>{t('settings.profile.password.description')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="currentPassword">{t('settings.profile.currentPassword')}</Label>
+            <Input
+              id="currentPassword"
+              type="password"
+              autoComplete="current-password"
+              {...form.register('currentPassword')}
+            />
+          </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="newPassword">{t('settings.profile.newPassword')}</Label>
-        <Input id="newPassword" type="password" {...form.register('newPassword')} />
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="newPassword">{t('settings.profile.newPassword')}</Label>
+            <Input id="newPassword" type="password" autoComplete="new-password" {...form.register('newPassword')} />
+          </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="confirmPassword">{t('settings.profile.confirmPassword')}</Label>
-        <Input id="confirmPassword" type="password" {...form.register('confirmPassword')} />
-        {form.formState.errors.confirmPassword && (
-          <p className="text-xs text-destructive">{t('settings.profile.passwordMismatch')}</p>
-        )}
-      </div>
-
-      <Button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? t('common.loading') : t('settings.profile.changePassword')}
-      </Button>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirmPassword">{t('settings.profile.confirmPassword')}</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              {...form.register('confirmPassword')}
+            />
+            {form.formState.errors.confirmPassword && (
+              <p className="text-xs text-destructive">{t('settings.profile.passwordMismatch')}</p>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter className="justify-between border-t bg-muted/30">
+          <p className="text-sm text-muted-foreground">{t('settings.profile.password.hint')}</p>
+          <Button type="submit" size="sm" disabled={mutation.isPending}>
+            {mutation.isPending ? t('common.loading') : t('settings.profile.changePassword')}
+          </Button>
+        </CardFooter>
+      </Card>
     </form>
   )
 }
 
 function PasswordPage() {
-  const { t } = useTranslation()
-
   return (
-    <div className="max-w-lg">
-      <Card className="gap-4 p-4 shadow-none">
-        <h3 className="text-sm font-medium text-muted-foreground">{t('settings.profile.changePassword')}</h3>
-        <ChangePasswordForm />
-      </Card>
+    <div className="max-w-2xl">
+      <ChangePasswordForm />
     </div>
   )
 }

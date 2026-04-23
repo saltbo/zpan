@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -155,54 +155,55 @@ export function ApiKeysPanel({ orgId }: ApiKeysPanelProps) {
 
   return (
     <>
-      <Card className="gap-4 p-4 shadow-none">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground">{t('settings.ihost.apiKeys.section')}</h3>
-            <p className="mt-1 text-xs text-muted-foreground">{t('settings.ihost.apiKeys.description')}</p>
-          </div>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            {t('settings.ihost.apiKeys.create')}
-          </Button>
-        </div>
-
-        {keys.length === 0 && !keysQuery.isLoading ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">{t('settings.ihost.apiKeys.noKeys')}</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('settings.ihost.apiKeys.colName')}</TableHead>
-                <TableHead>{t('settings.ihost.apiKeys.colCreated')}</TableHead>
-                <TableHead>{t('settings.ihost.apiKeys.colLastUsed')}</TableHead>
-                <TableHead>{t('settings.ihost.apiKeys.colActions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {keys.map((key) => (
-                <TableRow key={key.id}>
-                  <TableCell>
-                    <div className="font-medium">{key.name ?? key.id}</div>
-                    {key.start && <div className="font-mono text-xs text-muted-foreground">{key.start}…</div>}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{formatDate(key.createdAt)}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {key.lastRequest ? formatDate(key.lastRequest) : t('settings.ihost.apiKeys.never')}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setRevokeTarget({ id: key.id, name: key.name })}
-                    >
-                      {t('settings.ihost.apiKeys.revoke')}
-                    </Button>
-                  </TableCell>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('settings.ihost.apiKeys.section')}</CardTitle>
+          <CardDescription>{t('settings.ihost.apiKeys.description')}</CardDescription>
+          <CardAction>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              {t('settings.ihost.apiKeys.create')}
+            </Button>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {keys.length === 0 && !keysQuery.isLoading ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">{t('settings.ihost.apiKeys.noKeys')}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('settings.ihost.apiKeys.colName')}</TableHead>
+                  <TableHead>{t('settings.ihost.apiKeys.colCreated')}</TableHead>
+                  <TableHead>{t('settings.ihost.apiKeys.colLastUsed')}</TableHead>
+                  <TableHead>{t('settings.ihost.apiKeys.colActions')}</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+              </TableHeader>
+              <TableBody>
+                {keys.map((key) => (
+                  <TableRow key={key.id}>
+                    <TableCell>
+                      <div className="font-medium">{key.name ?? key.id}</div>
+                      {key.start && <div className="font-mono text-xs text-muted-foreground">{key.start}…</div>}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{formatDate(key.createdAt)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {key.lastRequest ? formatDate(key.lastRequest) : t('settings.ihost.apiKeys.never')}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setRevokeTarget({ id: key.id, name: key.name })}
+                      >
+                        {t('settings.ihost.apiKeys.revoke')}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
       </Card>
 
       {/* Create API Key Dialog */}

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -53,12 +53,16 @@ export function DisableFeaturePanel({ orgId }: DisableFeaturePanelProps) {
 
   return (
     <>
-      <Card className="gap-4 border-destructive/50 p-4 shadow-none">
-        <h3 className="text-sm font-medium text-destructive">{t('settings.ihost.disable.section')}</h3>
-        <p className="text-xs text-muted-foreground">{t('settings.ihost.disable.description')}</p>
-        <Button variant="destructive" size="sm" onClick={() => setDialogOpen(true)}>
-          {t('settings.ihost.disable.button')}
-        </Button>
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="text-destructive">{t('settings.ihost.disable.section')}</CardTitle>
+          <CardDescription>{t('settings.ihost.disable.description')}</CardDescription>
+        </CardHeader>
+        <CardFooter className="justify-end border-t border-destructive/50 bg-destructive/5">
+          <Button variant="destructive" size="sm" onClick={() => setDialogOpen(true)}>
+            {t('settings.ihost.disable.button')}
+          </Button>
+        </CardFooter>
       </Card>
 
       <Dialog

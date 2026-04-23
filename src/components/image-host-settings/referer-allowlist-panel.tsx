@@ -3,8 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import type { IhostConfigResponse } from '@/lib/api'
 import { updateIhostConfig } from '@/lib/api'
@@ -63,12 +62,12 @@ export function RefererAllowlistPanel({ orgId, config }: RefererAllowlistPanelPr
   const isDirty = text !== initialText
 
   return (
-    <Card className="gap-4 p-4 shadow-none">
-      <h3 className="text-sm font-medium text-muted-foreground">{t('settings.ihost.refererAllowlist.section')}</h3>
-      <p className="text-xs text-muted-foreground">{t('settings.ihost.refererAllowlist.description')}</p>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="refererAllowlist">{t('settings.ihost.refererAllowlist.section')}</Label>
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('settings.ihost.refererAllowlist.section')}</CardTitle>
+        <CardDescription>{t('settings.ihost.refererAllowlist.description')}</CardDescription>
+      </CardHeader>
+      <CardContent>
         <Textarea
           id="refererAllowlist"
           rows={5}
@@ -79,12 +78,13 @@ export function RefererAllowlistPanel({ orgId, config }: RefererAllowlistPanelPr
             setValidationError('')
           }}
         />
-        {validationError && <p className="text-xs text-destructive">{validationError}</p>}
-      </div>
-
-      <Button onClick={handleSave} disabled={!isDirty || saveMutation.isPending}>
-        {saveMutation.isPending ? t('common.loading') : t('settings.ihost.refererAllowlist.save')}
-      </Button>
+        {validationError && <p className="mt-1.5 text-xs text-destructive">{validationError}</p>}
+      </CardContent>
+      <CardFooter className="justify-end border-t bg-muted/30">
+        <Button size="sm" onClick={handleSave} disabled={!isDirty || saveMutation.isPending}>
+          {saveMutation.isPending ? t('common.loading') : t('settings.ihost.refererAllowlist.save')}
+        </Button>
+      </CardFooter>
     </Card>
   )
 }
