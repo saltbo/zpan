@@ -7,9 +7,9 @@ import type {
   EmailConfigRoute,
   IhostConfigRoute,
   IhostRoute,
+  MeRoute,
   NotificationsRoute,
   ObjectsRoute,
-  ProfileMeRoute,
   ProfileRoute,
   PublicSharesRoute,
   PublicTeamsRoute,
@@ -36,7 +36,7 @@ export const adminAuthProviders = hc<AdminAuthProvidersRoute>('/api/admin/auth-p
 export const inviteCodes = hc<AdminInviteCodesRoute>('/api/admin/invite-codes', opts)
 export const emailConfig = hc<EmailConfigRoute>('/api/admin/email-config', opts)
 export const profiles = hc<ProfileRoute>('/api/profiles')
-export const profileMeApi = hc<ProfileMeRoute>('/api/profile', opts)
+export const meApi = hc<MeRoute>('/api/me', opts)
 export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
 export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)

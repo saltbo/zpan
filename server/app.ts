@@ -12,9 +12,10 @@ import emailConfig from './routes/email-config'
 import ihost from './routes/ihost'
 import ihostConfig from './routes/ihost-config'
 import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
+import { me } from './routes/me'
 import { notifications } from './routes/notifications'
 import objects from './routes/objects'
-import profile, { profileMe } from './routes/profile'
+import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import redirect from './routes/redirect'
 import { authedShares, publicShares } from './routes/shares'
@@ -58,7 +59,7 @@ export function createApp(platform: Platform, auth: Auth) {
 
   app.use('/api/*', authMiddleware)
 
-  app.route('/api/profile', profileMe)
+  app.route('/api/me', me)
 
   // Mount routes separately to avoid deep type chain accumulation.
   // Each .route() call is independent — TypeScript doesn't stack types.
@@ -107,4 +108,4 @@ export type PublicTeamsRoute = typeof publicTeams
 export type NotificationsRoute = typeof notifications
 export type IhostRoute = typeof ihost
 export type IhostConfigRoute = typeof ihostConfig
-export type ProfileMeRoute = typeof profileMe
+export type MeRoute = typeof me

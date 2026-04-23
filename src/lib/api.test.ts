@@ -5,7 +5,6 @@ import {
   batchMoveObjects,
   batchTrashObjects,
   buildShareObjectUrl,
-  commitAvatar,
   confirmIhostImage,
   confirmUpload,
   copyObject,
@@ -20,6 +19,7 @@ import {
   deleteObject,
   deleteShare,
   deleteStorage,
+  deleteTeamLogo,
   deleteUser,
   emptyTrash,
   enableIhostFeature,
@@ -45,7 +45,6 @@ import {
   listUsers,
   markAllNotificationsRead,
   markNotificationRead,
-  requestAvatarUpload,
   restoreObject,
   revokeIhostApiKey,
   saveShareToDrive,
@@ -56,6 +55,8 @@ import {
   updateQuota,
   updateStorage,
   updateUserStatus,
+  uploadAvatar,
+  uploadTeamLogo,
   uploadToS3,
   verifySharePassword,
 } from './api'
@@ -1684,85 +1685,97 @@ describe('api', () => {
     })
   })
 
-  describe('requestAvatarUpload', () => {
-    it('calls POST /api/profile/avatar with mime and size', async () => {
-      const draft = { uploadUrl: 'https://s3/presigned', key: '_system/avatars/user-1.png' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(draft, true, 201))
+  describe('uploadAvatar', () => {
+    it('PUTs multipart/form-data to /api/me/avatar with file field', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'https://example.com/a.png' }, true, 200))
+      const file = new File(['x'], 'a.png', { type: 'image/png' })
 
-      await requestAvatarUpload({ mime: 'image/png', size: 1024 })
-
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/profile/avatar')
-      expect(init.method).toBe('POST')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body?.mime).toBe('image/png')
-      expect(body?.size).toBe(1024)
-    })
-
-    it('resolves with uploadUrl and key', async () => {
-      const draft = { uploadUrl: 'https://s3/presigned', key: '_system/avatars/user-1.png' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(draft, true, 201))
-
-      const result = await requestAvatarUpload({ mime: 'image/png', size: 1024 })
-
-      expect(result).toEqual(draft)
-    })
-
-    it('throws ApiError on failure', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'File too large' }, false, 400))
-
-      await expect(requestAvatarUpload({ mime: 'image/png', size: 999 })).rejects.toThrow('File too large')
-    })
-  })
-
-  describe('commitAvatar', () => {
-    it('calls POST /api/profile/avatar/commit with mime', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ image: 'https://example.com/avatar.jpg' }))
-
-      await commitAvatar({ mime: 'image/jpeg' })
+      await uploadAvatar(file)
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/profile/avatar/commit')
-      expect(init.method).toBe('POST')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body?.mime).toBe('image/jpeg')
+      expect(url).toBe('/api/me/avatar')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBeInstanceOf(FormData)
+      expect((init.body as FormData).get('file')).toBe(file)
     })
 
-    it('resolves with image URL', async () => {
-      const payload = { image: 'https://example.com/avatar.jpg' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+    it('resolves with the new URL', async () => {
+      const payload = { url: 'https://example.com/a.png' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload, true, 200))
+      const file = new File(['x'], 'a.png', { type: 'image/png' })
 
-      const result = await commitAvatar({ mime: 'image/jpeg' })
-
+      const result = await uploadAvatar(file)
       expect(result).toEqual(payload)
     })
 
     it('throws ApiError on failure', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Object not found' }, false, 400))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'File too large' }, false, 413))
+      const file = new File(['x'], 'a.png', { type: 'image/png' })
 
-      await expect(commitAvatar({ mime: 'image/png' })).rejects.toThrow('Object not found')
+      await expect(uploadAvatar(file)).rejects.toThrow('File too large')
     })
   })
 
   describe('deleteAvatar', () => {
-    it('calls DELETE /api/profile/avatar', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ ok: true }),
-      } as unknown as Response)
-
+    it('DELETEs /api/me/avatar', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ ok: true }, true, 200))
       await deleteAvatar()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/profile/avatar')
+      expect(url).toContain('/api/me/avatar')
       expect(init.method).toBe('DELETE')
     })
 
     it('throws ApiError on failure', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
-
       await expect(deleteAvatar()).rejects.toThrow()
+    })
+  })
+
+  describe('uploadTeamLogo', () => {
+    it('PUTs multipart to /api/teams/:id/logo with file field', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'https://example.com/l.jpg' }, true, 200))
+      const file = new File(['x'], 'l.jpg', { type: 'image/jpeg' })
+
+      await uploadTeamLogo('org-1', file)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/teams/org-1/logo')
+      expect(init.method).toBe('PUT')
+      expect((init.body as FormData).get('file')).toBe(file)
+    })
+
+    it('URL-encodes the teamId', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'x' }, true, 200))
+      const file = new File(['x'], 'l.png', { type: 'image/png' })
+
+      await uploadTeamLogo('org with/special', file)
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/teams/org%20with%2Fspecial/logo')
+    })
+
+    it('throws ApiError on 403', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+      const file = new File(['x'], 'l.png', { type: 'image/png' })
+
+      await expect(uploadTeamLogo('org-1', file)).rejects.toThrow('Forbidden')
+    })
+  })
+
+  describe('deleteTeamLogo', () => {
+    it('DELETEs /api/teams/:id/logo', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ ok: true }, true, 200))
+      await deleteTeamLogo('org-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/teams/org-1/logo')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+      await expect(deleteTeamLogo('org-1')).rejects.toThrow()
     })
   })
 })

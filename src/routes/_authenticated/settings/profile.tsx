@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import type { AvatarMime } from '@shared/schemas'
-import { AVATAR_MIMES, MAX_AVATAR_SIZE } from '@shared/schemas'
+import type { PublicImageMime } from '@shared/schemas'
+import { MAX_PUBLIC_IMAGE_SIZE, PUBLIC_IMAGE_MIMES } from '@shared/schemas'
 import { useMutation } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Camera, Loader2 } from 'lucide-react'
@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { commitAvatar, deleteAvatar, requestAvatarUpload, uploadToS3 } from '@/lib/api'
+import { deleteAvatar, uploadAvatar } from '@/lib/api'
 import { authClient, useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/settings/profile')({
@@ -51,15 +51,13 @@ function AvatarCard() {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      if (!AVATAR_MIMES.includes(file.type as AvatarMime)) {
+      if (!PUBLIC_IMAGE_MIMES.includes(file.type as PublicImageMime)) {
         throw new Error(t('settings.profile.avatar.invalidMime'))
       }
-      if (file.size > MAX_AVATAR_SIZE) {
+      if (file.size > MAX_PUBLIC_IMAGE_SIZE) {
         throw new Error(t('settings.profile.avatar.tooLarge'))
       }
-      const draft = await requestAvatarUpload({ mime: file.type as AvatarMime, size: file.size })
-      await uploadToS3(draft.uploadUrl, file)
-      await commitAvatar({ mime: file.type as AvatarMime })
+      await uploadAvatar(file)
       await refreshSession()
     },
     onSuccess: () => toast.success(t('settings.profile.avatar.uploaded')),
@@ -116,7 +114,7 @@ function AvatarCard() {
         <input
           ref={fileInputRef}
           type="file"
-          accept={AVATAR_MIMES.join(',')}
+          accept={PUBLIC_IMAGE_MIMES.join(',')}
           className="hidden"
           onChange={handleFileChange}
         />

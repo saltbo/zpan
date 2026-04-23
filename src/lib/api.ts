@@ -1,7 +1,6 @@
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
   AllowedImageMime,
-  AvatarMime,
   ConflictStrategy,
   CreateShareRequest,
   CreateStorageInput,
@@ -28,9 +27,9 @@ import {
   ihostApi,
   ihostConfigApi,
   inviteCodes,
+  meApi,
   notificationsApi,
   objects,
-  profileMeApi,
   profiles,
   publicSharesApi,
   storages,
@@ -604,23 +603,46 @@ export async function deleteIhostImage(id: string) {
   }
 }
 
-// Avatar Upload API
+// Public image upload (avatar / org logo)
+//
+// PUT endpoints use multipart/form-data, which Hono RPC doesn't express
+// cleanly — we use raw fetch for PUT and keep Hono RPC for DELETE. Returns
+// the permanent public URL that was just written to user.image /
+// organization.logo.
 
-export interface AvatarUploadDraft {
-  uploadUrl: string
-  key: string
+async function putImageMultipart(url: string, file: File): Promise<{ url: string }> {
+  const form = new FormData()
+  form.set('file', file)
+  const res = await fetch(url, {
+    method: 'PUT',
+    body: form,
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
+  return res.json() as Promise<{ url: string }>
 }
 
-export function requestAvatarUpload(data: { mime: AvatarMime; size: number }) {
-  return unwrap<AvatarUploadDraft>(profileMeApi.avatar.$post({ json: data }))
-}
-
-export function commitAvatar(data: { mime: AvatarMime }) {
-  return unwrap<{ image: string }>(profileMeApi.avatar.commit.$post({ json: data }))
+export function uploadAvatar(file: File) {
+  return putImageMultipart('/api/me/avatar', file)
 }
 
 export async function deleteAvatar() {
-  const res = await profileMeApi.avatar.$delete()
+  const res = await meApi.avatar.$delete()
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
+}
+
+export function uploadTeamLogo(teamId: string, file: File) {
+  return putImageMultipart(`/api/teams/${encodeURIComponent(teamId)}/logo`, file)
+}
+
+export async function deleteTeamLogo(teamId: string) {
+  const res = await teamsApi[':teamId'].logo.$delete({ param: { teamId } })
   if (!res.ok) {
     const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
     throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })

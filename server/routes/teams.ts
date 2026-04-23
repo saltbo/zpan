@@ -1,11 +1,16 @@
 import { zValidator } from '@hono/zod-validator'
+import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { organization } from '../db/auth-schema'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { listActivities } from '../services/activity'
+import { deletePublicImageVariants, uploadPublicImage } from '../services/image-upload'
 import { getMemberRole, isPersonalOrg } from '../services/org'
 import { acceptInviteLink, createInviteLink, getInviteLinkInfo, listPendingInvitations } from '../services/team-invite'
+
+const LOGO_PREFIX = '_system/org-logos'
 
 const createLinkSchema = z.object({
   role: z.enum(['editor', 'viewer']).default('viewer'),
@@ -85,4 +90,36 @@ export const teams = new Hono<Env>()
     const pageSize = Number(pageSizeStr ?? '20')
     const result = await listActivities(db, teamId, { page, pageSize })
     return c.json({ ...result, page, pageSize })
+  })
+  // ── Org logo (public-bucket image) ───────────────────────────────────────────
+  .put('/:teamId/logo', async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId') as string
+    const { teamId } = c.req.param()
+
+    const role = await getMemberRole(db, teamId, userId)
+    if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
+
+    const form = await c.req.formData().catch(() => null)
+    if (!form) return c.json({ error: 'Expected multipart/form-data with a file field' }, 415)
+    const file = form.get('file')
+    if (!(file instanceof File)) return c.json({ error: 'file field is required' }, 400)
+
+    const result = await uploadPublicImage(db, LOGO_PREFIX, teamId, file)
+    if (!result.ok) return c.json({ error: result.error }, result.status)
+
+    await db.update(organization).set({ logo: result.url }).where(eq(organization.id, teamId))
+    return c.json({ url: result.url })
+  })
+  .delete('/:teamId/logo', async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId') as string
+    const { teamId } = c.req.param()
+
+    const role = await getMemberRole(db, teamId, userId)
+    if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
+
+    await db.update(organization).set({ logo: null }).where(eq(organization.id, teamId))
+    await deletePublicImageVariants(db, LOGO_PREFIX, teamId)
+    return c.json({ ok: true })
   })
