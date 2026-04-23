@@ -1,6 +1,8 @@
+import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
+import { S3Service } from '../services/s3.js'
 import { createInviteLink } from '../services/team-invite.js'
 import { createTestApp } from '../test/setup.js'
 
@@ -230,7 +232,6 @@ describe('POST /api/teams/:teamId/members', () => {
 
 // ─── Activity feed tests (from master) ────────────────────────────────────────
 
-import { sql } from 'drizzle-orm'
 import { authedHeaders } from '../test/setup.js'
 
 type DbType = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -657,5 +658,171 @@ describe('GET /api/teams/:teamId/activity — isolation', () => {
     expect(item.targetName).toBe('My Folder')
     expect(item.metadata).toBe(JSON.stringify({ from: '/old', to: '/new' }))
     expect(item.user).toBeDefined()
+  })
+})
+
+// ─── Org logo (PUT/DELETE /:teamId/logo) ─────────────────────────────────────
+
+async function insertPublicStorage(db: TestDb) {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES ('st-logo', 'Public', 'public', 'test-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AKID', 'secret', '', '', 0, 0, 'active', ${now}, ${now})
+  `)
+}
+
+function makeFile(type: string, bytes = 16): File {
+  return new File([new Uint8Array(bytes)], `f.${type.split('/')[1]}`, { type })
+}
+
+describe('PUT /api/teams/:teamId/logo', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(undefined)
+  })
+
+  it('returns 401 without auth', async () => {
+    const { app } = await createTestApp()
+    const form = new FormData()
+    form.set('file', makeFile('image/png'))
+    const res = await app.request('/api/teams/some-org/logo', { method: 'PUT', body: form })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when caller is not owner/admin', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndGetUser(app, `m-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'member')
+    await insertPublicStorage(db)
+
+    const form = new FormData()
+    form.set('file', makeFile('image/png'))
+    const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 400 when mime is invalid (gif)', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'owner')
+    await insertPublicStorage(db)
+
+    const form = new FormData()
+    form.set('file', makeFile('image/gif'))
+    const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 413 when file > 2 MiB', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'owner')
+    await insertPublicStorage(db)
+
+    const form = new FormData()
+    form.set('file', makeFile('image/png', 3 * 1024 * 1024))
+    const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(413)
+  })
+
+  it('returns 503 when no public storage is configured', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'owner')
+
+    const form = new FormData()
+    form.set('file', makeFile('image/png'))
+    const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(503)
+  })
+
+  it('uploads + writes organization.logo + returns URL (owner)', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'owner')
+    await insertPublicStorage(db)
+
+    const form = new FormData()
+    form.set('file', makeFile('image/jpeg'))
+    const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { url: string }
+    expect(body.url).toContain(`_system/org-logos/${orgId}`)
+    expect(body.url).toContain('.jpg')
+    expect(S3Service.prototype.putObject).toHaveBeenCalledTimes(1)
+
+    const rows = await db.all<{ logo: string | null }>(sql`SELECT logo FROM organization WHERE id = ${orgId}`)
+    expect(rows[0]?.logo).toBe(body.url)
+  })
+
+  it('succeeds for admin role (not just owner)', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndGetUser(app, `a-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'admin')
+    await insertPublicStorage(db)
+
+    const form = new FormData()
+    form.set('file', makeFile('image/png'))
+    const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('DELETE /api/teams/:teamId/logo', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(S3Service.prototype, 'deleteObject').mockResolvedValue(undefined)
+  })
+
+  it('returns 401 without auth', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/teams/some-org/logo', { method: 'DELETE' })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when caller is not owner/admin', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndGetUser(app, `m-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'member')
+
+    const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'DELETE', headers })
+    expect(res.status).toBe(403)
+  })
+
+  it('clears organization.logo + removes all mime variants from S3', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'owner')
+    await insertPublicStorage(db)
+
+    await db.run(sql`UPDATE organization SET logo = 'https://example.com/old.png' WHERE id = ${orgId}`)
+
+    const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'DELETE', headers })
+    expect(res.status).toBe(200)
+
+    const rows = await db.all<{ logo: string | null }>(sql`SELECT logo FROM organization WHERE id = ${orgId}`)
+    expect(rows[0]?.logo).toBeNull()
+    expect(S3Service.prototype.deleteObject).toHaveBeenCalledTimes(3)
+  })
+
+  it('succeeds when no public storage (DB cleared, S3 skipped)', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndGetUser(app, `o-${nanoid()}@example.com`)
+    const orgId = await insertOrg(db)
+    await insertMember(db, orgId, userId, 'owner')
+    await db.run(sql`UPDATE organization SET logo = 'https://example.com/old.png' WHERE id = ${orgId}`)
+
+    const res = await app.request(`/api/teams/${orgId}/logo`, { method: 'DELETE', headers })
+    expect(res.status).toBe(200)
+    const rows = await db.all<{ logo: string | null }>(sql`SELECT logo FROM organization WHERE id = ${orgId}`)
+    expect(rows[0]?.logo).toBeNull()
   })
 })

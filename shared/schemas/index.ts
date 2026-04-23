@@ -151,19 +151,10 @@ export const listIhostImagesSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
 })
 
-// ─── Avatar Upload ────────────────────────────────────────────────────────────
+// ─── Public image upload (avatar, org logo) ─────────────────────────────────
+// Constants only — server validates in services/image-upload.ts; client uses
+// these for pre-submit validation + UI hints.
 
-export const AVATAR_MIMES = ['image/png', 'image/jpeg', 'image/webp'] as const
-export type AvatarMime = (typeof AVATAR_MIMES)[number]
-export const MAX_AVATAR_SIZE = 2 * 1024 * 1024 // 2 MiB
-
-export const requestAvatarUploadSchema = z.object({
-  mime: z.enum(AVATAR_MIMES),
-  size: z.number().int().positive().max(MAX_AVATAR_SIZE),
-})
-
-export type RequestAvatarUploadInput = z.infer<typeof requestAvatarUploadSchema>
-
-export const commitAvatarSchema = z.object({
-  mime: z.enum(AVATAR_MIMES),
-})
+export const PUBLIC_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'] as const
+export type PublicImageMime = (typeof PUBLIC_IMAGE_MIMES)[number]
+export const MAX_PUBLIC_IMAGE_SIZE = 2 * 1024 * 1024 // 2 MiB
