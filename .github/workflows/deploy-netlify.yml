@@ -1,8 +1,10 @@
 name: Deploy to Netlify
 
+# Triggered by the top-level Deploy dispatcher (.github/workflows/deploy.yml)
+# when Netlify + Turso secrets are configured. Manual runs via the Actions UI
+# also supported.
 on:
-  push:
-    branches: [master]
+  workflow_call:
   workflow_dispatch:
     inputs:
       version:
@@ -18,8 +20,6 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    # Only run on forks — the upstream repo does not deploy itself to Netlify.
-    if: github.repository != 'saltbo/zpan'
     env:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
       NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

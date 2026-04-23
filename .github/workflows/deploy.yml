@@ -1,183 +1,95 @@
-name: Deploy to Cloudflare Workers
+name: Deploy
+
+# Fan-out dispatcher for ZPan's 6 deployment targets.
+#
+# On push to master (or manual trigger), a quick `detect` job probes which
+# platform secrets are configured and sets one output per platform. Each
+# platform's reusable child workflow (deploy-<target>.yml) is invoked only
+# when its flag is `true` — platforms you haven't configured are shown as
+# "Skipped", not failed.
+#
+# The upstream saltbo/zpan repo uses Cloudflare Workers Builds (the CF-side
+# git integration) for its own deploys — this dispatcher is a no-op there.
+# Forks get the full fan-out.
 
 on:
   push:
     branches: [master]
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release tag to deploy (e.g. v2.1.0). Leave empty for latest.'
-        required: false
 
-# Prevent overlapping deployments.
 concurrency:
-  group: deploy
+  group: deploy-dispatch
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy
+  detect:
+    name: Detect configured platforms
     runs-on: ubuntu-latest
-    # Only run on forks — the upstream repo uses Cloudflare Workers Builds.
     if: github.repository != 'saltbo/zpan'
+    outputs:
+      cf:        ${{ steps.probe.outputs.cf }}
+      lambda:    ${{ steps.probe.outputs.lambda }}
+      vercel:    ${{ steps.probe.outputs.vercel }}
+      netlify:   ${{ steps.probe.outputs.netlify }}
+      azure:     ${{ steps.probe.outputs.azure }}
+      cloud_run: ${{ steps.probe.outputs.cloud_run }}
     steps:
-      - name: Disable upstream-only workflows
+      - id: probe
+        # secrets are smuggled into env as booleans so the following shell
+        # can evaluate them; secrets.* is not allowed in job-level `if:`.
         env:
-          GH_TOKEN: ${{ github.token }}
+          CF:        ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          LAMBDA:    ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' && secrets.AWS_REGION != '' && secrets.TURSO_DATABASE_URL != '' }}
+          VERCEL:    ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' && secrets.TURSO_DATABASE_URL != '' }}
+          NETLIFY:   ${{ secrets.NETLIFY_AUTH_TOKEN != '' && secrets.NETLIFY_SITE_ID != '' && secrets.TURSO_DATABASE_URL != '' }}
+          AZURE:     ${{ secrets.AZURE_CREDENTIALS != '' && secrets.TURSO_DATABASE_URL != '' }}
+          CLOUD_RUN: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY != '' && secrets.GCP_PROJECT_ID != '' && secrets.TURSO_DATABASE_URL != '' }}
         run: |
-          for workflow in ci.yml release.yml; do
-            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$workflow/disable" 2>/dev/null && \
-              echo "Disabled $workflow" || echo "$workflow already disabled"
+          configured=""
+          for p in CF LAMBDA VERCEL NETLIFY AZURE CLOUD_RUN; do
+            v=$(eval echo \$$p)
+            key=$(echo "$p" | tr '[:upper:]' '[:lower:]')
+            echo "${key}=${v}" >> "$GITHUB_OUTPUT"
+            [ "$v" = "true" ] && configured="$configured $p"
           done
-
-      - name: Check required secrets
-        env:
-          HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-          HAS_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
-        run: |
-          if [ "$HAS_TOKEN" != "true" ] || [ "$HAS_ACCOUNT" != "true" ]; then
-            echo "::error::Missing required secrets. Go to Settings → Secrets and variables → Actions and add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID."
-            exit 1
-          fi
-
-      - name: Resolve release tag
-        id: release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          INPUT_VERSION: ${{ inputs.version }}
-        run: |
-          if [ -n "$INPUT_VERSION" ]; then
-            TAG="$INPUT_VERSION"
+          if [ -z "$configured" ]; then
+            echo "::notice::No deploy targets configured. Add secrets under Settings → Secrets and variables → Actions. See README for per-platform requirements."
           else
-            TAG=$(gh api repos/saltbo/zpan/releases/latest --jq '.tag_name')
-          fi
-          if [ -z "$TAG" ]; then
-            echo "::error::No release found in saltbo/zpan"
-            exit 1
-          fi
-          echo "version=$TAG" >> "$GITHUB_OUTPUT"
-          echo "### 🚀 Deploying $TAG" >> "$GITHUB_STEP_SUMMARY"
-
-      - uses: actions/checkout@v6
-        with:
-          repository: saltbo/zpan
-          ref: ${{ steps.release.outputs.version }}
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-
-      - run: npm ci
-
-      - name: Ensure D1 database exists
-        id: d1
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          DB_ID=$(npx wrangler d1 list --json | jq -r '.[] | select(.name == "zpan-db") | .uuid')
-          if [ -z "$DB_ID" ]; then
-            # wrangler d1 create does not support --json; parse the TOML snippet it prints.
-            DB_ID=$(npx wrangler d1 create zpan-db | awk -F'"' '/database_id/{print $2; exit}')
-            echo "Created D1 database: $DB_ID"
-          else
-            echo "Reusing D1 database: $DB_ID"
-          fi
-          if [ -z "$DB_ID" ]; then
-            echo "::error::Failed to obtain D1 database UUID"
-            exit 1
-          fi
-          echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
-
-      - name: Ensure R2 public-images bucket exists
-        env:
-          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          # Use CF REST API — `wrangler r2 bucket list` has no --json flag.
-          EXISTS=$(curl -sf \
-            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets" \
-            -H "Authorization: Bearer $CF_API_TOKEN" \
-            | jq -r '.result.buckets[]? | select(.name == "zpan-public-images") | .name')
-          if [ -z "$EXISTS" ]; then
-            curl -sf -X POST \
-              "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets" \
-              -H "Authorization: Bearer $CF_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d '{"name": "zpan-public-images"}' > /dev/null
-            echo "Created R2 bucket: zpan-public-images"
-          else
-            echo "Reusing R2 bucket: zpan-public-images"
+            echo "### 🚀 Dispatching to:$configured" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Enable R2 managed public URL + capture
-        id: r2
-        env:
-          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          # Idempotent: PUT enabled=true — CF returns the same pub-<hash>.r2.dev
-          # on every call once enabled.
-          curl -sf -X PUT \
-            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets/zpan-public-images/domains/managed" \
-            -H "Authorization: Bearer $CF_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"enabled": true}' > /dev/null
+  cloudflare:
+    needs: detect
+    if: needs.detect.outputs.cf == 'true'
+    uses: ./.github/workflows/deploy-cloudflare.yml
+    secrets: inherit
 
-          DOMAIN=$(curl -sf \
-            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets/zpan-public-images/domains/managed" \
-            -H "Authorization: Bearer $CF_API_TOKEN" | jq -r '.result.domain')
+  aws-lambda:
+    needs: detect
+    if: needs.detect.outputs.lambda == 'true'
+    uses: ./.github/workflows/deploy-aws-lambda.yml
+    secrets: inherit
 
-          if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
-            echo "::error::Failed to retrieve R2 managed public domain. Make sure CLOUDFLARE_API_TOKEN has 'R2 Storage: Edit' scope."
-            exit 1
-          fi
-          echo "url=https://$DOMAIN" >> "$GITHUB_OUTPUT"
-          echo "R2 public URL: https://$DOMAIN"
+  vercel:
+    needs: detect
+    if: needs.detect.outputs.vercel == 'true'
+    uses: ./.github/workflows/deploy-vercel.yml
+    secrets: inherit
 
-      - name: Patch wrangler.toml with D1 database ID
-        run: sed -i "s/database_id = \"[^\"]*\"/database_id = \"${{ steps.d1.outputs.id }}\"/" wrangler.toml
+  netlify:
+    needs: detect
+    if: needs.detect.outputs.netlify == 'true'
+    uses: ./.github/workflows/deploy-netlify.yml
+    secrets: inherit
 
-      - name: Apply D1 migrations
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler d1 migrations apply DB --remote
+  azure:
+    needs: detect
+    if: needs.detect.outputs.azure == 'true'
+    uses: ./.github/workflows/deploy-azure.yml
+    secrets: inherit
 
-      - name: Build
-        run: npx vite build
-
-      - name: Deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        # Deploy from the @cloudflare/vite-plugin build output so wrangler uses
-        # the generated dist/zpan/wrangler.json (correct assets directory,
-        # prebuilt worker) — matches how Cloudflare Workers Builds deploys.
-        working-directory: dist/zpan
-        run: npx wrangler deploy
-
-      - name: Set BETTER_AUTH_SECRET (first deploy only)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          USER_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-        run: |
-          EXISTS=$(npx wrangler secret list --format json | jq -r '.[] | select(.name == "BETTER_AUTH_SECRET") | .name')
-          if [ -n "$USER_SECRET" ]; then
-            echo "$USER_SECRET" | npx wrangler secret put BETTER_AUTH_SECRET
-            echo "Set BETTER_AUTH_SECRET from GitHub secret"
-          elif [ -z "$EXISTS" ]; then
-            openssl rand -base64 32 | npx wrangler secret put BETTER_AUTH_SECRET
-            echo "Auto-generated BETTER_AUTH_SECRET"
-          else
-            echo "BETTER_AUTH_SECRET already set, skipping"
-          fi
-
-      - name: Set PUBLIC_IMAGES_URL (always upsert — R2 domain is stable)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          echo "${{ steps.r2.outputs.url }}" | npx wrangler secret put PUBLIC_IMAGES_URL
-          echo "Set PUBLIC_IMAGES_URL = ${{ steps.r2.outputs.url }}"
+  cloud-run:
+    needs: detect
+    if: needs.detect.outputs.cloud_run == 'true'
+    uses: ./.github/workflows/deploy-cloud-run.yml
+    secrets: inherit

@@ -1,8 +1,10 @@
 name: Deploy to Vercel
 
+# Triggered by the top-level Deploy dispatcher (.github/workflows/deploy.yml)
+# when Vercel + Turso secrets are configured. Manual runs via the Actions UI
+# also supported.
 on:
-  push:
-    branches: [master]
+  workflow_call:
   workflow_dispatch:
     inputs:
       version:
@@ -18,8 +20,6 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    # Only run on forks — upstream repo uses Cloudflare Workers Builds.
-    if: github.repository != 'saltbo/zpan'
     steps:
       - name: Check required secrets
         env:

@@ -1,8 +1,22 @@
 name: Deploy to Azure Functions
 
+# Triggered by the top-level Deploy dispatcher (.github/workflows/deploy.yml)
+# when Azure + Turso secrets are configured. Manual runs via the Actions UI
+# also supported.
 on:
-  push:
-    branches: [master]
+  workflow_call:
+    inputs:
+      resource_group:
+        type: string
+        required: false
+        default: 'zpan-rg'
+      location:
+        type: string
+        required: false
+        default: 'eastus'
+      version:
+        type: string
+        required: false
   workflow_dispatch:
     inputs:
       resource_group:
@@ -26,9 +40,6 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    # Only run on forks that have configured Azure credentials.
-    # The upstream repo uses Cloudflare Workers Builds; Azure is for self-hosters.
-    if: github.repository != 'saltbo/zpan'
     steps:
       # ------------------------------------------------------------------
       # Step 1 — Verify all required secrets are present before doing work.

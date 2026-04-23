@@ -1,8 +1,10 @@
 name: Deploy to AWS Lambda
 
+# Triggered by the top-level Deploy dispatcher (.github/workflows/deploy.yml)
+# when AWS + Turso secrets are configured. Manual runs via the Actions UI
+# also supported.
 on:
-  push:
-    branches: [master]
+  workflow_call:
   workflow_dispatch:
     inputs:
       version:
@@ -18,8 +20,6 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    # Only run on forks — the upstream repo does not deploy itself.
-    if: github.repository != 'saltbo/zpan'
 
     steps:
       - name: Disable upstream-only workflows
