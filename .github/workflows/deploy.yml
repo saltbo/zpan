@@ -89,6 +89,44 @@ jobs:
           fi
           echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure R2 public-images bucket exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          EXISTS=$(npx wrangler r2 bucket list --json 2>/dev/null | jq -r '.[] | select(.name == "zpan-public-images") | .name')
+          if [ -z "$EXISTS" ]; then
+            npx wrangler r2 bucket create zpan-public-images
+            echo "Created R2 bucket: zpan-public-images"
+          else
+            echo "Reusing R2 bucket: zpan-public-images"
+          fi
+
+      - name: Enable R2 managed public URL + capture
+        id: r2
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Idempotent: PUT enabled=true — CF returns the same pub-<hash>.r2.dev
+          # on every call once enabled.
+          curl -sf -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets/zpan-public-images/domains/managed" \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"enabled": true}' > /dev/null
+
+          DOMAIN=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets/zpan-public-images/domains/managed" \
+            -H "Authorization: Bearer $CF_API_TOKEN" | jq -r '.result.domain')
+
+          if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
+            echo "::error::Failed to retrieve R2 managed public domain. Make sure CLOUDFLARE_API_TOKEN has 'R2 Storage: Edit' scope."
+            exit 1
+          fi
+          echo "url=https://$DOMAIN" >> "$GITHUB_OUTPUT"
+          echo "R2 public URL: https://$DOMAIN"
+
       - name: Patch wrangler.toml with D1 database ID
         run: sed -i "s/database_id = \"[^\"]*\"/database_id = \"${{ steps.d1.outputs.id }}\"/" wrangler.toml
 
@@ -127,3 +165,11 @@ jobs:
           else
             echo "BETTER_AUTH_SECRET already set, skipping"
           fi
+
+      - name: Set PUBLIC_IMAGES_URL (always upsert — R2 domain is stable)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "${{ steps.r2.outputs.url }}" | npx wrangler secret put PUBLIC_IMAGES_URL
+          echo "Set PUBLIC_IMAGES_URL = ${{ steps.r2.outputs.url }}"

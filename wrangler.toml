@@ -14,6 +14,13 @@ database_name = "zpan-db"
 database_id = "5bd64957-fa49-4da0-8b7b-6e0ad84037e7"
 migrations_dir = "./migrations"
 
+# Public-bucket for avatars / org logos / future system-level public assets.
+# The deploy workflow provisions this bucket on first run, enables its managed
+# public URL, and writes PUBLIC_IMAGES_URL to the Worker's secret store.
+[[r2_buckets]]
+binding = "PUBLIC_IMAGES"
+bucket_name = "zpan-public-images"
+
 [observability]
 enabled = true
 
@@ -30,3 +37,7 @@ binding = "DB"
 database_name = "zpan-db-staging"
 database_id = "a9197d7a-6524-42f0-b646-e714dcb30b3b"
 migrations_dir = "./migrations"
+
+[[env.staging.r2_buckets]]
+binding = "PUBLIC_IMAGES"
+bucket_name = "zpan-public-images-staging"
