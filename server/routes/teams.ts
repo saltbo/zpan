@@ -93,11 +93,11 @@ export const teams = new Hono<Env>()
   })
   // ── Org logo (public-bucket image) ───────────────────────────────────────────
   .put('/:teamId/logo', async (c) => {
-    const db = c.get('platform').db
+    const platform = c.get('platform')
     const userId = c.get('userId') as string
     const { teamId } = c.req.param()
 
-    const role = await getMemberRole(db, teamId, userId)
+    const role = await getMemberRole(platform.db, teamId, userId)
     if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
 
     const form = await c.req.formData().catch(() => null)
@@ -105,21 +105,21 @@ export const teams = new Hono<Env>()
     const file = form.get('file')
     if (!(file instanceof File)) return c.json({ error: 'file field is required' }, 400)
 
-    const result = await uploadPublicImage(db, LOGO_PREFIX, teamId, file)
+    const result = await uploadPublicImage(platform, LOGO_PREFIX, teamId, file)
     if (!result.ok) return c.json({ error: result.error }, result.status)
 
-    await db.update(organization).set({ logo: result.url }).where(eq(organization.id, teamId))
+    await platform.db.update(organization).set({ logo: result.url }).where(eq(organization.id, teamId))
     return c.json({ url: result.url })
   })
   .delete('/:teamId/logo', async (c) => {
-    const db = c.get('platform').db
+    const platform = c.get('platform')
     const userId = c.get('userId') as string
     const { teamId } = c.req.param()
 
-    const role = await getMemberRole(db, teamId, userId)
+    const role = await getMemberRole(platform.db, teamId, userId)
     if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
 
-    await db.update(organization).set({ logo: null }).where(eq(organization.id, teamId))
-    await deletePublicImageVariants(db, LOGO_PREFIX, teamId)
+    await platform.db.update(organization).set({ logo: null }).where(eq(organization.id, teamId))
+    await deletePublicImageVariants(platform, LOGO_PREFIX, teamId)
     return c.json({ ok: true })
   })
