@@ -1,11 +1,12 @@
 // @vitest-environment node
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { sign } from 'paseto-ts/v4'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { generateKeys, sign } from 'paseto-ts/v4'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { invalidateEntitlementCache, loadEntitlement } from './entitlement'
+import { PUBLIC_KEYS } from './public-keys'
 
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS license_binding (
@@ -27,7 +28,22 @@ const SCHEMA_SQL = `
   );
 `
 
-const DEV_SECRET = 'k4.secret.K_XrtRH8ozh6oM38rkCz7oHxU_GbKIuExCg2jmBl9_VgfF29_7kGkFAnXvII1bHUBy2Yjw04DRdC4kmbuSND2Q'
+// Generate a fresh throwaway keypair for this test suite.
+// We inject the public key into PUBLIC_KEYS so verifyCertificate sees it,
+// and restore the original array after all tests complete.
+const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
+const originalKeys: string[] = []
+
+beforeAll(() => {
+  originalKeys.push(...PUBLIC_KEYS)
+  PUBLIC_KEYS.length = 0
+  PUBLIC_KEYS.push(TEST_PUBLIC)
+})
+
+afterAll(() => {
+  PUBLIC_KEYS.length = 0
+  for (const k of originalKeys) PUBLIC_KEYS.push(k)
+})
 
 function makeDb() {
   const sqlite = new Database(':memory:')
@@ -70,7 +86,7 @@ describe('loadEntitlement', () => {
   it('returns entitlement summary for a valid PASETO cert', async () => {
     const db = makeDb()
 
-    const cert = sign(DEV_SECRET, {
+    const cert = sign(TEST_SECRET, {
       account_id: 'acct-1',
       instance_id: 'inst-1',
       plan: 'pro',
@@ -99,7 +115,7 @@ describe('loadEntitlement', () => {
   it('returns null for an invalid/expired PASETO cert', async () => {
     const db = makeDb()
 
-    const cert = sign(DEV_SECRET, {
+    const cert = sign(TEST_SECRET, {
       account_id: 'acct-1',
       instance_id: 'inst-1',
       plan: 'pro',
@@ -132,7 +148,7 @@ describe('invalidateEntitlementCache', () => {
     await loadEntitlement(db)
 
     // Now insert a binding
-    const cert = sign(DEV_SECRET, {
+    const cert = sign(TEST_SECRET, {
       account_id: 'acct-1',
       instance_id: 'inst-1',
       plan: 'pro',
