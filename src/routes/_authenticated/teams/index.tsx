@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { COMMUNITY_TEAM_LIMIT } from '@shared/constants'
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Plus, Users } from 'lucide-react'
@@ -8,10 +9,13 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { PageHeader } from '@/components/layout/page-header'
+import { ProBadge } from '@/components/ProBadge'
+import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import { authClient, getFullOrganization, useListOrganizations, useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/teams/')({
@@ -123,6 +127,16 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   )
 }
 
+function UpgradeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm p-0">
+        <UpgradeHint feature="teams_unlimited" />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 type TeamCardOrg = {
   id: string
   name: string
@@ -173,10 +187,17 @@ function TeamsPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const { data: orgs, isPending: orgsLoading } = useListOrganizations()
+  const { hasFeature } = useEntitlement()
   const [createOpen, setCreateOpen] = useState(false)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
 
   const userId = session?.user?.id ?? ''
   const teamOrgs = (orgs ?? []).filter((o: ListOrganization) => !o.slug.startsWith('personal-'))
+
+  // Total org count includes personal workspace — counts toward the community team limit.
+  // Guard with !orgsLoading to avoid a brief false state while orgs are being fetched.
+  const totalOrgCount = (orgs ?? []).length
+  const isAtLimit = !orgsLoading && !hasFeature('teams_unlimited') && totalOrgCount >= COMMUNITY_TEAM_LIMIT
 
   const fullOrgQueries = useQueries({
     queries: teamOrgs.map((o: ListOrganization) => ({
@@ -192,6 +213,14 @@ function TeamsPage() {
   const isPending = orgsLoading || fullOrgQueries.some((q) => q.isPending)
   const teams = fullOrgQueries.flatMap((q) => (q.data ? [q.data] : []))
 
+  function handleNewTeamClick() {
+    if (isAtLimit) {
+      setUpgradeOpen(true)
+    } else {
+      setCreateOpen(true)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -202,9 +231,10 @@ function TeamsPage() {
           },
         ]}
         actions={
-          <Button onClick={() => setCreateOpen(true)} size="sm">
+          <Button onClick={handleNewTeamClick} size="sm">
             <Plus />
             <span className="sr-only sm:not-sr-only">{t('teams.createNew')}</span>
+            {isAtLimit && <ProBadge className="ml-1" />}
           </Button>
         }
       />
@@ -226,6 +256,7 @@ function TeamsPage() {
       )}
 
       <CreateTeamDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <UpgradeDialog open={upgradeOpen} onOpenChange={setUpgradeOpen} />
     </div>
   )
 }

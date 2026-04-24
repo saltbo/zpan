@@ -1,5 +1,5 @@
 import { apiKey } from '@better-auth/api-key'
-import { betterAuth } from 'better-auth'
+import { APIError, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
@@ -21,6 +21,7 @@ import { sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
 import { findPersonalOrg } from './services/org'
 import { getEffectiveSignupMode } from './services/signup-mode-guard'
+import { checkTeamLimit } from './services/team-count-guard'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
 // which blows past Cloudflare Workers' CPU budget and triggers error 1102.
@@ -169,6 +170,20 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
             subject: `You've been invited to join ${data.organization.name} - ZPan`,
             html: buildInvitationEmailHtml(data),
           })
+        },
+        organizationHooks: {
+          beforeCreateOrganization: async ({ user }) => {
+            const { allowed, count: current_count, limit } = await checkTeamLimit(db, user.id)
+            if (!allowed) {
+              throw new APIError('PAYMENT_REQUIRED', {
+                message: 'Team limit reached. Upgrade to Pro for unlimited teams.',
+                error: 'feature_not_available',
+                feature: 'teams_unlimited',
+                currentCount: current_count,
+                limit,
+              })
+            }
+          },
         },
       }),
       username(),
