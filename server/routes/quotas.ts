@@ -7,6 +7,7 @@ import { organization } from '../db/auth-schema'
 import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { requireFeature } from '../middleware/require-feature'
 import { findPersonalOrg } from '../services/org'
 
 const updateQuotaSchema = z.object({
@@ -41,7 +42,7 @@ const adminQuotas = new Hono<Env>()
 
     return c.json({ items, total: items.length })
   })
-  .put('/:orgId', zValidator('json', updateQuotaSchema), async (c) => {
+  .put('/:orgId', requireFeature('team_quotas'), zValidator('json', updateQuotaSchema), async (c) => {
     const db = c.get('platform').db
     const orgId = c.req.param('orgId')
     const { quota } = c.req.valid('json')

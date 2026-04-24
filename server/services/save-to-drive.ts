@@ -21,6 +21,7 @@ export interface SaveShareInput {
   currentUserId: string
   targetOrgId: string
   targetParent: string
+  teamQuotaEnabled?: boolean
 }
 
 export interface SaveShareResult {
@@ -90,11 +91,12 @@ async function saveFile(
   targetOrgId: string,
   targetParent: string,
   shareId: string,
+  teamQuotaEnabled = true,
 ): Promise<Matter> {
   const bytes = sourceMatter.size ?? 0
 
   if (bytes > 0) {
-    const allowed = await incrementUsageIfAllowed(db, targetOrgId, targetStorage.id, bytes)
+    const allowed = await incrementUsageIfAllowed(db, targetOrgId, targetStorage.id, bytes, teamQuotaEnabled)
     if (!allowed) throw new Error('QUOTA_EXCEEDED')
   }
 
@@ -143,6 +145,7 @@ async function saveFolderRecursive(
   targetOrgId: string,
   targetParent: string,
   shareId: string,
+  teamQuotaEnabled = true,
 ): Promise<SaveShareResult> {
   const saved: Matter[] = []
   const skipped: Array<{ name: string; reason: string }> = []
@@ -185,6 +188,7 @@ async function saveFolderRecursive(
             targetOrgId,
             targetPath,
             shareId,
+            teamQuotaEnabled,
           )
           saved.push(newFile)
         } catch (e) {
@@ -218,7 +222,7 @@ async function saveFolderRecursive(
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function saveShareToDrive(db: Database, input: SaveShareInput): Promise<SaveShareResult> {
-  const { share, matter: sourceMatter, currentUserId, targetOrgId, targetParent } = input
+  const { share, matter: sourceMatter, currentUserId, targetOrgId, targetParent, teamQuotaEnabled = true } = input
 
   const sourceStorage = await getStorage(db, sourceMatter.storageId)
   if (!sourceStorage) throw new Error('Source storage not found')
@@ -229,9 +233,29 @@ export async function saveShareToDrive(db: Database, input: SaveShareInput): Pro
   const dst = targetStorage as unknown as S3StorageType
 
   if (sourceMatter.dirtype === DirType.FILE) {
-    const newMatter = await saveFile(db, sourceMatter, src, dst, currentUserId, targetOrgId, targetParent, share.id)
+    const newMatter = await saveFile(
+      db,
+      sourceMatter,
+      src,
+      dst,
+      currentUserId,
+      targetOrgId,
+      targetParent,
+      share.id,
+      teamQuotaEnabled,
+    )
     return { saved: [newMatter], skipped: [] }
   }
 
-  return saveFolderRecursive(db, sourceMatter, src, dst, currentUserId, targetOrgId, targetParent, share.id)
+  return saveFolderRecursive(
+    db,
+    sourceMatter,
+    src,
+    dst,
+    currentUserId,
+    targetOrgId,
+    targetParent,
+    share.id,
+    teamQuotaEnabled,
+  )
 }

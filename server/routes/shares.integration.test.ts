@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { shareRecipients, shares } from '../db/schema.js'
 import * as emailService from '../services/email.js'
 import { S3Service } from '../services/s3.js'
-import { authedHeaders, createTestApp } from '../test/setup.js'
+import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -628,6 +628,7 @@ describe('POST /api/shares/:token/objects', () => {
 
   it('returns 400 QUOTA_EXCEEDED when target org quota is exhausted', async () => {
     const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)

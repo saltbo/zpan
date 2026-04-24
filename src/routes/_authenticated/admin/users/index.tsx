@@ -6,8 +6,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { UserQuotaDialog } from '@/components/admin/user-quota-dialog'
+import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import { listQuotas, listUsers, type QuotaItem, type UserWithOrg, updateUserStatus } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/users/')({
@@ -22,6 +24,8 @@ interface UserRow extends UserWithOrg {
 function UsersPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const { hasFeature } = useEntitlement()
+  const teamQuotasEnabled = hasFeature('team_quotas')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 20
@@ -37,6 +41,7 @@ function UsersPage() {
   const quotasQuery = useQuery({
     queryKey: ['admin', 'quotas'],
     queryFn: listQuotas,
+    enabled: teamQuotasEnabled,
   })
 
   const toggleStatusMutation = useMutation({
@@ -77,7 +82,7 @@ function UsersPage() {
 
   const total = usersQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const isLoading = usersQuery.isLoading || quotasQuery.isLoading
+  const isLoading = usersQuery.isLoading || (teamQuotasEnabled && quotasQuery.isLoading)
 
   function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
     setSearch(e.target.value)
@@ -115,7 +120,9 @@ function UsersPage() {
               <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('admin.users.colEmail')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.users.colRole')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.users.colStatus')}</th>
-              <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('admin.users.colQuota')}</th>
+              {teamQuotasEnabled && (
+                <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('admin.users.colQuota')}</th>
+              )}
               <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">{t('admin.users.colCreatedAt')}</th>
               <th className="px-4 py-3 text-right font-medium">{t('admin.users.colActions')}</th>
             </tr>
@@ -126,6 +133,7 @@ function UsersPage() {
                 key={user.id}
                 user={user}
                 isToggling={toggleStatusMutation.isPending}
+                showQuota={teamQuotasEnabled}
                 onSetQuota={() => setQuotaDialogUser(user)}
                 onToggleStatus={() =>
                   toggleStatusMutation.mutate({
@@ -138,7 +146,7 @@ function UsersPage() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={teamQuotasEnabled ? 7 : 6} className="px-4 py-8 text-center text-muted-foreground">
                   {t('admin.users.noUsers')}
                 </td>
               </tr>
@@ -161,20 +169,24 @@ function UsersPage() {
         </div>
       )}
 
-      <UserQuotaDialog
-        open={quotaDialogUser !== null}
-        onOpenChange={(open) => !open && setQuotaDialogUser(null)}
-        user={
-          quotaDialogUser?.orgId
-            ? {
-                name: quotaDialogUser.name || quotaDialogUser.username,
-                orgId: quotaDialogUser.orgId,
-                quotaUsed: quotaDialogUser.quotaUsed,
-                quotaTotal: quotaDialogUser.quotaTotal,
-              }
-            : null
-        }
-      />
+      {!teamQuotasEnabled && <UpgradeHint feature="team_quotas" />}
+
+      {teamQuotasEnabled && (
+        <UserQuotaDialog
+          open={quotaDialogUser !== null}
+          onOpenChange={(open) => !open && setQuotaDialogUser(null)}
+          user={
+            quotaDialogUser?.orgId
+              ? {
+                  name: quotaDialogUser.name || quotaDialogUser.username,
+                  orgId: quotaDialogUser.orgId,
+                  quotaUsed: quotaDialogUser.quotaUsed,
+                  quotaTotal: quotaDialogUser.quotaTotal,
+                }
+              : null
+          }
+        />
+      )}
 
       <DeleteUserDialog
         open={deleteDialogUser !== null}
@@ -188,12 +200,14 @@ function UsersPage() {
 function UserTableRow({
   user,
   isToggling,
+  showQuota,
   onSetQuota,
   onToggleStatus,
   onDelete,
 }: {
   user: UserRow
   isToggling: boolean
+  showQuota: boolean
   onSetQuota: () => void
   onToggleStatus: () => void
   onDelete: () => void
@@ -220,19 +234,21 @@ function UserTableRow({
           {user.banned ? t('admin.users.disabled') : t('admin.users.active')}
         </span>
       </td>
-      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{quotaLabel}</td>
+      {showQuota && <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{quotaLabel}</td>}
       <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{formatDate(user.createdAt)}</td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            disabled={!user.orgId}
-            onClick={onSetQuota}
-            title={t('admin.users.setQuota')}
-          >
-            <Settings2 />
-          </Button>
+          {showQuota && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              disabled={!user.orgId}
+              onClick={onSetQuota}
+              title={t('admin.users.setQuota')}
+            >
+              <Settings2 />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-xs"
