@@ -1,10 +1,25 @@
 // @vitest-environment node
 import { generateKeys, sign } from 'paseto-ts/v4'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { PUBLIC_KEYS } from './public-keys'
 import { verifyCertificate } from './verify'
 
-// DEV keypair matching PUBLIC_KEYS[0] — used to sign test certs
-const DEV_SECRET = 'k4.secret.K_XrtRH8ozh6oM38rkCz7oHxU_GbKIuExCg2jmBl9_VgfF29_7kGkFAnXvII1bHUBy2Yjw04DRdC4kmbuSND2Q'
+// Generate a fresh throwaway keypair for this test suite.
+// We inject the public key into PUBLIC_KEYS so verifyCertificate sees it,
+// and restore the original array after all tests complete.
+const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
+const originalKeys: string[] = []
+
+beforeAll(() => {
+  originalKeys.push(...PUBLIC_KEYS)
+  PUBLIC_KEYS.length = 0
+  PUBLIC_KEYS.push(TEST_PUBLIC)
+})
+
+afterAll(() => {
+  PUBLIC_KEYS.length = 0
+  for (const k of originalKeys) PUBLIC_KEYS.push(k)
+})
 
 function futureIso(offsetMs: number): string {
   return new Date(Date.now() + offsetMs).toISOString()
@@ -14,7 +29,7 @@ function pastIso(offsetMs: number): string {
   return new Date(Date.now() - offsetMs).toISOString()
 }
 
-function signCert(overrides: Record<string, unknown> = {}, key = DEV_SECRET): string {
+function signCert(overrides: Record<string, unknown> = {}, key = TEST_SECRET): string {
   return sign(key, {
     account_id: 'acct-1',
     instance_id: 'inst-abc',
@@ -55,12 +70,8 @@ describe('verifyCertificate', () => {
     expect(verifyCertificate(cert, 'inst-DIFFERENT')).toBeNull()
   })
 
-  it('verifies a cert signed by a second key when two keys are in PUBLIC_KEYS', async () => {
+  it('verifies a cert signed by a second key when two keys are in PUBLIC_KEYS', () => {
     const { secretKey: altSecret, publicKey: altPublic } = generateKeys('public')
-
-    // Temporarily inject the alt key into PUBLIC_KEYS for this test
-    const { PUBLIC_KEYS } = await import('./public-keys')
-    const original = [...PUBLIC_KEYS]
     PUBLIC_KEYS.push(altPublic)
 
     try {
@@ -69,8 +80,7 @@ describe('verifyCertificate', () => {
       expect(result).not.toBeNull()
       expect(result?.plan).toBe('pro')
     } finally {
-      PUBLIC_KEYS.length = 0
-      for (const k of original) PUBLIC_KEYS.push(k)
+      PUBLIC_KEYS.splice(PUBLIC_KEYS.indexOf(altPublic), 1)
     }
   })
 

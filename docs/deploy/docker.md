@@ -68,3 +68,37 @@ turso db tokens create your-db-name
 ```
 
 Or create one in the [Turso dashboard](https://app.turso.tech).
+
+## Pro licensing: external cron for 6h refresh
+
+ZPan refreshes its entitlement certificate every 6 hours via a built-in background timer. The Docker container runs a persistent Node.js process, so the background timer fires automatically — **no external cron is required**.
+
+If you prefer an explicit external trigger (e.g. to integrate with your monitoring or to refresh immediately after a plan change), you can call the refresh endpoint manually:
+
+### Setup
+
+1. **Generate a secret:**
+   ```sh
+   openssl rand -hex 32
+   ```
+
+2. **Add the env var** to your container environment:
+
+   ```yaml
+   environment:
+     REFRESH_CRON_SECRET: <the-secret-from-step-1>
+   ```
+
+3. **Trigger a refresh** with an HTTP POST:
+
+   ```
+   POST https://your-domain.example/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
+   ```
+
+   To run on a schedule via host cron, add to your crontab:
+
+   ```cron
+   0 */6 * * * curl -s -X POST "https://your-domain.example/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>"
+   ```
+
+If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
