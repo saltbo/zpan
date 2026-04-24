@@ -142,3 +142,32 @@ func start
 ```
 
 Requires the [Azure Functions Core Tools v4](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) and a local `.env` file (or environment variables) with `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, and `BETTER_AUTH_SECRET`.
+
+---
+
+## Entitlement Refresh (License Cert)
+
+ZPan refreshes its entitlement certificate every 6 hours. On Azure Functions there is no persistent process, so you need to trigger a refresh via an external scheduler.
+
+### Setup
+
+1. **Generate a secret:**
+   ```sh
+   openssl rand -hex 32
+   ```
+
+2. **Add the env var** in the Azure portal (**Function App → Configuration → Application settings**) or via CLI:
+   ```sh
+   az functionapp config appsettings set \
+     --name <your-function-app> \
+     --resource-group <your-rg> \
+     --settings REFRESH_CRON_SECRET=<your-secret>
+   ```
+
+3. **Schedule the call** using [Azure Logic Apps](https://learn.microsoft.com/en-us/azure/logic-apps/) or a Timer Trigger function that makes an HTTP POST to:
+   ```
+   POST https://<your-function-app>.azurewebsites.net/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
+   ```
+   Use a recurrence schedule of `0 */6 * * *` (every 6 hours).
+
+If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.

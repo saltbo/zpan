@@ -141,3 +141,34 @@ GCS (Google Cloud Storage) is **not supported** as a storage backend — it uses
 - **Cloudflare R2** — 10 GB storage free, zero egress fees.
 
 A personal ZPan instance with light usage fits entirely within free tiers across all services.
+
+---
+
+## Entitlement Refresh (License Cert)
+
+ZPan refreshes its entitlement certificate every 6 hours. On Cloud Run there is no persistent background process between requests, so you need to trigger a refresh via an external scheduler.
+
+### Setup
+
+1. **Generate a secret:**
+   ```sh
+   openssl rand -hex 32
+   ```
+
+2. **Add the env var** as a Cloud Run environment variable (or via Secret Manager). With `gcloud`:
+   ```sh
+   gcloud run services update zpan \
+     --region <your-region> \
+     --update-env-vars REFRESH_CRON_SECRET=<your-secret>
+   ```
+
+3. **Schedule the call** using [Cloud Scheduler](https://cloud.google.com/scheduler). Create a job:
+   ```sh
+   gcloud scheduler jobs create http zpan-license-refresh \
+     --schedule="0 */6 * * *" \
+     --uri="https://<your-cloud-run-url>/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>" \
+     --http-method=POST \
+     --location=<your-region>
+   ```
+
+If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
