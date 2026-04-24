@@ -12,6 +12,8 @@ import emailConfig from './routes/email-config'
 import ihost from './routes/ihost'
 import ihostConfig from './routes/ihost-config'
 import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
+import licensing from './routes/licensing'
+import licensingAdmin from './routes/licensing-admin'
 import { me } from './routes/me'
 import { notifications } from './routes/notifications'
 import objects from './routes/objects'
@@ -56,6 +58,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/profiles', profile)
   app.route('/api/teams', publicTeams)
   app.route('/api/auth-providers', publicAuthProviders)
+  app.route('/api/licensing', licensing)
 
   app.use('/api/*', authMiddleware)
 
@@ -79,6 +82,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/notifications', notifications)
   app.route('/api/ihost', ihost)
   app.route('/api/ihost/config', ihostConfig)
+  app.route('/api/licensing', licensingAdmin)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
@@ -109,3 +113,5 @@ export type NotificationsRoute = typeof notifications
 export type IhostRoute = typeof ihost
 export type IhostConfigRoute = typeof ihostConfig
 export type MeRoute = typeof me
+export type LicensingRoute = typeof licensing
+export type LicensingAdminRoute = typeof licensingAdmin

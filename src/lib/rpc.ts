@@ -7,6 +7,8 @@ import type {
   EmailConfigRoute,
   IhostConfigRoute,
   IhostRoute,
+  LicensingAdminRoute,
+  LicensingRoute,
   MeRoute,
   NotificationsRoute,
   ObjectsRoute,
@@ -48,3 +50,5 @@ export const authedSharesApi = hc<AuthedSharesRoute>('/api/shares', opts)
 
 export const ihostConfigApi = hc<IhostConfigRoute>('/api/ihost/config', opts)
 export const ihostApi = hc<IhostRoute>('/api/ihost', opts)
+export const licensingApi = hc<LicensingRoute>('/api/licensing', opts)
+export const licensingAdminApi = hc<LicensingAdminRoute>('/api/licensing', opts)

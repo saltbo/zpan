@@ -7,6 +7,7 @@ import {
   buildShareObjectUrl,
   confirmIhostImage,
   confirmUpload,
+  connectCloud,
   copyObject,
   createIhostApiKey,
   createIhostImagePresign,
@@ -21,9 +22,11 @@ import {
   deleteStorage,
   deleteTeamLogo,
   deleteUser,
+  disconnectCloud,
   emptyTrash,
   enableIhostFeature,
   getIhostConfig,
+  getLicensingStatus,
   getObject,
   getProfile,
   getSession,
@@ -45,6 +48,8 @@ import {
   listUsers,
   markAllNotificationsRead,
   markNotificationRead,
+  pollPairing,
+  refreshLicense,
   restoreObject,
   revokeIhostApiKey,
   saveShareToDrive,
@@ -1776,6 +1781,170 @@ describe('api', () => {
     it('throws ApiError on failure', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
       await expect(deleteTeamLogo('org-1')).rejects.toThrow()
+    })
+  })
+
+  describe('getLicensingStatus', () => {
+    it('calls the correct endpoint', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ bound: false }))
+
+      await getLicensingStatus()
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/licensing/status')
+    })
+
+    it('returns unbound state', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ bound: false }))
+
+      const result = await getLicensingStatus()
+
+      expect(result).toEqual({ bound: false })
+    })
+
+    it('returns full bound state', async () => {
+      const state = {
+        bound: true,
+        account_email: 'user@example.com',
+        plan: 'pro',
+        features: ['white_label'],
+        expires_at: 9999999999,
+        last_refresh_at: 1000000000,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(state))
+
+      const result = await getLicensingStatus()
+
+      expect(result).toEqual(state)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Internal Server Error' }, false, 500))
+
+      await expect(getLicensingStatus()).rejects.toThrow()
+    })
+  })
+
+  describe('connectCloud', () => {
+    it('calls the correct endpoint with POST', async () => {
+      const payload = {
+        code: 'ABC-123',
+        pairing_url: 'https://cloud.zpan.space/pair',
+        expires_at: '2026-01-01T00:00:00Z',
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await connectCloud()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/licensing/pair')
+      expect(init.method).toBe('POST')
+    })
+
+    it('returns pairing info', async () => {
+      const payload = {
+        code: 'XYZ-789',
+        pairing_url: 'https://cloud.zpan.space/pair',
+        expires_at: '2026-01-01T00:00:00Z',
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await connectCloud()
+
+      expect(result).toEqual(payload)
+    })
+
+    it('throws ApiError on non-admin', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(connectCloud()).rejects.toThrow()
+    })
+  })
+
+  describe('pollPairing', () => {
+    it('calls the correct endpoint with code', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ status: 'pending' }))
+
+      await pollPairing('ABC-123')
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/licensing/pair/ABC-123/poll')
+    })
+
+    it('returns pending status', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ status: 'pending' }))
+
+      const result = await pollPairing('CODE-1')
+
+      expect(result.status).toBe('pending')
+    })
+
+    it('returns approved status with plan', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ status: 'approved', plan: 'pro' }))
+
+      const result = await pollPairing('CODE-2')
+
+      expect(result.status).toBe('approved')
+      expect(result.plan).toBe('pro')
+    })
+
+    it('throws ApiError on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Not Found' }, false, 404))
+
+      await expect(pollPairing('BAD-CODE')).rejects.toThrow()
+    })
+  })
+
+  describe('refreshLicense', () => {
+    it('calls the correct endpoint with POST', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true, last_refresh_at: 1000000000 }))
+
+      await refreshLicense()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/licensing/refresh')
+      expect(init.method).toBe('POST')
+    })
+
+    it('returns success with last_refresh_at', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true, last_refresh_at: 1745000000 }))
+
+      const result = await refreshLicense()
+
+      expect(result.success).toBe(true)
+      expect(result.last_refresh_at).toBe(1745000000)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(refreshLicense()).rejects.toThrow()
+    })
+  })
+
+  describe('disconnectCloud', () => {
+    it('calls the correct endpoint with DELETE', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ deleted: true }))
+
+      await disconnectCloud()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/licensing/binding')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('returns deleted: true on success', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ deleted: true }))
+
+      const result = await disconnectCloud()
+
+      expect(result).toEqual({ deleted: true })
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(disconnectCloud()).rejects.toThrow()
     })
   })
 })
