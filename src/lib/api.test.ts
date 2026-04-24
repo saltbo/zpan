@@ -1827,7 +1827,11 @@ describe('api', () => {
 
   describe('connectCloud', () => {
     it('calls the correct endpoint with POST', async () => {
-      const payload = { code: 'ABC-123', pairing_url: 'https://cloud.zpan.space/pair', expires_at: '2026-01-01T00:00:00Z' }
+      const payload = {
+        code: 'ABC-123',
+        pairing_url: 'https://cloud.zpan.space/pair',
+        expires_at: '2026-01-01T00:00:00Z',
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       await connectCloud()
@@ -1838,7 +1842,11 @@ describe('api', () => {
     })
 
     it('returns pairing info', async () => {
-      const payload = { code: 'XYZ-789', pairing_url: 'https://cloud.zpan.space/pair', expires_at: '2026-01-01T00:00:00Z' }
+      const payload = {
+        code: 'XYZ-789',
+        pairing_url: 'https://cloud.zpan.space/pair',
+        expires_at: '2026-01-01T00:00:00Z',
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await connectCloud()

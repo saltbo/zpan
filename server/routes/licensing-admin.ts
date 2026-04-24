@@ -1,18 +1,13 @@
-import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
+import { Hono } from 'hono'
 import { licenseBinding, systemOptions } from '../db/schema'
+import { invalidateEntitlementCache } from '../licensing/entitlement'
 import { getOrCreateInstanceId } from '../licensing/instance-id'
 import { performRefresh } from '../licensing/refresh'
 import { verifyCertificate } from '../licensing/verify'
-import { invalidateEntitlementCache } from '../licensing/entitlement'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import {
-  CloudNetworkError,
-  CloudUnboundError,
-  createPairing,
-  pollPairing,
-} from '../services/licensing-cloud'
+import { createPairing, pollPairing } from '../services/licensing-cloud'
 
 const CLOUD_BASE_URL_DEFAULT = 'https://cloud.zpan.space'
 
