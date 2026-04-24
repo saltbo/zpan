@@ -5,8 +5,8 @@ export interface LicenseEntitlement {
   instance_id: string
   plan: 'community' | 'pro'
   features: ProFeature[]
-  issued_at: number
-  expires_at: number
+  issued_at: string
+  expires_at: string
 }
 
 export interface BindingState {
