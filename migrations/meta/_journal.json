@@ -80,10 +80,17 @@
       "breakpoints": true
     },
     {
-      "idx": 11,
+      "idx": 12,
       "version": "6",
       "when": 1776749333797,
       "tag": "0012_image-hosting",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1776997633827,
+      "tag": "0013_licensing",
       "breakpoints": true
     }
   ]

@@ -136,6 +136,20 @@ export const shareRecipients = sqliteTable(
   ],
 )
 
+// licenseBinding — singleton (id=1 always); before binding no row exists
+export const licenseBinding = sqliteTable('license_binding', {
+  id: integer('id').primaryKey(),
+  instanceId: text('instance_id').notNull(),
+  cloudAccountId: text('cloud_account_id'),
+  cloudAccountEmail: text('cloud_account_email'),
+  refreshToken: text('refresh_token').notNull(),
+  cachedCert: text('cached_cert'),
+  cachedExpiresAt: integer('cached_expires_at'),
+  lastRefreshAt: integer('last_refresh_at'),
+  lastRefreshError: text('last_refresh_error'),
+  boundAt: integer('bound_at'),
+})
+
 // image_hosting_configs — per-org singleton; row exists => feature enabled
 export const imageHostingConfigs = sqliteTable('image_hosting_configs', {
   orgId: text('org_id')
