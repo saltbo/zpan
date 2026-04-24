@@ -9,6 +9,7 @@ import type {
 import type {
   ActivityEvent,
   AuthProvider,
+  BindingState,
   IhostConfigResponse,
   ImageHosting,
   Notification,
@@ -27,6 +28,8 @@ import {
   ihostApi,
   ihostConfigApi,
   inviteCodes,
+  licensingAdminApi,
+  licensingApi,
   meApi,
   notificationsApi,
   objects,
@@ -542,6 +545,41 @@ export function revokeIhostApiKey(keyId: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ keyId }),
   })
+}
+
+// Licensing API
+
+export type { BindingState }
+
+export interface PairingInfo {
+  code: string
+  pairing_url: string
+  expires_at: string
+}
+
+export interface PairingPollResult {
+  status: 'pending' | 'approved' | 'denied' | 'expired'
+  plan?: string
+}
+
+export function getLicensingStatus() {
+  return unwrap<BindingState>(licensingApi.status.$get())
+}
+
+export function connectCloud() {
+  return unwrap<PairingInfo>(licensingAdminApi.pair.$post())
+}
+
+export function pollPairing(code: string) {
+  return unwrap<PairingPollResult>(licensingAdminApi.pair[':code'].poll.$get({ param: { code } }))
+}
+
+export function refreshLicense() {
+  return unwrap<{ success: boolean; last_refresh_at: number | null }>(licensingAdminApi.refresh.$post())
+}
+
+export function disconnectCloud() {
+  return unwrap<{ deleted: boolean }>(licensingAdminApi.binding.$delete())
 }
 
 // Auth API — Better Auth passthrough, not typed via Hono RPC
