@@ -87,10 +87,7 @@ export async function pollPairing(baseUrl: string, code: string): Promise<Pairin
 // Calls POST /api/entitlements with the stored refresh_token.
 // Throws CloudUnboundError on 401 (instance was unbound from cloud side).
 // Throws CloudNetworkError on network failure.
-export async function refreshEntitlement(
-  baseUrl: string,
-  refreshToken: string,
-): Promise<EntitlementRefreshResponse> {
+export async function refreshEntitlement(baseUrl: string, refreshToken: string): Promise<EntitlementRefreshResponse> {
   const res = await cloudFetch(baseUrl, '/api/entitlements', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

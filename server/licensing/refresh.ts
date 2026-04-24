@@ -10,7 +10,10 @@ import { verifyCertificate } from './verify'
 // Cloud C5 will always return a PASETO-signed string; before C5 it may be an
 // object. In the pre-C5 path we store the raw JSON. In the PASETO path we verify
 // the cert and store the raw token so it can be re-verified on subsequent reads.
-function normaliseCert(raw: string | object, instanceId: string): { cert: string; entitlement: LicenseEntitlement | null } {
+function normaliseCert(
+  raw: string | object,
+  instanceId: string,
+): { cert: string; entitlement: LicenseEntitlement | null } {
   if (typeof raw === 'string') {
     // PASETO string — verify and cache the raw token
     const entitlement = verifyCertificate(raw, instanceId)
@@ -66,10 +69,7 @@ export async function performRefresh(db: Database, baseUrl: string): Promise<voi
     }
 
     if (err instanceof CloudNetworkError || err instanceof Error) {
-      await db
-        .update(licenseBinding)
-        .set({ lastRefreshError: err.message })
-        .where(eq(licenseBinding.id, 1))
+      await db.update(licenseBinding).set({ lastRefreshError: err.message }).where(eq(licenseBinding.id, 1))
       // Keep cached cert — it remains valid until its own expires_at
       return
     }

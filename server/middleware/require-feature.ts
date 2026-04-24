@@ -8,10 +8,7 @@ export function requireFeature(name: ProFeature) {
     const db = c.get('platform').db
     const state = await loadBindingState(db)
     if (!hasFeature(name, state)) {
-      return c.json(
-        { error: 'feature_not_available', feature: name, upgrade_url: '/settings/billing' },
-        402,
-      )
+      return c.json({ error: 'feature_not_available', feature: name, upgrade_url: '/settings/billing' }, 402)
     }
     await next()
   })
