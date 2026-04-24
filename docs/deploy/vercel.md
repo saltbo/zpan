@@ -83,6 +83,37 @@ The app will be available at `http://localhost:3000`.
 - `/api/*` and `/health` → Vercel Function
 - All other paths → `dist/index.html` (SPA)
 
+## Entitlement Refresh (License Cert)
+
+ZPan refreshes its entitlement certificate every 6 hours. On Vercel there is no persistent process, so you need to trigger a refresh via an external scheduler.
+
+### Setup
+
+1. **Generate a secret:**
+   ```sh
+   openssl rand -hex 32
+   ```
+
+2. **Add the env var** in your Vercel project settings (**Project → Settings → Environment Variables**):
+   | Variable | Value |
+   |----------|-------|
+   | `REFRESH_CRON_SECRET` | The random string from step 1 |
+
+3. **Schedule the call** using [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs). Add a `crons` entry to your `vercel.json`:
+   ```json
+   {
+     "crons": [
+       {
+         "path": "/api/licensing/refresh-cron?secret=<YOUR_SECRET>",
+         "schedule": "0 */6 * * *"
+       }
+     ]
+   }
+   ```
+   Replace `<YOUR_SECRET>` with the value of `REFRESH_CRON_SECRET`.
+
+If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
+
 ## Pricing Notes
 
 - **Hobby (free)** — suitable for personal and non-commercial use. 100 GB-hours of function compute per month.

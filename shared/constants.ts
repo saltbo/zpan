@@ -51,3 +51,5 @@ export const ProFeatures = {
 } as const
 
 export type ProFeatures = (typeof ProFeatures)[keyof typeof ProFeatures]
+
+export const ZPAN_CLOUD_URL_DEFAULT = 'https://cloud.zpan.space'

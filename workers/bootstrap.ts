@@ -4,6 +4,7 @@ import { createAuth } from '../server/auth'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { resolveShareByToken } from '../server/services/share'
 import { DirType } from '../shared/constants'
+import { handleScheduled } from './scheduled'
 
 interface Env {
   DB: D1Database
@@ -46,6 +47,10 @@ export default {
     }
 
     return createApp(platform, cachedAuth).fetch(request)
+  },
+
+  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
+    await handleScheduled(env)
   },
 }
 

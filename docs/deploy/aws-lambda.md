@@ -86,3 +86,30 @@ With the AWS free tier and Turso free tier, personal ZPan usage costs $0/month:
 | Turso | 9 GB storage, 1B row reads / month | Shared across all deployments |
 
 S3 (or R2/Tigris) for ZPan file storage is billed separately and depends on your usage. ZPan itself does not add server-side bandwidth costs because files transfer directly between client and S3.
+
+---
+
+## Entitlement Refresh (License Cert)
+
+ZPan refreshes its entitlement certificate every 6 hours. On Lambda there is no persistent process, so you need to trigger a refresh via an external scheduler.
+
+### Setup
+
+1. **Generate a secret:**
+   ```sh
+   openssl rand -hex 32
+   ```
+
+2. **Add the env var** to the Lambda function configuration (via the SAM template or the AWS Console → Lambda → Configuration → Environment variables):
+   | Variable | Value |
+   |----------|-------|
+   | `REFRESH_CRON_SECRET` | The random string from step 1 |
+
+3. **Schedule the call** using [Amazon EventBridge Scheduler](https://docs.aws.amazon.com/scheduler/latest/UserGuide/). Create a schedule with:
+   - **Rate**: `rate(6 hours)` or cron `0 */6 * * ? *`
+   - **Target**: HTTPS `POST` to your Lambda Function URL:
+     ```
+     POST https://<your-lambda-url>/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
+     ```
+
+If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.

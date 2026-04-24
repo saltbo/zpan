@@ -24,6 +24,9 @@ bucket_name = "zpan-public-images"
 [observability]
 enabled = true
 
+[triggers]
+crons = ["0 */6 * * *"]
+
 # ----------------------------------------------------------------------------
 # Staging environment — used by non-production branch builds.
 # CLOUDFLARE_ENV=staging is set automatically in the build script.

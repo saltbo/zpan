@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { licenseBinding, systemOptions } from '../db/schema'
 import { invalidateEntitlementCache } from '../licensing/entitlement'
 import { getOrCreateInstanceId } from '../licensing/instance-id'
@@ -9,10 +10,8 @@ import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { createPairing, pollPairing } from '../services/licensing-cloud'
 
-const CLOUD_BASE_URL_DEFAULT = 'https://cloud.zpan.space'
-
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
-  return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? CLOUD_BASE_URL_DEFAULT
+  return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 }
 
 const app = new Hono<Env>()
