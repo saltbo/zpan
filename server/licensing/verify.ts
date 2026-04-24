@@ -1,5 +1,5 @@
-import { verify } from 'paseto-ts/v4'
 import type { LicenseEntitlement } from '@shared/types'
+import { verify } from 'paseto-ts/v4'
 import { PUBLIC_KEYS } from './public-keys'
 
 // Attempt to verify a PASETO v4.public cert against each known public key.

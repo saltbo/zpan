@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm'
 import type { ProFeature } from '@shared/types'
+import { eq } from 'drizzle-orm'
 import { licenseBinding } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { verifyCertificate } from './verify'

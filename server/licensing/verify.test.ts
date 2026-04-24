@@ -1,6 +1,6 @@
 // @vitest-environment node
-import { sign, generateKeys } from 'paseto-ts/v4'
-import { describe, expect, it, vi } from 'vitest'
+import { generateKeys, sign } from 'paseto-ts/v4'
+import { describe, expect, it } from 'vitest'
 import { verifyCertificate } from './verify'
 
 // DEV keypair matching PUBLIC_KEYS[0] — used to sign test certs
@@ -41,7 +41,7 @@ describe('verifyCertificate', () => {
   it('returns null for a cert with an invalid signature', () => {
     const cert = signCert()
     // Corrupt the cert by altering a character in the payload segment
-    const corrupted = cert.slice(0, -5) + 'XXXXX'
+    const corrupted = `${cert.slice(0, -5)}XXXXX`
     expect(verifyCertificate(corrupted, 'inst-abc')).toBeNull()
   })
 
