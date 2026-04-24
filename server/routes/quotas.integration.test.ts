@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { authedHeaders, createTestApp } from '../test/setup.js'
+import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']>) {
   // Sign up first user (gets promoted to admin via hook)
@@ -48,6 +48,7 @@ describe('Admin Quotas API', () => {
 
   it('PUT /api/admin/quotas/:orgId creates quota for org', async () => {
     const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const headers = await adminHeaders(app)
 
     // Find the admin's personal org
@@ -73,6 +74,7 @@ describe('Admin Quotas API', () => {
 
   it('PUT /api/admin/quotas/:orgId updates existing quota', async () => {
     const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const headers = await adminHeaders(app)
 
     const orgs = await db.all<{ id: string }>(
@@ -99,7 +101,8 @@ describe('Admin Quotas API', () => {
   })
 
   it('PUT /api/admin/quotas/:orgId rejects negative quota', async () => {
-    const { app } = await createTestApp()
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/quotas/some-org', {
       method: 'PUT',
@@ -109,8 +112,29 @@ describe('Admin Quotas API', () => {
     expect(res.status).toBe(400)
   })
 
+  it('PUT /api/admin/quotas/:orgId returns 402 without Pro license', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const orgs = await db.all<{ id: string }>(
+      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    const orgId = orgs[0].id
+
+    const res = await app.request(`/api/admin/quotas/${orgId}`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quota: 1000 }),
+    })
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.error).toBe('feature_not_available')
+    expect(body.feature).toBe('team_quotas')
+  })
+
   it('GET /api/admin/quotas lists quotas with org info', async () => {
     const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const headers = await adminHeaders(app)
 
     const orgs = await db.all<{ id: string }>(
@@ -173,6 +197,7 @@ describe('User Quotas API — /api/quotas', () => {
 
   it('GET /api/quotas/me returns quota after admin sets it', async () => {
     const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const adminH = await adminHeaders(app)
 
     // Find admin's org

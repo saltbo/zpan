@@ -8,6 +8,7 @@ import { createShareRequestSchema, listSharesQuerySchema, saveShareRequestSchema
 import type { Storage as S3Storage } from '../../shared/types'
 import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
+import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { listMatters } from '../services/matter'
@@ -404,10 +405,15 @@ export const authedShares = new Hono<Env>()
       return c.json({ error: 'Forbidden' }, 403)
     }
 
-    const totalBytes = await computeSourceBytes(db, matter)
-    const quotaOk = await isQuotaSufficient(db, targetOrgId, totalBytes)
-    if (!quotaOk) {
-      return c.json({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, 400)
+    const state = await loadBindingState(db)
+    const teamQuotaEnabled = hasFeature('team_quotas', state)
+
+    if (teamQuotaEnabled) {
+      const totalBytes = await computeSourceBytes(db, matter)
+      const quotaOk = await isQuotaSufficient(db, targetOrgId, totalBytes)
+      if (!quotaOk) {
+        return c.json({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, 400)
+      }
     }
 
     const result = await saveShareToDriveService(db, {
@@ -416,6 +422,7 @@ export const authedShares = new Hono<Env>()
       currentUserId,
       targetOrgId,
       targetParent,
+      teamQuotaEnabled,
     })
     return c.json(result, 201)
   })

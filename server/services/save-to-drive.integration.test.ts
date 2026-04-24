@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
 import { activityEvents, matters, orgQuotas, shares } from '../db/schema'
 import { S3Service } from '../services/s3.js'
-import { authedHeaders, createTestApp } from '../test/setup.js'
+import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 import { computeSourceBytes, isQuotaSufficient, saveShareToDrive } from './save-to-drive.js'
 import { createShare, resolveShareByToken } from './share.js'
 
@@ -604,6 +604,7 @@ describe('POST /api/shares/:token/objects', () => {
 
   it('returns 400 QUOTA_EXCEEDED when target org has insufficient quota', async () => {
     const { app, db, share, headers } = await setup()
+    await seedProLicense(db)
 
     // Get the current user's ID to add them as editor in the quota-restricted org
     const sessionRes = await app.request('/api/auth/get-session', { headers: new Headers(headers) })

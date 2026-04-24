@@ -251,7 +251,7 @@ export async function confirmUpload(
   db: Database,
   id: string,
   orgId: string,
-  opts: { onConflict?: ConflictStrategy; userId?: string } = {},
+  opts: { onConflict?: ConflictStrategy; userId?: string; teamQuotaEnabled?: boolean } = {},
 ): Promise<{ matter: Matter | null; quotaExceeded?: boolean }> {
   const existing = await getMatter(db, id, orgId)
   if (!existing) return { matter: null }
@@ -270,7 +270,7 @@ export async function confirmUpload(
 
   const bytes = existing.size ?? 0
   if (bytes > 0) {
-    const allowed = await incrementUsageIfAllowed(db, orgId, existing.storageId, bytes)
+    const allowed = await incrementUsageIfAllowed(db, orgId, existing.storageId, bytes, opts.teamQuotaEnabled ?? true)
     if (!allowed) return { matter: null, quotaExceeded: true }
   }
 
@@ -300,24 +300,27 @@ export async function incrementUsageIfAllowed(
   orgId: string,
   storageId: string,
   bytes: number,
+  teamQuotaEnabled = true,
 ): Promise<boolean> {
-  // Check if a quota row exists and try atomic check-and-increment in one flow
-  const rows = await db
-    .select({ quota: orgQuotas.quota, used: orgQuotas.used })
-    .from(orgQuotas)
-    .where(eq(orgQuotas.orgId, orgId))
-
-  const [row] = rows
-  if (row) {
-    // quota=0 means unlimited; otherwise enforce the limit
-    if (row.quota > 0 && row.used + bytes > row.quota) return false
-
-    await db
-      .update(orgQuotas)
-      .set({ used: sql`${orgQuotas.used} + ${bytes}` })
+  if (teamQuotaEnabled) {
+    // Check if a quota row exists and try atomic check-and-increment in one flow
+    const rows = await db
+      .select({ quota: orgQuotas.quota, used: orgQuotas.used })
+      .from(orgQuotas)
       .where(eq(orgQuotas.orgId, orgId))
+
+    const [row] = rows
+    if (row) {
+      // quota=0 means unlimited; otherwise enforce the limit
+      if (row.quota > 0 && row.used + bytes > row.quota) return false
+
+      await db
+        .update(orgQuotas)
+        .set({ used: sql`${orgQuotas.used} + ${bytes}` })
+        .where(eq(orgQuotas.orgId, orgId))
+    }
+    // No quota row means no org-level limit — allow, but still track per-storage usage
   }
-  // No quota row means no org-level limit — allow, but still track per-storage usage
 
   await db
     .update(storages)

@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { orgQuotas } from '../db/schema.js'
 import { S3Service } from '../services/s3.js'
-import { authedHeaders, createTestApp } from '../test/setup.js'
+import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -206,6 +206,7 @@ describe('POST /api/objects/copy — quota enforcement', () => {
 describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via confirmUpload', () => {
   it('returns 200 and increments usage when quota allows', async () => {
     const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
@@ -245,6 +246,7 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
 
   it('returns 422 when confirming upload would exceed quota', async () => {
     const { app, db } = await createTestApp()
+    await seedProLicense(db)
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)

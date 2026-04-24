@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
@@ -317,4 +318,20 @@ export async function authedHeaders(
   })
   const cookies = signUpRes.headers.getSetCookie()
   return { Cookie: cookies.join('; ') }
+}
+
+/**
+ * Insert a Pro license binding row so that feature gates resolve as enabled.
+ * Pass specific features to restrict which Pro features are active; defaults
+ * to all four.
+ */
+export async function seedProLicense(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  features: string[] = ['white_label', 'open_registration', 'teams_unlimited', 'team_quotas'],
+) {
+  const cert = JSON.stringify({ plan: 'pro', features })
+  await db.run(sql`
+    INSERT OR REPLACE INTO license_binding (id, instance_id, refresh_token, cached_cert, bound_at)
+    VALUES (1, 'test-instance', 'test-refresh-token', ${cert}, ${Date.now()})
+  `)
 }
