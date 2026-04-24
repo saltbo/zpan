@@ -262,6 +262,18 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS apikey_config_id_idx ON apikey(config_id);
   CREATE INDEX IF NOT EXISTS apikey_reference_id_idx ON apikey(reference_id);
   CREATE INDEX IF NOT EXISTS apikey_key_idx ON apikey(key);
+  CREATE TABLE IF NOT EXISTS license_binding (
+    id INTEGER PRIMARY KEY,
+    instance_id TEXT NOT NULL,
+    cloud_account_id TEXT,
+    cloud_account_email TEXT,
+    refresh_token TEXT NOT NULL,
+    cached_cert TEXT,
+    cached_expires_at INTEGER,
+    last_refresh_at INTEGER,
+    last_refresh_error TEXT,
+    bound_at INTEGER
+  );
 `
 
 export async function createTestApp(envOverrides: Record<string, string> = {}) {
