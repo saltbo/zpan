@@ -53,3 +53,7 @@ export const ProFeatures = {
 export type ProFeatures = (typeof ProFeatures)[keyof typeof ProFeatures]
 
 export const ZPAN_CLOUD_URL_DEFAULT = 'https://cloud.zpan.space'
+
+// Community plan allows up to this many organizations per user (including personal workspace).
+// The 4th organization requires the teams_unlimited feature.
+export const COMMUNITY_TEAM_LIMIT = 3
