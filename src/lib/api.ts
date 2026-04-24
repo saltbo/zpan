@@ -10,6 +10,8 @@ import type {
   ActivityEvent,
   AuthProvider,
   BindingState,
+  BrandingConfig,
+  BrandingField,
   IhostConfigResponse,
   ImageHosting,
   Notification,
@@ -24,6 +26,7 @@ import {
   adminQuotas,
   authedSharesApi,
   authProviders,
+  brandingAdminApi,
   emailConfig,
   ihostApi,
   ihostConfigApi,
@@ -34,6 +37,7 @@ import {
   notificationsApi,
   objects,
   profiles,
+  publicBrandingApi,
   publicSharesApi,
   storages,
   system,
@@ -681,6 +685,50 @@ export function uploadTeamLogo(teamId: string, file: File) {
 
 export async function deleteTeamLogo(teamId: string) {
   const res = await teamsApi[':teamId'].logo.$delete({ param: { teamId } })
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
+}
+
+// Branding API
+
+export type { BrandingConfig, BrandingField }
+
+export function getBranding() {
+  return unwrap<BrandingConfig>(publicBrandingApi.index.$get())
+}
+
+// PUT uses multipart/form-data (logo/favicon are File objects).
+// Hono RPC does not express multipart cleanly — same documented exception as avatar/team logo uploads.
+export async function saveBranding(data: {
+  logo?: File | null
+  favicon?: File | null
+  wordmark_text?: string
+  hide_powered_by?: boolean
+}): Promise<BrandingConfig> {
+  const form = new FormData()
+  if (data.logo) form.set('logo', data.logo)
+  if (data.favicon) form.set('favicon', data.favicon)
+  // Empty string is submitted as an explicit clear; server treats it as setting wordmark to "".
+  // Use resetBrandingField('wordmark_text') to fully remove the key.
+  if (data.wordmark_text !== undefined) form.set('wordmark_text', data.wordmark_text)
+  if (data.hide_powered_by !== undefined) form.set('hide_powered_by', data.hide_powered_by ? 'true' : 'false')
+
+  const res = await fetch('/api/admin/branding', {
+    method: 'PUT',
+    body: form,
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
+  }
+  return res.json() as Promise<BrandingConfig>
+}
+
+export async function resetBrandingField(field: BrandingField): Promise<void> {
+  const res = await brandingAdminApi[':field'].$delete({ param: { field } })
   if (!res.ok) {
     const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
     throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })

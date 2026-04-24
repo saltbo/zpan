@@ -241,3 +241,12 @@ export interface ImageHosting {
 }
 
 export type { BindingState, LicenseEntitlement, ProFeature } from './licensing'
+
+export interface BrandingConfig {
+  logo_url: string | null
+  favicon_url: string | null
+  wordmark_text: string | null
+  hide_powered_by: boolean
+}
+
+export type BrandingField = 'logo' | 'favicon' | 'wordmark_text' | 'hide_powered_by'

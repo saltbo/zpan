@@ -25,6 +25,7 @@ import {
   disconnectCloud,
   emptyTrash,
   enableIhostFeature,
+  getBranding,
   getIhostConfig,
   getLicensingStatus,
   getObject,
@@ -50,8 +51,10 @@ import {
   markNotificationRead,
   pollPairing,
   refreshLicense,
+  resetBrandingField,
   restoreObject,
   revokeIhostApiKey,
+  saveBranding,
   saveShareToDrive,
   setSystemOption,
   trashObject,
@@ -1945,6 +1948,98 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
 
       await expect(disconnectCloud()).rejects.toThrow()
+    })
+  })
+
+  describe('getBranding', () => {
+    it('calls GET /api/branding and returns config', async () => {
+      const payload = { logo_url: null, favicon_url: null, wordmark_text: null, hide_powered_by: false }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getBranding()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/branding')
+    })
+
+    it('resolves with stored branding values', async () => {
+      const payload = {
+        logo_url: 'https://cdn.example.com/logo.svg',
+        favicon_url: null,
+        wordmark_text: 'MyCloud',
+        hide_powered_by: true,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getBranding()
+
+      expect(result.logo_url).toBe('https://cdn.example.com/logo.svg')
+      expect(result.wordmark_text).toBe('MyCloud')
+      expect(result.hide_powered_by).toBe(true)
+    })
+
+    it('throws ApiError on non-ok response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Internal error' }, false, 500))
+
+      await expect(getBranding()).rejects.toThrow('Internal error')
+    })
+  })
+
+  describe('saveBranding', () => {
+    it('sends PUT /api/admin/branding as multipart', async () => {
+      const payload = { logo_url: null, favicon_url: null, wordmark_text: 'MyCloud', hide_powered_by: false }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await saveBranding({ wordmark_text: 'MyCloud' })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/branding')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBeInstanceOf(FormData)
+    })
+
+    it('includes logo file in FormData when provided', async () => {
+      const payload = {
+        logo_url: 'https://cdn/logo.png',
+        favicon_url: null,
+        wordmark_text: null,
+        hide_powered_by: false,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+      const file = new File(['png-data'], 'logo.png', { type: 'image/png' })
+
+      await saveBranding({ logo: file })
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const form = init.body as FormData
+      expect(form.get('logo')).toBe(file)
+    })
+
+    it('throws ApiError on 402 (feature gated)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: 'feature_not_available', feature: 'white_label' }, false, 402),
+      )
+
+      await expect(saveBranding({ wordmark_text: 'x' })).rejects.toThrow()
+    })
+  })
+
+  describe('resetBrandingField', () => {
+    it('sends DELETE /api/admin/branding/:field', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ field: 'logo', reset: true }))
+
+      await resetBrandingField('logo')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/branding/logo')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(resetBrandingField('logo')).rejects.toThrow()
     })
   })
 })

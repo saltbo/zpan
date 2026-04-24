@@ -40,6 +40,7 @@ import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_
 import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
 import { Route as AuthenticatedTeamsTeamIdActivityRouteImport } from './routes/_authenticated/teams/$teamId/activity'
 import { Route as AuthenticatedAdminSettingsAuthRouteImport } from './routes/_authenticated/admin/settings/auth'
+import { Route as AuthenticatedAdminBrandingIndexRouteImport } from './routes/_authenticated/admin/branding/index'
 
 const SRouteRoute = SRouteRouteImport.update({
   id: '/s',
@@ -214,6 +215,12 @@ const AuthenticatedAdminSettingsAuthRoute =
     path: '/settings/auth',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminBrandingIndexRoute =
+  AuthenticatedAdminBrandingIndexRouteImport.update({
+    id: '/branding/',
+    path: '/branding/',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
   '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
+  '/admin/branding/': typeof AuthenticatedAdminBrandingIndexRoute
   '/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -275,6 +283,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages': typeof AuthenticatedAdminStoragesIndexRoute
   '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
+  '/admin/branding': typeof AuthenticatedAdminBrandingIndexRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 export interface FileRoutesById {
@@ -309,6 +318,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/_authenticated/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
   '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
+  '/_authenticated/admin/branding/': typeof AuthenticatedAdminBrandingIndexRoute
   '/_authenticated/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -343,6 +353,7 @@ export interface FileRouteTypes {
     | '/admin/settings/'
     | '/admin/storages/'
     | '/admin/users/'
+    | '/admin/branding/'
     | '/teams/$teamId/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -373,6 +384,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/storages'
     | '/admin/users'
+    | '/admin/branding'
     | '/teams/$teamId'
   id:
     | '__root__'
@@ -406,6 +418,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings/'
     | '/_authenticated/admin/storages/'
     | '/_authenticated/admin/users/'
+    | '/_authenticated/admin/branding/'
     | '/_authenticated/teams/$teamId/'
   fileRoutesById: FileRoutesById
 }
@@ -636,6 +649,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsAuthRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/branding/': {
+      id: '/_authenticated/admin/branding/'
+      path: '/branding/'
+      fullPath: '/admin/branding/'
+      preLoaderRoute: typeof AuthenticatedAdminBrandingIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
   }
 }
 
@@ -644,6 +664,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminSettingsIndexRoute: typeof AuthenticatedAdminSettingsIndexRoute
   AuthenticatedAdminStoragesIndexRoute: typeof AuthenticatedAdminStoragesIndexRoute
   AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
+  AuthenticatedAdminBrandingIndexRoute: typeof AuthenticatedAdminBrandingIndexRoute
 }
 
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
@@ -652,6 +673,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminSettingsIndexRoute: AuthenticatedAdminSettingsIndexRoute,
     AuthenticatedAdminStoragesIndexRoute: AuthenticatedAdminStoragesIndexRoute,
     AuthenticatedAdminUsersIndexRoute: AuthenticatedAdminUsersIndexRoute,
+    AuthenticatedAdminBrandingIndexRoute: AuthenticatedAdminBrandingIndexRoute,
   }
 
 const AuthenticatedAdminRouteRouteWithChildren =

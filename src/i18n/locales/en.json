@@ -142,6 +142,7 @@
   "admin.settings.defaultOrgQuotaHint": "Storage quota for new users. 0 means unlimited.",
   "admin.settings.saved": "Settings saved",
   "admin.nav.auth": "Auth",
+  "admin.nav.branding": "Branding",
   "admin.auth.title": "Authentication",
   "admin.auth.registrationSection": "Registration Mode",
   "admin.auth.registrationOpen": "Open",

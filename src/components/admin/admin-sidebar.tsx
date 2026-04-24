@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, Database, KeyRound, Settings, Users } from 'lucide-react'
+import { ArrowLeft, Database, KeyRound, Paintbrush, Settings, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +20,7 @@ const adminNavItems = [
   { titleKey: 'admin.nav.users', url: '/admin/users', icon: Users },
   { titleKey: 'admin.nav.settings', url: '/admin/settings', icon: Settings },
   { titleKey: 'admin.nav.auth', url: '/admin/settings/auth', icon: KeyRound },
+  { titleKey: 'admin.nav.branding', url: '/admin/branding', icon: Paintbrush },
 ]
 
 export function AdminSidebar() {

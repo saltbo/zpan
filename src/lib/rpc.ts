@@ -4,6 +4,7 @@ import type {
   AdminQuotasRoute,
   AuthedSharesRoute,
   AuthProvidersRoute,
+  BrandingAdminRoute,
   EmailConfigRoute,
   IhostConfigRoute,
   IhostRoute,
@@ -13,6 +14,7 @@ import type {
   NotificationsRoute,
   ObjectsRoute,
   ProfileRoute,
+  PublicBrandingRoute,
   PublicSharesRoute,
   PublicTeamsRoute,
   StoragesRoute,
@@ -52,3 +54,5 @@ export const ihostConfigApi = hc<IhostConfigRoute>('/api/ihost/config', opts)
 export const ihostApi = hc<IhostRoute>('/api/ihost', opts)
 export const licensingApi = hc<LicensingRoute>('/api/licensing', opts)
 export const licensingAdminApi = hc<LicensingAdminRoute>('/api/licensing', opts)
+export const publicBrandingApi = hc<PublicBrandingRoute>('/api/branding', opts)
+export const brandingAdminApi = hc<BrandingAdminRoute>('/api/admin/branding', opts)

@@ -17,6 +17,7 @@ import {
   Video,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useBranding } from '@/components/branding/BrandingProvider'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -67,6 +68,8 @@ export function AppSidebar() {
   const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
   const { siteName } = useSiteOptions()
+  const { branding } = useBranding()
+  const wordmark = branding.wordmark_text || siteName || 'ZPan'
   const user = session?.user as { name: string; username?: string; role?: string; image?: string | null } | undefined
   const isAdmin = user?.role === 'admin'
   const { data: quota } = useQuery({
@@ -97,8 +100,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="gap-2 px-3 pt-3 pb-1">
         <div className="-mx-3 flex items-center gap-2.5 border-b px-4 pb-3">
-          <img src="/logo.svg" alt="ZPan" className="size-8" />
-          <span className="text-lg font-semibold">{siteName || 'ZPan'}</span>
+          <img src={branding.logo_url ?? '/logo.svg'} alt={wordmark} className="size-8" />
+          <span className="text-lg font-semibold">{wordmark}</span>
         </div>
         <OrgSwitcher />
       </SidebarHeader>
@@ -212,6 +215,9 @@ export function AppSidebar() {
               : t('quota.usageNoLimit', { used: formatSize(quota.used) })}
           </p>
         </div>
+      )}
+      {!branding.hide_powered_by && (
+        <div className="px-4 py-1.5 text-center text-xs text-muted-foreground/60">Powered by ZPan</div>
       )}
       <SidebarFooter className="border-t p-3">
         <SidebarMenu>
