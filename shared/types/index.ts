@@ -239,3 +239,5 @@ export interface ImageHosting {
   lastAccessedAt: string | null
   createdAt: string
 }
+
+export type { BindingState, LicenseEntitlement, ProFeature } from './licensing'
