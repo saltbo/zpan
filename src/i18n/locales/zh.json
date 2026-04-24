@@ -142,6 +142,7 @@
   "admin.settings.defaultOrgQuotaHint": "新用户的存储配额，0 表示不限制。",
   "admin.settings.saved": "设置已保存",
   "admin.nav.auth": "认证",
+  "admin.nav.branding": "品牌定制",
   "admin.auth.title": "身份认证",
   "admin.auth.registrationSection": "注册模式",
   "admin.auth.registrationOpen": "开放",

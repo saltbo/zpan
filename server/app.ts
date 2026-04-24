@@ -8,6 +8,7 @@ import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
 import type { Platform } from './platform/interface'
 import { adminAuthProviders, publicAuthProviders } from './routes/auth-providers'
+import { brandingAdmin, publicBranding } from './routes/branding'
 import emailConfig from './routes/email-config'
 import ihost from './routes/ihost'
 import ihostConfig from './routes/ihost-config'
@@ -59,6 +60,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/teams', publicTeams)
   app.route('/api/auth-providers', publicAuthProviders)
   app.route('/api/licensing', licensing)
+  app.route('/api/branding', publicBranding)
 
   app.use('/api/*', authMiddleware)
 
@@ -83,6 +85,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/ihost', ihost)
   app.route('/api/ihost/config', ihostConfig)
   app.route('/api/licensing', licensingAdmin)
+  app.route('/api/admin/branding', brandingAdmin)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
@@ -115,3 +118,5 @@ export type IhostConfigRoute = typeof ihostConfig
 export type MeRoute = typeof me
 export type LicensingRoute = typeof licensing
 export type LicensingAdminRoute = typeof licensingAdmin
+export type PublicBrandingRoute = typeof publicBranding
+export type BrandingAdminRoute = typeof brandingAdmin
