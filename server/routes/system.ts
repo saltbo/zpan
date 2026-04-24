@@ -2,7 +2,9 @@ import { zValidator } from '@hono/zod-validator'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { SignupMode } from '../../shared/constants'
 import { systemOptions } from '../db/schema'
+import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 
@@ -36,6 +38,17 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
     const key = c.req.param('key')
     const body = c.req.valid('json')
+
+    if (key === 'auth_signup_mode' && body.value === SignupMode.OPEN) {
+      const state = await loadBindingState(db)
+      if (!hasFeature('open_registration', state)) {
+        return c.json(
+          { error: 'feature_not_available', feature: 'open_registration', upgrade_url: '/settings/billing' },
+          402,
+        )
+      }
+    }
+
     const existing = await db
       .select({ key: systemOptions.key, public: systemOptions.public })
       .from(systemOptions)

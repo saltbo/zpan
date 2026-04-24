@@ -56,12 +56,35 @@ describe('registration gate — open mode', () => {
     expect(res.status).toBe(200)
   })
 
-  it('second user can register when auth_signup_mode is explicitly open', async () => {
+  it('second user can register when auth_signup_mode is explicitly open and instance has Pro license', async () => {
     const ctx = await createTestApp()
+    // Simulate Pro license with open_registration feature
+    const cert = JSON.stringify({
+      account_id: 'test',
+      instance_id: 'test',
+      plan: 'pro',
+      features: ['open_registration'],
+      issued_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 86400 * 1000).toISOString(),
+    })
+    await ctx.db.insert(schema.licenseBinding).values({
+      id: 1,
+      instanceId: 'test',
+      refreshToken: 'test-token',
+      cachedCert: cert,
+    })
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'open' })
     await signUp(ctx, 'first@example.com')
     const res = await signUp(ctx, 'second@example.com')
     expect(res.status).toBe(200)
+  })
+
+  it('second user is rejected when auth_signup_mode is explicitly open but instance has no Pro license', async () => {
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'open' })
+    await signUp(ctx, 'first@example.com')
+    const res = await signUp(ctx, 'second@example.com')
+    expect(res.status).toBe(422)
   })
 })
 

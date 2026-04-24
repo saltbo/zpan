@@ -20,6 +20,7 @@ import type { Database } from './platform/interface'
 import { sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
 import { findPersonalOrg } from './services/org'
+import { getEffectiveSignupMode } from './services/signup-mode-guard'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
 // which blows past Cloudflare Workers' CPU budget and triggers error 1102.
@@ -73,16 +74,6 @@ function buildDynamicSocialProviders(db: Database) {
     }
   }
   return providers
-}
-
-async function getSignupMode(db: Database): Promise<SignupMode> {
-  const rows = await db
-    .select({ value: systemOptions.value })
-    .from(systemOptions)
-    .where(eq(systemOptions.key, 'auth_signup_mode'))
-  const raw = rows[0]?.value
-  if (raw === SignupMode.INVITE_ONLY || raw === SignupMode.CLOSED) return raw
-  return SignupMode.OPEN
 }
 
 async function isEmailConfigured(db: Database): Promise<boolean> {
@@ -213,7 +204,7 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
 
             // Registration gate: skip for the very first user so bootstrap works
             if (!firstUser) {
-              const mode = await getSignupMode(db)
+              const mode = await getEffectiveSignupMode(db)
               if (mode === SignupMode.CLOSED) {
                 throw new Error('Registration is currently closed')
               }
@@ -248,7 +239,7 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
           },
           after: async (user, context) => {
             // Redeem invite code after user is created (user.id is now available)
-            const mode = await getSignupMode(db)
+            const mode = await getEffectiveSignupMode(db)
             if (mode === SignupMode.INVITE_ONLY) {
               const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
               if (inviteCode) {
