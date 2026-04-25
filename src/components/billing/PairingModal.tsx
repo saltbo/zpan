@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Loader2 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -23,12 +24,33 @@ interface PairingModalProps {
   onOpenChange: (open: boolean) => void
 }
 
+function useCountdown(expiresAt: string | null) {
+  const [remaining, setRemaining] = useState<number>(0)
+
+  useEffect(() => {
+    if (!expiresAt) return
+    const target = new Date(expiresAt).getTime()
+    function tick() {
+      const diff = Math.max(0, Math.floor((target - Date.now()) / 1000))
+      setRemaining(diff)
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [expiresAt])
+
+  const minutes = Math.floor(remaining / 60)
+  const seconds = remaining % 60
+  return { remaining, display: `${minutes}:${String(seconds).padStart(2, '0')}` }
+}
+
 export function PairingModal({ open, onOpenChange }: PairingModalProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [state, setState] = useState<PairingState>('loading')
   const [pairingInfo, setPairingInfo] = useState<PairingInfo | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const countdown = useCountdown(pairingInfo?.expires_at ?? null)
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -36,6 +58,14 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
       pollRef.current = null
     }
   }, [])
+
+  // Auto-expire when countdown reaches 0
+  useEffect(() => {
+    if (countdown.remaining === 0 && state === 'waiting') {
+      setState('expired')
+      stopPolling()
+    }
+  }, [countdown.remaining, state, stopPolling])
 
   const beginPolling = useCallback(
     (code: string) => {
@@ -112,33 +142,43 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
           )}
 
           {(state === 'waiting' || isTerminal) && pairingInfo && (
-            <ol className="space-y-3 text-sm">
-              <li>
-                <span className="text-muted-foreground">{t('settings.billing.pairing.step1')} </span>
+            <div className="space-y-4">
+              {/* QR Code */}
+              <div className="flex justify-center">
+                <div className="rounded-lg border p-3">
+                  <QRCodeSVG value={pairingInfo.pairing_url} size={160} />
+                </div>
+              </div>
+
+              <p className="text-center text-xs text-muted-foreground">
+                {t('settings.billing.pairing.step1')}{' '}
                 <a
-                  href="https://cloud.zpan.space/pair"
+                  href={pairingInfo.pairing_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium underline underline-offset-4"
                 >
                   cloud.zpan.space/pair
                 </a>
-              </li>
-              <li className="text-muted-foreground">{t('settings.billing.pairing.step2')}</li>
-              <li>
-                <span className="text-muted-foreground">{t('settings.billing.pairing.step3')} </span>
-                <span className="rounded bg-muted px-2 py-0.5 font-mono text-base font-bold tracking-widest">
+              </p>
+
+              {/* Code display */}
+              <div className="text-center">
+                <span className="rounded bg-muted px-3 py-1.5 font-mono text-lg font-bold tracking-widest">
                   {pairingInfo.code}
                 </span>
-              </li>
-            </ol>
+              </div>
+            </div>
           )}
 
           {state === 'waiting' && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-3.5 animate-spin" />
-              {t('settings.billing.pairing.waiting')}
-            </p>
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span className="flex items-center gap-2">
+                <Loader2 className="size-3.5 animate-spin" />
+                {t('settings.billing.pairing.waiting')}
+              </span>
+              <span className="tabular-nums">{countdown.display}</span>
+            </div>
           )}
 
           {state === 'denied' && <p className="text-sm text-destructive">{t('settings.billing.pairing.denied')}</p>}
