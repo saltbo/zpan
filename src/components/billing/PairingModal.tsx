@@ -1,6 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Loader2 } from 'lucide-react'
-import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -142,16 +141,9 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
           )}
 
           {(state === 'waiting' || isTerminal) && pairingInfo && (
-            <div className="space-y-4">
-              {/* QR Code */}
-              <div className="flex justify-center">
-                <div className="rounded-lg border p-3">
-                  <QRCodeSVG value={pairingInfo.pairing_url} size={160} />
-                </div>
-              </div>
-
-              <p className="text-center text-xs text-muted-foreground">
-                {t('settings.billing.pairing.step1')}{' '}
+            <ol className="space-y-3 text-sm">
+              <li>
+                <span className="text-muted-foreground">{t('settings.billing.pairing.step1')} </span>
                 <a
                   href={pairingInfo.pairing_url}
                   target="_blank"
@@ -160,15 +152,15 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
                 >
                   cloud.zpan.space/pair
                 </a>
-              </p>
-
-              {/* Code display */}
-              <div className="text-center">
-                <span className="rounded bg-muted px-3 py-1.5 font-mono text-lg font-bold tracking-widest">
+              </li>
+              <li className="text-muted-foreground">{t('settings.billing.pairing.step2')}</li>
+              <li>
+                <span className="text-muted-foreground">{t('settings.billing.pairing.step3')} </span>
+                <span className="rounded bg-muted px-2 py-0.5 font-mono text-base font-bold tracking-widest">
                   {pairingInfo.code}
                 </span>
-              </div>
-            </div>
+              </li>
+            </ol>
           )}
 
           {state === 'waiting' && (
