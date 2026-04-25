@@ -161,7 +161,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
         refresh_token: 'new-token',
-        entitlement: { plan: 'pro', features: [], expires_at: '2027-01-01T00:00:00Z' },
+        certificate: 'v4.public.fake-cert-for-test',
       }),
     )
 

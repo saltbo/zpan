@@ -100,8 +100,8 @@ describe('licensing-cloud', () => {
   })
 
   describe('refreshEntitlement', () => {
-    it('sends POST to /api/entitlements with refresh_token', async () => {
-      const payload = { refresh_token: 'new-rt', entitlement: 'v4.public.newtoken' }
+    it('sends POST to /api/entitlements with Bearer token', async () => {
+      const payload = { refresh_token: 'new-rt', certificate: 'v4.public.newtoken' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await refreshEntitlement(BASE_URL, 'old-rt')
@@ -109,9 +109,10 @@ describe('licensing-cloud', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://cloud.zpan.space/api/entitlements')
       expect(init.method).toBe('POST')
-      const body = JSON.parse(init.body as string)
-      expect(body.refresh_token).toBe('old-rt')
+      expect(init.headers).toEqual({ Authorization: 'Bearer old-rt' })
+      expect(init.body).toBeUndefined()
       expect(result.refresh_token).toBe('new-rt')
+      expect(result.certificate).toBe('v4.public.newtoken')
     })
 
     it('throws CloudUnboundError on 401', async () => {

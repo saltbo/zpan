@@ -1,11 +1,12 @@
 // @vitest-environment node
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { sign } from 'paseto-ts/v4'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { generateKeys, sign } from 'paseto-ts/v4'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { invalidateEntitlementCache } from './entitlement'
+import { PUBLIC_KEYS } from './public-keys'
 import { performRefresh } from './refresh'
 
 const SCHEMA_SQL = `
@@ -28,7 +29,20 @@ const SCHEMA_SQL = `
   );
 `
 
-const DEV_SECRET = 'k4.secret.K_XrtRH8ozh6oM38rkCz7oHxU_GbKIuExCg2jmBl9_VgfF29_7kGkFAnXvII1bHUBy2Yjw04DRdC4kmbuSND2Q'
+// Generate a fresh keypair for tests; inject the public key so verifyCertificate can verify.
+const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
+const originalKeys: string[] = []
+
+beforeAll(() => {
+  originalKeys.push(...PUBLIC_KEYS)
+  PUBLIC_KEYS.length = 0
+  PUBLIC_KEYS.push(TEST_PUBLIC)
+})
+
+afterAll(() => {
+  PUBLIC_KEYS.length = 0
+  for (const k of originalKeys) PUBLIC_KEYS.push(k)
+})
 
 function futureIso(offsetMs: number): string {
   return new Date(Date.now() + offsetMs).toISOString()
@@ -72,21 +86,20 @@ describe('performRefresh', () => {
     await expect(performRefresh(db, 'https://cloud.zpan.space')).resolves.toBeUndefined()
   })
 
-  it('rotates refresh_token and stores plain object entitlement (pre-C5)', async () => {
+  it('rotates refresh_token and stores PASETO certificate from cloud', async () => {
     const db = makeDb()
     await seedBinding(db)
 
-    const cloudPayload = {
-      refresh_token: 'new-rt',
-      entitlement: {
-        account_id: 'acct-1',
-        instance_id: 'inst-abc',
-        plan: 'pro',
-        features: ['white_label'],
-        issued_at: new Date().toISOString(),
-        expires_at: futureIso(86400000),
-      },
-    }
+    const cert = sign(TEST_SECRET, {
+      account_id: 'acct-1',
+      instance_id: 'inst-abc',
+      plan: 'pro',
+      features: ['white_label'],
+      issued_at: new Date().toISOString(),
+      expires_at: futureIso(86400000),
+    })
+
+    const cloudPayload = { refresh_token: 'new-rt', certificate: cert }
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -98,16 +111,16 @@ describe('performRefresh', () => {
 
     const rows = await db.select().from(appSchema.licenseBinding).limit(1)
     expect(rows[0].refreshToken).toBe('new-rt')
-    expect(rows[0].cachedCert).toBeTruthy()
+    expect(rows[0].cachedCert).toBe(cert)
     expect(rows[0].lastRefreshAt).toBeTruthy()
     expect(rows[0].lastRefreshError).toBeNull()
   })
 
-  it('rotates refresh_token and stores PASETO string entitlement', async () => {
+  it('stores raw PASETO cert and extracts expiresAt metadata', async () => {
     const db = makeDb()
     await seedBinding(db)
 
-    const cert = sign(DEV_SECRET, {
+    const cert = sign(TEST_SECRET, {
       account_id: 'acct-1',
       instance_id: 'inst-abc',
       plan: 'pro',
@@ -116,7 +129,7 @@ describe('performRefresh', () => {
       expires_at: futureIso(3_600_000),
     })
 
-    const cloudPayload = { refresh_token: 'new-rt-paseto', entitlement: cert }
+    const cloudPayload = { refresh_token: 'new-rt-paseto', certificate: cert }
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -129,6 +142,7 @@ describe('performRefresh', () => {
     const rows = await db.select().from(appSchema.licenseBinding).limit(1)
     expect(rows[0].refreshToken).toBe('new-rt-paseto')
     expect(rows[0].cachedCert).toBe(cert)
+    expect(rows[0].cachedExpiresAt).toBeTruthy()
   })
 
   it('clears binding row on CloudUnboundError (401)', async () => {

@@ -12,14 +12,12 @@ export interface PairingResponse {
 export interface PairingPollResponse {
   status: 'pending' | 'approved' | 'denied' | 'expired'
   refresh_token?: string
-  // TODO: assert PASETO string once C5 lands; for now may be string (PASETO) or object (pre-C5)
   entitlement?: string | object
 }
 
 export interface EntitlementRefreshResponse {
   refresh_token: string
-  // TODO: assert PASETO string once C5 lands; for now may be string (PASETO) or object (pre-C5)
-  entitlement: string | object
+  certificate: string
 }
 
 export class CloudUnboundError extends Error {
@@ -90,8 +88,7 @@ export async function pollPairing(baseUrl: string, code: string): Promise<Pairin
 export async function refreshEntitlement(baseUrl: string, refreshToken: string): Promise<EntitlementRefreshResponse> {
   const res = await cloudFetch(baseUrl, '/api/entitlements', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    headers: { Authorization: `Bearer ${refreshToken}` },
   })
 
   if (res.status === 401) {

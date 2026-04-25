@@ -53,15 +53,19 @@ const app = new Hono<Env>()
       let expiresAt: number | null = null
 
       if (typeof result.entitlement === 'string') {
+        // PASETO signed cert — store raw token
         cert = result.entitlement
         const entitlement = verifyCertificate(cert, instanceId)
         if (entitlement) {
           expiresAt = Math.floor(new Date(entitlement.expires_at).getTime() / 1000)
         }
       } else {
-        // Pre-C5 plain object — store as JSON
-        // TODO: assert PASETO string once C5 lands; remove this branch
+        // Unsigned entitlement object from pairing poll — store as JSON
         cert = JSON.stringify(result.entitlement)
+        const parsed = result.entitlement as { expires_at?: string }
+        if (parsed.expires_at) {
+          expiresAt = Math.floor(new Date(parsed.expires_at).getTime() / 1000)
+        }
       }
 
       await db
@@ -93,7 +97,7 @@ const app = new Hono<Env>()
 
       return c.json({
         status: 'approved' as const,
-        plan: row?.cachedCert ? getPlanFromCert(row.cachedCert) : undefined,
+        plan: row?.cachedCert ? getPlanFromCert(row.cachedCert, instanceId) : undefined,
       })
     }
 
@@ -123,9 +127,11 @@ const app = new Hono<Env>()
     return c.json({ deleted: true })
   })
 
-function getPlanFromCert(cert: string): string | undefined {
-  // PASETO token — can't parse without verify; return undefined for now
-  if (cert.startsWith('v4.public.')) return undefined
+function getPlanFromCert(cert: string, instanceId: string): string | undefined {
+  if (cert.startsWith('v4.public.')) {
+    const entitlement = verifyCertificate(cert, instanceId)
+    return entitlement?.plan
+  }
 
   try {
     const parsed = JSON.parse(cert) as { plan?: string }

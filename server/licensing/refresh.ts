@@ -6,25 +6,11 @@ import { CloudNetworkError, CloudUnboundError, refreshEntitlement } from '../ser
 import { invalidateEntitlementCache } from './entitlement'
 import { verifyCertificate } from './verify'
 
-// Normalise the entitlement from cloud into a stored JSON string.
-// Cloud C5 will always return a PASETO-signed string; before C5 it may be an
-// object. In the pre-C5 path we store the raw JSON. In the PASETO path we verify
-// the cert and store the raw token so it can be re-verified on subsequent reads.
-function normaliseCert(
-  raw: string | object,
-  instanceId: string,
-): { cert: string; entitlement: LicenseEntitlement | null } {
-  if (typeof raw === 'string') {
-    // PASETO string — verify and cache the raw token
-    const entitlement = verifyCertificate(raw, instanceId)
-    return { cert: raw, entitlement }
-  }
-
-  // Pre-C5 plain object — store as JSON; treat as trusted (no sig check yet)
-  // TODO: assert PASETO string once C5 lands; remove this branch
-  const cert = JSON.stringify(raw)
-  const typed = raw as LicenseEntitlement
-  return { cert, entitlement: typed }
+// Store the raw PASETO cert string so readers can verify the signature on read.
+// Returns the verified entitlement for extracting expiresAt metadata.
+function normaliseCert(raw: string, instanceId: string): { cert: string; entitlement: LicenseEntitlement | null } {
+  const entitlement = verifyCertificate(raw, instanceId)
+  return { cert: raw, entitlement }
 }
 
 // Performs an entitlement refresh against cloud using the stored refresh_token.
@@ -47,7 +33,7 @@ export async function performRefresh(db: Database, baseUrl: string): Promise<voi
 
   try {
     const data = await refreshEntitlement(baseUrl, row.refreshToken)
-    const { cert, entitlement } = normaliseCert(data.entitlement, row.instanceId)
+    const { cert, entitlement } = normaliseCert(data.certificate, row.instanceId)
 
     await db
       .update(licenseBinding)

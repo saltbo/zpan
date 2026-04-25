@@ -114,7 +114,14 @@ describe('GET /api/licensing/pair/:code/poll', () => {
       makeCloudResponse({
         status: 'approved',
         refresh_token: 'rt-secret',
-        entitlement: { plan: 'pro', features: ['white_label'], expires_at: '2026-12-31T00:00:00Z' },
+        entitlement: {
+          plan: 'pro',
+          features: ['white_label'],
+          expires_at: '2026-12-31T00:00:00Z',
+          account_id: 'a1',
+          instance_id: 'i1',
+          issued_at: '2026-01-01T00:00:00Z',
+        },
       }),
     )
 
@@ -156,7 +163,7 @@ describe('POST /api/licensing/refresh', () => {
     })
 
     vi.mocked(fetch).mockResolvedValueOnce(
-      makeCloudResponse({ refresh_token: 'new-token', entitlement: { plan: 'pro', features: [] } }),
+      makeCloudResponse({ refresh_token: 'new-token', certificate: 'v4.public.fake-token-for-test' }),
     )
 
     const res = await app.request('/api/licensing/refresh', { method: 'POST', headers })
