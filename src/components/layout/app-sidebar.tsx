@@ -191,13 +191,13 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       {!branding.hide_powered_by && (
-        <div className="px-4 py-1.5 text-center text-xs text-muted-foreground/60">
+        <div className="px-4 py-1 text-center text-[10px] text-muted-foreground/30">
           Powered by{' '}
           <a
             href="https://github.com/saltbo/zpan"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline hover:text-muted-foreground"
+            className="no-underline hover:underline hover:text-muted-foreground/50 transition-colors"
           >
             ZPan
           </a>
