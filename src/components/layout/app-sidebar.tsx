@@ -190,6 +190,19 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      {!branding.hide_powered_by && (
+        <div className="px-4 py-1.5 text-center text-xs text-muted-foreground/60">
+          Powered by{' '}
+          <a
+            href="https://github.com/saltbo/zpan"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-muted-foreground"
+          >
+            ZPan
+          </a>
+        </div>
+      )}
       {quota && (
         <div className="border-t px-5 py-3">
           <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-sidebar-foreground">
@@ -215,9 +228,6 @@ export function AppSidebar() {
               : t('quota.usageNoLimit', { used: formatSize(quota.used) })}
           </p>
         </div>
-      )}
-      {!branding.hide_powered_by && (
-        <div className="px-4 py-1.5 text-center text-xs text-muted-foreground/60">Powered by ZPan</div>
       )}
       <SidebarFooter className="border-t p-3">
         <SidebarMenu>
