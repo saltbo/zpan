@@ -72,10 +72,10 @@ describe('UpgradeHint — unbound state', () => {
     expect(getByText('Connect to Cloud')).toBeTruthy()
   })
 
-  it('links CTA to /settings/billing', () => {
+  it('links CTA to /admin/billing', () => {
     const { getByRole } = render(<UpgradeHint feature="white_label" />)
     const link = getByRole('link')
-    expect(link.getAttribute('href')).toBe('/settings/billing')
+    expect(link.getAttribute('href')).toBe('/admin/billing')
   })
 
   it('mentions the feature in the description', () => {

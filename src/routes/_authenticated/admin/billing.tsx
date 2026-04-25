@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { entitlementQueryKey } from '@/hooks/useEntitlement'
 import { getLicensingStatus } from '@/lib/api'
 
-export const Route = createFileRoute('/_authenticated/settings/billing')({
+export const Route = createFileRoute('/_authenticated/admin/billing')({
   component: BillingPage,
 })
 

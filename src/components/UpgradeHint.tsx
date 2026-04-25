@@ -31,7 +31,7 @@ export function UpgradeHint({ feature }: UpgradeHintProps) {
       </CardContent>
       <CardFooter>
         <Button asChild>
-          <a href="/settings/billing">{bound ? 'Manage on Cloud' : 'Connect to Cloud'}</a>
+          <a href="/admin/billing">{bound ? 'Manage on Cloud' : 'Connect to Cloud'}</a>
         </Button>
       </CardFooter>
     </Card>

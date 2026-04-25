@@ -16,7 +16,6 @@ function SettingsLayout() {
     { to: '/settings/password', label: t('settings.tabPassword') },
     { to: '/settings/appearance', label: t('settings.tabAppearance') },
     { to: '/settings/ihost', label: t('settings.tabImageHosting') },
-    { to: '/settings/billing', label: t('settings.tabBilling') },
   ]
 
   return (

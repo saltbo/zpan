@@ -143,6 +143,7 @@
   "admin.settings.saved": "Settings saved",
   "admin.nav.auth": "Auth",
   "admin.nav.branding": "Branding",
+  "admin.nav.billing": "Billing",
   "admin.auth.title": "Authentication",
   "admin.auth.registrationSection": "Registration Mode",
   "admin.auth.registrationOpen": "Open",
