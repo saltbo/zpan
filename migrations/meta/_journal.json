@@ -92,6 +92,13 @@
       "when": 1776997633827,
       "tag": "0013_licensing",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1777085815109,
+      "tag": "0014_drop-license-binding",
+      "breakpoints": true
     }
   ]
 }

@@ -17,13 +17,12 @@
  *
  * Run with: npx vitest run server/licensing/e2e-cloud-integration.test.ts
  */
-import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SignupMode } from '../../shared/constants'
-import * as schema from '../db/schema'
 import { CloudUnboundError, createPairing, pollPairing, refreshEntitlement } from '../services/licensing-cloud'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup'
 import { hasFeature, loadBindingState } from './has-feature'
+import { LICENSE_KEYS, loadLicenseState, setLicenseOptions } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 
 const CLOUD_BASE_URL = process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud.saltbo.workers.dev'
@@ -179,15 +178,12 @@ describe('E2E: Feature gates — expired certificate', () => {
       features: ['white_label', 'open_registration', 'teams_unlimited', 'team_quotas'],
       expires_at: '2020-01-01T00:00:00Z',
     })
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'test-instance',
-      refreshToken: 'test-token',
-      cachedCert: expiredCert,
-      cachedExpiresAt: Math.floor(new Date('2020-01-01T00:00:00Z').getTime() / 1000),
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: Math.floor(Date.now() / 1000),
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'test-instance',
+      [LICENSE_KEYS.refreshToken]: 'test-token',
+      [LICENSE_KEYS.cachedCert]: expiredCert,
+      [LICENSE_KEYS.cachedExpiresAt]: String(Math.floor(new Date('2020-01-01T00:00:00Z').getTime() / 1000)),
+      [LICENSE_KEYS.boundAt]: String(Math.floor(Date.now() / 1000)),
     })
 
     const state = await loadBindingState(db)
@@ -302,10 +298,9 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     expect(approvedBody.plan).toBe('pro')
 
     // Step 4: Verify binding stored in DB
-    const rows = await db.select().from(schema.licenseBinding).where(eq(schema.licenseBinding.id, 1))
-    expect(rows.length).toBe(1)
-    expect(rows[0].refreshToken).toBe('rt-e2e-secret')
-    expect(rows[0].cachedCert).toBeTruthy()
+    const state2 = await loadLicenseState(db)
+    expect(state2.refreshToken).toBe('rt-e2e-secret')
+    expect(state2.cachedCert).toBeTruthy()
 
     // Step 5: Verify features are now active
     const state = await loadBindingState(db)
@@ -355,15 +350,13 @@ describe('E2E: PASETO cert verification chain', () => {
     const fakePaseto =
       'v4.public.eyJhY2NvdW50X2lkIjoiYTEiLCJpbnN0YW5jZV9pZCI6InRlc3QtaW5zdGFuY2UiLCJwbGFuIjoicHJvIiwiZmVhdHVyZXMiOlsid2hpdGVfbGFiZWwiXSwiZXhwaXJlc19hdCI6IjIwOTktMDEtMDFUMDA6MDA6MDBaIiwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMVQwMDowMDowMFoifQ.fakesignaturebytes'
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'test-instance',
-      refreshToken: 'test-token',
-      cachedCert: fakePaseto,
-      cachedExpiresAt: Math.floor(new Date('2099-01-01T00:00:00Z').getTime() / 1000),
-      lastRefreshAt: Math.floor(Date.now() / 1000),
-      lastRefreshError: null,
-      boundAt: Math.floor(Date.now() / 1000),
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'test-instance',
+      [LICENSE_KEYS.refreshToken]: 'test-token',
+      [LICENSE_KEYS.cachedCert]: fakePaseto,
+      [LICENSE_KEYS.cachedExpiresAt]: String(Math.floor(new Date('2099-01-01T00:00:00Z').getTime() / 1000)),
+      [LICENSE_KEYS.lastRefreshAt]: String(Math.floor(Date.now() / 1000)),
+      [LICENSE_KEYS.boundAt]: String(Math.floor(Date.now() / 1000)),
     })
 
     const state = await loadBindingState(db)

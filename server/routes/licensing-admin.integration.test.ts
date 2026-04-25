@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as schema from '../db/schema.js'
+import { LICENSE_KEYS, loadLicenseState, setLicenseOptions } from '../licensing/license-state.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
 function makeCloudResponse(body: unknown, status = 200): Response {
@@ -132,9 +132,8 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     expect(body.status).toBe('approved')
 
     // Check that binding was persisted
-    const rows = await db.select().from(schema.licenseBinding).limit(1)
-    expect(rows.length).toBe(1)
-    expect(rows[0].refreshToken).toBe('rt-secret')
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBe('rt-secret')
   })
 })
 
@@ -151,15 +150,9 @@ describe('POST /api/licensing/refresh', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'old-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'old-token',
     })
 
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -192,15 +185,9 @@ describe('DELETE /api/licensing/binding', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'some-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'some-token',
     })
 
     const res = await app.request('/api/licensing/binding', { method: 'DELETE', headers })
@@ -209,9 +196,9 @@ describe('DELETE /api/licensing/binding', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.deleted).toBe(true)
 
-    // Confirm row is gone
-    const rows = await db.select().from(schema.licenseBinding).limit(1)
-    expect(rows.length).toBe(0)
+    // Confirm binding is gone
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBeNull()
   })
 
   it('returns deleted: true even when no binding exists', async () => {

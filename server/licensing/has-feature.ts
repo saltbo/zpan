@@ -1,11 +1,8 @@
 import type { BindingState, LicenseEntitlement, ProFeature } from '../../shared/types'
-import { licenseBinding } from '../db/schema'
 import type { Database } from '../platform/interface'
+import { loadLicenseState } from './license-state'
 import { verifyCertificate } from './verify'
 
-// Parse a cached cert into a LicenseEntitlement, handling both:
-// - PASETO v4 signed tokens (verified against PUBLIC_KEYS)
-// - Legacy JSON objects from the initial pairing poll (pre-signing)
 function parseCachedCert(cert: string, instanceId: string): LicenseEntitlement | null {
   if (cert.startsWith('v4.public.')) {
     return verifyCertificate(cert, instanceId)
@@ -19,29 +16,28 @@ function parseCachedCert(cert: string, instanceId: string): LicenseEntitlement |
 }
 
 export async function loadBindingState(db: Database): Promise<BindingState> {
-  const rows = await db.select().from(licenseBinding).limit(1)
-  if (rows.length === 0) return { bound: false }
+  const state = await loadLicenseState(db)
+  if (!state.refreshToken) return { bound: false }
 
-  const row = rows[0]
-  const state: BindingState = {
+  const result: BindingState = {
     bound: true,
-    account_email: row.cloudAccountEmail ?? undefined,
-    last_refresh_at: row.lastRefreshAt ?? undefined,
-    last_refresh_error: row.lastRefreshError ?? undefined,
+    account_email: state.cloudAccountEmail ?? undefined,
+    last_refresh_at: state.lastRefreshAt ?? undefined,
+    last_refresh_error: state.lastRefreshError ?? undefined,
   }
 
-  if (row.cachedCert && row.instanceId) {
-    const entitlement = parseCachedCert(row.cachedCert, row.instanceId)
+  if (state.cachedCert && state.instanceId) {
+    const entitlement = parseCachedCert(state.cachedCert, state.instanceId)
     if (entitlement) {
-      state.plan = entitlement.plan
-      state.features = entitlement.features
-      state.expires_at = entitlement.expires_at
+      result.plan = entitlement.plan
+      result.features = entitlement.features
+      result.expires_at = entitlement.expires_at
         ? Math.floor(new Date(entitlement.expires_at).getTime() / 1000)
         : undefined
     }
   }
 
-  return state
+  return result
 }
 
 export function hasFeature(feature: ProFeature, state: BindingState | null): boolean {

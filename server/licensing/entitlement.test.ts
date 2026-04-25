@@ -6,21 +6,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { invalidateEntitlementCache, loadEntitlement } from './entitlement'
+import { LICENSE_KEYS, setLicenseOptions } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 
 const SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS license_binding (
-    id INTEGER PRIMARY KEY,
-    instance_id TEXT NOT NULL,
-    cloud_account_id TEXT,
-    cloud_account_email TEXT,
-    refresh_token TEXT NOT NULL,
-    cached_cert TEXT,
-    cached_expires_at INTEGER,
-    last_refresh_at INTEGER,
-    last_refresh_error TEXT,
-    bound_at INTEGER
-  );
   CREATE TABLE IF NOT EXISTS system_options (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT '',
@@ -28,9 +17,6 @@ const SCHEMA_SQL = `
   );
 `
 
-// Generate a fresh throwaway keypair for this test suite.
-// We inject the public key into PUBLIC_KEYS so verifyCertificate sees it,
-// and restore the original array after all tests complete.
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
 const originalKeys: string[] = []
 
@@ -60,7 +46,7 @@ describe('loadEntitlement', () => {
     invalidateEntitlementCache()
   })
 
-  it('returns null when no binding row exists', async () => {
+  it('returns null when no binding exists', async () => {
     const db = makeDb()
     const result = await loadEntitlement(db)
     expect(result).toBeNull()
@@ -68,15 +54,9 @@ describe('loadEntitlement', () => {
 
   it('returns null when binding has no cachedCert', async () => {
     const db = makeDb()
-    await db.insert(appSchema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'token',
     })
 
     const result = await loadEntitlement(db)
@@ -95,15 +75,10 @@ describe('loadEntitlement', () => {
       expires_at: new Date(Date.now() + 3_600_000).toISOString(),
     })
 
-    await db.insert(appSchema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'token',
-      cachedCert: cert,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'token',
+      [LICENSE_KEYS.cachedCert]: cert,
     })
 
     const result = await loadEntitlement(db)
@@ -121,18 +96,13 @@ describe('loadEntitlement', () => {
       plan: 'pro',
       features: ['white_label'],
       issued_at: new Date(Date.now() - 100000).toISOString(),
-      expires_at: new Date(Date.now() - 1000).toISOString(), // expired
+      expires_at: new Date(Date.now() - 1000).toISOString(),
     })
 
-    await db.insert(appSchema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'token',
-      cachedCert: cert,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'token',
+      [LICENSE_KEYS.cachedCert]: cert,
     })
 
     const result = await loadEntitlement(db)
@@ -144,10 +114,8 @@ describe('invalidateEntitlementCache', () => {
   it('clears cached state so next call re-reads from DB', async () => {
     const db = makeDb()
 
-    // Load once — result is null, cached
     await loadEntitlement(db)
 
-    // Now insert a binding
     const cert = sign(TEST_SECRET, {
       account_id: 'acct-1',
       instance_id: 'inst-1',
@@ -157,18 +125,12 @@ describe('invalidateEntitlementCache', () => {
       expires_at: new Date(Date.now() + 3_600_000).toISOString(),
     })
 
-    await db.insert(appSchema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'token',
-      cachedCert: cert,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'token',
+      [LICENSE_KEYS.cachedCert]: cert,
     })
 
-    // Without invalidation, the cached null would be returned
     invalidateEntitlementCache()
 
     const result = await loadEntitlement(db)

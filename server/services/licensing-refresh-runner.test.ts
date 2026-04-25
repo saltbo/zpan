@@ -1,10 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as schema from '../db/schema.js'
+import { LICENSE_KEYS, setLicenseOptions } from '../licensing/license-state.js'
 import * as refreshModule from '../licensing/refresh.js'
 import { createTestApp } from '../test/setup.js'
 import { runLicensingRefresh } from './licensing-refresh-runner.js'
 
 const CLOUD_URL = 'https://cloud.zpan.space'
+
+async function seedLicenseBinding(
+  db: Parameters<typeof setLicenseOptions>[0],
+  overrides: { lastRefreshAt?: number | null } = {},
+) {
+  await setLicenseOptions(db, {
+    [LICENSE_KEYS.instanceId]: 'inst-1',
+    [LICENSE_KEYS.refreshToken]: 'some-token',
+    ...(overrides.lastRefreshAt != null ? { [LICENSE_KEYS.lastRefreshAt]: String(overrides.lastRefreshAt) } : {}),
+  })
+}
 
 describe('runLicensingRefresh', () => {
   let performRefreshSpy: ReturnType<typeof vi.spyOn>
@@ -17,7 +28,7 @@ describe('runLicensingRefresh', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns immediately with no-op when no licenseBinding row exists', async () => {
+  it('returns immediately with no-op when no license binding exists', async () => {
     const { db } = await createTestApp()
 
     await expect(runLicensingRefresh(db, CLOUD_URL)).resolves.toBeUndefined()
@@ -27,20 +38,8 @@ describe('runLicensingRefresh', () => {
   it('skips performRefresh when lastRefreshAt is within 5 minutes', async () => {
     const { db } = await createTestApp()
 
-    const nowSec = Math.floor(Date.now() / 1000)
-    // 2 minutes ago — still within the 5-minute dedup window
-    const recentRefresh = nowSec - 120
-
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'some-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: recentRefresh,
-      lastRefreshError: null,
-      boundAt: null,
-    })
+    const recentRefresh = Math.floor(Date.now() / 1000) - 120
+    await seedLicenseBinding(db, { lastRefreshAt: recentRefresh })
 
     await runLicensingRefresh(db, CLOUD_URL)
 
@@ -50,20 +49,8 @@ describe('runLicensingRefresh', () => {
   it('calls performRefresh when lastRefreshAt is older than 5 minutes', async () => {
     const { db } = await createTestApp()
 
-    const nowSec = Math.floor(Date.now() / 1000)
-    // 10 minutes ago — outside the 5-minute dedup window
-    const oldRefresh = nowSec - 600
-
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'some-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: oldRefresh,
-      lastRefreshError: null,
-      boundAt: null,
-    })
+    const oldRefresh = Math.floor(Date.now() / 1000) - 600
+    await seedLicenseBinding(db, { lastRefreshAt: oldRefresh })
 
     performRefreshSpy.mockResolvedValueOnce(undefined)
 
@@ -76,16 +63,7 @@ describe('runLicensingRefresh', () => {
   it('calls performRefresh when lastRefreshAt is null', async () => {
     const { db } = await createTestApp()
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'some-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
-    })
+    await seedLicenseBinding(db)
 
     performRefreshSpy.mockResolvedValueOnce(undefined)
 
@@ -98,16 +76,7 @@ describe('runLicensingRefresh', () => {
     const { db } = await createTestApp()
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'some-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
-    })
+    await seedLicenseBinding(db)
 
     performRefreshSpy.mockResolvedValueOnce(undefined)
 
@@ -120,16 +89,7 @@ describe('runLicensingRefresh', () => {
     const { db } = await createTestApp()
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'some-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
-    })
+    await seedLicenseBinding(db)
 
     performRefreshSpy.mockRejectedValueOnce(new Error('network timeout'))
 
@@ -142,16 +102,7 @@ describe('runLicensingRefresh', () => {
     const { db } = await createTestApp()
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'some-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
-    })
+    await seedLicenseBinding(db)
 
     performRefreshSpy.mockRejectedValueOnce('plain string error')
 
@@ -164,16 +115,7 @@ describe('runLicensingRefresh', () => {
     const { db } = await createTestApp()
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'some-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
-    })
+    await seedLicenseBinding(db)
 
     performRefreshSpy.mockRejectedValueOnce(new Error('unexpected'))
 

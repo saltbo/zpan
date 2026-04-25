@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { licenseBinding, systemOptions } from '../db/schema'
+import { systemOptions } from '../db/schema'
 import { invalidateEntitlementCache } from '../licensing/entitlement'
 import { getOrCreateInstanceId } from '../licensing/instance-id'
+import { clearLicenseBinding, LICENSE_KEYS, loadLicenseState, setLicenseOptions } from '../licensing/license-state'
 import { performRefresh } from '../licensing/refresh'
 import { verifyCertificate } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
@@ -17,14 +18,12 @@ function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string 
 const app = new Hono<Env>()
   .use(requireAdmin)
 
-  // POST /api/licensing/pair — initiate device-code pairing with cloud
   .post('/pair', async (c) => {
     const db = c.get('platform').db
     const baseUrl = getCloudBaseUrl(c)
 
     const instanceId = await getOrCreateInstanceId(db)
 
-    // Read site_title for instance_name; fall back to host header
     const titleRows = await db
       .select({ value: systemOptions.value })
       .from(systemOptions)
@@ -38,7 +37,6 @@ const app = new Hono<Env>()
     return c.json(pairing)
   })
 
-  // GET /api/licensing/pair/:code/poll — proxy poll to cloud
   .get('/pair/:code/poll', async (c) => {
     const { code } = c.req.param()
     const db = c.get('platform').db
@@ -53,14 +51,12 @@ const app = new Hono<Env>()
       let expiresAt: number | null = null
 
       if (typeof result.entitlement === 'string') {
-        // PASETO signed cert — store raw token
         cert = result.entitlement
         const entitlement = verifyCertificate(cert, instanceId)
         if (entitlement) {
           expiresAt = Math.floor(new Date(entitlement.expires_at).getTime() / 1000)
         }
       } else {
-        // Unsigned entitlement object from pairing poll — store as JSON
         cert = JSON.stringify(result.entitlement)
         const parsed = result.entitlement as { expires_at?: string }
         if (parsed.expires_at) {
@@ -68,60 +64,41 @@ const app = new Hono<Env>()
         }
       }
 
-      await db
-        .insert(licenseBinding)
-        .values({
-          id: 1,
-          instanceId,
-          refreshToken: result.refresh_token,
-          cachedCert: cert,
-          cachedExpiresAt: expiresAt,
-          lastRefreshAt: Math.floor(Date.now() / 1000),
-          boundAt: Math.floor(Date.now() / 1000),
-        })
-        .onConflictDoUpdate({
-          target: licenseBinding.id,
-          set: {
-            refreshToken: result.refresh_token,
-            cachedCert: cert,
-            cachedExpiresAt: expiresAt,
-            lastRefreshAt: Math.floor(Date.now() / 1000),
-            boundAt: Math.floor(Date.now() / 1000),
-          },
-        })
+      const nowSec = String(Math.floor(Date.now() / 1000))
+      await setLicenseOptions(db, {
+        [LICENSE_KEYS.instanceId]: instanceId,
+        [LICENSE_KEYS.refreshToken]: result.refresh_token,
+        [LICENSE_KEYS.cachedCert]: cert,
+        [LICENSE_KEYS.cachedExpiresAt]: expiresAt ? String(expiresAt) : null,
+        [LICENSE_KEYS.lastRefreshAt]: nowSec,
+        [LICENSE_KEYS.boundAt]: nowSec,
+      })
 
       invalidateEntitlementCache()
 
-      const stateRows = await db.select().from(licenseBinding).where(eq(licenseBinding.id, 1)).limit(1)
-      const row = stateRows[0]
-
       return c.json({
         status: 'approved' as const,
-        plan: row?.cachedCert ? getPlanFromCert(row.cachedCert, instanceId) : undefined,
+        plan: getPlanFromCert(cert, instanceId),
       })
     }
 
     return c.json({ status: result.status })
   })
 
-  // POST /api/licensing/refresh — force an entitlement refresh
   .post('/refresh', async (c) => {
     const db = c.get('platform').db
     const baseUrl = getCloudBaseUrl(c)
 
     await performRefresh(db, baseUrl)
 
-    const rows = await db.select({ lastRefreshAt: licenseBinding.lastRefreshAt }).from(licenseBinding).limit(1)
-    const lastRefreshAt = rows[0]?.lastRefreshAt ?? null
-
-    return c.json({ success: true, last_refresh_at: lastRefreshAt })
+    const state = await loadLicenseState(db)
+    return c.json({ success: true, last_refresh_at: state.lastRefreshAt })
   })
 
-  // DELETE /api/licensing/binding — local unbind (does NOT call cloud)
   .delete('/binding', async (c) => {
     const db = c.get('platform').db
 
-    await db.delete(licenseBinding).where(eq(licenseBinding.id, 1))
+    await clearLicenseBinding(db)
     invalidateEntitlementCache()
 
     return c.json({ deleted: true })

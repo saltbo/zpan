@@ -67,11 +67,11 @@ describe('registration gate — open mode', () => {
       issued_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 86400 * 1000).toISOString(),
     })
-    await ctx.db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'test',
-      refreshToken: 'test-token',
-      cachedCert: cert,
+    const { LICENSE_KEYS, setLicenseOptions } = await import('./licensing/license-state.js')
+    await setLicenseOptions(ctx.db, {
+      [LICENSE_KEYS.instanceId]: 'test',
+      [LICENSE_KEYS.refreshToken]: 'test-token',
+      [LICENSE_KEYS.cachedCert]: cert,
     })
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'open' })
     await signUp(ctx, 'first@example.com')

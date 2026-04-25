@@ -1,0 +1,1 @@
+DROP TABLE `license_binding`;

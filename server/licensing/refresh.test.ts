@@ -6,22 +6,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { invalidateEntitlementCache } from './entitlement'
+import { LICENSE_KEYS, setLicenseOptions } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 import { performRefresh } from './refresh'
 
 const SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS license_binding (
-    id INTEGER PRIMARY KEY,
-    instance_id TEXT NOT NULL,
-    cloud_account_id TEXT,
-    cloud_account_email TEXT,
-    refresh_token TEXT NOT NULL,
-    cached_cert TEXT,
-    cached_expires_at INTEGER,
-    last_refresh_at INTEGER,
-    last_refresh_error TEXT,
-    bound_at INTEGER
-  );
   CREATE TABLE IF NOT EXISTS system_options (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT '',
@@ -29,7 +18,6 @@ const SCHEMA_SQL = `
   );
 `
 
-// Generate a fresh keypair for tests; inject the public key so verifyCertificate can verify.
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
 const originalKeys: string[] = []
 
@@ -56,16 +44,10 @@ function makeDb() {
 
 type DB = ReturnType<typeof makeDb>
 
-async function seedBinding(db: DB, overrides: Partial<typeof appSchema.licenseBinding.$inferInsert> = {}) {
-  await db.insert(appSchema.licenseBinding).values({
-    id: 1,
-    instanceId: 'inst-abc',
-    refreshToken: 'old-rt',
-    cachedCert: null,
-    cachedExpiresAt: null,
-    lastRefreshAt: null,
-    lastRefreshError: null,
-    boundAt: null,
+async function seedBinding(db: DB, overrides: Partial<Record<string, string>> = {}) {
+  await setLicenseOptions(db, {
+    [LICENSE_KEYS.instanceId]: 'inst-abc',
+    [LICENSE_KEYS.refreshToken]: 'old-rt',
     ...overrides,
   })
 }
@@ -82,7 +64,6 @@ describe('performRefresh', () => {
 
   it('is a no-op when no binding exists', async () => {
     const db = makeDb()
-    // No binding row — should return without error
     await expect(performRefresh(db, 'https://cloud.zpan.space')).resolves.toBeUndefined()
   })
 
@@ -109,11 +90,12 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const rows = await db.select().from(appSchema.licenseBinding).limit(1)
-    expect(rows[0].refreshToken).toBe('new-rt')
-    expect(rows[0].cachedCert).toBe(cert)
-    expect(rows[0].lastRefreshAt).toBeTruthy()
-    expect(rows[0].lastRefreshError).toBeNull()
+    const { loadLicenseState } = await import('./license-state')
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBe('new-rt')
+    expect(state.cachedCert).toBe(cert)
+    expect(state.lastRefreshAt).toBeTruthy()
+    expect(state.lastRefreshError).toBeNull()
   })
 
   it('stores raw PASETO cert and extracts expiresAt metadata', async () => {
@@ -139,13 +121,14 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const rows = await db.select().from(appSchema.licenseBinding).limit(1)
-    expect(rows[0].refreshToken).toBe('new-rt-paseto')
-    expect(rows[0].cachedCert).toBe(cert)
-    expect(rows[0].cachedExpiresAt).toBeTruthy()
+    const { loadLicenseState } = await import('./license-state')
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBe('new-rt-paseto')
+    expect(state.cachedCert).toBe(cert)
+    expect(state.cachedExpiresAt).toBeTruthy()
   })
 
-  it('clears binding row on CloudUnboundError (401)', async () => {
+  it('clears binding on CloudUnboundError (401)', async () => {
     const db = makeDb()
     await seedBinding(db)
 
@@ -158,8 +141,9 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const rows = await db.select().from(appSchema.licenseBinding).limit(1)
-    expect(rows.length).toBe(0)
+    const { loadLicenseState } = await import('./license-state')
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBeNull()
   })
 
   it('updates last_refresh_error on network error, keeps binding', async () => {
@@ -170,8 +154,9 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const rows = await db.select().from(appSchema.licenseBinding).limit(1)
-    expect(rows[0].refreshToken).toBe('old-rt') // unchanged
-    expect(rows[0].lastRefreshError).toBe('Connection timeout')
+    const { loadLicenseState } = await import('./license-state')
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBe('old-rt')
+    expect(state.lastRefreshError).toBe('Connection timeout')
   })
 })

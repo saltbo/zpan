@@ -8,12 +8,11 @@ import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 const NOW = Date.now()
 
 async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  const { licenseBinding } = await import('../db/schema.js')
-  await db.insert(licenseBinding).values({
-    id: 1,
-    instanceId: 'test-instance',
-    refreshToken: 'tok',
-    cachedCert: JSON.stringify({
+  const { LICENSE_KEYS, setLicenseOptions } = await import('../licensing/license-state.js')
+  await setLicenseOptions(db, {
+    [LICENSE_KEYS.instanceId]: 'test-instance',
+    [LICENSE_KEYS.refreshToken]: 'tok',
+    [LICENSE_KEYS.cachedCert]: JSON.stringify({
       plan: 'pro',
       features: ['white_label'],
       account_id: 'a',
@@ -21,7 +20,7 @@ async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp>>['db'
       issued_at: '2025-01-01',
       expires_at: '2099-01-01',
     }),
-    cachedExpiresAt: Math.floor(Date.now() / 1000) + 99999,
+    [LICENSE_KEYS.cachedExpiresAt]: String(Math.floor(Date.now() / 1000) + 99999),
   })
 }
 

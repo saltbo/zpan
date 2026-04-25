@@ -14,6 +14,7 @@ async function signUp(ctx: TestCtx, email: string, extra?: Record<string, unknow
 }
 
 async function seedProLicense(ctx: TestCtx, features: string[] = ['open_registration']) {
+  const { LICENSE_KEYS, setLicenseOptions } = await import('../licensing/license-state.js')
   const cert = JSON.stringify({
     account_id: 'test-account',
     instance_id: 'test-instance',
@@ -22,11 +23,10 @@ async function seedProLicense(ctx: TestCtx, features: string[] = ['open_registra
     issued_at: new Date().toISOString(),
     expires_at: new Date(Date.now() + 86400 * 1000).toISOString(),
   })
-  await ctx.db.insert(schema.licenseBinding).values({
-    id: 1,
-    instanceId: 'test-instance',
-    refreshToken: 'test-refresh-token',
-    cachedCert: cert,
+  await setLicenseOptions(ctx.db, {
+    [LICENSE_KEYS.instanceId]: 'test-instance',
+    [LICENSE_KEYS.refreshToken]: 'test-refresh-token',
+    [LICENSE_KEYS.cachedCert]: cert,
   })
 }
 

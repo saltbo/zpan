@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as schema from '../db/schema.js'
+import { LICENSE_KEYS, setLicenseOptions } from '../licensing/license-state.js'
 import { createTestApp } from '../test/setup.js'
 
 describe('GET /api/licensing/status', () => {
@@ -25,17 +25,14 @@ describe('GET /api/licensing/status', () => {
       expires_at: new Date(Date.now() + 86400000).toISOString(),
     }
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      cloudAccountId: 'acc-1',
-      cloudAccountEmail: 'user@example.com',
-      refreshToken: 'secret-refresh-token',
-      cachedCert: JSON.stringify(entitlement),
-      cachedExpiresAt: Math.floor(Date.now() / 1000) + 86400,
-      lastRefreshAt: Math.floor(Date.now() / 1000),
-      lastRefreshError: null,
-      boundAt: Math.floor(Date.now() / 1000),
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'secret-refresh-token',
+      [LICENSE_KEYS.cachedCert]: JSON.stringify(entitlement),
+      [LICENSE_KEYS.cachedExpiresAt]: String(Math.floor(Date.now() / 1000) + 86400),
+      [LICENSE_KEYS.lastRefreshAt]: String(Math.floor(Date.now() / 1000)),
+      [LICENSE_KEYS.boundAt]: String(Math.floor(Date.now() / 1000)),
+      [LICENSE_KEYS.cloudAccountEmail]: 'user@example.com',
     })
 
     const res = await app.request('/api/licensing/status')
@@ -54,17 +51,9 @@ describe('GET /api/licensing/status', () => {
   it('returns bound:true with no plan/features when cachedCert is null', async () => {
     const { app, db } = await createTestApp()
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      cloudAccountId: null,
-      cloudAccountEmail: null,
-      refreshToken: 'secret',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: null,
-      lastRefreshError: null,
-      boundAt: null,
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'secret',
     })
 
     const res = await app.request('/api/licensing/status')
@@ -147,15 +136,10 @@ describe('POST /api/licensing/refresh-cron', () => {
     // 10 minutes ago — outside the 5-minute dedup window
     const oldRefresh = nowSec - 600
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'old-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: oldRefresh,
-      lastRefreshError: null,
-      boundAt: null,
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'old-token',
+      [LICENSE_KEYS.lastRefreshAt]: String(oldRefresh),
     })
 
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -178,15 +162,10 @@ describe('POST /api/licensing/refresh-cron', () => {
     const nowSec = Math.floor(Date.now() / 1000)
     const oldRefresh = nowSec - 600
 
-    await db.insert(schema.licenseBinding).values({
-      id: 1,
-      instanceId: 'inst-1',
-      refreshToken: 'old-token',
-      cachedCert: null,
-      cachedExpiresAt: null,
-      lastRefreshAt: oldRefresh,
-      lastRefreshError: null,
-      boundAt: null,
+    await setLicenseOptions(db, {
+      [LICENSE_KEYS.instanceId]: 'inst-1',
+      [LICENSE_KEYS.refreshToken]: 'old-token',
+      [LICENSE_KEYS.lastRefreshAt]: String(oldRefresh),
     })
 
     // Simulate a network failure from the cloud endpoint

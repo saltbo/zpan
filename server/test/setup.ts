@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3'
-import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
@@ -330,8 +329,11 @@ export async function seedProLicense(
   features: string[] = ['white_label', 'open_registration', 'teams_unlimited', 'team_quotas'],
 ) {
   const cert = JSON.stringify({ plan: 'pro', features })
-  await db.run(sql`
-    INSERT OR REPLACE INTO license_binding (id, instance_id, refresh_token, cached_cert, bound_at)
-    VALUES (1, 'test-instance', 'test-refresh-token', ${cert}, ${Date.now()})
-  `)
+  const { LICENSE_KEYS, setLicenseOptions } = await import('../licensing/license-state.js')
+  await setLicenseOptions(db, {
+    [LICENSE_KEYS.instanceId]: 'test-instance',
+    [LICENSE_KEYS.refreshToken]: 'test-refresh-token',
+    [LICENSE_KEYS.cachedCert]: cert,
+    [LICENSE_KEYS.boundAt]: String(Date.now()),
+  })
 }
