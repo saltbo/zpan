@@ -43,15 +43,6 @@ export const SignupMode = {
 
 export type SignupMode = (typeof SignupMode)[keyof typeof SignupMode]
 
-export const ProFeatures = {
-  WHITE_LABEL: 'white_label',
-  OPEN_REGISTRATION: 'open_registration',
-  TEAMS_UNLIMITED: 'teams_unlimited',
-  TEAM_QUOTAS: 'team_quotas',
-} as const
-
-export type ProFeatures = (typeof ProFeatures)[keyof typeof ProFeatures]
-
 export const ZPAN_CLOUD_URL_DEFAULT = 'https://cloud.zpan.space'
 
 // Community plan allows up to this many organizations per user (including personal workspace).

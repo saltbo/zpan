@@ -1,4 +1,6 @@
-export type ProFeature = 'white_label' | 'open_registration' | 'teams_unlimited' | 'team_quotas'
+import type { ProFeature } from '../feature-registry'
+
+export type { ProFeature } from '../feature-registry'
 
 export interface LicenseEntitlement {
   account_id: string
