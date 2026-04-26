@@ -69,7 +69,6 @@ export function AppSidebar() {
   const { data: activeOrg } = useActiveOrganization()
   const { siteName } = useSiteOptions()
   const { branding } = useBranding()
-  const wordmark = branding.wordmark_text || siteName || 'ZPan'
   const user = session?.user as { name: string; username?: string; role?: string; image?: string | null } | undefined
   const isAdmin = user?.role === 'admin'
   const { data: quota } = useQuery({
@@ -100,8 +99,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="gap-2 px-3 pt-3 pb-1">
         <div className="-mx-3 flex items-center gap-2.5 border-b px-4 pb-3">
-          <img src={branding.logo_url ?? '/logo.svg'} alt={wordmark} className="size-8" />
-          <span className="text-lg font-semibold">{wordmark}</span>
+          <img src={branding.logo_url ?? '/logo.svg'} alt={siteName} className="size-8" />
+          <span className="text-lg font-semibold">{siteName}</span>
         </div>
         <OrgSwitcher />
       </SidebarHeader>

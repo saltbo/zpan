@@ -1,28 +1,22 @@
 import type { BrandingConfig, BrandingField } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
 import { Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { brandingQueryKey } from '@/components/branding/BrandingProvider'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { useSiteOptions } from '@/hooks/use-site-options'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { getBranding, resetBrandingField, saveBranding } from '@/lib/api'
-
-export const Route = createFileRoute('/_authenticated/admin/branding/')({
-  component: BrandingPage,
-})
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
 interface BrandingFormState {
   logoFile: File | null
   faviconFile: File | null
-  wordmarkText: string
   hidePoweredBy: boolean
   previewLogoUrl: string | null
   faviconPreviewUrl: string | null
@@ -32,17 +26,14 @@ function useBrandingFormState(initial: BrandingConfig): {
   state: BrandingFormState
   setLogoFile: (f: File | null) => void
   setFaviconFile: (f: File | null) => void
-  setWordmarkText: (v: string) => void
   setHidePoweredBy: (v: boolean) => void
 } {
   const [logoFile, setLogoFileRaw] = useState<File | null>(null)
   const [faviconFile, setFaviconFileRaw] = useState<File | null>(null)
-  const [wordmarkText, setWordmarkText] = useState(initial.wordmark_text ?? '')
   const [hidePoweredBy, setHidePoweredBy] = useState(initial.hide_powered_by)
   const [previewLogoUrl, setPreviewLogoUrl] = useState<string | null>(initial.logo_url)
   const [faviconPreviewUrl, setFaviconPreviewUrl] = useState<string | null>(initial.favicon_url)
 
-  // Revoke blob URL when it changes to avoid memory leaks
   const prevLogoBlob = useRef<string | null>(null)
   const prevFaviconBlob = useRef<string | null>(null)
 
@@ -62,7 +53,6 @@ function useBrandingFormState(initial: BrandingConfig): {
     setFaviconPreviewUrl(url)
   }
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (prevLogoBlob.current) URL.revokeObjectURL(prevLogoBlob.current)
@@ -71,10 +61,9 @@ function useBrandingFormState(initial: BrandingConfig): {
   }, [])
 
   return {
-    state: { logoFile, faviconFile, wordmarkText, hidePoweredBy, previewLogoUrl, faviconPreviewUrl },
+    state: { logoFile, faviconFile, hidePoweredBy, previewLogoUrl, faviconPreviewUrl },
     setLogoFile,
     setFaviconFile,
-    setWordmarkText,
     setHidePoweredBy,
   }
 }
@@ -135,33 +124,55 @@ function FileUploadField({
 }
 
 function LivePreview({ branding }: { branding: BrandingConfig }) {
+  const { siteName } = useSiteOptions()
   const logoSrc = branding.logo_url ?? '/logo.svg'
-  const wordmark = branding.wordmark_text || 'ZPan'
 
   return (
     <div className="rounded-lg border bg-sidebar p-4 space-y-3">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Live Preview</p>
       <div className="flex items-center gap-2.5 border-b border-border/50 pb-3">
-        <img src={logoSrc} alt={wordmark} className="size-8 rounded object-contain" />
-        <span className="text-lg font-semibold">{wordmark}</span>
+        <img src={logoSrc} alt={siteName} className="size-8 rounded object-contain" />
+        <span className="text-lg font-semibold">{siteName}</span>
       </div>
       {!branding.hide_powered_by && <p className="text-xs text-muted-foreground/60 text-center">Powered by ZPan</p>}
     </div>
   )
 }
 
-// ─── Main form ────────────────────────────────────────────────────────────────
+// ─── Main Section ─────────────────────────────────────────────────────────────
+
+export function BrandingSection() {
+  const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
+  const { data: branding, isLoading: brandingLoading } = useQuery({
+    queryKey: brandingQueryKey,
+    queryFn: getBranding,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  if (entitlementLoading || brandingLoading) {
+    return <div className="py-10 text-center text-sm text-muted-foreground">Loading branding settings...</div>
+  }
+
+  if (!hasFeature('white_label')) {
+    return <UpgradeHint feature="white_label" />
+  }
+
+  return (
+    <BrandingForm
+      initial={branding ?? { logo_url: null, favicon_url: null, wordmark_text: null, hide_powered_by: false }}
+    />
+  )
+}
 
 function BrandingForm({ initial }: { initial: BrandingConfig }) {
   const queryClient = useQueryClient()
-  const { state, setLogoFile, setFaviconFile, setWordmarkText, setHidePoweredBy } = useBrandingFormState(initial)
+  const { state, setLogoFile, setFaviconFile, setHidePoweredBy } = useBrandingFormState(initial)
 
   const saveMutation = useMutation({
     mutationFn: () =>
       saveBranding({
         logo: state.logoFile,
         favicon: state.faviconFile,
-        wordmark_text: state.wordmarkText,
         hide_powered_by: state.hidePoweredBy,
       }),
     onSuccess: () => {
@@ -177,7 +188,6 @@ function BrandingForm({ initial }: { initial: BrandingConfig }) {
       queryClient.invalidateQueries({ queryKey: brandingQueryKey })
       if (field === 'logo') setLogoFile(null)
       if (field === 'favicon') setFaviconFile(null)
-      if (field === 'wordmark_text') setWordmarkText('')
       if (field === 'hide_powered_by') setHidePoweredBy(false)
       toast.success(`${field} reset to default`)
     },
@@ -187,142 +197,51 @@ function BrandingForm({ initial }: { initial: BrandingConfig }) {
   const previewBranding: BrandingConfig = {
     logo_url: state.previewLogoUrl,
     favicon_url: state.faviconPreviewUrl,
-    wordmark_text: state.wordmarkText || null,
+    wordmark_text: null,
     hide_powered_by: state.hidePoweredBy,
   }
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
-      <BrandingFormFields
-        state={state}
-        onLogoChange={setLogoFile}
-        onFaviconChange={setFaviconFile}
-        onWordmarkChange={setWordmarkText}
-        onHidePoweredByChange={setHidePoweredBy}
-        onReset={(f) => resetMutation.mutate(f)}
-        onSubmit={() => saveMutation.mutate()}
-        isSaving={saveMutation.isPending}
-      />
+      <div className="space-y-6">
+        <div className="rounded-md border p-4 space-y-5">
+          <h3 className="text-sm font-medium text-muted-foreground">Logo & Favicon</h3>
+          <FileUploadField
+            id="logo-upload"
+            label="Logo"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            previewUrl={state.previewLogoUrl}
+            onFileChange={setLogoFile}
+            onReset={() => resetMutation.mutate('logo')}
+          />
+          <FileUploadField
+            id="favicon-upload"
+            label="Favicon"
+            accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
+            previewUrl={state.faviconPreviewUrl}
+            onFileChange={setFaviconFile}
+            onReset={() => resetMutation.mutate('favicon')}
+          />
+        </div>
+
+        <div className="rounded-md border p-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="hide-powered-by">Hide "Powered by ZPan"</Label>
+              <p className="text-xs text-muted-foreground">Remove the footer credit from the sidebar.</p>
+            </div>
+            <Switch id="hide-powered-by" checked={state.hidePoweredBy} onCheckedChange={setHidePoweredBy} />
+          </div>
+        </div>
+
+        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          {saveMutation.isPending ? 'Saving…' : 'Save branding'}
+        </Button>
+      </div>
       <div className="space-y-2">
-        <p className="text-sm font-medium">Preview</p>
+        <p className="text-sm font-medium text-muted-foreground">Preview</p>
         <LivePreview branding={previewBranding} />
       </div>
-    </div>
-  )
-}
-
-function BrandingFormFields({
-  state,
-  onLogoChange,
-  onFaviconChange,
-  onWordmarkChange,
-  onHidePoweredByChange,
-  onReset,
-  onSubmit,
-  isSaving,
-}: {
-  state: BrandingFormState
-  onLogoChange: (f: File | null) => void
-  onFaviconChange: (f: File | null) => void
-  onWordmarkChange: (v: string) => void
-  onHidePoweredByChange: (v: boolean) => void
-  onReset: (f: BrandingField) => void
-  onSubmit: () => void
-  isSaving: boolean
-}) {
-  return (
-    <form
-      className="space-y-6"
-      onSubmit={(e) => {
-        e.preventDefault()
-        onSubmit()
-      }}
-    >
-      <div className="rounded-md border p-4 space-y-5">
-        <h3 className="text-sm font-medium text-muted-foreground">Logo & Favicon</h3>
-        <FileUploadField
-          id="logo-upload"
-          label="Logo"
-          accept="image/png,image/jpeg,image/webp,image/svg+xml"
-          previewUrl={state.previewLogoUrl}
-          onFileChange={onLogoChange}
-          onReset={() => onReset('logo')}
-        />
-        <FileUploadField
-          id="favicon-upload"
-          label="Favicon"
-          accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
-          previewUrl={state.faviconPreviewUrl}
-          onFileChange={onFaviconChange}
-          onReset={() => onReset('favicon')}
-        />
-      </div>
-
-      <div className="rounded-md border p-4 space-y-4">
-        <h3 className="text-sm font-medium text-muted-foreground">Wordmark</h3>
-        <div className="space-y-1.5">
-          <Label htmlFor="wordmark-text">Wordmark text</Label>
-          <Input
-            id="wordmark-text"
-            value={state.wordmarkText}
-            maxLength={24}
-            onChange={(e) => onWordmarkChange(e.target.value)}
-            placeholder="My Cloud"
-          />
-          <p className="text-xs text-muted-foreground">Replaces "ZPan" in the sidebar. Max 24 characters.</p>
-        </div>
-      </div>
-
-      <div className="rounded-md border p-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="hide-powered-by">Hide "Powered by ZPan"</Label>
-            <p className="text-xs text-muted-foreground">Remove the footer credit from the sidebar.</p>
-          </div>
-          <Switch id="hide-powered-by" checked={state.hidePoweredBy} onCheckedChange={onHidePoweredByChange} />
-        </div>
-      </div>
-
-      <Button type="submit" disabled={isSaving}>
-        {isSaving ? 'Saving…' : 'Save branding'}
-      </Button>
-    </form>
-  )
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-function BrandingPage() {
-  const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
-  const { data: branding, isLoading: brandingLoading } = useQuery({
-    queryKey: brandingQueryKey,
-    queryFn: getBranding,
-    staleTime: 5 * 60 * 1000,
-  })
-
-  if (entitlementLoading || brandingLoading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        <p>Loading…</p>
-      </div>
-    )
-  }
-
-  if (!hasFeature('white_label')) {
-    return (
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold">Branding</h2>
-        <UpgradeHint feature="white_label" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Branding</h2>
-      <BrandingForm
-        initial={branding ?? { logo_url: null, favicon_url: null, wordmark_text: null, hide_powered_by: false }}
-      />
     </div>
   )
 }

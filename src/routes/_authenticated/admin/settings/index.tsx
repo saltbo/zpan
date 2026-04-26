@@ -6,10 +6,12 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { BrandingSection } from '@/components/admin/branding-section'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { siteOptionsQueryKey, useSiteOptions } from '@/hooks/use-site-options'
 import { setSystemOption } from '@/lib/api'
@@ -77,61 +79,79 @@ function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">{t('admin.settings.title')}</h2>
+    <div className="space-y-8">
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold">{t('admin.settings.title')}</h2>
 
-      <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="max-w-lg space-y-4">
-        <div className="space-y-4 rounded-md border p-4">
-          <h3 className="text-sm font-medium text-muted-foreground">{t('admin.settings.siteSection')}</h3>
+        <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="max-w-2xl space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-4 rounded-md border p-4">
+              <h3 className="text-sm font-medium text-muted-foreground">{t('admin.settings.siteSection')}</h3>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="siteName">{t('admin.settings.siteName')}</Label>
-            <Input id="siteName" {...form.register('siteName')} />
-            {form.formState.errors.siteName && (
-              <p className="text-xs text-destructive">{form.formState.errors.siteName.message}</p>
-            )}
-          </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="siteName">{t('admin.settings.siteName')}</Label>
+                <Input id="siteName" {...form.register('siteName')} />
+                {form.formState.errors.siteName && (
+                  <p className="text-xs text-destructive">{form.formState.errors.siteName.message}</p>
+                )}
+              </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="siteDescription">{t('admin.settings.siteDescription')}</Label>
-            <Textarea id="siteDescription" rows={3} {...form.register('siteDescription')} />
-            {form.formState.errors.siteDescription && (
-              <p className="text-xs text-destructive">{form.formState.errors.siteDescription.message}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-4 rounded-md border p-4">
-          <h3 className="text-sm font-medium text-muted-foreground">{t('admin.settings.quotaSection')}</h3>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="quotaValue">{t('admin.settings.defaultOrgQuota')}</Label>
-            <div className="flex items-center gap-2">
-              <Input id="quotaValue" type="number" min={0} step={1} className="w-32" {...form.register('quotaValue')} />
-              <Select value={form.watch('quotaUnit')} onValueChange={(v) => form.setValue('quotaUnit', v as Unit)}>
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MB">MB</SelectItem>
-                  <SelectItem value="GB">GB</SelectItem>
-                </SelectContent>
-              </Select>
-              <span className="text-sm text-muted-foreground">
-                = {formatSize(form.watch('quotaValue') * UNITS[form.watch('quotaUnit')])}
-              </span>
+              <div className="space-y-1.5">
+                <Label htmlFor="siteDescription">{t('admin.settings.siteDescription')}</Label>
+                <Textarea id="siteDescription" rows={3} {...form.register('siteDescription')} />
+                {form.formState.errors.siteDescription && (
+                  <p className="text-xs text-destructive">{form.formState.errors.siteDescription.message}</p>
+                )}
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">{t('admin.settings.defaultOrgQuotaHint')}</p>
-            {form.formState.errors.quotaValue && (
-              <p className="text-xs text-destructive">{form.formState.errors.quotaValue.message}</p>
-            )}
-          </div>
-        </div>
 
-        <Button type="submit" disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? t('common.loading') : t('common.save')}
-        </Button>
-      </form>
+            <div className="space-y-4 rounded-md border p-4">
+              <h3 className="text-sm font-medium text-muted-foreground">{t('admin.settings.quotaSection')}</h3>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="quotaValue">{t('admin.settings.defaultOrgQuota')}</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="quotaValue"
+                    type="number"
+                    min={0}
+                    step={1}
+                    className="flex-1"
+                    {...form.register('quotaValue')}
+                  />
+                  <Select value={form.watch('quotaUnit')} onValueChange={(v) => form.setValue('quotaUnit', v as Unit)}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MB">MB</SelectItem>
+                      <SelectItem value="GB">GB</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  = {formatSize(form.watch('quotaValue') * UNITS[form.watch('quotaUnit')])}
+                </p>
+                <p className="text-xs text-muted-foreground">{t('admin.settings.defaultOrgQuotaHint')}</p>
+                {form.formState.errors.quotaValue && (
+                  <p className="text-xs text-destructive">{form.formState.errors.quotaValue.message}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <Button type="submit" disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? t('common.loading') : t('common.save')}
+          </Button>
+        </form>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold">Branding</h2>
+        <BrandingSection />
+      </div>
     </div>
   )
 }

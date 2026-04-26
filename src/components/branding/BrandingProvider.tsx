@@ -37,12 +37,6 @@ function applyFavicon(url: string | null) {
 }
 
 function BrandingEffects({ branding }: { branding: BrandingConfig }) {
-  const wordmark = branding.wordmark_text ?? ''
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--site-wordmark', JSON.stringify(wordmark))
-  }, [wordmark])
-
   useEffect(() => {
     applyFavicon(branding.favicon_url)
   }, [branding.favicon_url])

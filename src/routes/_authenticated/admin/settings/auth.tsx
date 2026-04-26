@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { EmailConfigSection } from '@/components/admin/email-config-section'
 import { InviteCodesSection } from '@/components/admin/invite-codes-section'
 import { OAuthProvidersSection } from '@/components/admin/oauth-providers-section'
 import { RegistrationModeSection } from '@/components/admin/registration-mode-section'
@@ -19,7 +18,6 @@ function AuthSettingsPage() {
         <RegistrationModeSection />
         <InviteCodesSection />
         <OAuthProvidersSection />
-        <EmailConfigSection />
       </div>
     </div>
   )

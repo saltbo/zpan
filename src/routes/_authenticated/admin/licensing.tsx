@@ -9,11 +9,11 @@ import { Button } from '@/components/ui/button'
 import { entitlementQueryKey } from '@/hooks/useEntitlement'
 import { getLicensingStatus } from '@/lib/api'
 
-export const Route = createFileRoute('/_authenticated/admin/billing')({
-  component: BillingPage,
+export const Route = createFileRoute('/_authenticated/admin/licensing')({
+  component: LicensingPage,
 })
 
-function BillingPage() {
+function LicensingPage() {
   const { t } = useTranslation()
   const [pairingOpen, setPairingOpen] = useState(false)
 

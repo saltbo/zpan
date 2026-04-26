@@ -11,18 +11,14 @@ export type CellValue = boolean | { i18nKey: string; params?: Record<string, unk
 // Feature categories
 // ---------------------------------------------------------------------------
 
-export const FEATURE_CATEGORIES = ['storage', 'auth', 'teams', 'sharing', 'operator', 'deployment'] as const
+export const FEATURE_CATEGORIES = ['core', 'pro'] as const
 
 export type FeatureCategory = (typeof FEATURE_CATEGORIES)[number]
 
 /** i18n key for each category header. */
 export const CATEGORY_I18N: Record<FeatureCategory, string> = {
-  storage: 'features.category.storage',
-  auth: 'features.category.auth',
-  teams: 'features.category.teams',
-  sharing: 'features.category.sharing',
-  operator: 'features.category.operator',
-  deployment: 'features.category.deployment',
+  core: 'features.category.core',
+  pro: 'features.category.pro',
 }
 
 // ---------------------------------------------------------------------------
@@ -52,115 +48,101 @@ export interface FeatureDefinition {
 // ---------------------------------------------------------------------------
 
 export const FEATURE_REGISTRY = [
-  // ── Storage & Files ─────────────────────────────────────────────────
+  // ── Core Features ───────────────────────────────────────────────────
   {
     i18nKey: 'features.coreFileManagement',
-    category: 'storage',
+    category: 'core',
     community: true,
     pro: true,
   },
-
-  // ── Auth & Access ───────────────────────────────────────────────────
+  {
+    i18nKey: 'features.shareLinks',
+    category: 'core',
+    community: true,
+    pro: true,
+  },
+  {
+    i18nKey: 'features.imageHosting',
+    category: 'core',
+    community: true,
+    pro: true,
+  },
   {
     i18nKey: 'features.socialLoginOidc',
-    category: 'auth',
+    category: 'core',
     community: true,
     pro: true,
   },
   {
     i18nKey: 'features.inviteCodes',
-    category: 'auth',
+    category: 'core',
     community: true,
     pro: true,
   },
+
+  // ── Pro Features ────────────────────────────────────────────────────
+  {
+    i18nKey: 'features.whiteLabel',
+    category: 'pro',
+    community: false,
+    pro: true,
+    gateKey: 'white_label',
+  },
   {
     i18nKey: 'features.openRegistration',
-    category: 'auth',
+    category: 'pro',
     community: false,
     pro: true,
     gateKey: 'open_registration',
   },
   {
-    i18nKey: 'features.multiIdpSso',
-    category: 'auth',
-    community: false,
-    pro: true,
-    comingSoon: true,
-  },
-  {
-    i18nKey: 'features.ldapScim',
-    category: 'auth',
-    community: false,
-    pro: true,
-    comingSoon: true,
-  },
-
-  // ── Teams ───────────────────────────────────────────────────────────
-  {
     i18nKey: 'features.teamWorkspaces',
-    category: 'teams',
+    category: 'pro',
     community: { i18nKey: 'features.teamWorkspaces.limit', params: { count: COMMUNITY_TEAM_LIMIT } },
     pro: { i18nKey: 'features.teamWorkspaces.unlimited' },
     gateKey: 'teams_unlimited',
   },
   {
     i18nKey: 'features.teamQuotas',
-    category: 'teams',
+    category: 'pro',
     community: false,
     pro: true,
     gateKey: 'team_quotas',
   },
-
-  // ── Sharing & Image Hosting ─────────────────────────────────────────
   {
-    i18nKey: 'features.shareLinks',
-    category: 'sharing',
-    community: true,
-    pro: true,
-  },
-  {
-    i18nKey: 'features.imageHosting',
-    category: 'sharing',
-    community: true,
-    pro: true,
-  },
-
-  // ── Operator Tools ──────────────────────────────────────────────────
-  {
-    i18nKey: 'features.whiteLabel',
-    category: 'operator',
+    i18nKey: 'features.multiIdpSso',
+    category: 'pro',
     community: false,
     pro: true,
-    gateKey: 'white_label',
+    comingSoon: true,
+  },
+  {
+    i18nKey: 'features.ldapScim',
+    category: 'pro',
+    community: false,
+    pro: true,
+    comingSoon: true,
   },
   {
     i18nKey: 'features.auditLog',
-    category: 'operator',
+    category: 'pro',
     community: false,
     pro: true,
     comingSoon: true,
   },
   {
     i18nKey: 'features.webhooks',
-    category: 'operator',
+    category: 'pro',
     community: false,
     pro: true,
     comingSoon: true,
   },
   {
     i18nKey: 'features.analytics',
-    category: 'operator',
+    category: 'pro',
     community: false,
     pro: true,
     comingSoon: true,
-  },
-
-  // ── Deployment ──────────────────────────────────────────────────────
-  {
-    i18nKey: 'features.allDeployments',
-    category: 'deployment',
-    community: true,
-    pro: true,
   },
 ] as const satisfies readonly FeatureDefinition[]
 

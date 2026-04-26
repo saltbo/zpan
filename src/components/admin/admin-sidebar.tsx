@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, CreditCard, Database, KeyRound, Paintbrush, Settings, Users } from 'lucide-react'
+import { ArrowLeft, BadgeCheck, Database, KeyRound, LayoutDashboard, Mail, Settings, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,12 +16,13 @@ import {
 } from '@/components/ui/sidebar'
 
 const adminNavItems = [
-  { titleKey: 'admin.nav.storages', url: '/admin/storages', icon: Database },
+  { titleKey: 'admin.nav.overview', url: '/admin', icon: LayoutDashboard },
   { titleKey: 'admin.nav.users', url: '/admin/users', icon: Users },
-  { titleKey: 'admin.nav.settings', url: '/admin/settings', icon: Settings },
+  { titleKey: 'admin.nav.storages', url: '/admin/storages', icon: Database },
   { titleKey: 'admin.nav.auth', url: '/admin/settings/auth', icon: KeyRound },
-  { titleKey: 'admin.nav.branding', url: '/admin/branding', icon: Paintbrush },
-  { titleKey: 'admin.nav.billing', url: '/admin/billing', icon: CreditCard },
+  { titleKey: 'admin.nav.email', url: '/admin/settings/email', icon: Mail },
+  { titleKey: 'admin.nav.settings', url: '/admin/settings', icon: Settings },
+  { titleKey: 'admin.nav.licensing', url: '/admin/licensing', icon: BadgeCheck },
 ]
 
 export function AdminSidebar() {
