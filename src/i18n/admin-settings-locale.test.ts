@@ -10,6 +10,8 @@ const ADMIN_SETTINGS_KEYS = [
   'admin.settings.siteSection',
   'admin.settings.siteName',
   'admin.settings.siteDescription',
+  'admin.settings.registrationTitle',
+  'admin.settings.registrationLabel',
   'admin.settings.saved',
 ]
 
@@ -60,6 +62,14 @@ describe('admin.settings locale keys — English values contract', () => {
 
   it('admin.settings.saved is "Settings saved"', () => {
     expect(enLocale['admin.settings.saved']).toBe('Settings saved')
+  })
+
+  it('admin.settings.registrationTitle is "New user registration"', () => {
+    expect(enLocale['admin.settings.registrationTitle']).toBe('New user registration')
+  })
+
+  it('admin.settings.registrationLabel is "Allow new user sign-ups"', () => {
+    expect(enLocale['admin.settings.registrationLabel']).toBe('Allow new user sign-ups')
   })
 
   it('admin.nav.settings is "Settings"', () => {
@@ -126,6 +136,18 @@ describe('admin.settings locale keys — i18n runtime translation', () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
     expect(i18n.t('admin.settings.saved')).toBe('设置已保存')
+  })
+
+  it('translates admin.settings.registrationTitle to English', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('en')
+    expect(i18n.t('admin.settings.registrationTitle')).toBe('New user registration')
+  })
+
+  it('translates admin.settings.registrationTitle to Chinese', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('zh')
+    expect(i18n.t('admin.settings.registrationTitle')).toBe('新用户注册')
   })
 
   it('translates admin.nav.settings to English', async () => {

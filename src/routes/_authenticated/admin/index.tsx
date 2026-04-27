@@ -104,9 +104,9 @@ function OverviewPage() {
               </Link>
             </Button>
             <Button variant="outline" className="justify-start" asChild>
-              <Link to="/admin/settings/auth">
+              <Link to="/admin/settings/oauth">
                 <ShieldCheck className="mr-2 h-4 w-4" />
-                Auth Configuration
+                OAuth Configuration
               </Link>
             </Button>
           </CardContent>

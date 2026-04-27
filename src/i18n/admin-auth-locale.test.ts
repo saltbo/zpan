@@ -9,6 +9,7 @@ const ADMIN_NAV_AUTH_KEYS = ['admin.nav.auth']
 
 const ADMIN_AUTH_KEYS = [
   'admin.auth.title',
+  'admin.auth.description',
   'admin.auth.registrationSection',
   'admin.auth.registrationOpen',
   'admin.auth.registrationOpenDesc',
@@ -106,12 +107,18 @@ describe('admin.auth locale keys — non-empty values', () => {
 })
 
 describe('admin.auth locale keys — English values contract', () => {
-  it('admin.nav.auth is "Auth"', () => {
-    expect(enLocale['admin.nav.auth']).toBe('Auth')
+  it('admin.nav.auth is "OAuth"', () => {
+    expect(enLocale['admin.nav.auth']).toBe('OAuth')
   })
 
-  it('admin.auth.title is "Authentication"', () => {
-    expect(enLocale['admin.auth.title']).toBe('Authentication')
+  it('admin.auth.title is "OAuth Providers"', () => {
+    expect(enLocale['admin.auth.title']).toBe('OAuth Providers')
+  })
+
+  it('admin.auth.description is "Manage third-party sign-in providers and custom OIDC connections for this instance."', () => {
+    expect(enLocale['admin.auth.description']).toBe(
+      'Manage third-party sign-in providers and custom OIDC connections for this instance.',
+    )
   })
 
   it('admin.auth.registrationSection is "Registration Mode"', () => {
@@ -243,25 +250,39 @@ describe('admin.auth locale keys — i18n runtime translation', () => {
   it('translates admin.nav.auth to English', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('en')
-    expect(i18n.t('admin.nav.auth')).toBe('Auth')
+    expect(i18n.t('admin.nav.auth')).toBe('OAuth')
   })
 
   it('translates admin.nav.auth to Chinese', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.nav.auth')).toBe('认证')
+    expect(i18n.t('admin.nav.auth')).toBe('OAuth')
   })
 
   it('translates admin.auth.title to English', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('en')
-    expect(i18n.t('admin.auth.title')).toBe('Authentication')
+    expect(i18n.t('admin.auth.title')).toBe('OAuth Providers')
   })
 
   it('translates admin.auth.title to Chinese', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.auth.title')).toBe('身份认证')
+    expect(i18n.t('admin.auth.title')).toBe('OAuth 提供商')
+  })
+
+  it('translates admin.auth.description to English', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('en')
+    expect(i18n.t('admin.auth.description')).toBe(
+      'Manage third-party sign-in providers and custom OIDC connections for this instance.',
+    )
+  })
+
+  it('translates admin.auth.description to Chinese', async () => {
+    const { default: i18n } = await import('./index')
+    await i18n.changeLanguage('zh')
+    expect(i18n.t('admin.auth.description')).toBe('管理第三方登录提供商以及自定义 OIDC 连接。')
   })
 
   it('translates admin.auth.registrationSection to English', async () => {

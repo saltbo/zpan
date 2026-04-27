@@ -41,8 +41,8 @@ import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_authenticated/teams/$teamId/settings'
 import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
 import { Route as AuthenticatedTeamsTeamIdActivityRouteImport } from './routes/_authenticated/teams/$teamId/activity'
+import { Route as AuthenticatedAdminSettingsOauthRouteImport } from './routes/_authenticated/admin/settings/oauth'
 import { Route as AuthenticatedAdminSettingsEmailRouteImport } from './routes/_authenticated/admin/settings/email'
-import { Route as AuthenticatedAdminSettingsAuthRouteImport } from './routes/_authenticated/admin/settings/auth'
 
 const SRouteRoute = SRouteRouteImport.update({
   id: '/s',
@@ -222,16 +222,16 @@ const AuthenticatedTeamsTeamIdActivityRoute =
     path: '/activity',
     getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
   } as any)
+const AuthenticatedAdminSettingsOauthRoute =
+  AuthenticatedAdminSettingsOauthRouteImport.update({
+    id: '/settings/oauth',
+    path: '/settings/oauth',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminSettingsEmailRoute =
   AuthenticatedAdminSettingsEmailRouteImport.update({
     id: '/settings/email',
     path: '/settings/email',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
-const AuthenticatedAdminSettingsAuthRoute =
-  AuthenticatedAdminSettingsAuthRouteImport.update({
-    id: '/settings/auth',
-    path: '/settings/auth',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
 
@@ -260,8 +260,8 @@ export interface FileRoutesByFullPath {
   '/teams/': typeof AuthenticatedTeamsIndexRoute
   '/trash/': typeof AuthenticatedTrashIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
-  '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/admin/settings/email': typeof AuthenticatedAdminSettingsEmailRoute
+  '/admin/settings/oauth': typeof AuthenticatedAdminSettingsOauthRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
@@ -292,8 +292,8 @@ export interface FileRoutesByTo {
   '/teams': typeof AuthenticatedTeamsIndexRoute
   '/trash': typeof AuthenticatedTrashIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
-  '/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/admin/settings/email': typeof AuthenticatedAdminSettingsEmailRoute
+  '/admin/settings/oauth': typeof AuthenticatedAdminSettingsOauthRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
@@ -329,8 +329,8 @@ export interface FileRoutesById {
   '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
   '/_authenticated/trash/': typeof AuthenticatedTrashIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
-  '/_authenticated/admin/settings/auth': typeof AuthenticatedAdminSettingsAuthRoute
   '/_authenticated/admin/settings/email': typeof AuthenticatedAdminSettingsEmailRoute
+  '/_authenticated/admin/settings/oauth': typeof AuthenticatedAdminSettingsOauthRoute
   '/_authenticated/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/_authenticated/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/_authenticated/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
@@ -366,8 +366,8 @@ export interface FileRouteTypes {
     | '/teams/'
     | '/trash/'
     | '/users/'
-    | '/admin/settings/auth'
     | '/admin/settings/email'
+    | '/admin/settings/oauth'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
@@ -398,8 +398,8 @@ export interface FileRouteTypes {
     | '/teams'
     | '/trash'
     | '/users'
-    | '/admin/settings/auth'
     | '/admin/settings/email'
+    | '/admin/settings/oauth'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
@@ -434,8 +434,8 @@ export interface FileRouteTypes {
     | '/_authenticated/teams/'
     | '/_authenticated/trash/'
     | '/_authenticated/users/'
-    | '/_authenticated/admin/settings/auth'
     | '/_authenticated/admin/settings/email'
+    | '/_authenticated/admin/settings/oauth'
     | '/_authenticated/teams/$teamId/activity'
     | '/_authenticated/teams/$teamId/members'
     | '/_authenticated/teams/$teamId/settings'
@@ -679,18 +679,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamsTeamIdActivityRouteImport
       parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
     }
+    '/_authenticated/admin/settings/oauth': {
+      id: '/_authenticated/admin/settings/oauth'
+      path: '/settings/oauth'
+      fullPath: '/admin/settings/oauth'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsOauthRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/settings/email': {
       id: '/_authenticated/admin/settings/email'
       path: '/settings/email'
       fullPath: '/admin/settings/email'
       preLoaderRoute: typeof AuthenticatedAdminSettingsEmailRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/admin/settings/auth': {
-      id: '/_authenticated/admin/settings/auth'
-      path: '/settings/auth'
-      fullPath: '/admin/settings/auth'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsAuthRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
   }
@@ -699,8 +699,8 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminLicensingRoute: typeof AuthenticatedAdminLicensingRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
-  AuthenticatedAdminSettingsAuthRoute: typeof AuthenticatedAdminSettingsAuthRoute
   AuthenticatedAdminSettingsEmailRoute: typeof AuthenticatedAdminSettingsEmailRoute
+  AuthenticatedAdminSettingsOauthRoute: typeof AuthenticatedAdminSettingsOauthRoute
   AuthenticatedAdminSettingsIndexRoute: typeof AuthenticatedAdminSettingsIndexRoute
   AuthenticatedAdminStoragesIndexRoute: typeof AuthenticatedAdminStoragesIndexRoute
   AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
@@ -710,8 +710,8 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
   {
     AuthenticatedAdminLicensingRoute: AuthenticatedAdminLicensingRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
-    AuthenticatedAdminSettingsAuthRoute: AuthenticatedAdminSettingsAuthRoute,
     AuthenticatedAdminSettingsEmailRoute: AuthenticatedAdminSettingsEmailRoute,
+    AuthenticatedAdminSettingsOauthRoute: AuthenticatedAdminSettingsOauthRoute,
     AuthenticatedAdminSettingsIndexRoute: AuthenticatedAdminSettingsIndexRoute,
     AuthenticatedAdminStoragesIndexRoute: AuthenticatedAdminStoragesIndexRoute,
     AuthenticatedAdminUsersIndexRoute: AuthenticatedAdminUsersIndexRoute,

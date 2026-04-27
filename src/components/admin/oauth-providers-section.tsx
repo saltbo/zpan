@@ -126,9 +126,9 @@ export function OAuthProvidersSection() {
   const update = (patch: Partial<FormState>) => setForm((prev) => ({ ...prev, ...patch }))
 
   return (
-    <div className="space-y-4 rounded-md border p-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-muted-foreground">{t('admin.auth.oauthSection')}</h3>
+        <h2 className="text-xl font-semibold">{t('admin.auth.title')}</h2>
         <Button size="sm" onClick={openAdd}>
           {t('admin.auth.addProvider')}
         </Button>
@@ -137,43 +137,49 @@ export function OAuthProvidersSection() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       ) : providers.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('admin.auth.noProviders')}</p>
+        <div className="rounded-md border px-4 py-12 text-center text-muted-foreground">
+          <p className="text-sm">{t('admin.auth.noProviders')}</p>
+        </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('admin.auth.provider')}</TableHead>
-              <TableHead>{t('admin.auth.providerType')}</TableHead>
-              <TableHead>{t('admin.auth.clientId')}</TableHead>
-              <TableHead>{t('admin.auth.enabled')}</TableHead>
-              <TableHead>{t('admin.auth.colActions')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {providers.map((p) => (
-              <TableRow key={p.providerId}>
-                <TableCell className="font-medium">{providerName(p.providerId)}</TableCell>
-                <TableCell className="text-sm">{p.type}</TableCell>
-                <TableCell className="text-sm font-mono">{p.clientId}</TableCell>
-                <TableCell>
-                  <span
-                    className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${p.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
-                  >
-                    {p.enabled ? t('admin.auth.statusEnabled') : t('admin.auth.statusDisabled')}
-                  </span>
-                </TableCell>
-                <TableCell className="space-x-1">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
-                    {t('common.edit')}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => openDelete(p.providerId)}>
-                    {t('common.delete')}
-                  </Button>
-                </TableCell>
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b bg-muted/50">
+                <TableHead className="px-4 py-3">{t('admin.auth.provider')}</TableHead>
+                <TableHead className="px-4 py-3">{t('admin.auth.providerType')}</TableHead>
+                <TableHead className="px-4 py-3">{t('admin.auth.clientId')}</TableHead>
+                <TableHead className="px-4 py-3">{t('admin.auth.enabled')}</TableHead>
+                <TableHead className="px-4 py-3 text-right">{t('admin.auth.colActions')}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {providers.map((p) => (
+                <TableRow key={p.providerId} className="border-b last:border-0 hover:bg-muted/30">
+                  <TableCell className="px-4 py-3 font-medium">{providerName(p.providerId)}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm">{p.type}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm font-mono">{p.clientId}</TableCell>
+                  <TableCell className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${p.enabled ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}
+                    >
+                      {p.enabled ? t('admin.auth.statusEnabled') : t('admin.auth.statusDisabled')}
+                    </span>
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
+                        {t('common.edit')}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openDelete(p.providerId)}>
+                        {t('common.delete')}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

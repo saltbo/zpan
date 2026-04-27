@@ -19,7 +19,7 @@ const adminNavItems = [
   { titleKey: 'admin.nav.overview', url: '/admin', icon: LayoutDashboard },
   { titleKey: 'admin.nav.users', url: '/admin/users', icon: Users },
   { titleKey: 'admin.nav.storages', url: '/admin/storages', icon: Database },
-  { titleKey: 'admin.nav.auth', url: '/admin/settings/auth', icon: KeyRound },
+  { titleKey: 'admin.nav.auth', url: '/admin/settings/oauth', icon: KeyRound },
   { titleKey: 'admin.nav.email', url: '/admin/settings/email', icon: Mail },
   { titleKey: 'admin.nav.settings', url: '/admin/settings', icon: Settings },
   { titleKey: 'admin.nav.licensing', url: '/admin/licensing', icon: BadgeCheck },
