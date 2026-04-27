@@ -159,4 +159,37 @@ describe('performRefresh', () => {
     expect(state.refreshToken).toBe('old-rt')
     expect(state.lastRefreshError).toBe('Connection timeout')
   })
+
+  it('keeps the previous binding when cloud returns an invalid certificate', async () => {
+    const db = makeDb()
+    await seedBinding(db, {
+      [LICENSE_KEYS.cachedCert]: 'old-cert',
+      [LICENSE_KEYS.cachedExpiresAt]: '1234567890',
+    })
+
+    const cert = sign(TEST_SECRET, {
+      account_id: 'acct-1',
+      instance_id: 'wrong-instance',
+      plan: 'pro',
+      features: ['white_label'],
+      issued_at: new Date().toISOString(),
+      expires_at: futureIso(3_600_000),
+    })
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ refresh_token: 'new-rt', certificate: cert }),
+      text: async () => '',
+    } as unknown as Response)
+
+    await performRefresh(db, 'https://cloud.zpan.space')
+
+    const { loadLicenseState } = await import('./license-state')
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBe('old-rt')
+    expect(state.cachedCert).toBe('old-cert')
+    expect(state.cachedExpiresAt).toBe(1234567890)
+    expect(state.lastRefreshError).toBe('Invalid certificate from cloud')
+  })
 })
