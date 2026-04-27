@@ -67,11 +67,19 @@ interface SignUpPayload {
   password: string
   callbackURL: string
   inviteCode?: string
+  siteInvitationToken?: string
 }
 
 function buildSignUpPayload(
   authSignupMode: SignupMode,
-  fields: { username: string; name: string; email: string; password: string; inviteCode: string },
+  fields: {
+    username: string
+    name: string
+    email: string
+    password: string
+    inviteCode: string
+    siteInvitationToken?: string
+  },
 ): SignUpPayload {
   return {
     username: fields.username,
@@ -80,6 +88,9 @@ function buildSignUpPayload(
     password: fields.password,
     callbackURL: '/files',
     ...(authSignupMode === SignupMode.INVITE_ONLY ? { inviteCode: fields.inviteCode } : {}),
+    ...(authSignupMode === SignupMode.CLOSED && fields.siteInvitationToken
+      ? { siteInvitationToken: fields.siteInvitationToken }
+      : {}),
   }
 }
 
@@ -89,6 +100,7 @@ const baseFields = {
   email: 'john@example.com',
   password: 'secret',
   inviteCode: 'INVITE-123',
+  siteInvitationToken: 'site-invite-token',
 }
 
 describe('SignUp — submission payload construction', () => {
@@ -108,6 +120,18 @@ describe('SignUp — submission payload construction', () => {
     const payload = buildSignUpPayload(SignupMode.CLOSED, baseFields)
 
     expect(payload.inviteCode).toBeUndefined()
+  })
+
+  it('includes siteInvitationToken in payload when mode is closed', () => {
+    const payload = buildSignUpPayload(SignupMode.CLOSED, baseFields)
+
+    expect(payload.siteInvitationToken).toBe('site-invite-token')
+  })
+
+  it('omits siteInvitationToken from payload when mode is open', () => {
+    const payload = buildSignUpPayload(SignupMode.OPEN, baseFields)
+
+    expect(payload.siteInvitationToken).toBeUndefined()
   })
 
   it('always sets callbackURL to "/files"', () => {

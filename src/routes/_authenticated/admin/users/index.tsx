@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Search, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react'
+import { Search, Settings2, ShieldCheck, Trash2, UserPlus, UserX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
+import { SiteInvitationsDialog } from '@/components/admin/site-invitations-dialog'
 import { UserQuotaDialog } from '@/components/admin/user-quota-dialog'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ function UsersPage() {
 
   const [quotaDialogUser, setQuotaDialogUser] = useState<UserRow | null>(null)
   const [deleteDialogUser, setDeleteDialogUser] = useState<{ id: string; name: string } | null>(null)
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
 
   const usersQuery = useQuery({
     queryKey: ['admin', 'users', page, pageSize],
@@ -101,14 +103,20 @@ function UsersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-semibold">{t('admin.users.title')}</h2>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={t('admin.users.searchPlaceholder')}
-            value={search}
-            onChange={handleSearchChange}
-            className="pl-9"
-          />
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Button onClick={() => setInviteDialogOpen(true)}>
+            <UserPlus />
+            {t('admin.users.inviteUser')}
+          </Button>
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={t('admin.users.searchPlaceholder')}
+              value={search}
+              onChange={handleSearchChange}
+              className="pl-9"
+            />
+          </div>
         </div>
       </div>
 
@@ -193,6 +201,8 @@ function UsersPage() {
         onOpenChange={(open) => !open && setDeleteDialogUser(null)}
         user={deleteDialogUser}
       />
+
+      <SiteInvitationsDialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen} />
     </div>
   )
 }

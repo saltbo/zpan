@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { createAuth } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
-import { inviteCodes } from './db/schema.js'
+import { inviteCodes, siteInvitations } from './db/schema.js'
 import { generateInviteCodes } from './services/invite.js'
+import { createSiteInvitation } from './services/site-invitations.js'
 import { createTestApp } from './test/setup.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
@@ -111,6 +112,61 @@ describe('registration gate — closed mode', () => {
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'closed' })
     await signUp(ctx, 'first@example.com')
     const res = await signUp(ctx, 'blocked@example.com')
+    expect(res.status).toBe(422)
+  })
+
+  it('second user can register with a valid site invitation token', async () => {
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'closed' })
+    await signUp(ctx, 'first@example.com')
+    const [admin] = await ctx.db
+      .select({ id: authSchema.user.id })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.email, 'first@example.com'))
+      .limit(1)
+    const invitation = await createSiteInvitation(ctx.db, admin.id, 'invited@example.com')
+
+    const res = await signUp(ctx, 'invited@example.com', { siteInvitationToken: invitation.token })
+
+    expect(res.status).toBe(200)
+  })
+
+  it('accepts the site invitation after successful registration', async () => {
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'closed' })
+    await signUp(ctx, 'first@example.com')
+    const [admin] = await ctx.db
+      .select({ id: authSchema.user.id })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.email, 'first@example.com'))
+      .limit(1)
+    const invitation = await createSiteInvitation(ctx.db, admin.id, 'invited@example.com')
+
+    const res = await signUp(ctx, 'invited@example.com', { siteInvitationToken: invitation.token })
+    const body = (await res.json()) as { user: { id: string } }
+    const [row] = await ctx.db
+      .select()
+      .from(siteInvitations)
+      .where(eq(siteInvitations.token, invitation.token))
+      .limit(1)
+
+    expect(row.acceptedBy).toBe(body.user.id)
+    expect(row.acceptedAt).not.toBeNull()
+  })
+
+  it('rejects site invitation token when email does not match', async () => {
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'closed' })
+    await signUp(ctx, 'first@example.com')
+    const [admin] = await ctx.db
+      .select({ id: authSchema.user.id })
+      .from(authSchema.user)
+      .where(eq(authSchema.user.email, 'first@example.com'))
+      .limit(1)
+    const invitation = await createSiteInvitation(ctx.db, admin.id, 'invited@example.com')
+
+    const res = await signUp(ctx, 'other@example.com', { siteInvitationToken: invitation.token })
+
     expect(res.status).toBe(422)
   })
 })

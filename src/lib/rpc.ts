@@ -2,6 +2,7 @@ import type {
   AdminAuthProvidersRoute,
   AdminInviteCodesRoute,
   AdminQuotasRoute,
+  AdminSiteInvitationsRoute,
   AuthedSharesRoute,
   AuthProvidersRoute,
   BrandingAdminRoute,
@@ -16,6 +17,7 @@ import type {
   ProfileRoute,
   PublicBrandingRoute,
   PublicSharesRoute,
+  PublicSiteInvitationsRoute,
   PublicTeamsRoute,
   StoragesRoute,
   SystemRoute,
@@ -38,6 +40,7 @@ export const system = hc<SystemRoute>('/api/system', opts)
 export const authProviders = hc<AuthProvidersRoute>('/api/auth-providers', opts)
 export const adminAuthProviders = hc<AdminAuthProvidersRoute>('/api/admin/auth-providers', opts)
 export const inviteCodes = hc<AdminInviteCodesRoute>('/api/admin/invite-codes', opts)
+export const adminSiteInvitations = hc<AdminSiteInvitationsRoute>('/api/admin/site-invitations', opts)
 export const emailConfig = hc<EmailConfigRoute>('/api/admin/email-config', opts)
 export const profiles = hc<ProfileRoute>('/api/profiles')
 export const meApi = hc<MeRoute>('/api/me', opts)
@@ -56,3 +59,4 @@ export const licensingApi = hc<LicensingRoute>('/api/licensing', opts)
 export const licensingAdminApi = hc<LicensingAdminRoute>('/api/licensing', opts)
 export const publicBrandingApi = hc<PublicBrandingRoute>('/api/branding', opts)
 export const brandingAdminApi = hc<BrandingAdminRoute>('/api/admin/branding', opts)
+export const publicSiteInvitations = hc<PublicSiteInvitationsRoute>('/api/site-invitations', opts)

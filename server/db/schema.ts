@@ -53,6 +53,28 @@ export const inviteCodes = sqliteTable('invite_codes', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
 
+export const siteInvitations = sqliteTable(
+  'site_invitations',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    token: text('token').notNull().unique(),
+    invitedBy: text('invited_by').notNull(),
+    acceptedBy: text('accepted_by'),
+    acceptedAt: integer('accepted_at', { mode: 'timestamp' }),
+    revokedBy: text('revoked_by'),
+    revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [
+    index('site_invitations_email_idx').on(t.email),
+    index('site_invitations_created_idx').on(t.createdAt),
+    index('site_invitations_expires_idx').on(t.expiresAt),
+  ],
+)
+
 export const systemOptions = sqliteTable('system_options', {
   key: text('key').primaryKey(),
   value: text('value').notNull().default(''),

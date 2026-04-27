@@ -22,6 +22,7 @@ import profile from './routes/profile'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import redirect from './routes/redirect'
 import { authedShares, publicShares } from './routes/shares'
+import { adminSiteInvitations, publicSiteInvitations } from './routes/site-invitations'
 import storages from './routes/storages'
 import system from './routes/system'
 import { publicTeams, teams } from './routes/teams'
@@ -61,6 +62,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/auth-providers', publicAuthProviders)
   app.route('/api/licensing', licensing)
   app.route('/api/branding', publicBranding)
+  app.route('/api/site-invitations', publicSiteInvitations)
 
   app.use('/api/*', authMiddleware)
 
@@ -77,6 +79,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/admin/email-config', emailConfig)
   app.route('/api/admin/invite-codes', adminInviteCodes)
   app.route('/api/invite-codes', publicInviteCodes)
+  app.route('/api/admin/site-invitations', adminSiteInvitations)
   app.route('/api/admin/quotas', adminQuotas)
   app.route('/api/quotas', userQuotas)
   app.route('/api/system', system)
@@ -107,6 +110,8 @@ export type SystemRoute = typeof system
 export type EmailConfigRoute = typeof emailConfig
 export type AdminInviteCodesRoute = typeof adminInviteCodes
 export type PublicInviteCodesRoute = typeof publicInviteCodes
+export type AdminSiteInvitationsRoute = typeof adminSiteInvitations
+export type PublicSiteInvitationsRoute = typeof publicSiteInvitations
 export type AuthProvidersRoute = typeof publicAuthProviders
 export type AdminAuthProvidersRoute = typeof adminAuthProviders
 export type ProfileRoute = typeof profile

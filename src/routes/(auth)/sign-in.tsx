@@ -118,7 +118,7 @@ function SignIn() {
         {authSignupMode !== SignupMode.CLOSED && (
           <p className="text-center text-sm text-muted-foreground">
             {t('auth.noAccount')}{' '}
-            <Link to="/sign-up" className="underline hover:text-foreground">
+            <Link to="/sign-up" search={{ invite: undefined }} className="underline hover:text-foreground">
               {t('auth.signUp')}
             </Link>
           </p>

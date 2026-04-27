@@ -13,6 +13,7 @@ import {
   createIhostImagePresign,
   createObject,
   createShare,
+  createSiteInvitation,
   createStorage,
   deleteAvatar,
   deleteIhostConfig,
@@ -32,6 +33,7 @@ import {
   getProfile,
   getSession,
   getShare,
+  getSiteInvitation,
   getStorage,
   getSystemOption,
   getUnreadCount,
@@ -44,6 +46,7 @@ import {
   listQuotas,
   listShareObjects,
   listShares,
+  listSiteInvitations,
   listStorages,
   listSystemOptions,
   listUsers,
@@ -51,9 +54,11 @@ import {
   markNotificationRead,
   pollPairing,
   refreshLicense,
+  resendSiteInvitation,
   resetBrandingField,
   restoreObject,
   revokeIhostApiKey,
+  revokeSiteInvitation,
   saveBranding,
   saveShareToDrive,
   setSystemOption,
@@ -174,6 +179,67 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
 
       await expect(getObject('missing')).rejects.toThrow('not found')
+    })
+  })
+
+  describe('site invitations api', () => {
+    it('lists site invitations with pagination', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+
+      await listSiteInvitations(2, 10)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/site-invitations?')
+      expect(url).toContain('page=2')
+      expect(url).toContain('pageSize=10')
+      expect(init.method).toBe('GET')
+    })
+
+    it('creates a site invitation', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'invite-1', email: 'new@example.com' }))
+
+      await createSiteInvitation('new@example.com')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/site-invitations')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ email: 'new@example.com' }))
+    })
+
+    it('resends a site invitation', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'invite-1', email: 'new@example.com' }))
+
+      await resendSiteInvitation('invite-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/admin/site-invitations/invite-1/resend')
+      expect(init.method).toBe('POST')
+    })
+
+    it('revokes a site invitation', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'invite-1', revoked: true }))
+
+      await revokeSiteInvitation('invite-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/admin/site-invitations/invite-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('gets a public site invitation by token', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'invite-1', token: 'token-1' }))
+
+      await getSiteInvitation('token-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/site-invitations/token-1')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws ApiError for failed site invitation create', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'duplicate invitation' }, false, 409))
+
+      await expect(createSiteInvitation('new@example.com')).rejects.toThrow('duplicate invitation')
     })
   })
 

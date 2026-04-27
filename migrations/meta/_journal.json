@@ -99,6 +99,13 @@
       "when": 1777085815109,
       "tag": "0014_drop-license-binding",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1777333623540,
+      "tag": "0015_add-site-invitations",
+      "breakpoints": true
     }
   ]
 }

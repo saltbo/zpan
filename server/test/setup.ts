@@ -146,6 +146,22 @@ const APP_SCHEMA_SQL = `
     expires_at INTEGER,
     created_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS site_invitations (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    invited_by TEXT NOT NULL,
+    accepted_by TEXT,
+    accepted_at INTEGER,
+    revoked_by TEXT,
+    revoked_at INTEGER,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS site_invitations_email_idx ON site_invitations(email);
+  CREATE INDEX IF NOT EXISTS site_invitations_created_idx ON site_invitations(created_at);
+  CREATE INDEX IF NOT EXISTS site_invitations_expires_idx ON site_invitations(expires_at);
   CREATE TABLE IF NOT EXISTS team_invite_links (
     id TEXT PRIMARY KEY,
     token TEXT NOT NULL UNIQUE,

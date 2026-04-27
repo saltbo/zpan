@@ -21,6 +21,7 @@ import { sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
 import { findPersonalOrg } from './services/org'
 import { getEffectiveSignupMode } from './services/signup-mode-guard'
+import { acceptSiteInvitation, validateSiteInvitation } from './services/site-invitations'
 import { checkTeamLimit } from './services/team-count-guard'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
@@ -220,8 +221,16 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
             // Registration gate: skip for the very first user so bootstrap works
             if (!firstUser) {
               const mode = await getEffectiveSignupMode(db)
+              const email = String(user.email ?? '')
+              const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
               if (mode === SignupMode.CLOSED) {
-                throw new Error('Registration is currently closed')
+                if (!siteInvitationToken) {
+                  throw new Error('An invitation is required to register')
+                }
+                const validation = await validateSiteInvitation(db, siteInvitationToken, email)
+                if (!validation.valid) {
+                  throw new Error(validation.error ?? 'Invalid invitation')
+                }
               }
               if (mode === SignupMode.INVITE_ONLY) {
                 const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
@@ -259,6 +268,14 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
               const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
               if (inviteCode) {
                 await redeemInviteCode(db, inviteCode, user.id)
+              }
+            }
+
+            const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
+            if (siteInvitationToken) {
+              const result = await acceptSiteInvitation(db, siteInvitationToken, user.email, user.id)
+              if (result !== 'ok' && result !== 'accepted') {
+                throw new Error(`Failed to redeem site invitation: ${result}`)
               }
             }
 

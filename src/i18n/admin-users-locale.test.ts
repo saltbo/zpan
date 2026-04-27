@@ -35,6 +35,29 @@ const ADMIN_USERS_KEYS = [
   'admin.users.pageInfo',
   'admin.users.roleAdmin',
   'admin.users.roleMember',
+  'admin.users.inviteUser',
+  'admin.users.inviteDialogTitle',
+  'admin.users.inviteDialogDescription',
+  'admin.users.inviteEmail',
+  'admin.users.inviteEmailPlaceholder',
+  'admin.users.sendInvite',
+  'admin.users.inviteCreated',
+  'admin.users.inviteResent',
+  'admin.users.inviteRevoked',
+  'admin.users.noInvitations',
+  'admin.users.inviteColEmail',
+  'admin.users.inviteColStatus',
+  'admin.users.inviteColInvitedBy',
+  'admin.users.inviteColCreatedAt',
+  'admin.users.inviteColExpiresAt',
+  'admin.users.copyInviteLink',
+  'admin.users.inviteLinkCopied',
+  'admin.users.resendInvite',
+  'admin.users.revokeInvite',
+  'admin.users.inviteStatus.pending',
+  'admin.users.inviteStatus.accepted',
+  'admin.users.inviteStatus.expired',
+  'admin.users.inviteStatus.revoked',
 ]
 
 // Keys that contain interpolation placeholders and the expected placeholder tokens
@@ -43,6 +66,7 @@ const INTERPOLATED_KEYS: Record<string, string[]> = {
   'admin.users.currentUsage': ['{{used}}'],
   'admin.users.deleteConfirm': ['{{name}}'],
   'admin.users.pageInfo': ['{{page}}', '{{total}}'],
+  'admin.users.inviteDialogDescription': ['{{count}}'],
 }
 
 describe('admin.users locale keys — presence', () => {

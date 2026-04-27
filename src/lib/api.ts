@@ -18,12 +18,14 @@ import type {
   PaginatedResponse,
   ShareListItem,
   ShareView,
+  SiteInvitation,
   Storage,
   StorageObject,
 } from '@shared/types'
 import {
   adminAuthProviders,
   adminQuotas,
+  adminSiteInvitations,
   authedSharesApi,
   authProviders,
   brandingAdminApi,
@@ -39,6 +41,7 @@ import {
   profiles,
   publicBrandingApi,
   publicSharesApi,
+  publicSiteInvitations,
   storages,
   system,
   teamsApi,
@@ -310,6 +313,30 @@ export function generateInviteCodes(count: number, expiresInDays?: number) {
 
 export function deleteInviteCode(id: string) {
   return unwrap<{ id: string; deleted: boolean }>(inviteCodes[':id'].$delete({ param: { id } }))
+}
+
+// Site Invitations API
+
+export function listSiteInvitations(page = 1, pageSize = 20) {
+  return unwrap<{ items: SiteInvitation[]; total: number }>(
+    adminSiteInvitations.index.$get({ query: { page, pageSize } }),
+  )
+}
+
+export function createSiteInvitation(email: string) {
+  return unwrap<SiteInvitation>(adminSiteInvitations.index.$post({ json: { email } }))
+}
+
+export function resendSiteInvitation(id: string) {
+  return unwrap<SiteInvitation>(adminSiteInvitations[':id'].resend.$post({ param: { id } }))
+}
+
+export function revokeSiteInvitation(id: string) {
+  return unwrap<{ id: string; revoked: boolean }>(adminSiteInvitations[':id'].$delete({ param: { id } }))
+}
+
+export function getSiteInvitation(token: string) {
+  return unwrap<SiteInvitation>(publicSiteInvitations[':token'].$get({ param: { token } }))
 }
 
 // Email Config API

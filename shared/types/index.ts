@@ -70,6 +70,24 @@ export interface Invitation {
   createdAt: string
 }
 
+export type SiteInvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked'
+
+export interface SiteInvitation {
+  id: string
+  email: string
+  token: string
+  invitedBy: string
+  invitedByName: string
+  acceptedBy: string | null
+  acceptedAt: string | null
+  revokedBy: string | null
+  revokedAt: string | null
+  expiresAt: string
+  createdAt: string
+  updatedAt: string
+  status: SiteInvitationStatus
+}
+
 export interface SystemOption {
   key: string
   value: string
