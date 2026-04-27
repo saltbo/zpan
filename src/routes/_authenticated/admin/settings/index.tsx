@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { BrandingSection } from '@/components/admin/branding-section'
+import { ProBadge } from '@/components/ProBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -43,11 +44,24 @@ const settingsSchema = z.object({
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
 
+function ProFeatureHeader({ title, description, tooltip }: { title: string; description: string; tooltip: string }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <CardTitle>{title}</CardTitle>
+        <ProBadge tooltip={tooltip} />
+      </div>
+      <CardDescription>{description}</CardDescription>
+    </div>
+  )
+}
+
 function SettingsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { siteName, siteDescription, defaultOrgQuota: quotaBytes, authSignupMode, isLoading } = useSiteOptions()
   const { hasFeature } = useEntitlement()
+  const hasWhiteLabel = hasFeature('white_label')
   const hasOpenRegistration = hasFeature('open_registration')
 
   const form = useForm<SettingsFormValues>({
@@ -112,17 +126,21 @@ function SettingsPage() {
               <div className="rounded-2xl border border-border/60 bg-primary/10 p-2 text-primary">
                 <Globe2 className="h-5 w-5" />
               </div>
-              <div className="space-y-1">
-                <CardTitle>{t('admin.settings.identityTitle')}</CardTitle>
-                <CardDescription>{t('admin.settings.identityDescription')}</CardDescription>
-              </div>
+              <ProFeatureHeader
+                title={t('admin.settings.identityTitle')}
+                description={t('admin.settings.identityDescription')}
+                tooltip={t('admin.settings.identityProTooltip')}
+              />
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
+            <div className={`space-y-2 ${!hasWhiteLabel ? 'opacity-60' : ''}`}>
               <Label htmlFor="siteName">{t('admin.settings.siteName')}</Label>
               <Input
                 id="siteName"
+                readOnly={!hasWhiteLabel}
+                aria-disabled={!hasWhiteLabel}
+                tabIndex={!hasWhiteLabel ? -1 : undefined}
                 placeholder={t('admin.settings.siteNamePlaceholder')}
                 {...form.register('siteName')}
               />
@@ -132,11 +150,14 @@ function SettingsPage() {
               )}
             </div>
 
-            <div className="space-y-2">
+            <div className={`space-y-2 ${!hasWhiteLabel ? 'opacity-60' : ''}`}>
               <Label htmlFor="siteDescription">{t('admin.settings.siteDescription')}</Label>
               <Textarea
                 id="siteDescription"
                 rows={4}
+                readOnly={!hasWhiteLabel}
+                aria-disabled={!hasWhiteLabel}
+                tabIndex={!hasWhiteLabel ? -1 : undefined}
                 placeholder={t('admin.settings.siteDescriptionPlaceholder')}
                 {...form.register('siteDescription')}
               />
@@ -154,10 +175,11 @@ function SettingsPage() {
               <div className="rounded-2xl border border-border/60 bg-amber-500/10 p-2 text-amber-600">
                 <Globe2 className="h-5 w-5" />
               </div>
-              <div className="space-y-1">
-                <CardTitle>{t('admin.settings.registrationTitle')}</CardTitle>
-                <CardDescription>{t('admin.settings.registrationDescription')}</CardDescription>
-              </div>
+              <ProFeatureHeader
+                title={t('admin.settings.registrationTitle')}
+                description={t('admin.settings.registrationDescription')}
+                tooltip={t('admin.settings.registrationUpgradeHint')}
+              />
             </div>
           </CardHeader>
           <CardContent>
@@ -169,11 +191,6 @@ function SettingsPage() {
                     ? t('admin.settings.registrationHintOpen')
                     : t('admin.settings.registrationHintClosed')}
                 </p>
-                {!hasOpenRegistration && (
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    {t('admin.settings.registrationUpgradeHint')}
-                  </p>
-                )}
               </div>
               <Switch
                 id="registrationsEnabled"
@@ -241,13 +258,7 @@ function SettingsPage() {
         </Card>
       </form>
 
-      <div className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="text-xl font-semibold">{t('admin.settings.brandingTitle')}</h2>
-          <p className="text-sm text-muted-foreground">{t('admin.settings.brandingDescription')}</p>
-        </div>
-        <BrandingSection />
-      </div>
+      <BrandingSection />
     </div>
   )
 }
