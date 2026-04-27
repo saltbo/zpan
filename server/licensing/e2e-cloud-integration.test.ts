@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * E2E Integration Test: zpan ↔ zpan-cloud licensing flow.
  *
@@ -17,15 +18,19 @@
  *
  * Run with: npx vitest run server/licensing/e2e-cloud-integration.test.ts
  */
+
+import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SignupMode } from '../../shared/constants'
 import { CloudUnboundError, createPairing, pollPairing, refreshEntitlement } from '../services/licensing-cloud'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup'
 import { hasFeature, loadBindingState } from './has-feature'
+import { getOrCreateInstanceId } from './instance-id'
 import { LICENSE_KEYS, loadLicenseState, setLicenseOptions } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 
 const CLOUD_BASE_URL = process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud.saltbo.workers.dev'
+const { secretKey: E2E_SECRET, publicKey: E2E_PUBLIC } = generateKeys('public')
 
 // ─── Phase 1: Live Cloud API contract verification ───────────────────────────
 
@@ -57,7 +62,7 @@ describe('E2E: zpan-cloud API contract', () => {
 
     expect(result.status).toBe('pending')
     expect(result.refresh_token).toBeUndefined()
-    expect(result.entitlement).toBeUndefined()
+    expect(result.certificate).toBeUndefined()
   })
 
   it('POST /api/entitlements rejects invalid Bearer token with 401', async () => {
@@ -229,9 +234,12 @@ describe('E2E: Unbind flow', () => {
 describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    PUBLIC_KEYS.unshift(E2E_PUBLIC)
   })
   afterEach(() => {
     vi.unstubAllGlobals()
+    const idx = PUBLIC_KEYS.indexOf(E2E_PUBLIC)
+    if (idx >= 0) PUBLIC_KEYS.splice(idx, 1)
   })
 
   it('complete flow: pair → poll pending → poll approved → features active → refresh → unbind', async () => {
@@ -269,20 +277,25 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     expect(pendingRes.status).toBe(200)
     expect(((await pendingRes.json()) as { status: string }).status).toBe('pending')
 
-    // Step 3: Poll — approved (unsigned entitlement from pairing)
+    const instanceId = await getOrCreateInstanceId(db)
+    const cert = sign(E2E_SECRET, {
+      instance_id: instanceId,
+      account_id: 'user-123',
+      plan: 'pro',
+      plan_source: 'membership',
+      features: ['white_label', 'open_registration', 'teams_unlimited', 'team_quotas'],
+      hosts: ['https://zpan.example.com'],
+      expires_at: new Date(Date.now() + 86400_000).toISOString(),
+      issued_at: new Date().toISOString(),
+    })
+
+    // Step 3: Poll — approved (signed certificate from pairing)
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
         JSON.stringify({
           status: 'approved',
           refresh_token: 'rt-e2e-secret',
-          entitlement: {
-            instance_id: 'test-instance',
-            account_id: 'user-123',
-            plan: 'pro',
-            features: ['white_label', 'open_registration', 'teams_unlimited', 'team_quotas'],
-            expires_at: new Date(Date.now() + 86400_000).toISOString(),
-            issued_at: new Date().toISOString(),
-          },
+          certificate: cert,
         }),
         { headers: { 'Content-Type': 'application/json' } },
       ),

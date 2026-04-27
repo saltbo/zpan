@@ -15,6 +15,18 @@ function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string 
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 }
 
+function getInstanceOrigin(c: { req: { url: string; header(name: string): string | undefined } }): string {
+  const requestUrl = new URL(c.req.url)
+  const forwardedProto = c.req.header('x-forwarded-proto')
+  const forwardedHost = c.req.header('x-forwarded-host') ?? c.req.header('host')
+
+  if (forwardedProto && forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`
+  }
+
+  return requestUrl.origin
+}
+
 const app = new Hono<Env>()
   .use(requireAdmin)
 
@@ -31,7 +43,7 @@ const app = new Hono<Env>()
       .limit(1)
 
     const instanceName = titleRows[0]?.value ?? 'ZPan'
-    const instanceHost = c.req.header('host') ?? new URL(c.req.url).host
+    const instanceHost = getInstanceOrigin(c)
 
     const pairing = await createPairing(baseUrl, instanceId, instanceName, instanceHost)
     return c.json(pairing)
@@ -44,25 +56,14 @@ const app = new Hono<Env>()
 
     const result = await pollPairing(baseUrl, code)
 
-    if (result.status === 'approved' && result.refresh_token && result.entitlement != null) {
+    if (result.status === 'approved' && result.refresh_token && result.certificate) {
       const instanceId = await getOrCreateInstanceId(db)
-
-      let cert: string
-      let expiresAt: number | null = null
-
-      if (typeof result.entitlement === 'string') {
-        cert = result.entitlement
-        const entitlement = verifyCertificate(cert, instanceId)
-        if (entitlement) {
-          expiresAt = Math.floor(new Date(entitlement.expires_at).getTime() / 1000)
-        }
-      } else {
-        cert = JSON.stringify(result.entitlement)
-        const parsed = result.entitlement as { expires_at?: string }
-        if (parsed.expires_at) {
-          expiresAt = Math.floor(new Date(parsed.expires_at).getTime() / 1000)
-        }
+      const cert = result.certificate
+      const entitlement = verifyCertificate(cert, instanceId)
+      if (!entitlement) {
+        return c.json({ error: 'invalid_certificate' }, 502)
       }
+      const expiresAt = Math.floor(new Date(entitlement.expires_at).getTime() / 1000)
 
       const nowSec = String(Math.floor(Date.now() / 1000))
       await setLicenseOptions(db, {
@@ -78,8 +79,12 @@ const app = new Hono<Env>()
 
       return c.json({
         status: 'approved' as const,
-        plan: getPlanFromCert(cert, instanceId),
+        plan: entitlement.plan,
       })
+    }
+
+    if (result.status === 'approved') {
+      return c.json({ error: 'invalid_pairing_response' }, 502)
     }
 
     return c.json({ status: result.status })
@@ -103,19 +108,5 @@ const app = new Hono<Env>()
 
     return c.json({ deleted: true })
   })
-
-function getPlanFromCert(cert: string, instanceId: string): string | undefined {
-  if (cert.startsWith('v4.public.')) {
-    const entitlement = verifyCertificate(cert, instanceId)
-    return entitlement?.plan
-  }
-
-  try {
-    const parsed = JSON.parse(cert) as { plan?: string }
-    return parsed.plan
-  } catch {
-    return undefined
-  }
-}
 
 export default app

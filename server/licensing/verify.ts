@@ -34,7 +34,9 @@ function tryVerify(cert: string, publicKey: string, instanceId: string): License
       account_id: payload.account_id,
       instance_id: payload.instance_id,
       plan: payload.plan,
+      plan_source: payload.plan_source,
       features: payload.features,
+      hosts: payload.hosts,
       issued_at: payload.issued_at,
       expires_at: payload.expires_at,
     }

@@ -1,5 +1,8 @@
+import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getOrCreateInstanceId } from '../licensing/instance-id.js'
 import { LICENSE_KEYS, loadLicenseState, setLicenseOptions } from '../licensing/license-state.js'
+import { PUBLIC_KEYS } from '../licensing/public-keys.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
 function makeCloudResponse(body: unknown, status = 200): Response {
@@ -10,6 +13,26 @@ function makeCloudResponse(body: unknown, status = 200): Response {
     json: async () => body,
     text: async () => JSON.stringify(body),
   } as unknown as Response
+}
+
+const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
+const originalKeys: string[] = []
+
+function futureIso(offsetMs: number): string {
+  return new Date(Date.now() + offsetMs).toISOString()
+}
+
+function signCert(instanceId: string): string {
+  return sign(TEST_SECRET, {
+    account_id: 'acct-1',
+    instance_id: instanceId,
+    plan: 'pro',
+    plan_source: 'membership',
+    features: ['white_label'],
+    hosts: ['https://zpan.example.com'],
+    issued_at: new Date().toISOString(),
+    expires_at: futureIso(3_600_000),
+  })
 }
 
 describe('Licensing Admin API — auth guards', () => {
@@ -55,10 +78,15 @@ describe('Licensing Admin API — auth guards', () => {
 describe('POST /api/licensing/pair', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    originalKeys.push(...PUBLIC_KEYS)
+    PUBLIC_KEYS.length = 0
+    PUBLIC_KEYS.push(TEST_PUBLIC)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    PUBLIC_KEYS.length = 0
+    for (const key of originalKeys.splice(0)) PUBLIC_KEYS.push(key)
   })
 
   it('calls cloud and returns pairing info', async () => {
@@ -81,16 +109,24 @@ describe('POST /api/licensing/pair', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.code).toBe('ABC-123')
     expect(body.pairing_url).toBe('https://cloud.zpan.space/pair')
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(String(init.body)).instance_host).toBe('http://localhost')
   })
 })
 
 describe('GET /api/licensing/pair/:code/poll', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    originalKeys.push(...PUBLIC_KEYS)
+    PUBLIC_KEYS.length = 0
+    PUBLIC_KEYS.push(TEST_PUBLIC)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    PUBLIC_KEYS.length = 0
+    for (const key of originalKeys.splice(0)) PUBLIC_KEYS.push(key)
   })
 
   it('returns pending status when cloud returns pending', async () => {
@@ -109,19 +145,13 @@ describe('GET /api/licensing/pair/:code/poll', () => {
   it('stores binding on approved and returns approved status', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
+    const instanceId = await getOrCreateInstanceId(db)
 
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
         status: 'approved',
         refresh_token: 'rt-secret',
-        entitlement: {
-          plan: 'pro',
-          features: ['white_label'],
-          expires_at: '2026-12-31T00:00:00Z',
-          account_id: 'a1',
-          instance_id: 'i1',
-          issued_at: '2026-01-01T00:00:00Z',
-        },
+        certificate: signCert(instanceId),
       }),
     )
 
@@ -134,6 +164,43 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     // Check that binding was persisted
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('rt-secret')
+  })
+
+  it('rejects approved responses with an invalid certificate', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeCloudResponse({
+        status: 'approved',
+        refresh_token: 'rt-secret',
+        certificate: signCert('wrong-instance'),
+      }),
+    )
+
+    const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
+
+    expect(res.status).toBe(502)
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBeNull()
+  })
+
+  it('rejects approved responses when certificate is missing', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeCloudResponse({
+        status: 'approved',
+        refresh_token: 'rt-secret',
+      }),
+    )
+
+    const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
+
+    expect(res.status).toBe(502)
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBeNull()
   })
 })
 

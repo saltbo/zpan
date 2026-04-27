@@ -6,7 +6,9 @@ export interface LicenseEntitlement {
   account_id: string
   instance_id: string
   plan: 'community' | 'pro'
+  plan_source?: string
   features: ProFeature[]
+  hosts?: string[]
   issued_at: string
   expires_at: string
 }

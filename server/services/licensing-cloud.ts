@@ -12,7 +12,7 @@ export interface PairingResponse {
 export interface PairingPollResponse {
   status: 'pending' | 'approved' | 'denied' | 'expired'
   refresh_token?: string
-  entitlement?: string | object
+  certificate?: string
 }
 
 export interface EntitlementRefreshResponse {

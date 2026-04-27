@@ -34,7 +34,9 @@ function signCert(overrides: Record<string, unknown> = {}, key = TEST_SECRET): s
     account_id: 'acct-1',
     instance_id: 'inst-abc',
     plan: 'pro',
+    plan_source: 'membership',
     features: ['white_label'],
+    hosts: ['https://zpan.example.com'],
     issued_at: new Date().toISOString(),
     expires_at: futureIso(3_600_000), // 1 hour from now
     ...overrides,
@@ -51,6 +53,8 @@ describe('verifyCertificate', () => {
     expect(result?.features).toEqual(['white_label'])
     expect(result?.instance_id).toBe('inst-abc')
     expect(result?.account_id).toBe('acct-1')
+    expect(result?.plan_source).toBe('membership')
+    expect(result?.hosts).toEqual(['https://zpan.example.com'])
   })
 
   it('returns null for a cert with an invalid signature', () => {

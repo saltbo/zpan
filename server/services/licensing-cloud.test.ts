@@ -77,13 +77,14 @@ describe('licensing-cloud', () => {
       const payload = {
         status: 'approved',
         refresh_token: 'rt-token',
-        entitlement: 'v4.public.token',
+        certificate: 'v4.public.token',
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await pollPairing(BASE_URL, 'CODE-2')
       expect(result.status).toBe('approved')
       expect(result.refresh_token).toBe('rt-token')
+      expect(result.certificate).toBe('v4.public.token')
     })
 
     it('throws on non-OK response', async () => {
