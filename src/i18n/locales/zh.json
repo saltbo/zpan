@@ -791,7 +791,7 @@
   "features.teamWorkspaces": "团队协作空间",
   "features.teamWorkspaces.limit": "最多 {{count}} 个团队空间",
   "features.teamWorkspaces.unlimited": "无限制",
-  "features.storageBackends": "存储后端",
+  "features.storageBackends": "存储空间",
   "features.storageBackends.limit": "最多 {{count}} 个存储",
   "features.storageBackends.unlimited": "无限制",
   "features.shareLinks": "外链分享",

@@ -35,15 +35,14 @@ function LicensingPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <p className="text-sm text-muted-foreground">{t('settings.billing.intro')}</p>
-
-      <ComparisonTable />
-
-      <div>
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-sm text-muted-foreground">{t('settings.billing.intro')}</p>
         <Button onClick={() => setPairingOpen(true)} style={{ backgroundColor: '#1A73E8' }}>
           {t('settings.billing.connectButton')}
         </Button>
       </div>
+
+      <ComparisonTable />
 
       <PairingModal open={pairingOpen} onOpenChange={setPairingOpen} />
     </div>
