@@ -96,7 +96,7 @@ describe('E2E: Feature gates — Community (unbound)', () => {
     expect(hasFeature('open_registration', state)).toBe(false)
     expect(hasFeature('white_label', state)).toBe(false)
     expect(hasFeature('teams_unlimited', state)).toBe(false)
-    expect(hasFeature('team_quotas', state)).toBe(false)
+    expect(hasFeature('storages_unlimited', state)).toBe(false)
   })
 
   it('PUT /api/system/options returns 402 when enabling open signup without Pro', async () => {
@@ -128,7 +128,7 @@ describe('E2E: Feature gates — Pro (active binding)', () => {
     expect(state.bound).toBe(true)
     expect(state.plan).toBe('pro')
     expect(state.features).toEqual(
-      expect.arrayContaining(['white_label', 'open_registration', 'teams_unlimited', 'team_quotas']),
+      expect.arrayContaining(['white_label', 'open_registration', 'teams_unlimited', 'storages_unlimited']),
     )
   })
 
@@ -141,7 +141,7 @@ describe('E2E: Feature gates — Pro (active binding)', () => {
     expect(hasFeature('open_registration', state)).toBe(true)
     expect(hasFeature('white_label', state)).toBe(true)
     expect(hasFeature('teams_unlimited', state)).toBe(true)
-    expect(hasFeature('team_quotas', state)).toBe(true)
+    expect(hasFeature('storages_unlimited', state)).toBe(true)
   })
 
   it('PUT /api/system/options allows open signup with Pro license', async () => {
@@ -180,7 +180,7 @@ describe('E2E: Feature gates — expired certificate', () => {
     // Insert a binding with an expired cert (expires_at in the past)
     const expiredCert = JSON.stringify({
       plan: 'pro',
-      features: ['white_label', 'open_registration', 'teams_unlimited', 'team_quotas'],
+      features: ['white_label', 'open_registration', 'teams_unlimited', 'storages_unlimited'],
       expires_at: '2020-01-01T00:00:00Z',
     })
     await setLicenseOptions(db, {
@@ -283,7 +283,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
       account_id: 'user-123',
       plan: 'pro',
       plan_source: 'membership',
-      features: ['white_label', 'open_registration', 'teams_unlimited', 'team_quotas'],
+      features: ['white_label', 'open_registration', 'teams_unlimited', 'storages_unlimited'],
       hosts: ['https://zpan.example.com'],
       expires_at: new Date(Date.now() + 86400_000).toISOString(),
       issued_at: new Date().toISOString(),
@@ -322,7 +322,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     expect(hasFeature('open_registration', state)).toBe(true)
     expect(hasFeature('white_label', state)).toBe(true)
     expect(hasFeature('teams_unlimited', state)).toBe(true)
-    expect(hasFeature('team_quotas', state)).toBe(true)
+    expect(hasFeature('storages_unlimited', state)).toBe(true)
 
     // Step 6: Open registration is now allowed
     const openRegRes = await app.request('/api/system/options/auth_signup_mode', {

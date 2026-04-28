@@ -9,7 +9,6 @@ import {
   patchMatterSchema,
 } from '../../shared/schemas'
 import type { Storage as S3Storage } from '../../shared/types'
-import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -199,11 +198,9 @@ const app = new Hono<Env>()
       }
       case 'confirm': {
         try {
-          const state = await loadBindingState(db)
           const { matter, quotaExceeded } = await confirmUpload(db, c.req.param('id'), orgId, {
             onConflict: body.onConflict,
             userId,
-            teamQuotaEnabled: hasFeature('team_quotas', state),
           })
           if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
           if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)

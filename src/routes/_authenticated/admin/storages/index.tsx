@@ -1,4 +1,4 @@
-import { StorageStatus } from '@shared/constants'
+import { FREE_STORAGE_LIMIT, StorageStatus } from '@shared/constants'
 import type { Storage } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
@@ -7,7 +7,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DeleteStorageDialog } from '@/components/admin/delete-storage-dialog'
 import { StorageFormDrawer } from '@/components/admin/storage-form-drawer'
+import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import { listStorages } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/storages/')({
@@ -16,6 +18,7 @@ export const Route = createFileRoute('/_authenticated/admin/storages/')({
 
 function StoragesPage() {
   const { t } = useTranslation()
+  const { hasFeature } = useEntitlement()
   const [formOpen, setFormOpen] = useState(false)
   const [editingStorage, setEditingStorage] = useState<Storage | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
@@ -26,6 +29,7 @@ function StoragesPage() {
   })
 
   const storages = storagesQuery.data?.items ?? []
+  const storagesLimitReached = !hasFeature('storages_unlimited') && storages.length >= FREE_STORAGE_LIMIT
 
   function handleEdit(storage: Storage) {
     setEditingStorage(storage)
@@ -33,6 +37,7 @@ function StoragesPage() {
   }
 
   function handleAddNew() {
+    if (storagesLimitReached) return
     setEditingStorage(null)
     setFormOpen(true)
   }
@@ -54,11 +59,13 @@ function StoragesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">{t('admin.storages.title')}</h2>
-        <Button size="sm" onClick={handleAddNew}>
+        <Button size="sm" onClick={handleAddNew} disabled={storagesLimitReached}>
           <Plus className="mr-2 h-4 w-4" />
           {t('admin.storages.add')}
         </Button>
       </div>
+
+      {storagesLimitReached && <UpgradeHint feature="storages_unlimited" />}
 
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">

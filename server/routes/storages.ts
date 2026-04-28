@@ -1,9 +1,18 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
+import { FREE_STORAGE_LIMIT } from '../../shared/constants'
 import { createStorageSchema, updateStorageSchema } from '../../shared/schemas'
+import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { createStorage, deleteStorage, getStorage, listStorages, updateStorage } from '../services/storage'
+import {
+  countStorages,
+  createStorage,
+  deleteStorage,
+  getStorage,
+  listStorages,
+  updateStorage,
+} from '../services/storage'
 
 const app = new Hono<Env>()
   .use(requireAdmin)
@@ -14,6 +23,18 @@ const app = new Hono<Env>()
   })
   .post('/', zValidator('json', createStorageSchema), async (c) => {
     const db = c.get('platform').db
+    const [total, state] = await Promise.all([countStorages(db), loadBindingState(db)])
+    if (!hasFeature('storages_unlimited', state) && total >= FREE_STORAGE_LIMIT) {
+      return c.json(
+        {
+          error: 'feature_not_available',
+          feature: 'storages_unlimited',
+          currentCount: total,
+          limit: FREE_STORAGE_LIMIT,
+        },
+        402,
+      )
+    }
     const storage = await createStorage(db, c.req.valid('json'))
     return c.json(storage, 201)
   })

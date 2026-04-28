@@ -1,4 +1,4 @@
-import { COMMUNITY_TEAM_LIMIT } from './constants'
+import { FREE_EXTRA_TEAM_LIMIT, FREE_STORAGE_LIMIT } from './constants'
 
 // ---------------------------------------------------------------------------
 // Cell values for the comparison table
@@ -98,16 +98,16 @@ export const FEATURE_REGISTRY = [
   {
     i18nKey: 'features.teamWorkspaces',
     category: 'pro',
-    community: { i18nKey: 'features.teamWorkspaces.limit', params: { count: COMMUNITY_TEAM_LIMIT } },
+    community: { i18nKey: 'features.teamWorkspaces.limit', params: { count: FREE_EXTRA_TEAM_LIMIT } },
     pro: { i18nKey: 'features.teamWorkspaces.unlimited' },
     gateKey: 'teams_unlimited',
   },
   {
-    i18nKey: 'features.teamQuotas',
+    i18nKey: 'features.storageBackends',
     category: 'pro',
-    community: false,
-    pro: true,
-    gateKey: 'team_quotas',
+    community: { i18nKey: 'features.storageBackends.limit', params: { count: FREE_STORAGE_LIMIT } },
+    pro: { i18nKey: 'features.storageBackends.unlimited' },
+    gateKey: 'storages_unlimited',
   },
   {
     i18nKey: 'features.multiIdpSso',

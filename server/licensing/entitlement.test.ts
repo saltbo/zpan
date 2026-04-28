@@ -120,7 +120,7 @@ describe('invalidateEntitlementCache', () => {
       account_id: 'acct-1',
       instance_id: 'inst-1',
       plan: 'pro',
-      features: ['team_quotas'],
+      features: ['storages_unlimited'],
       issued_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 3_600_000).toISOString(),
     })

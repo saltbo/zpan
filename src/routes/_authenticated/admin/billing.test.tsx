@@ -65,18 +65,18 @@ describe('resolveBillingView', () => {
 // Pro features — label mapping in BoundStatusCard
 // ---------------------------------------------------------------------------
 
-type ProFeature = 'white_label' | 'open_registration' | 'teams_unlimited' | 'team_quotas'
+type ProFeature = 'white_label' | 'open_registration' | 'teams_unlimited' | 'storages_unlimited'
 
 const FEATURE_LABELS: Record<ProFeature, string> = {
   white_label: 'White-label branding',
   open_registration: 'Open registration',
   teams_unlimited: 'Unlimited teams',
-  team_quotas: 'Per-team storage quotas',
+  storages_unlimited: 'Unlimited storages',
 }
 
 describe('FEATURE_LABELS', () => {
   it('maps all known ProFeature keys', () => {
-    const features: ProFeature[] = ['white_label', 'open_registration', 'teams_unlimited', 'team_quotas']
+    const features: ProFeature[] = ['white_label', 'open_registration', 'teams_unlimited', 'storages_unlimited']
     for (const f of features) {
       expect(FEATURE_LABELS[f]).toBeTruthy()
     }
@@ -86,8 +86,8 @@ describe('FEATURE_LABELS', () => {
     expect(FEATURE_LABELS.white_label).toBe('White-label branding')
   })
 
-  it('team_quotas maps to readable label', () => {
-    expect(FEATURE_LABELS.team_quotas).toBe('Per-team storage quotas')
+  it('storages_unlimited maps to readable label', () => {
+    expect(FEATURE_LABELS.storages_unlimited).toBe('Unlimited storages')
   })
 })
 
@@ -138,10 +138,10 @@ const COMPARISON_ROWS: FeatureRow[] = [
   { label: 'Social login & OIDC', community: true, pro: true },
   { label: 'Invite codes', community: true, pro: true },
   { label: 'All 7 deployment targets', community: true, pro: true },
-  { label: 'Up to 3 teams', community: true, pro: true },
+  { label: 'Up to 1 team', community: true, pro: true },
   { label: 'Unlimited teams', community: false, pro: true },
   { label: 'Open registration', community: false, pro: true },
-  { label: 'Per-team storage quotas', community: false, pro: true },
+  { label: 'Unlimited storages', community: false, pro: true },
   { label: 'White-label branding', community: false, pro: true },
 ]
 
@@ -165,7 +165,7 @@ describe('ComparisonTable rows', () => {
     const proOnlyLabels = COMPARISON_ROWS.filter((r) => !r.community).map((r) => r.label)
     expect(proOnlyLabels).toContain('Unlimited teams')
     expect(proOnlyLabels).toContain('Open registration')
-    expect(proOnlyLabels).toContain('Per-team storage quotas')
+    expect(proOnlyLabels).toContain('Unlimited storages')
     expect(proOnlyLabels).toContain('White-label branding')
   })
 })

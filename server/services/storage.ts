@@ -40,6 +40,11 @@ export async function createStorage(db: Database, input: CreateStorageInput): Pr
   return row
 }
 
+export async function countStorages(db: Database): Promise<number> {
+  const rows = await db.select({ count: count() }).from(storages)
+  return rows[0]?.count ?? 0
+}
+
 export async function updateStorage(db: Database, id: string, input: UpdateStorageInput): Promise<Storage | null> {
   const existing = await getStorage(db, id)
   if (!existing) return null

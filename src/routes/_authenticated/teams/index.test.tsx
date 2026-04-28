@@ -12,28 +12,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('isAtLimit logic', () => {
   function computeIsAtLimit(hasTeamsUnlimited: boolean, totalOrgCount: number, orgsLoading = false): boolean {
-    const COMMUNITY_TEAM_LIMIT = 3
-    return !orgsLoading && !hasTeamsUnlimited && totalOrgCount >= COMMUNITY_TEAM_LIMIT
+    const FREE_TEAM_LIMIT = 2
+    return !orgsLoading && !hasTeamsUnlimited && totalOrgCount >= FREE_TEAM_LIMIT
   }
 
   it('is false when user has 0 orgs and no pro feature', () => {
     expect(computeIsAtLimit(false, 0)).toBe(false)
   })
 
-  it('is false when user has 2 orgs and no pro feature', () => {
-    expect(computeIsAtLimit(false, 2)).toBe(false)
+  it('is false when user has 1 org and no pro feature', () => {
+    expect(computeIsAtLimit(false, 1)).toBe(false)
   })
 
-  it('is true when user has exactly 3 orgs and no pro feature', () => {
+  it('is true when user has exactly 2 orgs and no pro feature', () => {
+    expect(computeIsAtLimit(false, 2)).toBe(true)
+  })
+
+  it('is true when user has 3 orgs and no pro feature', () => {
     expect(computeIsAtLimit(false, 3)).toBe(true)
   })
 
-  it('is true when user has 4 orgs and no pro feature', () => {
-    expect(computeIsAtLimit(false, 4)).toBe(true)
-  })
-
-  it('is false when user has 3 orgs but has teams_unlimited feature', () => {
-    expect(computeIsAtLimit(true, 3)).toBe(false)
+  it('is false when user has 2 orgs but has teams_unlimited feature', () => {
+    expect(computeIsAtLimit(true, 2)).toBe(false)
   })
 
   it('is false when user has 10 orgs and has teams_unlimited feature', () => {
@@ -43,9 +43,9 @@ describe('isAtLimit logic', () => {
   it('personal workspace counts toward the total (totalOrgCount includes all orgs)', () => {
     // If the user has only a personal workspace (1 org total) — not at limit
     expect(computeIsAtLimit(false, 1)).toBe(false)
-    // Two orgs (personal + 1 team) — not at limit
-    expect(computeIsAtLimit(false, 2)).toBe(false)
-    // Three orgs (personal + 2 teams) — at limit
+    // Two orgs (personal + 1 team) — at limit
+    expect(computeIsAtLimit(false, 2)).toBe(true)
+    // Three orgs (personal + 2 teams) — still at limit
     expect(computeIsAtLimit(false, 3)).toBe(true)
   })
 })
@@ -308,22 +308,22 @@ describe('TeamsPage — ProBadge visibility', () => {
     makeSession()
   })
 
-  it('renders ProBadge on the button when at limit (3 orgs, no pro feature)', async () => {
-    makeOrgs(3)
+  it('renders ProBadge on the button when at limit (2 orgs, no pro feature)', async () => {
+    makeOrgs(2)
     makeEntitlement(false)
     const { findByTestId } = await renderTeamsPage()
     await findByTestId('pro-badge')
   })
 
-  it('does not render ProBadge when under limit (2 orgs, no pro feature)', async () => {
-    makeOrgs(2)
+  it('does not render ProBadge when under limit (1 org, no pro feature)', async () => {
+    makeOrgs(1)
     makeEntitlement(false)
     const { queryByTestId } = await renderTeamsPage()
     expect(queryByTestId('pro-badge')).toBeNull()
   })
 
-  it('does not render ProBadge when pro user has 3 orgs', async () => {
-    makeOrgs(3)
+  it('does not render ProBadge when pro user has 2 orgs', async () => {
+    makeOrgs(2)
     makeEntitlement(true)
     const { queryByTestId } = await renderTeamsPage()
     expect(queryByTestId('pro-badge')).toBeNull()
@@ -336,7 +336,7 @@ describe('TeamsPage — button click behavior', () => {
   })
 
   it('opens UpgradeHint dialog when at limit and button is clicked', async () => {
-    makeOrgs(3)
+    makeOrgs(2)
     makeEntitlement(false)
     const { findByTestId, queryByTestId } = await renderTeamsPage()
     // No upgrade hint visible initially

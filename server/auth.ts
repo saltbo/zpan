@@ -177,7 +177,8 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
             const { allowed, count: current_count, limit } = await checkTeamLimit(db, user.id)
             if (!allowed) {
               throw new APIError('PAYMENT_REQUIRED', {
-                message: 'Team limit reached. Upgrade to Pro for unlimited teams.',
+                message:
+                  'Team limit reached. Free includes one personal workspace plus one extra team. Upgrade to Pro for unlimited teams.',
                 error: 'feature_not_available',
                 feature: 'teams_unlimited',
                 currentCount: current_count,

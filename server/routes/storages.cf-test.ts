@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers'
+import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createApp } from '../app'
@@ -70,6 +71,31 @@ describe('[CF] Admin Storages API', () => {
     expect(body.title).toBe('CF Test S3')
     expect(body.status).toBe('active')
     expect(body.id).toBeTruthy()
+  })
+
+  it('POST /api/admin/storages returns 402 when Community storage limit is reached', async () => {
+    const app = await buildApp()
+    const headers = await adminHeaders(app)
+
+    for (let i = 0; i < FREE_STORAGE_LIMIT; i++) {
+      const res = await app.request('/api/admin/storages', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...validStorage, title: `CF Storage ${i}`, bucket: `cf-bucket-${i}` }),
+      })
+      expect(res.status).toBe(201)
+    }
+
+    const res = await app.request('/api/admin/storages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...validStorage, title: 'CF Storage overflow', bucket: 'cf-bucket-overflow' }),
+    })
+
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.feature).toBe('storages_unlimited')
+    expect(body.limit).toBe(FREE_STORAGE_LIMIT)
   })
 
   it('GET /api/admin/storages/:id returns storage detail', async () => {

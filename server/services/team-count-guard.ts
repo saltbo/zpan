@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { COMMUNITY_TEAM_LIMIT } from '../../shared/constants'
+import { FREE_TEAM_LIMIT } from '../../shared/constants'
 import { member } from '../db/auth-schema'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import type { Database } from '../platform/interface'
@@ -15,5 +15,5 @@ export async function checkTeamLimit(
 ): Promise<{ allowed: boolean; count: number; limit: number }> {
   const [count, state] = await Promise.all([countUserOrgs(db, userId), loadBindingState(db)])
   const unlimited = hasFeature('teams_unlimited', state)
-  return { allowed: unlimited || count < COMMUNITY_TEAM_LIMIT, count, limit: COMMUNITY_TEAM_LIMIT }
+  return { allowed: unlimited || count < FREE_TEAM_LIMIT, count, limit: FREE_TEAM_LIMIT }
 }

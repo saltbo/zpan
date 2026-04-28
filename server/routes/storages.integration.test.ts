@@ -1,3 +1,4 @@
+import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { selectStorage } from '../services/storage.js'
@@ -62,6 +63,32 @@ describe('Admin Storages API', () => {
     expect(body.capacity).toBe(0)
     expect(body.used).toBe(0)
     expect(body.id).toBeTruthy()
+  })
+
+  it('POST / returns 402 when Community storage limit is reached', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    for (let i = 0; i < FREE_STORAGE_LIMIT; i++) {
+      const res = await app.request('/api/admin/storages', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...validStorage, title: `Storage ${i}`, bucket: `bucket-${i}` }),
+      })
+      expect(res.status).toBe(201)
+    }
+
+    const res = await app.request('/api/admin/storages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...validStorage, title: 'Storage overflow', bucket: 'bucket-overflow' }),
+    })
+
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.error).toBe('feature_not_available')
+    expect(body.feature).toBe('storages_unlimited')
+    expect(body.limit).toBe(FREE_STORAGE_LIMIT)
   })
 
   it('GET / lists created storages', async () => {

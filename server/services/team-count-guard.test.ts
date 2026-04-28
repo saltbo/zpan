@@ -1,4 +1,4 @@
-import { COMMUNITY_TEAM_LIMIT } from '@shared/constants'
+import { FREE_TEAM_LIMIT } from '@shared/constants'
 import { nanoid } from 'nanoid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
@@ -121,13 +121,13 @@ describe('checkTeamLimit', () => {
     vi.clearAllMocks()
   })
 
-  it('always returns limit equal to COMMUNITY_TEAM_LIMIT constant (3)', async () => {
+  it('always returns limit equal to FREE_TEAM_LIMIT constant (2)', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
     const result = await checkTeamLimit(db, userId)
-    expect(result.limit).toBe(COMMUNITY_TEAM_LIMIT)
-    expect(result.limit).toBe(3)
+    expect(result.limit).toBe(FREE_TEAM_LIMIT)
+    expect(result.limit).toBe(2)
   })
 
   it('allowed=true when user has 0 orgs and no teams_unlimited feature', async () => {
@@ -139,7 +139,18 @@ describe('checkTeamLimit', () => {
     expect(result.count).toBe(0)
   })
 
-  it('allowed=true when user has 2 orgs and no teams_unlimited feature', async () => {
+  it('allowed=true when user has 1 org and no teams_unlimited feature', async () => {
+    const { db } = await createTestApp()
+    const userId = await insertUser(db)
+    const orgA = await insertOrg(db)
+    await insertMember(db, orgA, userId)
+
+    const result = await checkTeamLimit(db, userId)
+    expect(result.allowed).toBe(true)
+    expect(result.count).toBe(1)
+  })
+
+  it('allowed=false when user has 2 orgs and no teams_unlimited feature', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
     const orgA = await insertOrg(db)
@@ -148,7 +159,7 @@ describe('checkTeamLimit', () => {
     await insertMember(db, orgB, userId)
 
     const result = await checkTeamLimit(db, userId)
-    expect(result.allowed).toBe(true)
+    expect(result.allowed).toBe(false)
     expect(result.count).toBe(2)
   })
 
@@ -178,18 +189,18 @@ describe('checkTeamLimit', () => {
     expect(result.count).toBe(4)
   })
 
-  it('allowed=true when user has 3 orgs but has teams_unlimited feature', async () => {
+  it('allowed=true when user has 2 orgs but has teams_unlimited feature', async () => {
     vi.mocked(hasFeature).mockReturnValue(true)
     const { db } = await createTestApp()
     const userId = await insertUser(db)
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       const orgId = await insertOrg(db)
       await insertMember(db, orgId, userId)
     }
 
     const result = await checkTeamLimit(db, userId)
     expect(result.allowed).toBe(true)
-    expect(result.count).toBe(3)
+    expect(result.count).toBe(2)
   })
 
   it('allowed=true when user has 10 orgs with teams_unlimited feature', async () => {

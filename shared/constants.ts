@@ -45,6 +45,13 @@ export type SignupMode = (typeof SignupMode)[keyof typeof SignupMode]
 
 export const ZPAN_CLOUD_URL_DEFAULT = 'https://cloud.zpan.space'
 
-// Community plan allows up to this many organizations per user (including personal workspace).
-// The 4th organization requires the teams_unlimited feature.
-export const COMMUNITY_TEAM_LIMIT = 3
+// Free plan allows up to this many organizations per user (including personal workspace).
+// The 3rd organization requires the teams_unlimited feature.
+export const FREE_TEAM_LIMIT = 2
+
+// Free plan allows up to this many extra team workspaces beyond the personal workspace.
+export const FREE_EXTRA_TEAM_LIMIT = 1
+
+// Free plan allows up to this many storage backends per instance.
+// The 4th storage requires the storages_unlimited feature.
+export const FREE_STORAGE_LIMIT = 3

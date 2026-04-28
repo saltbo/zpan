@@ -342,7 +342,7 @@ export async function authedHeaders(
  */
 export async function seedProLicense(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
-  features: string[] = ['white_label', 'open_registration', 'teams_unlimited', 'team_quotas'],
+  features: string[] = ['white_label', 'open_registration', 'teams_unlimited', 'storages_unlimited'],
 ) {
   const cert = JSON.stringify({ plan: 'pro', features })
   const { LICENSE_KEYS, setLicenseOptions } = await import('../licensing/license-state.js')

@@ -51,10 +51,10 @@ describe('hasFeature', () => {
     const state: BindingState = {
       bound: true,
       plan: 'pro',
-      features: ['team_quotas'],
+      features: ['storages_unlimited'],
       expires_at: Math.floor(Date.now() / 1000) + 86400,
     }
-    expect(hasFeature('team_quotas', state)).toBe(true)
+    expect(hasFeature('storages_unlimited', state)).toBe(true)
   })
 
   it('returns true when expires_at is undefined (no expiry)', () => {

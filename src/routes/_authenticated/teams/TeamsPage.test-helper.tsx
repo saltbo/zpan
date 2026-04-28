@@ -5,6 +5,7 @@
 // test code import the component after all vi.mock() declarations have been
 // set up, avoiding circular module-init ordering issues with createFileRoute.
 
+import { FREE_TEAM_LIMIT } from '@shared/constants'
 import { useQueries } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
 import { useState } from 'react'
@@ -44,7 +45,7 @@ export function TeamsPage() {
   const teamOrgs = (orgs ?? []).filter((o: ListOrganization) => !o.slug.startsWith('personal-'))
 
   const totalOrgCount = (orgs ?? []).length
-  const isAtLimit = !hasFeature('teams_unlimited') && totalOrgCount >= 3
+  const isAtLimit = !hasFeature('teams_unlimited') && totalOrgCount >= FREE_TEAM_LIMIT
 
   useQueries({
     queries: teamOrgs.map((o: ListOrganization) => ({

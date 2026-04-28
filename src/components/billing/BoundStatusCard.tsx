@@ -22,7 +22,7 @@ const FEATURE_LABELS: Record<ProFeature, string> = {
   white_label: 'White-label branding',
   open_registration: 'Open registration',
   teams_unlimited: 'Unlimited teams',
-  team_quotas: 'Per-team storage quotas',
+  storages_unlimited: 'Unlimited storages',
 }
 
 function formatTimestamp(ts: number | undefined, fallback: string): string {

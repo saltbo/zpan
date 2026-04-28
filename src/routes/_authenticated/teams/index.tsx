@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { COMMUNITY_TEAM_LIMIT } from '@shared/constants'
+import { FREE_TEAM_LIMIT } from '@shared/constants'
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Plus, Users } from 'lucide-react'
@@ -197,7 +197,7 @@ function TeamsPage() {
   // Total org count includes personal workspace — counts toward the community team limit.
   // Guard with !orgsLoading to avoid a brief false state while orgs are being fetched.
   const totalOrgCount = (orgs ?? []).length
-  const isAtLimit = !orgsLoading && !hasFeature('teams_unlimited') && totalOrgCount >= COMMUNITY_TEAM_LIMIT
+  const isAtLimit = !orgsLoading && !hasFeature('teams_unlimited') && totalOrgCount >= FREE_TEAM_LIMIT
 
   const fullOrgQueries = useQueries({
     queries: teamOrgs.map((o: ListOrganization) => ({

@@ -88,12 +88,12 @@ describe('UpgradeHint — bound state', () => {
   beforeEach(() => setupEntitlement(true))
 
   it('renders CTA "Manage on Cloud" when bound', () => {
-    const { getByText } = render(<UpgradeHint feature="team_quotas" />)
+    const { getByText } = render(<UpgradeHint feature="storages_unlimited" />)
     expect(getByText('Manage on Cloud')).toBeTruthy()
   })
 
   it('does not render "Connect to Cloud" when bound', () => {
-    const { queryByText } = render(<UpgradeHint feature="team_quotas" />)
+    const { queryByText } = render(<UpgradeHint feature="storages_unlimited" />)
     expect(queryByText('Connect to Cloud')).toBeNull()
   })
 })

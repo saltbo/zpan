@@ -7,7 +7,7 @@ const FEATURE_LABELS: Record<ProFeature, string> = {
   white_label: 'white-label branding',
   open_registration: 'open registration',
   teams_unlimited: 'unlimited teams',
-  team_quotas: 'per-team storage quotas',
+  storages_unlimited: 'unlimited storages',
 }
 
 interface UpgradeHintProps {

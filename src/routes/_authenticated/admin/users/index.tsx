@@ -7,10 +7,8 @@ import { toast } from 'sonner'
 import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { SiteInvitationsDialog } from '@/components/admin/site-invitations-dialog'
 import { UserQuotaDialog } from '@/components/admin/user-quota-dialog'
-import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useEntitlement } from '@/hooks/useEntitlement'
 import { listQuotas, listUsers, type QuotaItem, type UserWithOrg, updateUserStatus } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/users/')({
@@ -25,8 +23,6 @@ interface UserRow extends UserWithOrg {
 function UsersPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { hasFeature } = useEntitlement()
-  const teamQuotasEnabled = hasFeature('team_quotas')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 20
@@ -43,7 +39,6 @@ function UsersPage() {
   const quotasQuery = useQuery({
     queryKey: ['admin', 'quotas'],
     queryFn: listQuotas,
-    enabled: teamQuotasEnabled,
   })
 
   const toggleStatusMutation = useMutation({
@@ -84,7 +79,7 @@ function UsersPage() {
 
   const total = usersQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const isLoading = usersQuery.isLoading || (teamQuotasEnabled && quotasQuery.isLoading)
+  const isLoading = usersQuery.isLoading || quotasQuery.isLoading
 
   function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
     setSearch(e.target.value)
@@ -128,9 +123,7 @@ function UsersPage() {
               <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('admin.users.colEmail')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.users.colRole')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.users.colStatus')}</th>
-              {teamQuotasEnabled && (
-                <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('admin.users.colQuota')}</th>
-              )}
+              <th className="hidden px-4 py-3 text-left font-medium md:table-cell">{t('admin.users.colQuota')}</th>
               <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">{t('admin.users.colCreatedAt')}</th>
               <th className="px-4 py-3 text-right font-medium">{t('admin.users.colActions')}</th>
             </tr>
@@ -141,7 +134,7 @@ function UsersPage() {
                 key={user.id}
                 user={user}
                 isToggling={toggleStatusMutation.isPending}
-                showQuota={teamQuotasEnabled}
+                showQuota
                 onSetQuota={() => setQuotaDialogUser(user)}
                 onToggleStatus={() =>
                   toggleStatusMutation.mutate({
@@ -154,7 +147,7 @@ function UsersPage() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={teamQuotasEnabled ? 7 : 6} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                   {t('admin.users.noUsers')}
                 </td>
               </tr>
@@ -177,24 +170,20 @@ function UsersPage() {
         </div>
       )}
 
-      {!teamQuotasEnabled && <UpgradeHint feature="team_quotas" />}
-
-      {teamQuotasEnabled && (
-        <UserQuotaDialog
-          open={quotaDialogUser !== null}
-          onOpenChange={(open) => !open && setQuotaDialogUser(null)}
-          user={
-            quotaDialogUser?.orgId
-              ? {
-                  name: quotaDialogUser.name || quotaDialogUser.username,
-                  orgId: quotaDialogUser.orgId,
-                  quotaUsed: quotaDialogUser.quotaUsed,
-                  quotaTotal: quotaDialogUser.quotaTotal,
-                }
-              : null
-          }
-        />
-      )}
+      <UserQuotaDialog
+        open={quotaDialogUser !== null}
+        onOpenChange={(open) => !open && setQuotaDialogUser(null)}
+        user={
+          quotaDialogUser?.orgId
+            ? {
+                name: quotaDialogUser.name || quotaDialogUser.username,
+                orgId: quotaDialogUser.orgId,
+                quotaUsed: quotaDialogUser.quotaUsed,
+                quotaTotal: quotaDialogUser.quotaTotal,
+              }
+            : null
+        }
+      />
 
       <DeleteUserDialog
         open={deleteDialogUser !== null}
