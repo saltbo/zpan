@@ -85,6 +85,19 @@ describe('Admin Email Config API — GET', () => {
     expect(body).toEqual({ enabled: false, provider: null })
   })
 
+  it('returns enabled with null provider when email is enabled but sender/provider are incomplete', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await db.insert(schema.systemOptions).values([{ key: 'email_enabled', value: 'true' }])
+
+    const res = await app.request('/api/admin/email-config', { headers })
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({
+      enabled: true,
+      provider: null,
+    })
+  })
+
   it('returns masked SMTP config after SMTP config is saved', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)

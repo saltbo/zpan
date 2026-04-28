@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as schema from '../db/schema.js'
 import type { Platform } from '../platform/interface'
 import { createTestApp } from '../test/setup.js'
-import { getEmailConfig, isEmailConfigured, sendEmail } from './email.js'
+import { getEmailConfig, getEmailSettings, isEmailConfigured, sendEmail } from './email.js'
 
 const sendMailMock = vi.fn()
 
@@ -120,6 +120,21 @@ describe('getEmailConfig', () => {
       { key: 'email_from', value: 'no-reply@example.com' },
     ])
     await expect(getEmailConfig(db)).rejects.toThrow('Unknown email provider: unknown')
+  })
+
+  it('throws when cloudflare provider is selected without EMAIL binding', async () => {
+    const { db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_provider', value: 'cloudflare' },
+      { key: 'email_from', value: 'no-reply@zpan.space' },
+    ])
+    const platform = {
+      db,
+      getEnv: () => undefined,
+      getBinding: <T = unknown>(_key: string) => undefined as T | undefined,
+    } satisfies Platform
+
+    await expect(getEmailConfig(platform)).rejects.toThrow('Cloudflare email binding "EMAIL" is not configured')
   })
 
   it('returns Cloudflare config when provider is cloudflare and binding is present', async () => {
@@ -302,5 +317,48 @@ describe('sendEmail — Cloudflare provider', () => {
     await expect(sendEmail(db, { to: 'user@example.com', subject: 'Hi', html: '<p>Hi</p>' })).rejects.toThrow(
       'Email is disabled',
     )
+  })
+
+  it('returns enabled settings with null config when sender is missing', async () => {
+    const { db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
+      { key: 'email_provider', value: 'smtp' },
+    ])
+
+    await expect(getEmailSettings(db)).resolves.toEqual({
+      enabled: true,
+      config: null,
+    })
+  })
+
+  it('prefers explicit text for Cloudflare send()', async () => {
+    const { db } = await createTestApp()
+    const sendMock = vi.fn().mockResolvedValue({ messageId: 'msg_123' })
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
+      { key: 'email_provider', value: 'cloudflare' },
+      { key: 'email_from', value: 'no-reply@zpan.space' },
+    ])
+    const platform = {
+      db,
+      getEnv: () => undefined,
+      getBinding: <T = unknown>(key: string) => (key === 'EMAIL' ? ({ send: sendMock } as T) : undefined),
+    } satisfies Platform
+
+    await sendEmail(platform, {
+      to: 'user@example.com',
+      subject: 'Hello',
+      html: '<p>Hi there</p>',
+      text: 'Plain text body',
+    })
+
+    expect(sendMock).toHaveBeenCalledWith({
+      to: 'user@example.com',
+      from: 'no-reply@zpan.space',
+      subject: 'Hello',
+      html: '<p>Hi there</p>',
+      text: 'Plain text body',
+    })
   })
 })
