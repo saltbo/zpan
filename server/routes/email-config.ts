@@ -91,18 +91,11 @@ const app = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => {
     const platform = c.get('platform')
-    try {
-      const settings = await getEmailSettings(platform)
-      return c.json({
-        enabled: settings.enabled,
-        ...(settings.config ? maskConfig(settings.config) : { provider: null }),
-      })
-    } catch (e) {
-      if (e instanceof Error && e.message.includes('not configured')) {
-        return c.json({ enabled: false, provider: null })
-      }
-      throw e
-    }
+    const settings = await getEmailSettings(platform)
+    return c.json({
+      enabled: settings.enabled,
+      ...(settings.config ? maskConfig(settings.config) : { provider: null }),
+    })
   })
   .put('/', zValidator('json', emailConfigSchema), async (c) => {
     const db = c.get('platform').db

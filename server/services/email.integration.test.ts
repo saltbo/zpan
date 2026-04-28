@@ -319,6 +319,16 @@ describe('sendEmail — Cloudflare provider', () => {
     )
   })
 
+  it('returns false when email is enabled but provider is missing', async () => {
+    const { db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
+      { key: 'email_from', value: 'no-reply@example.com' },
+    ])
+
+    await expect(isEmailConfigured(db)).resolves.toBe(false)
+  })
+
   it('returns enabled settings with null config when sender is missing', async () => {
     const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
@@ -330,6 +340,28 @@ describe('sendEmail — Cloudflare provider', () => {
       enabled: true,
       config: null,
     })
+  })
+
+  it('rethrows non-configuration errors from getEmailSettings', async () => {
+    const { db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
+      { key: 'email_provider', value: 'smtp' },
+      { key: 'email_from', value: 'no-reply@example.com' },
+    ])
+
+    await expect(getEmailSettings(db)).rejects.toThrow('SMTP host and port are required')
+  })
+
+  it('rethrows non-configuration errors from isEmailConfigured', async () => {
+    const { db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
+      { key: 'email_provider', value: 'smtp' },
+      { key: 'email_from', value: 'no-reply@example.com' },
+    ])
+
+    await expect(isEmailConfigured(db)).rejects.toThrow('SMTP host and port are required')
   })
 
   it('prefers explicit text for Cloudflare send()', async () => {
