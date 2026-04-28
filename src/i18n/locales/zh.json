@@ -303,7 +303,6 @@
   "admin.auth.emailEnabledHint": "控制是否允许任何邮件提供商发送邮件。",
   "admin.auth.emailProvider": "提供商类型",
   "admin.auth.emailCloudflare": "Cloudflare 邮件",
-  "admin.auth.emailCloudflareHint": "使用 Workers 的 EMAIL binding 发信。在 Cloudflare 上，如果未显式设置 provider 且已配置 email_from，Cloudflare 就会成为默认邮件服务。",
   "admin.auth.emailSmtp": "SMTP",
   "admin.auth.emailHttp": "HTTP API",
   "admin.auth.emailFrom": "发件地址",

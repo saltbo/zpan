@@ -60,11 +60,6 @@ function getCloudflareBinding(platform: Platform | undefined): CloudflareEmailBi
   return platform?.getBinding<CloudflareEmailBinding>(CLOUDFLARE_EMAIL_BINDING)
 }
 
-function getCloudflareFallbackConfig(platform: Platform | undefined, from: string | undefined): EmailConfig | null {
-  if (!platform || !getCloudflareBinding(platform) || !from) return null
-  return { provider: 'cloudflare', from }
-}
-
 async function loadEmailOptions(db: Database): Promise<Map<string, string>> {
   const rows = await db
     .select({ key: systemOptions.key, value: systemOptions.value })
@@ -85,8 +80,6 @@ export async function getEmailConfig(source: EmailSource): Promise<EmailConfig> 
   const provider = opts.get('email_provider')
   const from = opts.get('email_from')
   if (!provider) {
-    const fallback = getCloudflareFallbackConfig(platform, from)
-    if (fallback) return fallback
     throw new Error('Email provider not configured: set email_provider in system options')
   }
   if (provider !== 'smtp' && provider !== 'http' && provider !== 'cloudflare') {

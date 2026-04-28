@@ -237,9 +237,7 @@ export function EmailConfigSection() {
               <Input type="password" value={form.httpApiKey} onChange={(e) => update({ httpApiKey: e.target.value })} />
             </div>
           </>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('admin.auth.emailCloudflareHint')}</p>
-        )}
+        ) : null}
 
         <div className="flex gap-2">
           <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>

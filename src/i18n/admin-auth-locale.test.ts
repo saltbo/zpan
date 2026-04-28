@@ -65,7 +65,6 @@ const ADMIN_AUTH_KEYS = [
   'admin.auth.emailEnabledHint',
   'admin.auth.emailProvider',
   'admin.auth.emailCloudflare',
-  'admin.auth.emailCloudflareHint',
   'admin.auth.emailSmtp',
   'admin.auth.emailHttp',
   'admin.auth.emailFrom',

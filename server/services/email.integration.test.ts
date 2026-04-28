@@ -154,24 +154,6 @@ describe('getEmailConfig', () => {
       from: 'no-reply@zpan.space',
     })
   })
-
-  it('falls back to Cloudflare when EMAIL binding and email_from are configured', async () => {
-    const { db } = await createTestApp()
-    await db.insert(schema.systemOptions).values([
-      { key: 'email_enabled', value: 'true' },
-      { key: 'email_from', value: 'no-reply@zpan.space' },
-    ])
-    const platform = {
-      db,
-      getEnv: () => undefined,
-      getBinding: <T = unknown>(key: string) => (key === 'EMAIL' ? ({ send: vi.fn() } as T) : undefined),
-    } satisfies Platform
-
-    await expect(getEmailConfig(platform)).resolves.toEqual({
-      provider: 'cloudflare',
-      from: 'no-reply@zpan.space',
-    })
-  })
 })
 
 describe('sendEmail — SMTP provider', () => {
@@ -288,7 +270,7 @@ describe('sendEmail — Cloudflare provider', () => {
     })
   })
 
-  it('reports Cloudflare as configured when enabled, email_from and binding are present', async () => {
+  it('reports false when email is enabled and binding exists but provider is missing', async () => {
     const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
       { key: 'email_enabled', value: 'true' },
@@ -300,7 +282,7 @@ describe('sendEmail — Cloudflare provider', () => {
       getBinding: <T = unknown>(key: string) => (key === 'EMAIL' ? ({ send: vi.fn() } as T) : undefined),
     } satisfies Platform
 
-    await expect(isEmailConfigured(platform)).resolves.toBe(true)
+    await expect(isEmailConfigured(platform)).resolves.toBe(false)
   })
 
   it('reports false when config exists but email is disabled', async () => {

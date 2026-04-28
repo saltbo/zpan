@@ -139,7 +139,7 @@ describe('Admin Email Config API — GET', () => {
     expect(String(http.apiKey)).toMatch(/^\*+-key$/)
   })
 
-  it('returns Cloudflare config from EMAIL binding when enabled and email_from exist with no provider set', async () => {
+  it('returns provider null when enabled and email_from exist but provider is unset', async () => {
     const sendMock = vi.fn().mockResolvedValue({ messageId: 'msg_123' })
     const { app, db } = await createTestApp({}, { EMAIL: { send: sendMock } })
     await db.insert(schema.systemOptions).values([
@@ -152,8 +152,7 @@ describe('Admin Email Config API — GET', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({
       enabled: true,
-      provider: 'cloudflare',
-      from: 'no-reply@zpan.space',
+      provider: null,
     })
   })
 })

@@ -303,7 +303,6 @@
   "admin.auth.emailEnabledHint": "Controls whether any email provider is allowed to send messages.",
   "admin.auth.emailProvider": "Provider Type",
   "admin.auth.emailCloudflare": "Cloudflare Email",
-  "admin.auth.emailCloudflareHint": "Uses the Workers EMAIL binding. On Cloudflare, if provider is unset and email_from is configured, Cloudflare becomes the default mail service.",
   "admin.auth.emailSmtp": "SMTP",
   "admin.auth.emailHttp": "HTTP API",
   "admin.auth.emailFrom": "From Address",
