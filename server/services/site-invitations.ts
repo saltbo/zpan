@@ -254,7 +254,7 @@ export async function acceptSiteInvitation(
   if (row.expiresAt < new Date()) return 'expired'
   if (row.email !== email) return 'email_mismatch'
 
-  const result = await db
+  await db
     .update(siteInvitations)
     .set({
       acceptedBy: userId,
@@ -271,8 +271,13 @@ export async function acceptSiteInvitation(
       ),
     )
 
-  const changes = (result as { rowsAffected?: number }).rowsAffected ?? (result as { changes?: number }).changes
-  if (changes === undefined)
-    throw new Error('DB driver returned no rowsAffected — cannot confirm invitation redemption')
-  return changes > 0 ? 'ok' : 'accepted'
+  const [updated] = await db
+    .select({ acceptedBy: siteInvitations.acceptedBy, acceptedAt: siteInvitations.acceptedAt })
+    .from(siteInvitations)
+    .where(eq(siteInvitations.token, token))
+    .limit(1)
+
+  if (updated?.acceptedBy === userId && updated.acceptedAt) return 'ok'
+  if (updated?.acceptedBy) return 'accepted'
+  return 'accepted'
 }
