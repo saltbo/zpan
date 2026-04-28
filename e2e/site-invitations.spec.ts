@@ -1,51 +1,54 @@
-import path from 'node:path'
 import { expect, test } from '@playwright/test'
-import Database from 'better-sqlite3'
 import { signInAsAdmin } from './helpers'
 
-const DB_PATH = path.resolve(process.cwd(), process.env.DATABASE_URL || './zpan.db')
+async function setSignupMode(page: import('@playwright/test').Page, value: string) {
+  const result = await page.evaluate(async (nextValue) => {
+    const res = await fetch('/api/system/options/auth_signup_mode', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: nextValue, public: true }),
+    })
+    return { ok: res.ok, status: res.status, body: await res.text() }
+  }, value)
 
-function withDb<T>(fn: (db: Database.Database) => T): T {
-  const db = new Database(DB_PATH)
-  try {
-    return fn(db)
-  } finally {
-    db.close()
-  }
+  expect(result.ok, result.body).toBe(true)
 }
 
-function upsertSystemOption(key: string, value: string, isPublic = false) {
-  withDb((db) => {
-    db.prepare(`
-      INSERT INTO system_options (key, value, public)
-      VALUES (?, ?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value, public = excluded.public
-    `).run(key, value, isPublic ? 1 : 0)
+async function saveEmailConfig(page: import('@playwright/test').Page) {
+  const result = await page.evaluate(async () => {
+    const res = await fetch('/api/admin/email-config', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled: true,
+        provider: 'http',
+        from: 'no-reply@example.com',
+        http: {
+          url: 'https://postman-echo.com/post',
+          apiKey: 'e2e-test-key',
+        },
+      }),
+    })
+    return { ok: res.ok, status: res.status, body: await res.text() }
   })
-}
 
-function setSignupModeInDb(value: string) {
-  upsertSystemOption('auth_signup_mode', value, true)
-}
-
-function saveEmailConfigInDb() {
-  upsertSystemOption('email_provider', 'http')
-  upsertSystemOption('email_from', 'no-reply@example.com')
-  upsertSystemOption('email_http_url', 'https://postman-echo.com/post')
-  upsertSystemOption('email_http_api_key', 'e2e-test-key')
+  expect(result.ok, result.body).toBe(true)
 }
 
 test.describe('Site invitation signup flow', () => {
-  test.afterEach(async () => {
-    setSignupModeInDb('')
+  test.afterEach(async ({ page }) => {
+    await signInAsAdmin(page)
+    await setSignupMode(page, '')
   })
 
   test('admin can inspect invitation and invited user can register with token @desktop', async ({ page }) => {
-    setSignupModeInDb('closed')
-    saveEmailConfigInDb()
     const invitationEmail = `invited-${Date.now()}@example.com`
 
     await signInAsAdmin(page)
+    await setSignupMode(page, 'closed')
+    await saveEmailConfig(page)
     await page.goto('/admin/users')
 
     await Promise.all([
