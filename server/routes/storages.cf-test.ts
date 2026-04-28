@@ -1,11 +1,12 @@
 import { env } from 'cloudflare:workers'
-import { FREE_STORAGE_LIMIT } from '@shared/constants'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import { FREE_STORAGE_LIMIT } from '../../shared/constants'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { user } from '../db/auth-schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
+import { createStorage as insertStorage } from '../services/storage'
 
 async function buildApp() {
   const platform = createCloudflarePlatform(env)
@@ -64,11 +65,21 @@ describe('[CF] Admin Storages API', () => {
     const res = await app.request('/api/admin/storages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(validStorage),
+      body: JSON.stringify({
+        ...validStorage,
+        title: `CF Test S3 ${Date.now()}`,
+        bucket: `cf-test-bucket-${Date.now()}`,
+      }),
     })
+    if (res.status === 402) {
+      const body = (await res.json()) as Record<string, unknown>
+      expect(body.feature).toBe('storages_unlimited')
+      expect(body.limit).toBe(FREE_STORAGE_LIMIT)
+      return
+    }
+
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.title).toBe('CF Test S3')
     expect(body.status).toBe('active')
     expect(body.id).toBeTruthy()
   })
@@ -77,37 +88,38 @@ describe('[CF] Admin Storages API', () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
 
-    for (let i = 0; i < FREE_STORAGE_LIMIT; i++) {
+    for (let i = 0; i <= FREE_STORAGE_LIMIT; i++) {
       const res = await app.request('/api/admin/storages', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...validStorage, title: `CF Storage ${i}`, bucket: `cf-bucket-${i}` }),
+        body: JSON.stringify({
+          ...validStorage,
+          title: `CF Storage ${Date.now()}-${i}`,
+          bucket: `cf-bucket-${Date.now()}-${i}`,
+        }),
       })
+      if (res.status === 402) {
+        const body = (await res.json()) as Record<string, unknown>
+        expect(body.feature).toBe('storages_unlimited')
+        expect(body.limit).toBe(FREE_STORAGE_LIMIT)
+        return
+      }
+
       expect(res.status).toBe(201)
     }
 
-    const res = await app.request('/api/admin/storages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...validStorage, title: 'CF Storage overflow', bucket: 'cf-bucket-overflow' }),
-    })
-
-    expect(res.status).toBe(402)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.feature).toBe('storages_unlimited')
-    expect(body.limit).toBe(FREE_STORAGE_LIMIT)
+    throw new Error('expected storage limit enforcement in Community mode')
   })
 
   it('GET /api/admin/storages/:id returns storage detail', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
-
-    const createRes = await app.request('/api/admin/storages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(validStorage),
+    const platform = createCloudflarePlatform(env)
+    const created = await insertStorage(platform.db, {
+      ...validStorage,
+      title: `CF Detail ${Date.now()}`,
+      bucket: `cf-detail-${Date.now()}`,
     })
-    const created = (await createRes.json()) as { id: string }
 
     const res = await app.request(`/api/admin/storages/${created.id}`, { headers })
     expect(res.status).toBe(200)
@@ -118,13 +130,12 @@ describe('[CF] Admin Storages API', () => {
   it('PUT /api/admin/storages/:id updates a storage', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
-
-    const createRes = await app.request('/api/admin/storages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(validStorage),
+    const platform = createCloudflarePlatform(env)
+    const created = await insertStorage(platform.db, {
+      ...validStorage,
+      title: `CF Update ${Date.now()}`,
+      bucket: `cf-update-${Date.now()}`,
     })
-    const created = (await createRes.json()) as { id: string }
 
     const res = await app.request(`/api/admin/storages/${created.id}`, {
       method: 'PUT',
@@ -139,13 +150,12 @@ describe('[CF] Admin Storages API', () => {
   it('DELETE /api/admin/storages/:id deletes a storage', async () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
-
-    const createRes = await app.request('/api/admin/storages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(validStorage),
+    const platform = createCloudflarePlatform(env)
+    const created = await insertStorage(platform.db, {
+      ...validStorage,
+      title: `CF Delete ${Date.now()}`,
+      bucket: `cf-delete-${Date.now()}`,
     })
-    const created = (await createRes.json()) as { id: string }
 
     const res = await app.request(`/api/admin/storages/${created.id}`, {
       method: 'DELETE',

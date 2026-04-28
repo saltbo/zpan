@@ -1,8 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { user } from '../db/auth-schema'
-import { systemOptions } from '../db/schema'
-import type { Database } from '../platform/interface'
-import { sendEmail } from './email'
+import type { Database, Platform } from '../platform/interface'
+import { isEmailConfigured, sendEmail } from './email'
 import { createNotification } from './notification'
 import type { Share } from './share'
 
@@ -11,21 +10,12 @@ async function getUserEmail(db: Database, userId: string): Promise<string | null
   return rows[0]?.email ?? null
 }
 
-async function isEmailConfigured(db: Database): Promise<boolean> {
-  const rows = await db
-    .select({ value: systemOptions.value })
-    .from(systemOptions)
-    .where(eq(systemOptions.key, 'email_provider'))
-    .limit(1)
-  return Boolean(rows[0]?.value)
-}
-
 async function sendShareEmail(
-  db: Database,
+  source: Database | Platform,
   opts: { to: string; creatorName: string; matterName: string; url: string; expiresAt: Date | null },
 ): Promise<void> {
   const expiryLine = opts.expiresAt ? `<p>This share expires on ${opts.expiresAt.toISOString().split('T')[0]}.</p>` : ''
-  await sendEmail(db, {
+  await sendEmail(source, {
     to: opts.to,
     subject: `${opts.creatorName} shared "${opts.matterName}" with you`,
     html: `
@@ -43,14 +33,15 @@ export type RecipientInput = {
 }
 
 export async function dispatchShareCreated(
-  db: Database,
+  source: Database | Platform,
   share: Share,
   recipients: RecipientInput[],
   creatorName: string,
   matterName: string,
 ): Promise<void> {
+  const db = 'db' in source ? source.db : source
   const shareUrl = share.kind === 'landing' ? `/s/${share.token}` : `/r/${share.token}`
-  const emailEnabled = await isEmailConfigured(db)
+  const emailEnabled = await isEmailConfigured(source)
 
   for (const r of recipients) {
     if (r.recipientUserId) {
@@ -69,7 +60,7 @@ export async function dispatchShareCreated(
 
     if (email && emailEnabled) {
       try {
-        await sendShareEmail(db, { to: email, creatorName, matterName, url: shareUrl, expiresAt: share.expiresAt })
+        await sendShareEmail(source, { to: email, creatorName, matterName, url: shareUrl, expiresAt: share.expiresAt })
       } catch (err) {
         console.error(`[share-notification] email to ${email} failed:`, err)
       }

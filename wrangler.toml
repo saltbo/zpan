@@ -21,6 +21,10 @@ migrations_dir = "./migrations"
 binding = "PUBLIC_IMAGES"
 bucket_name = "zpan-public-images"
 
+[[send_email]]
+name = "EMAIL"
+allowed_sender_addresses = ["no-reply@zpan.space"]
+
 [observability]
 enabled = true
 

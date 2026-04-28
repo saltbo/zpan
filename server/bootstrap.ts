@@ -15,6 +15,6 @@ export async function createBootstrap(platform: Platform) {
     .map((o) => o.trim())
     .filter(Boolean) || ['http://localhost:5173']
 
-  const auth = await createAuth(platform.db, secret, baseURL, trustedOrigins)
+  const auth = await createAuth(platform, secret, baseURL, trustedOrigins)
   return createApp(platform, auth)
 }

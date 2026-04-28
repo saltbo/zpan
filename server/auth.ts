@@ -16,8 +16,8 @@ import {
 import * as authSchema from './db/auth-schema'
 import { orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
-import type { Database } from './platform/interface'
-import { sendEmail } from './services/email'
+import type { Database, Platform } from './platform/interface'
+import { isEmailConfigured, sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
 import { findPersonalOrg } from './services/org'
 import { getEffectiveSignupMode } from './services/signup-mode-guard'
@@ -78,14 +78,6 @@ function buildDynamicSocialProviders(db: Database) {
   return providers
 }
 
-async function isEmailConfigured(db: Database): Promise<boolean> {
-  const rows = await db
-    .select({ value: systemOptions.value })
-    .from(systemOptions)
-    .where(eq(systemOptions.key, 'email_provider'))
-  return !!rows[0]?.value
-}
-
 const _INVITE_CODE_ERRORS: Record<string, string> = {
   not_found: 'Invalid invite code',
   already_used: 'Invite code already used',
@@ -122,7 +114,13 @@ function buildVerificationEmailHtml(url: string): string {
 </div>`
 }
 
-export async function createAuth(db: Database, secret: string, baseURL?: string, trustedOrigins?: string[]) {
+export async function createAuth(
+  source: Database | Platform,
+  secret: string,
+  baseURL?: string,
+  trustedOrigins?: string[],
+) {
+  const db = 'db' in source ? source.db : source
   const oidcConfigs = await loadOidcConfigs(db)
   return betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
@@ -138,8 +136,8 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
     },
     emailVerification: {
       sendVerificationEmail: async ({ user, url }) => {
-        if (!(await isEmailConfigured(db))) return
-        await sendEmail(db, {
+        if (!(await isEmailConfigured(source))) return
+        await sendEmail(source, {
           to: user.email,
           subject: 'Verify your email - ZPan',
           html: buildVerificationEmailHtml(url),
@@ -165,8 +163,8 @@ export async function createAuth(db: Database, secret: string, baseURL?: string,
           viewer: memberAc,
         },
         sendInvitationEmail: async (data) => {
-          if (!(await isEmailConfigured(db))) return
-          await sendEmail(db, {
+          if (!(await isEmailConfigured(source))) return
+          await sendEmail(source, {
             to: data.email,
             subject: `You've been invited to join ${data.organization.name} - ZPan`,
             html: buildInvitationEmailHtml(data),

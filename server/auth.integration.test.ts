@@ -291,6 +291,7 @@ describe('buildVerificationEmailHtml — via send-verification-email with email_
 
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
       { key: 'email_http_url', value: 'https://api.mail.example.com/send' },
@@ -325,6 +326,7 @@ describe('buildVerificationEmailHtml — via send-verification-email with email_
 
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
       { key: 'email_http_url', value: 'https://api.mail.example.com/send' },
@@ -484,6 +486,7 @@ describe('createPersonalOrg — org name and quota edge cases', () => {
 
 describe('sendInvitationEmail — buildInvitationEmailHtml via invite-member with email_provider configured', () => {
   const emailProviderOptions = [
+    { key: 'email_enabled', value: 'true' },
     { key: 'email_provider', value: 'http' },
     { key: 'email_from', value: 'no-reply@example.com' },
     { key: 'email_http_url', value: 'https://api.mail.example.com/send' },

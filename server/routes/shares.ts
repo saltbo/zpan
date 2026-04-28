@@ -332,7 +332,7 @@ export const authedShares = new Hono<Env>()
 
     const recipients = body.recipients ?? []
     if (recipients.length > 0) {
-      dispatchShareCreated(db, share, recipients, creatorName, resolvedMatterName).catch((err) =>
+      dispatchShareCreated(c.get('platform'), share, recipients, creatorName, resolvedMatterName).catch((err) =>
         console.error('[shares] dispatchShareCreated failed:', err),
       )
     }

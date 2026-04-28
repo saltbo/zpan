@@ -292,7 +292,10 @@ const APP_SCHEMA_SQL = `
   );
 `
 
-export async function createTestApp(envOverrides: Record<string, string> = {}) {
+export async function createTestApp(
+  envOverrides: Record<string, string> = {},
+  bindingOverrides: Record<string, unknown> = {},
+) {
   const sqlite = new Database(':memory:')
   sqlite.exec(AUTH_SCHEMA_SQL)
   sqlite.exec(APP_SCHEMA_SQL)
@@ -301,12 +304,12 @@ export async function createTestApp(envOverrides: Record<string, string> = {}) {
   const platform: Platform = {
     db,
     getEnv: (key: string) => envOverrides[key],
-    getBinding: () => undefined,
+    getBinding: <T = unknown>(key: string) => bindingOverrides[key] as T | undefined,
   }
-  const auth = await createAuth(db, 'test-secret', 'http://localhost:3000')
+  const auth = await createAuth(platform, 'test-secret', 'http://localhost:3000')
   const app = createApp(platform, auth)
 
-  return { app, db, auth }
+  return { app, db, auth, platform }
 }
 
 export async function adminHeaders(app: ReturnType<typeof createApp>) {

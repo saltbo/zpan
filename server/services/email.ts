@@ -1,14 +1,15 @@
 import { like } from 'drizzle-orm'
 import { systemOptions } from '../db/schema'
-import type { Database } from '../platform/interface'
+import type { Database, Platform } from '../platform/interface'
 
 export interface EmailMessage {
   to: string
   subject: string
   html: string
+  text?: string
 }
 
-export type EmailProvider = 'smtp' | 'http'
+export type EmailProvider = 'smtp' | 'http' | 'cloudflare'
 
 export interface SmtpConfig {
   host: string
@@ -23,9 +24,46 @@ export interface HttpConfig {
   apiKey: string
 }
 
+export interface CloudflareEmailBinding {
+  send(message: {
+    to: string | string[]
+    from: string | { email: string; name: string }
+    subject: string
+    html?: string
+    text?: string
+  }): Promise<{ messageId: string }>
+}
+
 export type EmailConfig =
   | { provider: 'smtp'; from: string; smtp: SmtpConfig }
   | { provider: 'http'; from: string; http: HttpConfig }
+  | { provider: 'cloudflare'; from: string }
+
+export interface EmailSettings {
+  enabled: boolean
+  config: EmailConfig | null
+}
+
+export type EmailSource = Database | Platform
+
+const CLOUDFLARE_EMAIL_BINDING = 'EMAIL'
+
+function getDb(source: EmailSource): Database {
+  return 'db' in source ? source.db : source
+}
+
+function getPlatform(source: EmailSource): Platform | undefined {
+  return 'db' in source ? source : undefined
+}
+
+function getCloudflareBinding(platform: Platform | undefined): CloudflareEmailBinding | undefined {
+  return platform?.getBinding<CloudflareEmailBinding>(CLOUDFLARE_EMAIL_BINDING)
+}
+
+function getCloudflareFallbackConfig(platform: Platform | undefined, from: string | undefined): EmailConfig | null {
+  if (!platform || !getCloudflareBinding(platform) || !from) return null
+  return { provider: 'cloudflare', from }
+}
 
 async function loadEmailOptions(db: Database): Promise<Map<string, string>> {
   const rows = await db
@@ -35,14 +73,25 @@ async function loadEmailOptions(db: Database): Promise<Map<string, string>> {
   return new Map(rows.map((r) => [r.key, r.value]))
 }
 
-export async function getEmailConfig(db: Database): Promise<EmailConfig> {
+function isEmailEnabledOption(opts: Map<string, string>): boolean {
+  return opts.get('email_enabled') === 'true'
+}
+
+export async function getEmailConfig(source: EmailSource): Promise<EmailConfig> {
+  const db = getDb(source)
+  const platform = getPlatform(source)
   const opts = await loadEmailOptions(db)
 
   const provider = opts.get('email_provider')
-  if (!provider) throw new Error('Email provider not configured: set email_provider in system options')
-  if (provider !== 'smtp' && provider !== 'http') throw new Error(`Unknown email provider: ${provider}`)
-
   const from = opts.get('email_from')
+  if (!provider) {
+    const fallback = getCloudflareFallbackConfig(platform, from)
+    if (fallback) return fallback
+    throw new Error('Email provider not configured: set email_provider in system options')
+  }
+  if (provider !== 'smtp' && provider !== 'http' && provider !== 'cloudflare') {
+    throw new Error(`Unknown email provider: ${provider}`)
+  }
   if (!from) throw new Error('Email sender not configured: set email_from in system options')
 
   if (provider === 'smtp') {
@@ -62,10 +111,54 @@ export async function getEmailConfig(db: Database): Promise<EmailConfig> {
     }
   }
 
+  if (provider === 'cloudflare') {
+    if (!getCloudflareBinding(platform)) {
+      throw new Error(`Cloudflare email binding "${CLOUDFLARE_EMAIL_BINDING}" is not configured`)
+    }
+    return { provider, from }
+  }
   const url = opts.get('email_http_url')
   const apiKey = opts.get('email_http_api_key')
   if (!url || !apiKey) throw new Error('HTTP email url and api_key are required')
   return { provider, from, http: { url, apiKey } }
+}
+
+export async function getEmailSettings(source: EmailSource): Promise<EmailSettings> {
+  const db = getDb(source)
+  const opts = await loadEmailOptions(db)
+  const enabled = isEmailEnabledOption(opts)
+
+  try {
+    const config = await getEmailConfig(source)
+    return { enabled, config }
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('Email provider not configured') || error.message.includes('Email sender not configured'))
+    ) {
+      return { enabled, config: null }
+    }
+    throw error
+  }
+}
+
+export async function isEmailConfigured(source: EmailSource): Promise<boolean> {
+  const db = getDb(source)
+  const opts = await loadEmailOptions(db)
+  if (!isEmailEnabledOption(opts)) return false
+
+  try {
+    await getEmailConfig(source)
+    return true
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('Email provider not configured') || error.message.includes('Email sender not configured'))
+    ) {
+      return false
+    }
+    throw error
+  }
 }
 
 async function sendViaSmtp(from: string, smtp: SmtpConfig, message: EmailMessage): Promise<void> {
@@ -106,8 +199,31 @@ async function sendViaHttp(from: string, http: HttpConfig, message: EmailMessage
   }
 }
 
-export async function sendEmail(db: Database, message: EmailMessage): Promise<void> {
-  const config = await getEmailConfig(db)
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+async function sendViaCloudflare(platform: Platform | undefined, from: string, message: EmailMessage): Promise<void> {
+  const binding = getCloudflareBinding(platform)
+  if (!binding) throw new Error(`Cloudflare email binding "${CLOUDFLARE_EMAIL_BINDING}" is not configured`)
+  await binding.send({
+    to: message.to,
+    from,
+    subject: message.subject,
+    html: message.html,
+    text: message.text ?? stripHtml(message.html),
+  })
+}
+
+export async function sendEmail(source: EmailSource, message: EmailMessage): Promise<void> {
+  if (!(await isEmailConfigured(source))) {
+    throw new Error('Email is disabled')
+  }
+  const config = await getEmailConfig(source)
   if (config.provider === 'smtp') return sendViaSmtp(config.from, config.smtp, message)
-  return sendViaHttp(config.from, config.http, message)
+  if (config.provider === 'http') return sendViaHttp(config.from, config.http, message)
+  return sendViaCloudflare(getPlatform(source), config.from, message)
 }
