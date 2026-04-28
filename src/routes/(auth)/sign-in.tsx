@@ -1,4 +1,4 @@
-import { SignupMode } from '@shared/constants'
+import { DEFAULT_SITE_NAME, SignupMode } from '@shared/constants'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
@@ -29,7 +29,7 @@ function SignIn() {
       return null
     }
   })()
-  const { authSignupMode } = useSiteOptions()
+  const { authSignupMode, siteName } = useSiteOptions()
   const { providers } = useOAuthProviders()
   const [identity, setIdentity] = useState('')
   const [password, setPassword] = useState('')
@@ -67,7 +67,7 @@ function SignIn() {
     <div className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-6 p-6">
         <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-bold">ZPan</h1>
+          <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signInSubtitle')}</p>
         </div>
         <OAuthButtons />

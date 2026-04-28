@@ -1,4 +1,4 @@
-import { SignupMode } from '@shared/constants'
+import { DEFAULT_SITE_NAME, SignupMode } from '@shared/constants'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown } from 'lucide-react'
@@ -24,7 +24,7 @@ function SignUp() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { invite } = Route.useSearch()
-  const { authSignupMode, isLoading: optionsLoading } = useSiteOptions()
+  const { authSignupMode, isLoading: optionsLoading, siteName } = useSiteOptions()
   const { providers } = useOAuthProviders()
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
@@ -63,7 +63,7 @@ function SignUp() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="w-full max-w-sm space-y-6 p-6">
           <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold">ZPan</h1>
+            <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
             <p className="text-muted-foreground">{t('auth.registrationClosed')}</p>
           </div>
           <p className="text-center text-sm text-muted-foreground">
@@ -82,7 +82,7 @@ function SignUp() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="w-full max-w-sm space-y-6 p-6">
           <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold">ZPan</h1>
+            <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
             <p className="text-muted-foreground">{t('common.loading')}</p>
           </div>
         </div>
@@ -95,7 +95,7 @@ function SignUp() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="w-full max-w-sm space-y-6 p-6">
           <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold">ZPan</h1>
+            <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
             <p className="text-muted-foreground">{t('auth.invalidInvitation')}</p>
             <p className="text-sm text-muted-foreground">
               {siteInvitation?.status === 'expired'
@@ -148,7 +148,7 @@ function SignUp() {
     <div className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-6 p-6">
         <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-bold">ZPan</h1>
+          <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signUpSubtitle')}</p>
         </div>
         <OAuthButtons />

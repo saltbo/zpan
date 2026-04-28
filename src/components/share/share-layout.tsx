@@ -14,7 +14,6 @@ interface ShareLayoutProps {
 export function ShareLayout({ children, title, subtitle, meta = [] }: ShareLayoutProps) {
   const { t } = useTranslation()
   const { siteName, siteDescription } = useSiteOptions()
-  const brandName = siteName || 'ZPan'
   const year = new Date().getFullYear()
 
   return (
@@ -23,10 +22,10 @@ export function ShareLayout({ children, title, subtitle, meta = [] }: ShareLayou
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
           <Link to="/" className="flex min-w-0 items-center gap-3">
             <div className="flex size-8 items-center justify-center rounded-xl border bg-card shadow-sm">
-              <img src="/logo.svg" alt={brandName} className="size-6" />
+              <img src="/logo.svg" alt={siteName} className="size-6" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold leading-none">{brandName}</p>
+              <p className="truncate text-sm font-semibold leading-none">{siteName}</p>
               <p className="truncate text-[11px] text-muted-foreground">
                 {siteDescription || t('share.externalTagline')}
               </p>
@@ -74,7 +73,7 @@ export function ShareLayout({ children, title, subtitle, meta = [] }: ShareLayou
       <footer className="border-t bg-background/80">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p className="leading-none">
-            {brandName} © {year}
+            {siteName} © {year}
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <Link to="/" className="hover:text-foreground">

@@ -1,5 +1,6 @@
 import { and, count, desc, eq, gt, isNull } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { DEFAULT_SITE_NAME } from '../../shared/constants'
 import type { SiteInvitation } from '../../shared/types'
 import * as authSchema from '../db/auth-schema'
 import { siteInvitations, systemOptions } from '../db/schema'
@@ -38,7 +39,7 @@ function mapInvitation(row: typeof siteInvitations.$inferSelect & { invitedByNam
 
 export async function getSiteName(db: Database): Promise<string> {
   const rows = await db.select().from(systemOptions).where(eq(systemOptions.key, 'site_name')).limit(1)
-  return rows[0]?.value?.trim() || 'ZPan'
+  return rows[0]?.value?.trim() || DEFAULT_SITE_NAME
 }
 
 export async function listSiteInvitations(

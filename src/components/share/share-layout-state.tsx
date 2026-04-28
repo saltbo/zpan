@@ -1,3 +1,4 @@
+import { DEFAULT_SITE_NAME } from '@shared/constants'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { createContext, useContext, useMemo, useState } from 'react'
 
@@ -13,7 +14,7 @@ interface ShareLayoutContextValue {
 }
 
 export const DEFAULT_SHARE_LAYOUT: ShareLayoutState = {
-  title: 'ZPan',
+  title: DEFAULT_SITE_NAME,
   subtitle: '',
   meta: [],
 }

@@ -1,4 +1,4 @@
-import { SignupMode } from '@shared/constants'
+import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME, SignupMode } from '@shared/constants'
 import { describe, expect, it } from 'vitest'
 import type { SiteOption } from '@/lib/api'
 
@@ -13,11 +13,11 @@ function buildOptionsMap(items: SiteOption[]): Map<string, string> {
 }
 
 function resolveSiteName(optionMap: Map<string, string>): string {
-  return optionMap.get('site_name') ?? ''
+  return optionMap.get('site_name') ?? DEFAULT_SITE_NAME
 }
 
 function resolveSiteDescription(optionMap: Map<string, string>): string {
-  return optionMap.get('site_description') ?? ''
+  return optionMap.get('site_description') ?? DEFAULT_SITE_DESCRIPTION
 }
 
 function resolveDefaultOrgQuota(optionMap: Map<string, string>): number {
@@ -40,10 +40,10 @@ describe('useSiteOptions — option map extraction logic', () => {
       expect(resolveSiteName(map)).toBe('ZPan')
     })
 
-    it('returns empty string when site_name is absent', () => {
+    it('returns default site name when site_name is absent', () => {
       const map = buildOptionsMap([])
 
-      expect(resolveSiteName(map)).toBe('')
+      expect(resolveSiteName(map)).toBe(DEFAULT_SITE_NAME)
     })
   })
 
@@ -54,10 +54,10 @@ describe('useSiteOptions — option map extraction logic', () => {
       expect(resolveSiteDescription(map)).toBe('Open S3 hosting')
     })
 
-    it('returns empty string when site_description is absent', () => {
+    it('returns default site description when site_description is absent', () => {
       const map = buildOptionsMap([])
 
-      expect(resolveSiteDescription(map)).toBe('')
+      expect(resolveSiteDescription(map)).toBe(DEFAULT_SITE_DESCRIPTION)
     })
   })
 
