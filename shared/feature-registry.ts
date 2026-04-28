@@ -128,6 +128,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: false,
     pro: true,
+    gateKey: 'audit_log',
     comingSoon: true,
   },
   {

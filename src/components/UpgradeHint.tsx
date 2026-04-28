@@ -8,6 +8,7 @@ const FEATURE_LABELS: Record<ProFeature, string> = {
   open_registration: 'open registration',
   teams_unlimited: 'unlimited teams',
   storages_unlimited: 'unlimited storages',
+  audit_log: 'audit logs',
 }
 
 interface UpgradeHintProps {

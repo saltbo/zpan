@@ -65,18 +65,25 @@ describe('resolveBillingView', () => {
 // Pro features — label mapping in BoundStatusCard
 // ---------------------------------------------------------------------------
 
-type ProFeature = 'white_label' | 'open_registration' | 'teams_unlimited' | 'storages_unlimited'
+type ProFeature = 'white_label' | 'open_registration' | 'teams_unlimited' | 'storages_unlimited' | 'audit_log'
 
 const FEATURE_LABELS: Record<ProFeature, string> = {
   white_label: 'White-label branding',
   open_registration: 'Open registration',
   teams_unlimited: 'Unlimited teams',
   storages_unlimited: 'Unlimited storages',
+  audit_log: 'Audit logs',
 }
 
 describe('FEATURE_LABELS', () => {
   it('maps all known ProFeature keys', () => {
-    const features: ProFeature[] = ['white_label', 'open_registration', 'teams_unlimited', 'storages_unlimited']
+    const features: ProFeature[] = [
+      'white_label',
+      'open_registration',
+      'teams_unlimited',
+      'storages_unlimited',
+      'audit_log',
+    ]
     for (const f of features) {
       expect(FEATURE_LABELS[f]).toBeTruthy()
     }
@@ -88,6 +95,10 @@ describe('FEATURE_LABELS', () => {
 
   it('storages_unlimited maps to readable label', () => {
     expect(FEATURE_LABELS.storages_unlimited).toBe('Unlimited storages')
+  })
+
+  it('audit_log maps to readable label', () => {
+    expect(FEATURE_LABELS.audit_log).toBe('Audit logs')
   })
 })
 
@@ -142,6 +153,7 @@ const COMPARISON_ROWS: FeatureRow[] = [
   { label: 'Unlimited teams', community: false, pro: true },
   { label: 'Open registration', community: false, pro: true },
   { label: 'Unlimited storages', community: false, pro: true },
+  { label: 'Audit logs', community: false, pro: true },
   { label: 'White-label branding', community: false, pro: true },
 ]
 
@@ -161,11 +173,12 @@ describe('ComparisonTable rows', () => {
     expect(communityOnlyRows).toHaveLength(0)
   })
 
-  it('all 4 Pro-exclusive features are represented', () => {
+  it('all 5 Pro-exclusive features are represented', () => {
     const proOnlyLabels = COMPARISON_ROWS.filter((r) => !r.community).map((r) => r.label)
     expect(proOnlyLabels).toContain('Unlimited teams')
     expect(proOnlyLabels).toContain('Open registration')
     expect(proOnlyLabels).toContain('Unlimited storages')
+    expect(proOnlyLabels).toContain('Audit logs')
     expect(proOnlyLabels).toContain('White-label branding')
   })
 })

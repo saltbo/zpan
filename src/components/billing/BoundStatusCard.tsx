@@ -23,6 +23,7 @@ const FEATURE_LABELS: Record<ProFeature, string> = {
   open_registration: 'Open registration',
   teams_unlimited: 'Unlimited teams',
   storages_unlimited: 'Unlimited storages',
+  audit_log: 'Audit logs',
 }
 
 function formatTimestamp(ts: number | undefined, fallback: string): string {
