@@ -104,10 +104,6 @@ function UsersPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-semibold">{t('admin.users.title')}</h2>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <Button onClick={() => setInviteDialogOpen(true)}>
-            <UserPlus />
-            {t('admin.users.inviteUser')}
-          </Button>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -117,6 +113,10 @@ function UsersPage() {
               className="pl-9"
             />
           </div>
+          <Button onClick={() => setInviteDialogOpen(true)}>
+            <UserPlus />
+            {t('admin.users.inviteUser')}
+          </Button>
         </div>
       </div>
 
