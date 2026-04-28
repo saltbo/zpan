@@ -48,6 +48,7 @@ describe('Admin Site Invitations API', () => {
 
   async function seedEmailOptions(ctx: Awaited<ReturnType<typeof createTestApp>>) {
     await ctx.db.insert(systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
       { key: 'email_http_url', value: 'https://mail.example.com/send' },
@@ -171,6 +172,7 @@ describe('Public Site Invitations API', () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await ctx.db.insert(systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
       { key: 'email_http_url', value: 'https://mail.example.com/send' },
