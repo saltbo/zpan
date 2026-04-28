@@ -5,9 +5,10 @@ import { systemOptions } from '../db/schema'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import type { Database } from '../platform/interface'
-import { type EmailConfig, getEmailConfig, sendEmail } from '../services/email'
+import { type EmailConfig, getEmailSettings, sendEmail } from '../services/email'
 
 const smtpConfigSchema = z.object({
+  enabled: z.boolean(),
   provider: z.literal('smtp'),
   from: z.string().email(),
   smtp: z.object({
@@ -20,6 +21,7 @@ const smtpConfigSchema = z.object({
 })
 
 const httpConfigSchema = z.object({
+  enabled: z.boolean(),
   provider: z.literal('http'),
   from: z.string().email(),
   http: z.object({
@@ -28,7 +30,13 @@ const httpConfigSchema = z.object({
   }),
 })
 
-const emailConfigSchema = z.discriminatedUnion('provider', [smtpConfigSchema, httpConfigSchema])
+const cloudflareConfigSchema = z.object({
+  enabled: z.boolean(),
+  provider: z.literal('cloudflare'),
+  from: z.string().email(),
+})
+
+const emailConfigSchema = z.discriminatedUnion('provider', [smtpConfigSchema, httpConfigSchema, cloudflareConfigSchema])
 
 const testEmailSchema = z.object({
   to: z.string().email(),
@@ -51,6 +59,12 @@ function maskConfig(config: EmailConfig): Record<string, unknown> {
         pass: maskSecret(config.smtp.pass),
         secure: config.smtp.secure,
       },
+    }
+  }
+  if (config.provider === 'cloudflare') {
+    return {
+      provider: config.provider,
+      from: config.from,
     }
   }
   return {
@@ -76,13 +90,16 @@ async function saveOptions(db: Database, entries: [string, string][]) {
 const app = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => {
-    const db = c.get('platform').db
+    const platform = c.get('platform')
     try {
-      const config = await getEmailConfig(db)
-      return c.json(maskConfig(config))
+      const settings = await getEmailSettings(platform)
+      return c.json({
+        enabled: settings.enabled,
+        ...(settings.config ? maskConfig(settings.config) : { provider: null }),
+      })
     } catch (e) {
       if (e instanceof Error && e.message.includes('not configured')) {
-        return c.json({ provider: null })
+        return c.json({ enabled: false, provider: null })
       }
       throw e
     }
@@ -92,6 +109,7 @@ const app = new Hono<Env>()
     const body = c.req.valid('json')
 
     const entries: [string, string][] = [
+      ['email_enabled', String(body.enabled)],
       ['email_provider', body.provider],
       ['email_from', body.from],
     ]
@@ -104,7 +122,7 @@ const app = new Hono<Env>()
         ['email_smtp_pass', body.smtp.pass],
         ['email_smtp_secure', String(body.smtp.secure)],
       )
-    } else {
+    } else if (body.provider === 'http') {
       entries.push(['email_http_url', body.http.url], ['email_http_api_key', body.http.apiKey])
     }
 
@@ -112,10 +130,10 @@ const app = new Hono<Env>()
     return c.json({ success: true })
   })
   .post('/test-messages', zValidator('json', testEmailSchema), async (c) => {
-    const db = c.get('platform').db
+    const platform = c.get('platform')
     const { to } = c.req.valid('json')
     try {
-      await sendEmail(db, {
+      await sendEmail(platform, {
         to,
         subject: 'ZPan Test Email',
         html: '<h1>Test Email</h1><p>Your email configuration is working correctly.</p>',

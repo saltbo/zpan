@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as schema from '../db/schema.js'
+import type { Platform } from '../platform/interface'
 import { createTestApp } from '../test/setup.js'
-import { getEmailConfig, sendEmail } from './email.js'
+import { getEmailConfig, isEmailConfigured, sendEmail } from './email.js'
 
 const sendMailMock = vi.fn()
 
@@ -120,6 +121,42 @@ describe('getEmailConfig', () => {
     ])
     await expect(getEmailConfig(db)).rejects.toThrow('Unknown email provider: unknown')
   })
+
+  it('returns Cloudflare config when provider is cloudflare and binding is present', async () => {
+    const { db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_provider', value: 'cloudflare' },
+      { key: 'email_from', value: 'no-reply@zpan.space' },
+    ])
+    const platform = {
+      db,
+      getEnv: () => undefined,
+      getBinding: <T = unknown>(_key: string) => ({ send: vi.fn() }) as T,
+    } satisfies Platform
+
+    await expect(getEmailConfig(platform)).resolves.toEqual({
+      provider: 'cloudflare',
+      from: 'no-reply@zpan.space',
+    })
+  })
+
+  it('falls back to Cloudflare when EMAIL binding and email_from are configured', async () => {
+    const { db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
+      { key: 'email_from', value: 'no-reply@zpan.space' },
+    ])
+    const platform = {
+      db,
+      getEnv: () => undefined,
+      getBinding: <T = unknown>(key: string) => (key === 'EMAIL' ? ({ send: vi.fn() } as T) : undefined),
+    } satisfies Platform
+
+    await expect(getEmailConfig(platform)).resolves.toEqual({
+      provider: 'cloudflare',
+      from: 'no-reply@zpan.space',
+    })
+  })
 })
 
 describe('sendEmail — SMTP provider', () => {
@@ -131,6 +168,7 @@ describe('sendEmail — SMTP provider', () => {
     sendMailMock.mockResolvedValue({})
     const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
       { key: 'email_provider', value: 'smtp' },
       { key: 'email_from', value: 'no-reply@example.com' },
       { key: 'email_smtp_host', value: 'smtp.example.com' },
@@ -158,6 +196,7 @@ describe('sendEmail — HTTP provider', () => {
 
     const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
       { key: 'email_http_url', value: 'https://api.mail.example.com/send' },
@@ -191,6 +230,7 @@ describe('sendEmail — HTTP provider', () => {
 
     const { db } = await createTestApp()
     await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
       { key: 'email_provider', value: 'http' },
       { key: 'email_from', value: 'no-reply@example.com' },
       { key: 'email_http_url', value: 'https://api.mail.example.com/send' },
@@ -199,6 +239,68 @@ describe('sendEmail — HTTP provider', () => {
 
     await expect(sendEmail(db, { to: 'bad@example.com', subject: 'Hi', html: '<p>Hi</p>' })).rejects.toThrow(
       'HTTP email API error (422): Invalid recipient',
+    )
+  })
+})
+
+describe('sendEmail — Cloudflare provider', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('calls EMAIL binding send() with html and derived text', async () => {
+    const { db } = await createTestApp()
+    const sendMock = vi.fn().mockResolvedValue({ messageId: 'msg_123' })
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
+      { key: 'email_provider', value: 'cloudflare' },
+      { key: 'email_from', value: 'no-reply@zpan.space' },
+    ])
+    const platform = {
+      db,
+      getEnv: () => undefined,
+      getBinding: <T = unknown>(key: string) => (key === 'EMAIL' ? ({ send: sendMock } as T) : undefined),
+    } satisfies Platform
+
+    await sendEmail(platform, { to: 'user@example.com', subject: 'Hello', html: '<p>Hi there</p>' })
+
+    expect(sendMock).toHaveBeenCalledWith({
+      to: 'user@example.com',
+      from: 'no-reply@zpan.space',
+      subject: 'Hello',
+      html: '<p>Hi there</p>',
+      text: 'Hi there',
+    })
+  })
+
+  it('reports Cloudflare as configured when enabled, email_from and binding are present', async () => {
+    const { db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'true' },
+      { key: 'email_from', value: 'no-reply@zpan.space' },
+    ])
+    const platform = {
+      db,
+      getEnv: () => undefined,
+      getBinding: <T = unknown>(key: string) => (key === 'EMAIL' ? ({ send: vi.fn() } as T) : undefined),
+    } satisfies Platform
+
+    await expect(isEmailConfigured(platform)).resolves.toBe(true)
+  })
+
+  it('reports false when config exists but email is disabled', async () => {
+    const { db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: 'email_enabled', value: 'false' },
+      { key: 'email_provider', value: 'http' },
+      { key: 'email_from', value: 'no-reply@example.com' },
+      { key: 'email_http_url', value: 'https://api.mail.example.com/send' },
+      { key: 'email_http_api_key', value: 'my-api-key' },
+    ])
+
+    await expect(isEmailConfigured(db)).resolves.toBe(false)
+    await expect(sendEmail(db, { to: 'user@example.com', subject: 'Hi', html: '<p>Hi</p>' })).rejects.toThrow(
+      'Email is disabled',
     )
   })
 })

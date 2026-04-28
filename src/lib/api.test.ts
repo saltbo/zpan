@@ -27,6 +27,7 @@ import {
   emptyTrash,
   enableIhostFeature,
   getBranding,
+  getEmailConfig,
   getIhostConfig,
   getLicensingStatus,
   getObject,
@@ -60,8 +61,10 @@ import {
   revokeIhostApiKey,
   revokeSiteInvitation,
   saveBranding,
+  saveEmailConfig,
   saveShareToDrive,
   setSystemOption,
+  testEmail,
   trashObject,
   updateIhostConfig,
   updateObject,
@@ -2106,6 +2109,57 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
 
       await expect(resetBrandingField('logo')).rejects.toThrow()
+    })
+  })
+
+  describe('email config API', () => {
+    it('getEmailConfig fetches admin email config', async () => {
+      const payload = { enabled: true, provider: 'cloudflare', from: 'no-reply@zpan.space' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getEmailConfig()
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/email-config')
+      expect(init.method).toBe('GET')
+    })
+
+    it('saveEmailConfig PUTs the expected payload', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+
+      const payload = { enabled: true, provider: 'cloudflare' as const, from: 'no-reply@zpan.space' }
+      await saveEmailConfig(payload)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/email-config')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify(payload))
+    })
+
+    it('saveEmailConfig throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'bad config' }, false, 400))
+
+      await expect(
+        saveEmailConfig({ enabled: true, provider: 'cloudflare', from: 'no-reply@zpan.space' }),
+      ).rejects.toThrow('bad config')
+    })
+
+    it('testEmail POSTs recipient to test-messages endpoint', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+
+      await testEmail('user@example.com')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/email-config/test-messages')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ to: 'user@example.com' }))
+    })
+
+    it('testEmail throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'send failed' }, false, 400))
+
+      await expect(testEmail('user@example.com')).rejects.toThrow('send failed')
     })
   })
 })

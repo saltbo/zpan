@@ -61,7 +61,11 @@ const ADMIN_AUTH_KEYS = [
   'admin.auth.deleteProviderTitle',
   'admin.auth.deleteProviderConfirm',
   'admin.auth.emailSection',
+  'admin.auth.emailEnabled',
+  'admin.auth.emailEnabledHint',
   'admin.auth.emailProvider',
+  'admin.auth.emailCloudflare',
+  'admin.auth.emailCloudflareHint',
   'admin.auth.emailSmtp',
   'admin.auth.emailHttp',
   'admin.auth.emailFrom',
@@ -191,6 +195,14 @@ describe('admin.auth locale keys — English values contract', () => {
 
   it('admin.auth.emailSection is "Email Configuration"', () => {
     expect(enLocale['admin.auth.emailSection']).toBe('Email Configuration')
+  })
+
+  it('admin.auth.emailEnabled is "Enable Email"', () => {
+    expect(enLocale['admin.auth.emailEnabled']).toBe('Enable Email')
+  })
+
+  it('admin.auth.emailCloudflare is "Cloudflare Email"', () => {
+    expect(enLocale['admin.auth.emailCloudflare']).toBe('Cloudflare Email')
   })
 
   it('admin.auth.emailSmtp is "SMTP"', () => {

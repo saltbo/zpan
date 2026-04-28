@@ -36,7 +36,7 @@ export default {
       const trustedOrigins = env.TRUSTED_ORIGINS?.split(',')
         .map((o) => o.trim())
         .filter(Boolean) || [origin]
-      cachedAuth = await createAuth(platform.db, BETTER_AUTH_SECRET, baseURL, trustedOrigins)
+      cachedAuth = await createAuth(platform, BETTER_AUTH_SECRET, baseURL, trustedOrigins)
     }
 
     const url = new URL(request.url)

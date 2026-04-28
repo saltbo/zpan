@@ -52,6 +52,11 @@ function makeShare(
 
 async function configureEmail(db: TestDb) {
   await db.insert(systemOptions).values({
+    key: 'email_enabled',
+    value: 'true',
+    public: false,
+  })
+  await db.insert(systemOptions).values({
     key: 'email_provider',
     value: 'smtp',
     public: false,

@@ -15,13 +15,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { type EmailConfigData, getEmailConfig, saveEmailConfig, testEmail } from '@/lib/api'
 
 const emailConfigQueryKey = ['admin', 'email-config'] as const
 
-type ProviderType = 'smtp' | 'http'
+type ProviderType = 'smtp' | 'http' | 'cloudflare'
 
 interface FormState {
+  enabled: boolean
   provider: ProviderType
   from: string
   smtpHost: string
@@ -34,6 +36,7 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
+  enabled: false,
   provider: 'smtp',
   from: '',
   smtpHost: '',
@@ -49,6 +52,7 @@ function formToPayload(form: FormState): EmailConfigData {
   if (form.provider === 'smtp') {
     return {
       provider: 'smtp',
+      enabled: form.enabled,
       from: form.from,
       smtp: {
         host: form.smtpHost,
@@ -59,8 +63,16 @@ function formToPayload(form: FormState): EmailConfigData {
       },
     }
   }
+  if (form.provider === 'cloudflare') {
+    return {
+      provider: 'cloudflare',
+      enabled: form.enabled,
+      from: form.from,
+    }
+  }
   return {
     provider: 'http',
+    enabled: form.enabled,
     from: form.from,
     http: { url: form.httpUrl, apiKey: form.httpApiKey },
   }
@@ -79,10 +91,15 @@ export function EmailConfigSection() {
   })
 
   useEffect(() => {
-    if (!data || data.provider === null) return
+    if (!data) return
+    if (data.provider === null) {
+      setForm((prev) => ({ ...prev, enabled: data.enabled }))
+      return
+    }
     const config = data as EmailConfigData
     if (config.provider === 'smtp') {
       setForm({
+        enabled: config.enabled,
         provider: 'smtp',
         from: config.from,
         smtpHost: config.smtp.host,
@@ -93,8 +110,9 @@ export function EmailConfigSection() {
         httpUrl: '',
         httpApiKey: '',
       })
-    } else {
+    } else if (config.provider === 'http') {
       setForm({
+        enabled: config.enabled,
         provider: 'http',
         from: config.from,
         smtpHost: '',
@@ -104,6 +122,19 @@ export function EmailConfigSection() {
         smtpSecure: true,
         httpUrl: config.http.url,
         httpApiKey: config.http.apiKey,
+      })
+    } else {
+      setForm({
+        enabled: config.enabled,
+        provider: 'cloudflare',
+        from: config.from,
+        smtpHost: '',
+        smtpPort: 587,
+        smtpUser: '',
+        smtpPass: '',
+        smtpSecure: true,
+        httpUrl: '',
+        httpApiKey: '',
       })
     }
   }, [data])
@@ -135,6 +166,14 @@ export function EmailConfigSection() {
       <h3 className="text-sm font-medium text-muted-foreground">{t('admin.auth.emailSection')}</h3>
 
       <div className="max-w-lg space-y-4">
+        <div className="flex items-center justify-between rounded-md border p-3">
+          <div className="space-y-1">
+            <Label htmlFor="emailEnabled">{t('admin.auth.emailEnabled')}</Label>
+            <p className="text-sm text-muted-foreground">{t('admin.auth.emailEnabledHint')}</p>
+          </div>
+          <Switch id="emailEnabled" checked={form.enabled} onCheckedChange={(v) => update({ enabled: !!v })} />
+        </div>
+
         <div className="space-y-1.5">
           <Label>{t('admin.auth.emailProvider')}</Label>
           <Select value={form.provider} onValueChange={(v) => update({ provider: v as ProviderType })}>
@@ -142,6 +181,7 @@ export function EmailConfigSection() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="cloudflare">{t('admin.auth.emailCloudflare')}</SelectItem>
               <SelectItem value="smtp">{t('admin.auth.emailSmtp')}</SelectItem>
               <SelectItem value="http">{t('admin.auth.emailHttp')}</SelectItem>
             </SelectContent>
@@ -186,7 +226,7 @@ export function EmailConfigSection() {
               <Label htmlFor="smtpSecure">{t('admin.auth.smtpSecure')}</Label>
             </div>
           </>
-        ) : (
+        ) : form.provider === 'http' ? (
           <>
             <div className="space-y-1.5">
               <Label>{t('admin.auth.httpUrl')}</Label>
@@ -197,13 +237,15 @@ export function EmailConfigSection() {
               <Input type="password" value={form.httpApiKey} onChange={(e) => update({ httpApiKey: e.target.value })} />
             </div>
           </>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('admin.auth.emailCloudflareHint')}</p>
         )}
 
         <div className="flex gap-2">
           <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             {saveMutation.isPending ? t('common.loading') : t('common.save')}
           </Button>
-          <Button variant="outline" onClick={() => setTestDialogOpen(true)}>
+          <Button variant="outline" onClick={() => setTestDialogOpen(true)} disabled={!form.enabled}>
             {t('admin.auth.testEmail')}
           </Button>
         </div>

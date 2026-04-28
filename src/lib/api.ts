@@ -342,21 +342,34 @@ export function getSiteInvitation(token: string) {
 // Email Config API
 
 export interface SmtpEmailConfig {
+  enabled: boolean
   provider: 'smtp'
   from: string
   smtp: { host: string; port: number; user: string; pass: string; secure: boolean }
 }
 
 export interface HttpEmailConfig {
+  enabled: boolean
   provider: 'http'
   from: string
   http: { url: string; apiKey: string }
 }
 
-export type EmailConfigData = SmtpEmailConfig | HttpEmailConfig
+export interface CloudflareEmailConfig {
+  enabled: boolean
+  provider: 'cloudflare'
+  from: string
+}
+
+export type EmailConfigData = SmtpEmailConfig | HttpEmailConfig | CloudflareEmailConfig
+
+export interface EmptyEmailConfigData {
+  enabled: boolean
+  provider: null
+}
 
 export function getEmailConfig() {
-  return unwrap<EmailConfigData | { provider: null }>(emailConfig.index.$get())
+  return unwrap<EmailConfigData | EmptyEmailConfigData>(emailConfig.index.$get())
 }
 
 export function saveEmailConfig(data: EmailConfigData) {
