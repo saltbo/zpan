@@ -350,7 +350,7 @@ describe('TeamsPage — button click behavior', () => {
   })
 
   it('does not open UpgradeHint dialog when not at limit and button is clicked', async () => {
-    makeOrgs(2)
+    makeOrgs(1)
     makeEntitlement(false)
     const { findByTestId, queryByTestId } = await renderTeamsPage()
     const btn = await findByTestId('new-team-btn')
