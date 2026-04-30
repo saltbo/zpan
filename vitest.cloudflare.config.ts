@@ -2,6 +2,12 @@ import path from 'node:path'
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
 import { defineConfig } from 'vitest/config'
 
+const aliases = {
+  '@': path.resolve(__dirname, './src'),
+  '@shared': path.resolve(__dirname, './shared'),
+  '@server': path.resolve(__dirname, './server'),
+}
+
 export default defineConfig({
   plugins: [
     cloudflareTest(async () => {
@@ -16,6 +22,9 @@ export default defineConfig({
       }
     }),
   ],
+  resolve: {
+    alias: aliases,
+  },
   test: {
     globals: true,
     testTimeout: 15000,
