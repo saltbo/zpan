@@ -9,16 +9,18 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { FolderOpen, FolderPlus, Upload } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Clock3, FolderOpen, FolderPlus, Upload } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { PageHeader, type PageHeaderItem } from '@/components/layout/page-header'
-import { FilePreviewDialog, type PreviewFile } from '@/components/preview/file-preview-dialog'
+import type { PreviewFile } from '@/components/preview/file-preview-content'
+import { FilePreviewDialog } from '@/components/preview/file-preview-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import { getObject, listObjectsByPath } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { getColumns } from './columns'
 import { NameConflictDialog } from './dialogs/name-conflict-dialog'
 import { DndWrapper } from './dnd-wrapper'
@@ -32,6 +34,58 @@ import { useViewMode } from './hooks/use-view-mode'
 import type { BreadcrumbItem, FileActionHandlers } from './types'
 
 const FILES_PAGE_SIZE = 500
+
+export interface FileManagerHeaderMeta {
+  label: string
+  icon?: ReactNode
+}
+
+interface FileManagerSurfaceProps {
+  headerItems: PageHeaderItem[]
+  headerDescription?: ReactNode
+  headerMeta?: FileManagerHeaderMeta[]
+  headerActions?: ReactNode
+  children: ReactNode
+  className?: string
+}
+
+export function FileManagerSurface({
+  headerItems,
+  headerDescription,
+  headerMeta = [],
+  headerActions,
+  children,
+  className,
+}: FileManagerSurfaceProps) {
+  return (
+    <Card className={cn('gap-0 overflow-hidden py-0 shadow-none', className)}>
+      <div className="space-y-3 border-b bg-card px-4 py-3">
+        <PageHeader items={headerItems} actions={headerActions} />
+        {(headerDescription || headerMeta.length > 0) && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            {headerDescription && (
+              <div className="max-w-3xl text-sm leading-6 text-muted-foreground">{headerDescription}</div>
+            )}
+            {headerMeta.length > 0 && (
+              <div className="flex shrink-0 flex-wrap gap-2">
+                {headerMeta.map((item) => (
+                  <span
+                    key={item.label}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs text-muted-foreground"
+                  >
+                    {item.icon ?? <Clock3 className="size-3 text-primary" />}
+                    <span className="truncate">{item.label}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {children}
+    </Card>
+  )
+}
 
 function pathToBreadcrumb(path: string, rootName: string): BreadcrumbItem[] {
   const root: BreadcrumbItem = { id: '', name: rootName }
@@ -77,6 +131,9 @@ interface FileManagerProps {
   onDeleteItems?: (ids: string[]) => void
   onCopyUrl?: (item: StorageObject, format?: 'raw' | 'markdown' | 'html' | 'bbcode') => void
   viewModeStorageKey?: string
+  headerDescription?: ReactNode
+  headerMeta?: FileManagerHeaderMeta[]
+  headerActions?: ReactNode
 }
 
 export function FileManager({
@@ -91,6 +148,9 @@ export function FileManager({
   onDeleteItems,
   onCopyUrl,
   viewModeStorageKey,
+  headerDescription,
+  headerMeta,
+  headerActions: extraHeaderActions,
 }: FileManagerProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -319,9 +379,10 @@ export function FileManager({
     }
   })
 
-  const headerActions =
-    resolvedCapabilities.createFolder || resolvedCapabilities.upload ? (
+  const fileActions =
+    resolvedCapabilities.createFolder || resolvedCapabilities.upload || extraHeaderActions ? (
       <>
+        {extraHeaderActions}
         {resolvedCapabilities.createFolder && (
           <Button variant="outline" size="sm" onClick={() => setShowNewFolder(true)}>
             <FolderPlus />
@@ -339,9 +400,12 @@ export function FileManager({
 
   const content = (
     <div className="space-y-4">
-      <PageHeader items={headerItems} actions={headerActions} />
-
-      <Card className="gap-0 overflow-hidden py-0 shadow-none">
+      <FileManagerSurface
+        headerItems={headerItems}
+        headerDescription={headerDescription}
+        headerMeta={headerMeta}
+        headerActions={fileActions}
+      >
         <FilesToolbar
           viewMode={viewMode}
           onViewModeChange={setViewMode}
@@ -380,7 +444,7 @@ export function FileManager({
             />
           </div>
         )}
-      </Card>
+      </FileManagerSurface>
 
       {resolvedCapabilities.rename ||
       resolvedCapabilities.createFolder ||

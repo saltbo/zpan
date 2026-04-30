@@ -1,25 +1,12 @@
-import { DownloadIcon, XIcon } from 'lucide-react'
-import { lazy, Suspense } from 'react'
-import { useTranslation } from 'react-i18next'
+import { XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { getPreviewType, type PreviewType } from '@/lib/file-types'
 import { cn } from '@/lib/utils'
+import { FilePreviewContent, PreviewDownloadButton, type PreviewFile } from './file-preview-content'
 import { ImagePreview } from './image-preview'
-
-const PdfPreview = lazy(() => import('./pdf-preview').then((m) => ({ default: m.PdfPreview })))
-const TextPreview = lazy(() => import('./text-preview').then((m) => ({ default: m.TextPreview })))
-const MediaPreview = lazy(() => import('./media-preview').then((m) => ({ default: m.MediaPreview })))
-
-export interface PreviewFile {
-  id: string
-  name: string
-  type: string
-  size: number
-  downloadUrl: string
-}
 
 interface FilePreviewDialogProps {
   file: PreviewFile | null
@@ -42,18 +29,6 @@ function formatFileSize(bytes: number): string {
   return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
-function DownloadButton({ url, filename, iconOnly }: { url: string; filename: string; iconOnly?: boolean }) {
-  const { t } = useTranslation()
-  return (
-    <Button variant="outline" size={iconOnly ? 'icon-xs' : 'sm'} asChild>
-      <a href={url} download={filename} target="_blank" rel="noopener noreferrer">
-        <DownloadIcon className={iconOnly ? 'size-4' : 'mr-2 size-4'} />
-        {iconOnly ? <span className="sr-only">{t('preview.download')}</span> : t('preview.download')}
-      </a>
-    </Button>
-  )
-}
-
 function dialogClass(previewType: PreviewType): string {
   switch (previewType) {
     case 'video':
@@ -67,29 +42,6 @@ function dialogClass(previewType: PreviewType): string {
   }
 }
 
-function PreviewBody({ file, previewType }: { file: PreviewFile; previewType: PreviewType }) {
-  const { t } = useTranslation()
-
-  switch (previewType) {
-    case 'pdf':
-      return <PdfPreview url={file.downloadUrl} />
-    case 'markdown':
-    case 'code':
-    case 'text':
-      return <TextPreview url={file.downloadUrl} filename={file.name} previewType={previewType} />
-    case 'audio':
-    case 'video':
-      return <MediaPreview url={file.downloadUrl} filename={file.name} previewType={previewType} />
-    default:
-      return (
-        <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-          <p className="text-muted-foreground">{t('preview.unsupported')}</p>
-          <DownloadButton url={file.downloadUrl} filename={file.name} />
-        </div>
-      )
-  }
-}
-
 function PreviewHeader({ file, onClose, compact }: { file: PreviewFile; onClose: () => void; compact?: boolean }) {
   return (
     <div className="flex items-center justify-between border-b px-4 py-3">
@@ -98,7 +50,7 @@ function PreviewHeader({ file, onClose, compact }: { file: PreviewFile; onClose:
         <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1 pl-2">
-        <DownloadButton url={file.downloadUrl} filename={file.name} iconOnly={compact} />
+        <PreviewDownloadButton url={file.downloadUrl} filename={file.name} iconOnly={compact} />
         <Button variant="ghost" size="icon-xs" onClick={onClose}>
           <XIcon className="size-4" />
         </Button>
@@ -119,8 +71,6 @@ function mobileDrawerHeight(previewType: PreviewType): string {
 }
 
 function MobilePreview({ file, previewType, open, onOpenChange }: PreviewPanelProps) {
-  const { t } = useTranslation()
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -136,9 +86,7 @@ function MobilePreview({ file, previewType, open, onOpenChange }: PreviewPanelPr
         </div>
         <PreviewHeader file={file} onClose={() => onOpenChange(false)} compact />
         <div className="flex-1 overflow-auto">
-          <Suspense fallback={<p className="p-4 text-center text-muted-foreground">{t('common.loading')}</p>}>
-            <PreviewBody file={file} previewType={previewType} />
-          </Suspense>
+          <FilePreviewContent file={file} previewType={previewType} />
         </div>
       </SheetContent>
     </Sheet>
@@ -146,8 +94,6 @@ function MobilePreview({ file, previewType, open, onOpenChange }: PreviewPanelPr
 }
 
 function DesktopPreview({ file, previewType, open, onOpenChange }: PreviewPanelProps) {
-  const { t } = useTranslation()
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className={cn('flex flex-col gap-0 p-0', dialogClass(previewType))}>
@@ -156,9 +102,7 @@ function DesktopPreview({ file, previewType, open, onOpenChange }: PreviewPanelP
         </DialogHeader>
         <PreviewHeader file={file} onClose={() => onOpenChange(false)} />
         <div className="flex-1 overflow-auto">
-          <Suspense fallback={<p className="p-4 text-center text-muted-foreground">{t('common.loading')}</p>}>
-            <PreviewBody file={file} previewType={previewType} />
-          </Suspense>
+          <FilePreviewContent file={file} previewType={previewType} />
         </div>
       </DialogContent>
     </Dialog>
