@@ -304,6 +304,23 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     expect(res.headers.get('cache-control')).toBe('no-store')
   })
 
+  it('returns JSON downloadUrl for public share when requested by preview', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'dl-url1', name: 'report.docx' })
+    const share = await createShare(db, { matterId: 'dl-url1', orgId, creatorId, kind: 'landing' })
+
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    await expect(res.json()).resolves.toEqual({ downloadUrl: MOCK_PRESIGN_URL })
+  })
+
   it('returns 401 when password required and no cookie', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)

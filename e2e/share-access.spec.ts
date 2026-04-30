@@ -39,6 +39,18 @@ const fileShare = {
   rootRef: 'root-file-ref',
 }
 
+const officeShare = {
+  ...fileShare,
+  token: 'office-share-e2e',
+  matter: {
+    name: 'Quarterly Report.docx',
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    size: 4096,
+    isFolder: false,
+  },
+  rootRef: 'root-office-ref',
+}
+
 async function mockFolderShare(page: Page) {
   await page.route(`**/api/shares/${folderShare.token}`, (route) => {
     if (route.request().method() !== 'GET') return route.continue()
@@ -91,6 +103,23 @@ async function mockFileShare(page: Page) {
   await page.route(`**/api/shares/${fileShare.token}/objects/${fileShare.rootRef}`, (route) =>
     route.fulfill({ path: path.join(fixturesDir, 'sample.txt'), contentType: 'text/plain' }),
   )
+}
+
+async function mockOfficeShare(page: Page) {
+  const resolvedDownloadUrl = 'https://files.example.test/Quarterly%20Report.docx'
+
+  await page.route(`**/api/shares/${officeShare.token}`, (route) => {
+    if (route.request().method() !== 'GET') return route.continue()
+    return route.fulfill({ json: officeShare })
+  })
+
+  await page.route(`**/api/shares/${officeShare.token}/objects/${officeShare.rootRef}*`, (route) => {
+    const url = new URL(route.request().url())
+    if (url.searchParams.get('downloadUrl') === '1') {
+      return route.fulfill({ json: { downloadUrl: resolvedDownloadUrl } })
+    }
+    return route.fulfill({ body: 'office-doc-placeholder', contentType: officeShare.matter.type })
+  })
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -147,6 +176,21 @@ test.describe('Share access page shell', () => {
     await expect(page.getByText('Public access page')).toHaveCount(0)
     await expect(page.getByText('Open workspace')).toHaveCount(0)
     await expect(page.getByText(/Preview and download/i)).toHaveCount(0)
+    await expectNoHorizontalOverflow(page)
+  })
+
+  test('office file share embeds Microsoft Office Viewer with the existing download URL @desktop', async ({ page }) => {
+    await mockOfficeShare(page)
+    await page.goto(`/s/${officeShare.token}`)
+
+    await expect(page.getByTestId('page-header')).toContainText('Quarterly Report.docx')
+    const frame = page.frameLocator('iframe[title="Quarterly Report.docx"]')
+    await expect(frame.owner()).toBeVisible()
+
+    const src = await frame.owner().getAttribute('src')
+    expect(src).toContain('https://view.officeapps.live.com/op/embed.aspx?src=')
+    expect(decodeURIComponent(src ?? '')).toContain('https://files.example.test/Quarterly%20Report.docx')
+    await expect(page.getByText('Microsoft Office Viewer requires a public file URL')).toHaveCount(0)
     await expectNoHorizontalOverflow(page)
   })
 

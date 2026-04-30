@@ -1,4 +1,4 @@
-export type PreviewType = 'image' | 'pdf' | 'text' | 'markdown' | 'code' | 'audio' | 'video' | 'unsupported'
+export type PreviewType = 'image' | 'pdf' | 'office' | 'text' | 'markdown' | 'code' | 'audio' | 'video' | 'unsupported'
 
 const extensionMap: Record<string, PreviewType> = {
   // Image
@@ -13,6 +13,14 @@ const extensionMap: Record<string, PreviewType> = {
 
   // PDF
   pdf: 'pdf',
+
+  // Office
+  doc: 'office',
+  docx: 'office',
+  xls: 'office',
+  xlsx: 'office',
+  ppt: 'office',
+  pptx: 'office',
 
   // Markdown
   md: 'markdown',
@@ -72,6 +80,12 @@ const extensionMap: Record<string, PreviewType> = {
 
 const exactMimeMap: Record<string, PreviewType> = {
   'application/pdf': 'pdf',
+  'application/msword': 'office',
+  'application/vnd.ms-excel': 'office',
+  'application/vnd.ms-powerpoint': 'office',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'office',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'office',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'office',
   'text/markdown': 'markdown',
 }
 

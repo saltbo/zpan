@@ -219,6 +219,7 @@ export const publicShares = new Hono<Env>()
   .get('/:token/objects/:ref', async (c) => {
     const token = c.req.param('token')
     const ref = c.req.param('ref')
+    const returnUrl = c.req.query('downloadUrl') === '1'
     const db = c.get('platform').db
 
     const resolved = await resolveShareByToken(db, token)
@@ -270,6 +271,12 @@ export const publicShares = new Hono<Env>()
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
     const url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
+    if (returnUrl) {
+      const res = c.json({ downloadUrl: url })
+      res.headers.set('Cache-Control', 'no-store')
+      return res
+    }
+
     const res = c.redirect(url, 302)
     res.headers.set('Cache-Control', 'no-store')
     return res

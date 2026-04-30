@@ -401,6 +401,7 @@
   "preview.unsupported": "Preview is not available for this file type.",
   "preview.loadError": "Failed to load file preview.",
   "preview.pageOf": "{{current}} / {{total}}",
+  "preview.officeLocalHint": "Microsoft Office Viewer requires a public file URL. Localhost previews may not render.",
   "quota.storage": "Storage",
   "quota.usage": "{{used}} / {{total}} used",
   "quota.usageNoLimit": "{{used}} used",

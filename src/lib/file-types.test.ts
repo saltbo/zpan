@@ -41,6 +41,23 @@ describe('getPreviewType — pdf extension', () => {
   })
 })
 
+describe('getPreviewType — office extensions', () => {
+  it('returns office for Word documents', () => {
+    expect(getPreviewType('proposal.doc')).toBe('office')
+    expect(getPreviewType('proposal.docx')).toBe('office')
+  })
+
+  it('returns office for Excel workbooks', () => {
+    expect(getPreviewType('budget.xls')).toBe('office')
+    expect(getPreviewType('budget.xlsx')).toBe('office')
+  })
+
+  it('returns office for PowerPoint presentations', () => {
+    expect(getPreviewType('deck.ppt')).toBe('office')
+    expect(getPreviewType('deck.pptx')).toBe('office')
+  })
+})
+
 describe('getPreviewType — markdown extensions', () => {
   it('returns markdown for .md', () => {
     expect(getPreviewType('README.md')).toBe('markdown')
@@ -260,6 +277,13 @@ describe('getPreviewType — MIME type fallback', () => {
 
   it('returns pdf from application/pdf MIME type when extension is unknown', () => {
     expect(getPreviewType('file.unknown', 'application/pdf')).toBe('pdf')
+  })
+
+  it('returns office from Microsoft Office MIME types when extension is unknown', () => {
+    expect(
+      getPreviewType('file.unknown', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+    ).toBe('office')
+    expect(getPreviewType('file.unknown', 'application/vnd.ms-excel')).toBe('office')
   })
 
   it('returns markdown from text/markdown MIME type when extension is unknown', () => {
