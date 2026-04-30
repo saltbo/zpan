@@ -13,15 +13,13 @@ export function useEntitlement() {
   })
 
   function hasFeature(name: ProFeature): boolean {
-    if (!data?.bound || !data.features) return false
-    if (data.expires_at != null && Date.now() > data.expires_at * 1000) return false
-    return data.features.includes(name)
+    return Boolean(name && data?.bound && data.active)
   }
 
   return {
     bound: data?.bound ?? false,
-    plan: data?.plan ?? null,
-    features: data?.features ?? [],
+    active: data?.active ?? false,
+    edition: data?.edition ?? null,
     hasFeature,
     isLoading,
     isError,

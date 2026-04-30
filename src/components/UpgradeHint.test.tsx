@@ -45,8 +45,8 @@ import { useEntitlement } from '@/hooks/useEntitlement'
 function setupEntitlement(bound: boolean) {
   vi.mocked(useEntitlement).mockReturnValue({
     bound,
-    plan: bound ? 'community' : null,
-    features: [],
+    active: false,
+    edition: bound ? 'pro' : null,
     hasFeature: () => false,
     isLoading: false,
     isError: false,

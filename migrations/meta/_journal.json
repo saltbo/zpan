@@ -106,6 +106,13 @@
       "when": 1777333623540,
       "tag": "0015_add-site-invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1777431441985,
+      "tag": "0016_crazy_wiccan",
+      "breakpoints": true
     }
   ]
 }

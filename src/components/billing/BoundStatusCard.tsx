@@ -1,11 +1,21 @@
+import { FEATURE_REGISTRY } from '@shared/feature-registry'
 import type { ProFeature } from '@shared/types'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, Loader2 } from 'lucide-react'
+import {
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  MoreHorizontal,
+  RefreshCw,
+  ShieldCheck,
+  TriangleAlert,
+  Unlink,
+} from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -14,22 +24,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { entitlementQueryKey } from '@/hooks/useEntitlement'
 import type { BindingState } from '@/lib/api'
 import { disconnectCloud, refreshLicense } from '@/lib/api'
 
-const FEATURE_LABELS: Record<ProFeature, string> = {
-  white_label: 'White-label branding',
-  open_registration: 'Open registration',
-  teams_unlimited: 'Unlimited teams',
-  storages_unlimited: 'Unlimited storages',
-  audit_log: 'Audit logs',
+function featureLabelKey(feature: ProFeature): string | null {
+  return FEATURE_REGISTRY.find((item) => 'gateKey' in item && item.gateKey === feature)?.i18nKey ?? null
 }
 
-function formatTimestamp(ts: number | undefined, fallback: string): string {
-  if (!ts) return fallback
-  return new Date(ts * 1000).toLocaleString()
+function humanizeFeature(feature: string): string {
+  return feature
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
+
+const LOCAL_PRO_FEATURES = FEATURE_REGISTRY.filter(
+  (item): item is (typeof FEATURE_REGISTRY)[number] & { gateKey: ProFeature } =>
+    'gateKey' in item && item.gateKey != null && !('comingSoon' in item && item.comingSoon),
+).map((item) => item.gateKey)
 
 interface BoundStatusCardProps {
   state: BindingState
@@ -59,73 +80,107 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
     onError: (err) => toast.error(err instanceof Error ? err.message : t('settings.billing.bound.disconnectError')),
   })
 
-  const planLabel =
-    state.plan === 'pro' ? t('settings.billing.bound.planPro') : t('settings.billing.bound.planCommunity')
-  const never = t('settings.billing.bound.never')
+  const grantedFeatures = state.active ? LOCAL_PRO_FEATURES : []
+  const hasSyncError = Boolean(state.last_refresh_error)
+  const issuedLabel = state.account_email
+    ? t('settings.billing.bound.issuedTo', { email: state.account_email })
+    : t('settings.billing.bound.issuedByCloud')
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('settings.billing.bound.cloudAccount')}</CardTitle>
-          <CardDescription>{state.account_email}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-y-3 text-sm">
-            <span className="text-muted-foreground">{t('settings.billing.bound.plan')}</span>
-            <span className="font-medium">{planLabel}</span>
-
-            <span className="text-muted-foreground">{t('settings.billing.bound.expiresAt')}</span>
-            <span>{formatTimestamp(state.expires_at, never)}</span>
-
-            <span className="text-muted-foreground">{t('settings.billing.bound.lastRefresh')}</span>
-            <span>{formatTimestamp(state.last_refresh_at, never)}</span>
-
-            {state.last_refresh_error && (
-              <>
-                <span className="text-muted-foreground">{t('settings.billing.bound.lastRefreshError')}</span>
-                <span className="text-destructive text-xs">{state.last_refresh_error}</span>
-              </>
-            )}
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b bg-muted/20 px-6 py-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-md border bg-background text-primary">
+                <ShieldCheck className="size-5" />
+              </div>
+              <div className="min-w-0 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-xl">{t('settings.billing.bound.title')}</CardTitle>
+                  <span
+                    className={
+                      hasSyncError
+                        ? 'inline-flex w-fit items-center gap-1.5 rounded-full border border-destructive/30 bg-background px-2.5 py-1 text-xs font-medium text-destructive'
+                        : 'inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/30 bg-background px-2.5 py-1 text-xs font-medium text-primary'
+                    }
+                  >
+                    {hasSyncError ? <TriangleAlert className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}
+                    {hasSyncError ? t('settings.billing.bound.syncIssue') : t('settings.billing.bound.active')}
+                  </span>
+                </div>
+                <CardDescription className="break-words">{issuedLabel}</CardDescription>
+                <p className="text-sm text-muted-foreground">{t('settings.billing.bound.description')}</p>
+              </div>
+            </div>
+            <div className="flex w-full gap-2 sm:w-auto">
+              <Button asChild>
+                <a href="https://cloud.zpan.space/dashboard" target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 size-4" />
+                  {t('settings.billing.bound.manageButton')}
+                </a>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label={t('settings.billing.bound.actionsMenu')}>
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
+                    {refreshMutation.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="size-4" />
+                    )}
+                    {refreshMutation.isPending
+                      ? t('settings.billing.bound.refreshing')
+                      : t('settings.billing.bound.refreshButton')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={() => setDisconnectOpen(true)}>
+                    <Unlink className="size-4" />
+                    {t('settings.billing.bound.disconnectButton')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
+        </CardHeader>
 
-          {state.features && state.features.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-sm text-muted-foreground">{t('settings.billing.bound.features')}</p>
-              <ul className="space-y-1">
-                {state.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm">
-                    <span className="size-1.5 rounded-full bg-primary" />
-                    {FEATURE_LABELS[f] ?? f}
-                  </li>
-                ))}
-              </ul>
+        <CardContent className="space-y-5 px-6 pb-6 pt-1">
+          {state.last_refresh_error && (
+            <div className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-medium">{t('settings.billing.bound.lastRefreshError')}</p>
+                <p className="break-words text-xs">{state.last_refresh_error}</p>
+              </div>
             </div>
           )}
-        </CardContent>
-        <CardFooter className="flex flex-wrap gap-2 border-t bg-muted/30">
-          <Button asChild>
-            <a href="https://cloud.zpan.space/dashboard" target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="mr-2 size-4" />
-              {t('settings.billing.bound.manageButton')}
-            </a>
-          </Button>
-          <Button variant="outline" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
-            {refreshMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                {t('settings.billing.bound.refreshing')}
-              </>
+
+          <div className="space-y-3">
+            <p className="text-sm font-medium">{t('settings.billing.bound.features')}</p>
+            {grantedFeatures.length > 0 ? (
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {grantedFeatures.map((feature) => {
+                  const labelKey = featureLabelKey(feature)
+                  return (
+                    <li
+                      key={feature}
+                      className="flex min-h-10 items-center gap-2 rounded-md border bg-background px-3 text-sm"
+                    >
+                      <CheckCircle2 className="size-4 shrink-0 text-primary" />
+                      <span className="min-w-0">{labelKey ? t(labelKey) : humanizeFeature(feature)}</span>
+                    </li>
+                  )
+                })}
+              </ul>
             ) : (
-              t('settings.billing.bound.refreshButton')
+              <p className="text-sm text-muted-foreground">{t('settings.billing.bound.noFeatures')}</p>
             )}
-          </Button>
-          <div className="ml-auto">
-            <Button variant="destructive" onClick={() => setDisconnectOpen(true)}>
-              {t('settings.billing.bound.disconnectButton')}
-            </Button>
           </div>
-        </CardFooter>
+        </CardContent>
       </Card>
 
       <Dialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>

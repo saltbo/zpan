@@ -1,45 +1,72 @@
-import type { LicenseEntitlement } from '@shared/types'
+import { ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
+import type { LicenseAssertion } from '@shared/types'
 import { verify } from 'paseto-ts/v4'
 import { PUBLIC_KEYS } from './public-keys'
 
-// Attempt to verify a PASETO v4.public cert against each known public key.
-// Returns the parsed entitlement only when ALL of the following hold:
-//   1. Signature is valid for one of the PUBLIC_KEYS
-//   2. expires_at has not passed
-//   3. instance_id matches the provided instanceId
-// Returns null (never throws) for any invalid cert so feature gates silently lock.
-export function verifyCertificate(cert: string, instanceId: string): LicenseEntitlement | null {
+export interface VerifyCertificateOptions {
+  instanceId: string
+  currentHost?: string | null
+  cloudBaseUrl?: string | null
+}
+
+export function trustedIssuerFromCloudUrl(baseUrl: string | null | undefined): string {
+  const raw = baseUrl || ZPAN_CLOUD_URL_DEFAULT
+  try {
+    return new URL(raw).origin
+  } catch {
+    return new URL(ZPAN_CLOUD_URL_DEFAULT).origin
+  }
+}
+
+export function normalizeHost(host: string | null | undefined): string | null {
+  if (!host) return null
+  try {
+    return new URL(host.includes('://') ? host : `http://${host}`).host.toLowerCase()
+  } catch {
+    return host.split('/')[0]?.toLowerCase() || null
+  }
+}
+
+export function verifyCertificate(cert: string, options: VerifyCertificateOptions): LicenseAssertion | null {
   for (const key of PUBLIC_KEYS) {
-    const entitlement = tryVerify(cert, key, instanceId)
-    if (entitlement !== null) {
-      return entitlement
+    const assertion = tryVerify(cert, key, options)
+    if (assertion !== null) {
+      return assertion
     }
   }
   return null
 }
 
-function tryVerify(cert: string, publicKey: string, instanceId: string): LicenseEntitlement | null {
+function tryVerify(cert: string, publicKey: string, options: VerifyCertificateOptions): LicenseAssertion | null {
   try {
-    const { payload } = verify<LicenseEntitlement>(publicKey, cert, { validatePayload: false })
+    const { payload } = verify<LicenseAssertion>(publicKey, cert, { validatePayload: false })
+    const now = Math.floor(Date.now() / 1000)
+    const currentHost = normalizeHost(options.currentHost)
+    const authorizedHosts = Array.isArray(payload.authorizedHosts)
+      ? payload.authorizedHosts.map((host) => normalizeHost(host)).filter((host): host is string => Boolean(host))
+      : []
 
-    if (new Date(payload.expires_at) <= new Date()) {
+    if (payload.type !== 'zpan.license') {
       return null
     }
 
-    if (payload.instance_id !== instanceId) {
+    if (payload.issuer !== trustedIssuerFromCloudUrl(options.cloudBaseUrl)) {
       return null
     }
 
-    return {
-      account_id: payload.account_id,
-      instance_id: payload.instance_id,
-      plan: payload.plan,
-      plan_source: payload.plan_source,
-      features: payload.features,
-      hosts: payload.hosts,
-      issued_at: payload.issued_at,
-      expires_at: payload.expires_at,
+    if (payload.instanceId !== options.instanceId || payload.edition !== 'pro') {
+      return null
     }
+
+    if (payload.notBefore > now || payload.expiresAt <= now) {
+      return null
+    }
+
+    if (currentHost && !authorizedHosts.includes(currentHost)) {
+      return null
+    }
+
+    return { ...payload, authorizedHosts }
   } catch {
     return null
   }

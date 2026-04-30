@@ -1,5 +1,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { generateKeys, sign } from 'paseto-ts/v4'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
 import * as authSchema from '../db/auth-schema'
@@ -278,18 +280,26 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS apikey_config_id_idx ON apikey(config_id);
   CREATE INDEX IF NOT EXISTS apikey_reference_id_idx ON apikey(reference_id);
   CREATE INDEX IF NOT EXISTS apikey_key_idx ON apikey(key);
-  CREATE TABLE IF NOT EXISTS license_binding (
-    id INTEGER PRIMARY KEY,
+  CREATE TABLE IF NOT EXISTS license_bindings (
+    id TEXT PRIMARY KEY,
+    cloud_binding_id TEXT NOT NULL,
     instance_id TEXT NOT NULL,
-    cloud_account_id TEXT,
+    cloud_account_id TEXT NOT NULL,
     cloud_account_email TEXT,
-    refresh_token TEXT NOT NULL,
-    cached_cert TEXT,
-    cached_expires_at INTEGER,
+    status TEXT NOT NULL,
+    refresh_token TEXT,
+    cached_certificate TEXT,
+    cached_certificate_expires_at INTEGER,
+    bound_at INTEGER NOT NULL,
+    disconnected_at INTEGER,
     last_refresh_at INTEGER,
     last_refresh_error TEXT,
-    bound_at INTEGER
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS license_bindings_active_uniq ON license_bindings(status) WHERE status = 'active';
+  CREATE INDEX IF NOT EXISTS license_bindings_cloud_binding_idx ON license_bindings(cloud_binding_id);
+  CREATE INDEX IF NOT EXISTS license_bindings_instance_idx ON license_bindings(instance_id);
 `
 
 export async function createTestApp(
@@ -338,21 +348,45 @@ export async function authedHeaders(
   return { Cookie: cookies.join('; ') }
 }
 
+const { secretKey: TEST_LICENSE_SECRET, publicKey: TEST_LICENSE_PUBLIC } = generateKeys('public')
+
+function nowSec(): number {
+  return Math.floor(Date.now() / 1000)
+}
+
 /**
  * Insert a Pro license binding row so that feature gates resolve as enabled.
- * Pass specific features to restrict which Pro features are active; defaults
- * to all four.
  */
-export async function seedProLicense(
-  db: Awaited<ReturnType<typeof createTestApp>>['db'],
-  features: string[] = ['white_label', 'open_registration', 'teams_unlimited', 'storages_unlimited'],
-) {
-  const cert = JSON.stringify({ plan: 'pro', features })
-  const { LICENSE_KEYS, setLicenseOptions } = await import('../licensing/license-state.js')
-  await setLicenseOptions(db, {
-    [LICENSE_KEYS.instanceId]: 'test-instance',
-    [LICENSE_KEYS.refreshToken]: 'test-refresh-token',
-    [LICENSE_KEYS.cachedCert]: cert,
-    [LICENSE_KEYS.boundAt]: String(Date.now()),
+export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp>>['db'], _features?: string[]) {
+  const { PUBLIC_KEYS } = await import('../licensing/public-keys.js')
+  if (!PUBLIC_KEYS.includes(TEST_LICENSE_PUBLIC)) {
+    PUBLIC_KEYS.unshift(TEST_LICENSE_PUBLIC)
+  }
+
+  const { createLicenseBinding } = await import('../licensing/license-state.js')
+  const issuedAt = nowSec()
+  const expiresAt = issuedAt + 3600
+  const cachedCert = sign(TEST_LICENSE_SECRET, {
+    type: 'zpan.license',
+    issuer: ZPAN_CLOUD_URL_DEFAULT,
+    subject: 'test-binding',
+    accountId: 'test-account',
+    instanceId: 'test-instance',
+    edition: 'pro',
+    authorizedHosts: [],
+    licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
+    issuedAt,
+    notBefore: issuedAt,
+    expiresAt,
+  })
+
+  await createLicenseBinding(db, {
+    cloudBindingId: 'test-binding',
+    instanceId: 'test-instance',
+    cloudAccountId: 'test-account',
+    refreshToken: 'test-refresh-token',
+    cachedCert,
+    cachedExpiresAt: expiresAt,
+    lastRefreshAt: issuedAt,
   })
 }

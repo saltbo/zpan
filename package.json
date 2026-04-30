@@ -132,6 +132,7 @@
     "*.{ts,tsx,js,jsx,json,jsonc}": "biome check --write --no-errors-on-unmatched"
   },
   "volta": {
-    "node": "24.14.1"
+    "node": "24.14.1",
+    "npm": "11.11.0"
   }
 }

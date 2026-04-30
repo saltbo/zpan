@@ -1,15 +1,22 @@
-import type { LicenseEntitlement } from '@shared/types'
 import type { Database } from '../platform/interface'
 import { CloudNetworkError, CloudUnboundError, refreshEntitlement } from '../services/licensing-cloud'
 import { invalidateEntitlementCache } from './entitlement'
-import { clearLicenseBinding, LICENSE_KEYS, loadLicenseState, setLicenseOptions } from './license-state'
+import {
+  clearLicenseBinding,
+  loadLicenseState,
+  setLicenseRefreshError,
+  updateLicenseBindingAfterRefresh,
+} from './license-state'
 import { verifyCertificate } from './verify'
 
 const INVALID_CERTIFICATE_ERROR = 'Invalid certificate from cloud'
 
-function normaliseCert(raw: string, instanceId: string): { cert: string; entitlement: LicenseEntitlement | null } {
-  const entitlement = verifyCertificate(raw, instanceId)
-  return { cert: raw, entitlement }
+function normaliseCert(
+  raw: string,
+  options: { instanceId: string; cloudBaseUrl: string },
+): { cert: string; certificateExpiresAt: number | null } {
+  const assertion = verifyCertificate(raw, { instanceId: options.instanceId, cloudBaseUrl: options.cloudBaseUrl })
+  return { cert: raw, certificateExpiresAt: assertion?.expiresAt ?? null }
 }
 
 export async function performRefresh(db: Database, baseUrl: string): Promise<void> {
@@ -18,34 +25,34 @@ export async function performRefresh(db: Database, baseUrl: string): Promise<voi
 
   try {
     const data = await refreshEntitlement(baseUrl, state.refreshToken)
-    const { cert, entitlement } = normaliseCert(data.certificate, state.instanceId)
-    if (!entitlement) {
-      await setLicenseOptions(db, {
-        [LICENSE_KEYS.lastRefreshError]: INVALID_CERTIFICATE_ERROR,
-      })
+    const { cert, certificateExpiresAt } = normaliseCert(data.certificate, {
+      instanceId: state.instanceId,
+      cloudBaseUrl: baseUrl,
+    })
+    if (!certificateExpiresAt) {
+      await setLicenseRefreshError(db, state.id, INVALID_CERTIFICATE_ERROR)
       return
     }
 
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.refreshToken]: data.refresh_token,
-      [LICENSE_KEYS.cachedCert]: cert,
-      [LICENSE_KEYS.cachedExpiresAt]: String(Math.floor(new Date(entitlement.expires_at).getTime() / 1000)),
-      [LICENSE_KEYS.lastRefreshAt]: String(Math.floor(Date.now() / 1000)),
-      [LICENSE_KEYS.lastRefreshError]: null,
+    await updateLicenseBindingAfterRefresh(db, {
+      id: state.id,
+      refreshToken: data.refresh_token,
+      cachedCert: cert,
+      cachedExpiresAt: certificateExpiresAt,
+      cloudAccountEmail: data.account.email,
+      lastRefreshAt: Math.floor(Date.now() / 1000),
     })
 
     invalidateEntitlementCache()
   } catch (err) {
     if (err instanceof CloudUnboundError) {
-      await clearLicenseBinding(db)
+      await clearLicenseBinding(db, 'revoked')
       invalidateEntitlementCache()
       return
     }
 
     if (err instanceof CloudNetworkError || err instanceof Error) {
-      await setLicenseOptions(db, {
-        [LICENSE_KEYS.lastRefreshError]: err.message,
-      })
+      await setLicenseRefreshError(db, state.id, err.message)
       return
     }
 

@@ -258,7 +258,7 @@ export interface ImageHosting {
   createdAt: string
 }
 
-export type { BindingState, LicenseEntitlement, ProFeature } from './licensing'
+export type { BindingState, LicenseAssertion, ProFeature } from './licensing'
 
 export interface BrandingConfig {
   logo_url: string | null

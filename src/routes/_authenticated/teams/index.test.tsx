@@ -257,8 +257,8 @@ import { useListOrganizations, useSession } from '@/lib/auth-client'
 function makeEntitlement(hasTeamsUnlimited: boolean) {
   vi.mocked(useEntitlement).mockReturnValue({
     bound: true,
-    plan: hasTeamsUnlimited ? 'pro' : 'community',
-    features: hasTeamsUnlimited ? ['teams_unlimited'] : [],
+    active: hasTeamsUnlimited,
+    edition: hasTeamsUnlimited ? 'pro' : null,
     hasFeature: (name: string) => hasTeamsUnlimited && name === 'teams_unlimited',
     isLoading: false,
     isError: false,

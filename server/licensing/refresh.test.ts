@@ -6,16 +6,31 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { invalidateEntitlementCache } from './entitlement'
-import { LICENSE_KEYS, setLicenseOptions } from './license-state'
+import { createLicenseBinding, loadLicenseState } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 import { performRefresh } from './refresh'
 
 const SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS system_options (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL DEFAULT '',
-    public INTEGER DEFAULT 0
+  CREATE TABLE IF NOT EXISTS license_bindings (
+    id TEXT PRIMARY KEY,
+    cloud_binding_id TEXT NOT NULL,
+    instance_id TEXT NOT NULL,
+    cloud_account_id TEXT NOT NULL,
+    cloud_account_email TEXT,
+    status TEXT NOT NULL,
+    refresh_token TEXT,
+    cached_certificate TEXT,
+    cached_certificate_expires_at INTEGER,
+    bound_at INTEGER NOT NULL,
+    disconnected_at INTEGER,
+    last_refresh_at INTEGER,
+    last_refresh_error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS license_bindings_active_uniq ON license_bindings(status) WHERE status = 'active';
+  CREATE INDEX IF NOT EXISTS license_bindings_cloud_binding_idx ON license_bindings(cloud_binding_id);
+  CREATE INDEX IF NOT EXISTS license_bindings_instance_idx ON license_bindings(instance_id);
 `
 
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
@@ -32,10 +47,6 @@ afterAll(() => {
   for (const k of originalKeys) PUBLIC_KEYS.push(k)
 })
 
-function futureIso(offsetMs: number): string {
-  return new Date(Date.now() + offsetMs).toISOString()
-}
-
 function makeDb() {
   const sqlite = new Database(':memory:')
   sqlite.exec(SCHEMA_SQL)
@@ -44,12 +55,47 @@ function makeDb() {
 
 type DB = ReturnType<typeof makeDb>
 
-async function seedBinding(db: DB, overrides: Partial<Record<string, string>> = {}) {
-  await setLicenseOptions(db, {
-    [LICENSE_KEYS.instanceId]: 'inst-abc',
-    [LICENSE_KEYS.refreshToken]: 'old-rt',
+function nowSec(): number {
+  return Math.floor(Date.now() / 1000)
+}
+
+function signAssertion(overrides: Record<string, unknown> = {}): string {
+  const now = nowSec()
+  return sign(TEST_SECRET, {
+    type: 'zpan.license',
+    issuer: 'https://cloud.zpan.space',
+    subject: 'bind-1',
+    accountId: 'acct-1',
+    instanceId: 'inst-abc',
+    edition: 'pro',
+    authorizedHosts: [],
+    licenseValidUntil: now + 365 * 24 * 60 * 60,
+    issuedAt: now,
+    notBefore: now,
+    expiresAt: now + 3600,
     ...overrides,
   })
+}
+
+async function seedBinding(
+  db: DB,
+  overrides: Partial<Parameters<typeof createLicenseBinding>[1]> & { lastRefreshError?: string } = {},
+) {
+  const now = nowSec()
+  const lastRefreshError = overrides.lastRefreshError
+  await createLicenseBinding(db, {
+    cloudBindingId: 'bind-1',
+    instanceId: 'inst-abc',
+    cloudAccountId: 'acct-1',
+    refreshToken: 'old-rt',
+    cachedCert: signAssertion(),
+    cachedExpiresAt: now + 3600,
+    lastRefreshAt: now,
+    ...overrides,
+  })
+  if (lastRefreshError) {
+    await db.update(appSchema.licenseBindings).set({ lastRefreshError })
+  }
 }
 
 describe('performRefresh', () => {
@@ -71,16 +117,14 @@ describe('performRefresh', () => {
     const db = makeDb()
     await seedBinding(db)
 
-    const cert = sign(TEST_SECRET, {
-      account_id: 'acct-1',
-      instance_id: 'inst-abc',
-      plan: 'pro',
-      features: ['white_label'],
-      issued_at: new Date().toISOString(),
-      expires_at: futureIso(86400000),
-    })
+    const cert = signAssertion({ expiresAt: nowSec() + 86400 })
 
-    const cloudPayload = { refresh_token: 'new-rt', certificate: cert }
+    const cloudPayload = {
+      refresh_token: 'new-rt',
+      certificate: cert,
+      binding: { id: 'bind-1', instance_id: 'inst-abc', authorized_hosts: [] },
+      account: { id: 'acct-1', email: 'acct@example.com' },
+    }
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -90,7 +134,6 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const { loadLicenseState } = await import('./license-state')
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('new-rt')
     expect(state.cachedCert).toBe(cert)
@@ -102,16 +145,15 @@ describe('performRefresh', () => {
     const db = makeDb()
     await seedBinding(db)
 
-    const cert = sign(TEST_SECRET, {
-      account_id: 'acct-1',
-      instance_id: 'inst-abc',
-      plan: 'pro',
-      features: ['white_label'],
-      issued_at: new Date().toISOString(),
-      expires_at: futureIso(3_600_000),
-    })
+    const expiresAt = nowSec() + 3600
+    const cert = signAssertion({ expiresAt })
 
-    const cloudPayload = { refresh_token: 'new-rt-paseto', certificate: cert }
+    const cloudPayload = {
+      refresh_token: 'new-rt-paseto',
+      certificate: cert,
+      binding: { id: 'bind-1', instance_id: 'inst-abc', authorized_hosts: [] },
+      account: { id: 'acct-1', email: 'acct@example.com' },
+    }
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -121,11 +163,10 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const { loadLicenseState } = await import('./license-state')
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('new-rt-paseto')
     expect(state.cachedCert).toBe(cert)
-    expect(state.cachedExpiresAt).toBeTruthy()
+    expect(state.cachedExpiresAt).toBe(expiresAt)
   })
 
   it('clears binding on CloudUnboundError (401)', async () => {
@@ -141,7 +182,6 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const { loadLicenseState } = await import('./license-state')
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBeNull()
   })
@@ -154,7 +194,6 @@ describe('performRefresh', () => {
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const { loadLicenseState } = await import('./license-state')
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('old-rt')
     expect(state.lastRefreshError).toBe('Connection timeout')
@@ -163,29 +202,26 @@ describe('performRefresh', () => {
   it('keeps the previous binding when cloud returns an invalid certificate', async () => {
     const db = makeDb()
     await seedBinding(db, {
-      [LICENSE_KEYS.cachedCert]: 'old-cert',
-      [LICENSE_KEYS.cachedExpiresAt]: '1234567890',
+      cachedCert: 'old-cert',
+      cachedExpiresAt: 1234567890,
     })
 
-    const cert = sign(TEST_SECRET, {
-      account_id: 'acct-1',
-      instance_id: 'wrong-instance',
-      plan: 'pro',
-      features: ['white_label'],
-      issued_at: new Date().toISOString(),
-      expires_at: futureIso(3_600_000),
-    })
+    const cert = signAssertion({ instanceId: 'wrong-instance' })
 
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ refresh_token: 'new-rt', certificate: cert }),
+      json: async () => ({
+        refresh_token: 'new-rt',
+        certificate: cert,
+        binding: { id: 'bind-1', instance_id: 'wrong-instance', authorized_hosts: [] },
+        account: { id: 'acct-1', email: 'acct@example.com' },
+      }),
       text: async () => '',
     } as unknown as Response)
 
     await performRefresh(db, 'https://cloud.zpan.space')
 
-    const { loadLicenseState } = await import('./license-state')
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('old-rt')
     expect(state.cachedCert).toBe('old-cert')

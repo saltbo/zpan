@@ -4,9 +4,9 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { systemOptions } from '../db/schema'
 import { invalidateEntitlementCache } from '../licensing/entitlement'
 import { getOrCreateInstanceId } from '../licensing/instance-id'
-import { clearLicenseBinding, LICENSE_KEYS, loadLicenseState, setLicenseOptions } from '../licensing/license-state'
+import { clearLicenseBinding, createLicenseBinding, loadLicenseState } from '../licensing/license-state'
 import { performRefresh } from '../licensing/refresh'
-import { verifyCertificate } from '../licensing/verify'
+import { normalizeHost, verifyCertificate } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { createPairing, pollPairing } from '../services/licensing-cloud'
@@ -25,6 +25,11 @@ function getInstanceOrigin(c: { req: { url: string; header(name: string): string
   }
 
   return requestUrl.origin
+}
+
+function getRequestHost(c: { req: { url: string; header(name: string): string | undefined } }): string {
+  const forwardedHost = c.req.header('x-forwarded-host') ?? c.req.header('host')
+  return normalizeHost(forwardedHost) ?? new URL(c.req.url).host
 }
 
 const app = new Hono<Env>()
@@ -59,27 +64,31 @@ const app = new Hono<Env>()
     if (result.status === 'approved' && result.refresh_token && result.certificate) {
       const instanceId = await getOrCreateInstanceId(db)
       const cert = result.certificate
-      const entitlement = verifyCertificate(cert, instanceId)
-      if (!entitlement) {
+      const assertion = verifyCertificate(cert, {
+        instanceId,
+        currentHost: getRequestHost(c),
+        cloudBaseUrl: baseUrl,
+      })
+      if (!assertion || !result.binding || !result.account) {
         return c.json({ error: 'invalid_certificate' }, 502)
       }
-      const expiresAt = Math.floor(new Date(entitlement.expires_at).getTime() / 1000)
 
-      const nowSec = String(Math.floor(Date.now() / 1000))
-      await setLicenseOptions(db, {
-        [LICENSE_KEYS.instanceId]: instanceId,
-        [LICENSE_KEYS.refreshToken]: result.refresh_token,
-        [LICENSE_KEYS.cachedCert]: cert,
-        [LICENSE_KEYS.cachedExpiresAt]: expiresAt ? String(expiresAt) : null,
-        [LICENSE_KEYS.lastRefreshAt]: nowSec,
-        [LICENSE_KEYS.boundAt]: nowSec,
+      await createLicenseBinding(db, {
+        cloudBindingId: result.binding.id,
+        instanceId,
+        cloudAccountId: result.account.id,
+        cloudAccountEmail: result.account.email,
+        refreshToken: result.refresh_token,
+        cachedCert: cert,
+        cachedExpiresAt: assertion.expiresAt,
+        lastRefreshAt: Math.floor(Date.now() / 1000),
       })
 
       invalidateEntitlementCache()
 
       return c.json({
         status: 'approved' as const,
-        plan: entitlement.plan,
+        edition: assertion.edition,
       })
     }
 

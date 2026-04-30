@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { organization } from './auth-schema'
 
@@ -80,6 +81,32 @@ export const systemOptions = sqliteTable('system_options', {
   value: text('value').notNull().default(''),
   public: integer('public', { mode: 'boolean' }).default(false),
 })
+
+export const licenseBindings = sqliteTable(
+  'license_bindings',
+  {
+    id: text('id').primaryKey(),
+    cloudBindingId: text('cloud_binding_id').notNull(),
+    instanceId: text('instance_id').notNull(),
+    cloudAccountId: text('cloud_account_id').notNull(),
+    cloudAccountEmail: text('cloud_account_email'),
+    status: text('status').notNull(),
+    refreshToken: text('refresh_token'),
+    cachedCertificate: text('cached_certificate'),
+    cachedCertificateExpiresAt: integer('cached_certificate_expires_at'),
+    boundAt: integer('bound_at').notNull(),
+    disconnectedAt: integer('disconnected_at'),
+    lastRefreshAt: integer('last_refresh_at'),
+    lastRefreshError: text('last_refresh_error'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('license_bindings_active_uniq').on(t.status).where(sql`status = 'active'`),
+    index('license_bindings_cloud_binding_idx').on(t.cloudBindingId),
+    index('license_bindings_instance_idx').on(t.instanceId),
+  ],
+)
 
 export const teamInviteLinks = sqliteTable('team_invite_links', {
   id: text('id').primaryKey(),

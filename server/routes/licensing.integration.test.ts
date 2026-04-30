@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LICENSE_KEYS, setLicenseOptions } from '../licensing/license-state.js'
-import { createTestApp } from '../test/setup.js'
+import { createLicenseBinding } from '../licensing/license-state.js'
+import { createTestApp, seedProLicense } from '../test/setup.js'
 
 describe('GET /api/licensing/status', () => {
   it('returns { bound: false } when no binding row exists', async () => {
@@ -16,23 +16,15 @@ describe('GET /api/licensing/status', () => {
   it('returns bound state with plan and features when binding row exists with cert', async () => {
     const { app, db } = await createTestApp()
 
-    const entitlement = {
-      account_id: 'acc-1',
-      instance_id: 'inst-1',
-      plan: 'pro',
-      features: ['white_label', 'teams_unlimited'],
-      issued_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 86400000).toISOString(),
-    }
-
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'secret-refresh-token',
-      [LICENSE_KEYS.cachedCert]: JSON.stringify(entitlement),
-      [LICENSE_KEYS.cachedExpiresAt]: String(Math.floor(Date.now() / 1000) + 86400),
-      [LICENSE_KEYS.lastRefreshAt]: String(Math.floor(Date.now() / 1000)),
-      [LICENSE_KEYS.boundAt]: String(Math.floor(Date.now() / 1000)),
-      [LICENSE_KEYS.cloudAccountEmail]: 'user@example.com',
+    await createLicenseBinding(db, {
+      cloudBindingId: 'bind-1',
+      instanceId: 'inst-1',
+      cloudAccountId: 'acc-1',
+      cloudAccountEmail: 'user@example.com',
+      refreshToken: 'secret-refresh-token',
+      cachedCert: 'test-cert',
+      cachedExpiresAt: Math.floor(Date.now() / 1000) + 86400,
+      lastRefreshAt: Math.floor(Date.now() / 1000),
     })
 
     const res = await app.request('/api/licensing/status')
@@ -41,8 +33,6 @@ describe('GET /api/licensing/status', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.bound).toBe(true)
     expect(body.account_email).toBe('user@example.com')
-    expect(body.plan).toBe('pro')
-    expect(body.features).toEqual(['white_label', 'teams_unlimited'])
     // refresh_token must never appear in the response
     expect(body.refresh_token).toBeUndefined()
     expect(body.refreshToken).toBeUndefined()
@@ -51,9 +41,14 @@ describe('GET /api/licensing/status', () => {
   it('returns bound:true with no plan/features when cachedCert is null', async () => {
     const { app, db } = await createTestApp()
 
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'secret',
+    await createLicenseBinding(db, {
+      cloudBindingId: 'bind-1',
+      instanceId: 'inst-1',
+      cloudAccountId: 'acc-1',
+      refreshToken: 'secret',
+      cachedCert: 'test-cert',
+      cachedExpiresAt: Math.floor(Date.now() / 1000) + 86400,
+      lastRefreshAt: Math.floor(Date.now() / 1000),
     })
 
     const res = await app.request('/api/licensing/status')
@@ -61,8 +56,6 @@ describe('GET /api/licensing/status', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.bound).toBe(true)
-    expect(body.plan).toBeUndefined()
-    expect(body.features).toBeUndefined()
   })
 
   it('is accessible without authentication', async () => {
@@ -132,15 +125,7 @@ describe('POST /api/licensing/refresh-cron', () => {
   it('returns 200 with { ok: true } and calls refresh when binding exists with old lastRefreshAt', async () => {
     const { app, db } = await createTestApp({ REFRESH_CRON_SECRET: 'cron-secret' })
 
-    const nowSec = Math.floor(Date.now() / 1000)
-    // 10 minutes ago — outside the 5-minute dedup window
-    const oldRefresh = nowSec - 600
-
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'old-token',
-      [LICENSE_KEYS.lastRefreshAt]: String(oldRefresh),
-    })
+    await seedProLicense(db)
 
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
@@ -159,14 +144,7 @@ describe('POST /api/licensing/refresh-cron', () => {
   it('returns 200 with { ok: true } even when performRefresh throws (error is swallowed)', async () => {
     const { app, db } = await createTestApp({ REFRESH_CRON_SECRET: 'cron-secret' })
 
-    const nowSec = Math.floor(Date.now() / 1000)
-    const oldRefresh = nowSec - 600
-
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'old-token',
-      [LICENSE_KEYS.lastRefreshAt]: String(oldRefresh),
-    })
+    await seedProLicense(db)
 
     // Simulate a network failure from the cloud endpoint
     vi.mocked(fetch).mockRejectedValueOnce(new Error('network failure'))

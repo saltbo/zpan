@@ -1,27 +1,14 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../services/s3.js'
-import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedProLicense as seedProLicenseRow } from '../test/setup.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const NOW = Date.now()
 
 async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  const { LICENSE_KEYS, setLicenseOptions } = await import('../licensing/license-state.js')
-  await setLicenseOptions(db, {
-    [LICENSE_KEYS.instanceId]: 'test-instance',
-    [LICENSE_KEYS.refreshToken]: 'tok',
-    [LICENSE_KEYS.cachedCert]: JSON.stringify({
-      plan: 'pro',
-      features: ['white_label'],
-      account_id: 'a',
-      instance_id: 'test-instance',
-      issued_at: '2025-01-01',
-      expires_at: '2099-01-01',
-    }),
-    [LICENSE_KEYS.cachedExpiresAt]: String(Math.floor(Date.now() / 1000) + 99999),
-  })
+  await seedProLicenseRow(db)
 }
 
 async function seedPublicStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as schema from '../db/schema.js'
-import { createTestApp } from '../test/setup.js'
+import { createTestApp, seedProLicense as seedProLicenseRow } from '../test/setup.js'
 import { generateInviteCodes } from './invite.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
@@ -14,20 +14,7 @@ async function signUp(ctx: TestCtx, email: string, extra?: Record<string, unknow
 }
 
 async function seedProLicense(ctx: TestCtx, features: string[] = ['open_registration']) {
-  const { LICENSE_KEYS, setLicenseOptions } = await import('../licensing/license-state.js')
-  const cert = JSON.stringify({
-    account_id: 'test-account',
-    instance_id: 'test-instance',
-    plan: 'pro',
-    features,
-    issued_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + 86400 * 1000).toISOString(),
-  })
-  await setLicenseOptions(ctx.db, {
-    [LICENSE_KEYS.instanceId]: 'test-instance',
-    [LICENSE_KEYS.refreshToken]: 'test-refresh-token',
-    [LICENSE_KEYS.cachedCert]: cert,
-  })
+  await seedProLicenseRow(ctx.db, features)
 }
 
 async function seedFirstUser(ctx: TestCtx) {

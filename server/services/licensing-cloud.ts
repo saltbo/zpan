@@ -13,11 +13,27 @@ export interface PairingPollResponse {
   status: 'pending' | 'approved' | 'denied' | 'expired'
   refresh_token?: string
   certificate?: string
+  binding?: LicenseBindingInfo
+  account?: LicenseAccountInfo
 }
 
 export interface EntitlementRefreshResponse {
   refresh_token: string
   certificate: string
+  binding: LicenseBindingInfo
+  account: LicenseAccountInfo
+  next_refresh_after?: string
+}
+
+export interface LicenseBindingInfo {
+  id: string
+  instance_id: string
+  authorized_hosts: string[]
+}
+
+export interface LicenseAccountInfo {
+  id: string
+  email?: string | null
 }
 
 export class CloudUnboundError extends Error {

@@ -1,5 +1,7 @@
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LICENSE_KEYS, setLicenseOptions } from '../licensing/license-state.js'
+import { licenseBindings } from '../db/schema.js'
+import { createLicenseBinding } from '../licensing/license-state.js'
 import * as refreshModule from '../licensing/refresh.js'
 import { createTestApp } from '../test/setup.js'
 import { runLicensingRefresh } from './licensing-refresh-runner.js'
@@ -7,14 +9,21 @@ import { runLicensingRefresh } from './licensing-refresh-runner.js'
 const CLOUD_URL = 'https://cloud.zpan.space'
 
 async function seedLicenseBinding(
-  db: Parameters<typeof setLicenseOptions>[0],
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
   overrides: { lastRefreshAt?: number | null } = {},
 ) {
-  await setLicenseOptions(db, {
-    [LICENSE_KEYS.instanceId]: 'inst-1',
-    [LICENSE_KEYS.refreshToken]: 'some-token',
-    ...(overrides.lastRefreshAt != null ? { [LICENSE_KEYS.lastRefreshAt]: String(overrides.lastRefreshAt) } : {}),
+  await createLicenseBinding(db, {
+    cloudBindingId: 'bind-1',
+    instanceId: 'inst-1',
+    cloudAccountId: 'acct-1',
+    refreshToken: 'some-token',
+    cachedCert: 'test-cert',
+    cachedExpiresAt: Math.floor(Date.now() / 1000) + 3600,
+    lastRefreshAt: overrides.lastRefreshAt ?? 0,
   })
+  if (overrides.lastRefreshAt === null) {
+    await db.update(licenseBindings).set({ lastRefreshAt: null }).where(eq(licenseBindings.cloudBindingId, 'bind-1'))
+  }
 }
 
 describe('runLicensingRefresh', () => {

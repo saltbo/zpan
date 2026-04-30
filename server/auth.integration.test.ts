@@ -6,7 +6,7 @@ import * as schema from './db/schema.js'
 import { inviteCodes, siteInvitations } from './db/schema.js'
 import { generateInviteCodes } from './services/invite.js'
 import { createSiteInvitation } from './services/site-invitations.js'
-import { createTestApp } from './test/setup.js'
+import { createTestApp, seedProLicense } from './test/setup.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
 
@@ -59,21 +59,7 @@ describe('registration gate — open mode', () => {
 
   it('second user can register when auth_signup_mode is explicitly open and instance has Pro license', async () => {
     const ctx = await createTestApp()
-    // Simulate Pro license with open_registration feature
-    const cert = JSON.stringify({
-      account_id: 'test',
-      instance_id: 'test',
-      plan: 'pro',
-      features: ['open_registration'],
-      issued_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 86400 * 1000).toISOString(),
-    })
-    const { LICENSE_KEYS, setLicenseOptions } = await import('./licensing/license-state.js')
-    await setLicenseOptions(ctx.db, {
-      [LICENSE_KEYS.instanceId]: 'test',
-      [LICENSE_KEYS.refreshToken]: 'test-token',
-      [LICENSE_KEYS.cachedCert]: cert,
-    })
+    await seedProLicense(ctx.db, ['open_registration'])
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'open' })
     await signUp(ctx, 'first@example.com')
     const res = await signUp(ctx, 'second@example.com')

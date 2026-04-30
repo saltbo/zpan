@@ -1,11 +1,11 @@
-import type { ProFeature } from '@shared/types'
 import type { Database } from '../platform/interface'
 import { loadLicenseState } from './license-state'
 import { verifyCertificate } from './verify'
 
 export interface EntitlementSummary {
-  plan: 'community' | 'pro'
-  features: ProFeature[]
+  edition: 'pro'
+  certificateExpiresAt: number
+  licenseValidUntil: number
 }
 
 const CACHE_TTL_MS = 60_000
@@ -26,8 +26,14 @@ export async function loadEntitlement(db: Database): Promise<EntitlementSummary 
     return null
   }
 
-  const entitlement = verifyCertificate(state.cachedCert, state.instanceId)
-  cachedSummary = entitlement ? { plan: entitlement.plan, features: entitlement.features } : null
+  const assertion = verifyCertificate(state.cachedCert, { instanceId: state.instanceId })
+  cachedSummary = assertion
+    ? {
+        edition: assertion.edition,
+        certificateExpiresAt: assertion.expiresAt,
+        licenseValidUntil: assertion.licenseValidUntil,
+      }
+    : null
   cachedAt = now
   return cachedSummary
 }

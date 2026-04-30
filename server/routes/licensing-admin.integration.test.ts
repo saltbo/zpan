@@ -1,7 +1,7 @@
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getOrCreateInstanceId } from '../licensing/instance-id.js'
-import { LICENSE_KEYS, loadLicenseState, setLicenseOptions } from '../licensing/license-state.js'
+import { createLicenseBinding, loadLicenseState } from '../licensing/license-state.js'
 import { PUBLIC_KEYS } from '../licensing/public-keys.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
@@ -18,20 +18,38 @@ function makeCloudResponse(body: unknown, status = 200): Response {
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
 const originalKeys: string[] = []
 
-function futureIso(offsetMs: number): string {
-  return new Date(Date.now() + offsetMs).toISOString()
+function nowSec(): number {
+  return Math.floor(Date.now() / 1000)
 }
 
 function signCert(instanceId: string): string {
+  const now = nowSec()
   return sign(TEST_SECRET, {
-    account_id: 'acct-1',
-    instance_id: instanceId,
-    plan: 'pro',
-    plan_source: 'membership',
-    features: ['white_label'],
-    hosts: ['https://zpan.example.com'],
-    issued_at: new Date().toISOString(),
-    expires_at: futureIso(3_600_000),
+    type: 'zpan.license',
+    issuer: 'https://cloud.zpan.space',
+    subject: 'bind-1',
+    accountId: 'acct-1',
+    instanceId,
+    edition: 'pro',
+    authorizedHosts: ['localhost'],
+    licenseValidUntil: now + 365 * 24 * 60 * 60,
+    issuedAt: now,
+    notBefore: now,
+    expiresAt: now + 3600,
+  })
+}
+
+async function seedBinding(db: Awaited<ReturnType<typeof createTestApp>>['db'], instanceId = 'inst-1') {
+  const now = nowSec()
+  const cert = signCert(instanceId)
+  await createLicenseBinding(db, {
+    cloudBindingId: 'bind-1',
+    instanceId,
+    cloudAccountId: 'acct-1',
+    refreshToken: 'old-token',
+    cachedCert: cert,
+    cachedExpiresAt: now + 3600,
+    lastRefreshAt: now,
   })
 }
 
@@ -152,6 +170,8 @@ describe('GET /api/licensing/pair/:code/poll', () => {
         status: 'approved',
         refresh_token: 'rt-secret',
         certificate: signCert(instanceId),
+        binding: { id: 'bind-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
+        account: { id: 'acct-1', email: 'acct@example.com' },
       }),
     )
 
@@ -207,23 +227,30 @@ describe('GET /api/licensing/pair/:code/poll', () => {
 describe('POST /api/licensing/refresh', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    originalKeys.push(...PUBLIC_KEYS)
+    PUBLIC_KEYS.length = 0
+    PUBLIC_KEYS.push(TEST_PUBLIC)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    PUBLIC_KEYS.length = 0
+    for (const key of originalKeys.splice(0)) PUBLIC_KEYS.push(key)
   })
 
   it('returns success when binding exists and cloud responds OK', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'old-token',
-    })
+    await seedBinding(db)
 
     vi.mocked(fetch).mockResolvedValueOnce(
-      makeCloudResponse({ refresh_token: 'new-token', certificate: 'v4.public.fake-token-for-test' }),
+      makeCloudResponse({
+        refresh_token: 'new-token',
+        certificate: signCert('inst-1'),
+        binding: { id: 'bind-1', instance_id: 'inst-1', authorized_hosts: ['localhost'] },
+        account: { id: 'acct-1', email: 'acct@example.com' },
+      }),
     )
 
     const res = await app.request('/api/licensing/refresh', { method: 'POST', headers })
@@ -252,10 +279,7 @@ describe('DELETE /api/licensing/binding', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'some-token',
-    })
+    await seedBinding(db)
 
     const res = await app.request('/api/licensing/binding', { method: 'DELETE', headers })
 

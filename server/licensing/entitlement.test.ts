@@ -6,15 +6,30 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { invalidateEntitlementCache, loadEntitlement } from './entitlement'
-import { LICENSE_KEYS, setLicenseOptions } from './license-state'
+import { createLicenseBinding } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 
 const SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS system_options (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL DEFAULT '',
-    public INTEGER DEFAULT 0
+  CREATE TABLE IF NOT EXISTS license_bindings (
+    id TEXT PRIMARY KEY,
+    cloud_binding_id TEXT NOT NULL,
+    instance_id TEXT NOT NULL,
+    cloud_account_id TEXT NOT NULL,
+    cloud_account_email TEXT,
+    status TEXT NOT NULL,
+    refresh_token TEXT,
+    cached_certificate TEXT,
+    cached_certificate_expires_at INTEGER,
+    bound_at INTEGER NOT NULL,
+    disconnected_at INTEGER,
+    last_refresh_at INTEGER,
+    last_refresh_error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS license_bindings_active_uniq ON license_bindings(status) WHERE status = 'active';
+  CREATE INDEX IF NOT EXISTS license_bindings_cloud_binding_idx ON license_bindings(cloud_binding_id);
+  CREATE INDEX IF NOT EXISTS license_bindings_instance_idx ON license_bindings(instance_id);
 `
 
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
@@ -37,6 +52,46 @@ function makeDb() {
   return drizzle(sqlite, { schema: { ...appSchema, ...authSchema } })
 }
 
+type DB = ReturnType<typeof makeDb>
+
+function nowSec(): number {
+  return Math.floor(Date.now() / 1000)
+}
+
+function signAssertion(overrides: Record<string, unknown> = {}): string {
+  const now = nowSec()
+  return sign(TEST_SECRET, {
+    type: 'zpan.license',
+    issuer: 'https://cloud.zpan.space',
+    subject: 'bind-1',
+    accountId: 'acct-1',
+    instanceId: 'inst-1',
+    edition: 'pro',
+    authorizedHosts: [],
+    licenseValidUntil: now + 365 * 24 * 60 * 60,
+    issuedAt: now,
+    notBefore: now,
+    expiresAt: now + 3600,
+    ...overrides,
+  })
+}
+
+async function seedBinding(db: DB, cachedCert: string | null) {
+  const now = nowSec()
+  await createLicenseBinding(db, {
+    cloudBindingId: 'bind-1',
+    instanceId: 'inst-1',
+    cloudAccountId: 'acct-1',
+    refreshToken: 'token',
+    cachedCert: cachedCert ?? '',
+    cachedExpiresAt: now + 3600,
+    lastRefreshAt: now,
+  })
+  if (cachedCert === null) {
+    await db.update(appSchema.licenseBindings).set({ cachedCertificate: null })
+  }
+}
+
 describe('loadEntitlement', () => {
   beforeEach(() => {
     invalidateEntitlementCache()
@@ -54,56 +109,39 @@ describe('loadEntitlement', () => {
 
   it('returns null when binding has no cachedCert', async () => {
     const db = makeDb()
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'token',
-    })
+    await seedBinding(db, null)
 
     const result = await loadEntitlement(db)
     expect(result).toBeNull()
   })
 
-  it('returns entitlement summary for a valid PASETO cert', async () => {
+  it('returns entitlement summary for a valid PASETO assertion', async () => {
     const db = makeDb()
+    const licenseValidUntil = nowSec() + 365 * 24 * 60 * 60
+    const certificateExpiresAt = nowSec() + 3600
 
-    const cert = sign(TEST_SECRET, {
-      account_id: 'acct-1',
-      instance_id: 'inst-1',
-      plan: 'pro',
-      features: ['white_label'],
-      issued_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
-    })
-
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'token',
-      [LICENSE_KEYS.cachedCert]: cert,
-    })
+    await seedBinding(
+      db,
+      signAssertion({
+        licenseValidUntil,
+        expiresAt: certificateExpiresAt,
+      }),
+    )
 
     const result = await loadEntitlement(db)
     expect(result).not.toBeNull()
-    expect(result?.plan).toBe('pro')
-    expect(result?.features).toEqual(['white_label'])
+    expect(result?.edition).toBe('pro')
+    expect(result?.licenseValidUntil).toBe(licenseValidUntil)
+    expect(result?.certificateExpiresAt).toBe(certificateExpiresAt)
   })
 
-  it('returns null for an invalid/expired PASETO cert', async () => {
+  it('returns null for an expired PASETO assertion', async () => {
     const db = makeDb()
 
-    const cert = sign(TEST_SECRET, {
-      account_id: 'acct-1',
-      instance_id: 'inst-1',
-      plan: 'pro',
-      features: ['white_label'],
-      issued_at: new Date(Date.now() - 100000).toISOString(),
-      expires_at: new Date(Date.now() - 1000).toISOString(),
-    })
-
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'token',
-      [LICENSE_KEYS.cachedCert]: cert,
-    })
+    await seedBinding(
+      db,
+      signAssertion({ issuedAt: nowSec() - 100, notBefore: nowSec() - 100, expiresAt: nowSec() - 1 }),
+    )
 
     const result = await loadEntitlement(db)
     expect(result).toBeNull()
@@ -116,24 +154,11 @@ describe('invalidateEntitlementCache', () => {
 
     await loadEntitlement(db)
 
-    const cert = sign(TEST_SECRET, {
-      account_id: 'acct-1',
-      instance_id: 'inst-1',
-      plan: 'pro',
-      features: ['storages_unlimited'],
-      issued_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
-    })
-
-    await setLicenseOptions(db, {
-      [LICENSE_KEYS.instanceId]: 'inst-1',
-      [LICENSE_KEYS.refreshToken]: 'token',
-      [LICENSE_KEYS.cachedCert]: cert,
-    })
+    await seedBinding(db, signAssertion())
 
     invalidateEntitlementCache()
 
     const result = await loadEntitlement(db)
-    expect(result?.plan).toBe('pro')
+    expect(result?.edition).toBe('pro')
   })
 })

@@ -1,77 +1,146 @@
-import { eq, inArray } from 'drizzle-orm'
-import { systemOptions } from '../db/schema'
+import { eq } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
+import { licenseBindings } from '../db/schema'
 import type { Database } from '../platform/interface'
 
-// License state stored as system_options keys instead of a dedicated table
-const LICENSE_KEYS = {
-  instanceId: 'license_instance_id',
-  refreshToken: 'license_refresh_token',
-  cachedCert: 'license_cached_cert',
-  cachedExpiresAt: 'license_cached_expires_at',
-  lastRefreshAt: 'license_last_refresh_at',
-  lastRefreshError: 'license_last_refresh_error',
-  boundAt: 'license_bound_at',
-  cloudAccountEmail: 'license_cloud_account_email',
-} as const
-
-const ALL_LICENSE_KEYS = Object.values(LICENSE_KEYS)
+export type LicenseBindingStatus = 'active' | 'disconnected' | 'revoked'
 
 export interface LicenseState {
-  instanceId: string | null
+  id: string
+  cloudBindingId: string
+  instanceId: string
+  cloudAccountId: string
+  cloudAccountEmail: string | null
+  status: LicenseBindingStatus
   refreshToken: string | null
   cachedCert: string | null
   cachedExpiresAt: number | null
+  boundAt: number
+  disconnectedAt: number | null
   lastRefreshAt: number | null
   lastRefreshError: string | null
-  boundAt: number | null
-  cloudAccountEmail: string | null
 }
 
 export async function loadLicenseState(db: Database): Promise<LicenseState> {
-  const rows = await db
-    .select({ key: systemOptions.key, value: systemOptions.value })
-    .from(systemOptions)
-    .where(inArray(systemOptions.key, ALL_LICENSE_KEYS))
+  const row = await loadActiveLicenseBinding(db)
+  return row ?? emptyLicenseState()
+}
 
-  const map = new Map(rows.map((r) => [r.key, r.value]))
+export async function loadActiveLicenseBinding(db: Database): Promise<LicenseState | null> {
+  const rows = await db.select().from(licenseBindings).where(eq(licenseBindings.status, 'active')).limit(1)
+  const row = rows[0]
+  if (!row) return null
 
   return {
-    instanceId: map.get(LICENSE_KEYS.instanceId) ?? null,
-    refreshToken: map.get(LICENSE_KEYS.refreshToken) ?? null,
-    cachedCert: map.get(LICENSE_KEYS.cachedCert) ?? null,
-    cachedExpiresAt: toNumber(map.get(LICENSE_KEYS.cachedExpiresAt)),
-    lastRefreshAt: toNumber(map.get(LICENSE_KEYS.lastRefreshAt)),
-    lastRefreshError: map.get(LICENSE_KEYS.lastRefreshError) ?? null,
-    boundAt: toNumber(map.get(LICENSE_KEYS.boundAt)),
-    cloudAccountEmail: map.get(LICENSE_KEYS.cloudAccountEmail) ?? null,
+    id: row.id,
+    cloudBindingId: row.cloudBindingId,
+    instanceId: row.instanceId,
+    cloudAccountId: row.cloudAccountId,
+    cloudAccountEmail: row.cloudAccountEmail,
+    status: row.status as LicenseBindingStatus,
+    refreshToken: row.refreshToken,
+    cachedCert: row.cachedCertificate,
+    cachedExpiresAt: row.cachedCertificateExpiresAt,
+    boundAt: row.boundAt,
+    disconnectedAt: row.disconnectedAt,
+    lastRefreshAt: row.lastRefreshAt,
+    lastRefreshError: row.lastRefreshError,
   }
 }
 
-export async function setLicenseOption(db: Database, key: string, value: string): Promise<void> {
+export async function createLicenseBinding(
+  db: Database,
+  input: {
+    cloudBindingId: string
+    instanceId: string
+    cloudAccountId: string
+    cloudAccountEmail?: string | null
+    refreshToken: string
+    cachedCert: string
+    cachedExpiresAt: number
+    lastRefreshAt: number
+  },
+): Promise<void> {
+  const now = Math.floor(Date.now() / 1000)
+  await clearLicenseBinding(db)
+  await db.insert(licenseBindings).values({
+    id: nanoid(),
+    cloudBindingId: input.cloudBindingId,
+    instanceId: input.instanceId,
+    cloudAccountId: input.cloudAccountId,
+    cloudAccountEmail: input.cloudAccountEmail ?? null,
+    status: 'active',
+    refreshToken: input.refreshToken,
+    cachedCertificate: input.cachedCert,
+    cachedCertificateExpiresAt: input.cachedExpiresAt,
+    boundAt: now,
+    lastRefreshAt: input.lastRefreshAt,
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
+export async function updateLicenseBindingAfterRefresh(
+  db: Database,
+  input: {
+    id: string
+    refreshToken: string
+    cachedCert: string
+    cachedExpiresAt: number
+    cloudAccountEmail?: string | null
+    lastRefreshAt: number
+  },
+): Promise<void> {
   await db
-    .insert(systemOptions)
-    .values({ key, value, public: false })
-    .onConflictDoUpdate({ target: systemOptions.key, set: { value } })
+    .update(licenseBindings)
+    .set({
+      refreshToken: input.refreshToken,
+      cachedCertificate: input.cachedCert,
+      cachedCertificateExpiresAt: input.cachedExpiresAt,
+      cloudAccountEmail: input.cloudAccountEmail ?? undefined,
+      lastRefreshAt: input.lastRefreshAt,
+      lastRefreshError: null,
+      updatedAt: input.lastRefreshAt,
+    })
+    .where(eq(licenseBindings.id, input.id))
 }
 
-export async function setLicenseOptions(db: Database, entries: Record<string, string | null>): Promise<void> {
-  for (const [key, value] of Object.entries(entries)) {
-    if (value === null) {
-      await db.delete(systemOptions).where(eq(systemOptions.key, key))
-    } else {
-      await setLicenseOption(db, key, value)
-    }
+export async function setLicenseRefreshError(db: Database, id: string, error: string): Promise<void> {
+  await db
+    .update(licenseBindings)
+    .set({ lastRefreshError: error, updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(licenseBindings.id, id))
+}
+
+export async function clearLicenseBinding(db: Database, status: LicenseBindingStatus = 'disconnected'): Promise<void> {
+  const now = Math.floor(Date.now() / 1000)
+  await db
+    .update(licenseBindings)
+    .set({
+      status,
+      refreshToken: null,
+      cachedCertificate: null,
+      cachedCertificateExpiresAt: null,
+      disconnectedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(licenseBindings.status, 'active'))
+}
+
+function emptyLicenseState(): LicenseState {
+  return {
+    id: '',
+    cloudBindingId: '',
+    instanceId: '',
+    cloudAccountId: '',
+    cloudAccountEmail: null,
+    status: 'disconnected',
+    refreshToken: null,
+    cachedCert: null,
+    cachedExpiresAt: null,
+    boundAt: 0,
+    disconnectedAt: null,
+    lastRefreshAt: null,
+    lastRefreshError: null,
   }
-}
-
-export async function clearLicenseBinding(db: Database): Promise<void> {
-  await db.delete(systemOptions).where(inArray(systemOptions.key, ALL_LICENSE_KEYS))
-}
-
-export { LICENSE_KEYS }
-
-function toNumber(val: string | undefined): number | null {
-  if (val == null) return null
-  const n = Number(val)
-  return Number.isNaN(n) ? null : n
 }

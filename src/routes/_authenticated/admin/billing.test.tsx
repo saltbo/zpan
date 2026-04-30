@@ -1,5 +1,6 @@
 // Tests for the billing page logic and component helpers.
 // No jsdom/testing-library is available — we test pure logic functions.
+import { FEATURE_REGISTRY, PRO_GATE_KEYS, type ProFeature } from '@shared/feature-registry'
 import { describe, expect, it } from 'vitest'
 
 // ---------------------------------------------------------------------------
@@ -62,43 +63,30 @@ describe('resolveBillingView', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Pro features — label mapping in BoundStatusCard
+// Pro features — label mapping comes from shared feature registry
 // ---------------------------------------------------------------------------
 
-type ProFeature = 'white_label' | 'open_registration' | 'teams_unlimited' | 'storages_unlimited' | 'audit_log'
-
-const FEATURE_LABELS: Record<ProFeature, string> = {
-  white_label: 'White-label branding',
-  open_registration: 'Open registration',
-  teams_unlimited: 'Unlimited teams',
-  storages_unlimited: 'Unlimited storages',
-  audit_log: 'Audit logs',
+function featureLabelKey(feature: ProFeature): string | null {
+  return FEATURE_REGISTRY.find((item) => 'gateKey' in item && item.gateKey === feature)?.i18nKey ?? null
 }
 
-describe('FEATURE_LABELS', () => {
-  it('maps all known ProFeature keys', () => {
-    const features: ProFeature[] = [
-      'white_label',
-      'open_registration',
-      'teams_unlimited',
-      'storages_unlimited',
-      'audit_log',
-    ]
-    for (const f of features) {
-      expect(FEATURE_LABELS[f]).toBeTruthy()
+describe('feature registry labels', () => {
+  it('maps all Pro gate keys to i18n labels', () => {
+    for (const feature of PRO_GATE_KEYS) {
+      expect(featureLabelKey(feature)).toBeTruthy()
     }
   })
 
-  it('white_label maps to readable label', () => {
-    expect(FEATURE_LABELS.white_label).toBe('White-label branding')
+  it('white_label maps to the shared white-label i18n key', () => {
+    expect(featureLabelKey('white_label')).toBe('features.whiteLabel')
   })
 
-  it('storages_unlimited maps to readable label', () => {
-    expect(FEATURE_LABELS.storages_unlimited).toBe('Unlimited storages')
+  it('storages_unlimited maps to the shared storage backends i18n key', () => {
+    expect(featureLabelKey('storages_unlimited')).toBe('features.storageBackends')
   })
 
-  it('audit_log maps to readable label', () => {
-    expect(FEATURE_LABELS.audit_log).toBe('Audit logs')
+  it('audit_log maps to the shared audit log i18n key', () => {
+    expect(featureLabelKey('audit_log')).toBe('features.auditLog')
   })
 })
 
