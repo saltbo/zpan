@@ -398,6 +398,8 @@
   "settings.appearance.language": "语言",
   "preview.download": "下载",
   "preview.close": "关闭",
+  "preview.fullscreen": "全屏",
+  "preview.exitFullscreen": "退出全屏",
   "preview.unsupported": "此文件类型暂不支持预览。",
   "preview.loadError": "加载文件预览失败。",
   "preview.pageOf": "{{current}} / {{total}}",

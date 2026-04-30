@@ -2,6 +2,7 @@ import { DownloadIcon } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { PreviewType } from '@/lib/file-types'
 
 export interface PreviewFile {
@@ -20,18 +21,24 @@ const MediaPreview = lazy(() => import('./media-preview').then((m) => ({ default
 interface PreviewDownloadButtonProps {
   url: string
   filename: string
-  iconOnly?: boolean
+  compact?: boolean
 }
 
-export function PreviewDownloadButton({ url, filename, iconOnly }: PreviewDownloadButtonProps) {
+export function PreviewDownloadButton({ url, filename, compact }: PreviewDownloadButtonProps) {
   const { t } = useTranslation()
+  const label = t('preview.download')
   return (
-    <Button variant="outline" size={iconOnly ? 'icon-xs' : 'sm'} asChild>
-      <a href={url} download={filename} target="_blank" rel="noopener noreferrer">
-        <DownloadIcon className={iconOnly ? 'size-4' : 'mr-2 size-4'} />
-        {iconOnly ? <span className="sr-only">{t('preview.download')}</span> : t('preview.download')}
-      </a>
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="outline" size={compact ? 'icon-xs' : 'icon-sm'} asChild>
+          <a href={url} download={filename} target="_blank" rel="noopener noreferrer" aria-label={label} title={label}>
+            <DownloadIcon className="size-4" />
+            <span className="sr-only">{label}</span>
+          </a>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 

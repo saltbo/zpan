@@ -398,6 +398,8 @@
   "settings.appearance.language": "Language",
   "preview.download": "Download",
   "preview.close": "Close",
+  "preview.fullscreen": "Fullscreen",
+  "preview.exitFullscreen": "Exit fullscreen",
   "preview.unsupported": "Preview is not available for this file type.",
   "preview.loadError": "Failed to load file preview.",
   "preview.pageOf": "{{current}} / {{total}}",

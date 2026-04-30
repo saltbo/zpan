@@ -41,13 +41,13 @@ export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) 
   const mime = mimeFromExt(filename, previewType)
 
   return (
-    <div className="flex h-full items-center justify-center p-4">
+    <div className="flex h-full items-center justify-center">
       <MediaPlayer
         title={filename}
         src={{ src: url, type: mime as 'audio/mpeg' }}
         viewType={previewType === 'video' ? 'video' : 'audio'}
         crossOrigin
-        className="w-full"
+        className="max-h-full w-full [--audio-bg:transparent] [--audio-border:0] [--audio-border-radius:0] [--audio-filter:none] [--video-bg:transparent] [--video-border:0] [--video-border-radius:0]"
       >
         <MediaProvider />
         {previewType === 'audio' ? (

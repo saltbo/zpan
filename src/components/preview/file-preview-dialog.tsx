@@ -1,7 +1,10 @@
-import { XIcon } from 'lucide-react'
+import { Maximize2Icon, Minimize2Icon, XIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { getPreviewType, type PreviewType } from '@/lib/file-types'
 import { cn } from '@/lib/utils'
@@ -29,7 +32,11 @@ function formatFileSize(bytes: number): string {
   return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
-function dialogClass(previewType: PreviewType): string {
+function dialogClass(previewType: PreviewType, fullscreen: boolean): string {
+  if (fullscreen) {
+    return 'h-[100dvh] w-[100dvw] max-w-none rounded-none border-0 sm:max-w-none'
+  }
+
   switch (previewType) {
     case 'video':
       return 'max-w-4xl h-auto'
@@ -37,12 +44,32 @@ function dialogClass(previewType: PreviewType): string {
       return 'max-w-md h-auto'
     case 'pdf':
       return 'max-w-4xl h-[85vh]'
+    case 'markdown':
+    case 'code':
+    case 'text':
+      return 'max-w-5xl h-[85vh]'
     default:
       return 'max-w-3xl h-[75vh]'
   }
 }
 
-function PreviewHeader({ file, onClose, compact }: { file: PreviewFile; onClose: () => void; compact?: boolean }) {
+function PreviewHeader({
+  file,
+  onClose,
+  compact,
+  fullscreen,
+  onToggleFullscreen,
+}: {
+  file: PreviewFile
+  onClose: () => void
+  compact?: boolean
+  fullscreen?: boolean
+  onToggleFullscreen?: () => void
+}) {
+  const { t } = useTranslation()
+  const fullscreenLabel = fullscreen ? t('preview.exitFullscreen') : t('preview.fullscreen')
+  const closeLabel = t('preview.close')
+
   return (
     <div className="flex items-center justify-between border-b px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -50,9 +77,33 @@ function PreviewHeader({ file, onClose, compact }: { file: PreviewFile; onClose:
         <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1 pl-2">
-        <PreviewDownloadButton url={file.downloadUrl} filename={file.name} iconOnly={compact} />
-        <Button variant="ghost" size="icon-xs" onClick={onClose}>
+        <PreviewDownloadButton url={file.downloadUrl} filename={file.name} compact={compact} />
+        {onToggleFullscreen && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size={compact ? 'icon-xs' : 'icon-sm'}
+                onClick={onToggleFullscreen}
+                aria-label={fullscreenLabel}
+                title={fullscreenLabel}
+              >
+                {fullscreen ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
+                <span className="sr-only">{fullscreenLabel}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{fullscreenLabel}</TooltipContent>
+          </Tooltip>
+        )}
+        <Button
+          variant="ghost"
+          size={compact ? 'icon-xs' : 'icon-sm'}
+          onClick={onClose}
+          aria-label={closeLabel}
+          title={closeLabel}
+        >
           <XIcon className="size-4" />
+          <span className="sr-only">{closeLabel}</span>
         </Button>
       </div>
     </div>
@@ -94,13 +145,27 @@ function MobilePreview({ file, previewType, open, onOpenChange }: PreviewPanelPr
 }
 
 function DesktopPreview({ file, previewType, open, onOpenChange }: PreviewPanelProps) {
+  const [fullscreen, setFullscreen] = useState(false)
+
+  useEffect(() => {
+    if (!open) setFullscreen(false)
+  }, [open])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className={cn('flex flex-col gap-0 p-0', dialogClass(previewType))}>
+      <DialogContent
+        showCloseButton={false}
+        className={cn('flex flex-col gap-0 overflow-hidden p-0', dialogClass(previewType, fullscreen))}
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>{file.name}</DialogTitle>
         </DialogHeader>
-        <PreviewHeader file={file} onClose={() => onOpenChange(false)} />
+        <PreviewHeader
+          file={file}
+          onClose={() => onOpenChange(false)}
+          fullscreen={fullscreen}
+          onToggleFullscreen={() => setFullscreen((value) => !value)}
+        />
         <div className="flex-1 overflow-auto">
           <FilePreviewContent file={file} previewType={previewType} />
         </div>
