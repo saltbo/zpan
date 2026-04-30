@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
-import { File, FileCode, FileText, Folder, Image, Music, Video } from 'lucide-react'
+import { File, FileCode, FileSpreadsheet, FileText, Folder, Image, Music, Presentation, Video } from 'lucide-react'
 import { getPreviewType } from '@/lib/file-types'
 
 const sizeMap = {
@@ -11,6 +11,12 @@ const sizeMap = {
 interface FileIconProps {
   item: StorageObject
   size?: 'sm' | 'lg'
+}
+
+function getExtension(filename: string): string {
+  const lastDot = filename.lastIndexOf('.')
+  if (lastDot <= 0) return ''
+  return filename.slice(lastDot + 1).toLowerCase()
 }
 
 export function FileIcon({ item, size = 'sm' }: FileIconProps) {
@@ -28,6 +34,12 @@ export function FileIcon({ item, size = 'sm' }: FileIconProps) {
       return <Video className={`${cls} text-purple-500`} />
     case 'audio':
       return <Music className={`${cls} text-pink-500`} />
+    case 'office': {
+      const ext = getExtension(item.name)
+      if (ext === 'xls' || ext === 'xlsx') return <FileSpreadsheet className={`${cls} text-emerald-600`} />
+      if (ext === 'ppt' || ext === 'pptx') return <Presentation className={`${cls} text-orange-600`} />
+      return <FileText className={`${cls} text-blue-600`} />
+    }
     case 'pdf':
     case 'text':
     case 'markdown':

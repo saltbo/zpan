@@ -119,7 +119,6 @@ function DraggableGridCard({
             <FileIcon item={item} size="lg" />
           )}
           <span className="w-full truncate text-center text-sm font-medium">{item.name}</span>
-          {isFile && <span className="text-xs text-muted-foreground">{item.type}</span>}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
@@ -208,7 +207,6 @@ function PlainGridCard({
             <FileIcon item={item} size="lg" />
           )}
           <span className="w-full truncate text-center text-sm font-medium">{item.name}</span>
-          {isFile && <span className="text-xs text-muted-foreground">{item.type}</span>}
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
