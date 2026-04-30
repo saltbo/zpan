@@ -373,7 +373,7 @@ export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp
     accountId: 'test-account',
     instanceId: 'test-instance',
     edition: 'pro',
-    authorizedHosts: [],
+    authorizedHosts: ['localhost'],
     licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
     issuedAt,
     notBefore: issuedAt,
