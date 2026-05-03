@@ -1,4 +1,6 @@
+import { BUILTIN_PROVIDER_IDS, OAuthProviderMeta } from '@shared/oauth-providers'
 import { describe, expect, it } from 'vitest'
+import { hasOAuthProviderIcon } from '@/components/oauth-provider-icon'
 import type { AuthProvider } from '@/lib/api'
 
 // OAuthButtons is a React rendering component. The project has no jsdom or
@@ -53,7 +55,7 @@ describe('OAuthButtons — render visibility logic', () => {
 // ---------------------------------------------------------------------------
 
 function makeProvider(providerId: string, name: string): AuthProvider {
-  return { providerId, type: 'oauth', name, icon: '' }
+  return { providerId, type: 'oauth', name, icon: providerId }
 }
 
 describe('OAuthButtons — provider data contract', () => {
@@ -67,6 +69,12 @@ describe('OAuthButtons — provider data contract', () => {
     const p = makeProvider('google', 'Google')
 
     expect(p.name).toBe('Google')
+  })
+
+  it('provider has an icon field used in the button', () => {
+    const p = makeProvider('github', 'GitHub')
+
+    expect(p.icon).toBe('github')
   })
 
   it('each provider produces a distinct button key via providerId', () => {
@@ -112,5 +120,15 @@ const AUTH_PROVIDERS_QUERY_KEY = ['auth-providers']
 describe('OAuthButtons — query key', () => {
   it('query key is ["auth-providers"]', () => {
     expect(AUTH_PROVIDERS_QUERY_KEY).toEqual(['auth-providers'])
+  })
+})
+
+describe('OAuthButtons — provider icons', () => {
+  it('has an icon mapping for every built-in provider', () => {
+    for (const providerId of BUILTIN_PROVIDER_IDS) {
+      const meta = OAuthProviderMeta[providerId]!
+
+      expect(hasOAuthProviderIcon(meta.icon), meta.icon).toBe(true)
+    }
   })
 })

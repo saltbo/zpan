@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { OAuthProviderIcon } from '@/components/oauth-provider-icon'
 import { Button } from '@/components/ui/button'
 import { listAuthProviders } from '@/lib/api'
 import { authClient } from '@/lib/auth-client'
@@ -40,6 +41,7 @@ export function OAuthButtons() {
           className="w-full"
           onClick={() => handleOAuth(provider.providerId)}
         >
+          <OAuthProviderIcon icon={provider.icon} name={provider.name} />
           {t('auth.continueWith', { provider: provider.name })}
         </Button>
       ))}

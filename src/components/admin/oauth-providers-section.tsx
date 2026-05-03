@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { OAuthProviderIcon } from '@/components/oauth-provider-icon'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -45,6 +46,21 @@ const emptyForm: FormState = {
 
 function providerName(providerId: string): string {
   return OAuthProviderMeta[providerId]?.name ?? providerId
+}
+
+function providerIcon(providerId: string): string {
+  return OAuthProviderMeta[providerId]?.icon ?? providerId
+}
+
+function ProviderLabel({ providerId }: { providerId: string }) {
+  const name = providerName(providerId)
+
+  return (
+    <span className="inline-flex min-w-0 items-center gap-2">
+      <OAuthProviderIcon icon={providerIcon(providerId)} name={name} />
+      <span className="truncate">{name}</span>
+    </span>
+  )
 }
 
 export function OAuthProvidersSection() {
@@ -155,7 +171,9 @@ export function OAuthProvidersSection() {
             <TableBody>
               {providers.map((p) => (
                 <TableRow key={p.providerId} className="border-b last:border-0 hover:bg-muted/30">
-                  <TableCell className="px-4 py-3 font-medium">{providerName(p.providerId)}</TableCell>
+                  <TableCell className="px-4 py-3 font-medium">
+                    <ProviderLabel providerId={p.providerId} />
+                  </TableCell>
                   <TableCell className="px-4 py-3 text-sm">{p.type}</TableCell>
                   <TableCell className="px-4 py-3 text-sm font-mono">{p.clientId}</TableCell>
                   <TableCell className="px-4 py-3">
@@ -217,7 +235,7 @@ export function OAuthProvidersSection() {
                   <SelectContent>
                     {BUILTIN_PROVIDER_IDS.map((id) => (
                       <SelectItem key={id} value={id}>
-                        {OAuthProviderMeta[id]?.name ?? id}
+                        <ProviderLabel providerId={id} />
                       </SelectItem>
                     ))}
                   </SelectContent>

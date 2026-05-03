@@ -83,6 +83,7 @@
     "react-pdf": "^10.4.1",
     "remark-gfm": "^4.0.1",
     "shiki": "^4.0.2",
+    "simple-icons": "^16.18.0",
     "sonner": "^1.7.0",
     "tailwind-merge": "^2.6.0",
     "yet-another-react-lightbox": "^3.30.1",
