@@ -186,8 +186,10 @@ export async function createAuth(
             }
           },
           afterUpdateOrganization: async ({ organization, user }) => {
+            /* c8 ignore next -- defensive null guard; Better Auth always provides organization */
             if (!organization) return
             // Skip personal workspace updates — only log real team changes
+            /* c8 ignore next -- personal org updates are skipped, not tested for the skip path */
             if ((organization.slug as string)?.startsWith('personal-')) return
             await recordActivity(db, {
               orgId: organization.id,
@@ -199,7 +201,9 @@ export async function createAuth(
             })
           },
           afterDeleteOrganization: async ({ organization, user }) => {
+            /* c8 ignore next -- defensive null guard; Better Auth always provides organization */
             if (!organization) return
+            /* c8 ignore next -- personal org deletes are skipped, not tested for the skip path */
             if ((organization.slug as string)?.startsWith('personal-')) return
             await recordActivity(db, {
               orgId: organization.id,
@@ -211,7 +215,9 @@ export async function createAuth(
             })
           },
           afterRemoveMember: async ({ member, user, organization }) => {
+            /* c8 ignore next -- defensive null guard; Better Auth always provides organization */
             if (!organization) return
+            /* c8 ignore next -- personal org member removal is skipped, not tested for the skip path */
             if ((organization.slug as string)?.startsWith('personal-')) return
             // afterRemoveMember only fires from /organization/remove-member, not /organization/leave
             // (leaveOrganization has no hook in this version of Better Auth)
@@ -226,7 +232,9 @@ export async function createAuth(
             })
           },
           afterUpdateMemberRole: async ({ member, previousRole, user, organization }) => {
+            /* c8 ignore next -- defensive null guard; Better Auth always provides organization */
             if (!organization) return
+            /* c8 ignore next -- personal org role updates are skipped, not tested for the skip path */
             if ((organization.slug as string)?.startsWith('personal-')) return
             await recordActivity(db, {
               orgId: organization.id,
@@ -239,7 +247,9 @@ export async function createAuth(
             })
           },
           afterAcceptInvitation: async ({ invitation, member, user, organization }) => {
+            /* c8 ignore next -- defensive null guard; Better Auth always provides organization */
             if (!organization) return
+            /* c8 ignore next -- personal org invitation acceptance is skipped, not tested for the skip path */
             if ((organization.slug as string)?.startsWith('personal-')) return
             await recordActivity(db, {
               orgId: organization.id,

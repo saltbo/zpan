@@ -156,6 +156,23 @@ describe('PUT /api/admin/branding', () => {
     expect(S3Service.prototype.putObject).toHaveBeenCalledTimes(1)
   })
 
+  it('uploads favicon file to S3 and stores URL', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedPublicStorage(db)
+
+    const faviconFile = new File(['<svg></svg>'], 'favicon.svg', { type: 'image/svg+xml' })
+    const form = new FormData()
+    form.set('favicon', faviconFile)
+
+    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { favicon_url: string }
+    expect(body.favicon_url).toBe('https://cdn.example.com/logo.png')
+    expect(S3Service.prototype.putObject).toHaveBeenCalledTimes(1)
+  })
+
   it('returns 400 for invalid logo MIME type', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)

@@ -839,6 +839,46 @@ describe('Audit: Better Auth org lifecycle via organizationHooks', () => {
     expect(meta.newRole).toBe('admin')
     expect(meta.previousRole).toBe('member')
   })
+
+  it('records team_member_join when a Better Auth invitation is accepted', async () => {
+    const { app, db } = await createTestApp()
+    const { headers: ownerHeaders } = await signUpAndSignIn(app, 'inviter@example.com')
+
+    // Owner creates a team
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...ownerHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Invite Team', slug: 'invite-team-accept' }),
+    })
+    expect(createRes.status).toBe(200)
+    const team = (await createRes.json()) as { id: string }
+
+    // Owner invites a (not-yet-registered) user
+    const inviteRes = await app.request('/api/auth/organization/invite-member', {
+      method: 'POST',
+      headers: { ...ownerHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: team.id, email: 'invitee@example.com', role: 'member' }),
+    })
+    expect(inviteRes.status).toBe(200)
+    const invitation = (await inviteRes.json()) as { id: string }
+
+    // Invitee signs up (first time — creates their account)
+    const { headers: inviteeHeaders } = await signUpAndSignIn(app, 'invitee@example.com')
+
+    // Accept the invitation as invitee
+    const acceptRes = await app.request('/api/auth/organization/accept-invitation', {
+      method: 'POST',
+      headers: { ...inviteeHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invitationId: invitation.id }),
+    })
+    expect(acceptRes.status).toBe(200)
+
+    // The afterAcceptInvitation hook records team_member_join
+    const events = await getAuditEvents(db, 'team_member_join')
+    expect(events.length).toBeGreaterThanOrEqual(1)
+    const meta = JSON.parse(events[events.length - 1].metadata ?? '{}') as Record<string, unknown>
+    expect(meta.invitationId).toBe(invitation.id)
+  })
 })
 
 // ─── Team activity feed isolation ─────────────────────────────────────────────

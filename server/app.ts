@@ -86,11 +86,13 @@ export function createApp(platform: Platform, auth: Auth) {
       user?: { id?: string; email?: string }
     }
     const userId = body?.user?.id
+    /* c8 ignore next -- defensive: Better Auth never returns 200 without user.id */
     if (!userId) {
       throw new Error('sign-up succeeded but response contains no user.id — cannot record audit event')
     }
 
     const orgId = await findPersonalOrg(db, userId)
+    /* c8 ignore next -- defensive: personal org always exists after session.create.before */
     if (!orgId) {
       throw new Error(`sign-up succeeded for user ${userId} but personal org not found — cannot record audit event`)
     }
@@ -115,6 +117,7 @@ export function createApp(platform: Platform, auth: Auth) {
           .where(eq(inviteCodesTable.usedBy, userId))
           .limit(1)
         if (!codeRow) {
+          /* c8 ignore next -- defensive: redeemInviteCode always creates a row before we reach here */
           throw new Error(
             `sign-up with invite code succeeded for user ${userId} but redeemed code row not found — invariant violation`,
           )
