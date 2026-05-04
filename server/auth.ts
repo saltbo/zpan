@@ -123,7 +123,7 @@ export async function createAuth(
 ) {
   const db = 'db' in source ? source.db : source
   const oidcConfigs = await loadOidcConfigs(db)
-  return betterAuth({
+  const auth = betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
     baseURL,
@@ -415,6 +415,12 @@ export async function createAuth(
       },
     },
   })
+
+  // Expose the db this auth instance was created with so callers that need to
+  // read rows that Better Auth just wrote can use the same D1 session and get
+  // read-your-writes consistency (critical in CF Workers where `cachedAuth`
+  // holds the first-request env.DB while each new request has its own env.DB).
+  return Object.assign(auth, { _db: db })
 }
 
 export type Auth = Awaited<ReturnType<typeof createAuth>>

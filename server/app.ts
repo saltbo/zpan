@@ -56,12 +56,15 @@ export function createApp(platform: Platform, auth: Auth) {
 
   app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     const a = c.get('auth')
-    const db = c.get('platform').db
 
-    // Intercept sign-up to record audit events using the fresh per-request db.
-    // The cached auth instance's db (from first isolate request) may not guarantee
-    // read-your-writes for INSERT operations in CF Workers D1, so we record here
-    // instead of in user.create.after.
+    // In CF Workers the auth instance is cached at isolate scope (see bootstrap.ts).
+    // a._db is the D1 binding from the request that first created cachedAuth; it is
+    // the same D1 session that Better Auth uses for all its writes (user, org,
+    // invite-code redemption).  Using the same session here guarantees
+    // read-your-writes consistency when we read rows that Better Auth just wrote.
+    // In Node/test environments a._db === c.get('platform').db (same object, no issue).
+    // Fallback to platform.db for test environments where fake auth has no _db.
+    const db = a._db ?? c.get('platform').db
     const url = new URL(c.req.url)
     const isSignUp = c.req.method === 'POST' && url.pathname === '/api/auth/sign-up/email'
 
