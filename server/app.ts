@@ -55,8 +55,9 @@ export function createApp(platform: Platform, auth: Auth) {
     // platform.db is the fresh per-request D1 binding — reliable for INSERTs
     // (all other audit events use it successfully).
     // We do NOT read from DB here: orgId and inviteCodeId are gathered inside
-    // user.create.after (within a.handler()'s D1 session), stored in a._pendingSignupAudits,
-    // then written here.  See server/auth.ts for the full design rationale.
+    // Better Auth hooks (session.create.before / user.create.after) WITHOUT any
+    // D1 reads-after-writes, stored in a._pendingSignupAudits, then written here.
+    // See server/auth.ts for the full design rationale.
     const db = c.get('platform').db
 
     const url = new URL(c.req.url)

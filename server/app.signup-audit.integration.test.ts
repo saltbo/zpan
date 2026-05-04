@@ -4,10 +4,14 @@
  * The Hono interceptor in app.ts records sign_up / invite_code_redeem audit
  * events after a successful Better Auth sign-up response.
  *
- * Design: user.create.after (inside a.handler()) gathers audit data (orgId,
- * inviteCodeId) using auth._db while read-after-write consistency is
- * guaranteed, then stores it in auth._pendingSignupAudits. The interceptor
- * retrieves from the Map (no DB reads) and writes using fresh platform.db.
+ * Design: user.create.after (inside a.handler()) gathers audit data without
+ * any D1 reads-after-writes:
+ * - orgId: read from pendingOrgIds Map, populated by session.create.before
+ *   (runs earlier, inside the auth txn, guaranteed consistent reads).
+ * - inviteCodeId: look up invite code row by code value BEFORE redemption
+ *   (pre-existing row — no RAW issue); then redeem.
+ * Data is stored in auth._pendingSignupAudits. The interceptor retrieves from
+ * the Map (no DB reads) and writes using fresh platform.db.
  *
  * Fail-fast: if audit data is missing or user.id is absent, the interceptor
  * throws before returning the auth response — the client gets 5xx instead of
@@ -16,9 +20,9 @@
  * These tests cover:
  * - Interceptor fail-fast: missing user.id or missing Map entry → 5xx
  * - INVITE_ONLY hook invariant: if user.create.after threw because the
- *   redeemed code row was missing, the Map entry is never populated — the
- *   "no pending audit data" test covers this exact scenario at the interceptor
- *   boundary (same observable outcome: Map miss → 5xx)
+ *   invite code row was not found before redemption (invariant violation),
+ *   the Map entry is never populated — the "no pending audit data" test
+ *   covers this at the interceptor boundary (same observable: Map miss → 5xx)
  * - INVITE_ONLY happy path: valid code → 200, both sign_up and
  *   invite_code_redeem rows written, raw code absent from every audit field
  */
@@ -67,7 +71,8 @@ describe('sign-up audit interceptor — fail-fast invariants', () => {
     // so _pendingSignupAudits has no entry → interceptor throws → 5xx.
     //
     // This also covers the INVITE_ONLY invariant in user.create.after:
-    // if mode===INVITE_ONLY && inviteCode present && no codeRow WHERE usedBy=userId,
+    // if mode===INVITE_ONLY && inviteCode present but no invite_codes row
+    // WHERE code=inviteCode (should never happen — validated in before hook),
     // user.create.after throws BEFORE calling pendingSignupAudits.set() —
     // the observable outcome at the interceptor boundary is the same empty Map → 5xx.
     const { platform } = await createTestApp()

@@ -126,14 +126,17 @@ export async function createAuth(
 
   // In CF Workers, cachedAuth is created once at isolate scope. Its `db` is the first
   // request's D1 binding. D1 session bookmarks (which guarantee read-after-write) are
-  // per-request-context at the CF edge layer and do NOT persist across Worker invocations.
-  // Therefore any post-auth DB reads from the interceptor in app.ts through `auth._db`
-  // cannot see writes made during that invocation.
+  // per-HTTP-sub-request at the CF edge layer — each D1 call is a separate HTTP round-trip,
+  // and the bookmark from one round-trip is NOT automatically carried to the next even within
+  // the same Worker invocation. Therefore ANY read that must see a just-written row is unsafe
+  // in user.create.after.
   //
-  // Solution: gather the data we need for audit (orgId, inviteCodeId) INSIDE user.create.after,
-  // which still runs within the auth handler's single D1 call chain (read-after-write works),
-  // then store it here so the Hono interceptor can retrieve it without making any DB reads.
-  // The interceptor only writes (recordActivity) using the fresh per-request platform.db.
+  // Solution: eliminate all reads-after-writes from user.create.after.
+  // - orgId: session.create.before runs EARLIER (inside the auth txn) and resolves the orgId
+  //   there; it stores it in pendingOrgIds so user.create.after can retrieve it without a DB read.
+  // - inviteCodeId: look up the invite code row by code value BEFORE redemption (pre-existing
+  //   data — no RAW needed); capture the DB row ID; then redeem.
+  // The Hono interceptor (app.ts) only writes (recordActivity) using fresh per-request platform.db.
   type PendingSignupAudit = {
     orgId: string
     email: string
@@ -141,6 +144,9 @@ export async function createAuth(
     hasSiteInvitation: boolean
   }
   const pendingSignupAudits = new Map<string, PendingSignupAudit>()
+  // pendingOrgIds: populated by session.create.before, consumed by user.create.after.
+  // Keyed by userId. Avoids a read-after-write for the personal org.
+  const pendingOrgIds = new Map<string, string>()
 
   const auth = betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
@@ -357,14 +363,29 @@ export async function createAuth(
             return { data }
           },
           after: async (user, context) => {
-            // Business logic: redeem invite code, accept site invitation, ensure personal org.
             const mode = await getEffectiveSignupMode(db)
             const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
+            const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
+
+            // Look up invite code row ID BEFORE redemption using the code value.
+            // Pre-existing row → no D1 read-after-write needed.
+            // We store the opaque row ID (nanoid) in the audit event — never the raw code.
+            let inviteCodeId: string | undefined
             if (mode === SignupMode.INVITE_ONLY && inviteCode) {
+              const [codeRow] = await db
+                .select({ id: inviteCodesTable.id })
+                .from(inviteCodesTable)
+                .where(eq(inviteCodesTable.code, inviteCode))
+                .limit(1)
+              if (!codeRow) {
+                throw new Error(
+                  `invite code row not found for user ${user.id} — invariant violation (validated in before hook)`,
+                )
+              }
+              inviteCodeId = codeRow.id
               await redeemInviteCode(db, inviteCode, user.id)
             }
 
-            const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
             if (siteInvitationToken) {
               const result = await acceptSiteInvitation(db, siteInvitationToken, user.email, user.id)
               if (result !== 'ok' && result !== 'accepted') {
@@ -372,42 +393,18 @@ export async function createAuth(
               }
             }
 
-            // Create personal org as part of registration.
-            // This hook is deferred until after the transaction commits, so
-            // when autoSignIn is enabled the org is actually created by
-            // session.create.before (which runs earlier, inside the txn).
-            // The idempotent check ensures no duplicate is created.
-            const existing = await findPersonalOrg(db, user.id)
-            if (!existing) {
-              await createPersonalOrg(db, user)
+            // orgId comes from pendingOrgIds, populated by session.create.before which runs
+            // earlier (inside the auth txn). If absent (non-autoSignIn path), create the org
+            // here and use the return value directly — no re-read needed.
+            let orgId = pendingOrgIds.get(user.id)
+            pendingOrgIds.delete(user.id)
+            if (!orgId) {
+              orgId = await createPersonalOrg(db, user)
             }
-
-            // Gather audit data for the Hono interceptor in app.ts.
-            // We MUST read here (inside user.create.after) while we are still within the
-            // auth handler's D1 call chain — auth._db has read-after-write consistency at
-            // this point because the org and invite code were written by the same session.
-            // The Hono interceptor runs AFTER a.handler() returns, at which point D1 session
-            // bookmarks from this invocation are gone, making cross-session reads unreliable.
-            const orgId = await findPersonalOrg(db, user.id)
             if (!orgId) {
               throw new Error(
                 `sign-up succeeded for user ${user.id} but personal org not found — cannot record audit event`,
               )
-            }
-
-            let inviteCodeId: string | undefined
-            if (mode === SignupMode.INVITE_ONLY && inviteCode) {
-              const [codeRow] = await db
-                .select({ id: inviteCodesTable.id })
-                .from(inviteCodesTable)
-                .where(eq(inviteCodesTable.usedBy, user.id))
-                .limit(1)
-              if (!codeRow) {
-                throw new Error(
-                  `sign-up with invite code succeeded for user ${user.id} but redeemed code row not found — invariant violation`,
-                )
-              }
-              inviteCodeId = codeRow.id
             }
 
             pendingSignupAudits.set(user.id, {
@@ -450,7 +447,10 @@ export async function createAuth(
               }
             }
 
+            // Store orgId for user.create.after, which runs later (post-txn) and cannot
+            // reliably read just-written rows via the cached db binding in CF Workers.
             if (orgId) {
+              pendingOrgIds.set(session.userId, orgId)
               return { data: { ...session, activeOrganizationId: orgId } }
             }
             return { data: session }
