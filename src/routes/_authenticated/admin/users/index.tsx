@@ -311,6 +311,7 @@ function UsersPage() {
             : null
         }
         onSave={(quota) => batchQuotaMutation.mutateAsync(quota)}
+        showSuccessToast={false}
       />
 
       <DeleteUserDialog

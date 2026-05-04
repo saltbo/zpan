@@ -20,11 +20,12 @@ interface UserQuotaDialogProps {
   onOpenChange: (open: boolean) => void
   user: { name: string; orgId: string; quotaUsed: number; quotaTotal: number } | null
   onSave?: (quota: number) => Promise<unknown>
+  showSuccessToast?: boolean
 }
 
 const BYTES_PER_GB = 1024 * 1024 * 1024
 
-export function UserQuotaDialog({ open, onOpenChange, user, onSave }: UserQuotaDialogProps) {
+export function UserQuotaDialog({ open, onOpenChange, user, onSave, showSuccessToast = true }: UserQuotaDialogProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [quotaGB, setQuotaGB] = useState('')
@@ -42,7 +43,7 @@ export function UserQuotaDialog({ open, onOpenChange, user, onSave }: UserQuotaD
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'quotas'] })
       onOpenChange(false)
-      toast.success(t('admin.users.quotaUpdated'))
+      if (showSuccessToast) toast.success(t('admin.users.quotaUpdated'))
     },
     onError: (err) => {
       toast.error(err.message)
