@@ -1,4 +1,4 @@
-import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME, SignupMode } from '@shared/constants'
+import { DEFAULT_ORG_QUOTA, DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME, SignupMode } from '@shared/constants'
 import { describe, expect, it } from 'vitest'
 import type { SiteOption } from '@/lib/api'
 
@@ -21,7 +21,8 @@ function resolveSiteDescription(optionMap: Map<string, string>): string {
 }
 
 function resolveDefaultOrgQuota(optionMap: Map<string, string>): number {
-  return Number(optionMap.get('default_org_quota') ?? '0')
+  const quota = Number(optionMap.get('default_org_quota'))
+  return Number.isFinite(quota) && quota > 0 ? quota : DEFAULT_ORG_QUOTA
 }
 
 function resolveAuthSignupMode(optionMap: Map<string, string>): SignupMode {
@@ -68,16 +69,16 @@ describe('useSiteOptions — option map extraction logic', () => {
       expect(resolveDefaultOrgQuota(map)).toBe(1073741824)
     })
 
-    it('returns 0 when default_org_quota is absent', () => {
+    it('returns built-in default quota when default_org_quota is absent', () => {
       const map = buildOptionsMap([])
 
-      expect(resolveDefaultOrgQuota(map)).toBe(0)
+      expect(resolveDefaultOrgQuota(map)).toBe(DEFAULT_ORG_QUOTA)
     })
 
-    it('returns 0 when default_org_quota is "0"', () => {
+    it('returns built-in default quota when default_org_quota is "0"', () => {
       const map = buildOptionsMap([makeItem('default_org_quota', '0')])
 
-      expect(resolveDefaultOrgQuota(map)).toBe(0)
+      expect(resolveDefaultOrgQuota(map)).toBe(DEFAULT_ORG_QUOTA)
     })
   })
 

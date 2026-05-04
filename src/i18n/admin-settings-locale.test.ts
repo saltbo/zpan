@@ -13,6 +13,8 @@ const ADMIN_SETTINGS_KEYS = [
   'admin.settings.registrationTitle',
   'admin.settings.registrationLabel',
   'admin.settings.saved',
+  'admin.settings.identityInvalid',
+  'admin.settings.positiveQuotaRequired',
 ]
 
 const ADMIN_NAV_SETTINGS_KEYS = ['admin.nav.settings']

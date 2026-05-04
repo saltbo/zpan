@@ -52,6 +52,13 @@ const app = new Hono<Env>()
       }
     }
 
+    if (key === 'default_org_quota') {
+      const quota = Number(body.value)
+      if (!Number.isInteger(quota) || quota <= 0) {
+        return c.json({ error: 'Default organization quota must be a positive number' }, 400)
+      }
+    }
+
     const existing = await db
       .select({ key: systemOptions.key, public: systemOptions.public })
       .from(systemOptions)

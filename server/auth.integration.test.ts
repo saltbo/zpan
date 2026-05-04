@@ -462,11 +462,14 @@ describe('createPersonalOrg — org name and quota edge cases', () => {
     expect(res.status).toBe(200)
   })
 
-  it('sign-up with default_org_quota set to zero does not insert org_quota row', async () => {
+  it('sign-up with default_org_quota set to zero falls back to DEFAULT_ORG_QUOTA', async () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '0' })
     const res = await signUp(ctx, 'zero-quota@example.com')
     expect(res.status).toBe(200)
+    const quotas = await ctx.db.select().from(schema.orgQuotas)
+    expect(quotas).toHaveLength(1)
+    expect(quotas[0].quota).toBe(10485760)
   })
 })
 

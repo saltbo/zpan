@@ -25,7 +25,21 @@ const ADMIN_USERS_KEYS = [
   'admin.users.quotaLabel',
   'admin.users.currentUsage',
   'admin.users.quotaUpdated',
+  'admin.users.positiveQuotaRequired',
+  'admin.users.positiveQuotaHint',
   'admin.users.statusUpdated',
+  'admin.users.selectedCount',
+  'admin.users.selectedUsers',
+  'admin.users.selectPage',
+  'admin.users.selectUser',
+  'admin.users.batchDisable',
+  'admin.users.batchEnable',
+  'admin.users.batchSetQuota',
+  'admin.users.batchDelete',
+  'admin.users.batchDeleteConfirm',
+  'admin.users.batchStatusUpdated',
+  'admin.users.batchDeleted',
+  'admin.users.batchQuotaUpdated',
   'admin.users.deleteTitle',
   'admin.users.deleteConfirm',
   'admin.users.userDeleted',
@@ -64,6 +78,13 @@ const ADMIN_USERS_KEYS = [
 const INTERPOLATED_KEYS: Record<string, string[]> = {
   'admin.users.setQuotaFor': ['{{name}}'],
   'admin.users.currentUsage': ['{{used}}'],
+  'admin.users.selectedCount': ['{{count}}'],
+  'admin.users.selectedUsers': ['{{count}}'],
+  'admin.users.selectUser': ['{{name}}'],
+  'admin.users.batchDeleteConfirm': ['{{count}}'],
+  'admin.users.batchStatusUpdated': ['{{count}}'],
+  'admin.users.batchDeleted': ['{{count}}'],
+  'admin.users.batchQuotaUpdated': ['{{count}}'],
   'admin.users.deleteConfirm': ['{{name}}'],
   'admin.users.pageInfo': ['{{page}}', '{{total}}'],
   'admin.users.inviteDialogDescription': ['{{count}}'],
@@ -160,8 +181,8 @@ describe('admin.users locale keys — English values contract', () => {
     expect(enLocale['admin.users.nextPage']).toBe('Next')
   })
 
-  it('admin.users.searchPlaceholder is "Search by name or email"', () => {
-    expect(enLocale['admin.users.searchPlaceholder']).toBe('Search by name or email')
+  it('admin.users.searchPlaceholder is "Search by name, username, or email"', () => {
+    expect(enLocale['admin.users.searchPlaceholder']).toBe('Search by name, username, or email')
   })
 
   it('admin.users.quotaLabel is "Quota (GB)"', () => {

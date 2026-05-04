@@ -14,11 +14,11 @@ async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']
   return { Cookie: signInRes.headers.getSetCookie().join('; ') }
 }
 
-async function signUpUser(app: ReturnType<typeof import('../app')['createApp']>, email: string) {
+async function signUpUser(app: ReturnType<typeof import('../app')['createApp']>, email: string, name = 'Other User') {
   const res = await app.request('/api/auth/sign-up/email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Other User', email, password: 'password123456' }),
+    body: JSON.stringify({ name, email, password: 'password123456' }),
   })
   return res.json()
 }
@@ -57,6 +57,30 @@ describe('Admin Users API', () => {
     expect(body.items).toHaveLength(1)
     expect(body.items[0].email).toBe('admin@example.com')
     expect(body.items[0].orgName).toBeTruthy()
+  })
+
+  it('GET /api/admin/users filters by name, username, or email with filtered totals', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'match-email@example.com', 'Email Match')
+    await signUpUser(app, 'username-target@example.com', 'Plain Name')
+    await signUpUser(app, 'other@example.com', 'Other Person')
+
+    const byName = await app.request('/api/admin/users?search=email%20match', { headers })
+    expect(byName.status).toBe(200)
+    const byNameBody = (await byName.json()) as { items: Array<Record<string, unknown>>; total: number }
+    expect(byNameBody.total).toBe(1)
+    expect(byNameBody.items[0].email).toBe('match-email@example.com')
+
+    const byUsername = await app.request('/api/admin/users?search=username-target', { headers })
+    const byUsernameBody = (await byUsername.json()) as { items: Array<Record<string, unknown>>; total: number }
+    expect(byUsernameBody.total).toBe(1)
+    expect(byUsernameBody.items[0].email).toBe('username-target@example.com')
+
+    const byEmail = await app.request('/api/admin/users?search=other@example.com', { headers })
+    const byEmailBody = (await byEmail.json()) as { items: Array<Record<string, unknown>>; total: number }
+    expect(byEmailBody.total).toBe(1)
+    expect(byEmailBody.items[0].email).toBe('other@example.com')
   })
 
   it('PATCH /api/admin/users/:id disables a user', async () => {
@@ -159,5 +183,112 @@ describe('Admin Users API', () => {
       headers,
     })
     expect(res.status).toBe(404)
+  })
+
+  it('PATCH /api/admin/users/batch disables and enables users', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'batch1@example.com')
+    await signUpUser(app, 'batch2@example.com')
+    const users = await db.all<{ id: string }>(
+      sql`SELECT id FROM user WHERE email IN ('batch1@example.com', 'batch2@example.com') ORDER BY email`,
+    )
+    const ids = users.map((row) => row.id)
+
+    const disable = await app.request('/api/admin/users/batch', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'disable', ids }),
+    })
+    expect(disable.status).toBe(200)
+    expect((await disable.json()) as Record<string, unknown>).toMatchObject({ updated: 2, ids, status: 'disabled' })
+    const disabled = await db.all<{ banned: number }>(sql`SELECT banned FROM user WHERE id IN (${ids[0]}, ${ids[1]})`)
+    expect(disabled.every((row) => row.banned === 1)).toBe(true)
+
+    const enable = await app.request('/api/admin/users/batch', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'enable', ids }),
+    })
+    expect(enable.status).toBe(200)
+    const enabled = await db.all<{ banned: number }>(sql`SELECT banned FROM user WHERE id IN (${ids[0]}, ${ids[1]})`)
+    expect(enabled.every((row) => row.banned === 0)).toBe(true)
+  })
+
+  it('PATCH /api/admin/users/batch sets quota for personal orgs', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'quota1@example.com')
+    await signUpUser(app, 'quota2@example.com')
+    const users = await db.all<{ id: string }>(
+      sql`SELECT id FROM user WHERE email IN ('quota1@example.com', 'quota2@example.com') ORDER BY email`,
+    )
+    const ids = users.map((row) => row.id)
+
+    const res = await app.request('/api/admin/users/batch', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_quota', ids, quota: 123456 }),
+    })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { updated: number; orgIds: string[]; quota: number }
+    expect(body.updated).toBe(2)
+    expect(body.quota).toBe(123456)
+    const quotas = await db.all<{ quota: number }>(
+      sql`SELECT quota FROM org_quotas WHERE org_id IN (${body.orgIds[0]}, ${body.orgIds[1]})`,
+    )
+    expect(quotas.map((row) => row.quota)).toEqual([123456, 123456])
+  })
+
+  it('DELETE /api/admin/users/batch deletes selected users', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'delete1@example.com')
+    await signUpUser(app, 'delete2@example.com')
+    const users = await db.all<{ id: string }>(
+      sql`SELECT id FROM user WHERE email IN ('delete1@example.com', 'delete2@example.com') ORDER BY email`,
+    )
+    const ids = users.map((row) => row.id)
+
+    const res = await app.request('/api/admin/users/batch', {
+      method: 'DELETE',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+
+    expect(res.status).toBe(200)
+    expect((await res.json()) as Record<string, unknown>).toMatchObject({ deleted: 2, ids })
+    const remaining = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE id IN (${ids[0]}, ${ids[1]})`)
+    expect(remaining).toHaveLength(0)
+  })
+
+  it('batch operations reject missing users instead of skipping them', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const patch = await app.request('/api/admin/users/batch', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'disable', ids: ['missing-user'] }),
+    })
+    expect(patch.status).toBe(404)
+
+    const del = await app.request('/api/admin/users/batch', {
+      method: 'DELETE',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['missing-user'] }),
+    })
+    expect(del.status).toBe(404)
+  })
+
+  it('PATCH /api/admin/users/batch rejects non-positive quota values', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/admin/users/batch', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_quota', ids: ['some-user'], quota: 0 }),
+    })
+    expect(res.status).toBe(400)
   })
 })

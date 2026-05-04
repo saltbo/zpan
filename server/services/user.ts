@@ -1,5 +1,7 @@
-import { and, count, desc, eq, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
+import { orgQuotas } from '../db/schema'
 import type { Database } from '../platform/interface'
 
 export interface UserWithOrg {
@@ -14,17 +16,38 @@ export interface UserWithOrg {
   orgName: string | null
 }
 
+export class UserOperationError extends Error {
+  readonly status: number
+
+  constructor(message: string, status = 404) {
+    super(message)
+    this.name = 'UserOperationError'
+    this.status = status
+  }
+}
+
 export async function listUsers(
   db: Database,
   page: number,
   pageSize: number,
+  search?: string,
 ): Promise<{ items: UserWithOrg[]; total: number }> {
   const offset = (page - 1) * pageSize
+  const term = search?.trim().toLowerCase()
+  const filter = term
+    ? or(
+        sql`lower(${user.name}) like ${`%${term}%`}`,
+        sql`lower(${user.username}) like ${`%${term}%`}`,
+        sql`lower(${user.email}) like ${`%${term}%`}`,
+      )
+    : undefined
 
-  const countRows = await db.select({ total: count() }).from(user)
+  const countRows = filter
+    ? await db.select({ total: count() }).from(user).where(filter)
+    : await db.select({ total: count() }).from(user)
   const total = countRows[0]?.total ?? 0
 
-  const rows = await db
+  const query = db
     .select({
       id: user.id,
       name: user.name,
@@ -42,6 +65,8 @@ export async function listUsers(
       organization,
       and(eq(organization.id, member.organizationId), eq(organization.slug, sql`'personal-' || ${user.id}`)),
     )
+
+  const rows = await (filter ? query.where(filter) : query)
     .groupBy(user.id)
     .orderBy(desc(user.createdAt))
     .limit(pageSize)
@@ -72,4 +97,78 @@ export async function deleteUser(db: Database, userId: string): Promise<boolean>
 
   await db.delete(user).where(eq(user.id, userId))
   return true
+}
+
+export async function setUsersStatus(
+  db: Database,
+  userIds: string[],
+  status: 'active' | 'disabled',
+): Promise<{ updated: number; ids: string[] }> {
+  const existingIds = await requireUsers(db, userIds)
+  await db
+    .update(user)
+    .set({ banned: status === 'disabled' })
+    .where(inArray(user.id, existingIds))
+  return { updated: existingIds.length, ids: existingIds }
+}
+
+export async function deleteUsers(db: Database, userIds: string[]): Promise<{ deleted: number; ids: string[] }> {
+  const existingIds = await requireUsers(db, userIds)
+  await db.delete(user).where(inArray(user.id, existingIds))
+  return { deleted: existingIds.length, ids: existingIds }
+}
+
+export async function setUsersPersonalQuota(
+  db: Database,
+  userIds: string[],
+  quota: number,
+): Promise<{ updated: number; userIds: string[]; orgIds: string[]; quota: number }> {
+  const existingIds = await requireUsers(db, userIds)
+  const rows = await db
+    .select({ userId: user.id, orgId: organization.id })
+    .from(user)
+    .innerJoin(member, eq(member.userId, user.id))
+    .innerJoin(
+      organization,
+      and(eq(organization.id, member.organizationId), eq(organization.slug, sql`'personal-' || ${user.id}`)),
+    )
+    .where(inArray(user.id, existingIds))
+
+  if (rows.length !== existingIds.length) {
+    const found = new Set(rows.map((row) => row.userId))
+    const missing = existingIds.filter((id) => !found.has(id))
+    throw new UserOperationError(`Personal organization not found for user(s): ${missing.join(', ')}`)
+  }
+
+  const orgIds = rows.map((row) => row.orgId)
+  const existingQuotaRows = await db
+    .select({ orgId: orgQuotas.orgId })
+    .from(orgQuotas)
+    .where(inArray(orgQuotas.orgId, orgIds))
+  const existingOrgIds = new Set(existingQuotaRows.map((row) => row.orgId))
+  const nowMissing = orgIds.filter((orgId) => !existingOrgIds.has(orgId))
+
+  if (existingOrgIds.size > 0) {
+    await db
+      .update(orgQuotas)
+      .set({ quota })
+      .where(inArray(orgQuotas.orgId, [...existingOrgIds]))
+  }
+
+  for (const orgId of nowMissing) {
+    await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used: 0 })
+  }
+
+  return { updated: rows.length, userIds: existingIds, orgIds, quota }
+}
+
+async function requireUsers(db: Database, userIds: string[]): Promise<string[]> {
+  const uniqueIds = [...new Set(userIds)]
+  const rows = await db.select({ id: user.id }).from(user).where(inArray(user.id, uniqueIds))
+  if (rows.length !== uniqueIds.length) {
+    const found = new Set(rows.map((row) => row.id))
+    const missing = uniqueIds.filter((id) => !found.has(id))
+    throw new UserOperationError(`User not found: ${missing.join(', ')}`)
+  }
+  return uniqueIds
 }

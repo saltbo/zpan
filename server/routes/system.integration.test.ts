@@ -83,4 +83,14 @@ describe('System API — options CRUD', () => {
     const del = await app.request('/api/system/options/site_name', { method: 'DELETE' })
     expect(del.status).toBe(401)
   })
+
+  it('rejects invalid default organization quota values', async () => {
+    const { app } = await createTestApp()
+    const admin = await adminHeaders(app)
+
+    for (const value of ['0', '-1', '1.5', 'abc']) {
+      const res = await putOption(app, admin, 'default_org_quota', { value })
+      expect(res.status).toBe(400)
+    }
+  })
 })

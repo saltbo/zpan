@@ -37,7 +37,7 @@ function bytesToDisplay(bytes: number): { value: number; unit: Unit } {
 const settingsSchema = z.object({
   siteName: z.string().min(1),
   siteDescription: z.string(),
-  quotaValue: z.coerce.number().min(0),
+  quotaValue: z.coerce.number().positive('Quota must be a positive number'),
   quotaUnit: z.enum(['MB', 'GB']),
   registrationsEnabled: z.boolean(),
 })
@@ -87,19 +87,49 @@ function SettingsPage() {
     })
   }, [isLoading, siteName, siteDescription, quotaBytes, authSignupMode, form])
 
-  const saveMutation = useMutation({
-    mutationFn: async (values: SettingsFormValues) => {
+  const identityMutation = useMutation({
+    mutationFn: async () => {
+      const valid = await form.trigger(['siteName', 'siteDescription'])
+      if (!valid) throw new Error(t('admin.settings.identityInvalid'))
+      const values = form.getValues()
       await setSystemOption('site_name', values.siteName, true)
       await setSystemOption('site_description', values.siteDescription, true)
-      const bytes = values.quotaValue * UNITS[values.quotaUnit]
-      await setSystemOption('default_org_quota', String(bytes), false)
-      await setSystemOption('auth_signup_mode', values.registrationsEnabled ? SignupMode.OPEN : SignupMode.CLOSED, true)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
       toast.success(t('admin.settings.saved'))
     },
     onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
+  const quotaMutation = useMutation({
+    mutationFn: async () => {
+      const valid = await form.trigger(['quotaValue', 'quotaUnit'])
+      if (!valid) throw new Error(t('admin.settings.positiveQuotaRequired'))
+      const values = form.getValues()
+      const bytes = Math.round(values.quotaValue * UNITS[values.quotaUnit])
+      await setSystemOption('default_org_quota', String(bytes), false)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      toast.success(t('admin.settings.saved'))
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
+  const registrationMutation = useMutation({
+    mutationFn: (checked: boolean) =>
+      setSystemOption('auth_signup_mode', checked ? SignupMode.OPEN : SignupMode.CLOSED, true),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      toast.success(t('admin.settings.saved'))
+    },
+    onError: (err) => {
+      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
       toast.error(err.message)
     },
   })
@@ -119,7 +149,7 @@ function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <form id="site-settings-form" onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-6">
+      <form id="site-settings-form" className="space-y-6">
         <Card className="border-border/60">
           <CardHeader className="space-y-3">
             <div className="flex items-center gap-3">
@@ -166,6 +196,16 @@ function SettingsPage() {
                 <p className="text-xs text-destructive">{form.formState.errors.siteDescription.message}</p>
               )}
             </div>
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                disabled={!hasWhiteLabel || identityMutation.isPending}
+                onClick={() => identityMutation.mutate()}
+              >
+                {identityMutation.isPending ? t('common.loading') : t('common.save')}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -195,8 +235,11 @@ function SettingsPage() {
               <Switch
                 id="registrationsEnabled"
                 checked={registrationsEnabled}
-                disabled={!hasOpenRegistration}
-                onCheckedChange={(checked) => form.setValue('registrationsEnabled', checked, { shouldDirty: true })}
+                disabled={!hasOpenRegistration || registrationMutation.isPending}
+                onCheckedChange={(checked) => {
+                  form.setValue('registrationsEnabled', checked, { shouldDirty: true })
+                  registrationMutation.mutate(checked)
+                }}
               />
             </div>
           </CardContent>
@@ -221,7 +264,7 @@ function SettingsPage() {
                 <Input
                   id="quotaValue"
                   type="number"
-                  min={0}
+                  min={1}
                   step={1}
                   className="flex-1"
                   {...form.register('quotaValue')}
@@ -238,7 +281,7 @@ function SettingsPage() {
               </div>
               <div className="rounded-2xl border border-dashed border-border/70 bg-muted/30 px-4 py-3">
                 <p className="text-sm font-medium">
-                  {quotaDisplayBytes === 0 ? t('admin.settings.unlimited') : formatSize(quotaDisplayBytes)}
+                  {Number.isFinite(quotaDisplayBytes) && quotaDisplayBytes > 0 ? formatSize(quotaDisplayBytes) : '--'}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   {t('admin.settings.defaultOrgQuotaHint')}
@@ -250,8 +293,8 @@ function SettingsPage() {
             </div>
 
             <div className="flex justify-end">
-              <Button type="submit" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? t('common.loading') : t('common.save')}
+              <Button type="button" disabled={quotaMutation.isPending} onClick={() => quotaMutation.mutate()}>
+                {quotaMutation.isPending ? t('common.loading') : t('common.save')}
               </Button>
             </div>
           </CardContent>

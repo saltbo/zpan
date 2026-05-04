@@ -6,7 +6,7 @@ import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
 import { customAlphabet, nanoid } from 'nanoid'
-import { SignupMode } from '../shared/constants'
+import { DEFAULT_ORG_QUOTA, SignupMode } from '../shared/constants'
 import {
   BUILTIN_PROVIDER_IDS,
   OAUTH_PROVIDER_KEY_PATTERN,
@@ -459,14 +459,10 @@ async function createPersonalOrg(
     createdAt: now,
   })
 
-  if (defaultQuota > 0) {
-    await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota: defaultQuota, used: 0 })
-  }
+  await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota: defaultQuota, used: 0 })
 
   return orgId
 }
-
-const DEFAULT_ORG_QUOTA = 10 * 1024 * 1024 // 10 MB
 
 async function getDefaultOrgQuota(db: Database): Promise<number> {
   const rows = await db
@@ -476,5 +472,5 @@ async function getDefaultOrgQuota(db: Database): Promise<number> {
   const raw = rows[0]?.value
   if (raw == null) return DEFAULT_ORG_QUOTA
   const n = Number(raw)
-  return Number.isFinite(n) ? n : DEFAULT_ORG_QUOTA
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_ORG_QUOTA
 }

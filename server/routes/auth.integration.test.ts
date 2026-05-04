@@ -196,16 +196,22 @@ describe('Auth API', () => {
     expect(rows[0].used).toBe(0)
   })
 
-  it('signup with default_org_quota set to 0 does NOT create an org_quotas row', async () => {
+  it('signup with default_org_quota set to 0 creates a built-in default org_quotas row', async () => {
     const { app, db } = await createTestApp()
     await db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '0' })
-    await app.request('/api/auth/sign-up/email', {
+    const signUpRes = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Test', email: 'quota-zero@example.com', password: 'password123456' }),
     })
-    const rows = await db.select().from(schema.orgQuotas)
-    expect(rows).toHaveLength(0)
+    const body = (await signUpRes.json()) as { user: { id: string } }
+    const orgs = await db
+      .select()
+      .from(authSchema.organization)
+      .where(eq(authSchema.organization.slug, `personal-${body.user.id}`))
+    const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, orgs[0].id))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].quota).toBe(10485760)
   })
 
   it('sign-in with a malformed stored password hash returns a non-200 error response', async () => {

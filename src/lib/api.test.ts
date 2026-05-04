@@ -2,8 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   batchDeleteObjects,
+  batchDeleteUsers,
   batchMoveObjects,
   batchTrashObjects,
+  batchUpdateUserQuota,
+  batchUpdateUserStatus,
   buildShareObjectUrl,
   cancelUpload,
   confirmIhostImage,
@@ -686,6 +689,16 @@ describe('api', () => {
       expect(url).toContain('pageSize=20')
     })
 
+    it('includes search query when provided', async () => {
+      const payload = { items: [], total: 0 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await listUsers(1, 20, 'alice')
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('search=alice')
+    })
+
     it('throws on error response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
@@ -743,6 +756,82 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
       await expect(deleteUser('u1')).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('batchUpdateUserStatus', () => {
+    it('patches batch endpoint with disable action', async () => {
+      const payload = { updated: 2, ids: ['u1', 'u2'], status: 'disabled' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await batchUpdateUserStatus(['u1', 'u2'], 'disabled')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/users/batch')
+      expect(init.method).toBe('PATCH')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ action: 'disable', ids: ['u1', 'u2'] })
+    })
+
+    it('patches batch endpoint with enable action', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ updated: 1, ids: ['u1'], status: 'active' }))
+
+      await batchUpdateUserStatus(['u1'], 'active')
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ action: 'enable', ids: ['u1'] })
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(batchUpdateUserStatus(['missing'], 'disabled')).rejects.toThrow('not found')
+    })
+  })
+
+  describe('batchDeleteUsers', () => {
+    it('deletes users through batch endpoint', async () => {
+      const payload = { deleted: 2, ids: ['u1', 'u2'] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await batchDeleteUsers(['u1', 'u2'])
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/users/batch')
+      expect(init.method).toBe('DELETE')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ ids: ['u1', 'u2'] })
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(batchDeleteUsers(['u1'])).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('batchUpdateUserQuota', () => {
+    it('sets quota for selected users through batch endpoint', async () => {
+      const payload = { updated: 2, userIds: ['u1', 'u2'], orgIds: ['o1', 'o2'], quota: 2048 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await batchUpdateUserQuota(['u1', 'u2'], 2048)
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/users/batch')
+      expect(init.method).toBe('PATCH')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ action: 'set_quota', ids: ['u1', 'u2'], quota: 2048 })
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'quota required' }, false, 400))
+
+      await expect(batchUpdateUserQuota(['u1'], 0)).rejects.toThrow('quota required')
     })
   })
 

@@ -221,10 +221,10 @@ export interface UserWithOrg {
   orgName: string | null
 }
 
-export function listUsers(page: number, pageSize: number) {
-  return unwrap<{ items: UserWithOrg[]; total: number }>(
-    users.index.$get({ query: { page: String(page), pageSize: String(pageSize) } }),
-  )
+export function listUsers(page: number, pageSize: number, search?: string) {
+  const query: Record<string, string> = { page: String(page), pageSize: String(pageSize) }
+  if (search?.trim()) query.search = search.trim()
+  return unwrap<{ items: UserWithOrg[]; total: number }>(users.index.$get({ query }))
 }
 
 export function updateUserStatus(userId: string, status: 'active' | 'disabled') {
@@ -233,6 +233,21 @@ export function updateUserStatus(userId: string, status: 'active' | 'disabled') 
 
 export function deleteUser(userId: string) {
   return unwrap<{ id: string; deleted: boolean }>(users[':id'].$delete({ param: { id: userId } }))
+}
+
+export function batchUpdateUserStatus(ids: string[], status: 'active' | 'disabled') {
+  const action = status === 'disabled' ? 'disable' : 'enable'
+  return unwrap<{ updated: number; ids: string[]; status: string }>(users.batch.$patch({ json: { action, ids } }))
+}
+
+export function batchDeleteUsers(ids: string[]) {
+  return unwrap<{ deleted: number; ids: string[] }>(users.batch.$delete({ json: { ids } }))
+}
+
+export function batchUpdateUserQuota(ids: string[], quota: number) {
+  return unwrap<{ updated: number; userIds: string[]; orgIds: string[]; quota: number }>(
+    users.batch.$patch({ json: { action: 'set_quota' as const, ids, quota } }),
+  )
 }
 
 // Admin Quotas API

@@ -11,7 +11,7 @@ import { recordActivity } from '../services/activity'
 import { findPersonalOrg } from '../services/org'
 
 const updateQuotaSchema = z.object({
-  quota: z.number().min(0),
+  quota: z.number().int().positive(),
 })
 
 const adminQuotas = new Hono<Env>()

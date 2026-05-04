@@ -19,11 +19,12 @@ interface UserQuotaDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   user: { name: string; orgId: string; quotaUsed: number; quotaTotal: number } | null
+  onSave?: (quota: number) => Promise<unknown>
 }
 
 const BYTES_PER_GB = 1024 * 1024 * 1024
 
-export function UserQuotaDialog({ open, onOpenChange, user }: UserQuotaDialogProps) {
+export function UserQuotaDialog({ open, onOpenChange, user, onSave }: UserQuotaDialogProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [quotaGB, setQuotaGB] = useState('')
@@ -36,7 +37,7 @@ export function UserQuotaDialog({ open, onOpenChange, user }: UserQuotaDialogPro
   }, [open, user])
 
   const mutation = useMutation({
-    mutationFn: ({ orgId, quota }: { orgId: string; quota: number }) => updateQuota(orgId, quota),
+    mutationFn: ({ orgId, quota }: { orgId: string; quota: number }) => onSave?.(quota) ?? updateQuota(orgId, quota),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'quotas'] })
@@ -57,7 +58,10 @@ export function UserQuotaDialog({ open, onOpenChange, user }: UserQuotaDialogPro
     e.preventDefault()
     if (!user) return
     const value = Number(quotaGB)
-    if (Number.isNaN(value) || value < 0) return
+    if (!Number.isFinite(value) || value <= 0) {
+      toast.error(t('admin.users.positiveQuotaRequired'))
+      return
+    }
     mutation.mutate({ orgId: user.orgId, quota: Math.round(value * BYTES_PER_GB) })
   }
 
@@ -78,13 +82,14 @@ export function UserQuotaDialog({ open, onOpenChange, user }: UserQuotaDialogPro
             <Input
               id="quota"
               type="number"
-              min="0"
+              min="0.1"
               step="0.1"
               value={quotaGB}
               onChange={(e) => setQuotaGB(e.target.value)}
               placeholder="10"
               required
             />
+            <p className="text-xs text-muted-foreground">{t('admin.users.positiveQuotaHint')}</p>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>

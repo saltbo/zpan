@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Search, Settings2, ShieldCheck, Trash2, UserPlus, UserX } from 'lucide-react'
+import { Search, Settings2, ShieldCheck, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -8,8 +8,18 @@ import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { SiteInvitationsDialog } from '@/components/admin/site-invitations-dialog'
 import { UserQuotaDialog } from '@/components/admin/user-quota-dialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { listQuotas, listUsers, type QuotaItem, type UserWithOrg, updateUserStatus } from '@/lib/api'
+import {
+  batchDeleteUsers,
+  batchUpdateUserQuota,
+  batchUpdateUserStatus,
+  listQuotas,
+  listUsers,
+  type QuotaItem,
+  type UserWithOrg,
+  updateUserStatus,
+} from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/users/')({
   component: UsersPage,
@@ -28,12 +38,14 @@ function UsersPage() {
   const pageSize = 20
 
   const [quotaDialogUser, setQuotaDialogUser] = useState<UserRow | null>(null)
+  const [batchQuotaOpen, setBatchQuotaOpen] = useState(false)
   const [deleteDialogUser, setDeleteDialogUser] = useState<{ id: string; name: string } | null>(null)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const usersQuery = useQuery({
-    queryKey: ['admin', 'users', page, pageSize],
-    queryFn: () => listUsers(page, pageSize),
+    queryKey: ['admin', 'users', page, pageSize, search],
+    queryFn: () => listUsers(page, pageSize, search),
   })
 
   const quotasQuery = useQuery({
@@ -47,6 +59,45 @@ function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       toast.success(t('admin.users.statusUpdated'))
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
+  const batchStatusMutation = useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: 'active' | 'disabled' }) =>
+      batchUpdateUserStatus(ids, status),
+    onSuccess: (result) => {
+      setSelectedIds([])
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      toast.success(t('admin.users.batchStatusUpdated', { count: result.updated }))
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => batchDeleteUsers(ids),
+    onSuccess: (result) => {
+      setSelectedIds([])
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'quotas'] })
+      toast.success(t('admin.users.batchDeleted', { count: result.deleted }))
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
+  const batchQuotaMutation = useMutation({
+    mutationFn: (quota: number) => batchUpdateUserQuota(selectedIds, quota),
+    onSuccess: (result) => {
+      setSelectedIds([])
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'quotas'] })
+      toast.success(t('admin.users.batchQuotaUpdated', { count: result.updated }))
     },
     onError: (err) => {
       toast.error(err.message)
@@ -69,21 +120,39 @@ function UsersPage() {
     })
   }, [usersQuery.data, quotaMap])
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return users
-    const term = search.toLowerCase()
-    return users.filter(
-      (u) => (u.name || u.username).toLowerCase().includes(term) || u.email.toLowerCase().includes(term),
-    )
-  }, [users, search])
-
   const total = usersQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const isLoading = usersQuery.isLoading || quotasQuery.isLoading
+  const selectedCount = selectedIds.length
+  const pageUserIds = users.map((user) => user.id)
+  const allPageSelected = pageUserIds.length > 0 && pageUserIds.every((id) => selectedIds.includes(id))
+  const batchPending = batchStatusMutation.isPending || batchDeleteMutation.isPending || batchQuotaMutation.isPending
 
   function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
     setSearch(e.target.value)
     setPage(1)
+    setSelectedIds([])
+  }
+
+  function goToPage(nextPage: number) {
+    setPage(nextPage)
+    setSelectedIds([])
+  }
+
+  function togglePageSelection(checked: boolean) {
+    setSelectedIds((current) =>
+      checked ? [...new Set([...current, ...pageUserIds])] : current.filter((id) => !pageUserIds.includes(id)),
+    )
+  }
+
+  function toggleUserSelection(userId: string, checked: boolean) {
+    setSelectedIds((current) => (checked ? [...new Set([...current, userId])] : current.filter((id) => id !== userId)))
+  }
+
+  function handleBatchDelete() {
+    if (selectedCount === 0) return
+    if (!window.confirm(t('admin.users.batchDeleteConfirm', { count: selectedCount }))) return
+    batchDeleteMutation.mutate(selectedIds)
   }
 
   if (isLoading) {
@@ -115,10 +184,51 @@ function UsersPage() {
         </div>
       </div>
 
+      {selectedCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
+          <span className="text-sm font-medium">{t('admin.users.selectedCount', { count: selectedCount })}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={batchPending}
+              onClick={() => batchStatusMutation.mutate({ ids: selectedIds, status: 'disabled' })}
+            >
+              <UserX />
+              {t('admin.users.batchDisable')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={batchPending}
+              onClick={() => batchStatusMutation.mutate({ ids: selectedIds, status: 'active' })}
+            >
+              <UserCheck />
+              {t('admin.users.batchEnable')}
+            </Button>
+            <Button variant="outline" size="sm" disabled={batchPending} onClick={() => setBatchQuotaOpen(true)}>
+              <Settings2 />
+              {t('admin.users.batchSetQuota')}
+            </Button>
+            <Button variant="destructive" size="sm" disabled={batchPending} onClick={handleBatchDelete}>
+              <Trash2 />
+              {t('admin.users.batchDelete')}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
+              <th className="w-10 px-4 py-3 text-left font-medium">
+                <Checkbox
+                  aria-label={t('admin.users.selectPage')}
+                  checked={allPageSelected}
+                  onCheckedChange={(checked) => togglePageSelection(checked === true)}
+                />
+              </th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.users.colName')}</th>
               <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">{t('admin.users.colEmail')}</th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.users.colRole')}</th>
@@ -129,12 +239,14 @@ function UsersPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((user) => (
+            {users.map((user) => (
               <UserTableRow
                 key={user.id}
                 user={user}
+                selected={selectedIds.includes(user.id)}
                 isToggling={toggleStatusMutation.isPending}
                 showQuota
+                onSelect={(checked) => toggleUserSelection(user.id, checked)}
                 onSetQuota={() => setQuotaDialogUser(user)}
                 onToggleStatus={() =>
                   toggleStatusMutation.mutate({
@@ -145,9 +257,9 @@ function UsersPage() {
                 onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name || user.username })}
               />
             ))}
-            {filtered.length === 0 && (
+            {users.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                   {t('admin.users.noUsers')}
                 </td>
               </tr>
@@ -158,13 +270,13 @@ function UsersPage() {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
             {t('admin.users.prevPage')}
           </Button>
           <span className="text-sm text-muted-foreground">
             {t('admin.users.pageInfo', { page, total: totalPages })}
           </span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
             {t('admin.users.nextPage')}
           </Button>
         </div>
@@ -185,6 +297,22 @@ function UsersPage() {
         }
       />
 
+      <UserQuotaDialog
+        open={batchQuotaOpen}
+        onOpenChange={setBatchQuotaOpen}
+        user={
+          batchQuotaOpen
+            ? {
+                name: t('admin.users.selectedUsers', { count: selectedCount }),
+                orgId: 'batch',
+                quotaUsed: 0,
+                quotaTotal: 0,
+              }
+            : null
+        }
+        onSave={(quota) => batchQuotaMutation.mutateAsync(quota)}
+      />
+
       <DeleteUserDialog
         open={deleteDialogUser !== null}
         onOpenChange={(open) => !open && setDeleteDialogUser(null)}
@@ -198,15 +326,19 @@ function UsersPage() {
 
 function UserTableRow({
   user,
+  selected,
   isToggling,
   showQuota,
+  onSelect,
   onSetQuota,
   onToggleStatus,
   onDelete,
 }: {
   user: UserRow
+  selected: boolean
   isToggling: boolean
   showQuota: boolean
+  onSelect: (checked: boolean) => void
   onSetQuota: () => void
   onToggleStatus: () => void
   onDelete: () => void
@@ -223,6 +355,13 @@ function UserTableRow({
 
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
+      <td className="px-4 py-3">
+        <Checkbox
+          aria-label={t('admin.users.selectUser', { name: user.name || user.username })}
+          checked={selected}
+          onCheckedChange={(checked) => onSelect(checked === true)}
+        />
+      </td>
       <td className="px-4 py-3 font-medium">{user.name || user.username}</td>
       <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{user.email}</td>
       <td className="px-4 py-3">

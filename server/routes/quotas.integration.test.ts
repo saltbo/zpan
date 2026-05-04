@@ -109,6 +109,28 @@ describe('Admin Quotas API', () => {
     expect(res.status).toBe(400)
   })
 
+  it('PUT /api/admin/quotas/:orgId rejects zero quota', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/admin/quotas/some-org', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quota: 0 }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('PUT /api/admin/quotas/:orgId rejects decimal quota', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/admin/quotas/some-org', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quota: 1.5 }),
+    })
+    expect(res.status).toBe(400)
+  })
+
   it('PUT /api/admin/quotas/:orgId works without Pro license', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)

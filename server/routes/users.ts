@@ -4,11 +4,35 @@ import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
-import { deleteUser, listUsers, setUserStatus } from '../services/user'
+import {
+  deleteUser,
+  deleteUsers,
+  listUsers,
+  setUserStatus,
+  setUsersPersonalQuota,
+  setUsersStatus,
+  UserOperationError,
+} from '../services/user'
 
 const updateStatusSchema = z.object({
   status: z.enum(['active', 'disabled']),
 })
+
+const userIdsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+})
+
+const batchPatchSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.enum(['disable', 'enable']),
+    ids: z.array(z.string().min(1)).min(1),
+  }),
+  z.object({
+    action: z.literal('set_quota'),
+    ids: z.array(z.string().min(1)).min(1),
+    quota: z.number().int().positive(),
+  }),
+])
 
 const app = new Hono<Env>()
   .use(requireAdmin)
@@ -16,9 +40,68 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
     const page = Math.max(1, Number(c.req.query('page') ?? '1'))
     const pageSize = Math.min(100, Math.max(1, Number(c.req.query('pageSize') ?? '20')))
+    const search = c.req.query('search')
 
-    const result = await listUsers(db, page, pageSize)
+    const result = await listUsers(db, page, pageSize, search)
     return c.json(result)
+  })
+  .patch('/batch', zValidator('json', batchPatchSchema), async (c) => {
+    const db = c.get('platform').db
+    const adminUserId = c.get('userId')!
+    const orgId = c.get('orgId')!
+    const body = c.req.valid('json')
+
+    try {
+      if (body.action === 'set_quota') {
+        const result = await setUsersPersonalQuota(db, body.ids, body.quota)
+        await recordActivity(db, {
+          orgId,
+          userId: adminUserId,
+          action: 'quota_update',
+          targetType: 'quota',
+          targetName: 'batch',
+          metadata: result,
+        })
+        return c.json(result)
+      }
+
+      const status = body.action === 'disable' ? 'disabled' : 'active'
+      const result = await setUsersStatus(db, body.ids, status)
+      await recordActivity(db, {
+        orgId,
+        userId: adminUserId,
+        action: status === 'disabled' ? 'user_disable' : 'user_enable',
+        targetType: 'user',
+        targetName: 'batch',
+        metadata: { ...result, status },
+      })
+      return c.json({ ...result, status })
+    } catch (err) {
+      if (err instanceof UserOperationError) return c.json({ error: err.message }, err.status as 404)
+      throw err
+    }
+  })
+  .delete('/batch', zValidator('json', userIdsSchema), async (c) => {
+    const db = c.get('platform').db
+    const adminUserId = c.get('userId')!
+    const orgId = c.get('orgId')!
+    const { ids } = c.req.valid('json')
+
+    try {
+      const result = await deleteUsers(db, ids)
+      await recordActivity(db, {
+        orgId,
+        userId: adminUserId,
+        action: 'user_delete',
+        targetType: 'user',
+        targetName: 'batch',
+        metadata: result,
+      })
+      return c.json(result)
+    } catch (err) {
+      if (err instanceof UserOperationError) return c.json({ error: err.message }, err.status as 404)
+      throw err
+    }
   })
   .patch('/:id', zValidator('json', updateStatusSchema), async (c) => {
     const db = c.get('platform').db
