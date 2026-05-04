@@ -1,9 +1,6 @@
-import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { SignupMode } from '../shared/constants'
 import type { Auth } from './auth'
-import { inviteCodes as inviteCodesTable } from './db/schema'
 import { authMiddleware } from './middleware/auth'
 import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
@@ -34,8 +31,6 @@ import { publicTeams, teams } from './routes/teams'
 import trash from './routes/trash'
 import users from './routes/users'
 import { recordActivity } from './services/activity'
-import { findPersonalOrg } from './services/org'
-import { getEffectiveSignupMode } from './services/signup-mode-guard'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
@@ -57,25 +52,15 @@ export function createApp(platform: Platform, auth: Auth) {
   app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     const a = c.get('auth')
 
-    // In CF Workers the auth instance is cached at isolate scope (see bootstrap.ts).
-    // a._db is the D1 binding from the request that first created cachedAuth; it is
-    // the same D1 session that Better Auth uses for all its writes (user, org,
-    // invite-code redemption).  Using the same session here guarantees
-    // read-your-writes consistency when we read rows that Better Auth just wrote.
-    // In Node/test environments a._db === c.get('platform').db (same object, no issue).
-    // Fallback to platform.db for test environments where fake auth has no _db.
-    const db = a._db ?? c.get('platform').db
+    // platform.db is the fresh per-request D1 binding — reliable for INSERTs
+    // (all other audit events use it successfully).
+    // We do NOT read from DB here: orgId and inviteCodeId are gathered inside
+    // user.create.after (within a.handler()'s D1 session), stored in a._pendingSignupAudits,
+    // then written here.  See server/auth.ts for the full design rationale.
+    const db = c.get('platform').db
+
     const url = new URL(c.req.url)
     const isSignUp = c.req.method === 'POST' && url.pathname === '/api/auth/sign-up/email'
-
-    let signUpBody: { inviteCode?: string; siteInvitationToken?: string } | null = null
-    if (isSignUp) {
-      try {
-        signUpBody = await c.req.raw.clone().json()
-      } catch {
-        // non-JSON body — treat as no extra fields
-      }
-    }
 
     const response = await a.handler(c.req.raw)
 
@@ -83,8 +68,9 @@ export function createApp(platform: Platform, auth: Auth) {
       return response
     }
 
-    // Audit sign-up. Any failure here fails the request (fail-fast): the response
-    // has not been sent yet and the invariants below must hold after a successful signup.
+    // Audit sign-up events. Any failure here fails the request (fail-fast): the
+    // response has not been sent yet, so clients observe the error rather than
+    // receiving a success response with silently missing audit rows.
     const body = (await response.clone().json()) as {
       user?: { id?: string; email?: string }
     }
@@ -93,55 +79,44 @@ export function createApp(platform: Platform, auth: Auth) {
       throw new Error('sign-up succeeded but response contains no user.id — cannot record audit event')
     }
 
-    const orgId = await findPersonalOrg(db, userId)
-    if (!orgId) {
-      throw new Error(`sign-up succeeded for user ${userId} but personal org not found — cannot record audit event`)
+    // Retrieve audit data gathered inside user.create.after (while auth._db still had
+    // read-after-write consistency).  Missing entry means the hook threw or was never
+    // called — both indicate an invariant violation.
+    const auditData = a._pendingSignupAudits?.get(userId)
+    a._pendingSignupAudits?.delete(userId)
+    if (!auditData) {
+      throw new Error(
+        `sign-up succeeded for user ${userId} but no pending audit data found — personal org may be missing`,
+      )
     }
 
     await recordActivity(db, {
-      orgId,
+      orgId: auditData.orgId,
       userId,
       action: 'sign_up',
       targetType: 'auth',
-      targetName: body.user?.email ?? userId,
+      targetName: auditData.email,
     })
 
-    // If an invite code was submitted and signup succeeded, the code MUST be redeemed
-    // (this only applies in INVITE_ONLY mode — in other modes the code is ignored).
-    // Absence of the redeemed code row is an invariant violation — fail loudly.
-    if (signUpBody?.inviteCode) {
-      const signupMode = await getEffectiveSignupMode(db)
-      if (signupMode === SignupMode.INVITE_ONLY) {
-        const [codeRow] = await db
-          .select({ id: inviteCodesTable.id })
-          .from(inviteCodesTable)
-          .where(eq(inviteCodesTable.usedBy, userId))
-          .limit(1)
-        if (!codeRow) {
-          throw new Error(
-            `sign-up with invite code succeeded for user ${userId} but redeemed code row not found — invariant violation`,
-          )
-        }
-        // Store row ID (safe opaque identifier), never the raw redeemable code value.
-        await recordActivity(db, {
-          orgId,
-          userId,
-          action: 'invite_code_redeem',
-          targetType: 'invite_code',
-          targetId: codeRow.id,
-          targetName: 'invite code',
-        })
-      }
+    if (auditData.inviteCodeId) {
+      // Store row ID (safe opaque identifier), never the raw redeemable code value.
+      await recordActivity(db, {
+        orgId: auditData.orgId,
+        userId,
+        action: 'invite_code_redeem',
+        targetType: 'invite_code',
+        targetId: auditData.inviteCodeId,
+        targetName: 'invite code',
+      })
     }
 
-    // If a site invitation token was submitted, record acceptance.
-    if (signUpBody?.siteInvitationToken) {
+    if (auditData.hasSiteInvitation) {
       await recordActivity(db, {
-        orgId,
+        orgId: auditData.orgId,
         userId,
         action: 'site_invitation_accept',
         targetType: 'site_invitation',
-        targetName: body.user?.email ?? userId,
+        targetName: auditData.email,
       })
     }
 

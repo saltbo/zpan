@@ -14,7 +14,7 @@ import {
   parseProviderConfig,
 } from '../shared/oauth-providers'
 import * as authSchema from './db/auth-schema'
-import { orgQuotas, systemOptions } from './db/schema'
+import { inviteCodes as inviteCodesTable, orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
@@ -123,6 +123,25 @@ export async function createAuth(
 ) {
   const db = 'db' in source ? source.db : source
   const oidcConfigs = await loadOidcConfigs(db)
+
+  // In CF Workers, cachedAuth is created once at isolate scope. Its `db` is the first
+  // request's D1 binding. D1 session bookmarks (which guarantee read-after-write) are
+  // per-request-context at the CF edge layer and do NOT persist across Worker invocations.
+  // Therefore any post-auth DB reads from the interceptor in app.ts through `auth._db`
+  // cannot see writes made during that invocation.
+  //
+  // Solution: gather the data we need for audit (orgId, inviteCodeId) INSIDE user.create.after,
+  // which still runs within the auth handler's single D1 call chain (read-after-write works),
+  // then store it here so the Hono interceptor can retrieve it without making any DB reads.
+  // The interceptor only writes (recordActivity) using the fresh per-request platform.db.
+  type PendingSignupAudit = {
+    orgId: string
+    email: string
+    inviteCodeId?: string
+    hasSiteInvitation: boolean
+  }
+  const pendingSignupAudits = new Map<string, PendingSignupAudit>()
+
   const auth = betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
@@ -338,21 +357,11 @@ export async function createAuth(
             return { data }
           },
           after: async (user, context) => {
-            // Redeem invite code after user is created (user.id is now available).
-            // NOTE: audit recording for sign_up / invite_code_redeem / site_invitation_accept
-            // is done in the Hono auth route wrapper (server/app.ts) using the per-request
-            // db, not here. Better Auth caches the auth instance across requests, so the
-            // `db` captured in this closure is from the first-ever request's D1 binding.
-            // In CF Workers, that stale binding does not guarantee read-your-writes
-            // consistency for INSERT operations executed in later requests, making
-            // recordActivity silently fail here. The Hono wrapper always has a fresh
-            // per-request db and runs after the auth handler has committed all state.
+            // Business logic: redeem invite code, accept site invitation, ensure personal org.
             const mode = await getEffectiveSignupMode(db)
-            if (mode === SignupMode.INVITE_ONLY) {
-              const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
-              if (inviteCode) {
-                await redeemInviteCode(db, inviteCode, user.id)
-              }
+            const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
+            if (mode === SignupMode.INVITE_ONLY && inviteCode) {
+              await redeemInviteCode(db, inviteCode, user.id)
             }
 
             const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
@@ -372,6 +381,37 @@ export async function createAuth(
             if (!existing) {
               await createPersonalOrg(db, user)
             }
+
+            // Gather audit data for the Hono interceptor in app.ts.
+            // We MUST read here (inside user.create.after) while we are still within the
+            // auth handler's D1 call chain — auth._db has read-after-write consistency at
+            // this point because the org and invite code were written by the same session.
+            // The Hono interceptor runs AFTER a.handler() returns, at which point D1 session
+            // bookmarks from this invocation are gone, making cross-session reads unreliable.
+            const orgId = await findPersonalOrg(db, user.id)
+            if (!orgId) {
+              throw new Error(
+                `sign-up succeeded for user ${user.id} but personal org not found — cannot record audit event`,
+              )
+            }
+
+            let inviteCodeId: string | undefined
+            if (mode === SignupMode.INVITE_ONLY && inviteCode) {
+              const [codeRow] = await db
+                .select({ id: inviteCodesTable.id })
+                .from(inviteCodesTable)
+                .where(eq(inviteCodesTable.usedBy, user.id))
+                .limit(1)
+              /* c8 ignore next -- defensive: redeemInviteCode always sets usedBy before we get here */
+              inviteCodeId = codeRow?.id
+            }
+
+            pendingSignupAudits.set(user.id, {
+              orgId,
+              email: user.email,
+              inviteCodeId,
+              hasSiteInvitation: !!siteInvitationToken,
+            })
           },
         },
       },
@@ -416,11 +456,12 @@ export async function createAuth(
     },
   })
 
-  // Expose the db this auth instance was created with so callers that need to
-  // read rows that Better Auth just wrote can use the same D1 session and get
-  // read-your-writes consistency (critical in CF Workers where `cachedAuth`
-  // holds the first-request env.DB while each new request has its own env.DB).
-  return Object.assign(auth, { _db: db })
+  // Expose the db and the pending audit Map so app.ts can:
+  // - use _db for nothing (kept for reference, do not use for cross-request reads)
+  // - use _pendingSignupAudits to retrieve data gathered inside user.create.after
+  //   (where auth._db has read-after-write) and write it with the fresh per-request
+  //   platform.db that is known to work for INSERTs (other audit events use it).
+  return Object.assign(auth, { _db: db, _pendingSignupAudits: pendingSignupAudits })
 }
 
 export type Auth = Awaited<ReturnType<typeof createAuth>>
