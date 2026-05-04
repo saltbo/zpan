@@ -14,7 +14,7 @@ import {
   parseProviderConfig,
 } from '../shared/oauth-providers'
 import * as authSchema from './db/auth-schema'
-import { inviteCodes as inviteCodesTable, orgQuotas, systemOptions } from './db/schema'
+import { orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
@@ -328,31 +328,29 @@ export async function createAuth(
             return { data }
           },
           after: async (user, context) => {
-            // Redeem invite code after user is created (user.id is now available)
+            // Redeem invite code after user is created (user.id is now available).
+            // NOTE: audit recording for sign_up / invite_code_redeem / site_invitation_accept
+            // is done in the Hono auth route wrapper (server/app.ts) using the per-request
+            // db, not here. Better Auth caches the auth instance across requests, so the
+            // `db` captured in this closure is from the first-ever request's D1 binding.
+            // In CF Workers, that stale binding does not guarantee read-your-writes
+            // consistency for INSERT operations executed in later requests, making
+            // recordActivity silently fail here. The Hono wrapper always has a fresh
+            // per-request db and runs after the auth handler has committed all state.
             const mode = await getEffectiveSignupMode(db)
-            let redeemedCodeId: string | undefined
             if (mode === SignupMode.INVITE_ONLY) {
               const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
               if (inviteCode) {
                 await redeemInviteCode(db, inviteCode, user.id)
-                // Look up the row ID by usedBy so we never store the raw code value
-                const [row] = await db
-                  .select({ id: inviteCodesTable.id, expiresAt: inviteCodesTable.expiresAt })
-                  .from(inviteCodesTable)
-                  .where(eq(inviteCodesTable.usedBy, user.id))
-                  .limit(1)
-                redeemedCodeId = row?.id
               }
             }
 
             const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
-            let siteInvitationAccepted = false
             if (siteInvitationToken) {
               const result = await acceptSiteInvitation(db, siteInvitationToken, user.email, user.id)
               if (result !== 'ok' && result !== 'accepted') {
                 throw new Error(`Failed to redeem site invitation: ${result}`)
               }
-              siteInvitationAccepted = true
             }
 
             // Create personal org as part of registration.
@@ -363,38 +361,6 @@ export async function createAuth(
             const existing = await findPersonalOrg(db, user.id)
             if (!existing) {
               await createPersonalOrg(db, user)
-            }
-
-            // Audit: record sign_up and any redemption events once the personal org exists.
-            const orgId = await findPersonalOrg(db, user.id)
-            if (orgId) {
-              await recordActivity(db, {
-                orgId,
-                userId: user.id,
-                action: 'sign_up',
-                targetType: 'auth',
-                targetName: user.email ?? user.name ?? user.id,
-              })
-              if (redeemedCodeId !== undefined) {
-                await recordActivity(db, {
-                  orgId,
-                  userId: user.id,
-                  action: 'invite_code_redeem',
-                  targetType: 'invite_code',
-                  targetId: redeemedCodeId,
-                  // Use a safe generic label — never store the raw code value
-                  targetName: 'invite code',
-                })
-              }
-              if (siteInvitationAccepted) {
-                await recordActivity(db, {
-                  orgId,
-                  userId: user.id,
-                  action: 'site_invitation_accept',
-                  targetType: 'site_invitation',
-                  targetName: user.email ?? user.id,
-                })
-              }
             }
           },
         },

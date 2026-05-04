@@ -1,6 +1,8 @@
+import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
+import { inviteCodes as inviteCodesTable } from './db/schema'
 import { authMiddleware } from './middleware/auth'
 import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
@@ -30,6 +32,8 @@ import system from './routes/system'
 import { publicTeams, teams } from './routes/teams'
 import trash from './routes/trash'
 import users from './routes/users'
+import { recordActivity } from './services/activity'
+import { findPersonalOrg } from './services/org'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
@@ -50,7 +54,85 @@ export function createApp(platform: Platform, auth: Auth) {
 
   app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     const a = c.get('auth')
-    return a.handler(c.req.raw)
+    const db = c.get('platform').db
+
+    // Intercept sign-up to record audit events using the fresh per-request db.
+    // The cached auth instance's db (from first isolate request) may not guarantee
+    // read-your-writes for INSERT operations in CF Workers D1, so we record here
+    // instead of in user.create.after. Audit failure is logged but non-fatal:
+    // the auth transaction has already committed and sending a 500 would confuse
+    // a user who is already signed in.
+    const url = new URL(c.req.url)
+    const isSignUp = c.req.method === 'POST' && url.pathname === '/api/auth/sign-up/email'
+
+    let signUpBody: { email?: string; inviteCode?: string; siteInvitationToken?: string } | null = null
+    if (isSignUp) {
+      try {
+        signUpBody = await c.req.raw.clone().json()
+      } catch {
+        // non-JSON or empty body — no body info available for audit
+      }
+    }
+
+    const response = await a.handler(c.req.raw)
+
+    if (isSignUp && response.ok) {
+      try {
+        const body = (await response.clone().json()) as {
+          user?: { id?: string; email?: string }
+          token?: string | null
+        }
+        const userId = body?.user?.id
+        if (userId) {
+          const orgId = await findPersonalOrg(db, userId)
+          if (orgId) {
+            await recordActivity(db, {
+              orgId,
+              userId,
+              action: 'sign_up',
+              targetType: 'auth',
+              targetName: body.user?.email ?? userId,
+            })
+
+            // If an invite code was redeemed, record it using the code's row ID (never the raw code).
+            if (signUpBody?.inviteCode) {
+              const [codeRow] = await db
+                .select({ id: inviteCodesTable.id })
+                .from(inviteCodesTable)
+                .where(eq(inviteCodesTable.usedBy, userId))
+                .limit(1)
+              if (codeRow) {
+                await recordActivity(db, {
+                  orgId,
+                  userId,
+                  action: 'invite_code_redeem',
+                  targetType: 'invite_code',
+                  targetId: codeRow.id,
+                  targetName: 'invite code',
+                })
+              }
+            }
+
+            // If a site invitation was accepted during sign-up, record it.
+            if (signUpBody?.siteInvitationToken) {
+              await recordActivity(db, {
+                orgId,
+                userId,
+                action: 'site_invitation_accept',
+                targetType: 'site_invitation',
+                targetName: body.user?.email ?? userId,
+              })
+            }
+          }
+        }
+      } catch (err) {
+        // Audit recording failed after auth committed — log for observability.
+        // Cannot surface to client: session cookie is already set in `response`.
+        console.error('[audit] Failed to record sign-up audit events:', err)
+      }
+    }
+
+    return response
   })
 
   // Public routes — no auth required; mount before authMiddleware.
