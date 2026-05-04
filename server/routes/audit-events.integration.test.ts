@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { activityEvents } from '../db/schema.js'
 import { S3Service } from '../services/s3.js'
+import { createShare } from '../services/share.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
@@ -690,6 +691,233 @@ describe('User admin audit events', () => {
     const evt = await getLatestActivity(db, 'user_delete')
     expect(evt).toBeDefined()
     expect(evt?.targetType).toBe('user')
+    assertNoSecrets(evt?.metadata ?? null)
+  })
+})
+
+// ─── Share download audit events ──────────────────────────────────────────────
+
+describe('Share download audit events', () => {
+  it('records share_download when a file is downloaded via a share', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app) // seeds user and personal org
+    await insertStorage(db)
+    const orgId = await getPersonalOrgId(db)
+    const creatorId = (await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`))[0].id
+    await insertFile(db, orgId, { id: 'dl-audit-1', name: 'report.pdf' })
+    const share = await createShare(db, { matterId: 'dl-audit-1', orgId, creatorId, kind: 'landing' })
+
+    // Fetch rootRef from share metadata
+    const metaRes = await app.request(`/api/shares/${share.token}`)
+    const meta = (await metaRes.json()) as { rootRef: string }
+    const rootRef = meta.rootRef
+
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
+    expect(res.status).toBe(200)
+
+    const evt = await getLatestActivity(db, 'share_download')
+    expect(evt).toBeDefined()
+    expect(evt?.targetType).toBe('share')
+    expect(evt?.targetName).toBe('report.pdf')
+    // Presigned URL must NOT be stored in metadata
+    const metaStr = evt?.metadata ?? ''
+    expect(metaStr).not.toContain('presigned')
+    expect(metaStr).not.toContain('https://')
+    assertNoSecrets(metaStr)
+  })
+
+  it('records share_download using creator as actor for anonymous download', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app) // seeds user and personal org
+    await insertStorage(db)
+    const orgId = await getPersonalOrgId(db)
+    const creatorId = (await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`))[0].id
+    await insertFile(db, orgId, { id: 'dl-audit-2', name: 'anon.pdf' })
+    const share = await createShare(db, { matterId: 'dl-audit-2', orgId, creatorId, kind: 'landing' })
+
+    const metaRes = await app.request(`/api/shares/${share.token}`)
+    const meta = (await metaRes.json()) as { rootRef: string }
+
+    // Anonymous download (no auth headers)
+    const res = await app.request(`/api/shares/${share.token}/objects/${meta.rootRef}?downloadUrl=1`, {
+      redirect: 'manual',
+    })
+    expect(res.status).toBe(200)
+
+    const evt = await getLatestActivity(db, 'share_download')
+    expect(evt).toBeDefined()
+    expect(evt?.userId).toBe(creatorId) // creator used as proxy for anonymous
+    const md = JSON.parse(evt?.metadata ?? '{}') as Record<string, unknown>
+    expect(md.anonymous).toBe(true)
+    assertNoSecrets(evt?.metadata ?? null)
+  })
+})
+
+// ─── Org/team lifecycle via Better Auth hooks ─────────────────────────────────
+
+describe('Org/team lifecycle audit events (Better Auth hooks)', () => {
+  it('records team_settings_update when org is updated via Better Auth', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    // Create a team org first
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Audit Test Org', slug: 'audit-test-org' }),
+    })
+    expect(createRes.status).toBe(200)
+    const org = (await createRes.json()) as { id: string }
+
+    // Update org name
+    const res = await app.request('/api/auth/organization/update', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: org.id, data: { name: 'Updated Org Name' } }),
+    })
+    expect(res.status).toBe(200)
+
+    const evt = await getLatestActivity(db, 'team_settings_update')
+    expect(evt).toBeDefined()
+    expect(evt?.targetType).toBe('team')
+    expect(evt?.orgId).toBe(org.id)
+    assertNoSecrets(evt?.metadata ?? null)
+  })
+
+  it('records team_member_remove when a member is removed via Better Auth', async () => {
+    const { app, db } = await createTestApp()
+    const adminH = await adminHeaders(app)
+
+    // Create a second user
+    const memberHeaders = await authedHeaders(app, 'member-to-remove@example.com')
+    const memberRes = await app.request('/api/auth/get-session', { headers: memberHeaders })
+    const memberSession = (await memberRes.json()) as { user: { id: string } }
+    const memberId = memberSession.user.id
+
+    // Create an org as admin
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...adminH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Remove Test Org', slug: 'remove-test-org' }),
+    })
+    expect(createRes.status).toBe(200)
+    const org = (await createRes.json()) as { id: string }
+
+    // Manually insert the member
+    const now = Date.now()
+    await db.run(
+      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES (${'mem-' + memberId}, ${org.id}, ${memberId}, 'viewer', ${now})`,
+    )
+    const memberRow = await db.all<{ id: string }>(
+      sql`SELECT id FROM member WHERE organization_id = ${org.id} AND user_id = ${memberId}`,
+    )
+
+    // Remove member via Better Auth
+    const res = await app.request('/api/auth/organization/remove-member', {
+      method: 'POST',
+      headers: { ...adminH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: org.id, memberIdOrEmail: memberRow[0].id }),
+    })
+    expect(res.status).toBe(200)
+
+    const evt = await getLatestActivity(db, 'team_member_remove')
+    expect(evt).toBeDefined()
+    expect(evt?.targetType).toBe('team')
+    expect(evt?.orgId).toBe(org.id)
+    const md = JSON.parse(evt?.metadata ?? '{}') as Record<string, unknown>
+    expect(md.removedUserId).toBe(memberId)
+    assertNoSecrets(evt?.metadata ?? null)
+  })
+
+  it('records team_member_role_update when a member role is changed via Better Auth', async () => {
+    const { app, db } = await createTestApp()
+    const adminH = await adminHeaders(app)
+
+    // Create a second user
+    await authedHeaders(app, 'role-update-member@example.com')
+    // Look up newly created user by email
+    const memberRows = await db.all<{ id: string }>(
+      sql`SELECT id FROM user WHERE email = 'role-update-member@example.com' LIMIT 1`,
+    )
+    const memberId = memberRows[0].id
+
+    // Create org
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...adminH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Role Update Org', slug: 'role-update-org' }),
+    })
+    const org = (await createRes.json()) as { id: string }
+
+    // Add member
+    const now = Date.now()
+    const memberRowId = `mem-role-${memberId}`
+    await db.run(
+      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES (${memberRowId}, ${org.id}, ${memberId}, 'viewer', ${now})`,
+    )
+
+    // Update role
+    const res = await app.request('/api/auth/organization/update-member-role', {
+      method: 'POST',
+      headers: { ...adminH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: org.id, memberId: memberRowId, role: 'editor' }),
+    })
+    expect(res.status).toBe(200)
+
+    const evt = await getLatestActivity(db, 'team_member_role_update')
+    expect(evt).toBeDefined()
+    expect(evt?.orgId).toBe(org.id)
+    const md = JSON.parse(evt?.metadata ?? '{}') as Record<string, unknown>
+    expect(md.previousRole).toBe('viewer')
+    expect(md.newRole).toBe('editor')
+    assertNoSecrets(evt?.metadata ?? null)
+  })
+
+  it('records team_delete when an org is deleted via Better Auth', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    // Create a team org to delete
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'To Delete Org', slug: 'to-delete-org' }),
+    })
+    expect(createRes.status).toBe(200)
+    const org = (await createRes.json()) as { id: string }
+
+    const res = await app.request('/api/auth/organization/delete', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: org.id }),
+    })
+    expect(res.status).toBe(200)
+
+    const evt = await getLatestActivity(db, 'team_delete')
+    expect(evt).toBeDefined()
+    expect(evt?.targetType).toBe('team')
+    expect(evt?.targetId).toBe(org.id)
+    assertNoSecrets(evt?.metadata ?? null)
+  })
+})
+
+// ─── License refresh audit event ──────────────────────────────────────────────
+
+describe('License refresh audit event', () => {
+  it('records license_refresh when admin triggers a refresh', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+
+    const res = await app.request('/api/licensing/refresh', {
+      method: 'POST',
+      headers,
+    })
+    expect(res.status).toBe(200)
+
+    const evt = await getLatestActivity(db, 'license_refresh')
+    expect(evt).toBeDefined()
+    expect(evt?.targetType).toBe('license')
     assertNoSecrets(evt?.metadata ?? null)
   })
 })

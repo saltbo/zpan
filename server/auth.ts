@@ -17,6 +17,7 @@ import * as authSchema from './db/auth-schema'
 import { orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
+import { recordActivity } from './services/activity'
 import { isEmailConfigured, sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
 import { findPersonalOrg } from './services/org'
@@ -183,6 +184,64 @@ export async function createAuth(
                 limit,
               })
             }
+          },
+          afterAcceptInvitation: async ({ member, user, organization }) => {
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: user.id,
+              action: 'team_member_join',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name,
+              metadata: { role: member.role },
+            })
+          },
+          afterRemoveMember: async ({ member, organization }) => {
+            // Better Auth does not expose the actor (initiator) in this hook;
+            // member.userId is the removed user — used here as the attributed userId.
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: member.userId,
+              action: 'team_member_remove',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name,
+              metadata: { removedUserId: member.userId },
+            })
+          },
+          afterUpdateMemberRole: async ({ member, previousRole, organization }) => {
+            // Better Auth does not expose the actor in this hook;
+            // member.userId is the user whose role changed.
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: member.userId,
+              action: 'team_member_role_update',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name,
+              metadata: { previousRole, newRole: member.role },
+            })
+          },
+          afterUpdateOrganization: async ({ organization, user }) => {
+            if (!organization?.id || !user?.id) return
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: user.id,
+              action: 'team_settings_update',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name ?? organization.id,
+            })
+          },
+          afterDeleteOrganization: async ({ organization, user }) => {
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: user.id,
+              action: 'team_delete',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name,
+            })
           },
         },
       }),

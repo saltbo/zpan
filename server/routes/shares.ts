@@ -272,6 +272,21 @@ export const publicShares = new Hono<Env>()
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
     const url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
+
+    // Record download audit event. Use the authenticated viewer if available;
+    // fall back to the share creator as the org-attributed actor for anonymous
+    // downloads. The presigned URL is never stored in metadata.
+    const actorId = viewerId ?? share.creatorId
+    await recordActivity(db, {
+      orgId: share.orgId,
+      userId: actorId,
+      action: 'share_download',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: targetMatter.name,
+      metadata: { anonymous: !viewerId },
+    })
+
     if (returnUrl) {
       const res = c.json({ downloadUrl: url })
       res.headers.set('Cache-Control', 'no-store')

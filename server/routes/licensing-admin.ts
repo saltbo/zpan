@@ -113,11 +113,22 @@ const app = new Hono<Env>()
 
   .post('/refresh', async (c) => {
     const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
     const baseUrl = getCloudBaseUrl(c)
 
     await performRefresh(db, baseUrl)
 
     const state = await loadLicenseState(db)
+
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'license_refresh',
+      targetType: 'license',
+      targetName: 'license binding',
+    })
+
     return c.json({ success: true, last_refresh_at: state.lastRefreshAt })
   })
 
