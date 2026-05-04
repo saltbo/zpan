@@ -11,7 +11,6 @@ import {
   setUserStatus,
   setUsersPersonalQuota,
   setUsersStatus,
-  UserOperationError,
 } from '../services/user'
 
 const updateStatusSchema = z.object({
@@ -51,35 +50,34 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')!
     const body = c.req.valid('json')
 
-    try {
-      if (body.action === 'set_quota') {
-        const result = await setUsersPersonalQuota(db, body.ids, body.quota)
-        await recordActivity(db, {
-          orgId,
-          userId: adminUserId,
-          action: 'quota_update',
-          targetType: 'quota',
-          targetName: 'batch',
-          metadata: result,
-        })
-        return c.json(result)
-      }
+    if (body.action === 'set_quota') {
+      const result = await setUsersPersonalQuota(db, body.ids, body.quota)
+      if ('error' in result) return c.json({ error: result.error }, result.status)
 
-      const status = body.action === 'disable' ? 'disabled' : 'active'
-      const result = await setUsersStatus(db, body.ids, status)
       await recordActivity(db, {
         orgId,
         userId: adminUserId,
-        action: status === 'disabled' ? 'user_disable' : 'user_enable',
-        targetType: 'user',
+        action: 'quota_update',
+        targetType: 'quota',
         targetName: 'batch',
-        metadata: { ...result, status },
+        metadata: result,
       })
-      return c.json({ ...result, status })
-    } catch (err) {
-      if (err instanceof UserOperationError) return c.json({ error: err.message }, err.status as 404)
-      throw err
+      return c.json(result)
     }
+
+    const status = body.action === 'disable' ? 'disabled' : 'active'
+    const result = await setUsersStatus(db, body.ids, status)
+    if ('error' in result) return c.json({ error: result.error }, result.status)
+
+    await recordActivity(db, {
+      orgId,
+      userId: adminUserId,
+      action: status === 'disabled' ? 'user_disable' : 'user_enable',
+      targetType: 'user',
+      targetName: 'batch',
+      metadata: { ...result, status },
+    })
+    return c.json({ ...result, status })
   })
   .delete('/batch', zValidator('json', userIdsSchema), async (c) => {
     const db = c.get('platform').db
@@ -87,21 +85,18 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')!
     const { ids } = c.req.valid('json')
 
-    try {
-      const result = await deleteUsers(db, ids)
-      await recordActivity(db, {
-        orgId,
-        userId: adminUserId,
-        action: 'user_delete',
-        targetType: 'user',
-        targetName: 'batch',
-        metadata: result,
-      })
-      return c.json(result)
-    } catch (err) {
-      if (err instanceof UserOperationError) return c.json({ error: err.message }, err.status as 404)
-      throw err
-    }
+    const result = await deleteUsers(db, ids)
+    if ('error' in result) return c.json({ error: result.error }, result.status)
+
+    await recordActivity(db, {
+      orgId,
+      userId: adminUserId,
+      action: 'user_delete',
+      targetType: 'user',
+      targetName: 'batch',
+      metadata: result,
+    })
+    return c.json(result)
   })
   .patch('/:id', zValidator('json', updateStatusSchema), async (c) => {
     const db = c.get('platform').db

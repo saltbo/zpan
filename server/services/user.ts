@@ -16,14 +16,9 @@ export interface UserWithOrg {
   orgName: string | null
 }
 
-export class UserOperationError extends Error {
-  readonly status: number
-
-  constructor(message: string, status = 404) {
-    super(message)
-    this.name = 'UserOperationError'
-    this.status = status
-  }
+export interface UserOperationFailure {
+  error: string
+  status: 404
 }
 
 export async function listUsers(
@@ -103,8 +98,10 @@ export async function setUsersStatus(
   db: Database,
   userIds: string[],
   status: 'active' | 'disabled',
-): Promise<{ updated: number; ids: string[] }> {
+): Promise<{ updated: number; ids: string[] } | UserOperationFailure> {
   const existingIds = await requireUsers(db, userIds)
+  if ('error' in existingIds) return existingIds
+
   await db
     .update(user)
     .set({ banned: status === 'disabled' })
@@ -112,8 +109,13 @@ export async function setUsersStatus(
   return { updated: existingIds.length, ids: existingIds }
 }
 
-export async function deleteUsers(db: Database, userIds: string[]): Promise<{ deleted: number; ids: string[] }> {
+export async function deleteUsers(
+  db: Database,
+  userIds: string[],
+): Promise<{ deleted: number; ids: string[] } | UserOperationFailure> {
   const existingIds = await requireUsers(db, userIds)
+  if ('error' in existingIds) return existingIds
+
   await db.delete(user).where(inArray(user.id, existingIds))
   return { deleted: existingIds.length, ids: existingIds }
 }
@@ -122,8 +124,10 @@ export async function setUsersPersonalQuota(
   db: Database,
   userIds: string[],
   quota: number,
-): Promise<{ updated: number; userIds: string[]; orgIds: string[]; quota: number }> {
+): Promise<{ updated: number; userIds: string[]; orgIds: string[]; quota: number } | UserOperationFailure> {
   const existingIds = await requireUsers(db, userIds)
+  if ('error' in existingIds) return existingIds
+
   const rows = await db
     .select({ userId: user.id, orgId: organization.id })
     .from(user)
@@ -137,7 +141,7 @@ export async function setUsersPersonalQuota(
   if (rows.length !== existingIds.length) {
     const found = new Set(rows.map((row) => row.userId))
     const missing = existingIds.filter((id) => !found.has(id))
-    throw new UserOperationError(`Personal organization not found for user(s): ${missing.join(', ')}`)
+    return { error: `Personal organization not found for user(s): ${missing.join(', ')}`, status: 404 }
   }
 
   const orgIds = rows.map((row) => row.orgId)
@@ -162,13 +166,13 @@ export async function setUsersPersonalQuota(
   return { updated: rows.length, userIds: existingIds, orgIds, quota }
 }
 
-async function requireUsers(db: Database, userIds: string[]): Promise<string[]> {
+async function requireUsers(db: Database, userIds: string[]): Promise<string[] | UserOperationFailure> {
   const uniqueIds = [...new Set(userIds)]
   const rows = await db.select({ id: user.id }).from(user).where(inArray(user.id, uniqueIds))
   if (rows.length !== uniqueIds.length) {
     const found = new Set(rows.map((row) => row.id))
     const missing = uniqueIds.filter((id) => !found.has(id))
-    throw new UserOperationError(`User not found: ${missing.join(', ')}`)
+    return { error: `User not found: ${missing.join(', ')}`, status: 404 }
   }
   return uniqueIds
 }

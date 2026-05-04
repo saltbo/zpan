@@ -1,12 +1,13 @@
 import { DEFAULT_ORG_QUOTA, DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME, SignupMode } from '@shared/constants'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SiteOption } from '@/lib/api'
+import { resolveDefaultOrgQuotaValue, useSiteOptions } from './use-site-options'
 
-// useSiteOptions is a React hook backed by react-query; the project has no jsdom
-// or @testing-library/react setup, so we cannot render it here.
-// We test the pure option-map extraction logic that the hook applies, which is
-// the entirety of the hook's non-query logic: building a Map from items and
-// reading named keys from it.
+const useQueryMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: useQueryMock,
+}))
 
 function buildOptionsMap(items: SiteOption[]): Map<string, string> {
   return new Map(items.map((item) => [item.key, item.value]))
@@ -21,8 +22,7 @@ function resolveSiteDescription(optionMap: Map<string, string>): string {
 }
 
 function resolveDefaultOrgQuota(optionMap: Map<string, string>): number {
-  const quota = Number(optionMap.get('default_org_quota'))
-  return Number.isFinite(quota) && quota > 0 ? quota : DEFAULT_ORG_QUOTA
+  return resolveDefaultOrgQuotaValue(optionMap.get('default_org_quota'))
 }
 
 function resolveAuthSignupMode(optionMap: Map<string, string>): SignupMode {
@@ -33,7 +33,52 @@ function makeItem(key: string, value: string): SiteOption {
   return { key, value, public: true }
 }
 
+beforeEach(() => {
+  useQueryMock.mockReset()
+})
+
 describe('useSiteOptions — option map extraction logic', () => {
+  it('maps query data through useSiteOptions', () => {
+    useQueryMock.mockReturnValue({
+      data: {
+        items: [
+          makeItem('site_name', 'Custom Pan'),
+          makeItem('site_description', 'Custom description'),
+          makeItem('default_org_quota', '0'),
+          makeItem('auth_signup_mode', SignupMode.CLOSED),
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    })
+
+    expect(useSiteOptions()).toEqual({
+      siteName: 'Custom Pan',
+      siteDescription: 'Custom description',
+      defaultOrgQuota: DEFAULT_ORG_QUOTA,
+      authSignupMode: SignupMode.CLOSED,
+      isLoading: false,
+      isError: false,
+    })
+  })
+
+  it('returns defaults and query state when query has no data', () => {
+    useQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: true,
+    })
+
+    expect(useSiteOptions()).toEqual({
+      siteName: DEFAULT_SITE_NAME,
+      siteDescription: DEFAULT_SITE_DESCRIPTION,
+      defaultOrgQuota: DEFAULT_ORG_QUOTA,
+      authSignupMode: SignupMode.OPEN,
+      isLoading: true,
+      isError: true,
+    })
+  })
+
   describe('siteName', () => {
     it('returns site_name value when present', () => {
       const map = buildOptionsMap([makeItem('site_name', 'ZPan')])

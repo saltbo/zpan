@@ -6,6 +6,11 @@ export type { SiteOption }
 
 export const siteOptionsQueryKey = ['system', 'options'] as const
 
+export function resolveDefaultOrgQuotaValue(raw: string | undefined): number {
+  const quota = Number(raw)
+  return Number.isFinite(quota) && quota > 0 ? quota : DEFAULT_ORG_QUOTA
+}
+
 export function useSiteOptions() {
   const { data, isLoading, isError } = useQuery({
     queryKey: siteOptionsQueryKey,
@@ -15,12 +20,11 @@ export function useSiteOptions() {
 
   const items = data?.items ?? []
   const optionMap = new Map(items.map((item) => [item.key, item.value]))
-  const quota = Number(optionMap.get('default_org_quota'))
 
   return {
     siteName: optionMap.get('site_name') ?? DEFAULT_SITE_NAME,
     siteDescription: optionMap.get('site_description') ?? DEFAULT_SITE_DESCRIPTION,
-    defaultOrgQuota: Number.isFinite(quota) && quota > 0 ? quota : DEFAULT_ORG_QUOTA,
+    defaultOrgQuota: resolveDefaultOrgQuotaValue(optionMap.get('default_org_quota')),
     authSignupMode: (optionMap.get('auth_signup_mode') as SignupMode) ?? SignupMode.OPEN,
     isLoading,
     isError,
