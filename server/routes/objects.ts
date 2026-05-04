@@ -11,6 +11,7 @@ import {
 import type { Storage as S3Storage } from '../../shared/types'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 import {
   batchMove,
   batchTrash,
@@ -125,8 +126,17 @@ const app = new Hono<Env>()
         }
       }
       case 'trash': {
+        const userId = c.get('userId')!
         try {
           const trashed = await batchTrash(db, orgId, body.ids)
+          await recordActivity(db, {
+            orgId,
+            userId,
+            action: 'batch_trash',
+            targetType: 'file',
+            targetName: `${trashed.length} items`,
+            metadata: { count: trashed.length, ids: body.ids },
+          })
           return c.json({ trashed: trashed.length })
         } catch (e) {
           return c.json({ error: (e as Error).message }, 400)
@@ -138,6 +148,7 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
+    const userId = c.get('userId')!
     const { ids } = c.req.valid('json')
     const db = c.get('platform').db
     try {
@@ -155,6 +166,14 @@ const app = new Hono<Env>()
         const ms = await collectForPurge(db, orgId, item)
         purged += await purgeRecursively(db, orgId, ms)
       }
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'batch_purge',
+        targetType: 'file',
+        targetName: `${purged} items`,
+        metadata: { count: purged, ids: uniqueIds },
+      })
       return c.json({ deleted: purged })
     } catch (e) {
       return c.json({ error: (e as Error).message }, 400)
@@ -212,7 +231,7 @@ const app = new Hono<Env>()
         }
       }
       case 'cancel': {
-        const matter = await cancelDraftMatter(db, c.req.param('id'), orgId)
+        const matter = await cancelDraftMatter(db, c.req.param('id'), orgId, userId)
         if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
         if (matter.object) {
           const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage | null
@@ -246,6 +265,7 @@ const app = new Hono<Env>()
   .delete('/:id', requireTeamRole('editor'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
+    const userId = c.get('userId')!
     const db = c.get('platform').db
     const ms = await collectForPurge(db, orgId, c.req.param('id'))
     if (!ms) return c.json({ error: 'Not found' }, 404)
@@ -253,6 +273,15 @@ const app = new Hono<Env>()
       return c.json({ error: 'Object must be trashed before permanent deletion' }, 409)
     }
     const purged = await purgeRecursively(db, orgId, ms)
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'object_purge',
+      targetType: ms[0].dirtype !== DirType.FILE ? 'folder' : 'file',
+      targetId: ms[0].id,
+      targetName: ms[0].name,
+      metadata: { count: purged },
+    })
     return c.json({ id: ms[0].id, deleted: true, purged })
   })
   .post('/copy', requireTeamRole('editor'), zValidator('json', copyMatterSchema), async (c) => {

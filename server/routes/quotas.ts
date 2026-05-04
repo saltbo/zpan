@@ -7,6 +7,7 @@ import { organization } from '../db/auth-schema'
 import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 import { findPersonalOrg } from '../services/org'
 
 const updateQuotaSchema = z.object({
@@ -43,18 +44,30 @@ const adminQuotas = new Hono<Env>()
   })
   .put('/:orgId', zValidator('json', updateQuotaSchema), async (c) => {
     const db = c.get('platform').db
-    const orgId = c.req.param('orgId')
+    const userId = c.get('userId')!
+    const adminOrgId = c.get('orgId')!
+    const targetOrgId = c.req.param('orgId')
     const { quota } = c.req.valid('json')
 
-    const existing = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
+    const existing = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, targetOrgId))
 
     if (existing.length > 0) {
-      await db.update(orgQuotas).set({ quota }).where(eq(orgQuotas.orgId, orgId))
+      await db.update(orgQuotas).set({ quota }).where(eq(orgQuotas.orgId, targetOrgId))
     } else {
-      await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used: 0 })
+      await db.insert(orgQuotas).values({ id: nanoid(), orgId: targetOrgId, quota, used: 0 })
     }
 
-    return c.json({ orgId, quota })
+    await recordActivity(db, {
+      orgId: adminOrgId,
+      userId,
+      action: 'quota_update',
+      targetType: 'quota',
+      targetId: targetOrgId,
+      targetName: targetOrgId,
+      metadata: { quota, targetOrgId },
+    })
+
+    return c.json({ orgId: targetOrgId, quota })
   })
 
 const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { organization } from '../db/auth-schema'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { listActivities } from '../services/activity'
+import { listActivities, recordActivity } from '../services/activity'
 import { deletePublicImageVariants, uploadPublicImage } from '../services/image-upload'
 import { getMemberRole, isPersonalOrg } from '../services/org'
 import { acceptInviteLink, createInviteLink, getInviteLinkInfo, listPendingInvitations } from '../services/team-invite'
@@ -50,6 +50,17 @@ export const teams = new Hono<Env>()
     if (memberRole !== 'owner') return c.json({ error: 'Forbidden' }, 403)
 
     const link = await createInviteLink(db, teamId, userId, role, expiresIn)
+
+    await recordActivity(db, {
+      orgId: teamId,
+      userId,
+      action: 'team_invite_link_create',
+      targetType: 'team',
+      targetId: teamId,
+      targetName: teamId,
+      metadata: { role, expiresIn },
+    })
+
     return c.json({ token: link.token, expiresAt: link.expiresAt }, 201)
   })
   .get('/:teamId/invitations', async (c) => {
@@ -67,11 +78,21 @@ export const teams = new Hono<Env>()
     const db = c.get('platform').db
     const userId = c.get('userId')!
     const { token } = c.req.valid('json')
+    const { teamId } = c.req.param()
 
     const result = await acceptInviteLink(db, token, userId)
     if (result === 'invalid') return c.json({ error: 'Invalid invite link' }, 404)
     if (result === 'expired') return c.json({ error: 'Invite link has expired' }, 410)
     if (result === 'already_member') return c.json({ error: 'Already a member of this team' }, 409)
+
+    await recordActivity(db, {
+      orgId: teamId,
+      userId,
+      action: 'team_member_join',
+      targetType: 'team',
+      targetId: teamId,
+      targetName: teamId,
+    })
 
     return c.json({ ok: true })
   })
@@ -109,6 +130,16 @@ export const teams = new Hono<Env>()
     if (!result.ok) return c.json({ error: result.error }, result.status)
 
     await platform.db.update(organization).set({ logo: result.url }).where(eq(organization.id, teamId))
+
+    await recordActivity(platform.db, {
+      orgId: teamId,
+      userId,
+      action: 'team_logo_update',
+      targetType: 'team',
+      targetId: teamId,
+      targetName: teamId,
+    })
+
     return c.json({ url: result.url })
   })
   .delete('/:teamId/logo', async (c) => {
@@ -121,5 +152,15 @@ export const teams = new Hono<Env>()
 
     await platform.db.update(organization).set({ logo: null }).where(eq(organization.id, teamId))
     await deletePublicImageVariants(platform, LOGO_PREFIX, teamId)
+
+    await recordActivity(platform.db, {
+      orgId: teamId,
+      userId,
+      action: 'team_logo_delete',
+      targetType: 'team',
+      targetId: teamId,
+      targetName: teamId,
+    })
+
     return c.json({ ok: true })
   })

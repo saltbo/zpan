@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 import { deleteUser, listUsers, setUserStatus } from '../services/user'
 
 const updateStatusSchema = z.object({
@@ -21,6 +22,8 @@ const app = new Hono<Env>()
   })
   .patch('/:id', zValidator('json', updateStatusSchema), async (c) => {
     const db = c.get('platform').db
+    const adminUserId = c.get('userId')!
+    const orgId = c.get('orgId')!
     const userId = c.req.param('id')
     const { status } = c.req.valid('json')
 
@@ -29,16 +32,38 @@ const app = new Hono<Env>()
       return c.json({ error: 'User not found' }, 404)
     }
 
+    const action = status === 'disabled' ? 'user_disable' : 'user_enable'
+    await recordActivity(db, {
+      orgId,
+      userId: adminUserId,
+      action,
+      targetType: 'user',
+      targetId: userId,
+      targetName: userId,
+      metadata: { status },
+    })
+
     return c.json({ id: userId, status })
   })
   .delete('/:id', async (c) => {
     const db = c.get('platform').db
+    const adminUserId = c.get('userId')!
+    const orgId = c.get('orgId')!
     const userId = c.req.param('id')
 
     const deleted = await deleteUser(db, userId)
     if (!deleted) {
       return c.json({ error: 'User not found' }, 404)
     }
+
+    await recordActivity(db, {
+      orgId,
+      userId: adminUserId,
+      action: 'user_delete',
+      targetType: 'user',
+      targetId: userId,
+      targetName: userId,
+    })
 
     return c.json({ id: userId, deleted: true })
   })

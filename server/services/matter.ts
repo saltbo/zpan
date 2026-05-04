@@ -292,7 +292,20 @@ export async function confirmUpload(
     return { matter: null }
   }
 
-  return { matter: { ...existing, name: plan.finalName, status: 'active', updatedAt: now } }
+  const confirmed = { ...existing, name: plan.finalName, status: 'active', updatedAt: now }
+
+  if (opts.userId) {
+    await recordActivity(db, {
+      orgId,
+      userId: opts.userId,
+      action: 'upload_confirm',
+      targetType: 'file',
+      targetId: confirmed.id,
+      targetName: confirmed.name,
+    })
+  }
+
+  return { matter: confirmed }
 }
 
 export async function incrementUsageIfAllowed(
@@ -369,6 +382,19 @@ export async function copyMatter(
   }
 
   await db.insert(matters).values(row)
+
+  if (opts.userId) {
+    await recordActivity(db, {
+      orgId: source.orgId,
+      userId: opts.userId,
+      action: 'object_copy',
+      targetType: isFolder ? 'folder' : 'file',
+      targetId: row.id,
+      targetName: row.name,
+      metadata: { from: source.name, to: targetParent },
+    })
+  }
+
   return row
 }
 
@@ -380,11 +406,28 @@ export async function deleteMatter(db: Database, id: string, orgId: string): Pro
   return existing
 }
 
-export async function cancelDraftMatter(db: Database, id: string, orgId: string): Promise<Matter | null> {
+export async function cancelDraftMatter(
+  db: Database,
+  id: string,
+  orgId: string,
+  userId?: string,
+): Promise<Matter | null> {
   const existing = await getMatter(db, id, orgId)
   if (!existing || existing.status !== 'draft') return null
 
   await db.delete(matters).where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft')))
+
+  if (userId) {
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'upload_cancel',
+      targetType: 'file',
+      targetId: existing.id,
+      targetName: existing.name,
+    })
+  }
+
   return existing
 }
 

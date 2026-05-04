@@ -10,6 +10,7 @@ import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 import { listMatters } from '../services/matter'
 import { getMemberRole, isPersonalOrg } from '../services/org'
 import {
@@ -344,6 +345,16 @@ export const authedShares = new Hono<Env>()
       )
     }
 
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'share_create',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: resolvedMatterName,
+      metadata: { kind: share.kind, hasPassword: !!body.password, hasExpiry: !!body.expiresAt },
+    })
+
     return c.json(
       {
         token: share.token,
@@ -357,6 +368,7 @@ export const authedShares = new Hono<Env>()
   })
   .delete('/:token', async (c) => {
     const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
     const db = c.get('platform').db
     const token = c.req.param('token')
 
@@ -369,6 +381,15 @@ export const authedShares = new Hono<Env>()
     // call returns false — translate to 404 at the boundary.
     const revoked = await revokeShareByToken(db, token, userId)
     if (!revoked) return c.json({ error: 'Not found' }, 404)
+
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'share_revoke',
+      targetType: 'share',
+      targetName: token,
+    })
+
     return new Response(null, { status: 204 })
   })
   .post('/:token/objects', zValidator('json', saveShareRequestSchema), async (c) => {
