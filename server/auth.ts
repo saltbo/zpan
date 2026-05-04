@@ -402,8 +402,12 @@ export async function createAuth(
                 .from(inviteCodesTable)
                 .where(eq(inviteCodesTable.usedBy, user.id))
                 .limit(1)
-              /* c8 ignore next -- defensive: redeemInviteCode always sets usedBy before we get here */
-              inviteCodeId = codeRow?.id
+              if (!codeRow) {
+                throw new Error(
+                  `sign-up with invite code succeeded for user ${user.id} but redeemed code row not found — invariant violation`,
+                )
+              }
+              inviteCodeId = codeRow.id
             }
 
             pendingSignupAudits.set(user.id, {
