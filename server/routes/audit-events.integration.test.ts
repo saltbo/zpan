@@ -546,14 +546,12 @@ describe('Audit: auth lifecycle', () => {
   it('records sign_up on new user registration', async () => {
     const { app, db } = await createTestApp()
 
-    await app.request('/api/auth/sign-up/email', {
+    const res = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Alice', email: 'alice@example.com', password: 'password123456' }),
     })
-
-    // Allow async audit to settle
-    await new Promise((r) => setTimeout(r, 50))
+    expect(res.status).toBe(200)
 
     const events = await getAuditEvents(db, 'sign_up')
     expect(events).toHaveLength(1)
@@ -639,6 +637,233 @@ describe('Audit: invite code lifecycle', () => {
     expect(events).toHaveLength(1)
     // The actual code value must not appear
     assertNoSecrets(events[0].metadata)
+  })
+
+  it('records invite_code_redeem when signing up with an invite code', async () => {
+    // Set signup mode to invite_only
+    await app.request('/api/system/options/auth_signup_mode', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'auth_signup_mode', value: 'invite_only' }),
+    })
+
+    // Generate a code
+    const genRes = await app.request('/api/admin/invite-codes', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count: 1 }),
+    })
+    const { codes } = (await genRes.json()) as { codes: Array<{ code: string }> }
+    const code = codes[0].code
+
+    // Sign up using the invite code
+    const signUpRes = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Redeemer',
+        email: 'redeemer@example.com',
+        password: 'password123456',
+        inviteCode: code,
+      }),
+    })
+    expect(signUpRes.status).toBe(200)
+
+    const events = await getAuditEvents(db, 'invite_code_redeem')
+    expect(events).toHaveLength(1)
+    // The actual code value is stored as targetName but not in metadata (no secrets)
+    assertNoSecrets(events[0].metadata)
+  })
+})
+
+// ─── Better Auth org lifecycle events ──────────────────────────────────────────
+
+describe('Audit: Better Auth org lifecycle via organizationHooks', () => {
+  async function signUpAndSignIn(app: TestApp, email: string) {
+    const signUpRes = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test User', email, password: 'password123456' }),
+    })
+    const body = (await signUpRes.json()) as { user?: { id: string } }
+    const cookie = signUpRes.headers.getSetCookie().join('; ')
+    return { headers: { Cookie: cookie }, userId: body.user?.id ?? '' }
+  }
+
+  it('records team_settings_update when org is updated via Better Auth', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndSignIn(app, 'settings@example.com')
+
+    // Create a team via Better Auth
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'My Team', slug: 'my-team-settings' }),
+    })
+    expect(createRes.status).toBe(200)
+    const team = (await createRes.json()) as { id: string }
+
+    // Update the org
+    const updateRes = await app.request('/api/auth/organization/update', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: team.id, data: { name: 'Updated Team' } }),
+    })
+    expect(updateRes.status).toBe(200)
+
+    const events = await getAuditEvents(db, 'team_settings_update')
+    expect(events.length).toBeGreaterThanOrEqual(1)
+    expect(events[0].userId).toBe(userId)
+  })
+
+  it('records team_delete when org is deleted via Better Auth', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, userId } = await signUpAndSignIn(app, 'deleteteam@example.com')
+
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Delete Me', slug: 'delete-me-team' }),
+    })
+    expect(createRes.status).toBe(200)
+    const team = (await createRes.json()) as { id: string }
+
+    const deleteRes = await app.request('/api/auth/organization/delete', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: team.id }),
+    })
+    expect(deleteRes.status).toBe(200)
+
+    const events = await getAuditEvents(db, 'team_delete')
+    expect(events.length).toBeGreaterThanOrEqual(1)
+    expect(events[0].userId).toBe(userId)
+  })
+
+  it('records team_member_remove when a member is removed via Better Auth', async () => {
+    const { app, db } = await createTestApp()
+    const { headers: ownerHeaders, userId: ownerId } = await signUpAndSignIn(app, 'owner@example.com')
+    const { userId: memberId } = await signUpAndSignIn(app, 'member-to-remove@example.com')
+
+    // Owner creates a team
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...ownerHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test Team', slug: 'test-team-remove' }),
+    })
+    const team = (await createRes.json()) as { id: string }
+
+    // Add the member directly via DB insert; use member's email as memberIdOrEmail
+    const { nanoid: genId } = await import('nanoid')
+    const memberRowId = genId()
+    await db.run(sql`INSERT INTO member (id, organization_id, user_id, role, created_at)
+      VALUES (${memberRowId}, ${team.id}, ${memberId}, 'member', ${Date.now()})`)
+
+    // Remove member via Better Auth using the member row ID
+    const removeRes = await app.request('/api/auth/organization/remove-member', {
+      method: 'POST',
+      headers: { ...ownerHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: team.id, memberIdOrEmail: memberRowId }),
+    })
+    expect(removeRes.status).toBe(200)
+
+    const events = await getAuditEvents(db, 'team_member_remove')
+    expect(events.length).toBeGreaterThanOrEqual(1)
+    const meta = JSON.parse(events[0].metadata ?? '{}') as Record<string, unknown>
+    expect(meta.memberId).toBe(memberId)
+  })
+
+  it('records team_member_role_update when a role is changed via Better Auth', async () => {
+    const { app, db } = await createTestApp()
+    const { headers: ownerHeaders } = await signUpAndSignIn(app, 'roleowner@example.com')
+    const { userId: memberId } = await signUpAndSignIn(app, 'rolemember@example.com')
+
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...ownerHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Role Team', slug: 'role-team-test' }),
+    })
+    const team = (await createRes.json()) as { id: string }
+
+    // Add the member directly
+    const { nanoid: genId } = await import('nanoid')
+    const memberRowId = genId()
+    await db.run(sql`INSERT INTO member (id, organization_id, user_id, role, created_at)
+      VALUES (${memberRowId}, ${team.id}, ${memberId}, 'member', ${Date.now()})`)
+
+    const updateRes = await app.request('/api/auth/organization/update-member-role', {
+      method: 'POST',
+      headers: { ...ownerHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: team.id, memberId: memberRowId, role: 'admin' }),
+    })
+    expect(updateRes.status).toBe(200)
+
+    const events = await getAuditEvents(db, 'team_member_role_update')
+    expect(events.length).toBeGreaterThanOrEqual(1)
+    const meta = JSON.parse(events[0].metadata ?? '{}') as Record<string, unknown>
+    expect(meta.newRole).toBe('admin')
+    expect(meta.previousRole).toBe('member')
+  })
+})
+
+// ─── Team activity feed isolation ─────────────────────────────────────────────
+
+describe('Audit: team activity feed only shows file/folder events', () => {
+  it('excludes non-file audit events (share, team, auth) from team activity feed', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    await seedProLicense(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgIdFromSession(app, headers)
+
+    // Insert a file event (should appear)
+    await db.insert(activityEvents).values({
+      id: 'feed-file-evt',
+      orgId,
+      userId: 'u1',
+      action: 'upload',
+      targetType: 'file',
+      targetId: null,
+      targetName: 'doc.pdf',
+      metadata: null,
+      createdAt: new Date(),
+    })
+
+    // Insert a share event (must NOT appear in team feed)
+    await db.insert(activityEvents).values({
+      id: 'feed-share-evt',
+      orgId,
+      userId: 'u1',
+      action: 'share_create',
+      targetType: 'share',
+      targetId: null,
+      targetName: 'doc.pdf',
+      metadata: null,
+      createdAt: new Date(),
+    })
+
+    // Insert an auth event (must NOT appear in team feed)
+    await db.insert(activityEvents).values({
+      id: 'feed-auth-evt',
+      orgId,
+      userId: 'u1',
+      action: 'sign_up',
+      targetType: 'auth',
+      targetId: null,
+      targetName: 'u@example.com',
+      metadata: null,
+      createdAt: new Date(),
+    })
+
+    const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
+
+    // Only the file event should appear; share and auth events must be excluded
+    const ids = body.items.map((i) => i.id)
+    expect(ids).toContain('feed-file-evt')
+    expect(ids).not.toContain('feed-share-evt')
+    expect(ids).not.toContain('feed-auth-evt')
   })
 })
 

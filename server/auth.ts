@@ -185,6 +185,72 @@ export async function createAuth(
               })
             }
           },
+          afterUpdateOrganization: async ({ organization, user }) => {
+            if (!organization) return
+            // Skip personal workspace updates — only log real team changes
+            if ((organization.slug as string)?.startsWith('personal-')) return
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: user.id,
+              action: 'team_settings_update',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name,
+            })
+          },
+          afterDeleteOrganization: async ({ organization, user }) => {
+            if (!organization) return
+            if ((organization.slug as string)?.startsWith('personal-')) return
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: user.id,
+              action: 'team_delete',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name,
+            })
+          },
+          afterRemoveMember: async ({ member, user, organization }) => {
+            if (!organization) return
+            if ((organization.slug as string)?.startsWith('personal-')) return
+            // afterRemoveMember only fires from /organization/remove-member, not /organization/leave
+            // (leaveOrganization has no hook in this version of Better Auth)
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: user.id,
+              action: 'team_member_remove',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name,
+              metadata: { memberId: member.userId, memberRole: member.role },
+            })
+          },
+          afterUpdateMemberRole: async ({ member, previousRole, user, organization }) => {
+            if (!organization) return
+            if ((organization.slug as string)?.startsWith('personal-')) return
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: user.id,
+              action: 'team_member_role_update',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name,
+              metadata: { memberId: member.userId, previousRole, newRole: member.role },
+            })
+          },
+          afterAcceptInvitation: async ({ invitation, member, user, organization }) => {
+            if (!organization) return
+            if ((organization.slug as string)?.startsWith('personal-')) return
+            await recordActivity(db, {
+              orgId: organization.id,
+              userId: user.id,
+              action: 'team_member_join',
+              targetType: 'team',
+              targetId: organization.id,
+              targetName: organization.name,
+              metadata: { invitationId: invitation.id, role: member.role },
+            })
+          },
         },
       }),
       username(),
@@ -264,19 +330,23 @@ export async function createAuth(
           after: async (user, context) => {
             // Redeem invite code after user is created (user.id is now available)
             const mode = await getEffectiveSignupMode(db)
+            let redeemedInviteCode: string | undefined
             if (mode === SignupMode.INVITE_ONLY) {
               const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
               if (inviteCode) {
                 await redeemInviteCode(db, inviteCode, user.id)
+                redeemedInviteCode = inviteCode
               }
             }
 
             const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
+            let siteInvitationAccepted = false
             if (siteInvitationToken) {
               const result = await acceptSiteInvitation(db, siteInvitationToken, user.email, user.id)
               if (result !== 'ok' && result !== 'accepted') {
                 throw new Error(`Failed to redeem site invitation: ${result}`)
               }
+              siteInvitationAccepted = true
             }
 
             // Create personal org as part of registration.
@@ -289,16 +359,34 @@ export async function createAuth(
               await createPersonalOrg(db, user)
             }
 
-            // Audit: record sign_up. Non-fatal: do not block registration if recording fails.
+            // Audit: record sign_up and any redemption events once the personal org exists.
             const orgId = await findPersonalOrg(db, user.id)
             if (orgId) {
-              recordActivity(db, {
+              await recordActivity(db, {
                 orgId,
                 userId: user.id,
                 action: 'sign_up',
                 targetType: 'auth',
                 targetName: user.email ?? user.name ?? user.id,
-              }).catch(() => {})
+              })
+              if (redeemedInviteCode) {
+                await recordActivity(db, {
+                  orgId,
+                  userId: user.id,
+                  action: 'invite_code_redeem',
+                  targetType: 'invite_code',
+                  targetName: redeemedInviteCode,
+                })
+              }
+              if (siteInvitationAccepted) {
+                await recordActivity(db, {
+                  orgId,
+                  userId: user.id,
+                  action: 'site_invitation_accept',
+                  targetType: 'site_invitation',
+                  targetName: user.email ?? user.id,
+                })
+              }
             }
           },
         },

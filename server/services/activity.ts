@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ne } from 'drizzle-orm'
+import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { organization, user } from '../db/auth-schema'
 import { activityEvents } from '../db/schema'
@@ -34,6 +34,9 @@ export async function recordActivity(db: Database, event: RecordActivityInput): 
   })
 }
 
+// Team activity feed only surfaces file/folder operations; admin audit log has all events.
+const TEAM_FEED_TARGET_TYPES = ['file', 'folder']
+
 export async function listActivities(
   db: Database,
   orgId: string,
@@ -43,10 +46,9 @@ export async function listActivities(
   const pageSize = opts.pageSize ?? 20
   const offset = (page - 1) * pageSize
 
-  const countRows = await db
-    .select({ count: count() })
-    .from(activityEvents)
-    .where(and(eq(activityEvents.orgId, orgId), ne(activityEvents.targetType, 'auth')))
+  const feedFilter = and(eq(activityEvents.orgId, orgId), inArray(activityEvents.targetType, TEAM_FEED_TARGET_TYPES))
+
+  const countRows = await db.select({ count: count() }).from(activityEvents).where(feedFilter)
   const total = countRows[0]?.count ?? 0
 
   const rows = await db
@@ -65,7 +67,7 @@ export async function listActivities(
     })
     .from(activityEvents)
     .leftJoin(user, eq(activityEvents.userId, user.id))
-    .where(and(eq(activityEvents.orgId, orgId), ne(activityEvents.targetType, 'auth')))
+    .where(feedFilter)
     .orderBy(desc(activityEvents.createdAt))
     .limit(pageSize)
     .offset(offset)

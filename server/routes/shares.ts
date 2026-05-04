@@ -274,7 +274,7 @@ export const publicShares = new Hono<Env>()
     const url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
 
     // Record download event without storing the presigned URL or token.
-    recordActivity(db, {
+    await recordActivity(db, {
       orgId: share.orgId,
       userId: viewerId ?? 'anonymous',
       action: 'share_download',
@@ -282,7 +282,7 @@ export const publicShares = new Hono<Env>()
       targetId: share.id,
       targetName: targetMatter.name,
       metadata: { shareId: share.id, matterId: targetMatter.id },
-    }).catch(() => {})
+    })
 
     if (returnUrl) {
       const res = c.json({ downloadUrl: url })
