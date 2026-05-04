@@ -58,8 +58,12 @@ export async function redeemInviteCode(
       ),
     )
 
-  // If no rows affected, another request redeemed it concurrently
-  const changes = (result as { rowsAffected?: number }).rowsAffected ?? (result as { changes?: number }).changes
+  // If no rows affected, another request redeemed it concurrently.
+  // Node/libsql returns { rowsAffected }, D1 (CF Workers) returns { meta: { changes } }.
+  const changes =
+    (result as { rowsAffected?: number }).rowsAffected ??
+    (result as { meta?: { changes?: number } }).meta?.changes ??
+    (result as { changes?: number }).changes
   if (changes === undefined)
     throw new Error('DB driver returned no rowsAffected — cannot confirm invite code redemption')
   return changes > 0 ? 'ok' : 'already_used'
