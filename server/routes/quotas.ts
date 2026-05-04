@@ -7,6 +7,7 @@ import { organization } from '../db/auth-schema'
 import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 import { findPersonalOrg } from '../services/org'
 
 const updateQuotaSchema = z.object({
@@ -43,6 +44,8 @@ const adminQuotas = new Hono<Env>()
   })
   .put('/:orgId', zValidator('json', updateQuotaSchema), async (c) => {
     const db = c.get('platform').db
+    const adminUserId = c.get('userId')!
+    const adminOrgId = c.get('orgId')!
     const orgId = c.req.param('orgId')
     const { quota } = c.req.valid('json')
 
@@ -53,6 +56,16 @@ const adminQuotas = new Hono<Env>()
     } else {
       await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used: 0 })
     }
+
+    await recordActivity(db, {
+      orgId: adminOrgId,
+      userId: adminUserId,
+      action: 'quota_update',
+      targetType: 'quota',
+      targetId: orgId,
+      targetName: orgId,
+      metadata: { targetOrgId: orgId, quota },
+    })
 
     return c.json({ orgId, quota })
   })

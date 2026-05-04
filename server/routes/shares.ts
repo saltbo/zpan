@@ -10,6 +10,7 @@ import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 import { listMatters } from '../services/matter'
 import { getMemberRole, isPersonalOrg } from '../services/org'
 import {
@@ -19,7 +20,7 @@ import {
 } from '../services/save-to-drive'
 import {
   createShare,
-  getShareCreatorByToken,
+  getShareMetaByToken,
   incrementDownloadsAtomic,
   incrementViews,
   isAccessibleByUser,
@@ -271,6 +272,18 @@ export const publicShares = new Hono<Env>()
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
     const url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
+
+    // Record download event without storing the presigned URL or token.
+    recordActivity(db, {
+      orgId: share.orgId,
+      userId: viewerId ?? 'anonymous',
+      action: 'share_download',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: targetMatter.name,
+      metadata: { shareId: share.id, matterId: targetMatter.id },
+    }).catch(() => {})
+
     if (returnUrl) {
       const res = c.json({ downloadUrl: url })
       res.headers.set('Cache-Control', 'no-store')
@@ -344,6 +357,24 @@ export const authedShares = new Hono<Env>()
       )
     }
 
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'share_create',
+      targetType: 'share',
+      targetId: share.id,
+      targetName: resolvedMatterName,
+      metadata: {
+        shareId: share.id,
+        kind: share.kind,
+        matterId: share.matterId,
+        hasPassword: !!body.password,
+        hasExpiry: !!body.expiresAt,
+        downloadLimit: body.downloadLimit ?? null,
+        recipientCount: recipients.length,
+      },
+    })
+
     return c.json(
       {
         token: share.token,
@@ -360,15 +391,24 @@ export const authedShares = new Hono<Env>()
     const db = c.get('platform').db
     const token = c.req.param('token')
 
-    const creatorId = await getShareCreatorByToken(db, token)
-    if (creatorId === null) return c.json({ error: 'Not found' }, 404)
-    if (creatorId !== userId) return c.json({ error: 'Forbidden' }, 403)
+    const shareMeta = await getShareMetaByToken(db, token)
+    if (shareMeta === null) return c.json({ error: 'Not found' }, 404)
+    if (shareMeta.creatorId !== userId) return c.json({ error: 'Forbidden' }, 403)
 
     // Race-safe: revokeShareByToken scopes the UPDATE to (token, creatorId).
-    // A concurrent revoke or ownership change between the check above and this
-    // call returns false — translate to 404 at the boundary.
     const revoked = await revokeShareByToken(db, token, userId)
     if (!revoked) return c.json({ error: 'Not found' }, 404)
+
+    await recordActivity(db, {
+      orgId: shareMeta.orgId,
+      userId,
+      action: 'share_revoke',
+      targetType: 'share',
+      targetId: shareMeta.id,
+      targetName: shareMeta.matterId,
+      metadata: { shareId: shareMeta.id, kind: shareMeta.kind, matterId: shareMeta.matterId },
+    })
+
     return new Response(null, { status: 204 })
   })
   .post('/:token/objects', zValidator('json', saveShareRequestSchema), async (c) => {

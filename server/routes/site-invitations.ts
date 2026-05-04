@@ -5,6 +5,7 @@ import type { SiteInvitation } from '../../shared/types'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import type { Database } from '../platform/interface'
+import { recordActivity } from '../services/activity'
 import { getEmailConfig, sendEmail } from '../services/email'
 import {
   createSiteInvitation,
@@ -61,6 +62,7 @@ export const adminSiteInvitations = new Hono<Env>()
   .post('/', zValidator('json', createSchema), async (c) => {
     const db = c.get('platform').db
     const userId = c.get('userId')
+    const orgId = c.get('orgId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
 
     const { email } = c.req.valid('json')
@@ -73,6 +75,17 @@ export const adminSiteInvitations = new Hono<Env>()
       return c.json({ error: message }, 409)
     }
     await sendSiteInvitationEmail(db, c.req.url, invitation.email, invitation.token, invitation.expiresAt)
+    if (orgId) {
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'site_invitation_create',
+        targetType: 'site_invitation',
+        targetId: invitation.id,
+        targetName: invitation.email,
+        metadata: { email: invitation.email },
+      })
+    }
     return c.json(invitation, 201)
   })
   .post('/:id/resend', async (c) => {
@@ -91,6 +104,7 @@ export const adminSiteInvitations = new Hono<Env>()
   .delete('/:id', async (c) => {
     const db = c.get('platform').db
     const userId = c.get('userId')
+    const orgId = c.get('orgId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
 
     const id = c.req.param('id')
@@ -98,6 +112,16 @@ export const adminSiteInvitations = new Hono<Env>()
     if (result === 'not_found') return c.json({ error: 'Invitation not found' }, 404)
     if (result === 'already_accepted') return c.json({ error: 'Invitation has already been used' }, 400)
     if (result === 'already_revoked') return c.json({ error: 'Invitation has already been revoked' }, 400)
+    if (orgId) {
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'site_invitation_revoke',
+        targetType: 'site_invitation',
+        targetId: id,
+        targetName: id,
+      })
+    }
     return c.json({ id, revoked: true })
   })
 

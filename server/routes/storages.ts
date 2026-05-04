@@ -5,6 +5,7 @@ import { createStorageSchema, updateStorageSchema } from '../../shared/schemas'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 import {
   countStorages,
   createStorage,
@@ -23,6 +24,8 @@ const app = new Hono<Env>()
   })
   .post('/', zValidator('json', createStorageSchema), async (c) => {
     const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
     const [total, state] = await Promise.all([countStorages(db), loadBindingState(db)])
     if (!hasFeature('storages_unlimited', state) && total >= FREE_STORAGE_LIMIT) {
       return c.json(
@@ -35,7 +38,17 @@ const app = new Hono<Env>()
         402,
       )
     }
-    const storage = await createStorage(db, c.req.valid('json'))
+    const body = c.req.valid('json')
+    const storage = await createStorage(db, body)
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'storage_create',
+      targetType: 'storage',
+      targetId: storage.id,
+      targetName: storage.title,
+      metadata: { mode: storage.mode, bucket: storage.bucket },
+    })
     return c.json(storage, 201)
   })
   .get('/:id', async (c) => {
@@ -47,17 +60,39 @@ const app = new Hono<Env>()
   })
   .put('/:id', zValidator('json', updateStorageSchema), async (c) => {
     const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
     const id = c.req.param('id')
     const storage = await updateStorage(db, id, c.req.valid('json'))
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'storage_update',
+      targetType: 'storage',
+      targetId: storage.id,
+      targetName: storage.title,
+      metadata: { mode: storage.mode },
+    })
     return c.json(storage)
   })
   .delete('/:id', async (c) => {
     const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
     const id = c.req.param('id')
+    const existing = await getStorage(db, id)
     const result = await deleteStorage(db, id)
     if (result === 'not_found') return c.json({ error: 'Storage not found' }, 404)
     if (result === 'in_use') return c.json({ error: 'Storage is referenced by existing files' }, 409)
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'storage_delete',
+      targetType: 'storage',
+      targetId: id,
+      targetName: existing?.title ?? id,
+    })
     return c.json({ id, deleted: true })
   })
 

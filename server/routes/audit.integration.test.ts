@@ -28,12 +28,13 @@ describe('GET /api/admin/audit — auth guards', () => {
 })
 
 describe('GET /api/admin/audit — licensed admin', () => {
-  it('returns empty list when no events exist', async () => {
+  it('returns empty list when no non-auth events exist', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/audit', { headers })
+    // Filter to non-auth events — admin setup records a sign_up audit event
+    const res = await app.request('/api/admin/audit?targetType=file', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
     expect(body.items).toEqual([])
@@ -79,10 +80,11 @@ describe('GET /api/admin/audit — licensed admin', () => {
     const res = await app.request('/api/admin/audit', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
-    expect(body.total).toBe(2)
-    // newest first
-    expect(body.items[0].id).toBe('evt-b')
-    expect(body.items[1].id).toBe('evt-a')
+    // admin setup records a sign_up event; seeded events are evt-a and evt-b
+    expect(body.total).toBeGreaterThanOrEqual(2)
+    // newest first: evt-b (June) before evt-a (Jan), admin sign_up is even newer
+    const ids = body.items.map((i) => i.id)
+    expect(ids.indexOf('evt-b')).toBeLessThan(ids.indexOf('evt-a'))
   })
 
   it('filters by orgId', async () => {
@@ -297,10 +299,13 @@ describe('GET /api/admin/audit — licensed admin', () => {
 
     const res = await app.request('/api/admin/audit', { headers })
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
-    expect(body.total).toBe(1)
-    const item = body.items[0]
+    // admin setup records a sign_up event; seeded actor-evt-1 is the file upload
+    expect(body.total).toBeGreaterThanOrEqual(1)
+    // Find the seeded file event (sorted newest-first, so it could be at index 0 or 1)
+    const item = body.items.find((i) => i.id === 'actor-evt-1')
+    expect(item).toBeDefined()
     expect(item).toHaveProperty('user')
-    expect((item.user as Record<string, unknown>).name).toBeTruthy()
+    expect((item!.user as Record<string, unknown>).name).toBeTruthy()
     expect(item).toHaveProperty('orgName')
   })
 })

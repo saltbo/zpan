@@ -9,6 +9,7 @@ import { performRefresh } from '../licensing/refresh'
 import { normalizeHost, verifyCertificate } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 import { createPairing, pollPairing } from '../services/licensing-cloud'
 
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
@@ -86,6 +87,20 @@ const app = new Hono<Env>()
 
       invalidateEntitlementCache()
 
+      const userId = c.get('userId')!
+      const orgId = c.get('orgId')!
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'license_pair',
+        targetType: 'license',
+        targetName: result.account.email ?? result.account.id,
+        metadata: {
+          cloudAccountId: result.account.id,
+          edition: assertion.edition,
+        },
+      })
+
       return c.json({
         status: 'approved' as const,
         edition: assertion.edition,
@@ -101,19 +116,38 @@ const app = new Hono<Env>()
 
   .post('/refresh', async (c) => {
     const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
     const baseUrl = getCloudBaseUrl(c)
 
     await performRefresh(db, baseUrl)
 
     const state = await loadLicenseState(db)
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'license_refresh',
+      targetType: 'license',
+      targetName: 'license',
+    })
     return c.json({ success: true, last_refresh_at: state.lastRefreshAt })
   })
 
   .delete('/binding', async (c) => {
     const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
 
     await clearLicenseBinding(db)
     invalidateEntitlementCache()
+
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'license_disconnect',
+      targetType: 'license',
+      targetName: 'license',
+    })
 
     return c.json({ deleted: true })
   })

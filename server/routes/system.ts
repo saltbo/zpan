@@ -7,6 +7,7 @@ import { systemOptions } from '../db/schema'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 
 const setOptionSchema = z.object({
   value: z.string(),
@@ -56,16 +57,46 @@ const app = new Hono<Env>()
     if (existing.length > 0) {
       const nextPublic = body.public ?? existing[0].public
       await db.update(systemOptions).set({ value: body.value, public: nextPublic }).where(eq(systemOptions.key, key))
+      const userId = c.get('userId')!
+      const orgId = c.get('orgId')!
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'system_option_set',
+        targetType: 'system',
+        targetName: key,
+        metadata: { key, changed: true },
+      })
       return c.json({ key, value: body.value, public: !!nextPublic })
     }
     const nextPublic = body.public ?? false
     await db.insert(systemOptions).values({ key, value: body.value, public: nextPublic })
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'system_option_set',
+      targetType: 'system',
+      targetName: key,
+      metadata: { key, created: true },
+    })
     return c.json({ key, value: body.value, public: !!nextPublic }, 201)
   })
   .delete('/options/:key', requireAdmin, async (c) => {
     const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
     const key = c.req.param('key')
     await db.delete(systemOptions).where(eq(systemOptions.key, key))
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'system_option_delete',
+      targetType: 'system',
+      targetName: key,
+      metadata: { key },
+    })
     return c.json({ key, deleted: true })
   })
 

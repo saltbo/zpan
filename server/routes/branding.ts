@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
+import { recordActivity } from '../services/activity'
 import {
   type BRANDING_KEYS,
   readBranding,
@@ -27,6 +28,9 @@ export const brandingAdmin = new Hono<Env>()
   .use(requireFeature('white_label'))
   .put('/', async (c) => {
     const platform = c.get('platform')
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
+    const changedFields: string[] = []
 
     // Multipart is not expressible via Hono RPC (same documented exception as avatar/team logo);
     // check content-type before calling formData() to give a clear 415 on wrong media type.
@@ -39,24 +43,39 @@ export const brandingAdmin = new Hono<Env>()
     if (logoFile instanceof File && logoFile.size > 0) {
       const result = await uploadBrandingImage(platform, 'logo', logoFile)
       if (!result.ok) return c.json({ error: result.error }, result.status)
+      changedFields.push('logo')
     }
 
     const faviconFile = form.get('favicon')
     if (faviconFile instanceof File && faviconFile.size > 0) {
       const result = await uploadBrandingImage(platform, 'favicon', faviconFile)
       if (!result.ok) return c.json({ error: result.error }, result.status)
+      changedFields.push('favicon')
     }
 
     const wordmarkRaw = form.get('wordmark_text')
     if (typeof wordmarkRaw === 'string') {
       if (wordmarkRaw.length > 24) return c.json({ error: 'wordmark_text must be 24 characters or fewer' }, 422)
       await setBrandingField(platform.db, 'wordmark_text', wordmarkRaw)
+      changedFields.push('wordmark_text')
     }
 
     const hidePoweredByRaw = form.get('hide_powered_by')
     if (hidePoweredByRaw !== null) {
       const value = hidePoweredByRaw === 'true' || hidePoweredByRaw === '1' ? 'true' : 'false'
       await setBrandingField(platform.db, 'hide_powered_by', value)
+      changedFields.push('hide_powered_by')
+    }
+
+    if (changedFields.length > 0) {
+      await recordActivity(platform.db, {
+        orgId,
+        userId,
+        action: 'branding_update',
+        targetType: 'branding',
+        targetName: 'branding',
+        metadata: { fields: changedFields },
+      })
     }
 
     return c.json(await readBranding(platform.db))
@@ -66,6 +85,16 @@ export const brandingAdmin = new Hono<Env>()
     if (!VALID_RESET_FIELDS.has(rawField as BrandingField)) {
       return c.json({ error: `Invalid field. Valid fields: ${[...VALID_RESET_FIELDS].join(', ')}` }, 400)
     }
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId')!
     await resetBrandingField(c.get('platform').db, rawField as BrandingField)
+    await recordActivity(c.get('platform').db, {
+      orgId,
+      userId,
+      action: 'branding_reset',
+      targetType: 'branding',
+      targetName: rawField,
+      metadata: { field: rawField },
+    })
     return c.json({ field: rawField, reset: true })
   })

@@ -17,6 +17,7 @@ import * as authSchema from './db/auth-schema'
 import { orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
+import { recordActivity } from './services/activity'
 import { isEmailConfigured, sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
 import { findPersonalOrg } from './services/org'
@@ -286,6 +287,18 @@ export async function createAuth(
             const existing = await findPersonalOrg(db, user.id)
             if (!existing) {
               await createPersonalOrg(db, user)
+            }
+
+            // Audit: record sign_up. Non-fatal: do not block registration if recording fails.
+            const orgId = await findPersonalOrg(db, user.id)
+            if (orgId) {
+              recordActivity(db, {
+                orgId,
+                userId: user.id,
+                action: 'sign_up',
+                targetType: 'auth',
+                targetName: user.email ?? user.name ?? user.id,
+              }).catch(() => {})
             }
           },
         },

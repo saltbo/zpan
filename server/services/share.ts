@@ -153,6 +153,29 @@ export async function getShareCreatorByToken(db: Database, token: string): Promi
   return rows[0]?.creatorId ?? null
 }
 
+export type ShareMeta = {
+  id: string
+  orgId: string
+  creatorId: string
+  matterId: string
+  kind: string
+}
+
+export async function getShareMetaByToken(db: Database, token: string): Promise<ShareMeta | null> {
+  const rows = await db
+    .select({
+      id: shares.id,
+      orgId: shares.orgId,
+      creatorId: shares.creatorId,
+      matterId: shares.matterId,
+      kind: shares.kind,
+    })
+    .from(shares)
+    .where(eq(shares.token, token))
+    .limit(1)
+  return rows[0] ?? null
+}
+
 export async function revokeShareByToken(db: Database, token: string, creatorId: string): Promise<boolean> {
   const result = await db
     .update(shares)

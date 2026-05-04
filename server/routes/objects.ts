@@ -11,6 +11,7 @@ import {
 import type { Storage as S3Storage } from '../../shared/types'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { recordActivity } from '../services/activity'
 import {
   batchMove,
   batchTrash,
@@ -127,6 +128,17 @@ const app = new Hono<Env>()
       case 'trash': {
         try {
           const trashed = await batchTrash(db, orgId, body.ids)
+          const userId = c.get('userId')!
+          if (trashed.length > 0) {
+            await recordActivity(db, {
+              orgId,
+              userId,
+              action: 'batch_trash',
+              targetType: 'file',
+              targetName: `${trashed.length} items`,
+              metadata: { count: trashed.length, ids: body.ids },
+            })
+          }
           return c.json({ trashed: trashed.length })
         } catch (e) {
           return c.json({ error: (e as Error).message }, 400)
@@ -154,6 +166,17 @@ const app = new Hono<Env>()
       for (const item of items) {
         const ms = await collectForPurge(db, orgId, item)
         purged += await purgeRecursively(db, orgId, ms)
+      }
+      const userId = c.get('userId')!
+      if (purged > 0) {
+        await recordActivity(db, {
+          orgId,
+          userId,
+          action: 'batch_purge',
+          targetType: 'file',
+          targetName: `${uniqueIds.length} items`,
+          metadata: { count: purged, ids: uniqueIds },
+        })
       }
       return c.json({ deleted: purged })
     } catch (e) {
@@ -205,6 +228,15 @@ const app = new Hono<Env>()
           })
           if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
           if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
+          await recordActivity(db, {
+            orgId,
+            userId,
+            action: 'upload_confirm',
+            targetType: 'file',
+            targetId: matter.id,
+            targetName: matter.name,
+            metadata: { size: matter.size },
+          })
           return c.json(matter)
         } catch (e) {
           if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
@@ -224,6 +256,14 @@ const app = new Hono<Env>()
             }
           }
         }
+        await recordActivity(db, {
+          orgId,
+          userId,
+          action: 'upload_cancel',
+          targetType: 'file',
+          targetId: matter.id,
+          targetName: matter.name,
+        })
         return c.json({ id: matter.id, cancelled: true })
       }
       case 'trash': {
@@ -247,13 +287,24 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
     const db = c.get('platform').db
+    const userId = c.get('userId')!
     const ms = await collectForPurge(db, orgId, c.req.param('id'))
     if (!ms) return c.json({ error: 'Not found' }, 404)
     if (ms[0].status !== 'trashed') {
       return c.json({ error: 'Object must be trashed before permanent deletion' }, 409)
     }
+    const root = ms[0]
     const purged = await purgeRecursively(db, orgId, ms)
-    return c.json({ id: ms[0].id, deleted: true, purged })
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'object_purge',
+      targetType: root.dirtype !== DirType.FILE ? 'folder' : 'file',
+      targetId: root.id,
+      targetName: root.name,
+      metadata: { count: purged },
+    })
+    return c.json({ id: root.id, deleted: true, purged })
   })
   .post('/copy', requireTeamRole('editor'), zValidator('json', copyMatterSchema), async (c) => {
     const orgId = c.get('orgId')
@@ -285,6 +336,15 @@ const app = new Hono<Env>()
 
     try {
       const copy = await copyMatter(db, source, parent, newObject, { onConflict, userId })
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'object_copy',
+        targetType: copy.dirtype !== DirType.FILE ? 'folder' : 'file',
+        targetId: copy.id,
+        targetName: copy.name,
+        metadata: { from: source.id, fromName: source.name, to: parent },
+      })
       return c.json(copy, 201)
     } catch (e) {
       if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
