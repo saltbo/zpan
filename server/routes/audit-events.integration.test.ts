@@ -560,6 +560,33 @@ describe('Audit: auth lifecycle', () => {
     // Password must not appear in any field
     expect(events[0].targetName).not.toContain('password')
   })
+
+  it('does not record invite_code_redeem when inviteCode is present but mode is not invite_only', async () => {
+    // In open signup mode, inviteCode in the body is ignored by Better Auth —
+    // no redemption occurs, so no invite_code_redeem event should be recorded
+    // and the sign-up must still succeed (no invariant violation).
+    const { app, db } = await createTestApp()
+
+    const res = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Bob',
+        email: 'bob-open-mode@example.com',
+        password: 'password123456',
+        inviteCode: 'some-code-that-does-not-exist',
+      }),
+    })
+    // Sign-up should succeed; no invite_code_redeem row should be written
+    expect(res.status).toBe(200)
+
+    const redeemEvents = await getAuditEvents(db, 'invite_code_redeem')
+    expect(redeemEvents).toHaveLength(0)
+
+    // sign_up event should still be recorded
+    const signUpEvents = await getAuditEvents(db, 'sign_up')
+    expect(signUpEvents).toHaveLength(1)
+  })
 })
 
 // ─── Site invitation lifecycle ────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { SignupMode } from '../shared/constants'
 import type { Auth } from './auth'
 import { inviteCodes as inviteCodesTable } from './db/schema'
 import { authMiddleware } from './middleware/auth'
@@ -34,6 +35,7 @@ import trash from './routes/trash'
 import users from './routes/users'
 import { recordActivity } from './services/activity'
 import { findPersonalOrg } from './services/org'
+import { getEffectiveSignupMode } from './services/signup-mode-guard'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
@@ -59,77 +61,85 @@ export function createApp(platform: Platform, auth: Auth) {
     // Intercept sign-up to record audit events using the fresh per-request db.
     // The cached auth instance's db (from first isolate request) may not guarantee
     // read-your-writes for INSERT operations in CF Workers D1, so we record here
-    // instead of in user.create.after. Audit failure is logged but non-fatal:
-    // the auth transaction has already committed and sending a 500 would confuse
-    // a user who is already signed in.
+    // instead of in user.create.after.
     const url = new URL(c.req.url)
     const isSignUp = c.req.method === 'POST' && url.pathname === '/api/auth/sign-up/email'
 
-    let signUpBody: { email?: string; inviteCode?: string; siteInvitationToken?: string } | null = null
+    let signUpBody: { inviteCode?: string; siteInvitationToken?: string } | null = null
     if (isSignUp) {
       try {
         signUpBody = await c.req.raw.clone().json()
       } catch {
-        // non-JSON or empty body — no body info available for audit
+        // non-JSON body — treat as no extra fields
       }
     }
 
     const response = await a.handler(c.req.raw)
 
-    if (isSignUp && response.ok) {
-      try {
-        const body = (await response.clone().json()) as {
-          user?: { id?: string; email?: string }
-          token?: string | null
-        }
-        const userId = body?.user?.id
-        if (userId) {
-          const orgId = await findPersonalOrg(db, userId)
-          if (orgId) {
-            await recordActivity(db, {
-              orgId,
-              userId,
-              action: 'sign_up',
-              targetType: 'auth',
-              targetName: body.user?.email ?? userId,
-            })
+    if (!isSignUp || !response.ok) {
+      return response
+    }
 
-            // If an invite code was redeemed, record it using the code's row ID (never the raw code).
-            if (signUpBody?.inviteCode) {
-              const [codeRow] = await db
-                .select({ id: inviteCodesTable.id })
-                .from(inviteCodesTable)
-                .where(eq(inviteCodesTable.usedBy, userId))
-                .limit(1)
-              if (codeRow) {
-                await recordActivity(db, {
-                  orgId,
-                  userId,
-                  action: 'invite_code_redeem',
-                  targetType: 'invite_code',
-                  targetId: codeRow.id,
-                  targetName: 'invite code',
-                })
-              }
-            }
+    // Audit sign-up. Any failure here fails the request (fail-fast): the response
+    // has not been sent yet and the invariants below must hold after a successful signup.
+    const body = (await response.clone().json()) as {
+      user?: { id?: string; email?: string }
+    }
+    const userId = body?.user?.id
+    if (!userId) {
+      throw new Error('sign-up succeeded but response contains no user.id — cannot record audit event')
+    }
 
-            // If a site invitation was accepted during sign-up, record it.
-            if (signUpBody?.siteInvitationToken) {
-              await recordActivity(db, {
-                orgId,
-                userId,
-                action: 'site_invitation_accept',
-                targetType: 'site_invitation',
-                targetName: body.user?.email ?? userId,
-              })
-            }
-          }
+    const orgId = await findPersonalOrg(db, userId)
+    if (!orgId) {
+      throw new Error(`sign-up succeeded for user ${userId} but personal org not found — cannot record audit event`)
+    }
+
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'sign_up',
+      targetType: 'auth',
+      targetName: body.user?.email ?? userId,
+    })
+
+    // If an invite code was submitted and signup succeeded, the code MUST be redeemed
+    // (this only applies in INVITE_ONLY mode — in other modes the code is ignored).
+    // Absence of the redeemed code row is an invariant violation — fail loudly.
+    if (signUpBody?.inviteCode) {
+      const signupMode = await getEffectiveSignupMode(db)
+      if (signupMode === SignupMode.INVITE_ONLY) {
+        const [codeRow] = await db
+          .select({ id: inviteCodesTable.id })
+          .from(inviteCodesTable)
+          .where(eq(inviteCodesTable.usedBy, userId))
+          .limit(1)
+        if (!codeRow) {
+          throw new Error(
+            `sign-up with invite code succeeded for user ${userId} but redeemed code row not found — invariant violation`,
+          )
         }
-      } catch (err) {
-        // Audit recording failed after auth committed — log for observability.
-        // Cannot surface to client: session cookie is already set in `response`.
-        console.error('[audit] Failed to record sign-up audit events:', err)
+        // Store row ID (safe opaque identifier), never the raw redeemable code value.
+        await recordActivity(db, {
+          orgId,
+          userId,
+          action: 'invite_code_redeem',
+          targetType: 'invite_code',
+          targetId: codeRow.id,
+          targetName: 'invite code',
+        })
       }
+    }
+
+    // If a site invitation token was submitted, record acceptance.
+    if (signUpBody?.siteInvitationToken) {
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'site_invitation_accept',
+        targetType: 'site_invitation',
+        targetName: body.user?.email ?? userId,
+      })
     }
 
     return response
