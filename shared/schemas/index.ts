@@ -12,6 +12,8 @@ export {
   listAdminAnnouncementsQuerySchema,
   listAnnouncementsQuerySchema,
 } from './announcement'
+export type { ListAdminAuditQuery } from './audit'
+export { listAdminAuditQuerySchema } from './audit'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
 export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'

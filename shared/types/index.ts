@@ -215,6 +215,10 @@ export interface ActivityEvent {
   }
 }
 
+export interface AdminAuditEvent extends ActivityEvent {
+  orgName: string | null
+}
+
 export interface ImageHostingConfig {
   orgId: string
   customDomain: string | null

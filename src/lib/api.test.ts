@@ -45,6 +45,7 @@ import {
   getUserQuota,
   listActiveAnnouncements,
   listAdminAnnouncements,
+  listAdminAuditLogs,
   listAnnouncements,
   listAuthProviders,
   listIhostApiKeys,
@@ -2398,6 +2399,70 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'send failed' }, false, 400))
 
       await expect(testEmail('user@example.com')).rejects.toThrow('send failed')
+    })
+  })
+
+  describe('listAdminAuditLogs', () => {
+    const auditEvent = {
+      id: 'evt-1',
+      orgId: 'org-1',
+      userId: 'user-1',
+      action: 'upload',
+      targetType: 'file',
+      targetId: 'file-1',
+      targetName: 'doc.pdf',
+      metadata: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      user: { id: 'user-1', name: 'Alice', image: null },
+      orgName: 'Personal',
+    }
+
+    it('calls correct URL with defaults', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 20 }))
+
+      await listAdminAuditLogs()
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/admin/audit')
+      expect(url).toContain('page=1')
+      expect(url).toContain('pageSize=20')
+    })
+
+    it('includes optional filters in query', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 20 }))
+
+      await listAdminAuditLogs(2, 10, { orgId: 'org-1', userId: 'user-1', action: 'upload', targetType: 'file' })
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('page=2')
+      expect(url).toContain('pageSize=10')
+      expect(url).toContain('orgId=org-1')
+      expect(url).toContain('userId=user-1')
+      expect(url).toContain('action=upload')
+      expect(url).toContain('targetType=file')
+    })
+
+    it('returns parsed paginated response', async () => {
+      const payload = { items: [auditEvent], total: 1, page: 1, pageSize: 20 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listAdminAuditLogs()
+
+      expect(result).toEqual(payload)
+    })
+
+    it('throws ApiError on failed response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(listAdminAuditLogs()).rejects.toThrow('Forbidden')
+    })
+
+    it('throws ApiError with status 402 when feature unavailable', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: 'feature_not_available', feature: 'audit_log' }, false, 402),
+      )
+
+      await expect(listAdminAuditLogs()).rejects.toMatchObject({ status: 402 })
     })
   })
 })

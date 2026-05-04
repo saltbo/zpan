@@ -9,6 +9,7 @@ import type {
 } from '@shared/schemas'
 import type {
   ActivityEvent,
+  AdminAuditEvent,
   Announcement,
   AuthProvider,
   BindingState,
@@ -26,6 +27,7 @@ import type {
 } from '@shared/types'
 import {
   adminAnnouncementsApi,
+  adminAuditApi,
   adminAuthProviders,
   adminQuotas,
   adminSiteInvitations,
@@ -873,4 +875,25 @@ export async function resetBrandingField(field: BrandingField): Promise<void> {
     const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody
     throw new ApiError(res.status, { ...parsed, error: parsed.error ?? res.statusText })
   }
+}
+
+// Admin Audit Logs API
+
+export interface AdminAuditFilter {
+  orgId?: string
+  userId?: string
+  action?: string
+  targetType?: string
+}
+
+export function listAdminAuditLogs(page = 1, pageSize = 20, filter: AdminAuditFilter = {}) {
+  const query: Record<string, string> = {
+    page: String(page),
+    pageSize: String(pageSize),
+  }
+  if (filter.orgId) query.orgId = filter.orgId
+  if (filter.userId) query.userId = filter.userId
+  if (filter.action) query.action = filter.action
+  if (filter.targetType) query.targetType = filter.targetType
+  return unwrap<PaginatedResponse<AdminAuditEvent>>(adminAuditApi.index.$get({ query }))
 }

@@ -8,6 +8,7 @@ import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
 import type { Platform } from './platform/interface'
 import { adminAnnouncements, announcements } from './routes/announcements'
+import { adminAudit } from './routes/audit'
 import { adminAuthProviders, publicAuthProviders } from './routes/auth-providers'
 import { brandingAdmin, publicBranding } from './routes/branding'
 import emailConfig from './routes/email-config'
@@ -92,6 +93,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/licensing', licensingAdmin)
   app.route('/api/admin/branding', brandingAdmin)
   app.route('/api/admin/announcements', adminAnnouncements)
+  app.route('/api/admin/audit', adminAudit)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
@@ -130,3 +132,4 @@ export type LicensingRoute = typeof licensing
 export type LicensingAdminRoute = typeof licensingAdmin
 export type PublicBrandingRoute = typeof publicBranding
 export type BrandingAdminRoute = typeof brandingAdmin
+export type AdminAuditRoute = typeof adminAudit

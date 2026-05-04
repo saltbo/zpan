@@ -129,7 +129,6 @@ export const FEATURE_REGISTRY = [
     community: false,
     pro: true,
     gateKey: 'audit_log',
-    comingSoon: true,
   },
   {
     i18nKey: 'features.webhooks',
