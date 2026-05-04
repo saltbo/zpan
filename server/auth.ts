@@ -14,7 +14,7 @@ import {
   parseProviderConfig,
 } from '../shared/oauth-providers'
 import * as authSchema from './db/auth-schema'
-import { orgQuotas, systemOptions } from './db/schema'
+import { inviteCodes as inviteCodesTable, orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
@@ -330,12 +330,18 @@ export async function createAuth(
           after: async (user, context) => {
             // Redeem invite code after user is created (user.id is now available)
             const mode = await getEffectiveSignupMode(db)
-            let redeemedInviteCode: string | undefined
+            let redeemedCodeId: string | undefined
             if (mode === SignupMode.INVITE_ONLY) {
               const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
               if (inviteCode) {
                 await redeemInviteCode(db, inviteCode, user.id)
-                redeemedInviteCode = inviteCode
+                // Look up the row ID by usedBy so we never store the raw code value
+                const [row] = await db
+                  .select({ id: inviteCodesTable.id, expiresAt: inviteCodesTable.expiresAt })
+                  .from(inviteCodesTable)
+                  .where(eq(inviteCodesTable.usedBy, user.id))
+                  .limit(1)
+                redeemedCodeId = row?.id
               }
             }
 
@@ -369,13 +375,15 @@ export async function createAuth(
                 targetType: 'auth',
                 targetName: user.email ?? user.name ?? user.id,
               })
-              if (redeemedInviteCode) {
+              if (redeemedCodeId !== undefined) {
                 await recordActivity(db, {
                   orgId,
                   userId: user.id,
                   action: 'invite_code_redeem',
                   targetType: 'invite_code',
-                  targetName: redeemedInviteCode,
+                  targetId: redeemedCodeId,
+                  // Use a safe generic label — never store the raw code value
+                  targetName: 'invite code',
                 })
               }
               if (siteInvitationAccepted) {

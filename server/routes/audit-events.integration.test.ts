@@ -653,8 +653,9 @@ describe('Audit: invite code lifecycle', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ count: 1 }),
     })
-    const { codes } = (await genRes.json()) as { codes: Array<{ code: string }> }
-    const code = codes[0].code
+    const { codes } = (await genRes.json()) as { codes: Array<{ id: string; code: string }> }
+    const rawCode = codes[0].code
+    const codeRowId = codes[0].id
 
     // Sign up using the invite code
     const signUpRes = await app.request('/api/auth/sign-up/email', {
@@ -664,14 +665,21 @@ describe('Audit: invite code lifecycle', () => {
         name: 'Redeemer',
         email: 'redeemer@example.com',
         password: 'password123456',
-        inviteCode: code,
+        inviteCode: rawCode,
       }),
     })
     expect(signUpRes.status).toBe(200)
 
     const events = await getAuditEvents(db, 'invite_code_redeem')
     expect(events).toHaveLength(1)
-    // The actual code value is stored as targetName but not in metadata (no secrets)
+    const evt = events[0]
+    // The row ID (safe) should be recorded, not the raw code value
+    expect(evt.targetId).toBe(codeRowId)
+    expect(evt.targetName).toBe('invite code')
+    // Raw code must NOT appear anywhere in the event row
+    expect(evt.targetName).not.toBe(rawCode)
+    expect(evt.targetId).not.toBe(rawCode)
+    expect(evt.metadata ?? '').not.toContain(rawCode)
     assertNoSecrets(events[0].metadata)
   })
 })
