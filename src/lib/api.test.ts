@@ -297,7 +297,7 @@ describe('api', () => {
     })
 
     it('creates and updates packages with typed RPC paths', async () => {
-      const payload = { name: 'Small', bytes: 1024, amount: 500, currency: 'usd' }
+      const payload = { name: 'Small', bytes: 1024, amount: 500, currency: 'usd' as const }
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
         .mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))

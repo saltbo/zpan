@@ -7,11 +7,17 @@ const SECRET = 'quota-secret'
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ cloudPackageId: 'cloud-pkg-1', checkoutUrl: 'https://cloud.example/checkout' }),
-    } as Response),
+    vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { packages?: Array<{ id: string }> }
+      return {
+        ok: true,
+        status: 200,
+        json: async () =>
+          body.packages
+            ? { packages: body.packages.map((pkg) => ({ id: `cloud-${pkg.id}`, externalPackageId: pkg.id })) }
+            : { orderId: 'order-cloud-1', url: 'https://cloud.example/checkout', ok: true },
+      } as Response
+    }),
   )
 })
 
@@ -35,7 +41,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({
       eventId: 'evt-no-pro',
       cloudOrderId: 'order-no-pro',
-      orgId: 'org-no-pro',
+      targetOrgId: 'org-no-pro',
       source: 'stripe',
       bytes: 1024,
     })
@@ -99,8 +105,8 @@ describe('Quota Store API', () => {
       app,
       JSON.stringify({
         eventId: 'evt-preserved-secret',
-        cloudOrderId: 'order-preserved-secret',
-        orgId,
+        cloudRedemptionId: 'redemption-preserved-secret',
+        targetOrgId: orgId,
         source: 'redeem_code',
         code: 'PRESERVED',
         bytes: 1024,
@@ -124,12 +130,24 @@ describe('Quota Store API', () => {
     const created = await app.request('/api/admin/quota-store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Small', description: 'starter', bytes: 4096, amount: 500, currency: 'USD' }),
+      body: JSON.stringify({ name: 'Small', description: 'starter', bytes: 4096, amount: 500, currency: 'usd' }),
     })
     const listed = await app.request('/api/admin/quota-store/packages', { headers })
 
     expect(created.status).toBe(201)
-    await expect(created.json()).resolves.toMatchObject({ cloudPackageId: 'cloud-pkg-1', syncStatus: 'synced' })
+    await expect(created.json()).resolves.toMatchObject({ syncStatus: 'synced' })
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
+    const syncBody = String(init.body)
+    const syncTimestamp = (init.headers as Record<string, string>)['x-zpan-store-timestamp']
+    expect(String(url)).toBe('https://cloud.example/api/store/packages/sync')
+    expect((init.headers as Record<string, string>)['x-zpan-store-signature']).toBe(
+      await signPayload(`${syncTimestamp}.${syncBody}`),
+    )
+    expect(JSON.parse(syncBody)).toMatchObject({
+      boundLicenseId: 'test-binding',
+      callbackUrl: 'https://zpan.example/api/quota-store/webhooks/cloud',
+      packages: [{ name: 'Small', description: 'starter', bytes: 4096, amount: 500, currency: 'usd', active: true }],
+    })
     expect(listed.status).toBe(200)
     await expect(listed.json()).resolves.toMatchObject({ total: 1 })
   })
@@ -166,6 +184,20 @@ describe('Quota Store API', () => {
 
     expect(res.status).toBe(202)
     await expect(res.json()).resolves.toMatchObject({ syncStatus: 'failed', syncError: 'invalid_cloud_response' })
+  })
+
+  it('rejects currencies Cloud does not accept', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/admin/quota-store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Euro', description: '', bytes: 4096, amount: 500, currency: 'eur' }),
+    })
+
+    expect(res.status).toBe(400)
   })
 
   it('rejects non-json successful package sync responses', async () => {
@@ -205,8 +237,42 @@ describe('Quota Store API', () => {
 
     expect(res.status).toBe(200)
     const calls = vi.mocked(fetch).mock.calls
-    const [, init] = calls[calls.length - 1] as [URL, RequestInit]
-    expect(JSON.parse(init.body as string)).toMatchObject({ action: 'delete', package: { id: packageId } })
+    const [url, init] = calls[calls.length - 1] as [URL, RequestInit]
+    expect(String(url)).toBe('https://cloud.example/api/store/packages/sync')
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      boundLicenseId: 'test-binding',
+      callbackUrl: 'https://zpan.example/api/quota-store/webhooks/cloud',
+      packages: [],
+    })
+  })
+
+  it('ignores stale Cloud catalog rows when marking packages synced', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { packages: Array<{ id: string }> }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          packages: [
+            { id: 'cloud-pkg-1', externalPackageId: body.packages[0].id },
+            { id: 'cloud-deleted', externalPackageId: 'deleted-package' },
+          ],
+        }),
+      } as Response
+    })
+
+    const res = await app.request('/api/admin/quota-store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Small', description: '', bytes: 4096, amount: 500, currency: 'usd' }),
+    })
+
+    expect(res.status).toBe(201)
+    await expect(res.json()).resolves.toMatchObject({ syncStatus: 'synced' })
   })
 
   it('preserves existing Cloud package id when update sync fails', async () => {
@@ -320,7 +386,28 @@ describe('Quota Store API', () => {
     expect(checkout.status).toBe(200)
     await expect(checkout.json()).resolves.toEqual({ checkoutUrl: 'https://cloud.example/checkout' })
     expect(redemption.status).toBe(200)
-    await expect(redemption.json()).resolves.toMatchObject({ checkoutUrl: 'https://cloud.example/checkout' })
+    await expect(redemption.json()).resolves.toMatchObject({ ok: true })
+    const [checkoutUrl, checkoutInit] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
+    const [redemptionUrl, redemptionInit] = vi.mocked(fetch).mock.calls[1] as [URL, RequestInit]
+    const checkoutBody = JSON.parse(String(checkoutInit.body)) as { session: string }
+    const redemptionBody = JSON.parse(String(redemptionInit.body)) as { code: string; session: string }
+    expect(String(checkoutUrl)).toBe('https://cloud.example/api/store/checkout')
+    expect(String(redemptionUrl)).toBe('https://cloud.example/api/store/redemptions')
+    expect(checkoutInit.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(redemptionInit.headers).toEqual({ 'Content-Type': 'application/json' })
+    await expect(decodeSession(checkoutBody.session)).resolves.toMatchObject({
+      boundLicenseId: 'test-binding',
+      externalPackageId: packageId,
+      targetOrgId: orgId,
+      amount: 500,
+      currency: 'usd',
+      bytes: 4096,
+    })
+    expect(redemptionBody.code).toBe('CODE-OK')
+    await expect(decodeSession(redemptionBody.session)).resolves.toMatchObject({
+      boundLicenseId: 'test-binding',
+      targetOrgId: orgId,
+    })
     expect(grants.status).toBe(200)
     await expect(grants.json()).resolves.toMatchObject({ total: 1, items: [{ orgId, bytes: 512 }] })
   })
@@ -401,7 +488,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({
       eventId: 'evt-1',
       cloudOrderId: 'order-1',
-      orgId,
+      targetOrgId: orgId,
       packageId,
       source: 'stripe',
       bytes: 4096,
@@ -441,8 +528,8 @@ describe('Quota Store API', () => {
       app,
       JSON.stringify({
         eventId: 'evt-code-1',
-        cloudOrderId: 'order-code-1',
-        orgId,
+        cloudRedemptionId: 'redemption-code-1',
+        targetOrgId: orgId,
         source: 'redeem_code',
         code: 'CODE-1',
         bytes: 4096,
@@ -452,8 +539,8 @@ describe('Quota Store API', () => {
       app,
       JSON.stringify({
         eventId: 'evt-code-2',
-        cloudOrderId: 'order-code-2',
-        orgId,
+        cloudRedemptionId: 'redemption-code-2',
+        targetOrgId: orgId,
         source: 'redeem_code',
         code: 'CODE-1',
         bytes: 4096,
@@ -482,7 +569,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({
       eventId: 'evt-invalid-package',
       cloudOrderId: 'order-invalid-package',
-      orgId,
+      targetOrgId: orgId,
       packageId,
       source: 'stripe',
       bytes: 8192,
@@ -527,7 +614,7 @@ describe('Quota Store API', () => {
       JSON.stringify({
         eventId: 'evt-grant-insert-failed',
         cloudOrderId: 'order-grant-insert-failed',
-        orgId,
+        targetOrgId: orgId,
         packageId,
         source: 'stripe',
         bytes: 4096,
@@ -565,7 +652,7 @@ describe('Quota Store API', () => {
       JSON.stringify({
         eventId: 'evt-ledger-insert-failed',
         cloudOrderId: 'order-ledger-insert-failed',
-        orgId,
+        targetOrgId: orgId,
         packageId,
         source: 'stripe',
         bytes: 4096,
@@ -586,7 +673,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({
       eventId: 'evt-hash-conflict',
       cloudOrderId: 'order-hash-conflict',
-      orgId,
+      targetOrgId: orgId,
       packageId,
       source: 'stripe',
       bytes: 8192,
@@ -598,7 +685,7 @@ describe('Quota Store API', () => {
       JSON.stringify({
         eventId: 'evt-hash-conflict',
         cloudOrderId: 'order-hash-conflict',
-        orgId,
+        targetOrgId: orgId,
         packageId,
         source: 'stripe',
         bytes: 4096,
@@ -618,7 +705,11 @@ describe('Quota Store API', () => {
 
     const res = await app.request('/api/quota-store/webhooks/cloud', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-zpan-signature': 'bad' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-zpan-cloud-timestamp': String(Date.now()),
+        'x-zpan-cloud-signature': 'bad',
+      },
       body: JSON.stringify({ eventId: 'evt-bad' }),
     })
 
@@ -631,12 +722,17 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-bad-same-length' })
-    const signature = await signPayload(payload)
+    const timestamp = String(Date.now())
+    const signature = await signPayload(`${timestamp}.${payload}`)
     const badSignature = `${signature.slice(0, -1)}${signature.endsWith('0') ? '1' : '0'}`
 
     const res = await app.request('/api/quota-store/webhooks/cloud', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-zpan-signature': badSignature },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-zpan-cloud-timestamp': timestamp,
+        'x-zpan-cloud-signature': badSignature,
+      },
       body: payload,
     })
 
@@ -664,7 +760,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({
       eventId: 'evt-no-package',
       cloudOrderId: 'order-no-package',
-      orgId: await getFirstOrgId(db),
+      targetOrgId: await getFirstOrgId(db),
       source: 'stripe',
       bytes: 4096,
     })
@@ -675,15 +771,14 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
   })
 
-  it('rejects redemption deliveries without a code', async () => {
+  it('rejects redemption deliveries without a Cloud redemption id', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({
       eventId: 'evt-no-code',
-      cloudOrderId: 'order-no-code',
-      orgId: await getFirstOrgId(db),
+      targetOrgId: await getFirstOrgId(db),
       source: 'redeem_code',
       bytes: 4096,
     })
@@ -742,9 +837,14 @@ async function seedGrant(db: Awaited<ReturnType<typeof createTestApp>>['db'], or
 }
 
 async function postWebhook(app: Awaited<ReturnType<typeof createTestApp>>['app'], payload: string) {
+  const timestamp = String(Date.now())
   return app.request('/api/quota-store/webhooks/cloud', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-zpan-signature': await signPayload(payload) },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-zpan-cloud-timestamp': timestamp,
+      'x-zpan-cloud-signature': await signPayload(`${timestamp}.${payload}`),
+    },
     body: payload,
   })
 }
@@ -759,4 +859,18 @@ async function signPayload(payload: string): Promise<string> {
   )
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload))
   return [...new Uint8Array(signature)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function decodeSession(token: string): Promise<Record<string, unknown>> {
+  const [encoded, signature] = token.split('.')
+  expect(signature).toBe(await signPayload(encoded))
+  return JSON.parse(new TextDecoder().decode(base64UrlBytes(encoded))) as Record<string, unknown>
+}
+
+function base64UrlBytes(value: string): Uint8Array {
+  const base64 = value
+    .replaceAll('-', '+')
+    .replaceAll('_', '/')
+    .padEnd(Math.ceil(value.length / 4) * 4, '=')
+  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
 }

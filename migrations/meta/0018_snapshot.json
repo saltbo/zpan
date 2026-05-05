@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f7f1598c-9d78-4d11-9fa2-d0b67e262951",
+  "id": "7823206a-dd19-4040-a34e-45d8e1028e93",
   "prevId": "98cf8886-a548-4438-a4b9-a57bfabf2529",
   "tables": {
     "activity_events": {
@@ -910,7 +910,14 @@
           "name": "cloud_order_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cloud_redemption_id": {
+          "name": "cloud_redemption_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "payload_hash": {
@@ -970,6 +977,13 @@
             "cloud_order_id"
           ],
           "isUnique": true
+        },
+        "quota_delivery_events_redemption_uniq": {
+          "name": "quota_delivery_events_redemption_uniq",
+          "columns": [
+            "cloud_redemption_id"
+          ],
+          "isUnique": true
         }
       },
       "foreignKeys": {},
@@ -1010,6 +1024,13 @@
         },
         "cloud_order_id": {
           "name": "cloud_order_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cloud_redemption_id": {
+          "name": "cloud_redemption_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1093,6 +1114,13 @@
           "name": "quota_grants_cloud_order_uniq",
           "columns": [
             "cloud_order_id"
+          ],
+          "isUnique": true
+        },
+        "quota_grants_cloud_redemption_uniq": {
+          "name": "quota_grants_cloud_redemption_uniq",
+          "columns": [
+            "cloud_redemption_id"
           ],
           "isUnique": true
         },

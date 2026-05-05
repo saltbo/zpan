@@ -77,6 +77,7 @@ export interface QuotaGrant {
   source: QuotaGrantSource
   externalEventId: string | null
   cloudOrderId: string | null
+  cloudRedemptionId: string | null
   code: string | null
   bytes: number
   packageSnapshot: string | null

@@ -307,7 +307,7 @@ export function createQuotaStorePackage(data: {
   description?: string
   bytes: number
   amount: number
-  currency: string
+  currency: 'usd' | 'cny'
   active?: boolean
   sortOrder?: number
 }) {

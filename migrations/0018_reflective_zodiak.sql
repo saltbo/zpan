@@ -1,7 +1,8 @@
 CREATE TABLE `quota_delivery_events` (
 	`id` text PRIMARY KEY NOT NULL,
 	`event_id` text NOT NULL,
-	`cloud_order_id` text NOT NULL,
+	`cloud_order_id` text,
+	`cloud_redemption_id` text,
 	`payload_hash` text NOT NULL,
 	`raw_payload` text NOT NULL,
 	`status` text NOT NULL,
@@ -12,12 +13,14 @@ CREATE TABLE `quota_delivery_events` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `quota_delivery_events_event_uniq` ON `quota_delivery_events` (`event_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `quota_delivery_events_order_uniq` ON `quota_delivery_events` (`cloud_order_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `quota_delivery_events_redemption_uniq` ON `quota_delivery_events` (`cloud_redemption_id`);--> statement-breakpoint
 CREATE TABLE `quota_grants` (
 	`id` text PRIMARY KEY NOT NULL,
 	`org_id` text NOT NULL,
 	`source` text NOT NULL,
 	`external_event_id` text,
 	`cloud_order_id` text,
+	`cloud_redemption_id` text,
 	`code` text,
 	`bytes` integer NOT NULL,
 	`package_snapshot` text,
@@ -31,6 +34,7 @@ CREATE TABLE `quota_grants` (
 CREATE INDEX `quota_grants_org_created_idx` ON `quota_grants` (`org_id`,`created_at`);--> statement-breakpoint
 CREATE UNIQUE INDEX `quota_grants_external_event_uniq` ON `quota_grants` (`external_event_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `quota_grants_cloud_order_uniq` ON `quota_grants` (`cloud_order_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `quota_grants_cloud_redemption_uniq` ON `quota_grants` (`cloud_redemption_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `quota_grants_code_uniq` ON `quota_grants` (`code`);--> statement-breakpoint
 CREATE TABLE `quota_store_packages` (
 	`id` text PRIMARY KEY NOT NULL,

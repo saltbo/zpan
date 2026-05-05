@@ -2,8 +2,9 @@ import type { CloudDeliveryEvent, QuotaStorePackageInput, QuotaStoreSettingsInpu
 import type { QuotaGrant, QuotaStorePackage, QuotaStoreSettings, QuotaTarget } from '@shared/types'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { member, organization } from '../db/auth-schema'
+import { member, organization, user } from '../db/auth-schema'
 import { quotaDeliveryEvents, quotaGrants, quotaStorePackages, quotaStoreSettings } from '../db/schema'
+import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
 
 const SETTINGS_ID = 'default'
@@ -92,6 +93,15 @@ export async function getQuotaStorePackage(db: Database, id: string): Promise<Qu
   return rows[0] ? packageDto(rows[0]) : null
 }
 
+export async function getActiveQuotaStorePackage(db: Database, id: string): Promise<QuotaStorePackage | null> {
+  const rows = await db
+    .select()
+    .from(quotaStorePackages)
+    .where(and(eq(quotaStorePackages.id, id), eq(quotaStorePackages.active, true)))
+    .limit(1)
+  return rows[0] ? packageDto(rows[0]) : null
+}
+
 export async function markPackageSynced(
   db: Database,
   id: string,
@@ -144,6 +154,17 @@ export async function listGrantsForUser(db: Database, userId: string): Promise<Q
   return rows.map(grantDto)
 }
 
+export async function getCloudStoreBinding(db: Database): Promise<{ boundLicenseId: string; sharedSecret: string }> {
+  const [settings, binding] = await Promise.all([getRequiredSettings(db), loadActiveLicenseBinding(db)])
+  if (!binding) throw new Error('quota_store_binding_missing')
+  return { boundLicenseId: binding.cloudBindingId, sharedSecret: settings.webhookSigningSecret }
+}
+
+export async function getUserTerminalLabel(db: Database, userId: string): Promise<string | null> {
+  const rows = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1)
+  return rows[0]?.email ?? null
+}
+
 export async function processCloudDelivery(
   db: Database,
   event: CloudDeliveryEvent,
@@ -160,10 +181,11 @@ export async function processCloudDelivery(
   try {
     await db.insert(quotaGrants).values({
       id: grantId,
-      orgId: event.orgId,
+      orgId: event.targetOrgId,
       source: event.source,
       externalEventId: event.eventId,
-      cloudOrderId: event.cloudOrderId,
+      cloudOrderId: event.cloudOrderId ?? null,
+      cloudRedemptionId: event.cloudRedemptionId ?? null,
       code: event.code ?? null,
       bytes: event.bytes,
       packageSnapshot,
@@ -199,12 +221,13 @@ async function getRawSettings(db: Database) {
 
 async function validatePackageBytes(db: Database, event: CloudDeliveryEvent): Promise<string | null> {
   if (event.source === 'stripe' && !event.packageId) throw new Error('package_required')
-  if (event.source === 'redeem_code' && !event.code) throw new Error('code_required')
   if (!event.packageId) return null
   const rows = await db.select().from(quotaStorePackages).where(eq(quotaStorePackages.id, event.packageId)).limit(1)
   const pkg = rows[0]
-  if (!pkg || pkg.bytes !== event.bytes) throw new Error('invalid_package_delivery')
-  return JSON.stringify(packageDto(pkg))
+  if (!pkg || pkg.bytes !== event.bytes || (event.package && event.package.bytes !== pkg.bytes)) {
+    throw new Error('invalid_package_delivery')
+  }
+  return JSON.stringify(event.package ?? packageDto(pkg))
 }
 
 async function validateDeliveryPackage(
@@ -231,7 +254,8 @@ async function beginDeliveryEvent(
     await db.insert(quotaDeliveryEvents).values({
       id,
       eventId: event.eventId,
-      cloudOrderId: event.cloudOrderId,
+      cloudOrderId: event.cloudOrderId ?? null,
+      cloudRedemptionId: event.cloudRedemptionId ?? null,
       payloadHash,
       rawPayload,
       status: 'processing',
@@ -258,7 +282,10 @@ async function resumeDeliveryEvent(
     })
     .from(quotaDeliveryEvents)
     .where(
-      sql`${quotaDeliveryEvents.eventId} = ${event.eventId} OR ${quotaDeliveryEvents.cloudOrderId} = ${event.cloudOrderId}`,
+      sql`${quotaDeliveryEvents.eventId} = ${event.eventId}
+        OR (${event.cloudOrderId ?? null} IS NOT NULL AND ${quotaDeliveryEvents.cloudOrderId} = ${event.cloudOrderId ?? null})
+        OR (${event.cloudRedemptionId ?? null} IS NOT NULL
+          AND ${quotaDeliveryEvents.cloudRedemptionId} = ${event.cloudRedemptionId ?? null})`,
     )
     .limit(1)
 
@@ -319,6 +346,7 @@ function grantDto(row: typeof quotaGrants.$inferSelect): QuotaGrant {
     source: row.source as QuotaGrant['source'],
     externalEventId: row.externalEventId,
     cloudOrderId: row.cloudOrderId,
+    cloudRedemptionId: row.cloudRedemptionId,
     code: row.code,
     bytes: row.bytes,
     packageSnapshot: row.packageSnapshot,
