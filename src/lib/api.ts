@@ -15,6 +15,9 @@ import type {
   BindingState,
   BrandingConfig,
   BrandingField,
+  BrandingThemeMode,
+  BrandingThemePresetId,
+  BrandingThemeValues,
   IhostConfigResponse,
   ImageHosting,
   Notification,
@@ -920,7 +923,7 @@ export async function deleteTeamLogo(teamId: string) {
 
 // Branding API
 
-export type { BrandingConfig, BrandingField }
+export type { BrandingConfig, BrandingField, BrandingThemeMode, BrandingThemePresetId, BrandingThemeValues }
 
 export function getBranding() {
   return unwrap<BrandingConfig>(publicBrandingApi.index.$get())
@@ -933,6 +936,9 @@ export async function saveBranding(data: {
   favicon?: File | null
   wordmark_text?: string
   hide_powered_by?: boolean
+  theme_mode?: BrandingThemeMode
+  theme_preset?: BrandingThemePresetId
+  theme_custom?: BrandingThemeValues
 }): Promise<BrandingConfig> {
   const form = new FormData()
   if (data.logo) form.set('logo', data.logo)
@@ -941,6 +947,15 @@ export async function saveBranding(data: {
   // Use resetBrandingField('wordmark_text') to fully remove the key.
   if (data.wordmark_text !== undefined) form.set('wordmark_text', data.wordmark_text)
   if (data.hide_powered_by !== undefined) form.set('hide_powered_by', data.hide_powered_by ? 'true' : 'false')
+  if (data.theme_mode !== undefined) form.set('theme_mode', data.theme_mode)
+  if (data.theme_preset !== undefined) form.set('theme_preset', data.theme_preset)
+  if (data.theme_custom) {
+    form.set('theme_primary_color', data.theme_custom.primary_color)
+    form.set('theme_primary_foreground', data.theme_custom.primary_foreground)
+    form.set('theme_canvas_color', data.theme_custom.canvas_color)
+    form.set('theme_sidebar_accent_color', data.theme_custom.sidebar_accent_color)
+    form.set('theme_ring_color', data.theme_custom.ring_color)
+  }
 
   const res = await fetch('/api/admin/branding', {
     method: 'PUT',

@@ -332,11 +332,76 @@ export interface ImageHosting {
 
 export type { BindingState, LicenseAssertion, ProFeature } from './licensing'
 
+export type BrandingThemePresetId = 'default' | 'ocean' | 'forest' | 'rose'
+
+export type BrandingThemeMode = 'preset' | 'custom'
+
+export interface BrandingThemeValues {
+  primary_color: string
+  primary_foreground: string
+  canvas_color: string
+  sidebar_accent_color: string
+  ring_color: string
+}
+
+export interface BrandingThemeConfig {
+  mode: BrandingThemeMode
+  preset: BrandingThemePresetId
+  custom: BrandingThemeValues | null
+  configured: boolean
+}
+
+export const BRANDING_THEME_PRESETS: Record<BrandingThemePresetId, BrandingThemeValues> = {
+  default: {
+    primary_color: '#1a73e8',
+    primary_foreground: '#ffffff',
+    canvas_color: '#f8fafc',
+    sidebar_accent_color: '#dbeafe',
+    ring_color: '#1a73e8',
+  },
+  ocean: {
+    primary_color: '#007c89',
+    primary_foreground: '#ffffff',
+    canvas_color: '#effafa',
+    sidebar_accent_color: '#cffafe',
+    ring_color: '#0891b2',
+  },
+  forest: {
+    primary_color: '#2f6f4e',
+    primary_foreground: '#ffffff',
+    canvas_color: '#f3f8f2',
+    sidebar_accent_color: '#dcfce7',
+    ring_color: '#3f8f63',
+  },
+  rose: {
+    primary_color: '#be3455',
+    primary_foreground: '#ffffff',
+    canvas_color: '#fff5f7',
+    sidebar_accent_color: '#ffe4e6',
+    ring_color: '#e11d48',
+  },
+}
+
+export function isBrandingThemePresetId(value: string): value is BrandingThemePresetId {
+  return Object.hasOwn(BRANDING_THEME_PRESETS, value)
+}
+
 export interface BrandingConfig {
   logo_url: string | null
   favicon_url: string | null
   wordmark_text: string | null
   hide_powered_by: boolean
+  theme: BrandingThemeConfig
 }
 
-export type BrandingField = 'logo' | 'favicon' | 'wordmark_text' | 'hide_powered_by'
+export type BrandingThemeField =
+  | 'theme'
+  | 'theme_mode'
+  | 'theme_preset'
+  | 'theme_primary_color'
+  | 'theme_primary_foreground'
+  | 'theme_canvas_color'
+  | 'theme_sidebar_accent_color'
+  | 'theme_ring_color'
+
+export type BrandingField = 'logo' | 'favicon' | 'wordmark_text' | 'hide_powered_by' | BrandingThemeField

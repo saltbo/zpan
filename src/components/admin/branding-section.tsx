@@ -1,18 +1,25 @@
-import type { BrandingConfig, BrandingField } from '@shared/types'
+import {
+  BRANDING_THEME_PRESETS,
+  type BrandingConfig,
+  type BrandingField,
+  type BrandingThemeMode,
+  type BrandingThemePresetId,
+  type BrandingThemeValues,
+} from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ImageUp, Palette, Trash2, Upload } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Brush, ImageUp, Palette, RotateCcw, Trash2, Upload } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ThemeColorInput, ThemePreview } from '@/components/admin/branding-theme-preview'
 import { brandingQueryKey } from '@/components/branding/BrandingProvider'
 import { ProBadge } from '@/components/ProBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { getBranding, resetBrandingField, saveBranding } from '@/lib/api'
-
-// ─── Hooks ────────────────────────────────────────────────────────────────────
 
 interface BrandingFormState {
   logoFile: File | null
@@ -21,10 +28,27 @@ interface BrandingFormState {
   faviconPreviewUrl: string | null
 }
 
+const THEME_PRESET_IDS = Object.keys(BRANDING_THEME_PRESETS) as BrandingThemePresetId[]
+
+const DEFAULT_BRANDING: BrandingConfig = {
+  logo_url: null,
+  favicon_url: null,
+  wordmark_text: null,
+  hide_powered_by: false,
+  theme: {
+    mode: 'preset',
+    preset: 'default',
+    custom: null,
+    configured: false,
+  },
+}
+
 function useBrandingFormState(initial: BrandingConfig): {
   state: BrandingFormState
   setLogoFile: (f: File | null) => void
   setFaviconFile: (f: File | null) => void
+  clearLogoPreview: (url?: string | null) => void
+  clearFaviconPreview: (url?: string | null) => void
 } {
   const [logoFile, setLogoFileRaw] = useState<File | null>(null)
   const [faviconFile, setFaviconFileRaw] = useState<File | null>(null)
@@ -50,6 +74,25 @@ function useBrandingFormState(initial: BrandingConfig): {
     setFaviconPreviewUrl(url)
   }
 
+  function clearLogoPreview(url: string | null = null) {
+    if (prevLogoBlob.current) URL.revokeObjectURL(prevLogoBlob.current)
+    prevLogoBlob.current = null
+    setLogoFileRaw(null)
+    setPreviewLogoUrl(url)
+  }
+
+  function clearFaviconPreview(url: string | null = null) {
+    if (prevFaviconBlob.current) URL.revokeObjectURL(prevFaviconBlob.current)
+    prevFaviconBlob.current = null
+    setFaviconFileRaw(null)
+    setFaviconPreviewUrl(url)
+  }
+
+  useEffect(() => {
+    if (!prevLogoBlob.current) setPreviewLogoUrl(initial.logo_url)
+    if (!prevFaviconBlob.current) setFaviconPreviewUrl(initial.favicon_url)
+  }, [initial.logo_url, initial.favicon_url])
+
   useEffect(() => {
     return () => {
       if (prevLogoBlob.current) URL.revokeObjectURL(prevLogoBlob.current)
@@ -61,10 +104,10 @@ function useBrandingFormState(initial: BrandingConfig): {
     state: { logoFile, faviconFile, previewLogoUrl, faviconPreviewUrl },
     setLogoFile,
     setFaviconFile,
+    clearLogoPreview,
+    clearFaviconPreview,
   }
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function FileUploadField({
   id,
@@ -148,8 +191,6 @@ function FileUploadField({
   )
 }
 
-// ─── Main Section ─────────────────────────────────────────────────────────────
-
 export function BrandingSection() {
   const { t } = useTranslation()
   const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
@@ -163,24 +204,72 @@ export function BrandingSection() {
     return <div className="py-10 text-center text-sm text-muted-foreground">{t('common.loading')}</div>
   }
 
-  return (
-    <BrandingForm
-      disabled={!hasFeature('white_label')}
-      initial={branding ?? { logo_url: null, favicon_url: null, wordmark_text: null, hide_powered_by: false }}
-    />
-  )
+  return <BrandingForm disabled={!hasFeature('white_label')} initial={branding ?? DEFAULT_BRANDING} />
 }
 
 function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { state, setLogoFile, setFaviconFile } = useBrandingFormState(initial)
+  const { state, setLogoFile, setFaviconFile, clearLogoPreview, clearFaviconPreview } = useBrandingFormState(initial)
+  const [themeMode, setThemeMode] = useState<BrandingThemeMode>(initial.theme.mode)
+  const [themePreset, setThemePreset] = useState<BrandingThemePresetId>(initial.theme.preset)
+  const [customTheme, setCustomTheme] = useState<BrandingThemeValues>(
+    initial.theme.custom ?? BRANDING_THEME_PRESETS[initial.theme.preset],
+  )
+  const savedCustomTheme = initial.theme.custom
+  const savedCustomValues = useMemo(() => {
+    const primaryColor = savedCustomTheme?.primary_color
+    const primaryForeground = savedCustomTheme?.primary_foreground
+    const canvasColor = savedCustomTheme?.canvas_color
+    const sidebarAccentColor = savedCustomTheme?.sidebar_accent_color
+    const ringColor = savedCustomTheme?.ring_color
+    if (!primaryColor || !primaryForeground || !canvasColor || !sidebarAccentColor || !ringColor) {
+      return BRANDING_THEME_PRESETS[initial.theme.preset]
+    }
+    return {
+      primary_color: primaryColor,
+      primary_foreground: primaryForeground,
+      canvas_color: canvasColor,
+      sidebar_accent_color: sidebarAccentColor,
+      ring_color: ringColor,
+    }
+  }, [
+    initial.theme.preset,
+    savedCustomTheme?.primary_color,
+    savedCustomTheme?.primary_foreground,
+    savedCustomTheme?.canvas_color,
+    savedCustomTheme?.sidebar_accent_color,
+    savedCustomTheme?.ring_color,
+  ])
+  const previewTheme = themeMode === 'custom' ? customTheme : BRANDING_THEME_PRESETS[themePreset]
 
-  const saveMutation = useMutation({
+  useEffect(() => {
+    setThemeMode(initial.theme.mode)
+    setThemePreset(initial.theme.preset)
+    setCustomTheme(savedCustomValues)
+  }, [initial.theme.mode, initial.theme.preset, savedCustomValues])
+
+  const saveAssetsMutation = useMutation({
     mutationFn: () =>
       saveBranding({
         logo: state.logoFile,
         favicon: state.faviconFile,
+      }),
+    onSuccess: (saved) => {
+      clearLogoPreview(saved.logo_url)
+      clearFaviconPreview(saved.favicon_url)
+      queryClient.invalidateQueries({ queryKey: brandingQueryKey })
+      toast.success(t('admin.settings.branding.saved'))
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
+  const saveThemeMutation = useMutation({
+    mutationFn: () =>
+      saveBranding({
+        theme_mode: themeMode,
+        theme_preset: themePreset,
+        theme_custom: customTheme,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: brandingQueryKey })
@@ -193,8 +282,13 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
     mutationFn: (field: BrandingField) => resetBrandingField(field),
     onSuccess: (_data, field) => {
       queryClient.invalidateQueries({ queryKey: brandingQueryKey })
-      if (field === 'logo') setLogoFile(null)
-      if (field === 'favicon') setFaviconFile(null)
+      if (field === 'logo') clearLogoPreview()
+      if (field === 'favicon') clearFaviconPreview()
+      if (field === 'theme') {
+        setThemeMode('preset')
+        setThemePreset('default')
+        setCustomTheme(BRANDING_THEME_PRESETS.default)
+      }
       toast.success(t('admin.settings.branding.resetSuccess', { field: t(`admin.settings.branding.fields.${field}`) }))
     },
     onError: (err) => toast.error(err.message),
@@ -277,8 +371,122 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
             </div>
           )}
           <div className="flex justify-end pt-2">
-            <Button onClick={() => saveMutation.mutate()} disabled={disabled || saveMutation.isPending}>
-              {saveMutation.isPending ? t('admin.settings.branding.saving') : t('admin.settings.branding.save')}
+            <Button onClick={() => saveAssetsMutation.mutate()} disabled={disabled || saveAssetsMutation.isPending}>
+              {saveAssetsMutation.isPending ? t('admin.settings.branding.saving') : t('admin.settings.branding.save')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="border-border/60">
+        <CardHeader className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl border border-border/60 bg-primary/10 p-2 text-primary">
+              <Brush className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <CardTitle>{t('admin.settings.branding.themeTitle')}</CardTitle>
+                <ProBadge tooltip={t('admin.settings.proLockedWhiteLabel')} />
+              </div>
+              <CardDescription>{t('admin.settings.branding.themeDescription')}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {disabled && <p className="text-sm text-muted-foreground">{t('admin.settings.branding.lockedMessage')}</p>}
+          <div className={`grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] ${disabled ? 'opacity-60' : ''}`}>
+            <div className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="theme-mode">{t('admin.settings.branding.themeMode')}</Label>
+                  <Select
+                    value={themeMode}
+                    disabled={disabled}
+                    onValueChange={(value) => setThemeMode(value as BrandingThemeMode)}
+                  >
+                    <SelectTrigger id="theme-mode" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="preset">{t('admin.settings.branding.themeModePreset')}</SelectItem>
+                      <SelectItem value="custom">{t('admin.settings.branding.themeModeCustom')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="theme-preset">{t('admin.settings.branding.themePreset')}</Label>
+                  <Select
+                    value={themePreset}
+                    disabled={disabled || themeMode === 'custom'}
+                    onValueChange={(value) => setThemePreset(value as BrandingThemePresetId)}
+                  >
+                    <SelectTrigger id="theme-preset" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {THEME_PRESET_IDS.map((preset) => (
+                        <SelectItem key={preset} value={preset}>
+                          {t(`admin.settings.branding.themePresets.${preset}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <ThemeColorInput
+                  id="theme-primary"
+                  label={t('admin.settings.branding.themePrimary')}
+                  value={customTheme.primary_color}
+                  disabled={disabled || themeMode !== 'custom'}
+                  onChange={(primary_color) => setCustomTheme({ ...customTheme, primary_color })}
+                />
+                <ThemeColorInput
+                  id="theme-primary-foreground"
+                  label={t('admin.settings.branding.themePrimaryForeground')}
+                  value={customTheme.primary_foreground}
+                  disabled={disabled || themeMode !== 'custom'}
+                  onChange={(primary_foreground) => setCustomTheme({ ...customTheme, primary_foreground })}
+                />
+                <ThemeColorInput
+                  id="theme-canvas"
+                  label={t('admin.settings.branding.themeCanvas')}
+                  value={customTheme.canvas_color}
+                  disabled={disabled || themeMode !== 'custom'}
+                  onChange={(canvas_color) => setCustomTheme({ ...customTheme, canvas_color })}
+                />
+                <ThemeColorInput
+                  id="theme-sidebar-accent"
+                  label={t('admin.settings.branding.themeSidebarAccent')}
+                  value={customTheme.sidebar_accent_color}
+                  disabled={disabled || themeMode !== 'custom'}
+                  onChange={(sidebar_accent_color) => setCustomTheme({ ...customTheme, sidebar_accent_color })}
+                />
+                <ThemeColorInput
+                  id="theme-ring"
+                  label={t('admin.settings.branding.themeRing')}
+                  value={customTheme.ring_color}
+                  disabled={disabled || themeMode !== 'custom'}
+                  onChange={(ring_color) => setCustomTheme({ ...customTheme, ring_color })}
+                />
+              </div>
+            </div>
+            <ThemePreview values={previewTheme} />
+          </div>
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled || resetMutation.isPending}
+              onClick={() => resetMutation.mutate('theme')}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              {t('admin.settings.branding.resetTheme')}
+            </Button>
+            <Button onClick={() => saveThemeMutation.mutate()} disabled={disabled || saveThemeMutation.isPending}>
+              {saveThemeMutation.isPending
+                ? t('admin.settings.branding.saving')
+                : t('admin.settings.branding.saveTheme')}
             </Button>
           </div>
         </CardContent>

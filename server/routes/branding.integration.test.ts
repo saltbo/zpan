@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BrandingConfig } from '../../shared/types'
 import { S3Service } from '../services/s3.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense as seedProLicenseRow } from '../test/setup.js'
 
@@ -30,12 +31,18 @@ describe('GET /api/branding', () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/branding')
     expect(res.status).toBe(200)
-    const body = await res.json()
+    const body = (await res.json()) as BrandingConfig
     expect(body).toMatchObject({
       logo_url: null,
       favicon_url: null,
       wordmark_text: null,
       hide_powered_by: false,
+      theme: {
+        mode: 'preset',
+        preset: 'default',
+        custom: null,
+        configured: false,
+      },
     })
   })
 
@@ -55,6 +62,47 @@ describe('GET /api/branding', () => {
     const body = (await res.json()) as { wordmark_text: string; hide_powered_by: boolean }
     expect(body.wordmark_text).toBe('MyCloud')
     expect(body.hide_powered_by).toBe(true)
+  })
+
+  it('returns stored built-in theme values when set', async () => {
+    const { app, db } = await createTestApp()
+    await seedBrandingOption(db, 'branding_theme_mode', 'preset')
+    await seedBrandingOption(db, 'branding_theme_preset', 'forest')
+
+    const res = await app.request('/api/branding')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as BrandingConfig
+    expect(body.theme).toMatchObject({
+      mode: 'preset',
+      preset: 'forest',
+      custom: null,
+      configured: true,
+    })
+  })
+
+  it('returns stored custom theme values when set', async () => {
+    const { app, db } = await createTestApp()
+    await seedBrandingOption(db, 'branding_theme_mode', 'custom')
+    await seedBrandingOption(db, 'branding_theme_primary_color', '#123456')
+    await seedBrandingOption(db, 'branding_theme_primary_foreground', '#fff')
+    await seedBrandingOption(db, 'branding_theme_canvas_color', '#f1f5f9')
+    await seedBrandingOption(db, 'branding_theme_sidebar_accent_color', '#dbeafe')
+    await seedBrandingOption(db, 'branding_theme_ring_color', '#0f172a')
+
+    const res = await app.request('/api/branding')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as BrandingConfig
+    expect(body.theme).toMatchObject({
+      mode: 'custom',
+      configured: true,
+      custom: {
+        primary_color: '#123456',
+        primary_foreground: '#fff',
+        canvas_color: '#f1f5f9',
+        sidebar_accent_color: '#dbeafe',
+        ring_color: '#0f172a',
+      },
+    })
   })
 })
 
@@ -137,6 +185,86 @@ describe('PUT /api/admin/branding', () => {
     const getBody = (await getRes.json()) as { wordmark_text: string; hide_powered_by: boolean }
     expect(getBody.wordmark_text).toBe('MyCloud')
     expect(getBody.hide_powered_by).toBe(true)
+  })
+
+  it('saves a built-in theme selection', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+
+    const form = new FormData()
+    form.set('theme_mode', 'preset')
+    form.set('theme_preset', 'ocean')
+
+    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as BrandingConfig
+    expect(body.theme).toMatchObject({ mode: 'preset', preset: 'ocean', configured: true })
+
+    const getRes = await app.request('/api/branding')
+    const getBody = (await getRes.json()) as BrandingConfig
+    expect(getBody.theme).toMatchObject({ mode: 'preset', preset: 'ocean', configured: true })
+  })
+
+  it('saves custom theme colors when valid', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+
+    const form = new FormData()
+    form.set('theme_mode', 'custom')
+    form.set('theme_primary_color', '#123')
+    form.set('theme_primary_foreground', '#ffffff')
+    form.set('theme_canvas_color', '#f8fafc')
+    form.set('theme_sidebar_accent_color', '#dbeafe')
+    form.set('theme_ring_color', '#0f172a')
+
+    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as BrandingConfig
+    expect(body.theme.custom).toMatchObject({
+      primary_color: '#123',
+      primary_foreground: '#ffffff',
+      canvas_color: '#f8fafc',
+      sidebar_accent_color: '#dbeafe',
+      ring_color: '#0f172a',
+    })
+  })
+
+  it('returns 422 for invalid custom colors without changing stored theme', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedBrandingOption(db, 'branding_theme_mode', 'preset')
+    await seedBrandingOption(db, 'branding_theme_preset', 'forest')
+
+    const form = new FormData()
+    form.set('theme_mode', 'custom')
+    form.set('theme_primary_color', 'blue')
+    form.set('theme_primary_foreground', '#ffffff')
+    form.set('theme_canvas_color', '#f8fafc')
+    form.set('theme_sidebar_accent_color', '#dbeafe')
+    form.set('theme_ring_color', '#0f172a')
+
+    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(422)
+
+    const getRes = await app.request('/api/branding')
+    const getBody = (await getRes.json()) as BrandingConfig
+    expect(getBody.theme).toMatchObject({ mode: 'preset', preset: 'forest', configured: true })
+  })
+
+  it('returns 422 for inherited object property theme presets', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+
+    const form = new FormData()
+    form.set('theme_mode', 'preset')
+    form.set('theme_preset', 'toString')
+
+    const res = await app.request('/api/admin/branding', { method: 'PUT', headers, body: form })
+    expect(res.status).toBe(422)
   })
 
   it('uploads logo file to S3 and stores URL', async () => {
@@ -233,6 +361,39 @@ describe('DELETE /api/admin/branding/:field', () => {
     const { eq } = await import('drizzle-orm')
     const rows = await db.select().from(systemOptions).where(eq(systemOptions.key, 'branding_wordmark_text'))
     expect(rows.length).toBe(0)
+  })
+
+  it('resets theme fields', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedBrandingOption(db, 'branding_theme_mode', 'preset')
+    await seedBrandingOption(db, 'branding_theme_preset', 'rose')
+
+    const res = await app.request('/api/admin/branding/theme', { method: 'DELETE', headers })
+    expect(res.status).toBe(200)
+    const getRes = await app.request('/api/branding')
+    const body = (await getRes.json()) as BrandingConfig
+    expect(body.theme).toMatchObject({
+      mode: 'preset',
+      preset: 'default',
+      custom: null,
+      configured: false,
+    })
+  })
+
+  it('resets all theme settings from an individual theme field reset', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+    await seedBrandingOption(db, 'branding_theme_mode', 'preset')
+    await seedBrandingOption(db, 'branding_theme_preset', 'rose')
+
+    const res = await app.request('/api/admin/branding/theme_preset', { method: 'DELETE', headers })
+    expect(res.status).toBe(200)
+    const getRes = await app.request('/api/branding')
+    const body = (await getRes.json()) as BrandingConfig
+    expect(body.theme.configured).toBe(false)
   })
 
   it('returns 400 for invalid field name', async () => {

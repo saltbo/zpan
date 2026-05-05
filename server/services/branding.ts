@@ -3,6 +3,7 @@ import { eq, inArray } from 'drizzle-orm'
 // Both use `as unknown as S3Storage` to bridge them. The fields used by S3Service
 // (endpoint, region, accessKey, secretKey, bucket, customHost) exist on both.
 import type { Storage as S3Storage } from '../../shared/types'
+import { type BrandingThemeConfig, type BrandingThemeMode, isBrandingThemePresetId } from '../../shared/types'
 import { systemOptions } from '../db/schema'
 import type { Database, Platform } from '../platform/interface'
 import { S3Service } from './s3'
@@ -28,7 +29,24 @@ export const BRANDING_KEYS = {
   favicon: 'branding_favicon_url',
   wordmark_text: 'branding_wordmark_text',
   hide_powered_by: 'branding_hide_powered_by',
+  theme_mode: 'branding_theme_mode',
+  theme_preset: 'branding_theme_preset',
+  theme_primary_color: 'branding_theme_primary_color',
+  theme_primary_foreground: 'branding_theme_primary_foreground',
+  theme_canvas_color: 'branding_theme_canvas_color',
+  theme_sidebar_accent_color: 'branding_theme_sidebar_accent_color',
+  theme_ring_color: 'branding_theme_ring_color',
 } as const
+
+const THEME_KEYS = [
+  'theme_mode',
+  'theme_preset',
+  'theme_primary_color',
+  'theme_primary_foreground',
+  'theme_canvas_color',
+  'theme_sidebar_accent_color',
+  'theme_ring_color',
+] as const
 
 export type BrandingUploadResult = { ok: true; url: string } | { ok: false; status: 400 | 413 | 503; error: string }
 
@@ -36,11 +54,21 @@ export async function readBranding(db: Database) {
   const keys = Object.values(BRANDING_KEYS)
   const rows = await db.select().from(systemOptions).where(inArray(systemOptions.key, keys))
   const map = new Map(rows.map((r) => [r.key, r.value]))
+  const configured = THEME_KEYS.some((field) => map.has(BRANDING_KEYS[field]))
+  const mode = readThemeMode(map.get(BRANDING_KEYS.theme_mode))
+  const preset = readThemePreset(map.get(BRANDING_KEYS.theme_preset))
+
   return {
     logo_url: map.get(BRANDING_KEYS.logo) ?? null,
     favicon_url: map.get(BRANDING_KEYS.favicon) ?? null,
     wordmark_text: map.get(BRANDING_KEYS.wordmark_text) ?? null,
     hide_powered_by: map.get(BRANDING_KEYS.hide_powered_by) === 'true',
+    theme: {
+      mode,
+      preset,
+      custom: readCustomTheme(map),
+      configured,
+    } satisfies BrandingThemeConfig,
   }
 }
 
@@ -76,7 +104,7 @@ export async function uploadBrandingImage(
 
 export async function setBrandingField(
   db: Database,
-  field: 'wordmark_text' | 'hide_powered_by',
+  field: 'wordmark_text' | 'hide_powered_by' | (typeof THEME_KEYS)[number],
   value: string,
 ): Promise<void> {
   await upsertOption(db, BRANDING_KEYS[field], value)
@@ -84,6 +112,39 @@ export async function setBrandingField(
 
 export async function resetBrandingField(db: Database, field: keyof typeof BRANDING_KEYS): Promise<void> {
   await db.delete(systemOptions).where(eq(systemOptions.key, BRANDING_KEYS[field]))
+}
+
+export async function resetBrandingTheme(db: Database): Promise<void> {
+  await db.delete(systemOptions).where(
+    inArray(
+      systemOptions.key,
+      THEME_KEYS.map((field) => BRANDING_KEYS[field]),
+    ),
+  )
+}
+
+function readThemeMode(value: string | undefined): BrandingThemeMode {
+  return value === 'custom' ? 'custom' : 'preset'
+}
+
+function readThemePreset(value: string | undefined) {
+  return value && isBrandingThemePresetId(value) ? value : 'default'
+}
+
+function readCustomTheme(map: Map<string, string>) {
+  const primaryColor = map.get(BRANDING_KEYS.theme_primary_color)
+  const primaryForeground = map.get(BRANDING_KEYS.theme_primary_foreground)
+  const canvasColor = map.get(BRANDING_KEYS.theme_canvas_color)
+  const sidebarAccentColor = map.get(BRANDING_KEYS.theme_sidebar_accent_color)
+  const ringColor = map.get(BRANDING_KEYS.theme_ring_color)
+  if (!primaryColor || !primaryForeground || !canvasColor || !sidebarAccentColor || !ringColor) return null
+  return {
+    primary_color: primaryColor,
+    primary_foreground: primaryForeground,
+    canvas_color: canvasColor,
+    sidebar_accent_color: sidebarAccentColor,
+    ring_color: ringColor,
+  }
 }
 
 async function upsertOption(db: Database, key: string, value: string): Promise<void> {

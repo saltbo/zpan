@@ -2482,7 +2482,13 @@ describe('api', () => {
 
   describe('getBranding', () => {
     it('calls GET /api/branding and returns config', async () => {
-      const payload = { logo_url: null, favicon_url: null, wordmark_text: null, hide_powered_by: false }
+      const payload = {
+        logo_url: null,
+        favicon_url: null,
+        wordmark_text: null,
+        hide_powered_by: false,
+        theme: { mode: 'preset', preset: 'default', custom: null, configured: false },
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await getBranding()
@@ -2498,6 +2504,7 @@ describe('api', () => {
         favicon_url: null,
         wordmark_text: 'MyCloud',
         hide_powered_by: true,
+        theme: { mode: 'preset', preset: 'forest', custom: null, configured: true },
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
@@ -2517,7 +2524,13 @@ describe('api', () => {
 
   describe('saveBranding', () => {
     it('sends PUT /api/admin/branding as multipart', async () => {
-      const payload = { logo_url: null, favicon_url: null, wordmark_text: 'MyCloud', hide_powered_by: false }
+      const payload = {
+        logo_url: null,
+        favicon_url: null,
+        wordmark_text: 'MyCloud',
+        hide_powered_by: false,
+        theme: { mode: 'preset', preset: 'default', custom: null, configured: false },
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       await saveBranding({ wordmark_text: 'MyCloud' })
@@ -2528,12 +2541,51 @@ describe('api', () => {
       expect(init.body).toBeInstanceOf(FormData)
     })
 
-    it('includes logo file in FormData when provided', async () => {
+    it('includes theme fields in FormData when provided', async () => {
+      const payload = {
+        logo_url: null,
+        favicon_url: null,
+        wordmark_text: null,
+        hide_powered_by: false,
+        theme: {
+          mode: 'custom',
+          preset: 'rose',
+          configured: true,
+          custom: {
+            primary_color: '#123456',
+            primary_foreground: '#ffffff',
+            canvas_color: '#f8fafc',
+            sidebar_accent_color: '#ffe4e6',
+            ring_color: '#0f172a',
+          },
+        },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await saveBranding({
+        theme_mode: 'custom',
+        theme_preset: 'rose',
+        theme_custom: payload.theme.custom,
+      })
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const form = init.body as FormData
+      expect(form.get('theme_mode')).toBe('custom')
+      expect(form.get('theme_preset')).toBe('rose')
+      expect(form.get('theme_primary_color')).toBe('#123456')
+      expect(form.get('theme_primary_foreground')).toBe('#ffffff')
+      expect(form.get('theme_canvas_color')).toBe('#f8fafc')
+      expect(form.get('theme_sidebar_accent_color')).toBe('#ffe4e6')
+      expect(form.get('theme_ring_color')).toBe('#0f172a')
+    })
+
+    it('includes only logo file fields in FormData when provided', async () => {
       const payload = {
         logo_url: 'https://cdn/logo.png',
         favicon_url: null,
         wordmark_text: null,
         hide_powered_by: false,
+        theme: { mode: 'preset', preset: 'default', custom: null, configured: false },
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
       const file = new File(['png-data'], 'logo.png', { type: 'image/png' })
@@ -2543,6 +2595,13 @@ describe('api', () => {
       const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       const form = init.body as FormData
       expect(form.get('logo')).toBe(file)
+      expect(form.get('theme_mode')).toBeNull()
+      expect(form.get('theme_preset')).toBeNull()
+      expect(form.get('theme_primary_color')).toBeNull()
+      expect(form.get('theme_primary_foreground')).toBeNull()
+      expect(form.get('theme_canvas_color')).toBeNull()
+      expect(form.get('theme_sidebar_accent_color')).toBeNull()
+      expect(form.get('theme_ring_color')).toBeNull()
     })
 
     it('throws ApiError on 402 (feature gated)', async () => {
@@ -2551,6 +2610,26 @@ describe('api', () => {
       )
 
       await expect(saveBranding({ wordmark_text: 'x' })).rejects.toThrow()
+    })
+
+    it('throws ApiError on 422 validation failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: 'theme_primary_color must be a CSS hex color' }, false, 422),
+      )
+
+      await expect(
+        saveBranding({
+          theme_mode: 'custom',
+          theme_preset: 'default',
+          theme_custom: {
+            primary_color: 'blue',
+            primary_foreground: '#ffffff',
+            canvas_color: '#f8fafc',
+            sidebar_accent_color: '#dbeafe',
+            ring_color: '#0f172a',
+          },
+        }),
+      ).rejects.toMatchObject({ status: 422 })
     })
   })
 
