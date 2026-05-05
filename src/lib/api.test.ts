@@ -17,6 +17,8 @@ import {
   createIhostApiKey,
   createIhostImagePresign,
   createObject,
+  createQuotaCheckout,
+  createQuotaStorePackage,
   createShare,
   createSiteInvitation,
   createStorage,
@@ -25,6 +27,7 @@ import {
   deleteIhostConfig,
   deleteIhostImage,
   deleteObject,
+  deleteQuotaStorePackage,
   deleteShare,
   deleteStorage,
   deleteTeamLogo,
@@ -39,6 +42,7 @@ import {
   getLicensingStatus,
   getObject,
   getProfile,
+  getQuotaStoreSettings,
   getSession,
   getShare,
   getSiteInvitation,
@@ -55,6 +59,10 @@ import {
   listIhostImages,
   listNotifications,
   listObjects,
+  listPurchasableQuotaPackages,
+  listQuotaGrants,
+  listQuotaStorePackages,
+  listQuotaStoreTargets,
   listQuotas,
   listShareObjects,
   listShares,
@@ -65,6 +73,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   pollPairing,
+  redeemQuotaCode,
   refreshLicense,
   resendSiteInvitation,
   resetBrandingField,
@@ -81,6 +90,8 @@ import {
   updateIhostConfig,
   updateObject,
   updateQuota,
+  updateQuotaStorePackage,
+  updateQuotaStoreSettings,
   updateStorage,
   updateUserStatus,
   uploadAvatar,
@@ -255,6 +266,127 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'duplicate invitation' }, false, 409))
 
       await expect(createSiteInvitation('new@example.com')).rejects.toThrow('duplicate invitation')
+    })
+  })
+
+  describe('quota store api', () => {
+    it('gets admin settings', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null))
+
+      await getQuotaStoreSettings()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/admin/quota-store/settings')
+      expect(init.method).toBe('GET')
+    })
+
+    it('updates admin settings payload', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ enabled: true }))
+
+      await updateQuotaStoreSettings({
+        enabled: true,
+        cloudBaseUrl: 'https://cloud.example',
+        publicInstanceUrl: 'https://zpan.example',
+        webhookSigningSecret: 'secret',
+      })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/admin/quota-store/settings')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(init.body as string)).toMatchObject({ enabled: true, webhookSigningSecret: 'secret' })
+    })
+
+    it('creates and updates packages with typed RPC paths', async () => {
+      const payload = { name: 'Small', bytes: 1024, amount: 500, currency: 'usd' }
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
+        .mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
+
+      await createQuotaStorePackage(payload)
+      await updateQuotaStorePackage('pkg-1', payload)
+
+      const [createUrl, createInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const [updateUrl, updateInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
+      expect(createUrl).toBe('/api/admin/quota-store/packages')
+      expect(createInit.method).toBe('POST')
+      expect(updateUrl).toBe('/api/admin/quota-store/packages/pkg-1')
+      expect(updateInit.method).toBe('PUT')
+    })
+
+    it('lists and deletes admin packages', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+        .mockResolvedValueOnce(makeResponse({ id: 'pkg-1', deleted: true }))
+
+      await listQuotaStorePackages()
+      await deleteQuotaStorePackage('pkg-1')
+
+      expect((vi.mocked(fetch).mock.calls[0] as [string])[0]).toBe('/api/admin/quota-store/packages')
+      const [deleteUrl, deleteInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
+      expect(deleteUrl).toBe('/api/admin/quota-store/packages/pkg-1')
+      expect(deleteInit.method).toBe('DELETE')
+    })
+
+    it('calls user store endpoints', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+        .mockResolvedValueOnce(makeResponse({ checkoutUrl: 'https://cloud.example/checkout' }))
+        .mockResolvedValueOnce(makeResponse({ redeemed: true }))
+        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+
+      await listPurchasableQuotaPackages()
+      await listQuotaStoreTargets()
+      await createQuotaCheckout('pkg-1', 'org-1')
+      await redeemQuotaCode('CODE', 'org-1')
+      await listQuotaGrants()
+
+      const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
+      expect(calls[0][0]).toBe('/api/quota-store/packages')
+      expect(calls[1][0]).toBe('/api/quota-store/targets')
+      expect(calls[2][0]).toBe('/api/quota-store/checkout')
+      expect(JSON.parse(calls[2][1].body as string)).toEqual({ packageId: 'pkg-1', targetOrgId: 'org-1' })
+      expect(calls[3][0]).toBe('/api/quota-store/redemptions')
+      expect(JSON.parse(calls[3][1].body as string)).toEqual({ code: 'CODE', targetOrgId: 'org-1' })
+      expect(calls[4][0]).toBe('/api/quota-store/grants')
+    })
+
+    it('throws ApiError for quota store failures', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'feature_not_available' }, false, 402))
+
+      await expect(listQuotaStorePackages()).rejects.toThrow('feature_not_available')
+    })
+
+    it.each([
+      ['getQuotaStoreSettings', () => getQuotaStoreSettings()],
+      [
+        'updateQuotaStoreSettings',
+        () =>
+          updateQuotaStoreSettings({
+            enabled: true,
+            cloudBaseUrl: 'https://cloud.example',
+            publicInstanceUrl: 'https://zpan.example',
+          }),
+      ],
+      ['listQuotaStorePackages', () => listQuotaStorePackages()],
+      [
+        'createQuotaStorePackage',
+        () => createQuotaStorePackage({ name: 'Small', bytes: 1024, amount: 500, currency: 'usd' }),
+      ],
+      [
+        'updateQuotaStorePackage',
+        () => updateQuotaStorePackage('pkg-1', { name: 'Small', bytes: 1024, amount: 500, currency: 'usd' }),
+      ],
+      ['deleteQuotaStorePackage', () => deleteQuotaStorePackage('pkg-1')],
+      ['listPurchasableQuotaPackages', () => listPurchasableQuotaPackages()],
+      ['listQuotaStoreTargets', () => listQuotaStoreTargets()],
+      ['createQuotaCheckout', () => createQuotaCheckout('pkg-1', 'org-1')],
+      ['redeemQuotaCode', () => redeemQuotaCode('CODE', 'org-1')],
+      ['listQuotaGrants', () => listQuotaGrants()],
+    ])('throws ApiError for %s failures', async (_name, call) => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'quota store failed' }, false, 400))
+
+      await expect(call()).rejects.toThrow('quota store failed')
     })
   })
 

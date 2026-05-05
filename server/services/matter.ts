@@ -5,6 +5,7 @@ import { DirType } from '../../shared/constants'
 import { matters, orgQuotas, storages } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { recordActivity } from './activity'
+import { incrementUsageIfEffectiveQuotaAllows } from './effective-quota'
 import {
   applyConflictResolution,
   type ConflictStrategy,
@@ -315,32 +316,7 @@ export async function incrementUsageIfAllowed(
   bytes: number,
   teamQuotaEnabled = true,
 ): Promise<boolean> {
-  if (teamQuotaEnabled) {
-    // Check if a quota row exists and try atomic check-and-increment in one flow
-    const rows = await db
-      .select({ quota: orgQuotas.quota, used: orgQuotas.used })
-      .from(orgQuotas)
-      .where(eq(orgQuotas.orgId, orgId))
-
-    const [row] = rows
-    if (row) {
-      // quota=0 means unlimited; otherwise enforce the limit
-      if (row.quota > 0 && row.used + bytes > row.quota) return false
-
-      await db
-        .update(orgQuotas)
-        .set({ used: sql`${orgQuotas.used} + ${bytes}` })
-        .where(eq(orgQuotas.orgId, orgId))
-    }
-    // No quota row means no org-level limit — allow, but still track per-storage usage
-  }
-
-  await db
-    .update(storages)
-    .set({ used: sql`${storages.used} + ${bytes}` })
-    .where(eq(storages.id, storageId))
-
-  return true
+  return incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, bytes, teamQuotaEnabled)
 }
 
 export async function copyMatter(

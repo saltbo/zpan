@@ -1,0 +1,438 @@
+import { sql } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
+
+const SECRET = 'quota-secret'
+
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ cloudPackageId: 'cloud-pkg-1', checkoutUrl: 'https://cloud.example/checkout' }),
+    } as Response),
+  )
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+describe('Quota Store API', () => {
+  it('returns 402 when Pro quota_store is absent', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/admin/quota-store/packages', { headers })
+
+    expect(res.status).toBe(402)
+  })
+
+  it('returns 402 for Cloud delivery when Pro quota_store is absent', async () => {
+    const { app, db } = await createTestApp()
+    await seedSettingsRow(db)
+    const payload = JSON.stringify({
+      eventId: 'evt-no-pro',
+      cloudOrderId: 'order-no-pro',
+      orgId: 'org-no-pro',
+      source: 'stripe',
+      bytes: 1024,
+    })
+
+    const res = await postWebhook(app, payload)
+
+    expect(res.status).toBe(402)
+  })
+
+  it('validates positive package bytes and amount', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/admin/quota-store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Bad', description: '', bytes: 0, amount: 0, currency: 'usd' }),
+    })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('syncs package deletion to Cloud before deleting locally', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const packageId = await seedPackage(db)
+
+    const res = await app.request(`/api/admin/quota-store/packages/${packageId}`, {
+      method: 'DELETE',
+      headers,
+    })
+
+    expect(res.status).toBe(200)
+    const calls = vi.mocked(fetch).mock.calls
+    const [, init] = calls[calls.length - 1] as [URL, RequestInit]
+    expect(JSON.parse(init.body as string)).toMatchObject({ action: 'delete', package: { id: packageId } })
+  })
+
+  it('preserves existing Cloud package id when update sync fails', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const packageId = await seedPackage(db)
+    await db.run(sql`UPDATE quota_store_packages SET cloud_package_id = 'cloud-existing' WHERE id = ${packageId}`)
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: async () => ({ error: 'cloud_down' }),
+    } as Response)
+
+    const res = await app.request(`/api/admin/quota-store/packages/${packageId}`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Small', description: '', bytes: 4096, amount: 500, currency: 'usd' }),
+    })
+
+    expect(res.status).toBe(200)
+    const rows = await db.all<{ cloudPackageId: string | null }>(
+      sql`SELECT cloud_package_id AS cloudPackageId FROM quota_store_packages WHERE id = ${packageId}`,
+    )
+    expect(rows[0].cloudPackageId).toBe('cloud-existing')
+  })
+
+  it('keeps the local package when Cloud deletion sync fails', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const packageId = await seedPackage(db)
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: 'cloud_unavailable' }),
+    } as Response)
+
+    const res = await app.request(`/api/admin/quota-store/packages/${packageId}`, {
+      method: 'DELETE',
+      headers,
+    })
+
+    expect(res.status).toBe(502)
+    await expect(res.json()).resolves.toEqual({ error: 'cloud_unavailable' })
+    const rows = await db.all<{ count: number }>(
+      sql`SELECT COUNT(*) AS count FROM quota_store_packages WHERE id = ${packageId}`,
+    )
+    expect(rows[0].count).toBe(1)
+  })
+
+  it('rejects checkout target orgs the user cannot access', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+
+    const res = await app.request('/api/quota-store/checkout', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId: 'pkg-1', targetOrgId: 'other-org' }),
+    })
+
+    expect(res.status).toBe(403)
+  })
+
+  it('valid Cloud delivery creates one grant and increases effective quota once', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    const packageId = await seedPackage(db)
+
+    const payload = JSON.stringify({
+      eventId: 'evt-1',
+      cloudOrderId: 'order-1',
+      orgId,
+      packageId,
+      source: 'stripe',
+      bytes: 4096,
+    })
+
+    const first = await postWebhook(app, payload)
+    await db.run(sql`UPDATE quota_store_packages SET bytes = 8192 WHERE id = ${packageId}`)
+    const duplicate = await postWebhook(app, payload)
+
+    expect(first.status).toBe(200)
+    await expect(first.json()).resolves.toMatchObject({ success: true, duplicate: false })
+    expect(duplicate.status).toBe(200)
+    await expect(duplicate.json()).resolves.toMatchObject({ success: true, duplicate: true, grantId: null })
+    const grants = await db.all<{ count: number }>(
+      sql`SELECT COUNT(*) AS count FROM quota_grants WHERE org_id = ${orgId}`,
+    )
+    expect(grants[0].count).toBe(1)
+    const events = await db.all<{ status: string; error: string | null; processedAt: number | null }>(
+      sql`SELECT status, error, processed_at AS processedAt FROM quota_delivery_events WHERE event_id = 'evt-1'`,
+    )
+    expect(events).toEqual([{ status: 'processed', error: null, processedAt: expect.any(Number) }])
+
+    const quotaRes = await app.request('/api/quotas/me', { headers })
+    const quota = (await quotaRes.json()) as { baseQuota: number; grantedQuota: number; quota: number }
+    expect(quota.grantedQuota).toBe(4096)
+    expect(quota.quota).toBe(quota.baseQuota + 4096)
+  })
+
+  it('marks a new delivery event duplicate when the grant already exists', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+
+    const first = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-code-1',
+        cloudOrderId: 'order-code-1',
+        orgId,
+        source: 'redeem_code',
+        code: 'CODE-1',
+        bytes: 4096,
+      }),
+    )
+    const duplicate = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-code-2',
+        cloudOrderId: 'order-code-2',
+        orgId,
+        source: 'redeem_code',
+        code: 'CODE-1',
+        bytes: 4096,
+      }),
+    )
+
+    expect(first.status).toBe(200)
+    expect(duplicate.status).toBe(200)
+    await expect(duplicate.json()).resolves.toMatchObject({ success: true, duplicate: true, grantId: null })
+    const events = await db.all<{ eventId: string; status: string; error: string | null }>(
+      sql`SELECT event_id AS eventId, status, error FROM quota_delivery_events ORDER BY event_id`,
+    )
+    expect(events).toEqual([
+      { eventId: 'evt-code-1', status: 'processed', error: null },
+      { eventId: 'evt-code-2', status: 'duplicate', error: null },
+    ])
+  })
+
+  it('marks delivery events failed when package validation fails', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    const packageId = await seedPackage(db)
+    const payload = JSON.stringify({
+      eventId: 'evt-invalid-package',
+      cloudOrderId: 'order-invalid-package',
+      orgId,
+      packageId,
+      source: 'stripe',
+      bytes: 8192,
+    })
+
+    const res = await postWebhook(app, payload)
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toEqual({ error: 'invalid_package_delivery' })
+    const events = await db.all<{ status: string; error: string | null; processedAt: number | null }>(
+      sql`
+        SELECT status, error, processed_at AS processedAt
+        FROM quota_delivery_events
+        WHERE event_id = 'evt-invalid-package'
+      `,
+    )
+    expect(events).toEqual([{ status: 'failed', error: 'invalid_package_delivery', processedAt: expect.any(Number) }])
+
+    await db.run(sql`UPDATE quota_store_packages SET bytes = 8192 WHERE id = ${packageId}`)
+    const retry = await postWebhook(app, payload)
+    expect(retry.status).toBe(200)
+    await expect(retry.json()).resolves.toMatchObject({ success: true, duplicate: false })
+  })
+
+  it('rejects failed delivery retries when the payload hash changes', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    const packageId = await seedPackage(db)
+    const payload = JSON.stringify({
+      eventId: 'evt-hash-conflict',
+      cloudOrderId: 'order-hash-conflict',
+      orgId,
+      packageId,
+      source: 'stripe',
+      bytes: 8192,
+    })
+
+    const failed = await postWebhook(app, payload)
+    const retry = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-hash-conflict',
+        cloudOrderId: 'order-hash-conflict',
+        orgId,
+        packageId,
+        source: 'stripe',
+        bytes: 4096,
+      }),
+    )
+
+    expect(failed.status).toBe(400)
+    expect(retry.status).toBe(400)
+    await expect(retry.json()).resolves.toEqual({ error: 'delivery_payload_conflict' })
+  })
+
+  it('rejects invalid Cloud signatures', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const res = await app.request('/api/quota-store/webhooks/cloud', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-zpan-signature': 'bad' },
+      body: JSON.stringify({ eventId: 'evt-bad' }),
+    })
+
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects same-length invalid Cloud signatures', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const payload = JSON.stringify({ eventId: 'evt-bad-same-length' })
+    const signature = await signPayload(payload)
+    const badSignature = `${signature.slice(0, -1)}${signature.endsWith('0') ? '1' : '0'}`
+
+    const res = await app.request('/api/quota-store/webhooks/cloud', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-zpan-signature': badSignature },
+      body: payload,
+    })
+
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects signed malformed Cloud payloads', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const payload = '{bad-json'
+
+    const res = await postWebhook(app, payload)
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+  })
+
+  it('rejects purchase deliveries without a package id', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const payload = JSON.stringify({
+      eventId: 'evt-no-package',
+      cloudOrderId: 'order-no-package',
+      orgId: await getFirstOrgId(db),
+      source: 'stripe',
+      bytes: 4096,
+    })
+
+    const res = await postWebhook(app, payload)
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+  })
+
+  it('rejects redemption deliveries without a code', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const payload = JSON.stringify({
+      eventId: 'evt-no-code',
+      cloudOrderId: 'order-no-code',
+      orgId: await getFirstOrgId(db),
+      source: 'redeem_code',
+      bytes: 4096,
+    })
+
+    const res = await postWebhook(app, payload)
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+  })
+})
+
+async function seedSettings(app: Awaited<ReturnType<typeof createTestApp>>['app'], headers: Record<string, string>) {
+  await app.request('/api/admin/quota-store/settings', {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      enabled: true,
+      cloudBaseUrl: 'https://cloud.example',
+      publicInstanceUrl: 'https://zpan.example',
+      webhookSigningSecret: SECRET,
+    }),
+  })
+}
+
+async function getFirstOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
+  const rows = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)
+  return rows[0].id
+}
+
+async function seedPackage(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
+  const id = 'pkg-1'
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO quota_store_packages
+      (id, name, description, bytes, amount, currency, active, sort_order, sync_status, created_at, updated_at)
+    VALUES (${id}, 'Small', '', 4096, 500, 'usd', 1, 0, 'synced', ${now}, ${now})
+  `)
+  return id
+}
+
+async function seedSettingsRow(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO quota_store_settings
+      (id, enabled, cloud_base_url, public_instance_url, webhook_signing_secret, created_at, updated_at)
+    VALUES ('default', 1, 'https://cloud.example', 'https://zpan.example', ${SECRET}, ${now}, ${now})
+  `)
+}
+
+async function postWebhook(app: Awaited<ReturnType<typeof createTestApp>>['app'], payload: string) {
+  return app.request('/api/quota-store/webhooks/cloud', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-zpan-signature': await signPayload(payload) },
+    body: payload,
+  })
+}
+
+async function signPayload(payload: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload))
+  return [...new Uint8Array(signature)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}

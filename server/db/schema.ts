@@ -44,6 +44,80 @@ export const orgQuotas = sqliteTable('org_quotas', {
   used: integer('used').notNull().default(0),
 })
 
+export const quotaStoreSettings = sqliteTable('quota_store_settings', {
+  id: text('id').primaryKey(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  cloudBaseUrl: text('cloud_base_url').notNull(),
+  publicInstanceUrl: text('public_instance_url').notNull(),
+  webhookSigningSecret: text('webhook_signing_secret').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+export const quotaStorePackages = sqliteTable(
+  'quota_store_packages',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    bytes: integer('bytes').notNull(),
+    amount: integer('amount').notNull(),
+    currency: text('currency').notNull(),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    sortOrder: integer('sort_order').notNull().default(0),
+    cloudPackageId: text('cloud_package_id'),
+    syncStatus: text('sync_status').notNull().default('pending'),
+    syncError: text('sync_error'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('quota_store_packages_active_sort_idx').on(t.active, t.sortOrder)],
+)
+
+export const quotaGrants = sqliteTable(
+  'quota_grants',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    source: text('source').notNull(),
+    externalEventId: text('external_event_id'),
+    cloudOrderId: text('cloud_order_id'),
+    code: text('code'),
+    bytes: integer('bytes').notNull(),
+    packageSnapshot: text('package_snapshot'),
+    grantedBy: text('granted_by'),
+    terminalUserId: text('terminal_user_id'),
+    terminalUserEmail: text('terminal_user_email'),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('quota_grants_org_created_idx').on(t.orgId, t.createdAt),
+    uniqueIndex('quota_grants_external_event_uniq').on(t.externalEventId),
+    uniqueIndex('quota_grants_cloud_order_uniq').on(t.cloudOrderId),
+    uniqueIndex('quota_grants_code_uniq').on(t.code),
+  ],
+)
+
+export const quotaDeliveryEvents = sqliteTable(
+  'quota_delivery_events',
+  {
+    id: text('id').primaryKey(),
+    eventId: text('event_id').notNull(),
+    cloudOrderId: text('cloud_order_id').notNull(),
+    payloadHash: text('payload_hash').notNull(),
+    rawPayload: text('raw_payload').notNull(),
+    status: text('status').notNull(),
+    error: text('error'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    processedAt: integer('processed_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [
+    uniqueIndex('quota_delivery_events_event_uniq').on(t.eventId),
+    uniqueIndex('quota_delivery_events_order_uniq').on(t.cloudOrderId),
+  ],
+)
+
 export const inviteCodes = sqliteTable('invite_codes', {
   id: text('id').primaryKey(),
   code: text('code').notNull().unique(),
@@ -147,6 +221,7 @@ export const announcements = sqliteTable(
     status: text('status').notNull().default('draft'),
     priority: integer('priority').notNull().default(0),
     publishedAt: integer('published_at', { mode: 'timestamp' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }),
     createdBy: text('created_by').notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),

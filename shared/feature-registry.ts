@@ -110,6 +110,13 @@ export const FEATURE_REGISTRY = [
     gateKey: 'storages_unlimited',
   },
   {
+    i18nKey: 'features.quotaStore',
+    category: 'pro',
+    community: false,
+    pro: true,
+    gateKey: 'quota_store',
+  },
+  {
     i18nKey: 'features.multiIdpSso',
     category: 'pro',
     community: false,

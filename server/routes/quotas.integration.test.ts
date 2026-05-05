@@ -237,4 +237,31 @@ describe('User Quotas API — /api/quotas', () => {
     expect(body.quota).toBe(10000)
     expect(body.used).toBe(0)
   })
+
+  it('admin quota updates base quota while paid grants remain effective', async () => {
+    const { app, db } = await createTestApp()
+    const adminH = await adminHeaders(app)
+    const orgs = await db.all<{ id: string }>(
+      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    const orgId = orgs[0].id
+
+    await db.run(sql`
+      INSERT INTO quota_grants
+        (id, org_id, source, external_event_id, cloud_order_id, bytes, active, created_at)
+      VALUES ('grant-1', ${orgId}, 'stripe', 'evt-quota', 'order-quota', 500, 1, ${Date.now()})
+    `)
+
+    await app.request(`/api/admin/quotas/${orgId}`, {
+      method: 'PUT',
+      headers: { ...adminH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quota: 1000 }),
+    })
+
+    const res = await app.request('/api/quotas/me', { headers: adminH })
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.baseQuota).toBe(1000)
+    expect(body.grantedQuota).toBe(500)
+    expect(body.quota).toBe(1500)
+  })
 })

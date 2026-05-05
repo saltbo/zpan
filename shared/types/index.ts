@@ -41,6 +41,59 @@ export interface OrgQuota {
   used: number
 }
 
+export type QuotaGrantSource = 'stripe' | 'redeem_code' | 'admin_adjustment'
+export type QuotaPackageSyncStatus = 'pending' | 'synced' | 'failed'
+export type QuotaDeliveryEventStatus = 'processed' | 'duplicate' | 'failed'
+
+export interface QuotaStoreSettings {
+  id: string
+  enabled: boolean
+  cloudBaseUrl: string
+  publicInstanceUrl: string
+  webhookSigningSecretSet: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface QuotaStorePackage {
+  id: string
+  name: string
+  description: string
+  bytes: number
+  amount: number
+  currency: string
+  active: boolean
+  sortOrder: number
+  cloudPackageId: string | null
+  syncStatus: QuotaPackageSyncStatus
+  syncError: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface QuotaGrant {
+  id: string
+  orgId: string
+  source: QuotaGrantSource
+  externalEventId: string | null
+  cloudOrderId: string | null
+  code: string | null
+  bytes: number
+  packageSnapshot: string | null
+  grantedBy: string | null
+  terminalUserId: string | null
+  terminalUserEmail: string | null
+  active: boolean
+  createdAt: string
+}
+
+export interface QuotaTarget {
+  orgId: string
+  name: string
+  type: string
+  role: string
+}
+
 export interface Organization {
   id: string
   name: string

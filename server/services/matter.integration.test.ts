@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { orgQuotas } from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
+import { getEffectiveQuota, hasQuotaForBytes } from './effective-quota.js'
 import { confirmUpload, incrementUsageIfAllowed, listTrashedRoots, updateMatter } from './matter.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -66,6 +67,20 @@ describe('incrementUsageIfAllowed', () => {
     expect(rows[0].used).toBe(1000099)
   })
 
+  it('treats base quota 0 as unlimited even when grants exist', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    await insertOrgQuota(db, orgId, 0, 5000)
+    await db.run(sql`
+      INSERT INTO quota_grants
+        (id, org_id, source, external_event_id, cloud_order_id, bytes, active, created_at)
+      VALUES ('grant-unlimited', ${orgId}, 'stripe', 'evt-unlimited', 'order-unlimited', 100, 1, ${Date.now()})
+    `)
+
+    await expect(hasQuotaForBytes(db, orgId, 10_000_000)).resolves.toBe(true)
+    await expect(getEffectiveQuota(db, orgId)).resolves.toMatchObject({ baseQuota: 0, grantedQuota: 100, quota: 0 })
+  })
+
   it('returns true and increments when used + bytes is within quota', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
@@ -103,6 +118,24 @@ describe('incrementUsageIfAllowed', () => {
     expect(storageRows[0].used).toBe(50) // unchanged
     const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
     expect(quotaRows[0].used).toBe(800) // unchanged
+  })
+
+  it('allows upload usage against base quota plus active grants', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const storageId = await insertStorage(db, { id: 'st-grant', used: 0 })
+    await insertOrgQuota(db, orgId, 1000, 800)
+    await db.run(sql`
+      INSERT INTO quota_grants
+        (id, org_id, source, external_event_id, cloud_order_id, bytes, active, created_at)
+      VALUES ('grant-upload', ${orgId}, 'stripe', 'evt-upload', 'order-upload', 500, 1, ${Date.now()})
+    `)
+
+    const result = await incrementUsageIfAllowed(db, orgId, storageId, 600)
+
+    expect(result).toBe(true)
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(quotaRows[0].used).toBe(1400)
   })
 
   it('returns false and does not increment when quota is fully consumed', async () => {
