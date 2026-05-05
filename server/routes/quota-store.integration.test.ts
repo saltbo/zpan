@@ -80,7 +80,7 @@ describe('Quota Store API', () => {
     await expect(filled.json()).resolves.toMatchObject({
       enabled: true,
       cloudBaseUrl: 'https://cloud.example',
-      publicInstanceUrl: 'https://zpan.example',
+      publicInstanceUrl: 'https://zpan.example//',
       webhookSigningSecretSet: true,
     })
   })
@@ -402,6 +402,8 @@ describe('Quota Store API', () => {
       amount: 500,
       currency: 'usd',
       bytes: 4096,
+      successUrl: 'https://zpan.example/store',
+      cancelUrl: 'https://zpan.example/store',
     })
     expect(redemptionBody.code).toBe('CODE-OK')
     await expect(decodeSession(redemptionBody.session)).resolves.toMatchObject({
@@ -410,6 +412,92 @@ describe('Quota Store API', () => {
     })
     expect(grants.status).toBe(200)
     await expect(grants.json()).resolves.toMatchObject({ total: 1, items: [{ orgId, bytes: 512 }] })
+  })
+
+  it('hides self-service packages when the store is disabled', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    await app.request('/api/admin/quota-store/settings', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled: false,
+        cloudBaseUrl: 'https://cloud.example',
+        publicInstanceUrl: 'https://zpan.example/',
+        webhookSigningSecret: SECRET,
+      }),
+    })
+
+    const orgId = await getFirstOrgId(db)
+    const packageId = await seedPackage(db)
+    const packages = await app.request('/api/quota-store/packages', { headers })
+    const targets = await app.request('/api/quota-store/targets', { headers })
+    const checkout = await app.request('/api/quota-store/checkout', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+    })
+    const redemption = await app.request('/api/quota-store/redemptions', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'CODE-OK', targetOrgId: orgId }),
+    })
+    const grants = await app.request('/api/quota-store/grants', { headers })
+
+    expect(packages.status).toBe(403)
+    await expect(packages.json()).resolves.toEqual({ error: 'quota_store_disabled' })
+    expect(targets.status).toBe(403)
+    await expect(targets.json()).resolves.toEqual({ error: 'quota_store_disabled' })
+    expect(checkout.status).toBe(403)
+    await expect(checkout.json()).resolves.toEqual({ error: 'quota_store_disabled' })
+    expect(redemption.status).toBe(403)
+    await expect(redemption.json()).resolves.toEqual({ error: 'quota_store_disabled' })
+    expect(grants.status).toBe(403)
+    await expect(grants.json()).resolves.toEqual({ error: 'quota_store_disabled' })
+  })
+
+  it('hides self-service store endpoints until webhook signing is configured', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await app.request('/api/admin/quota-store/settings', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled: true,
+        cloudBaseUrl: 'https://cloud.example',
+        publicInstanceUrl: 'https://zpan.example',
+      }),
+    })
+
+    const orgId = await getFirstOrgId(db)
+    const packageId = await seedPackage(db)
+    const packages = await app.request('/api/quota-store/packages', { headers })
+    const targets = await app.request('/api/quota-store/targets', { headers })
+    const checkout = await app.request('/api/quota-store/checkout', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+    })
+    const redemption = await app.request('/api/quota-store/redemptions', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'CODE-OK', targetOrgId: orgId }),
+    })
+    const grants = await app.request('/api/quota-store/grants', { headers })
+
+    expect(packages.status).toBe(403)
+    await expect(packages.json()).resolves.toEqual({ error: 'quota_store_webhook_secret_missing' })
+    expect(targets.status).toBe(403)
+    await expect(targets.json()).resolves.toEqual({ error: 'quota_store_webhook_secret_missing' })
+    expect(checkout.status).toBe(403)
+    await expect(checkout.json()).resolves.toEqual({ error: 'quota_store_webhook_secret_missing' })
+    expect(redemption.status).toBe(403)
+    await expect(redemption.json()).resolves.toEqual({ error: 'quota_store_webhook_secret_missing' })
+    expect(grants.status).toBe(403)
+    await expect(grants.json()).resolves.toEqual({ error: 'quota_store_webhook_secret_missing' })
   })
 
   it('rejects malformed successful checkout responses', async () => {
@@ -489,7 +577,7 @@ describe('Quota Store API', () => {
       eventId: 'evt-1',
       cloudOrderId: 'order-1',
       targetOrgId: orgId,
-      packageId,
+      packageId: 'cloud-pkg-1',
       source: 'stripe',
       bytes: 4096,
     })
@@ -570,7 +658,7 @@ describe('Quota Store API', () => {
       eventId: 'evt-invalid-package',
       cloudOrderId: 'order-invalid-package',
       targetOrgId: orgId,
-      packageId,
+      packageId: 'cloud-pkg-1',
       source: 'stripe',
       bytes: 8192,
     })
@@ -592,6 +680,72 @@ describe('Quota Store API', () => {
     const retry = await postWebhook(app, payload)
     expect(retry.status).toBe(200)
     await expect(retry.json()).resolves.toMatchObject({ success: true, duplicate: false })
+  })
+
+  it('rejects ambiguous delivery package identifiers', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO quota_store_packages
+        (id, name, description, bytes, amount, currency, active, sort_order, cloud_package_id, sync_status, created_at, updated_at)
+      VALUES
+        ('pkg-cloud-a', 'Cloud package A', '', 4096, 500, 'usd', 1, 1, 'cloud-pkg-ambiguous', 'synced', ${now}, ${now}),
+        ('pkg-cloud-b', 'Cloud package B', '', 4096, 500, 'usd', 1, 2, 'cloud-pkg-ambiguous', 'synced', ${now}, ${now})
+    `)
+
+    const res = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-ambiguous-package',
+        cloudOrderId: 'order-ambiguous-package',
+        targetOrgId: orgId,
+        packageId: 'cloud-pkg-ambiguous',
+        source: 'stripe',
+        bytes: 4096,
+      }),
+    )
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toEqual({ error: 'invalid_package_delivery' })
+  })
+
+  it('uses exact local package identifiers before Cloud package identifiers', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO quota_store_packages
+        (id, name, description, bytes, amount, currency, active, sort_order, cloud_package_id, sync_status, created_at, updated_at)
+      VALUES
+        ('pkg-colliding-id', 'Local package', '', 4096, 500, 'usd', 1, 1, 'cloud-local', 'synced', ${now}, ${now}),
+        ('pkg-cloud-owner', 'Cloud package', '', 4096, 500, 'usd', 1, 2, 'pkg-colliding-id', 'synced', ${now}, ${now})
+    `)
+
+    const res = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-package-id-collision',
+        cloudOrderId: 'order-package-id-collision',
+        targetOrgId: orgId,
+        packageId: 'pkg-colliding-id',
+        source: 'stripe',
+        bytes: 4096,
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ success: true, duplicate: false })
+    const grants = await db.all<{ count: number }>(
+      sql`SELECT COUNT(*) AS count FROM quota_grants WHERE package_snapshot LIKE '%pkg-colliding-id%'`,
+    )
+    expect(grants[0].count).toBe(1)
   })
 
   it('marks delivery events failed when grant insertion fails', async () => {
@@ -797,7 +951,7 @@ async function seedSettings(app: Awaited<ReturnType<typeof createTestApp>>['app'
     body: JSON.stringify({
       enabled: true,
       cloudBaseUrl: 'https://cloud.example',
-      publicInstanceUrl: 'https://zpan.example',
+      publicInstanceUrl: 'https://zpan.example//',
       webhookSigningSecret: SECRET,
     }),
   })
@@ -813,8 +967,8 @@ async function seedPackage(db: Awaited<ReturnType<typeof createTestApp>>['db']):
   const now = Date.now()
   await db.run(sql`
     INSERT INTO quota_store_packages
-      (id, name, description, bytes, amount, currency, active, sort_order, sync_status, created_at, updated_at)
-    VALUES (${id}, 'Small', '', 4096, 500, 'usd', 1, 0, 'synced', ${now}, ${now})
+      (id, name, description, bytes, amount, currency, active, sort_order, cloud_package_id, sync_status, created_at, updated_at)
+    VALUES (${id}, 'Small', '', 4096, 500, 'usd', 1, 0, 'cloud-pkg-1', 'synced', ${now}, ${now})
   `)
   return id
 }

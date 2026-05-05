@@ -85,11 +85,17 @@ const quotaStore = new Hono<Env>()
   .use(requireAuth)
   .use(requireFeature('quota_store'))
   .get('/packages', async (c) => {
-    const items = await listQuotaStorePackages(c.get('platform').db, true)
+    const db = c.get('platform').db
+    const store = await getUserStoreSettings(db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const items = await listQuotaStorePackages(db, true)
     return c.json({ items, total: items.length })
   })
   .get('/targets', async (c) => {
-    const items = await getAccessibleTargets(c.get('platform').db, c.get('userId')!)
+    const db = c.get('platform').db
+    const store = await getUserStoreSettings(db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const items = await getAccessibleTargets(db, c.get('userId')!)
     return c.json({ items, total: items.length })
   })
   .post('/checkout', zValidator('json', checkoutInputSchema), async (c) => {
@@ -99,7 +105,9 @@ const quotaStore = new Hono<Env>()
       return c.json({ error: 'Forbidden' }, 403)
     }
 
-    const settings = await getRequiredSettings(db)
+    const store = await getUserStoreSettings(db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const settings = store.settings
     const pkg = await getActiveQuotaStorePackage(db, body.packageId)
     if (!pkg) return c.json({ error: 'Package not found' }, 404)
     const result = await postUserCloud(
@@ -118,7 +126,9 @@ const quotaStore = new Hono<Env>()
       return c.json({ error: 'Forbidden' }, 403)
     }
 
-    const settings = await getRequiredSettings(db)
+    const store = await getUserStoreSettings(db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const settings = store.settings
     const result = await postUserCloud(
       settings,
       '/api/store/redemptions',
@@ -132,7 +142,10 @@ const quotaStore = new Hono<Env>()
     return c.json(result)
   })
   .get('/grants', async (c) => {
-    const items = await listGrantsForUser(c.get('platform').db, c.get('userId')!)
+    const db = c.get('platform').db
+    const store = await getUserStoreSettings(db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const items = await listGrantsForUser(db, c.get('userId')!)
     return c.json({ items, total: items.length })
   })
 
@@ -162,6 +175,18 @@ const quotaStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).po
 
 export { adminQuotaStore, quotaStore, quotaStoreWebhooks }
 
+async function getUserStoreSettings(db: Parameters<typeof getRequiredSettings>[0]) {
+  try {
+    return { settings: await getRequiredSettings(db) }
+  } catch (error) {
+    const message = (error as Error).message
+    if (message === 'quota_store_disabled' || message === 'quota_store_webhook_secret_missing') {
+      return { error: message }
+    }
+    throw error
+  }
+}
+
 async function syncPackages(db: Parameters<typeof markPackageSynced>[0], packageId: string) {
   try {
     const result = await syncCatalog(db)
@@ -183,7 +208,7 @@ async function syncCatalog(db: Parameters<typeof markPackageSynced>[0], excludin
       binding.sharedSecret,
       {
         boundLicenseId: binding.boundLicenseId,
-        callbackUrl: `${settings.publicInstanceUrl}/api/quota-store/webhooks/cloud`,
+        callbackUrl: `${publicInstanceUrl(settings)}/api/quota-store/webhooks/cloud`,
         packages: packages.map(cloudPackagePayload),
       },
       cloudPackageSyncResponseSchema,
@@ -309,8 +334,8 @@ async function createCheckoutSession(
       amount: pkg.amount,
       currency: pkg.currency,
       bytes: pkg.bytes,
-      successUrl: `${settings.publicInstanceUrl}/quota-store/checkout/success`,
-      cancelUrl: `${settings.publicInstanceUrl}/quota-store/checkout/cancel`,
+      successUrl: `${publicInstanceUrl(settings)}/store`,
+      cancelUrl: `${publicInstanceUrl(settings)}/store`,
       expiresAt: sessionExpiry(),
     },
     binding.sharedSecret,
@@ -342,6 +367,10 @@ async function signStorageSession(payload: object, secret: string): Promise<stri
 
 function sessionExpiry(): string {
   return new Date(Date.now() + 15 * 60 * 1000).toISOString()
+}
+
+function publicInstanceUrl(settings: Awaited<ReturnType<typeof getRequiredSettings>>): string {
+  return settings.publicInstanceUrl.replace(/\/+$/, '')
 }
 
 function base64Url(value: string): string {

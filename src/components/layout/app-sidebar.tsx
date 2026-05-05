@@ -5,7 +5,6 @@ import {
   ChevronsUpDown,
   FileText,
   FolderOpen,
-  HardDrive,
   Image,
   LogOut,
   Music,
@@ -40,18 +39,11 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { useSiteOptions } from '@/hooks/use-site-options'
-import { getIhostConfig, getUserQuota } from '@/lib/api'
+import { getIhostConfig } from '@/lib/api'
 import { signOut, useActiveOrganization, useSession } from '@/lib/auth-client'
 import { OrgSwitcher } from '../team/org-switcher'
 import { FolderTree } from './folder-tree'
-
-function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  const value = bytes / 1024 ** i
-  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`
-}
+import { QuotaPanel } from './quota-panel'
 
 function getInitials(name: string): string {
   return name
@@ -71,11 +63,6 @@ export function AppSidebar() {
   const { branding } = useBranding()
   const user = session?.user as { name: string; username?: string; role?: string; image?: string | null } | undefined
   const isAdmin = user?.role === 'admin'
-  const { data: quota } = useQuery({
-    queryKey: ['user', 'quota'],
-    queryFn: getUserQuota,
-    enabled: !!session,
-  })
   const { data: ihostConfig } = useQuery({
     queryKey: ['ihost', 'config', activeOrg?.id],
     queryFn: getIhostConfig,
@@ -202,32 +189,7 @@ export function AppSidebar() {
           </a>
         </div>
       )}
-      {quota && (
-        <div className="border-t px-5 py-3">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-sidebar-foreground">
-            <HardDrive className="h-3.5 w-3.5" />
-            <span>{t('quota.storage')}</span>
-            {quota.quota > 0 && (
-              <span className="ml-auto tabular-nums text-muted-foreground">
-                {Math.round((quota.used / quota.quota) * 100)}%
-              </span>
-            )}
-          </div>
-          {quota.quota > 0 && (
-            <div className="mb-1.5 h-2 rounded-full bg-border overflow-hidden">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${Math.min(100, (quota.used / quota.quota) * 100)}%` }}
-              />
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground tabular-nums">
-            {quota.quota > 0
-              ? t('quota.usage', { used: formatSize(quota.used), total: formatSize(quota.quota) })
-              : t('quota.usageNoLimit', { used: formatSize(quota.used) })}
-          </p>
-        </div>
-      )}
+      <QuotaPanel enabled={!!session} />
       <SidebarFooter className="border-t p-3">
         <SidebarMenu>
           <SidebarMenuItem>

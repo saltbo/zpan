@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as UUsernameRouteImport } from './routes/u/$username'
 import { Route as STokenRouteImport } from './routes/s/$token'
+import { Route as AuthenticatedStoreRouteImport } from './routes/_authenticated/store'
 import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
@@ -32,6 +33,7 @@ import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedSettingsIhostRouteImport } from './routes/_authenticated/settings/ihost'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
+import { Route as AuthenticatedAdminQuotaStoreRouteImport } from './routes/_authenticated/admin/quota-store'
 import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authenticated/admin/licensing'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
 import { Route as AuthenticatedAdminAnnouncementRouteImport } from './routes/_authenticated/admin/announcement'
@@ -69,6 +71,11 @@ const STokenRoute = STokenRouteImport.update({
   id: '/$token',
   path: '/$token',
   getParentRoute: () => SRouteRoute,
+} as any)
+const AuthenticatedStoreRoute = AuthenticatedStoreRouteImport.update({
+  id: '/store',
+  path: '/store',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const authSignUpRoute = authSignUpRouteImport.update({
   id: '/(auth)/sign-up',
@@ -170,6 +177,12 @@ const AuthenticatedSettingsAppearanceRoute =
     path: '/appearance',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedAdminQuotaStoreRoute =
+  AuthenticatedAdminQuotaStoreRouteImport.update({
+    id: '/quota-store',
+    path: '/quota-store',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminLicensingRoute =
   AuthenticatedAdminLicensingRouteImport.update({
     id: '/licensing',
@@ -255,12 +268,14 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
+  '/store': typeof AuthenticatedStoreRoute
   '/s/$token': typeof STokenRoute
   '/u/$username': typeof UUsernameRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
+  '/admin/quota-store': typeof AuthenticatedAdminQuotaStoreRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -289,12 +304,14 @@ export interface FileRoutesByTo {
   '/s': typeof SRouteRouteWithChildren
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
+  '/store': typeof AuthenticatedStoreRoute
   '/s/$token': typeof STokenRoute
   '/u/$username': typeof UUsernameRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
+  '/admin/quota-store': typeof AuthenticatedAdminQuotaStoreRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -327,6 +344,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/(auth)/sign-in': typeof authSignInRoute
   '/(auth)/sign-up': typeof authSignUpRoute
+  '/_authenticated/store': typeof AuthenticatedStoreRoute
   '/s/$token': typeof STokenRoute
   '/u/$username': typeof UUsernameRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -334,6 +352,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/licensing': typeof AuthenticatedAdminLicensingRoute
+  '/_authenticated/admin/quota-store': typeof AuthenticatedAdminQuotaStoreRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -367,12 +386,14 @@ export interface FileRouteTypes {
     | '/settings'
     | '/sign-in'
     | '/sign-up'
+    | '/store'
     | '/s/$token'
     | '/u/$username'
     | '/teams/$teamId'
     | '/admin/announcement'
     | '/admin/audit'
     | '/admin/licensing'
+    | '/admin/quota-store'
     | '/settings/appearance'
     | '/settings/ihost'
     | '/settings/password'
@@ -401,12 +422,14 @@ export interface FileRouteTypes {
     | '/s'
     | '/sign-in'
     | '/sign-up'
+    | '/store'
     | '/s/$token'
     | '/u/$username'
     | '/'
     | '/admin/announcement'
     | '/admin/audit'
     | '/admin/licensing'
+    | '/admin/quota-store'
     | '/settings/appearance'
     | '/settings/ihost'
     | '/settings/password'
@@ -438,6 +461,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/(auth)/sign-in'
     | '/(auth)/sign-up'
+    | '/_authenticated/store'
     | '/s/$token'
     | '/u/$username'
     | '/_authenticated/'
@@ -445,6 +469,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/announcement'
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/licensing'
+    | '/_authenticated/admin/quota-store'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/ihost'
     | '/_authenticated/settings/password'
@@ -514,6 +539,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/s/$token'
       preLoaderRoute: typeof STokenRouteImport
       parentRoute: typeof SRouteRoute
+    }
+    '/_authenticated/store': {
+      id: '/_authenticated/store'
+      path: '/store'
+      fullPath: '/store'
+      preLoaderRoute: typeof AuthenticatedStoreRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/(auth)/sign-up': {
       id: '/(auth)/sign-up'
@@ -641,6 +673,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/admin/quota-store': {
+      id: '/_authenticated/admin/quota-store'
+      path: '/quota-store'
+      fullPath: '/admin/quota-store'
+      preLoaderRoute: typeof AuthenticatedAdminQuotaStoreRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/licensing': {
       id: '/_authenticated/admin/licensing'
       path: '/licensing'
@@ -739,6 +778,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminAnnouncementRoute: typeof AuthenticatedAdminAnnouncementRoute
   AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
   AuthenticatedAdminLicensingRoute: typeof AuthenticatedAdminLicensingRoute
+  AuthenticatedAdminQuotaStoreRoute: typeof AuthenticatedAdminQuotaStoreRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminSettingsEmailRoute: typeof AuthenticatedAdminSettingsEmailRoute
   AuthenticatedAdminSettingsOauthRoute: typeof AuthenticatedAdminSettingsOauthRoute
@@ -752,6 +792,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminAnnouncementRoute: AuthenticatedAdminAnnouncementRoute,
     AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
     AuthenticatedAdminLicensingRoute: AuthenticatedAdminLicensingRoute,
+    AuthenticatedAdminQuotaStoreRoute: AuthenticatedAdminQuotaStoreRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
     AuthenticatedAdminSettingsEmailRoute: AuthenticatedAdminSettingsEmailRoute,
     AuthenticatedAdminSettingsOauthRoute: AuthenticatedAdminSettingsOauthRoute,
@@ -812,6 +853,7 @@ const AuthenticatedTeamsTeamIdRouteRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
+  AuthenticatedStoreRoute: typeof AuthenticatedStoreRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedTeamsTeamIdRouteRoute: typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   AuthenticatedTeamsInviteRoute: typeof AuthenticatedTeamsInviteRoute
@@ -827,6 +869,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
+  AuthenticatedStoreRoute: AuthenticatedStoreRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedTeamsTeamIdRouteRoute:
     AuthenticatedTeamsTeamIdRouteRouteWithChildren,

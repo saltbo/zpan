@@ -9,6 +9,7 @@ import {
   Megaphone,
   Settings,
   ShieldCheck,
+  ShoppingCart,
   Users,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +34,7 @@ const adminNavItems = [
   { titleKey: 'admin.nav.auth', url: '/admin/settings/oauth', icon: KeyRound },
   { titleKey: 'admin.nav.email', url: '/admin/settings/email', icon: Mail },
   { titleKey: 'admin.nav.settings', url: '/admin/settings', icon: Settings },
+  { titleKey: 'admin.nav.quotaStore', url: '/admin/quota-store', icon: ShoppingCart },
   { titleKey: 'admin.nav.announcement', url: '/admin/announcement', icon: Megaphone },
   { titleKey: 'admin.nav.audit', url: '/admin/audit', icon: ShieldCheck },
   { titleKey: 'admin.nav.licensing', url: '/admin/licensing', icon: BadgeCheck },

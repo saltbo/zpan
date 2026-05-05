@@ -1,6 +1,6 @@
 import type { CloudDeliveryEvent, QuotaStorePackageInput, QuotaStoreSettingsInput } from '@shared/schemas'
 import type { QuotaGrant, QuotaStorePackage, QuotaStoreSettings, QuotaTarget } from '@shared/types'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
 import { quotaDeliveryEvents, quotaGrants, quotaStorePackages, quotaStoreSettings } from '../db/schema'
@@ -44,11 +44,19 @@ export async function upsertQuotaStoreSettings(
 export async function listQuotaStorePackages(db: Database, activeOnly = false): Promise<QuotaStorePackage[]> {
   const query = db.select().from(quotaStorePackages)
   const rows = activeOnly
-    ? await query
-        .where(eq(quotaStorePackages.active, true))
-        .orderBy(quotaStorePackages.sortOrder, quotaStorePackages.name)
+    ? await query.where(purchasablePackageCondition()).orderBy(quotaStorePackages.sortOrder, quotaStorePackages.name)
     : await query.orderBy(quotaStorePackages.sortOrder, quotaStorePackages.name)
   return rows.map(packageDto)
+}
+
+function purchasablePackageCondition(packageId?: string) {
+  const conditions = [
+    eq(quotaStorePackages.active, true),
+    eq(quotaStorePackages.syncStatus, 'synced'),
+    isNotNull(quotaStorePackages.cloudPackageId),
+  ]
+  if (packageId) conditions.push(eq(quotaStorePackages.id, packageId))
+  return and(...conditions)
 }
 
 export async function createQuotaStorePackage(db: Database, input: QuotaStorePackageInput): Promise<QuotaStorePackage> {
@@ -94,11 +102,7 @@ export async function getQuotaStorePackage(db: Database, id: string): Promise<Qu
 }
 
 export async function getActiveQuotaStorePackage(db: Database, id: string): Promise<QuotaStorePackage | null> {
-  const rows = await db
-    .select()
-    .from(quotaStorePackages)
-    .where(and(eq(quotaStorePackages.id, id), eq(quotaStorePackages.active, true)))
-    .limit(1)
+  const rows = await db.select().from(quotaStorePackages).where(purchasablePackageCondition(id)).limit(1)
   return rows[0] ? packageDto(rows[0]) : null
 }
 
@@ -222,12 +226,24 @@ async function getRawSettings(db: Database) {
 async function validatePackageBytes(db: Database, event: CloudDeliveryEvent): Promise<string | null> {
   if (event.source === 'stripe' && !event.packageId) throw new Error('package_required')
   if (!event.packageId) return null
-  const rows = await db.select().from(quotaStorePackages).where(eq(quotaStorePackages.id, event.packageId)).limit(1)
-  const pkg = rows[0]
+  const pkg = await findDeliveryPackage(db, event.packageId)
   if (!pkg || pkg.bytes !== event.bytes || (event.package && event.package.bytes !== pkg.bytes)) {
     throw new Error('invalid_package_delivery')
   }
   return JSON.stringify(event.package ?? packageDto(pkg))
+}
+
+async function findDeliveryPackage(db: Database, packageId: string) {
+  const localRows = await db.select().from(quotaStorePackages).where(eq(quotaStorePackages.id, packageId)).limit(1)
+  if (localRows[0]) return localRows[0]
+
+  const cloudRows = await db
+    .select()
+    .from(quotaStorePackages)
+    .where(eq(quotaStorePackages.cloudPackageId, packageId))
+    .limit(2)
+  if (cloudRows.length !== 1) return null
+  return cloudRows[0]
 }
 
 async function validateDeliveryPackage(
