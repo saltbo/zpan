@@ -8,6 +8,7 @@ import {
 } from '@shared/schemas'
 import type { QuotaStorePackage } from '@shared/types'
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
@@ -26,6 +27,10 @@ import {
   updateQuotaStorePackage,
   upsertQuotaStoreSettings,
 } from '../services/quota-store'
+
+const cloudCheckoutResponseSchema = z.object({ checkoutUrl: z.string().url() })
+const cloudPackageSyncResponseSchema = z.object({ cloudPackageId: z.string().min(1) })
+const cloudRedemptionResponseSchema = z.object({ checkoutUrl: z.string().url() }).passthrough()
 
 const adminQuotaStore = new Hono<Env>()
   .use(requireAdmin)
@@ -88,16 +93,17 @@ const quotaStore = new Hono<Env>()
     }
 
     const settings = await getRequiredSettings(db)
-    const result = await postSignedCloud(
-      settings.cloudBaseUrl,
+    const result = await postUserCloud(
+      settings,
       '/api/quota-store/checkout',
-      settings.webhookSigningSecret,
       {
         ...body,
         callbackUrl: `${settings.publicInstanceUrl}/api/quota-store/webhooks/cloud`,
         userId: c.get('userId'),
       },
+      cloudCheckoutResponseSchema,
     )
+    if ('error' in result) return c.json(result, 502)
     return c.json({ checkoutUrl: result.checkoutUrl })
   })
   .post('/redemptions', zValidator('json', redemptionInputSchema), async (c) => {
@@ -108,16 +114,17 @@ const quotaStore = new Hono<Env>()
     }
 
     const settings = await getRequiredSettings(db)
-    const result = await postSignedCloud(
-      settings.cloudBaseUrl,
+    const result = await postUserCloud(
+      settings,
       '/api/quota-store/redemptions',
-      settings.webhookSigningSecret,
       {
         ...body,
         callbackUrl: `${settings.publicInstanceUrl}/api/quota-store/webhooks/cloud`,
         userId: c.get('userId'),
       },
+      cloudRedemptionResponseSchema,
     )
+    if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })
   .get('/grants', async (c) => {
@@ -161,6 +168,7 @@ async function syncPackage(db: Parameters<typeof markPackageSynced>[0], pkg: Quo
         action,
         package: pkg,
       },
+      cloudPackageSyncResponseSchema,
     )
     return markPackageSynced(db, pkg.id, { cloudPackageId: result.cloudPackageId })
   } catch (error) {
@@ -171,26 +179,70 @@ async function syncPackage(db: Parameters<typeof markPackageSynced>[0], pkg: Quo
 async function syncPackageDelete(db: Parameters<typeof markPackageSynced>[0], pkg: QuotaStorePackage) {
   try {
     const settings = await getRequiredSettings(db)
-    await postSignedCloud(settings.cloudBaseUrl, '/api/quota-store/packages', settings.webhookSigningSecret, {
-      action: 'delete',
-      package: pkg,
-    })
+    await postSignedCloud(
+      settings.cloudBaseUrl,
+      '/api/quota-store/packages',
+      settings.webhookSigningSecret,
+      {
+        action: 'delete',
+        package: pkg,
+      },
+      z.unknown(),
+    )
     return null
   } catch (error) {
     return (error as Error).message
   }
 }
 
-async function postSignedCloud(baseUrl: string, path: string, secret: string, payload: object) {
+async function postUserCloud<T>(
+  settings: Awaited<ReturnType<typeof getRequiredSettings>>,
+  path: string,
+  payload: object,
+  responseSchema: z.ZodType<T>,
+) {
+  try {
+    return await postSignedCloud(settings.cloudBaseUrl, path, settings.webhookSigningSecret, payload, responseSchema)
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
+}
+
+async function postSignedCloud<T>(
+  baseUrl: string,
+  path: string,
+  secret: string,
+  payload: object,
+  responseSchema: z.ZodType<T>,
+): Promise<T> {
   const body = JSON.stringify(payload)
   const res = await fetch(new URL(path, baseUrl), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-zpan-signature': await signPayload(body, secret) },
     body,
   })
-  const data = (await res.json().catch(() => ({}))) as Record<string, string>
-  if (!res.ok) throw new Error(data.error ?? `cloud_request_failed_${res.status}`)
-  return data
+  const data = await readCloudJson(res)
+  if (!res.ok) throw new Error(readCloudError(data) ?? `cloud_request_failed_${res.status}`)
+  return parseCloudResponse(data, responseSchema)
+}
+
+async function readCloudJson(res: Response): Promise<unknown> {
+  try {
+    return await res.json()
+  } catch {
+    return {}
+  }
+}
+
+function readCloudError(data: unknown): string | null {
+  if (!data || typeof data !== 'object' || !('error' in data)) return null
+  return typeof data.error === 'string' ? data.error : null
+}
+
+function parseCloudResponse<T>(data: unknown, schema: z.ZodType<T>): T {
+  const parsed = schema.safeParse(data)
+  if (!parsed.success) throw new Error('invalid_cloud_response')
+  return parsed.data
 }
 
 async function signPayload(payload: string, secret: string): Promise<string> {
