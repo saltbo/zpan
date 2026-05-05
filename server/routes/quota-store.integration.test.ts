@@ -59,6 +59,79 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(400)
   })
 
+  it('reads and updates quota store settings', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+
+    const empty = await app.request('/api/admin/quota-store/settings', { headers })
+    await seedSettings(app, headers)
+    const filled = await app.request('/api/admin/quota-store/settings', { headers })
+
+    expect(empty.status).toBe(200)
+    await expect(empty.json()).resolves.toBeNull()
+    expect(filled.status).toBe(200)
+    await expect(filled.json()).resolves.toMatchObject({
+      enabled: true,
+      cloudBaseUrl: 'https://cloud.example',
+      publicInstanceUrl: 'https://zpan.example',
+      webhookSigningSecretSet: true,
+    })
+  })
+
+  it('creates, lists, and syncs quota store packages', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const created = await app.request('/api/admin/quota-store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Small', description: 'starter', bytes: 4096, amount: 500, currency: 'USD' }),
+    })
+    const listed = await app.request('/api/admin/quota-store/packages', { headers })
+
+    expect(created.status).toBe(201)
+    await expect(created.json()).resolves.toMatchObject({ cloudPackageId: 'cloud-pkg-1', syncStatus: 'synced' })
+    expect(listed.status).toBe(200)
+    await expect(listed.json()).resolves.toMatchObject({ total: 1 })
+  })
+
+  it('surfaces package create sync failures without clearing the local package', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 502, json: async () => ({}) } as Response)
+
+    const res = await app.request('/api/admin/quota-store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Small', description: '', bytes: 4096, amount: 500, currency: 'usd' }),
+    })
+
+    expect(res.status).toBe(202)
+    await expect(res.json()).resolves.toMatchObject({ syncStatus: 'failed', syncError: 'cloud_request_failed_502' })
+  })
+
+  it('rejects malformed successful package sync responses', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
+
+    const res = await app.request('/api/admin/quota-store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Small', description: '', bytes: 4096, amount: 500, currency: 'usd' }),
+    })
+
+    expect(res.status).toBe(202)
+    await expect(res.json()).resolves.toMatchObject({ syncStatus: 'failed', syncError: 'invalid_cloud_response' })
+  })
+
   it('syncs package deletion to Cloud before deleting locally', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
@@ -141,6 +214,60 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(403)
+  })
+
+  it('lists purchasable packages, targets, checkout, redemptions, and grants', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    const packageId = await seedPackage(db)
+    await seedGrant(db, orgId)
+
+    const packages = await app.request('/api/quota-store/packages', { headers })
+    const targets = await app.request('/api/quota-store/targets', { headers })
+    const checkout = await app.request('/api/quota-store/checkout', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+    })
+    const redemption = await app.request('/api/quota-store/redemptions', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'CODE-OK', targetOrgId: orgId }),
+    })
+    const grants = await app.request('/api/quota-store/grants', { headers })
+
+    expect(packages.status).toBe(200)
+    await expect(packages.json()).resolves.toMatchObject({ total: 1 })
+    expect(targets.status).toBe(200)
+    await expect(targets.json()).resolves.toMatchObject({ total: 1, items: [{ orgId, type: 'personal' }] })
+    expect(checkout.status).toBe(200)
+    await expect(checkout.json()).resolves.toEqual({ checkoutUrl: 'https://cloud.example/checkout' })
+    expect(redemption.status).toBe(200)
+    await expect(redemption.json()).resolves.toMatchObject({ checkoutUrl: 'https://cloud.example/checkout' })
+    expect(grants.status).toBe(200)
+    await expect(grants.json()).resolves.toMatchObject({ total: 1, items: [{ orgId, bytes: 512 }] })
+  })
+
+  it('rejects malformed successful checkout responses', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    const packageId = await seedPackage(db)
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
+
+    const res = await app.request('/api/quota-store/checkout', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+    })
+
+    expect(res.status).toBe(502)
+    await expect(res.json()).resolves.toEqual({ error: 'invalid_cloud_response' })
   })
 
   it('valid Cloud delivery creates one grant and increases effective quota once', async () => {
@@ -414,6 +541,14 @@ async function seedSettingsRow(db: Awaited<ReturnType<typeof createTestApp>>['db
     INSERT INTO quota_store_settings
       (id, enabled, cloud_base_url, public_instance_url, webhook_signing_secret, created_at, updated_at)
     VALUES ('default', 1, 'https://cloud.example', 'https://zpan.example', ${SECRET}, ${now}, ${now})
+  `)
+}
+
+async function seedGrant(db: Awaited<ReturnType<typeof createTestApp>>['db'], orgId: string) {
+  await db.run(sql`
+    INSERT INTO quota_grants
+      (id, org_id, source, external_event_id, cloud_order_id, bytes, active, created_at)
+    VALUES ('grant-user-list', ${orgId}, 'stripe', 'evt-user-list', 'order-user-list', 512, 1, ${Date.now()})
   `)
 }
 
