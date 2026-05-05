@@ -131,6 +131,13 @@ export const FEATURE_REGISTRY = [
     gateKey: 'audit_log',
   },
   {
+    i18nKey: 'features.quotaStore',
+    category: 'pro',
+    community: false,
+    pro: true,
+    gateKey: 'quota_store',
+  },
+  {
     i18nKey: 'features.webhooks',
     category: 'pro',
     community: false,

@@ -120,6 +120,13 @@
       "when": 1777771763793,
       "tag": "0017_add-announcements",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1777992072747,
+      "tag": "0018_cheerful_chimera",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,22 @@ export type { ListAdminAuditQuery } from './audit'
 export { listAdminAuditQuerySchema } from './audit'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
+export type {
+  CheckoutInput,
+  CloudDeliveryPayload,
+  CreateQuotaStorePackageInput,
+  PutQuotaStoreSettingsInput,
+  RedeemInput,
+  UpdateQuotaStorePackageInput,
+} from './quota-store'
+export {
+  checkoutSchema,
+  cloudDeliveryPayloadSchema,
+  createQuotaStorePackageSchema,
+  putQuotaStoreSettingsSchema,
+  redeemSchema,
+  updateQuotaStorePackageSchema,
+} from './quota-store'
 export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'
 export {
   createShareRequestSchema,

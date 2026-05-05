@@ -8,6 +8,7 @@ import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
+import { getEffectiveQuota } from '../services/effective-quota'
 import { findPersonalOrg } from '../services/org'
 
 const updateQuotaSchema = z.object({
@@ -49,6 +50,7 @@ const adminQuotas = new Hono<Env>()
     const targetOrgId = c.req.param('orgId')
     const { quota } = c.req.valid('json')
 
+    // Only updates the base quota; paid grants remain unchanged.
     const existing = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, targetOrgId))
 
     if (existing.length > 0) {
@@ -79,13 +81,14 @@ const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {
     return c.json({ error: 'No organization found' }, 404)
   }
 
-  const rows = await db
-    .select({ quota: orgQuotas.quota, used: orgQuotas.used })
-    .from(orgQuotas)
-    .where(eq(orgQuotas.orgId, orgId))
-
-  const quotaRow = rows[0] ?? { quota: 0, used: 0 }
-  return c.json({ orgId, quota: quotaRow.quota, used: quotaRow.used })
+  const effective = await getEffectiveQuota(db, orgId)
+  return c.json({
+    orgId,
+    baseQuota: effective.baseQuota,
+    grantedQuota: effective.grantedQuota,
+    quota: effective.quota,
+    used: effective.used,
+  })
 })
 
 export { adminQuotas, userQuotas }

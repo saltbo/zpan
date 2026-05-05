@@ -2,9 +2,14 @@ import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
   AllowedImageMime,
   AnnouncementInput,
+  CheckoutInput,
   ConflictStrategy,
+  CreateQuotaStorePackageInput,
   CreateShareRequest,
   CreateStorageInput,
+  PutQuotaStoreSettingsInput,
+  RedeemInput,
+  UpdateQuotaStorePackageInput,
   UpdateStorageInput,
 } from '@shared/schemas'
 import type {
@@ -15,10 +20,17 @@ import type {
   BindingState,
   BrandingConfig,
   BrandingField,
+  EffectiveQuota,
   IhostConfigResponse,
   ImageHosting,
   Notification,
   PaginatedResponse,
+  QuotaCheckoutResponse,
+  QuotaGrant,
+  QuotaRedemptionResponse,
+  QuotaStorePackage,
+  QuotaStoreSettings,
+  QuotaTarget,
   ShareListItem,
   ShareView,
   SiteInvitation,
@@ -29,6 +41,7 @@ import {
   adminAnnouncementsApi,
   adminAuditApi,
   adminAuthProviders,
+  adminQuotaStoreApi,
   adminQuotas,
   adminSiteInvitations,
   announcementsApi,
@@ -52,6 +65,7 @@ import {
   system,
   teamsApi,
   trash,
+  userQuotaStoreApi,
   userQuotas,
   users,
 } from './rpc'
@@ -272,7 +286,7 @@ export function updateQuota(orgId: string, quota: number) {
 // User Quotas API
 
 export function getUserQuota() {
-  return unwrap<{ orgId: string; quota: number; used: number }>(userQuotas.me.$get())
+  return unwrap<EffectiveQuota>(userQuotas.me.$get())
 }
 
 // System Options API
@@ -914,4 +928,60 @@ export function listAdminAuditLogs(page = 1, pageSize = 20, filter: AdminAuditFi
   if (filter.action) query.action = filter.action
   if (filter.targetType) query.targetType = filter.targetType
   return unwrap<PaginatedResponse<AdminAuditEvent>>(adminAuditApi.index.$get({ query }))
+}
+
+// ─── Admin Quota Store API ────────────────────────────────────────────────────
+
+export function getQuotaStoreSettings() {
+  return unwrap<QuotaStoreSettings>(adminQuotaStoreApi.settings.$get())
+}
+
+export function putQuotaStoreSettings(input: PutQuotaStoreSettingsInput) {
+  return unwrap<QuotaStoreSettings>(adminQuotaStoreApi.settings.$put({ json: input }))
+}
+
+export function listAdminQuotaStorePackages() {
+  return unwrap<{ items: QuotaStorePackage[]; total: number }>(adminQuotaStoreApi.packages.$get())
+}
+
+export function createAdminQuotaStorePackage(input: CreateQuotaStorePackageInput) {
+  return unwrap<{ package: QuotaStorePackage; syncError: string | null }>(
+    adminQuotaStoreApi.packages.$post({ json: input }),
+  )
+}
+
+export function getAdminQuotaStorePackage(id: string) {
+  return unwrap<QuotaStorePackage>(adminQuotaStoreApi.packages[':id'].$get({ param: { id } }))
+}
+
+export function updateAdminQuotaStorePackage(id: string, input: UpdateQuotaStorePackageInput) {
+  return unwrap<{ package: QuotaStorePackage; syncError: string | null }>(
+    adminQuotaStoreApi.packages[':id'].$patch({ param: { id }, json: input }),
+  )
+}
+
+export function deleteAdminQuotaStorePackage(id: string) {
+  return unwrap<{ deleted: boolean }>(adminQuotaStoreApi.packages[':id'].$delete({ param: { id } }))
+}
+
+// ─── User Quota Store API ─────────────────────────────────────────────────────
+
+export function listUserQuotaStorePackages() {
+  return unwrap<{ items: QuotaStorePackage[]; total: number }>(userQuotaStoreApi.packages.$get())
+}
+
+export function listQuotaTargets() {
+  return unwrap<{ items: QuotaTarget[]; total: number }>(userQuotaStoreApi.targets.$get())
+}
+
+export function checkoutQuotaPackage(input: CheckoutInput) {
+  return unwrap<QuotaCheckoutResponse>(userQuotaStoreApi.checkout.$post({ json: input }))
+}
+
+export function redeemQuotaCode(input: RedeemInput) {
+  return unwrap<QuotaRedemptionResponse>(userQuotaStoreApi.redemptions.$post({ json: input }))
+}
+
+export function listQuotaGrants() {
+  return unwrap<{ items: QuotaGrant[]; total: number }>(userQuotaStoreApi.grants.$get())
 }

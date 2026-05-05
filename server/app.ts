@@ -21,6 +21,8 @@ import { me } from './routes/me'
 import { notifications } from './routes/notifications'
 import objects from './routes/objects'
 import profile from './routes/profile'
+import { quotaStoreWebhook, userQuotaStore } from './routes/quota-store'
+import adminQuotaStore from './routes/quota-store-admin'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import redirect from './routes/redirect'
 import { authedShares, publicShares } from './routes/shares'
@@ -94,6 +96,9 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/admin/branding', brandingAdmin)
   app.route('/api/admin/announcements', adminAnnouncements)
   app.route('/api/admin/audit', adminAudit)
+  app.route('/api/admin/quota-store', adminQuotaStore)
+  app.route('/api/quota-store', userQuotaStore)
+  app.route('/api/quota-store/webhooks', quotaStoreWebhook)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
@@ -133,3 +138,6 @@ export type LicensingAdminRoute = typeof licensingAdmin
 export type PublicBrandingRoute = typeof publicBranding
 export type BrandingAdminRoute = typeof brandingAdmin
 export type AdminAuditRoute = typeof adminAudit
+export type AdminQuotaStoreRoute = typeof adminQuotaStore
+export type UserQuotaStoreRoute = typeof userQuotaStore
+export type QuotaStoreWebhookRoute = typeof quotaStoreWebhook

@@ -246,3 +246,77 @@ export const imageHostings = sqliteTable(
     index('image_hostings_token_idx').on(t.token),
   ],
 )
+
+// ─── Quota Store ──────────────────────────────────────────────────────────────
+
+// quota_store_settings — instance-level singleton row (id = 'default')
+export const quotaStoreSettings = sqliteTable('quota_store_settings', {
+  id: text('id').primaryKey().default('default'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  cloudBaseUrl: text('cloud_base_url'),
+  instancePublicUrl: text('instance_public_url'),
+  webhookSigningSecret: text('webhook_signing_secret'),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }),
+})
+
+// quota_store_packages — admin-defined purchase packages
+export const quotaStorePackages = sqliteTable(
+  'quota_store_packages',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    bytes: integer('bytes').notNull(),
+    amount: integer('amount').notNull(), // stored as cents/smallest unit
+    currency: text('currency').notNull().default('usd'),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    sortOrder: integer('sort_order').notNull().default(0),
+    cloudSyncId: text('cloud_sync_id'),
+    cloudSyncStatus: text('cloud_sync_status'), // 'pending' | 'synced' | 'error'
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [index('quota_store_packages_active_sort_idx').on(t.active, t.sortOrder)],
+)
+
+// quota_grants — immutable additive quota grants per org
+export const quotaGrants = sqliteTable(
+  'quota_grants',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    source: text('source').notNull(), // 'stripe' | 'redeem_code' | 'admin_adjustment'
+    externalEventId: text('external_event_id'),
+    cloudOrderId: text('cloud_order_id'),
+    code: text('code'),
+    bytes: integer('bytes').notNull(),
+    packageSnapshot: text('package_snapshot'), // JSON snapshot of package at time of grant
+    grantedBy: text('granted_by'),
+    terminalUserId: text('terminal_user_id'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [
+    index('quota_grants_org_created_idx').on(t.orgId, t.createdAt),
+    index('quota_grants_external_event_idx').on(t.externalEventId),
+    index('quota_grants_cloud_order_idx').on(t.cloudOrderId),
+  ],
+)
+
+// quota_delivery_events — idempotency ledger for Cloud webhook deliveries
+export const quotaDeliveryEvents = sqliteTable(
+  'quota_delivery_events',
+  {
+    id: text('id').primaryKey(),
+    eventId: text('event_id').notNull().unique(),
+    cloudOrderId: text('cloud_order_id'),
+    payloadHash: text('payload_hash'),
+    rawPayload: text('raw_payload'),
+    status: text('status').notNull().default('processed'), // 'processed' | 'duplicate' | 'error'
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    processedAt: integer('processed_at', { mode: 'timestamp' }),
+  },
+  (t) => [
+    index('quota_delivery_events_cloud_order_idx').on(t.cloudOrderId),
+    index('quota_delivery_events_created_idx').on(t.createdAt),
+  ],
+)

@@ -313,6 +313,61 @@ const APP_SCHEMA_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS license_bindings_active_uniq ON license_bindings(status) WHERE status = 'active';
   CREATE INDEX IF NOT EXISTS license_bindings_cloud_binding_idx ON license_bindings(cloud_binding_id);
   CREATE INDEX IF NOT EXISTS license_bindings_instance_idx ON license_bindings(instance_id);
+
+  CREATE TABLE IF NOT EXISTS quota_store_settings (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    enabled INTEGER NOT NULL DEFAULT 0,
+    cloud_base_url TEXT,
+    instance_public_url TEXT,
+    webhook_signing_secret TEXT,
+    updated_at INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS quota_store_packages (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    bytes INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'usd',
+    active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    cloud_sync_id TEXT,
+    cloud_sync_status TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS quota_store_packages_active_sort_idx ON quota_store_packages(active, sort_order);
+
+  CREATE TABLE IF NOT EXISTS quota_grants (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    external_event_id TEXT,
+    cloud_order_id TEXT,
+    code TEXT,
+    bytes INTEGER NOT NULL,
+    package_snapshot TEXT,
+    granted_by TEXT,
+    terminal_user_id TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS quota_grants_org_created_idx ON quota_grants(org_id, created_at);
+  CREATE INDEX IF NOT EXISTS quota_grants_external_event_idx ON quota_grants(external_event_id);
+  CREATE INDEX IF NOT EXISTS quota_grants_cloud_order_idx ON quota_grants(cloud_order_id);
+
+  CREATE TABLE IF NOT EXISTS quota_delivery_events (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL UNIQUE,
+    cloud_order_id TEXT,
+    payload_hash TEXT,
+    raw_payload TEXT,
+    status TEXT NOT NULL DEFAULT 'processed',
+    created_at INTEGER NOT NULL,
+    processed_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS quota_delivery_events_cloud_order_idx ON quota_delivery_events(cloud_order_id);
+  CREATE INDEX IF NOT EXISTS quota_delivery_events_created_idx ON quota_delivery_events(created_at);
 `
 
 export async function createTestApp(

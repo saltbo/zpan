@@ -3,6 +3,7 @@ import type {
   AdminAuditRoute,
   AdminAuthProvidersRoute,
   AdminInviteCodesRoute,
+  AdminQuotaStoreRoute,
   AdminQuotasRoute,
   AdminSiteInvitationsRoute,
   AnnouncementsRoute,
@@ -26,6 +27,7 @@ import type {
   SystemRoute,
   TeamsRoute,
   TrashRoute,
+  UserQuotaStoreRoute,
   UserQuotasRoute,
   UsersRoute,
 } from '@server/app'
@@ -66,3 +68,5 @@ export const publicBrandingApi = hc<PublicBrandingRoute>('/api/branding', opts)
 export const brandingAdminApi = hc<BrandingAdminRoute>('/api/admin/branding', opts)
 export const adminAuditApi = hc<AdminAuditRoute>('/api/admin/audit', opts)
 export const publicSiteInvitations = hc<PublicSiteInvitationsRoute>('/api/site-invitations', opts)
+export const adminQuotaStoreApi = hc<AdminQuotaStoreRoute>('/api/admin/quota-store', opts)
+export const userQuotaStoreApi = hc<UserQuotaStoreRoute>('/api/quota-store', opts)

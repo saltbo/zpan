@@ -286,3 +286,78 @@ export interface BrandingConfig {
 }
 
 export type BrandingField = 'logo' | 'favicon' | 'wordmark_text' | 'hide_powered_by'
+
+// ─── Quota Store ──────────────────────────────────────────────────────────────
+
+export interface QuotaStoreSettings {
+  enabled: boolean
+  cloudBaseUrl: string | null
+  instancePublicUrl: string | null
+  webhookSigningSecret: string | null
+  updatedAt: string | null
+}
+
+export interface QuotaStorePackage {
+  id: string
+  name: string
+  description: string | null
+  bytes: number
+  amount: number
+  currency: string
+  active: boolean
+  sortOrder: number
+  cloudSyncId: string | null
+  cloudSyncStatus: 'pending' | 'synced' | 'error' | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type QuotaGrantSource = 'stripe' | 'redeem_code' | 'admin_adjustment'
+
+export interface QuotaGrant {
+  id: string
+  orgId: string
+  source: QuotaGrantSource
+  externalEventId: string | null
+  cloudOrderId: string | null
+  code: string | null
+  bytes: number
+  packageSnapshot: string | null
+  grantedBy: string | null
+  terminalUserId: string | null
+  createdAt: string
+}
+
+export interface QuotaDeliveryEvent {
+  id: string
+  eventId: string
+  cloudOrderId: string | null
+  payloadHash: string | null
+  rawPayload: string | null
+  status: 'processed' | 'duplicate' | 'error'
+  createdAt: string
+  processedAt: string | null
+}
+
+export interface EffectiveQuota {
+  orgId: string
+  baseQuota: number
+  grantedQuota: number
+  quota: number
+  used: number
+}
+
+export interface QuotaCheckoutResponse {
+  checkoutUrl: string
+}
+
+export interface QuotaRedemptionResponse {
+  granted: boolean
+  bytes: number
+}
+
+export interface QuotaTarget {
+  orgId: string
+  orgName: string
+  orgType: string
+}
