@@ -134,6 +134,63 @@ const APP_SCHEMA_SQL = `
     quota INTEGER NOT NULL DEFAULT 0,
     used INTEGER NOT NULL DEFAULT 0
   );
+  CREATE TABLE IF NOT EXISTS quota_store_settings (
+    id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    cloud_base_url TEXT NOT NULL,
+    public_instance_url TEXT NOT NULL,
+    webhook_signing_secret TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS quota_store_packages (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    bytes INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    cloud_package_id TEXT,
+    sync_status TEXT NOT NULL DEFAULT 'pending',
+    sync_error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS quota_store_packages_active_sort_idx ON quota_store_packages(active, sort_order);
+  CREATE TABLE IF NOT EXISTS quota_grants (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    external_event_id TEXT,
+    cloud_order_id TEXT,
+    code TEXT,
+    bytes INTEGER NOT NULL,
+    package_snapshot TEXT,
+    granted_by TEXT,
+    terminal_user_id TEXT,
+    terminal_user_email TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS quota_grants_org_created_idx ON quota_grants(org_id, created_at);
+  CREATE UNIQUE INDEX IF NOT EXISTS quota_grants_external_event_uniq ON quota_grants(external_event_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS quota_grants_cloud_order_uniq ON quota_grants(cloud_order_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS quota_grants_code_uniq ON quota_grants(code);
+  CREATE TABLE IF NOT EXISTS quota_delivery_events (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    cloud_order_id TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    raw_payload TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    processed_at INTEGER
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_event_uniq ON quota_delivery_events(event_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_order_uniq ON quota_delivery_events(cloud_order_id);
   CREATE TABLE IF NOT EXISTS system_options (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT '',
@@ -260,6 +317,7 @@ const APP_SCHEMA_SQL = `
     status TEXT NOT NULL DEFAULT 'draft',
     priority INTEGER NOT NULL DEFAULT 0,
     published_at INTEGER,
+    expires_at INTEGER,
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL

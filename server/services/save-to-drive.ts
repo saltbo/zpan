@@ -1,9 +1,10 @@
 import { and, eq, like, or } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
 import type { Storage as S3StorageType } from '../../shared/types'
-import { matters, orgQuotas } from '../db/schema'
+import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { recordActivity } from './activity'
+import { hasQuotaForBytes } from './effective-quota'
 import type { Matter } from './matter'
 import { createMatter, incrementUsageIfAllowed } from './matter'
 import { buildObjectKey } from './path-template'
@@ -70,14 +71,7 @@ export async function computeSourceBytes(db: Database, matter: Matter): Promise<
 }
 
 export async function isQuotaSufficient(db: Database, orgId: string, bytes: number): Promise<boolean> {
-  if (bytes <= 0) return true
-  const rows = await db
-    .select({ quota: orgQuotas.quota, used: orgQuotas.used })
-    .from(orgQuotas)
-    .where(eq(orgQuotas.orgId, orgId))
-  const row = rows[0]
-  if (!row || row.quota === 0) return true
-  return row.used + bytes <= row.quota
+  return hasQuotaForBytes(db, orgId, bytes)
 }
 
 // ─── File copy ────────────────────────────────────────────────────────────────

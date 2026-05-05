@@ -39,6 +39,7 @@ export async function createAnnouncement(
     status: input.status,
     priority: input.priority,
     publishedAt: publishedAtFor(input),
+    expiresAt: null,
     createdBy,
     createdAt: now,
     updatedAt: now,

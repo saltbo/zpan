@@ -4,6 +4,7 @@ import type { AllowedImageMime } from '../../shared/schemas'
 import type { ImageHosting } from '../../shared/types'
 import { imageHostingConfigs, imageHostings, orgQuotas, storages } from '../db/schema'
 import type { Database } from '../platform/interface'
+import { incrementUsageIfEffectiveQuotaAllows } from './effective-quota'
 
 // ── Token-based redirect helpers (used by /r/:token route) ───────────────────
 
@@ -294,26 +295,7 @@ export async function incrementImageQuotaIfAllowed(
   storageId: string,
   bytes: number,
 ): Promise<boolean> {
-  const rows = await db
-    .select({ quota: orgQuotas.quota, used: orgQuotas.used })
-    .from(orgQuotas)
-    .where(eq(orgQuotas.orgId, orgId))
-
-  const [row] = rows
-  if (row) {
-    if (row.quota > 0 && row.used + bytes > row.quota) return false
-    await db
-      .update(orgQuotas)
-      .set({ used: sql`${orgQuotas.used} + ${bytes}` })
-      .where(eq(orgQuotas.orgId, orgId))
-  }
-
-  await db
-    .update(storages)
-    .set({ used: sql`${storages.used} + ${bytes}` })
-    .where(eq(storages.id, storageId))
-
-  return true
+  return incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, bytes)
 }
 
 export async function decrementImageQuota(

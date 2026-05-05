@@ -19,6 +19,10 @@ import type {
   ImageHosting,
   Notification,
   PaginatedResponse,
+  QuotaGrant,
+  QuotaStorePackage,
+  QuotaStoreSettings,
+  QuotaTarget,
   ShareListItem,
   ShareView,
   SiteInvitation,
@@ -29,6 +33,7 @@ import {
   adminAnnouncementsApi,
   adminAuditApi,
   adminAuthProviders,
+  adminQuotaStoreApi,
   adminQuotas,
   adminSiteInvitations,
   announcementsApi,
@@ -48,6 +53,7 @@ import {
   publicBrandingApi,
   publicSharesApi,
   publicSiteInvitations,
+  quotaStoreApi,
   storages,
   system,
   teamsApi,
@@ -272,7 +278,68 @@ export function updateQuota(orgId: string, quota: number) {
 // User Quotas API
 
 export function getUserQuota() {
-  return unwrap<{ orgId: string; quota: number; used: number }>(userQuotas.me.$get())
+  return unwrap<{ orgId: string; baseQuota: number; grantedQuota: number; quota: number; used: number }>(
+    userQuotas.me.$get(),
+  )
+}
+
+// Quota Store API
+
+export function getQuotaStoreSettings() {
+  return unwrap<QuotaStoreSettings | null>(adminQuotaStoreApi.settings.$get())
+}
+
+export function updateQuotaStoreSettings(data: {
+  enabled: boolean
+  cloudBaseUrl: string
+  publicInstanceUrl: string
+  webhookSigningSecret?: string
+}) {
+  return unwrap<QuotaStoreSettings>(adminQuotaStoreApi.settings.$put({ json: data }))
+}
+
+export function listQuotaStorePackages() {
+  return unwrap<{ items: QuotaStorePackage[]; total: number }>(adminQuotaStoreApi.packages.$get())
+}
+
+export function createQuotaStorePackage(data: {
+  name: string
+  description?: string
+  bytes: number
+  amount: number
+  currency: string
+  active?: boolean
+  sortOrder?: number
+}) {
+  return unwrap<QuotaStorePackage>(adminQuotaStoreApi.packages.$post({ json: data }))
+}
+
+export function updateQuotaStorePackage(id: string, data: Parameters<typeof createQuotaStorePackage>[0]) {
+  return unwrap<QuotaStorePackage>(adminQuotaStoreApi.packages[':id'].$put({ param: { id }, json: data }))
+}
+
+export function deleteQuotaStorePackage(id: string) {
+  return unwrap<{ id: string; deleted: boolean }>(adminQuotaStoreApi.packages[':id'].$delete({ param: { id } }))
+}
+
+export function listPurchasableQuotaPackages() {
+  return unwrap<{ items: QuotaStorePackage[]; total: number }>(quotaStoreApi.packages.$get())
+}
+
+export function listQuotaStoreTargets() {
+  return unwrap<{ items: QuotaTarget[]; total: number }>(quotaStoreApi.targets.$get())
+}
+
+export function createQuotaCheckout(packageId: string, targetOrgId: string) {
+  return unwrap<{ checkoutUrl: string }>(quotaStoreApi.checkout.$post({ json: { packageId, targetOrgId } }))
+}
+
+export function redeemQuotaCode(code: string, targetOrgId: string) {
+  return unwrap<Record<string, unknown>>(quotaStoreApi.redemptions.$post({ json: { code, targetOrgId } }))
+}
+
+export function listQuotaGrants() {
+  return unwrap<{ items: QuotaGrant[]; total: number }>(quotaStoreApi.grants.$get())
 }
 
 // System Options API
