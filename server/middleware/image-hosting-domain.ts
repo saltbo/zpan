@@ -8,8 +8,6 @@ import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effectiv
 import { getImageByOrgPath, incrementAccessCount, resolveCustomDomain } from '../services/image-hosting'
 import { getStorage } from '../services/storage'
 
-const IMAGE_MAX_AGE = Math.min(PRESIGN_TTL_SECS - 30, 300)
-
 function stripPort(host: string): string {
   const lastColon = host.lastIndexOf(':')
   if (lastColon < 0) return host
@@ -78,7 +76,7 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
     throw e
   }
   const res = c.redirect(url, 302)
-  res.headers.set('Cache-Control', `public, max-age=${IMAGE_MAX_AGE}`)
+  res.headers.set('Cache-Control', 'no-store')
   return res
 }
 

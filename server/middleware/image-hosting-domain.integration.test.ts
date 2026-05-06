@@ -133,7 +133,7 @@ describe('imageHostingDomain middleware — unverified domain', () => {
 // ─── Custom domain redirect ───────────────────────────────────────────────────
 
 describe('imageHostingDomain middleware — custom domain redirect', () => {
-  it('verified custom domain with valid path → 302 with Cache-Control: public, max-age=300', async () => {
+  it('verified custom domain with valid path returns non-cacheable metered redirect', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -147,9 +147,7 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
-    const cc = res.headers.get('cache-control') ?? ''
-    expect(cc).toContain('public')
-    expect(cc).toMatch(/max-age=\d+/)
+    expect(res.headers.get('cache-control')).toBe('no-store')
   })
 
   it('verified custom domain consumes traffic quota when inline URL is issued', async () => {

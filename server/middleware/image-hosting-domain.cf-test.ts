@@ -75,8 +75,7 @@ describe('[CF] imageHostingDomain — custom Host serves image redirect', () => 
     })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
-    const cc = res.headers.get('cache-control') ?? ''
-    expect(cc).toContain('public')
+    expect(res.headers.get('cache-control')).toBe('no-store')
     vi.restoreAllMocks()
   })
 })

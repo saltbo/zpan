@@ -125,7 +125,9 @@ export async function refundTraffic(db: Database, orgId: string, bytes: number, 
   const period = currentTrafficPeriod(now)
   await db
     .update(orgQuotas)
-    .set({ trafficUsed: sql`${orgQuotas.trafficUsed} - ${bytes}` })
+    .set({
+      trafficUsed: sql`CASE WHEN ${orgQuotas.trafficUsed} > ${bytes} THEN ${orgQuotas.trafficUsed} - ${bytes} ELSE 0 END`,
+    })
     .where(sql`${orgQuotas.orgId} = ${orgId} AND ${orgQuotas.trafficPeriod} = ${period}`)
 }
 
