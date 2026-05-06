@@ -224,7 +224,6 @@ async function resumeDeliveryEvent(
     .from(quotaDeliveryEvents)
     .where(
       sql`${quotaDeliveryEvents.eventId} = ${event.eventId}
-        OR (${event.cloudOrderId ?? null} IS NOT NULL AND ${quotaDeliveryEvents.cloudOrderId} = ${event.cloudOrderId ?? null})
         OR (${event.cloudRedemptionId ?? null} IS NOT NULL
           AND ${quotaDeliveryEvents.cloudRedemptionId} = ${event.cloudRedemptionId ?? null})
         OR (${event.code ?? null} IS NOT NULL AND ${quotaDeliveryEvents.code} = ${event.code ?? null})`,

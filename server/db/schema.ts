@@ -98,7 +98,7 @@ export const quotaDeliveryEvents = sqliteTable(
   },
   (t) => [
     uniqueIndex('quota_delivery_events_event_uniq').on(t.eventId),
-    uniqueIndex('quota_delivery_events_order_uniq').on(t.cloudOrderId),
+    index('quota_delivery_events_order_idx').on(t.cloudOrderId),
     uniqueIndex('quota_delivery_events_redemption_uniq').on(t.cloudRedemptionId),
     uniqueIndex('quota_delivery_events_code_uniq').on(t.code),
   ],

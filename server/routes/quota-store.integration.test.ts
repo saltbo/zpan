@@ -1442,6 +1442,170 @@ describe('Quota Store API', () => {
     expect(deliveries).toEqual([{ status: 'processed' }])
   })
 
+  it('processes same-order increase then decrease as two independent events', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    await db.run(sql`UPDATE org_quotas SET quota = 8192 WHERE org_id = ${orgId}`)
+
+    const increase = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-order-increase',
+        cloudOrderId: 'order-reversal-test',
+        targetOrgId: orgId,
+        resourceType: 'storage',
+        operation: 'increase',
+        resourceBytes: 4096,
+        source: 'stripe',
+      }),
+    )
+    const decrease = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-order-decrease',
+        cloudOrderId: 'order-reversal-test',
+        targetOrgId: orgId,
+        resourceType: 'storage',
+        operation: 'decrease',
+        resourceBytes: 4096,
+        source: 'stripe',
+      }),
+    )
+
+    expect(increase.status).toBe(200)
+    await expect(increase.json()).resolves.toMatchObject({ success: true, duplicate: false })
+    expect(decrease.status).toBe(200)
+    await expect(decrease.json()).resolves.toMatchObject({ success: true, duplicate: false })
+
+    const rows = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(rows[0].quota).toBe(8192)
+
+    const deliveries = await db.all<{ eventId: string; status: string }>(
+      sql`SELECT event_id AS eventId, status FROM quota_delivery_events WHERE cloud_order_id = 'order-reversal-test' ORDER BY created_at`,
+    )
+    expect(deliveries).toEqual([
+      { eventId: 'evt-order-increase', status: 'processed' },
+      { eventId: 'evt-order-decrease', status: 'processed' },
+    ])
+
+    const auditRows = await db.all<{ action: string }>(
+      sql`SELECT action FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 2`,
+    )
+    expect(auditRows.map((r) => r.action)).toContain('quota_storage_decrease')
+    expect(auditRows.map((r) => r.action)).toContain('quota_storage_increase')
+  })
+
+  it('replaying the same decrease event is idempotent and does not double-deduct', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    await db.run(sql`UPDATE org_quotas SET quota = 8192 WHERE org_id = ${orgId}`)
+
+    const payload = JSON.stringify({
+      eventId: 'evt-decrease-idempotent',
+      cloudOrderId: 'order-decrease-dup',
+      targetOrgId: orgId,
+      resourceType: 'storage',
+      operation: 'decrease',
+      resourceBytes: 2048,
+      source: 'stripe',
+    })
+
+    const first = await postWebhook(app, payload)
+    const second = await postWebhook(app, payload)
+
+    expect(first.status).toBe(200)
+    await expect(first.json()).resolves.toMatchObject({ success: true, duplicate: false })
+    expect(second.status).toBe(200)
+    await expect(second.json()).resolves.toMatchObject({
+      success: true,
+      duplicate: true,
+      eventId: 'evt-decrease-idempotent',
+    })
+
+    const rows = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(rows[0].quota).toBe(6144)
+  })
+
+  it('records decrease audit event with correct action and metadata', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    await db.run(sql`UPDATE org_quotas SET quota = 8192 WHERE org_id = ${orgId}`)
+
+    await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-audit-decrease',
+        cloudOrderId: 'order-audit-dec',
+        targetOrgId: orgId,
+        resourceType: 'storage',
+        operation: 'decrease',
+        resourceBytes: 1024,
+        source: 'stripe',
+      }),
+    )
+
+    const audit = await db.all<{ action: string; metadata: string }>(
+      sql`SELECT action, metadata FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 1`,
+    )
+    expect(audit[0].action).toBe('quota_storage_decrease')
+    expect(JSON.parse(audit[0].metadata)).toMatchObject({
+      eventId: 'evt-audit-decrease',
+      resourceType: 'storage',
+      operation: 'decrease',
+      resourceBytes: 1024,
+    })
+  })
+
+  it('traffic decrease from same cloudOrderId processes independently', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+
+    await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-traffic-order-inc',
+        cloudOrderId: 'order-traffic-reversal',
+        targetOrgId: orgId,
+        resourceType: 'traffic',
+        operation: 'increase',
+        resourceBytes: 8192,
+        source: 'stripe',
+      }),
+    )
+    const decrease = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-traffic-order-dec',
+        cloudOrderId: 'order-traffic-reversal',
+        targetOrgId: orgId,
+        resourceType: 'traffic',
+        operation: 'decrease',
+        resourceBytes: 8192,
+        source: 'stripe',
+      }),
+    )
+
+    expect(decrease.status).toBe(200)
+    await expect(decrease.json()).resolves.toMatchObject({ success: true, duplicate: false })
+
+    const rows = await db.all<{ trafficQuota: number }>(
+      sql`SELECT traffic_quota AS trafficQuota FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficQuota).toBe(0)
+  })
+
   it('rejects failed delivery retries when the payload hash changes', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)

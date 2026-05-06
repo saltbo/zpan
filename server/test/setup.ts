@@ -178,7 +178,7 @@ const APP_SCHEMA_SQL = `
     processed_at INTEGER
   );
   CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_event_uniq ON quota_delivery_events(event_id);
-  CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_order_uniq ON quota_delivery_events(cloud_order_id);
+  CREATE INDEX IF NOT EXISTS quota_delivery_events_order_idx ON quota_delivery_events(cloud_order_id);
   CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_redemption_uniq ON quota_delivery_events(cloud_redemption_id);
   CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_code_uniq ON quota_delivery_events(code);
   CREATE TABLE IF NOT EXISTS system_options (
