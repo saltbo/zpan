@@ -343,10 +343,10 @@ export function generateStorageRedemptionCodes(data: GenerateStorageCodesInput) 
 }
 
 export function revokeStorageRedemptionCode(code: string) {
-  return unwrap<StorageRedemptionCode>(
+  return unwrap<{ code: string; revoked: true }>(
     adminQuotaStoreApi['storage-codes'][':code'].$patch({
       param: { code },
-      json: { revokedAt: new Date().toISOString() },
+      json: { revoked: true },
     }),
   )
 }

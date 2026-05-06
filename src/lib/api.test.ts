@@ -371,7 +371,7 @@ describe('api', () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ items: [{ code: 'ZS123' }], total: 1 }))
-        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', revokedAt: '2026-01-01T00:00:00.000Z' }))
+        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', revoked: true }))
         .mockResolvedValueOnce(makeResponse({ code: 'ZS123', deleted: true }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
@@ -394,7 +394,7 @@ describe('api', () => {
       })
       expect(calls[2][0]).toBe('/api/admin/quota-store/storage-codes/ZS123')
       expect(calls[2][1].method).toBe('PATCH')
-      expect(JSON.parse(calls[2][1].body as string)).toMatchObject({ revokedAt: expect.any(String) })
+      expect(JSON.parse(calls[2][1].body as string)).toEqual({ revoked: true })
       expect(calls[3][0]).toBe('/api/admin/quota-store/storage-codes/ZS123')
       expect(calls[3][1].method).toBe('DELETE')
       expect(calls[4][0]).toBe('/api/admin/quota-store/delivery-records')

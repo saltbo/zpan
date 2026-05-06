@@ -849,21 +849,21 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ code: 'ZS-GEN-1', revokedAt: '2026-05-06T00:00:00.000Z' }),
+      json: async () => ({}),
     } as Response)
 
     const res = await app.request('/api/admin/quota-store/storage-codes/ZS-GEN-1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ revokedAt: '2026-05-06T00:00:00.000Z' }),
+      body: JSON.stringify({ revoked: true }),
     })
 
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ code: 'ZS-GEN-1', revokedAt: '2026-05-06T00:00:00.000Z' })
+    await expect(res.json()).resolves.toEqual({ code: 'ZS-GEN-1', revoked: true })
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
     expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/storage-codes/ZS-GEN-1`)
     expect(init.method).toBe('PATCH')
-    expect(JSON.parse(init.body as string)).toEqual({ revokedAt: '2026-05-06T00:00:00.000Z' })
+    expect(JSON.parse(init.body as string)).toEqual({ revoked: true })
   })
 
   it('rejects non-admin storage code management', async () => {

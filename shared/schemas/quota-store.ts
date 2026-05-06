@@ -45,7 +45,7 @@ export const generateStorageCodesInputSchema = z.object({
 })
 
 export const revokeStorageCodeSchema = z.object({
-  revokedAt: z.string().datetime(),
+  revoked: z.literal(true),
 })
 
 export const cloudDeliveryEventSchema = z

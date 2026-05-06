@@ -124,15 +124,16 @@ const adminQuotaStore = new Hono<Env>()
     return c.json({ items: result, total: result.length }, 201)
   })
   .patch('/storage-codes/:code', zValidator('json', revokeStorageCodeSchema), async (c) => {
+    const code = c.req.param('code')
     const result = await requestCloudWithBinding(
       c,
-      `${storageCodesPath()}/${encodeURIComponent(c.req.param('code'))}`,
+      `${storageCodesPath()}/${encodeURIComponent(code)}`,
       'PATCH',
       z.object({}).passthrough(),
       c.req.valid('json'),
     )
     if ('error' in result) return c.json(result, 502)
-    return c.json(result)
+    return c.json({ code, revoked: true })
   })
   .delete('/storage-codes/:code', async (c) => {
     const result = await deleteCloud(c, `${storageCodesPath()}/${encodeURIComponent(c.req.param('code'))}`)
