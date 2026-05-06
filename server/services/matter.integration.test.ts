@@ -75,7 +75,7 @@ describe('incrementUsageIfAllowed', () => {
     expect(rows[0].used).toBe(1000099)
   })
 
-  it('treats base quota 0 as unlimited even when grants exist', async () => {
+  it('treats base quota 0 as unlimited without grant aggregation', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     await insertOrgQuota(db, orgId, 0, 5000)
@@ -86,7 +86,7 @@ describe('incrementUsageIfAllowed', () => {
     `)
 
     await expect(hasQuotaForBytes(db, orgId, 10_000_000)).resolves.toBe(true)
-    await expect(getEffectiveQuota(db, orgId)).resolves.toMatchObject({ baseQuota: 0, grantedQuota: 100, quota: 0 })
+    await expect(getEffectiveQuota(db, orgId)).resolves.toMatchObject({ baseQuota: 0, grantedQuota: 0, quota: 0 })
   })
 
   it('returns true and increments when used + bytes is within quota', async () => {
@@ -128,7 +128,7 @@ describe('incrementUsageIfAllowed', () => {
     expect(quotaRows[0].used).toBe(800) // unchanged
   })
 
-  it('allows upload usage against base quota plus active grants', async () => {
+  it('does not allow upload usage against historical grant rows', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-grant', used: 0 })
@@ -141,9 +141,9 @@ describe('incrementUsageIfAllowed', () => {
 
     const result = await incrementUsageIfAllowed(db, orgId, storageId, 600)
 
-    expect(result).toBe(true)
+    expect(result).toBe(false)
     const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
-    expect(quotaRows[0].used).toBe(1400)
+    expect(quotaRows[0].used).toBe(800)
   })
 
   it('returns false and does not increment when quota is fully consumed', async () => {

@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { organization } from '../db/auth-schema'
-import { orgQuotas, quotaGrants } from '../db/schema'
+import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
@@ -36,32 +36,26 @@ const adminQuotas = new Hono<Env>()
         trafficQuota: orgQuotas.trafficQuota,
         trafficUsed: orgQuotas.trafficUsed,
         trafficPeriod: orgQuotas.trafficPeriod,
-        grantedQuota: sql<number>`COALESCE(SUM(CASE WHEN ${quotaGrants.active} = 1 THEN ${quotaGrants.bytes} ELSE 0 END), 0)`,
         orgName: organization.name,
         orgMetadata: organization.metadata,
       })
       .from(orgQuotas)
       .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
-      .leftJoin(quotaGrants, eq(quotaGrants.orgId, orgQuotas.orgId))
-      .groupBy(orgQuotas.id, organization.name, organization.metadata)
       .orderBy(organization.name)
 
-    const items = rows.map((r) => {
-      const grantedQuota = Number(r.grantedQuota)
-      return {
-        id: r.id,
-        orgId: r.orgId,
-        baseQuota: r.baseQuota,
-        grantedQuota,
-        quota: r.baseQuota === 0 ? 0 : r.baseQuota + grantedQuota,
-        used: r.used,
-        trafficQuota: r.trafficQuota,
-        trafficUsed: r.trafficUsed,
-        trafficPeriod: r.trafficPeriod,
-        orgName: r.orgName,
-        orgType: parseOrgType(r.orgMetadata),
-      }
-    })
+    const items = rows.map((r) => ({
+      id: r.id,
+      orgId: r.orgId,
+      baseQuota: r.baseQuota,
+      grantedQuota: 0,
+      quota: r.baseQuota,
+      used: r.used,
+      trafficQuota: r.trafficQuota,
+      trafficUsed: r.trafficUsed,
+      trafficPeriod: r.trafficPeriod,
+      orgName: r.orgName,
+      orgType: parseOrgType(r.orgMetadata),
+    }))
 
     return c.json({ items, total: items.length })
   })

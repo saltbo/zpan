@@ -308,7 +308,7 @@ describe('User Quotas API — /api/quotas', () => {
     expect(body.trafficUsed).toBe(0)
   })
 
-  it('admin quota updates base quota while paid grants remain effective', async () => {
+  it('admin quota updates current org quota without historical grant aggregation', async () => {
     const { app, db } = await createTestApp()
     const adminH = await adminHeaders(app)
     const orgs = await db.all<{ id: string }>(
@@ -330,13 +330,13 @@ describe('User Quotas API — /api/quotas', () => {
     expect(putRes.status).toBe(200)
     const updated = (await putRes.json()) as Record<string, unknown>
     expect(updated.baseQuota).toBe(1000)
-    expect(updated.grantedQuota).toBe(500)
-    expect(updated.quota).toBe(1500)
+    expect(updated.grantedQuota).toBe(0)
+    expect(updated.quota).toBe(1000)
 
     const res = await app.request('/api/quotas/me', { headers: adminH })
     const body = (await res.json()) as Record<string, unknown>
     expect(body.baseQuota).toBe(1000)
-    expect(body.grantedQuota).toBe(500)
-    expect(body.quota).toBe(1500)
+    expect(body.grantedQuota).toBe(0)
+    expect(body.quota).toBe(1000)
   })
 })

@@ -1,17 +1,9 @@
 import { storageCodeStatusSchema } from '@shared/schemas'
-import type { QuotaStorePackage } from '@shared/types'
 import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
 import { postBoundCloudJson, requestBoundCloudJson } from '../services/licensing-cloud'
-import {
-  getCloudStoreBinding,
-  getQuotaStorePackage,
-  getRequiredSettings,
-  getUserTerminalLabel,
-  listQuotaStorePackages,
-  markPackageSynced,
-} from '../services/quota-store'
+import { getCloudStoreBinding, getRequiredSettings, getUserTerminalLabel } from '../services/quota-store'
 
 export type RouteContext = {
   get(key: 'platform'): Env['Variables']['platform']
@@ -21,39 +13,135 @@ export type RouteContext = {
 export const cloudCheckoutResponseSchema = z
   .object({ orderId: z.string().min(1), url: z.string().url() })
   .transform((value) => ({ checkoutUrl: value.url }))
-export const cloudPackageSyncResponseSchema = z.object({
-  packages: z.array(z.object({ id: z.string().min(1), externalPackageId: z.string().min(1) }).passthrough()),
-})
 export const cloudRedemptionResponseSchema = z.object({ ok: z.boolean() }).passthrough()
+const cloudPackagePriceSchema = z.union([
+  z.object({ currency: z.enum(['usd', 'cny']), amount: z.number().int().positive() }),
+  z
+    .object({ currency: z.enum(['usd', 'cny']), unit_amount: z.number().int().positive() })
+    .transform((price) => ({ currency: price.currency, amount: price.unit_amount })),
+])
+const cloudPackageSchema = z.union([
+  z
+    .object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      description: z.string().nullable().default(''),
+      resourceType: z.enum(['storage', 'traffic']),
+      resourceBytes: z.number().int().positive(),
+      prices: z.array(cloudPackagePriceSchema).min(1),
+      active: z.boolean().default(true),
+      sortOrder: z.number().int().default(0),
+      createdAt: z.string().min(1),
+      updatedAt: z.string().min(1),
+    })
+    .transform((pkg) => ({ ...pkg, description: pkg.description ?? '' })),
+  z
+    .object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      description: z.string().nullable().default(''),
+      resource_type: z.enum(['storage', 'traffic']),
+      resource_bytes: z.number().int().positive(),
+      prices: z.array(cloudPackagePriceSchema).min(1),
+      active: z.boolean().default(true),
+      sort_order: z.number().int().default(0),
+      created_at: z.string().min(1),
+      updated_at: z.string().min(1),
+    })
+    .transform((pkg) => ({
+      id: pkg.id,
+      name: pkg.name,
+      description: pkg.description ?? '',
+      resourceType: pkg.resource_type,
+      resourceBytes: pkg.resource_bytes,
+      prices: pkg.prices,
+      active: pkg.active,
+      sortOrder: pkg.sort_order,
+      createdAt: pkg.created_at,
+      updatedAt: pkg.updated_at,
+    })),
+])
+export const cloudPackageResponseSchema = cloudPackageSchema
+export const cloudPackageListResponseSchema = z.union([
+  z.array(cloudPackageSchema).transform((items) => ({ items, total: items.length })),
+  z.object({ items: z.array(cloudPackageSchema), total: z.number().int().min(0).optional() }).transform((result) => ({
+    items: result.items,
+    total: result.total ?? result.items.length,
+  })),
+])
 export const cloudStorageCodesResponseSchema = z.array(
-  z.union([
-    z.object({
+  z
+    .object({
       code: z.string().min(1),
+      resourceType: z.enum(['storage', 'traffic']),
       bytes: z.number().int().positive(),
       maxUses: z.number().int().positive(),
       usesCount: z.number().int().min(0),
       expiresAt: z.string().nullable(),
       createdAt: z.string().min(1),
       revokedAt: z.string().nullable(),
+    })
+    .transform((code) => ({
+      code: code.code,
+      resourceType: code.resourceType,
+      resourceBytes: code.bytes,
+      maxUses: code.maxUses,
+      usesCount: code.usesCount,
+      expiresAt: code.expiresAt,
+      createdAt: code.createdAt,
+      revokedAt: code.revokedAt,
+    })),
+)
+export const cloudQuotaGrantsResponseSchema = z.array(
+  z.union([
+    z.object({
+      id: z.string().min(1),
+      orgId: z.string().min(1),
+      source: z.enum(['stripe', 'redeem_code', 'admin_adjustment']),
+      externalEventId: z.string().nullable(),
+      cloudOrderId: z.string().nullable(),
+      cloudRedemptionId: z.string().nullable(),
+      code: z.string().nullable(),
+      bytes: z.number().int().positive(),
+      packageSnapshot: z.string().nullable(),
+      grantedBy: z.string().nullable(),
+      terminalUserId: z.string().nullable(),
+      terminalUserEmail: z.string().nullable(),
+      active: z.boolean(),
+      createdAt: z.string().min(1),
     }),
     z
       .object({
-        code: z.string().min(1),
+        id: z.string().min(1),
+        org_id: z.string().min(1),
+        source: z.enum(['stripe', 'redeem_code', 'admin_adjustment']),
+        external_event_id: z.string().nullable(),
+        cloud_order_id: z.string().nullable(),
+        cloud_redemption_id: z.string().nullable(),
+        code: z.string().nullable(),
         bytes: z.number().int().positive(),
-        max_uses: z.number().int().positive(),
-        uses_count: z.number().int().min(0),
-        expires_at: z.string().nullable(),
+        package_snapshot: z.string().nullable(),
+        granted_by: z.string().nullable(),
+        terminal_user_id: z.string().nullable(),
+        terminal_user_email: z.string().nullable(),
+        active: z.boolean(),
         created_at: z.string().min(1),
-        revoked_at: z.string().nullable(),
       })
-      .transform((code) => ({
-        code: code.code,
-        bytes: code.bytes,
-        maxUses: code.max_uses,
-        usesCount: code.uses_count,
-        expiresAt: code.expires_at,
-        createdAt: code.created_at,
-        revokedAt: code.revoked_at,
+      .transform((grant) => ({
+        id: grant.id,
+        orgId: grant.org_id,
+        source: grant.source,
+        externalEventId: grant.external_event_id,
+        cloudOrderId: grant.cloud_order_id,
+        cloudRedemptionId: grant.cloud_redemption_id,
+        code: grant.code,
+        bytes: grant.bytes,
+        packageSnapshot: grant.package_snapshot,
+        grantedBy: grant.granted_by,
+        terminalUserId: grant.terminal_user_id,
+        terminalUserEmail: grant.terminal_user_email,
+        active: grant.active,
+        createdAt: grant.created_at,
       })),
   ]),
 )
@@ -71,40 +159,6 @@ export async function getUserStoreSettings(db: Parameters<typeof getRequiredSett
   }
 }
 
-export async function syncPackages(c: RouteContext, packageId: string) {
-  const db = c.get('platform').db
-  try {
-    const result = await syncCatalog(c)
-    if (result) return markPackageSynced(db, packageId, { error: result })
-    return (await getQuotaStorePackage(db, packageId))!
-  } catch (error) {
-    return markPackageSynced(db, packageId, { error: (error as Error).message })
-  }
-}
-
-export async function syncCatalog(c: RouteContext, excludingPackageId?: string) {
-  const db = c.get('platform').db
-  try {
-    await getRequiredSettings(db)
-    const binding = await getCloudStoreBinding(db)
-    const packages = (await listQuotaStorePackages(db)).filter((pkg) => pkg.id !== excludingPackageId)
-    const result = await postCloud(
-      getCloudBaseUrl(c),
-      '/api/store/packages/sync',
-      binding.refreshToken,
-      {
-        boundLicenseId: binding.boundLicenseId,
-        packages: packages.map(cloudPackagePayload),
-      },
-      cloudPackageSyncResponseSchema,
-    )
-    await markSyncedPackages(db, result.packages)
-    return null
-  } catch (error) {
-    return (error as Error).message
-  }
-}
-
 export async function postUserCloud<T>(
   c: RouteContext,
   path: string,
@@ -119,28 +173,42 @@ export async function postUserCloud<T>(
   }
 }
 
+export async function patchCloudWithBinding<T>(
+  c: RouteContext,
+  path: string,
+  payload: object,
+  responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>,
+) {
+  return requestCloudWithBinding(c, path, 'PATCH', responseSchema, payload)
+}
+
 export async function postCloudWithBinding<T>(
   c: RouteContext,
   path: string,
   payload: object,
   responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>,
 ) {
+  return requestCloudWithBinding(c, path, 'POST', responseSchema, payload)
+}
+
+export async function requestCloudWithBinding<T>(
+  c: RouteContext,
+  path: string,
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  payload?: object,
+) {
   try {
     const binding = await getCloudStoreBinding(c.get('platform').db)
-    return await postCloud(getCloudBaseUrl(c), path, binding.refreshToken, payload, responseSchema)
+    const data = await requestBoundCloudJson(getCloudBaseUrl(c), path, binding.refreshToken, { method, payload })
+    return parseCloudResponse(data, responseSchema)
   } catch (error) {
     return { error: (error as Error).message }
   }
 }
 
 export async function getCloud<T>(c: RouteContext, path: string, responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>) {
-  try {
-    const binding = await getCloudStoreBinding(c.get('platform').db)
-    const data = await requestBoundCloudJson(getCloudBaseUrl(c), path, binding.refreshToken, { method: 'GET' })
-    return parseCloudResponse(data, responseSchema)
-  } catch (error) {
-    return { error: (error as Error).message }
-  }
+  return requestCloudWithBinding(c, path, 'GET', responseSchema)
 }
 
 export async function deleteCloud(c: RouteContext, path: string) {
@@ -158,23 +226,31 @@ export function storageCodesPath(status?: z.infer<typeof storageCodeStatusSchema
   return `/api/store/storage-codes?status=${encodeURIComponent(status)}`
 }
 
+export function packagesPath(packageId?: string) {
+  if (!packageId) return '/api/store/packages'
+  return `/api/store/packages/${encodeURIComponent(packageId)}`
+}
+
+export function quotaGrantsPath(orgIds: string[]) {
+  return `/api/store/grants?targetOrgIds=${encodeURIComponent(orgIds.join(','))}`
+}
+
 export async function createCheckoutPayload(
   c: RouteContext,
   boundLicenseId: string,
-  pkg: QuotaStorePackage,
+  packageId: string,
   targetOrgId: string,
   userId: string,
+  currency?: string,
 ) {
   const origin = getInstanceOrigin(c)
   return {
     boundLicenseId,
-    externalPackageId: pkg.id,
+    packageId,
     targetOrgId,
     terminalUserId: userId,
     terminalUserLabel: await getUserTerminalLabel(c.get('platform').db, userId),
-    amount: pkg.amount,
-    currency: pkg.currency,
-    bytes: pkg.bytes,
+    currency,
     successUrl: `${origin}/storage`,
     cancelUrl: `${origin}/storage`,
   }
@@ -226,30 +302,6 @@ function parseCloudResponse<T>(data: unknown, schema: z.ZodType<T, z.ZodTypeDef,
   const parsed = schema.safeParse(data)
   if (!parsed.success) throw new Error('invalid_cloud_response')
   return parsed.data
-}
-
-function cloudPackagePayload(pkg: QuotaStorePackage) {
-  return {
-    id: pkg.id,
-    name: pkg.name,
-    description: pkg.description || null,
-    bytes: pkg.bytes,
-    amount: pkg.amount,
-    currency: pkg.currency,
-    active: pkg.active,
-    sortOrder: pkg.sortOrder,
-  }
-}
-
-async function markSyncedPackages(
-  db: Parameters<typeof markPackageSynced>[0],
-  packages: Array<{ id: string; externalPackageId: string }>,
-) {
-  const localPackageIds = new Set((await listQuotaStorePackages(db)).map((pkg) => pkg.id))
-  for (const pkg of packages) {
-    if (localPackageIds.has(pkg.externalPackageId))
-      await markPackageSynced(db, pkg.externalPackageId, { cloudPackageId: pkg.id })
-  }
 }
 
 function getInstanceOrigin(c: RouteContext): string {

@@ -60,7 +60,6 @@ vi.mock('@/lib/api', () => {
     listQuotaStorePackages: vi.fn(),
     listStorageRedemptionCodes: vi.fn(),
     revokeStorageRedemptionCode: vi.fn(),
-    syncQuotaStorePackages: vi.fn(),
     updateQuotaStorePackage: vi.fn(),
     updateQuotaStoreSettings: vi.fn(),
   }
@@ -82,14 +81,11 @@ function quotaPackage(overrides: Partial<QuotaStorePackage> = {}): QuotaStorePac
     id: 'pkg-1',
     name: '100 GB',
     description: 'Extra storage',
-    bytes: 107374182400,
-    amount: 999,
-    currency: 'usd',
+    resourceType: 'storage',
+    resourceBytes: 107374182400,
+    prices: [{ currency: 'usd', amount: 999 }],
     active: true,
     sortOrder: 1,
-    cloudPackageId: 'cloud-pkg-1',
-    syncStatus: 'synced',
-    syncError: null,
     createdAt: '2026-05-05T00:00:00.000Z',
     updatedAt: '2026-05-05T00:00:00.000Z',
     ...overrides,
@@ -146,7 +142,8 @@ describe('AdminStoragePlansPage', () => {
     fireEvent.change(view.getByLabelText('admin.storagePlans.packageName'), { target: { value: '250 GB' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.description'), { target: { value: 'Team storage' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.size'), { target: { value: '250' } })
-    fireEvent.change(view.getByLabelText('admin.storagePlans.amount'), { target: { value: '1999' } })
+    fireEvent.change(view.getByLabelText('admin.storagePlans.usdAmount'), { target: { value: '1999' } })
+    fireEvent.change(view.getByLabelText('admin.storagePlans.cnyAmount'), { target: { value: '12900' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.sortOrder'), { target: { value: '2' } })
     fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
@@ -154,9 +151,12 @@ describe('AdminStoragePlansPage', () => {
       expect(createQuotaStorePackage).toHaveBeenCalledWith({
         name: '250 GB',
         description: 'Team storage',
-        bytes: 268435456000,
-        amount: 1999,
-        currency: 'usd',
+        resourceType: 'storage',
+        resourceBytes: 268435456000,
+        prices: [
+          { currency: 'usd', amount: 1999 },
+          { currency: 'cny', amount: 12900 },
+        ],
         active: true,
         sortOrder: 2,
       }),
@@ -172,7 +172,7 @@ describe('AdminStoragePlansPage', () => {
 
     await waitFor(() => expect(view.getByRole('table')).toBeTruthy())
     expect(view.getByRole('columnheader', { name: 'admin.storagePlans.packageName' })).toBeTruthy()
-    expect(view.getByRole('columnheader', { name: 'admin.storagePlans.amount' })).toBeTruthy()
+    expect(view.getByRole('columnheader', { name: 'admin.storagePlans.prices' })).toBeTruthy()
     expect(view.queryByLabelText('admin.storagePlans.packageName')).toBeNull()
 
     fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.newPackage' }))
@@ -259,7 +259,8 @@ describe('AdminStoragePlansPage', () => {
       items: [
         {
           code: 'ZS-CODE-1',
-          bytes: 107374182400,
+          resourceType: 'storage',
+          resourceBytes: 107374182400,
           maxUses: 1,
           usesCount: 0,
           expiresAt: null,
@@ -270,7 +271,7 @@ describe('AdminStoragePlansPage', () => {
       total: 1,
     })
     vi.mocked(generateStorageRedemptionCodes).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(revokeStorageRedemptionCode).mockResolvedValue({ code: 'ZS-CODE-1', revoked: true })
+    vi.mocked(revokeStorageRedemptionCode).mockResolvedValue({ code: 'ZS-CODE-1', deleted: true })
 
     const view = renderAdminPage()
 
@@ -285,7 +286,8 @@ describe('AdminStoragePlansPage', () => {
 
     await waitFor(() =>
       expect(generateStorageRedemptionCodes).toHaveBeenCalledWith({
-        bytes: 53687091200,
+        resourceType: 'storage',
+        resourceBytes: 53687091200,
         maxUses: 2,
         count: 3,
       }),
@@ -307,7 +309,8 @@ describe('AdminStoragePlansPage', () => {
       items: [
         {
           code: 'ZS-CODE-2',
-          bytes: 53687091200,
+          resourceType: 'traffic',
+          resourceBytes: 53687091200,
           maxUses: 2,
           usesCount: 1,
           expiresAt: null,

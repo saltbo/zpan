@@ -74,8 +74,14 @@ export function StoragePage() {
   }, [checkoutRefreshActive, queryClient])
 
   const checkoutMutation = useMutation({
-    mutationFn: ({ packageId }: { packageId: string; checkoutWindow: Window | null }) =>
-      createQuotaCheckout(packageId, targetOrgId),
+    mutationFn: ({
+      packageId,
+      currency,
+    }: {
+      packageId: string
+      currency: 'usd' | 'cny'
+      checkoutWindow: Window | null
+    }) => createQuotaCheckout(packageId, targetOrgId, currency),
     onSuccess: (result, variables) => {
       if (variables.checkoutWindow) {
         variables.checkoutWindow.location.href = result.checkoutUrl
@@ -92,10 +98,10 @@ export function StoragePage() {
     },
   })
 
-  function startCheckout(packageId: string) {
+  function startCheckout(packageId: string, currency: 'usd' | 'cny') {
     const checkoutWindow = window.open('about:blank', '_blank')
     if (checkoutWindow) checkoutWindow.opener = null
-    checkoutMutation.mutate({ packageId, checkoutWindow })
+    checkoutMutation.mutate({ packageId, currency, checkoutWindow })
   }
 
   const redemptionMutation = useMutation({

@@ -8,29 +8,25 @@ import {
   redemptionInputSchema,
 } from '@shared/schemas'
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { verifyCloudEventToken } from '../licensing/cloud-event-token'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
 import {
   canAccessTargetOrg,
-  createQuotaStorePackage,
-  deleteQuotaStorePackage,
   getAccessibleTargets,
-  getActiveQuotaStorePackage,
   getCloudStoreBinding,
-  getQuotaStorePackage,
   getQuotaStoreSettings,
   getRequiredSettings,
-  listGrantsForUser,
-  listQuotaGrants,
-  listQuotaStorePackages,
   processCloudDelivery,
-  updateQuotaStorePackage,
   upsertQuotaStoreSettings,
 } from '../services/quota-store'
 import {
   cloudCheckoutResponseSchema,
+  cloudPackageListResponseSchema,
+  cloudPackageResponseSchema,
+  cloudQuotaGrantsResponseSchema,
   cloudRedemptionResponseSchema,
   cloudStorageCodesResponseSchema,
   createCheckoutPayload,
@@ -39,14 +35,16 @@ import {
   getCloud,
   getCloudBaseUrl,
   getUserStoreSettings,
+  packagesPath,
   parseJson,
+  patchCloudWithBinding,
   postCloudWithBinding,
   postUserCloud,
+  quotaGrantsPath,
+  requestCloudWithBinding,
   sha256Hex,
   storageCodeListQuerySchema,
   storageCodesPath,
-  syncCatalog,
-  syncPackages,
 } from './quota-store-helpers'
 
 const adminQuotaStore = new Hono<Env>()
@@ -61,40 +59,45 @@ const adminQuotaStore = new Hono<Env>()
     return c.json(settings)
   })
   .get('/packages', async (c) => {
-    const items = await listQuotaStorePackages(c.get('platform').db)
-    return c.json({ items, total: items.length })
+    const result = await getCloud(c, packagesPath(), cloudPackageListResponseSchema)
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
   })
   .post('/packages', zValidator('json', quotaStorePackageInputSchema), async (c) => {
-    const db = c.get('platform').db
-    const pkg = await createQuotaStorePackage(db, c.req.valid('json'))
-    const synced = await syncPackages(c, pkg.id)
-    return c.json(synced, synced.syncStatus === 'failed' ? 202 : 201)
+    const result = await postCloudWithBinding(c, packagesPath(), c.req.valid('json'), cloudPackageResponseSchema)
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result, 201)
+  })
+  .get('/packages/:id', async (c) => {
+    const result = await getCloud(c, packagesPath(c.req.param('id')), cloudPackageResponseSchema)
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
+  })
+  .patch('/packages/:id', zValidator('json', quotaStorePackageInputSchema), async (c) => {
+    const result = await patchCloudWithBinding(
+      c,
+      packagesPath(c.req.param('id')),
+      c.req.valid('json'),
+      cloudPackageResponseSchema,
+    )
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
   })
   .put('/packages/:id', zValidator('json', quotaStorePackageInputSchema), async (c) => {
-    const db = c.get('platform').db
-    const pkg = await updateQuotaStorePackage(db, c.req.param('id'), c.req.valid('json'))
-    if (!pkg) return c.json({ error: 'Package not found' }, 404)
-    const synced = await syncPackages(c, pkg.id)
-    return c.json(synced)
+    const result = await patchCloudWithBinding(
+      c,
+      packagesPath(c.req.param('id')),
+      c.req.valid('json'),
+      cloudPackageResponseSchema,
+    )
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
   })
   .delete('/packages/:id', async (c) => {
-    const db = c.get('platform').db
     const id = c.req.param('id')
-    const pkg = await getQuotaStorePackage(db, id)
-    if (!pkg) return c.json({ error: 'Package not found' }, 404)
-
-    const syncError = await syncCatalog(c, id)
-    if (syncError) return c.json({ error: syncError }, 502)
-
-    const deleted = await deleteQuotaStorePackage(db, id)
-    if (!deleted) return c.json({ error: 'Package not found' }, 404)
+    const result = await deleteCloud(c, packagesPath(id))
+    if (result?.error) return c.json(result, 502)
     return c.json({ id, deleted: true })
-  })
-  .post('/sync', async (c) => {
-    const syncError = await syncCatalog(c)
-    if (syncError) return c.json({ error: syncError }, 502)
-    const items = await listQuotaStorePackages(c.get('platform').db)
-    return c.json({ items, total: items.length })
   })
   .get('/storage-codes', zValidator('query', storageCodeListQuerySchema), async (c) => {
     const result = await getCloud(c, storageCodesPath(c.req.valid('query').status), cloudStorageCodesResponseSchema)
@@ -105,9 +108,10 @@ const adminQuotaStore = new Hono<Env>()
     const body = c.req.valid('json')
     const result = await postCloudWithBinding(
       c,
-      '/api/store/storage-codes',
+      storageCodesPath(),
       {
-        bytes: body.bytes,
+        resourceType: body.resourceType,
+        bytes: body.resourceBytes,
         max_uses: body.maxUses,
         expires_at: body.expiresAt,
         count: body.count,
@@ -117,14 +121,26 @@ const adminQuotaStore = new Hono<Env>()
     if ('error' in result) return c.json(result, 502)
     return c.json({ items: result, total: result.length }, 201)
   })
+  .patch('/storage-codes/:code', async (c) => {
+    const result = await requestCloudWithBinding(
+      c,
+      `${storageCodesPath()}/${encodeURIComponent(c.req.param('code'))}`,
+      'PATCH',
+      z.object({}).passthrough(),
+      await c.req.json(),
+    )
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
+  })
   .delete('/storage-codes/:code', async (c) => {
-    const result = await deleteCloud(c, `/api/store/storage-codes/${encodeURIComponent(c.req.param('code'))}`)
+    const result = await deleteCloud(c, `${storageCodesPath()}/${encodeURIComponent(c.req.param('code'))}`)
     if (result?.error) return c.json(result, 502)
-    return c.json({ code: c.req.param('code'), revoked: true })
+    return c.json({ code: c.req.param('code'), deleted: true })
   })
   .get('/delivery-records', async (c) => {
-    const items = await listQuotaGrants(c.get('platform').db)
-    return c.json({ items, total: items.length })
+    const result = await getCloud(c, '/api/store/grants', cloudQuotaGrantsResponseSchema)
+    if ('error' in result) return c.json(result, 502)
+    return c.json({ items: result, total: result.length })
   })
 
 const quotaStore = new Hono<Env>()
@@ -134,7 +150,9 @@ const quotaStore = new Hono<Env>()
     const db = c.get('platform').db
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const items = await listQuotaStorePackages(db, true)
+    const result = await getCloud(c, packagesPath(), cloudPackageListResponseSchema)
+    if ('error' in result) return c.json(result, 502)
+    const items = result.items.filter((pkg) => pkg.active)
     return c.json({ items, total: items.length })
   })
   .get('/targets', async (c) => {
@@ -153,13 +171,18 @@ const quotaStore = new Hono<Env>()
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const pkg = await getActiveQuotaStorePackage(db, body.packageId)
-    if (!pkg) return c.json({ error: 'Package not found' }, 404)
     const binding = await getCloudStoreBinding(db)
     const result = await postUserCloud(
       c,
-      '/api/store/checkout',
-      await createCheckoutPayload(c, binding.boundLicenseId, pkg, body.targetOrgId, c.get('userId')!),
+      '/api/store/checkouts',
+      await createCheckoutPayload(
+        c,
+        binding.boundLicenseId,
+        body.packageId,
+        body.targetOrgId,
+        c.get('userId')!,
+        body.currency,
+      ),
       binding.refreshToken,
       cloudCheckoutResponseSchema,
     )
@@ -186,11 +209,47 @@ const quotaStore = new Hono<Env>()
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })
+  .post('/checkouts', zValidator('json', checkoutInputSchema), async (c) => {
+    const body = c.req.valid('json')
+    const db = c.get('platform').db
+    if (!(await canAccessTargetOrg(db, c.get('userId')!, body.targetOrgId))) {
+      return c.json({ error: 'Forbidden' }, 403)
+    }
+
+    const store = await getUserStoreSettings(db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const binding = await getCloudStoreBinding(db)
+    const result = await postUserCloud(
+      c,
+      '/api/store/checkouts',
+      await createCheckoutPayload(
+        c,
+        binding.boundLicenseId,
+        body.packageId,
+        body.targetOrgId,
+        c.get('userId')!,
+        body.currency,
+      ),
+      binding.refreshToken,
+      cloudCheckoutResponseSchema,
+    )
+    if ('error' in result) return c.json(result, 502)
+    return c.json({ checkoutUrl: result.checkoutUrl })
+  })
   .get('/grants', async (c) => {
     const db = c.get('platform').db
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const items = await listGrantsForUser(db, c.get('userId')!)
+    const targets = await getAccessibleTargets(db, c.get('userId')!)
+    if (targets.length === 0) return c.json({ items: [], total: 0 })
+    const result = await getCloud(
+      c,
+      quotaGrantsPath(targets.map((target) => target.orgId)),
+      cloudQuotaGrantsResponseSchema,
+    )
+    if ('error' in result) return c.json(result, 502)
+    const accessibleOrgIds = new Set(targets.map((target) => target.orgId))
+    const items = result.filter((grant) => accessibleOrgIds.has(grant.orgId))
     return c.json({ items, total: items.length })
   })
 
@@ -218,7 +277,7 @@ const quotaStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).po
 
   try {
     const result = await processCloudDelivery(db, parsed.data, rawPayload, payloadHash)
-    return c.json({ success: true, duplicate: result.duplicate, grantId: result.grantId })
+    return c.json({ success: true, duplicate: result.duplicate, eventId: result.eventId })
   } catch (error) {
     return c.json({ error: (error as Error).message }, 400)
   }

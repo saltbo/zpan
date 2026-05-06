@@ -1,9 +1,9 @@
-import type { CloudDeliveryEvent, QuotaStorePackageInput, QuotaStoreSettingsInput } from '@shared/schemas'
-import type { QuotaGrant, QuotaStorePackage, QuotaStoreSettings, QuotaTarget } from '@shared/types'
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import type { CloudDeliveryEvent, QuotaStoreSettingsInput } from '@shared/schemas'
+import type { QuotaStoreSettings, QuotaTarget } from '@shared/types'
+import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
-import { quotaDeliveryEvents, quotaGrants, quotaStorePackages, quotaStoreSettings } from '../db/schema'
+import { activityEvents, orgQuotas, quotaDeliveryEvents, quotaStoreSettings } from '../db/schema'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
 
@@ -36,87 +36,6 @@ export async function upsertQuotaStoreSettings(
   return (await getQuotaStoreSettings(db))!
 }
 
-export async function listQuotaStorePackages(db: Database, activeOnly = false): Promise<QuotaStorePackage[]> {
-  const query = db.select().from(quotaStorePackages)
-  const rows = activeOnly
-    ? await query.where(purchasablePackageCondition()).orderBy(quotaStorePackages.sortOrder, quotaStorePackages.name)
-    : await query.orderBy(quotaStorePackages.sortOrder, quotaStorePackages.name)
-  return rows.map(packageDto)
-}
-
-function purchasablePackageCondition(packageId?: string) {
-  const conditions = [
-    eq(quotaStorePackages.active, true),
-    eq(quotaStorePackages.syncStatus, 'synced'),
-    isNotNull(quotaStorePackages.cloudPackageId),
-  ]
-  if (packageId) conditions.push(eq(quotaStorePackages.id, packageId))
-  return and(...conditions)
-}
-
-export async function createQuotaStorePackage(db: Database, input: QuotaStorePackageInput): Promise<QuotaStorePackage> {
-  const now = new Date()
-  const row = {
-    id: nanoid(),
-    ...input,
-    cloudPackageId: null,
-    syncStatus: 'pending',
-    syncError: null,
-    createdAt: now,
-    updatedAt: now,
-  }
-  await db.insert(quotaStorePackages).values(row)
-  return packageDto(row)
-}
-
-export async function updateQuotaStorePackage(
-  db: Database,
-  id: string,
-  input: QuotaStorePackageInput,
-): Promise<QuotaStorePackage | null> {
-  const now = new Date()
-  const rows = await db
-    .update(quotaStorePackages)
-    .set({ ...input, syncStatus: 'pending', syncError: null, updatedAt: now })
-    .where(eq(quotaStorePackages.id, id))
-    .returning()
-  return rows[0] ? packageDto(rows[0]) : null
-}
-
-export async function deleteQuotaStorePackage(db: Database, id: string): Promise<boolean> {
-  const rows = await db
-    .delete(quotaStorePackages)
-    .where(eq(quotaStorePackages.id, id))
-    .returning({ id: quotaStorePackages.id })
-  return rows.length > 0
-}
-
-export async function getQuotaStorePackage(db: Database, id: string): Promise<QuotaStorePackage | null> {
-  const rows = await db.select().from(quotaStorePackages).where(eq(quotaStorePackages.id, id)).limit(1)
-  return rows[0] ? packageDto(rows[0]) : null
-}
-
-export async function getActiveQuotaStorePackage(db: Database, id: string): Promise<QuotaStorePackage | null> {
-  const rows = await db.select().from(quotaStorePackages).where(purchasablePackageCondition(id)).limit(1)
-  return rows[0] ? packageDto(rows[0]) : null
-}
-
-export async function markPackageSynced(
-  db: Database,
-  id: string,
-  result: { cloudPackageId?: string | null; error?: string | null },
-): Promise<QuotaStorePackage> {
-  const values: Partial<typeof quotaStorePackages.$inferInsert> = {
-    syncStatus: result.error ? 'failed' : 'synced',
-    syncError: result.error ?? null,
-    updatedAt: new Date(),
-  }
-  if (result.cloudPackageId !== undefined) values.cloudPackageId = result.cloudPackageId
-
-  const rows = await db.update(quotaStorePackages).set(values).where(eq(quotaStorePackages.id, id)).returning()
-  return packageDto(rows[0])
-}
-
 export async function getAccessibleTargets(db: Database, userId: string): Promise<QuotaTarget[]> {
   const rows = await db
     .select({ orgId: organization.id, name: organization.name, metadata: organization.metadata, role: member.role })
@@ -137,27 +56,6 @@ export async function canAccessTargetOrg(db: Database, userId: string, orgId: st
   return rows.length > 0
 }
 
-export async function listGrantsForUser(db: Database, userId: string): Promise<QuotaGrant[]> {
-  const targets = await getAccessibleTargets(db, userId)
-  if (targets.length === 0) return []
-  const rows = await db
-    .select()
-    .from(quotaGrants)
-    .where(
-      inArray(
-        quotaGrants.orgId,
-        targets.map((t) => t.orgId),
-      ),
-    )
-    .orderBy(sql`${quotaGrants.createdAt} DESC`)
-  return rows.map(grantDto)
-}
-
-export async function listQuotaGrants(db: Database): Promise<QuotaGrant[]> {
-  const rows = await db.select().from(quotaGrants).orderBy(sql`${quotaGrants.createdAt} DESC`).limit(100)
-  return rows.map(grantDto)
-}
-
 export async function getCloudStoreBinding(
   db: Database,
 ): Promise<{ boundLicenseId: string; refreshToken: string; instanceId: string }> {
@@ -176,41 +74,18 @@ export async function processCloudDelivery(
   event: CloudDeliveryEvent,
   rawPayload: string,
   payloadHash: string,
-): Promise<{ duplicate: boolean; grantId: string | null }> {
+): Promise<{ duplicate: boolean; eventId: string }> {
   const delivery = await beginDeliveryEvent(db, event, rawPayload, payloadHash)
-  if (delivery.duplicate) return { duplicate: true, grantId: null }
-
-  const packageSnapshot = await validateDeliveryPackage(db, delivery.id, event)
-  const now = new Date()
-  const grantId = nanoid()
+  if (delivery.duplicate) return { duplicate: true, eventId: event.eventId }
 
   try {
-    await db.insert(quotaGrants).values({
-      id: grantId,
-      orgId: event.targetOrgId,
-      source: event.source,
-      externalEventId: event.eventId,
-      cloudOrderId: event.cloudOrderId ?? null,
-      cloudRedemptionId: event.cloudRedemptionId ?? null,
-      code: event.code ?? null,
-      bytes: event.bytes,
-      packageSnapshot,
-      terminalUserId: event.terminalUserId ?? null,
-      terminalUserEmail: event.terminalUserEmail ?? null,
-      active: true,
-      createdAt: now,
-    })
+    await processDeliveryTransaction(db, delivery.id, event)
   } catch (error) {
-    if (isUniqueConflict(error)) {
-      await markDeliveryEvent(db, delivery.id, 'duplicate', null)
-      return { duplicate: true, grantId: null }
-    }
     await markDeliveryEvent(db, delivery.id, 'failed', (error as Error).message)
     throw error
   }
 
-  await markDeliveryEvent(db, delivery.id, 'processed', null)
-  return { duplicate: false, grantId }
+  return { duplicate: false, eventId: event.eventId }
 }
 
 export async function getRequiredSettings(db: Database) {
@@ -224,39 +99,86 @@ async function getRawSettings(db: Database) {
   return rows[0] ?? null
 }
 
-async function validatePackageBytes(db: Database, event: CloudDeliveryEvent): Promise<string | null> {
-  if (event.source === 'stripe' && !event.packageId) throw new Error('package_required')
-  if (!event.packageId) return null
-  const pkg = await findDeliveryPackage(db, event.packageId)
-  if (!pkg || pkg.bytes !== event.bytes || (event.package && event.package.bytes !== pkg.bytes)) {
-    throw new Error('invalid_package_delivery')
+async function processDeliveryTransaction(db: Database, deliveryId: string, event: CloudDeliveryEvent): Promise<void> {
+  if (isSyncDatabase(db)) {
+    db.transaction((tx) => {
+      applyDeliveryResourceSync(tx as Database, event)
+      recordDeliveryAuditSync(tx as Database, event)
+      markDeliveryEventSync(tx as Database, deliveryId, 'processed', null)
+    })
+    return
   }
-  return JSON.stringify(event.package ?? packageDto(pkg))
+
+  await db.transaction(async (tx) => {
+    await applyDeliveryResource(tx as Database, event)
+    await recordDeliveryAudit(tx as Database, event)
+    await markDeliveryEvent(tx as Database, deliveryId, 'processed', null)
+  })
 }
 
-async function findDeliveryPackage(db: Database, packageId: string) {
-  const localRows = await db.select().from(quotaStorePackages).where(eq(quotaStorePackages.id, packageId)).limit(1)
-  if (localRows[0]) return localRows[0]
+async function applyDeliveryResource(db: Database, event: CloudDeliveryEvent): Promise<void> {
+  const values =
+    event.resourceType === 'storage'
+      ? { quota: quotaUpdateExpression(event) }
+      : { trafficQuota: quotaUpdateExpression(event) }
 
-  const cloudRows = await db
-    .select()
-    .from(quotaStorePackages)
-    .where(eq(quotaStorePackages.cloudPackageId, packageId))
-    .limit(2)
-  if (cloudRows.length !== 1) return null
-  return cloudRows[0]
+  const rows = await db
+    .update(orgQuotas)
+    .set(values)
+    .where(eq(orgQuotas.orgId, event.targetOrgId))
+    .returning({ id: orgQuotas.id })
+
+  if (rows.length === 0) throw new Error('target_quota_missing')
 }
 
-async function validateDeliveryPackage(
-  db: Database,
-  eventId: string,
-  event: CloudDeliveryEvent,
-): Promise<string | null> {
-  try {
-    return await validatePackageBytes(db, event)
-  } catch (error) {
-    await markDeliveryEvent(db, eventId, 'failed', (error as Error).message)
-    throw error
+function applyDeliveryResourceSync(db: Database, event: CloudDeliveryEvent): void {
+  const values =
+    event.resourceType === 'storage'
+      ? { quota: quotaUpdateExpression(event) }
+      : { trafficQuota: quotaUpdateExpression(event) }
+
+  const rows = (
+    db.update(orgQuotas).set(values).where(eq(orgQuotas.orgId, event.targetOrgId)).returning({ id: orgQuotas.id }) as {
+      all(): Array<{ id: string }>
+    }
+  ).all()
+
+  if (rows.length === 0) throw new Error('target_quota_missing')
+}
+
+function quotaUpdateExpression(event: CloudDeliveryEvent) {
+  const column = event.resourceType === 'storage' ? orgQuotas.quota : orgQuotas.trafficQuota
+  if (event.operation === 'increase') return sql`${column} + ${event.resourceBytes}`
+  return sql`MAX(0, ${column} - ${event.resourceBytes})`
+}
+
+async function recordDeliveryAudit(db: Database, event: CloudDeliveryEvent): Promise<void> {
+  await db.insert(activityEvents).values(deliveryAuditValues(event))
+}
+
+function recordDeliveryAuditSync(db: Database, event: CloudDeliveryEvent): void {
+  ;(db.insert(activityEvents).values(deliveryAuditValues(event)) as { run(): void }).run()
+}
+
+function deliveryAuditValues(event: CloudDeliveryEvent): typeof activityEvents.$inferInsert {
+  return {
+    id: nanoid(),
+    orgId: event.targetOrgId,
+    userId: event.terminalUserId ?? 'cloud-store',
+    action: `quota_${event.resourceType}_${event.operation}`,
+    targetType: 'quota',
+    targetId: event.targetOrgId,
+    targetName: event.targetOrgId,
+    metadata: JSON.stringify({
+      eventId: event.eventId,
+      resourceType: event.resourceType,
+      operation: event.operation,
+      resourceBytes: event.resourceBytes,
+      cloudOrderId: event.cloudOrderId ?? null,
+      cloudRedemptionId: event.cloudRedemptionId ?? null,
+      code: event.code ?? null,
+    }),
+    createdAt: new Date(),
   }
 }
 
@@ -273,6 +195,7 @@ async function beginDeliveryEvent(
       eventId: event.eventId,
       cloudOrderId: event.cloudOrderId ?? null,
       cloudRedemptionId: event.cloudRedemptionId ?? null,
+      code: event.code ?? null,
       payloadHash,
       rawPayload,
       status: 'processing',
@@ -294,6 +217,7 @@ async function resumeDeliveryEvent(
   const rows = await db
     .select({
       id: quotaDeliveryEvents.id,
+      code: quotaDeliveryEvents.code,
       payloadHash: quotaDeliveryEvents.payloadHash,
       status: quotaDeliveryEvents.status,
     })
@@ -302,14 +226,22 @@ async function resumeDeliveryEvent(
       sql`${quotaDeliveryEvents.eventId} = ${event.eventId}
         OR (${event.cloudOrderId ?? null} IS NOT NULL AND ${quotaDeliveryEvents.cloudOrderId} = ${event.cloudOrderId ?? null})
         OR (${event.cloudRedemptionId ?? null} IS NOT NULL
-          AND ${quotaDeliveryEvents.cloudRedemptionId} = ${event.cloudRedemptionId ?? null})`,
+          AND ${quotaDeliveryEvents.cloudRedemptionId} = ${event.cloudRedemptionId ?? null})
+        OR (${event.code ?? null} IS NOT NULL AND ${quotaDeliveryEvents.code} = ${event.code ?? null})`,
     )
     .limit(1)
 
   const existing = rows[0]
   if (!existing) throw new Error('delivery_event_conflict')
-  if (existing.payloadHash !== payloadHash) throw new Error('delivery_payload_conflict')
-  if (existing.status === 'processed' || existing.status === 'duplicate') return { id: existing.id, duplicate: true }
+  if (existing.payloadHash !== payloadHash) {
+    if (event.code && existing.code === event.code && existing.status !== 'failed') {
+      return { id: existing.id, duplicate: true }
+    }
+    throw new Error('delivery_payload_conflict')
+  }
+  if (existing.status === 'processed' || existing.status === 'duplicate' || existing.status === 'processing') {
+    return { id: existing.id, duplicate: true }
+  }
 
   await db
     .update(quotaDeliveryEvents)
@@ -326,6 +258,17 @@ async function markDeliveryEvent(db: Database, id: string, status: string, error
     .where(eq(quotaDeliveryEvents.id, id))
 }
 
+function markDeliveryEventSync(db: Database, id: string, status: string, error: string | null): void {
+  ;(
+    db
+      .update(quotaDeliveryEvents)
+      .set({ status, error, processedAt: new Date() })
+      .where(eq(quotaDeliveryEvents.id, id)) as {
+      run(): void
+    }
+  ).run()
+}
+
 function settingsDto(row: typeof quotaStoreSettings.$inferSelect, cloudReady = true): QuotaStoreSettings {
   return {
     id: row.id,
@@ -336,43 +279,6 @@ function settingsDto(row: typeof quotaStoreSettings.$inferSelect, cloudReady = t
   }
 }
 
-function packageDto(row: typeof quotaStorePackages.$inferSelect): QuotaStorePackage {
-  return {
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    bytes: row.bytes,
-    amount: row.amount,
-    currency: row.currency,
-    active: row.active,
-    sortOrder: row.sortOrder,
-    cloudPackageId: row.cloudPackageId,
-    syncStatus: row.syncStatus as QuotaStorePackage['syncStatus'],
-    syncError: row.syncError,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }
-}
-
-function grantDto(row: typeof quotaGrants.$inferSelect): QuotaGrant {
-  return {
-    id: row.id,
-    orgId: row.orgId,
-    source: row.source as QuotaGrant['source'],
-    externalEventId: row.externalEventId,
-    cloudOrderId: row.cloudOrderId,
-    cloudRedemptionId: row.cloudRedemptionId,
-    code: row.code,
-    bytes: row.bytes,
-    packageSnapshot: row.packageSnapshot,
-    grantedBy: row.grantedBy,
-    terminalUserId: row.terminalUserId,
-    terminalUserEmail: row.terminalUserEmail,
-    active: row.active,
-    createdAt: row.createdAt.toISOString(),
-  }
-}
-
 function parseOrgType(metadata: string | null): string {
   if (!metadata) return 'unknown'
   return (JSON.parse(metadata) as { type?: string }).type ?? 'unknown'
@@ -380,4 +286,8 @@ function parseOrgType(metadata: string | null): string {
 
 function isUniqueConflict(error: unknown): boolean {
   return error instanceof Error && error.message.toLowerCase().includes('unique')
+}
+
+function isSyncDatabase(db: Database): boolean {
+  return db.constructor.name === 'BetterSQLite3Database'
 }

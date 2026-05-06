@@ -21,7 +21,7 @@ export function StoragePlanList({
           <TableRow>
             <TableHead>{t('admin.storagePlans.packageName')}</TableHead>
             <TableHead>{t('admin.storagePlans.size')}</TableHead>
-            <TableHead>{t('admin.storagePlans.amount')}</TableHead>
+            <TableHead>{t('admin.storagePlans.prices')}</TableHead>
             <TableHead>{t('admin.storagePlans.active')}</TableHead>
             <TableHead>{t('admin.storagePlans.sortOrder')}</TableHead>
             <TableHead className="w-24 text-right">{t('common.actions')}</TableHead>
@@ -34,8 +34,8 @@ export function StoragePlanList({
                 <div className="font-medium">{pkg.name}</div>
                 <div className="mt-1 whitespace-normal text-xs text-muted-foreground">{pkg.description}</div>
               </TableCell>
-              <TableCell className="tabular-nums">{formatSize(pkg.bytes)}</TableCell>
-              <TableCell className="tabular-nums">{formatMoney(pkg.amount, pkg.currency)}</TableCell>
+              <TableCell className="tabular-nums">{formatSize(pkg.resourceBytes)}</TableCell>
+              <TableCell className="tabular-nums">{formatPrices(pkg.prices)}</TableCell>
               <TableCell>
                 <Badge variant={pkg.active ? 'default' : 'secondary'}>
                   {pkg.active ? t('common.active') : t('common.disabled')}
@@ -60,6 +60,6 @@ export function StoragePlanList({
   )
 }
 
-function formatMoney(amount: number, currency: string) {
-  return `${(amount / 100).toFixed(2)} ${currency}`
+function formatPrices(prices: QuotaStorePackage['prices']) {
+  return prices.map((price) => `${(price.amount / 100).toFixed(2)} ${price.currency}`).join(' / ')
 }

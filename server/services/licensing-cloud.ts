@@ -132,7 +132,7 @@ export async function requestBoundCloudJson(
   baseUrl: string,
   path: string,
   refreshToken: string,
-  init: { method: 'GET' | 'POST' | 'DELETE'; payload?: object },
+  init: { method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; payload?: object },
 ): Promise<unknown> {
   const headers: Record<string, string> = { Authorization: `Bearer ${refreshToken}` }
   if (init.payload) headers['Content-Type'] = 'application/json'

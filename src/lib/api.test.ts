@@ -88,7 +88,6 @@ import {
   saveEmailConfig,
   saveShareToDrive,
   setSystemOption,
-  syncQuotaStorePackages,
   testEmail,
   trashObject,
   updateAnnouncement,
@@ -299,7 +298,12 @@ describe('api', () => {
     })
 
     it('creates and updates packages with typed RPC paths', async () => {
-      const payload = { name: 'Small', bytes: 1024, amount: 500, currency: 'usd' as const }
+      const payload: Parameters<typeof createQuotaStorePackage>[0] = {
+        name: 'Small',
+        resourceType: 'storage',
+        resourceBytes: 1024,
+        prices: [{ currency: 'usd' as const, amount: 500 }],
+      }
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
         .mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
@@ -311,38 +315,45 @@ describe('api', () => {
       const [updateUrl, updateInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
       expect(createUrl).toBe('/api/admin/quota-store/packages')
       expect(createInit.method).toBe('POST')
+      expect(JSON.parse(createInit.body as string)).toEqual({
+        name: 'Small',
+        resourceType: 'storage',
+        resourceBytes: 1024,
+        prices: [{ currency: 'usd', amount: 500 }],
+      })
       expect(updateUrl).toBe('/api/admin/quota-store/packages/pkg-1')
-      expect(updateInit.method).toBe('PUT')
+      expect(updateInit.method).toBe('PATCH')
+      expect(JSON.parse(updateInit.body as string)).toEqual({
+        name: 'Small',
+        resourceType: 'storage',
+        resourceBytes: 1024,
+        prices: [{ currency: 'usd', amount: 500 }],
+      })
     })
 
     it('lists and deletes admin packages', async () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ id: 'pkg-1', deleted: true }))
-        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
       await listQuotaStorePackages()
       await deleteQuotaStorePackage('pkg-1')
-      await syncQuotaStorePackages()
 
       expect((vi.mocked(fetch).mock.calls[0] as [string])[0]).toBe('/api/admin/quota-store/packages')
       const [deleteUrl, deleteInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
       expect(deleteUrl).toBe('/api/admin/quota-store/packages/pkg-1')
       expect(deleteInit.method).toBe('DELETE')
-      const [syncUrl, syncInit] = vi.mocked(fetch).mock.calls[2] as [string, RequestInit]
-      expect(syncUrl).toBe('/api/admin/quota-store/sync')
-      expect(syncInit.method).toBe('POST')
     })
 
     it('calls admin storage code and delivery record endpoints', async () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ items: [{ code: 'ZS123' }], total: 1 }))
-        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', revoked: true }))
+        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', deleted: true }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
       await listStorageRedemptionCodes('active')
-      await generateStorageRedemptionCodes({ bytes: 1024, maxUses: 2, count: 3 })
+      await generateStorageRedemptionCodes({ resourceType: 'traffic', resourceBytes: 1024, maxUses: 2, count: 3 })
       await revokeStorageRedemptionCode('ZS123')
       await listAdminQuotaDeliveryRecords()
 
@@ -351,7 +362,12 @@ describe('api', () => {
       expect(calls[0][1].method).toBe('GET')
       expect(calls[1][0]).toBe('/api/admin/quota-store/storage-codes')
       expect(calls[1][1].method).toBe('POST')
-      expect(JSON.parse(calls[1][1].body as string)).toEqual({ bytes: 1024, maxUses: 2, count: 3 })
+      expect(JSON.parse(calls[1][1].body as string)).toEqual({
+        resourceType: 'traffic',
+        resourceBytes: 1024,
+        maxUses: 2,
+        count: 3,
+      })
       expect(calls[2][0]).toBe('/api/admin/quota-store/storage-codes/ZS123')
       expect(calls[2][1].method).toBe('DELETE')
       expect(calls[3][0]).toBe('/api/admin/quota-store/delivery-records')
@@ -367,15 +383,19 @@ describe('api', () => {
 
       await listPurchasableQuotaPackages()
       await listQuotaStoreTargets()
-      await createQuotaCheckout('pkg-1', 'org-1')
+      await createQuotaCheckout('pkg-1', 'org-1', 'cny')
       await redeemQuotaCode('CODE', 'org-1')
       await listQuotaGrants()
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
       expect(calls[0][0]).toBe('/api/quota-store/packages')
       expect(calls[1][0]).toBe('/api/quota-store/targets')
-      expect(calls[2][0]).toBe('/api/quota-store/checkout')
-      expect(JSON.parse(calls[2][1].body as string)).toEqual({ packageId: 'pkg-1', targetOrgId: 'org-1' })
+      expect(calls[2][0]).toBe('/api/quota-store/checkouts')
+      expect(JSON.parse(calls[2][1].body as string)).toEqual({
+        packageId: 'pkg-1',
+        targetOrgId: 'org-1',
+        currency: 'cny',
+      })
       expect(calls[3][0]).toBe('/api/quota-store/redemptions')
       expect(JSON.parse(calls[3][1].body as string)).toEqual({ code: 'CODE', targetOrgId: 'org-1' })
       expect(calls[4][0]).toBe('/api/quota-store/grants')
@@ -393,16 +413,30 @@ describe('api', () => {
       ['listQuotaStorePackages', () => listQuotaStorePackages()],
       [
         'createQuotaStorePackage',
-        () => createQuotaStorePackage({ name: 'Small', bytes: 1024, amount: 500, currency: 'usd' }),
+        () =>
+          createQuotaStorePackage({
+            name: 'Small',
+            resourceType: 'storage',
+            resourceBytes: 1024,
+            prices: [{ currency: 'usd', amount: 500 }],
+          }),
       ],
       [
         'updateQuotaStorePackage',
-        () => updateQuotaStorePackage('pkg-1', { name: 'Small', bytes: 1024, amount: 500, currency: 'usd' }),
+        () =>
+          updateQuotaStorePackage('pkg-1', {
+            name: 'Small',
+            resourceType: 'storage',
+            resourceBytes: 1024,
+            prices: [{ currency: 'usd', amount: 500 }],
+          }),
       ],
       ['deleteQuotaStorePackage', () => deleteQuotaStorePackage('pkg-1')],
-      ['syncQuotaStorePackages', () => syncQuotaStorePackages()],
       ['listStorageRedemptionCodes', () => listStorageRedemptionCodes()],
-      ['generateStorageRedemptionCodes', () => generateStorageRedemptionCodes({ bytes: 1024, count: 1 })],
+      [
+        'generateStorageRedemptionCodes',
+        () => generateStorageRedemptionCodes({ resourceType: 'storage', resourceBytes: 1024, count: 1 }),
+      ],
       ['revokeStorageRedemptionCode', () => revokeStorageRedemptionCode('ZS123')],
       ['listAdminQuotaDeliveryRecords', () => listAdminQuotaDeliveryRecords()],
       ['listPurchasableQuotaPackages', () => listPurchasableQuotaPackages()],

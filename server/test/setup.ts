@@ -185,6 +185,7 @@ const APP_SCHEMA_SQL = `
     event_id TEXT NOT NULL,
     cloud_order_id TEXT,
     cloud_redemption_id TEXT,
+    code TEXT,
     payload_hash TEXT NOT NULL,
     raw_payload TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -195,6 +196,7 @@ const APP_SCHEMA_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_event_uniq ON quota_delivery_events(event_id);
   CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_order_uniq ON quota_delivery_events(cloud_order_id);
   CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_redemption_uniq ON quota_delivery_events(cloud_redemption_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS quota_delivery_events_code_uniq ON quota_delivery_events(code);
   CREATE TABLE IF NOT EXISTS system_options (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT '',

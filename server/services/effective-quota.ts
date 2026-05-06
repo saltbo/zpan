@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm'
-import { orgQuotas, quotaGrants, storages } from '../db/schema'
+import { orgQuotas, storages } from '../db/schema'
 import type { Database } from '../platform/interface'
 
 export interface EffectiveQuota {
@@ -39,20 +39,14 @@ export async function getEffectiveQuota(db: Database, orgId: string, now = new D
     .limit(1)
   const quotaRow = quotaRows[0]
 
-  const grantRows = await db
-    .select({ total: sql<number>`COALESCE(SUM(${quotaGrants.bytes}), 0)` })
-    .from(quotaGrants)
-    .where(sql`${quotaGrants.orgId} = ${orgId} AND ${quotaGrants.active} = 1`)
-
   const baseQuota = quotaRow?.baseQuota ?? 0
-  const grantedQuota = Number(grantRows[0]?.total ?? 0)
   const trafficUsed = quotaRow && quotaRow.trafficPeriod === period ? quotaRow.trafficUsed : 0
   const trafficPeriod = quotaRow?.trafficPeriod === period ? quotaRow.trafficPeriod : period
   return {
     orgId,
     baseQuota,
-    grantedQuota,
-    quota: baseQuota === 0 ? 0 : baseQuota + grantedQuota,
+    grantedQuota: 0,
+    quota: baseQuota,
     used: quotaRow?.used ?? 0,
     trafficQuota: quotaRow?.trafficQuota ?? 0,
     trafficUsed,
@@ -135,11 +129,7 @@ export async function incrementUsageIfEffectiveQuotaAllows(
         .set({ used: sql`${orgQuotas.used} + ${bytes}` })
         .where(
           sql`${orgQuotas.orgId} = ${orgId}
-            AND (${orgQuotas.quota} = 0 OR ${orgQuotas.used} + ${bytes} <= ${orgQuotas.quota} + (
-              SELECT COALESCE(SUM(${quotaGrants.bytes}), 0)
-              FROM ${quotaGrants}
-              WHERE ${quotaGrants.orgId} = ${orgId} AND ${quotaGrants.active} = 1
-            ))`,
+            AND (${orgQuotas.quota} = 0 OR ${orgQuotas.used} + ${bytes} <= ${orgQuotas.quota})`,
         )
         .returning({ id: orgQuotas.id })
 

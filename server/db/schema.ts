@@ -108,6 +108,7 @@ export const quotaDeliveryEvents = sqliteTable(
     eventId: text('event_id').notNull(),
     cloudOrderId: text('cloud_order_id'),
     cloudRedemptionId: text('cloud_redemption_id'),
+    code: text('code'),
     payloadHash: text('payload_hash').notNull(),
     rawPayload: text('raw_payload').notNull(),
     status: text('status').notNull(),
@@ -119,6 +120,7 @@ export const quotaDeliveryEvents = sqliteTable(
     uniqueIndex('quota_delivery_events_event_uniq').on(t.eventId),
     uniqueIndex('quota_delivery_events_order_uniq').on(t.cloudOrderId),
     uniqueIndex('quota_delivery_events_redemption_uniq').on(t.cloudRedemptionId),
+    uniqueIndex('quota_delivery_events_code_uniq').on(t.code),
   ],
 )
 

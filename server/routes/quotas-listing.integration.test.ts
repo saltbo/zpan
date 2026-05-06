@@ -13,7 +13,7 @@ async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']
 }
 
 describe('Admin quota listing', () => {
-  it('normalizes stale traffic periods and aggregates active grants', async () => {
+  it('normalizes stale traffic periods without historical grant aggregation', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const now = Date.now()
@@ -46,6 +46,6 @@ describe('Admin quota listing', () => {
     expect(body.items.every((item) => /^\d{4}-\d{2}$/.test(String(item.trafficPeriod)))).toBe(true)
 
     const adminItem = body.items.find((item) => item.orgId === adminOrg[0].id)
-    expect(adminItem).toMatchObject({ baseQuota: 10485760, grantedQuota: 1200, quota: 10486960 })
+    expect(adminItem).toMatchObject({ baseQuota: 10485760, grantedQuota: 0, quota: 10485760 })
   })
 })

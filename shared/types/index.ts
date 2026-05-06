@@ -45,7 +45,6 @@ export interface OrgQuota {
 }
 
 export type QuotaGrantSource = 'stripe' | 'redeem_code' | 'admin_adjustment'
-export type QuotaPackageSyncStatus = 'pending' | 'synced' | 'failed'
 export type QuotaDeliveryEventStatus = 'processed' | 'duplicate' | 'failed'
 
 export interface QuotaStoreSettings {
@@ -60,16 +59,18 @@ export interface QuotaStorePackage {
   id: string
   name: string
   description: string
-  bytes: number
-  amount: number
-  currency: string
+  resourceType: 'storage' | 'traffic'
+  resourceBytes: number
+  prices: QuotaStorePackagePrice[]
   active: boolean
   sortOrder: number
-  cloudPackageId: string | null
-  syncStatus: QuotaPackageSyncStatus
-  syncError: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface QuotaStorePackagePrice {
+  currency: 'usd' | 'cny'
+  amount: number
 }
 
 export interface QuotaGrant {
@@ -91,7 +92,8 @@ export interface QuotaGrant {
 
 export interface StorageRedemptionCode {
   code: string
-  bytes: number
+  resourceType: 'storage' | 'traffic'
+  resourceBytes: number
   maxUses: number
   usesCount: number
   expiresAt: string | null

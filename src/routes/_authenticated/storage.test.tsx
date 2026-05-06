@@ -84,14 +84,11 @@ function quotaPackage(): QuotaStorePackage {
     id: 'pkg-1',
     name: '100 GB',
     description: 'Extra storage',
-    bytes: 107374182400,
-    amount: 999,
-    currency: 'usd' as const,
+    resourceType: 'storage',
+    resourceBytes: 107374182400,
+    prices: [{ currency: 'usd', amount: 999 }],
     active: true,
     sortOrder: 1,
-    cloudPackageId: 'cloud-pkg-1',
-    syncStatus: 'synced' as const,
-    syncError: null,
     createdAt: '2026-05-05T00:00:00.000Z',
     updatedAt: '2026-05-05T00:00:00.000Z',
   }
@@ -225,10 +222,10 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.packagesTitle' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.checkout' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.checkout' }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkout/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1'))
+    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
     expect(checkoutWindow.close).toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('checkout failed')
   })
@@ -257,8 +254,8 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.packagesTitle' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.checkout' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.checkout' }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkout/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
     await waitFor(() => expect(checkoutWindow.location.href).toBe('https://cloud.example.test/checkout'))
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] })
@@ -296,9 +293,9 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByText('org-2')).toBeTruthy())
     expect(view.queryByText('org-1')).toBeNull()
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
-    fireEvent.click(await view.findByRole('button', { name: 'storage.checkout' }))
+    fireEvent.click(await view.findByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-2'))
+    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-2', 'usd'))
   })
 
   it('uses dedicated dialog layouts instead of nesting cards in dialogs', async () => {

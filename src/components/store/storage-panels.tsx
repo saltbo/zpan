@@ -1,5 +1,5 @@
 import type { QuotaGrant, QuotaStorePackage } from '@shared/types'
-import { HardDrive, PlusCircle } from 'lucide-react'
+import { Activity, HardDrive, PlusCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,14 +26,14 @@ export function StoragePackages({
 }: {
   packages: QuotaStorePackage[]
   disabled: boolean
-  onCheckout: (packageId: string) => void
+  onCheckout: (packageId: string, currency: 'usd' | 'cny') => void
 }) {
   const { t } = useTranslation()
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {packages.map((pkg) => (
-          <PackageCard key={pkg.id} pkg={pkg} disabled={disabled} onCheckout={() => onCheckout(pkg.id)} />
+          <PackageCard key={pkg.id} pkg={pkg} disabled={disabled} onCheckout={onCheckout} />
         ))}
       </div>
       {packages.length === 0 && (
@@ -76,7 +76,7 @@ function PackageCard({
 }: {
   pkg: QuotaStorePackage
   disabled: boolean
-  onCheckout: () => void
+  onCheckout: (packageId: string, currency: 'usd' | 'cny') => void
 }) {
   const { t } = useTranslation()
   return (
@@ -86,26 +86,34 @@ function PackageCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-2xl font-semibold">{formatSize(pkg.bytes)}</p>
-          <p className="text-sm text-muted-foreground">{formatMoney(pkg.amount, pkg.currency)}</p>
+          <p className="text-2xl font-semibold">{formatSize(pkg.resourceBytes)}</p>
+          <p className="text-sm text-muted-foreground">{formatPrices(pkg.prices)}</p>
         </div>
-        <Button className="w-full" disabled={disabled} onClick={onCheckout}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          {t('storage.checkout')}
-        </Button>
+        {pkg.prices.map((price) => (
+          <Button
+            key={price.currency}
+            className="w-full"
+            disabled={disabled}
+            onClick={() => onCheckout(pkg.id, price.currency)}
+          >
+            <PlusCircle className="mr-2 h-4 w-4" />
+            {t('storage.checkout')} · {formatMoney(price.amount, price.currency)}
+          </Button>
+        ))}
       </CardContent>
     </Card>
   )
 }
 
 function PackageHeader({ pkg }: { pkg: QuotaStorePackage }) {
+  const Icon = pkg.resourceType === 'storage' ? HardDrive : Activity
   return (
     <div className="flex items-start justify-between gap-3">
       <div>
         <CardTitle>{pkg.name}</CardTitle>
         <CardDescription className="mt-1">{pkg.description}</CardDescription>
       </div>
-      <HardDrive className="h-5 w-5 text-muted-foreground" />
+      <Icon className="h-5 w-5 text-muted-foreground" />
     </div>
   )
 }
@@ -144,6 +152,10 @@ function GrantEmptyState() {
       {t('storage.noHistory')}
     </div>
   )
+}
+
+function formatPrices(prices: QuotaStorePackage['prices']) {
+  return prices.map((price) => formatMoney(price.amount, price.currency)).join(' / ')
 }
 
 function formatMoney(amount: number, currency: string) {

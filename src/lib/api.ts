@@ -320,9 +320,9 @@ export function listQuotaStorePackages() {
 export function createQuotaStorePackage(data: {
   name: string
   description?: string
-  bytes: number
-  amount: number
-  currency: 'usd' | 'cny'
+  resourceType: 'storage' | 'traffic'
+  resourceBytes: number
+  prices: Array<{ currency: 'usd' | 'cny'; amount: number }>
   active?: boolean
   sortOrder?: number
 }) {
@@ -330,15 +330,11 @@ export function createQuotaStorePackage(data: {
 }
 
 export function updateQuotaStorePackage(id: string, data: Parameters<typeof createQuotaStorePackage>[0]) {
-  return unwrap<QuotaStorePackage>(adminQuotaStoreApi.packages[':id'].$put({ param: { id }, json: data }))
+  return unwrap<QuotaStorePackage>(adminQuotaStoreApi.packages[':id'].$patch({ param: { id }, json: data }))
 }
 
 export function deleteQuotaStorePackage(id: string) {
   return unwrap<{ id: string; deleted: boolean }>(adminQuotaStoreApi.packages[':id'].$delete({ param: { id } }))
-}
-
-export function syncQuotaStorePackages() {
-  return unwrap<{ items: QuotaStorePackage[]; total: number }>(adminQuotaStoreApi.sync.$post())
 }
 
 export function listStorageRedemptionCodes(status?: StorageCodeStatus) {
@@ -353,7 +349,7 @@ export function generateStorageRedemptionCodes(data: GenerateStorageCodesInput) 
 }
 
 export function revokeStorageRedemptionCode(code: string) {
-  return unwrap<{ code: string; revoked: boolean }>(
+  return unwrap<{ code: string; deleted: boolean }>(
     adminQuotaStoreApi['storage-codes'][':code'].$delete({ param: { code } }),
   )
 }
@@ -370,8 +366,8 @@ export function listQuotaStoreTargets() {
   return unwrap<{ items: QuotaTarget[]; total: number }>(quotaStoreApi.targets.$get())
 }
 
-export function createQuotaCheckout(packageId: string, targetOrgId: string) {
-  return unwrap<{ checkoutUrl: string }>(quotaStoreApi.checkout.$post({ json: { packageId, targetOrgId } }))
+export function createQuotaCheckout(packageId: string, targetOrgId: string, currency?: 'usd' | 'cny') {
+  return unwrap<{ checkoutUrl: string }>(quotaStoreApi.checkouts.$post({ json: { packageId, targetOrgId, currency } }))
 }
 
 export function redeemQuotaCode(code: string, targetOrgId: string) {

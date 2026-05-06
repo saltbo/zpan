@@ -6,6 +6,7 @@ import {
   createPairing,
   pollPairing,
   refreshEntitlement,
+  requestBoundCloudJson,
 } from './licensing-cloud'
 
 const BASE_URL = 'https://cloud.zpan.space'
@@ -153,6 +154,24 @@ describe('licensing-cloud', () => {
       const result = refreshEntitlement(BASE_URL, 'old-rt')
       await expect(result).rejects.toThrow(CloudNetworkError)
       await expect(result).rejects.toThrow('Cloud network error')
+    })
+  })
+
+  describe('requestBoundCloudJson', () => {
+    it('sends PATCH requests with bound authorization and JSON payloads', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ state: 'revoked' }))
+
+      const result = await requestBoundCloudJson(BASE_URL, '/api/store/storage-codes/ZS123', 'rt-bound', {
+        method: 'PATCH',
+        payload: { state: 'revoked' },
+      })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('https://cloud.zpan.space/api/store/storage-codes/ZS123')
+      expect(init.method).toBe('PATCH')
+      expect(init.headers).toEqual({ Authorization: 'Bearer rt-bound', 'Content-Type': 'application/json' })
+      expect(JSON.parse(init.body as string)).toEqual({ state: 'revoked' })
+      expect(result).toEqual({ state: 'revoked' })
     })
   })
 })

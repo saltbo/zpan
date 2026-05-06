@@ -16,10 +16,11 @@ type Unit = keyof typeof units
 export const emptyPackageForm = {
   name: '',
   description: '',
+  resourceType: 'storage' as 'storage' | 'traffic',
   size: '100',
   unit: 'GB' as Unit,
-  amount: '999',
-  currency: 'usd' as 'usd' | 'cny',
+  usdAmount: '999',
+  cnyAmount: '',
   active: true,
   sortOrder: '0',
 }
@@ -30,23 +31,24 @@ export function packageInputFromForm(form: PackageFormState): QuotaStorePackageI
   return {
     name: form.name,
     description: form.description,
-    bytes: Math.round(Number(form.size) * units[form.unit]),
-    amount: Math.round(Number(form.amount)),
-    currency: form.currency,
+    resourceType: form.resourceType,
+    resourceBytes: Math.round(Number(form.size) * units[form.unit]),
+    prices: packagePricesFromForm(form),
     active: form.active,
     sortOrder: Math.round(Number(form.sortOrder)),
   }
 }
 
 export function packageFormFromPackage(pkg: QuotaStorePackage): PackageFormState {
-  const display = bytesToDisplay(pkg.bytes)
+  const display = bytesToDisplay(pkg.resourceBytes)
   return {
     name: pkg.name,
     description: pkg.description,
+    resourceType: pkg.resourceType,
     size: String(display.size),
     unit: display.unit,
-    amount: String(pkg.amount),
-    currency: pkg.currency === 'cny' ? 'cny' : 'usd',
+    usdAmount: String(pkg.prices.find((price) => price.currency === 'usd')?.amount ?? ''),
+    cnyAmount: String(pkg.prices.find((price) => price.currency === 'cny')?.amount ?? ''),
     active: pkg.active,
     sortOrder: String(pkg.sortOrder),
   }
@@ -74,6 +76,7 @@ export function StoragePlanForm({
   return (
     <div className="space-y-4">
       <PackageIdentityFields form={form} onFormChange={onFormChange} />
+      <PackageResourceTypeField form={form} onFormChange={onFormChange} />
       <PackageSizeFields form={form} onFormChange={onFormChange} />
       <PackageAmountFields form={form} onFormChange={onFormChange} />
       <NumberField
@@ -92,6 +95,13 @@ export function StoragePlanForm({
       />
     </div>
   )
+}
+
+function packagePricesFromForm(form: PackageFormState) {
+  return [
+    { currency: 'usd' as const, amount: Math.round(Number(form.usdAmount)) },
+    { currency: 'cny' as const, amount: Math.round(Number(form.cnyAmount)) },
+  ].filter((price) => Number.isFinite(price.amount) && price.amount > 0)
 }
 
 function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
@@ -152,6 +162,32 @@ function PackageSizeFields({
   )
 }
 
+function PackageResourceTypeField({
+  form,
+  onFormChange,
+}: {
+  form: PackageFormState
+  onFormChange: (form: PackageFormState) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <Field label={t('admin.storagePlans.resourceType')}>
+      <Select
+        value={form.resourceType}
+        onValueChange={(resourceType: 'storage' | 'traffic') => onFormChange({ ...form, resourceType })}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="storage">{t('admin.storagePlans.resourceStorage')}</SelectItem>
+          <SelectItem value="traffic">{t('admin.storagePlans.resourceTraffic')}</SelectItem>
+        </SelectContent>
+      </Select>
+    </Field>
+  )
+}
+
 function PackageAmountFields({
   form,
   onFormChange,
@@ -161,17 +197,21 @@ function PackageAmountFields({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="grid grid-cols-[1fr_96px] gap-2">
+    <div className="grid gap-2 sm:grid-cols-2">
       <NumberField
-        label={t('admin.storagePlans.amount')}
-        id="packageAmount"
+        label={t('admin.storagePlans.usdAmount')}
+        id="packageUsdAmount"
         min="1"
-        value={form.amount}
-        onChange={(amount) => onFormChange({ ...form, amount })}
+        value={form.usdAmount}
+        onChange={(usdAmount) => onFormChange({ ...form, usdAmount })}
       />
-      <Field label={t('admin.storagePlans.currency')}>
-        <CurrencySelect value={form.currency} onChange={(currency) => onFormChange({ ...form, currency })} />
-      </Field>
+      <NumberField
+        label={t('admin.storagePlans.cnyAmount')}
+        id="packageCnyAmount"
+        min="1"
+        value={form.cnyAmount}
+        onChange={(cnyAmount) => onFormChange({ ...form, cnyAmount })}
+      />
     </div>
   )
 }
@@ -208,20 +248,6 @@ function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: Unit) =
             {unit}
           </SelectItem>
         ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-function CurrencySelect({ value, onChange }: { value: 'usd' | 'cny'; onChange: (currency: 'usd' | 'cny') => void }) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="usd">USD</SelectItem>
-        <SelectItem value="cny">CNY</SelectItem>
       </SelectContent>
     </Select>
   )

@@ -23,12 +23,20 @@ import { formatSize } from '@/lib/format'
 const units = { MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 } as const
 type Unit = keyof typeof units
 
-export const emptyCodeForm = { size: '100', unit: 'GB' as Unit, maxUses: '1', expiresAt: '', count: '1' }
+export const emptyCodeForm = {
+  resourceType: 'storage' as 'storage' | 'traffic',
+  size: '100',
+  unit: 'GB' as Unit,
+  maxUses: '1',
+  expiresAt: '',
+  count: '1',
+}
 export type CodeFormState = typeof emptyCodeForm
 
 export function codeInputFromForm(form: CodeFormState): GenerateStorageCodesInput {
   const input: GenerateStorageCodesInput = {
-    bytes: Math.round(Number(form.size) * units[form.unit]),
+    resourceType: form.resourceType,
+    resourceBytes: Math.round(Number(form.size) * units[form.unit]),
     maxUses: Math.round(Number(form.maxUses)),
     count: Math.round(Number(form.count)),
   }
@@ -108,6 +116,7 @@ function CodeGenerateForm({ form, available, pending, onFormChange, onGenerate }
   const { t } = useTranslation()
   return (
     <div className="space-y-4">
+      <ResourceTypeField form={form} onFormChange={onFormChange} />
       <SizeFields form={form} onFormChange={onFormChange} />
       <NumberField
         id="codeMaxUses"
@@ -128,6 +137,32 @@ function CodeGenerateForm({ form, available, pending, onFormChange, onGenerate }
         {t('admin.storagePlans.codes.generate')}
       </Button>
     </div>
+  )
+}
+
+function ResourceTypeField({
+  form,
+  onFormChange,
+}: {
+  form: CodeFormState
+  onFormChange: (form: CodeFormState) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <Field label={t('admin.storagePlans.resourceType')}>
+      <Select
+        value={form.resourceType}
+        onValueChange={(resourceType: 'storage' | 'traffic') => onFormChange({ ...form, resourceType })}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="storage">{t('admin.storagePlans.resourceStorage')}</SelectItem>
+          <SelectItem value="traffic">{t('admin.storagePlans.resourceTraffic')}</SelectItem>
+        </SelectContent>
+      </Select>
+    </Field>
   )
 }
 
@@ -250,7 +285,7 @@ function CodeRow({ code, available, revokingCode, onRevoke }: CodeListProps & { 
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">{code.code}</TableCell>
-      <TableCell>{formatSize(code.bytes)}</TableCell>
+      <TableCell>{formatSize(code.resourceBytes)}</TableCell>
       <TableCell>
         {code.usesCount}/{code.maxUses}
       </TableCell>
