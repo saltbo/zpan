@@ -761,6 +761,28 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toEqual({ error: 'cloud_request_failed_504' })
   })
 
+  it('accepts Cloud PR #15 delivery tokens with audience equal to boundLicenseId', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    await seedPackage(db)
+    const payload = JSON.stringify({
+      eventId: 'evt-cloud-pr-15-token',
+      cloudOrderId: 'order-cloud-pr-15-token',
+      targetOrgId: orgId,
+      packageId: 'cloud-pkg-1',
+      source: 'stripe',
+      bytes: 4096,
+    })
+
+    const res = await postWebhook(app, payload)
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ success: true, duplicate: false })
+  })
+
   it('valid Cloud delivery creates one grant and increases effective quota once', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
@@ -1226,6 +1248,25 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
+  it('rejects Cloud delivery event tokens with the wrong audience', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const payload = JSON.stringify({ eventId: 'evt-wrong-audience' })
+
+    const res = await app.request('/api/quota-store/webhooks/cloud', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await signedWebhookHeaders(payload, { audience: 'test-instance' })),
+      },
+      body: payload,
+    })
+
+    expect(res.status).toBe(401)
+  })
+
   it('rejects signed malformed Cloud payloads', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
@@ -1336,7 +1377,7 @@ async function signedWebhookHeaders(payload: string, overrides: Record<string, u
     type: 'zpan.cloud.event',
     purpose: 'quota_store.delivery',
     issuer: ZPAN_CLOUD_URL_DEFAULT,
-    audience: 'test-instance',
+    audience: 'test-binding',
     boundLicenseId: 'test-binding',
     eventId: body.eventId ?? 'evt-malformed',
     payloadHash: await sha256Hex(payload),

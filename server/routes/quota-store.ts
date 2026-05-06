@@ -165,7 +165,7 @@ const quotaStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).po
   const eventToken = c.req.header('x-zpan-cloud-event-token') ?? ''
   const eventAuth = verifyCloudEventToken(eventToken, {
     cloudBaseUrl: getCloudBaseUrl(c),
-    instanceId: binding.instanceId,
+    audience: binding.boundLicenseId,
     boundLicenseId: binding.boundLicenseId,
     payloadHash,
   })
