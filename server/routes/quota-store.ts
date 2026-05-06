@@ -2,19 +2,16 @@ import { zValidator } from '@hono/zod-validator'
 import {
   checkoutInputSchema,
   cloudDeliveryEventSchema,
+  generateStorageCodesInputSchema,
   quotaStorePackageInputSchema,
   quotaStoreSettingsSchema,
   redemptionInputSchema,
 } from '@shared/schemas'
-import type { QuotaStorePackage } from '@shared/types'
 import { Hono } from 'hono'
-import { z } from 'zod'
-import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { verifyCloudEventToken } from '../licensing/cloud-event-token'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
-import { postBoundCloudJson } from '../services/licensing-cloud'
 import {
   canAccessTargetOrg,
   createQuotaStorePackage,
@@ -25,27 +22,32 @@ import {
   getQuotaStorePackage,
   getQuotaStoreSettings,
   getRequiredSettings,
-  getUserTerminalLabel,
   listGrantsForUser,
+  listQuotaGrants,
   listQuotaStorePackages,
-  markPackageSynced,
   processCloudDelivery,
   updateQuotaStorePackage,
   upsertQuotaStoreSettings,
 } from '../services/quota-store'
-
-type RouteContext = {
-  get(key: 'platform'): Env['Variables']['platform']
-  req: { url: string; header(name: string): string | undefined }
-}
-
-const cloudCheckoutResponseSchema = z
-  .object({ orderId: z.string().min(1), url: z.string().url() })
-  .transform((value) => ({ checkoutUrl: value.url }))
-const cloudPackageSyncResponseSchema = z.object({
-  packages: z.array(z.object({ id: z.string().min(1), externalPackageId: z.string().min(1) }).passthrough()),
-})
-const cloudRedemptionResponseSchema = z.object({ ok: z.boolean() }).passthrough()
+import {
+  cloudCheckoutResponseSchema,
+  cloudRedemptionResponseSchema,
+  cloudStorageCodesResponseSchema,
+  createCheckoutPayload,
+  createRedemptionPayload,
+  deleteCloud,
+  getCloud,
+  getCloudBaseUrl,
+  getUserStoreSettings,
+  parseJson,
+  postCloudWithBinding,
+  postUserCloud,
+  sha256Hex,
+  storageCodeListQuerySchema,
+  storageCodesPath,
+  syncCatalog,
+  syncPackages,
+} from './quota-store-helpers'
 
 const adminQuotaStore = new Hono<Env>()
   .use(requireAdmin)
@@ -87,6 +89,42 @@ const adminQuotaStore = new Hono<Env>()
     const deleted = await deleteQuotaStorePackage(db, id)
     if (!deleted) return c.json({ error: 'Package not found' }, 404)
     return c.json({ id, deleted: true })
+  })
+  .post('/sync', async (c) => {
+    const syncError = await syncCatalog(c)
+    if (syncError) return c.json({ error: syncError }, 502)
+    const items = await listQuotaStorePackages(c.get('platform').db)
+    return c.json({ items, total: items.length })
+  })
+  .get('/storage-codes', zValidator('query', storageCodeListQuerySchema), async (c) => {
+    const result = await getCloud(c, storageCodesPath(c.req.valid('query').status), cloudStorageCodesResponseSchema)
+    if ('error' in result) return c.json(result, 502)
+    return c.json({ items: result, total: result.length })
+  })
+  .post('/storage-codes', zValidator('json', generateStorageCodesInputSchema), async (c) => {
+    const body = c.req.valid('json')
+    const result = await postCloudWithBinding(
+      c,
+      '/api/store/storage-codes',
+      {
+        bytes: body.bytes,
+        max_uses: body.maxUses,
+        expires_at: body.expiresAt,
+        count: body.count,
+      },
+      cloudStorageCodesResponseSchema,
+    )
+    if ('error' in result) return c.json(result, 502)
+    return c.json({ items: result, total: result.length }, 201)
+  })
+  .delete('/storage-codes/:code', async (c) => {
+    const result = await deleteCloud(c, `/api/store/storage-codes/${encodeURIComponent(c.req.param('code'))}`)
+    if (result?.error) return c.json(result, 502)
+    return c.json({ code: c.req.param('code'), revoked: true })
+  })
+  .get('/delivery-records', async (c) => {
+    const items = await listQuotaGrants(c.get('platform').db)
+    return c.json({ items, total: items.length })
   })
 
 const quotaStore = new Hono<Env>()
@@ -187,197 +225,3 @@ const quotaStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).po
 })
 
 export { adminQuotaStore, quotaStore, quotaStoreWebhooks }
-
-async function getUserStoreSettings(db: Parameters<typeof getRequiredSettings>[0]) {
-  try {
-    await getRequiredSettings(db)
-    await getCloudStoreBinding(db)
-    return { ready: true }
-  } catch (error) {
-    const message = (error as Error).message
-    if (message === 'quota_store_disabled' || message === 'quota_store_binding_missing') {
-      return { error: message }
-    }
-    throw error
-  }
-}
-
-async function syncPackages(c: RouteContext, packageId: string) {
-  const db = c.get('platform').db
-  try {
-    const result = await syncCatalog(c)
-    if (result) return markPackageSynced(db, packageId, { error: result })
-    return (await getQuotaStorePackage(db, packageId))!
-  } catch (error) {
-    return markPackageSynced(db, packageId, { error: (error as Error).message })
-  }
-}
-
-async function syncCatalog(c: RouteContext, excludingPackageId?: string) {
-  const db = c.get('platform').db
-  try {
-    await getRequiredSettings(db)
-    const binding = await getCloudStoreBinding(db)
-    const packages = (await listQuotaStorePackages(db)).filter((pkg) => pkg.id !== excludingPackageId)
-    const result = await postCloud(
-      getCloudBaseUrl(c),
-      '/api/store/packages/sync',
-      binding.refreshToken,
-      {
-        boundLicenseId: binding.boundLicenseId,
-        packages: packages.map(cloudPackagePayload),
-      },
-      cloudPackageSyncResponseSchema,
-    )
-    await markSyncedPackages(db, result.packages)
-    return null
-  } catch (error) {
-    return (error as Error).message
-  }
-}
-
-async function postUserCloud<T>(
-  c: RouteContext,
-  path: string,
-  payload: object,
-  refreshToken: string,
-  responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>,
-) {
-  try {
-    return await postCloud(getCloudBaseUrl(c), path, refreshToken, payload, responseSchema)
-  } catch (error) {
-    return { error: (error as Error).message }
-  }
-}
-
-async function postCloud<T>(
-  baseUrl: string,
-  path: string,
-  refreshToken: string,
-  payload: object,
-  responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>,
-): Promise<T> {
-  const data = await postBoundCloudJson(baseUrl, path, refreshToken, payload)
-  return parseCloudResponse(data, responseSchema)
-}
-
-function parseCloudResponse<T>(data: unknown, schema: z.ZodType<T, z.ZodTypeDef, unknown>): T {
-  const parsed = schema.safeParse(data)
-  if (!parsed.success) throw new Error('invalid_cloud_response')
-  return parsed.data
-}
-
-async function createCheckoutPayload(
-  c: RouteContext,
-  boundLicenseId: string,
-  pkg: QuotaStorePackage,
-  targetOrgId: string,
-  userId: string,
-): Promise<object> {
-  const db = c.get('platform').db
-  const origin = getInstanceOrigin(c)
-  return {
-    boundLicenseId,
-    externalPackageId: pkg.id,
-    targetOrgId,
-    terminalUserId: userId,
-    terminalUserLabel: await getUserTerminalLabel(db, userId),
-    amount: pkg.amount,
-    currency: pkg.currency,
-    bytes: pkg.bytes,
-    successUrl: `${origin}/store`,
-    cancelUrl: `${origin}/store`,
-  }
-}
-
-async function createRedemptionPayload(
-  c: { get(key: 'platform'): Env['Variables']['platform'] },
-  boundLicenseId: string,
-  code: string,
-  targetOrgId: string,
-  userId: string,
-): Promise<object> {
-  const db = c.get('platform').db
-  return {
-    boundLicenseId,
-    code,
-    targetOrgId,
-    terminalUserId: userId,
-    terminalUserLabel: await getUserTerminalLabel(db, userId),
-  }
-}
-
-function cloudPackagePayload(pkg: QuotaStorePackage) {
-  return {
-    id: pkg.id,
-    name: pkg.name,
-    description: pkg.description || null,
-    bytes: pkg.bytes,
-    amount: pkg.amount,
-    currency: pkg.currency,
-    active: pkg.active,
-    sortOrder: pkg.sortOrder,
-  }
-}
-
-async function markSyncedPackages(
-  db: Parameters<typeof markPackageSynced>[0],
-  packages: Array<{ id: string; externalPackageId: string }>,
-) {
-  const localPackageIds = new Set((await listQuotaStorePackages(db)).map((pkg) => pkg.id))
-  for (const pkg of packages) {
-    if (localPackageIds.has(pkg.externalPackageId)) {
-      await markPackageSynced(db, pkg.externalPackageId, { cloudPackageId: pkg.id })
-    }
-  }
-}
-
-function parseJson(payload: string): unknown | null {
-  try {
-    return JSON.parse(payload) as unknown
-  } catch {
-    return null
-  }
-}
-
-async function sha256Hex(payload: string): Promise<string> {
-  return hex(await crypto.subtle.digest('SHA-256', encodeBytes(payload).buffer as ArrayBuffer))
-}
-
-function encodeBytes(value: string): Uint8Array {
-  return new TextEncoder().encode(value)
-}
-
-function hex(buffer: ArrayBuffer): string {
-  return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
-  return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
-}
-
-function getInstanceOrigin(c: RouteContext): string {
-  const configuredOrigin = publicOriginFromEnv(
-    c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL'),
-  )
-  if (configuredOrigin) return configuredOrigin
-
-  const requestUrl = new URL(c.req.url)
-  if (requestUrl.protocol === 'https:' || isLocalHost(requestUrl.hostname)) return requestUrl.origin
-  return `https://${requestUrl.host}`
-}
-
-function publicOriginFromEnv(value: string | undefined): string | null {
-  if (!value) return null
-  try {
-    const url = new URL(value)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.origin
-  } catch {
-    return null
-  }
-}
-
-function isLocalHost(hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
-}

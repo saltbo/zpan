@@ -19,16 +19,20 @@ export { listNotificationsQuerySchema } from './notification'
 export type {
   CheckoutInput,
   CloudDeliveryEvent,
+  GenerateStorageCodesInput,
   QuotaStorePackageInput,
   QuotaStoreSettingsInput,
   RedemptionInput,
+  StorageCodeStatus,
 } from './quota-store'
 export {
   checkoutInputSchema,
   cloudDeliveryEventSchema,
+  generateStorageCodesInputSchema,
   quotaStorePackageInputSchema,
   quotaStoreSettingsSchema,
   redemptionInputSchema,
+  storageCodeStatusSchema,
 } from './quota-store'
 export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'
 export {

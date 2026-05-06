@@ -9,11 +9,49 @@ import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../t
 const REFRESH_TOKEN = 'test-refresh-token'
 const { secretKey: EVENT_SECRET, publicKey: EVENT_PUBLIC } = generateKeys('public')
 
+function storageCodePayload(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    code: 'ZS-TEST',
+    bytes: 1024,
+    max_uses: 1,
+    uses_count: 0,
+    expires_at: null,
+    created_at: '2026-05-06T00:00:00.000Z',
+    revoked_at: null,
+    ...overrides,
+  }
+}
+
 beforeEach(() => {
   if (!PUBLIC_KEYS.includes(EVENT_PUBLIC)) PUBLIC_KEYS.unshift(EVENT_PUBLIC)
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (_url, init) => {
+    vi.fn(async (url, init) => {
+      if (String(url).includes('/api/store/storage-codes')) {
+        if (init?.method === 'DELETE') {
+          return { ok: true, status: 204, json: async () => ({}) } as Response
+        }
+        if (init?.method === 'GET') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => [storageCodePayload({ code: 'ZS-LIST-1', bytes: 2048, max_uses: 2, uses_count: 1 })],
+          } as Response
+        }
+        const body = JSON.parse(String(init?.body ?? '{}')) as { bytes?: number; max_uses?: number; count?: number }
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            Array.from({ length: body.count ?? 1 }, (_, index) =>
+              storageCodePayload({
+                code: `ZS-GEN-${index + 1}`,
+                bytes: body.bytes ?? 1024,
+                max_uses: body.max_uses ?? 1,
+              }),
+            ),
+        } as Response
+      }
       const body = JSON.parse(String(init?.body ?? '{}')) as { packages?: Array<{ id: string }> }
       return {
         ok: true,
@@ -438,6 +476,79 @@ describe('Quota Store API', () => {
       packages: [],
     })
     expect(JSON.parse(init.body as string)).not.toHaveProperty('callbackUrl')
+  })
+
+  it('proxies admin storage code management through the bound Cloud API', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const generated = await app.request('/api/admin/quota-store/storage-codes', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytes: 4096, maxUses: 3, expiresAt: '2026-06-01T00:00:00.000Z', count: 2 }),
+    })
+    const listed = await app.request('/api/admin/quota-store/storage-codes?status=active', { headers })
+    const revoked = await app.request('/api/admin/quota-store/storage-codes/ZS-GEN-1', { method: 'DELETE', headers })
+
+    expect(generated.status).toBe(201)
+    await expect(generated.json()).resolves.toMatchObject({
+      total: 2,
+      items: [
+        { code: 'ZS-GEN-1', bytes: 4096 },
+        { code: 'ZS-GEN-2', bytes: 4096 },
+      ],
+    })
+    expect(listed.status).toBe(200)
+    await expect(listed.json()).resolves.toMatchObject({ total: 1, items: [{ code: 'ZS-LIST-1', maxUses: 2 }] })
+    expect(revoked.status).toBe(200)
+    await expect(revoked.json()).resolves.toEqual({ code: 'ZS-GEN-1', revoked: true })
+
+    const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
+    const [generateUrl, generateInit] = calls[0]
+    const [listUrl, listInit] = calls[1]
+    const [revokeUrl, revokeInit] = calls[2]
+    expect(String(generateUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/storage-codes`)
+    expect(generateInit.headers).toMatchObject({ Authorization: `Bearer ${REFRESH_TOKEN}` })
+    expect(JSON.parse(generateInit.body as string)).toEqual({
+      bytes: 4096,
+      max_uses: 3,
+      expires_at: '2026-06-01T00:00:00.000Z',
+      count: 2,
+    })
+    expect(String(listUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/storage-codes?status=active`)
+    expect(listInit.headers).toMatchObject({ Authorization: `Bearer ${REFRESH_TOKEN}` })
+    expect(String(revokeUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/storage-codes/ZS-GEN-1`)
+    expect(revokeInit.method).toBe('DELETE')
+  })
+
+  it('rejects non-admin storage code management', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const admin = await adminHeaders(app)
+    await seedSettings(app, admin)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+
+    const res = await app.request('/api/admin/quota-store/storage-codes', { headers })
+
+    expect(res.status).toBe(403)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('lists admin delivery records from the local grant ledger', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    await seedGrant(db, orgId)
+
+    const res = await app.request('/api/admin/quota-store/delivery-records', { headers })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ total: 1, items: [{ orgId, bytes: 512 }] })
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('ignores stale Cloud catalog rows when marking packages synced', async () => {

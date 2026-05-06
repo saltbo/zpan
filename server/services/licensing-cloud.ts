@@ -128,16 +128,19 @@ export async function refreshEntitlement(baseUrl: string, refreshToken: string):
   return data
 }
 
-export async function postBoundCloudJson(
+export async function requestBoundCloudJson(
   baseUrl: string,
   path: string,
   refreshToken: string,
-  payload: object,
+  init: { method: 'GET' | 'POST' | 'DELETE'; payload?: object },
 ): Promise<unknown> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${refreshToken}` }
+  if (init.payload) headers['Content-Type'] = 'application/json'
+
   const res = await cloudFetch(baseUrl, path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${refreshToken}` },
-    body: JSON.stringify(payload),
+    method: init.method,
+    headers,
+    body: init.payload ? JSON.stringify(init.payload) : undefined,
   })
 
   const data = await res.json().catch(() => ({}))
@@ -148,4 +151,13 @@ export async function postBoundCloudJson(
   }
 
   return data
+}
+
+export async function postBoundCloudJson(
+  baseUrl: string,
+  path: string,
+  refreshToken: string,
+  payload: object,
+): Promise<unknown> {
+  return requestBoundCloudJson(baseUrl, path, refreshToken, { method: 'POST', payload })
 }

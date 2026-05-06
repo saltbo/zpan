@@ -5,6 +5,8 @@ import type {
   ConflictStrategy,
   CreateShareRequest,
   CreateStorageInput,
+  GenerateStorageCodesInput,
+  StorageCodeStatus,
   UpdateStorageInput,
 } from '@shared/schemas'
 import type {
@@ -31,6 +33,7 @@ import type {
   SiteInvitation,
   Storage,
   StorageObject,
+  StorageRedemptionCode,
 } from '@shared/types'
 import {
   adminAnnouncementsApi,
@@ -318,6 +321,31 @@ export function updateQuotaStorePackage(id: string, data: Parameters<typeof crea
 
 export function deleteQuotaStorePackage(id: string) {
   return unwrap<{ id: string; deleted: boolean }>(adminQuotaStoreApi.packages[':id'].$delete({ param: { id } }))
+}
+
+export function syncQuotaStorePackages() {
+  return unwrap<{ items: QuotaStorePackage[]; total: number }>(adminQuotaStoreApi.sync.$post())
+}
+
+export function listStorageRedemptionCodes(status?: StorageCodeStatus) {
+  const query = status ? { status } : {}
+  return unwrap<{ items: StorageRedemptionCode[]; total: number }>(adminQuotaStoreApi['storage-codes'].$get({ query }))
+}
+
+export function generateStorageRedemptionCodes(data: GenerateStorageCodesInput) {
+  return unwrap<{ items: StorageRedemptionCode[]; total: number }>(
+    adminQuotaStoreApi['storage-codes'].$post({ json: data }),
+  )
+}
+
+export function revokeStorageRedemptionCode(code: string) {
+  return unwrap<{ code: string; revoked: boolean }>(
+    adminQuotaStoreApi['storage-codes'][':code'].$delete({ param: { code } }),
+  )
+}
+
+export function listAdminQuotaDeliveryRecords() {
+  return unwrap<{ items: QuotaGrant[]; total: number }>(adminQuotaStoreApi['delivery-records'].$get())
 }
 
 export function listPurchasableQuotaPackages() {

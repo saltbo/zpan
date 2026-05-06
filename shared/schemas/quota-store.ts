@@ -24,6 +24,15 @@ export const redemptionInputSchema = z.object({
   targetOrgId: z.string().min(1),
 })
 
+export const storageCodeStatusSchema = z.enum(['active', 'redeemed', 'expired'])
+
+export const generateStorageCodesInputSchema = z.object({
+  bytes: z.number().int().positive(),
+  maxUses: z.number().int().positive().default(1),
+  expiresAt: z.string().datetime().optional(),
+  count: z.number().int().min(1).max(100),
+})
+
 export const cloudDeliveryEventSchema = z
   .object({
     eventId: z.string().min(1),
@@ -69,4 +78,6 @@ export type QuotaStoreSettingsInput = z.infer<typeof quotaStoreSettingsSchema>
 export type QuotaStorePackageInput = z.infer<typeof quotaStorePackageInputSchema>
 export type CheckoutInput = z.infer<typeof checkoutInputSchema>
 export type RedemptionInput = z.infer<typeof redemptionInputSchema>
+export type StorageCodeStatus = z.infer<typeof storageCodeStatusSchema>
+export type GenerateStorageCodesInput = z.input<typeof generateStorageCodesInputSchema>
 export type CloudDeliveryEvent = z.infer<typeof cloudDeliveryEventSchema>

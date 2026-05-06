@@ -153,6 +153,11 @@ export async function listGrantsForUser(db: Database, userId: string): Promise<Q
   return rows.map(grantDto)
 }
 
+export async function listQuotaGrants(db: Database): Promise<QuotaGrant[]> {
+  const rows = await db.select().from(quotaGrants).orderBy(sql`${quotaGrants.createdAt} DESC`).limit(100)
+  return rows.map(grantDto)
+}
+
 export async function getCloudStoreBinding(
   db: Database,
 ): Promise<{ boundLicenseId: string; refreshToken: string; instanceId: string }> {

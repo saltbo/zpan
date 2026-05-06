@@ -2,9 +2,10 @@ import type { QuotaGrant, QuotaStorePackage } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createQuotaCheckout,
+  getUserQuota,
   listPurchasableQuotaPackages,
   listQuotaGrants,
   listQuotaStoreTargets,
@@ -27,6 +28,7 @@ vi.mock('sonner', () => ({
 
 vi.mock('@/lib/api', () => ({
   createQuotaCheckout: vi.fn(),
+  getUserQuota: vi.fn(),
   listPurchasableQuotaPackages: vi.fn(),
   listQuotaGrants: vi.fn(),
   listQuotaStoreTargets: vi.fn(),
@@ -85,6 +87,16 @@ afterEach(() => {
 })
 
 describe('StorePage', () => {
+  beforeEach(() => {
+    vi.mocked(getUserQuota).mockResolvedValue({
+      orgId: 'org-1',
+      baseQuota: 1024,
+      grantedQuota: 512,
+      quota: 1536,
+      used: 0,
+    })
+  })
+
   it('refreshes quota when a checkout grant is delivered', async () => {
     vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listQuotaStoreTargets).mockResolvedValue({

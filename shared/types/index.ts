@@ -86,6 +86,16 @@ export interface QuotaGrant {
   createdAt: string
 }
 
+export interface StorageRedemptionCode {
+  code: string
+  bytes: number
+  maxUses: number
+  usesCount: number
+  expiresAt: string | null
+  createdAt: string
+  revokedAt: string | null
+}
+
 export interface QuotaTarget {
   orgId: string
   name: string

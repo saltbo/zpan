@@ -35,6 +35,7 @@ import {
   disconnectCloud,
   emptyTrash,
   enableIhostFeature,
+  generateStorageRedemptionCodes,
   getAnnouncement,
   getBranding,
   getEmailConfig,
@@ -53,6 +54,7 @@ import {
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
+  listAdminQuotaDeliveryRecords,
   listAnnouncements,
   listAuthProviders,
   listIhostApiKeys,
@@ -67,6 +69,7 @@ import {
   listShareObjects,
   listShares,
   listSiteInvitations,
+  listStorageRedemptionCodes,
   listStorages,
   listSystemOptions,
   listUsers,
@@ -80,10 +83,12 @@ import {
   restoreObject,
   revokeIhostApiKey,
   revokeSiteInvitation,
+  revokeStorageRedemptionCode,
   saveBranding,
   saveEmailConfig,
   saveShareToDrive,
   setSystemOption,
+  syncQuotaStorePackages,
   testEmail,
   trashObject,
   updateAnnouncement,
@@ -314,14 +319,42 @@ describe('api', () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ id: 'pkg-1', deleted: true }))
+        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
       await listQuotaStorePackages()
       await deleteQuotaStorePackage('pkg-1')
+      await syncQuotaStorePackages()
 
       expect((vi.mocked(fetch).mock.calls[0] as [string])[0]).toBe('/api/admin/quota-store/packages')
       const [deleteUrl, deleteInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
       expect(deleteUrl).toBe('/api/admin/quota-store/packages/pkg-1')
       expect(deleteInit.method).toBe('DELETE')
+      const [syncUrl, syncInit] = vi.mocked(fetch).mock.calls[2] as [string, RequestInit]
+      expect(syncUrl).toBe('/api/admin/quota-store/sync')
+      expect(syncInit.method).toBe('POST')
+    })
+
+    it('calls admin storage code and delivery record endpoints', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+        .mockResolvedValueOnce(makeResponse({ items: [{ code: 'ZS123' }], total: 1 }))
+        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', revoked: true }))
+        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+
+      await listStorageRedemptionCodes('active')
+      await generateStorageRedemptionCodes({ bytes: 1024, maxUses: 2, count: 3 })
+      await revokeStorageRedemptionCode('ZS123')
+      await listAdminQuotaDeliveryRecords()
+
+      const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
+      expect(calls[0][0]).toBe('/api/admin/quota-store/storage-codes?status=active')
+      expect(calls[0][1].method).toBe('GET')
+      expect(calls[1][0]).toBe('/api/admin/quota-store/storage-codes')
+      expect(calls[1][1].method).toBe('POST')
+      expect(JSON.parse(calls[1][1].body as string)).toEqual({ bytes: 1024, maxUses: 2, count: 3 })
+      expect(calls[2][0]).toBe('/api/admin/quota-store/storage-codes/ZS123')
+      expect(calls[2][1].method).toBe('DELETE')
+      expect(calls[3][0]).toBe('/api/admin/quota-store/delivery-records')
     })
 
     it('calls user store endpoints', async () => {
@@ -367,6 +400,11 @@ describe('api', () => {
         () => updateQuotaStorePackage('pkg-1', { name: 'Small', bytes: 1024, amount: 500, currency: 'usd' }),
       ],
       ['deleteQuotaStorePackage', () => deleteQuotaStorePackage('pkg-1')],
+      ['syncQuotaStorePackages', () => syncQuotaStorePackages()],
+      ['listStorageRedemptionCodes', () => listStorageRedemptionCodes()],
+      ['generateStorageRedemptionCodes', () => generateStorageRedemptionCodes({ bytes: 1024, count: 1 })],
+      ['revokeStorageRedemptionCode', () => revokeStorageRedemptionCode('ZS123')],
+      ['listAdminQuotaDeliveryRecords', () => listAdminQuotaDeliveryRecords()],
       ['listPurchasableQuotaPackages', () => listPurchasableQuotaPackages()],
       ['listQuotaStoreTargets', () => listQuotaStoreTargets()],
       ['createQuotaCheckout', () => createQuotaCheckout('pkg-1', 'org-1')],

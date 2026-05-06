@@ -6,8 +6,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
   createQuotaStorePackage,
+  generateStorageRedemptionCodes,
   getQuotaStoreSettings,
+  listAdminQuotaDeliveryRecords,
   listQuotaStorePackages,
+  listStorageRedemptionCodes,
+  revokeStorageRedemptionCode,
   updateQuotaStoreSettings,
 } from '@/lib/api'
 import { AdminQuotaStorePage } from './quota-store'
@@ -49,8 +53,13 @@ vi.mock('@/lib/api', () => {
   return {
     ApiError: MockApiError,
     createQuotaStorePackage: vi.fn(),
+    generateStorageRedemptionCodes: vi.fn(),
     getQuotaStoreSettings: vi.fn(),
+    listAdminQuotaDeliveryRecords: vi.fn(),
     listQuotaStorePackages: vi.fn(),
+    listStorageRedemptionCodes: vi.fn(),
+    revokeStorageRedemptionCode: vi.fn(),
+    syncQuotaStorePackages: vi.fn(),
     updateQuotaStorePackage: vi.fn(),
     updateQuotaStoreSettings: vi.fn(),
   }
@@ -160,6 +169,79 @@ describe('AdminQuotaStorePage', () => {
     expect(view.queryByText('admin.quotaStore.cloudBaseUrl')).toBeNull()
     expect(view.queryByText('admin.quotaStore.callbackUrl')).toBeNull()
     expect(view.queryByText('admin.quotaStore.webhookSecret')).toBeNull()
+  })
+
+  it('generates and revokes storage redemption codes from the codes tab', async () => {
+    vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
+    vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listStorageRedemptionCodes).mockResolvedValue({
+      items: [
+        {
+          code: 'ZS-CODE-1',
+          bytes: 107374182400,
+          maxUses: 1,
+          usesCount: 0,
+          expiresAt: null,
+          createdAt: '2026-05-05T00:00:00.000Z',
+          revokedAt: null,
+        },
+      ],
+      total: 1,
+    })
+    vi.mocked(generateStorageRedemptionCodes).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(revokeStorageRedemptionCode).mockResolvedValue({ code: 'ZS-CODE-1', revoked: true })
+
+    const view = renderAdminPage()
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'admin.quotaStore.tabs.codes' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'admin.quotaStore.tabs.codes' }))
+    await waitFor(() => expect(view.getByText('ZS-CODE-1')).toBeTruthy())
+    fireEvent.change(view.getByLabelText('admin.quotaStore.size'), { target: { value: '50' } })
+    fireEvent.change(view.getByLabelText('admin.quotaStore.codes.maxUses'), { target: { value: '2' } })
+    fireEvent.change(view.getByLabelText('admin.quotaStore.codes.count'), { target: { value: '3' } })
+    fireEvent.click(view.getByRole('button', { name: 'admin.quotaStore.codes.generate' }))
+
+    await waitFor(() =>
+      expect(generateStorageRedemptionCodes).toHaveBeenCalledWith({
+        bytes: 53687091200,
+        maxUses: 2,
+        count: 3,
+      }),
+    )
+    fireEvent.click(view.getByRole('button', { name: 'admin.quotaStore.codes.revoke' }))
+    await waitFor(() => expect(revokeStorageRedemptionCode).toHaveBeenCalledWith('ZS-CODE-1', expect.anything()))
+  })
+
+  it('loads delivery records from the delivery tab', async () => {
+    vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
+    vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listAdminQuotaDeliveryRecords).mockResolvedValue({
+      items: [
+        {
+          id: 'grant-1',
+          orgId: 'org-1',
+          source: 'redeem_code',
+          externalEventId: 'evt-1',
+          cloudOrderId: null,
+          cloudRedemptionId: 'redemption-1',
+          code: 'ZS-CODE-1',
+          bytes: 1024,
+          packageSnapshot: null,
+          grantedBy: null,
+          terminalUserId: 'user-1',
+          terminalUserEmail: 'user@example.com',
+          active: true,
+          createdAt: '2026-05-05T00:00:00.000Z',
+        },
+      ],
+      total: 1,
+    })
+
+    const view = renderAdminPage()
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'admin.quotaStore.tabs.delivery' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'admin.quotaStore.tabs.delivery' }))
+    await waitFor(() => expect(view.getByText('user@example.com')).toBeTruthy())
   })
 
   it('shows a disabled store status before settings are created', async () => {
