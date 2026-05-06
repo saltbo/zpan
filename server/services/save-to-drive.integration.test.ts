@@ -58,7 +58,15 @@ async function seedMatter(
 }
 
 async function seedOrgQuota(db: TestDb, orgId: string, quota: number, used = 0) {
-  await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used })
+  await db.insert(orgQuotas).values({
+    id: nanoid(),
+    orgId,
+    quota,
+    used,
+    trafficQuota: 0,
+    trafficUsed: 0,
+    trafficPeriod: '2026-05',
+  })
 }
 
 async function getShare(db: TestDb, shareId: string) {
@@ -622,7 +630,15 @@ describe('POST /api/shares/:token/objects', () => {
       VALUES (${nanoid()}, ${quotaOrgId}, ${userId}, 'editor', ${Date.now()})
     `)
     // Insert a tight quota row for this org (only 100 bytes allowed)
-    await db.insert(orgQuotas).values({ id: nanoid(), orgId: quotaOrgId, quota: 100, used: 0 })
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId: quotaOrgId,
+      quota: 100,
+      used: 0,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
 
     // The share from setup() has a matter with size 512 — well above the 100-byte quota
     const res = await app.request(`/api/shares/${share.token}/objects`, {

@@ -44,6 +44,27 @@ describe('Admin Quotas API', () => {
     expect(body.items).toHaveLength(1)
     expect(body.total).toBe(1)
     expect(body.items[0].quota).toBe(10485760)
+    expect(body.items[0].trafficQuota).toBe(0)
+    expect(body.items[0].trafficUsed).toBe(0)
+    expect(body.items[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
+  })
+
+  it('GET /api/admin/quotas normalizes stale monthly traffic period', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await db.run(sql`UPDATE org_quotas SET traffic_quota = 1000, traffic_used = 900, traffic_period = '1970-01'`)
+
+    const res = await app.request('/api/admin/quotas', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
+    expect(body.items[0].trafficUsed).toBe(0)
+    expect(body.items[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
+
+    const rows = await db.all<{ trafficUsed: number; trafficPeriod: string }>(
+      sql`SELECT traffic_used AS trafficUsed, traffic_period AS trafficPeriod FROM org_quotas LIMIT 1`,
+    )
+    expect(rows[0].trafficUsed).toBe(0)
+    expect(rows[0].trafficPeriod).toBe(body.items[0].trafficPeriod)
   })
 
   it('PUT /api/admin/quotas/:orgId creates quota for org', async () => {
@@ -59,16 +80,43 @@ describe('Admin Quotas API', () => {
     const res = await app.request(`/api/admin/quotas/${orgId}`, {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 1073741824 }), // 1GB
+      body: JSON.stringify({ quota: 1073741824, trafficQuota: 2147483648 }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.orgId).toBe(orgId)
     expect(body.quota).toBe(1073741824)
+    expect(body.trafficQuota).toBe(2147483648)
 
     // Verify in DB
-    const quotas = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
+    const quotas = await db.all<{ quota: number; trafficQuota: number }>(
+      sql`SELECT quota, traffic_quota AS trafficQuota FROM org_quotas WHERE org_id = ${orgId}`,
+    )
     expect(quotas[0].quota).toBe(1073741824)
+    expect(quotas[0].trafficQuota).toBe(2147483648)
+  })
+
+  it('PUT /api/admin/quotas/:orgId creates missing quota with default monthly traffic quota', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    const orgs = await db.all<{ id: string }>(
+      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    const orgId = orgs[0].id
+    await db.run(sql`DELETE FROM org_quotas WHERE org_id = ${orgId}`)
+
+    const res = await app.request(`/api/admin/quotas/${orgId}`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quota: 2048 }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.quota).toBe(2048)
+    expect(body.trafficQuota).toBe(0)
+    expect(body.trafficUsed).toBe(0)
+    expect(body.trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
   })
 
   it('PUT /api/admin/quotas/:orgId updates existing quota', async () => {
@@ -96,6 +144,9 @@ describe('Admin Quotas API', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.quota).toBe(2000)
+    expect(body.trafficQuota).toBe(0)
+    expect(body.trafficUsed).toBe(0)
+    expect(body.trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
   })
 
   it('PUT /api/admin/quotas/:orgId rejects negative quota', async () => {
@@ -127,6 +178,17 @@ describe('Admin Quotas API', () => {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ quota: 1.5 }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('PUT /api/admin/quotas/:orgId rejects negative traffic quota', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/admin/quotas/some-org', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quota: 1000, trafficQuota: -1 }),
     })
     expect(res.status).toBe(400)
   })
@@ -173,6 +235,9 @@ describe('Admin Quotas API', () => {
     expect(body.items).toHaveLength(1)
     expect(body.items[0].orgId).toBe(orgId)
     expect(body.items[0].quota).toBe(5000)
+    expect(body.items[0].trafficQuota).toBe(0)
+    expect(body.items[0].trafficUsed).toBe(0)
+    expect(body.items[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
     expect(body.items[0].orgName).toBeTruthy()
     expect(body.items[0].orgType).toBe('personal')
   })
@@ -193,6 +258,9 @@ describe('User Quotas API — /api/quotas', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.quota).toBe(10485760)
     expect(body.used).toBe(0)
+    expect(body.trafficQuota).toBe(0)
+    expect(body.trafficUsed).toBe(0)
+    expect(body.trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
     expect(body.orgId).toBeTruthy()
   })
 
@@ -236,6 +304,8 @@ describe('User Quotas API — /api/quotas', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.quota).toBe(10000)
     expect(body.used).toBe(0)
+    expect(body.trafficQuota).toBe(0)
+    expect(body.trafficUsed).toBe(0)
   })
 
   it('admin quota updates base quota while paid grants remain effective', async () => {
@@ -252,11 +322,16 @@ describe('User Quotas API — /api/quotas', () => {
       VALUES ('grant-1', ${orgId}, 'stripe', 'evt-quota', 'order-quota', 500, 1, ${Date.now()})
     `)
 
-    await app.request(`/api/admin/quotas/${orgId}`, {
+    const putRes = await app.request(`/api/admin/quotas/${orgId}`, {
       method: 'PUT',
       headers: { ...adminH, 'Content-Type': 'application/json' },
       body: JSON.stringify({ quota: 1000 }),
     })
+    expect(putRes.status).toBe(200)
+    const updated = (await putRes.json()) as Record<string, unknown>
+    expect(updated.baseQuota).toBe(1000)
+    expect(updated.grantedQuota).toBe(500)
+    expect(updated.quota).toBe(1500)
 
     const res = await app.request('/api/quotas/me', { headers: adminH })
     const body = (await res.json()) as Record<string, unknown>

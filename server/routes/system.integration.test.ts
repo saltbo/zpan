@@ -93,4 +93,22 @@ describe('System API — options CRUD', () => {
       expect(res.status).toBe(400)
     }
   })
+
+  it('validates default monthly traffic quota values', async () => {
+    const { app } = await createTestApp()
+    const admin = await adminHeaders(app)
+
+    for (const value of ['', '   ', '-1', '1.5', 'abc']) {
+      const res = await putOption(app, admin, 'default_org_monthly_traffic_quota', { value })
+      expect(res.status).toBe(400)
+    }
+
+    const created = await putOption(app, admin, 'default_org_monthly_traffic_quota', { value: ' 1024 ' })
+    expect(created.status).toBe(201)
+    await expect(created.json()).resolves.toMatchObject({ value: '1024' })
+
+    const updated = await putOption(app, admin, 'default_org_monthly_traffic_quota', { value: '0' })
+    expect(updated.status).toBe(200)
+    await expect(updated.json()).resolves.toMatchObject({ value: '0' })
+  })
 })

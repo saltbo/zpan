@@ -90,7 +90,16 @@ afterEach(() => {
 
 describe('QuotaPanel', () => {
   it('keeps the storage area clickable when the store is unavailable', async () => {
-    vi.mocked(getUserQuota).mockResolvedValue({ orgId: 'org-1', baseQuota: 100, grantedQuota: 0, quota: 100, used: 25 })
+    vi.mocked(getUserQuota).mockResolvedValue({
+      orgId: 'org-1',
+      baseQuota: 100,
+      grantedQuota: 0,
+      quota: 100,
+      used: 25,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
     vi.mocked(listPurchasableQuotaPackages).mockRejectedValue(new Error('quota_store_disabled'))
     vi.mocked(listQuotaGrants).mockResolvedValue({ items: [], total: 0 })
 
@@ -102,7 +111,16 @@ describe('QuotaPanel', () => {
   })
 
   it('loads grants when redemption is available without packages', async () => {
-    vi.mocked(getUserQuota).mockResolvedValue({ orgId: 'org-1', baseQuota: 100, grantedQuota: 0, quota: 100, used: 25 })
+    vi.mocked(getUserQuota).mockResolvedValue({
+      orgId: 'org-1',
+      baseQuota: 100,
+      grantedQuota: 0,
+      quota: 100,
+      used: 25,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
     vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listQuotaGrants).mockResolvedValue({ items: [], total: 0 })
 
@@ -119,6 +137,9 @@ describe('QuotaPanel', () => {
       grantedQuota: 100,
       quota: 200,
       used: 25,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
     })
     vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listQuotaGrants).mockResolvedValue({

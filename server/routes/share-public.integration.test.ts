@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { currentTrafficPeriod } from '../services/effective-quota.js'
 import { S3Service } from '../services/s3.js'
 import { createShare } from '../services/share.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
@@ -319,6 +320,85 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')
     await expect(res.json()).resolves.toEqual({ downloadUrl: MOCK_PRESIGN_URL })
+  })
+
+  it('consumes traffic quota when public share download URL is issued', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'dl-traffic-ok', name: 'traffic.txt' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+    const share = await createShare(db, { matterId: 'dl-traffic-ok', orgId, creatorId, kind: 'landing' })
+
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
+    expect(res.status).toBe(200)
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(1280)
+  })
+
+  it('compensates public share download count when traffic is exhausted after presign', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'dl-traffic-race', name: 'traffic.txt' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 1024, traffic_used = 0, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+    vi.mocked(S3Service.prototype.presignDownload).mockImplementationOnce(async () => {
+      await db.run(sql`UPDATE org_quotas SET traffic_used = 1024 WHERE org_id = ${orgId}`)
+      return MOCK_PRESIGN_URL
+    })
+    const share = await createShare(db, { matterId: 'dl-traffic-race', orgId, creatorId, kind: 'landing' })
+
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
+    expect(res.status).toBe(422)
+    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+
+    const shares = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
+    expect(shares[0].downloads).toBe(0)
+  })
+
+  it('returns 422 when public share traffic quota is exhausted', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'dl-traffic', name: 'traffic.txt' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 512, traffic_used = 0, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+    const share = await createShare(db, { matterId: 'dl-traffic', orgId, creatorId, kind: 'landing', downloadLimit: 1 })
+
+    const rootRef = await fetchRootRef(app, share.token)
+    const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
+
+    expect(res.status).toBe(422)
+    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
+
+    const shares = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
+    expect(shares[0].downloads).toBe(0)
   })
 
   it('returns 401 when password required and no cookie', async () => {

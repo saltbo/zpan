@@ -39,6 +39,9 @@ export interface OrgQuota {
   orgId: string
   quota: number
   used: number
+  trafficQuota: number
+  trafficUsed: number
+  trafficPeriod: string
 }
 
 export type QuotaGrantSource = 'stripe' | 'redeem_code' | 'admin_adjustment'

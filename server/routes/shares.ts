@@ -11,6 +11,7 @@ import { matters } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
+import { consumeTrafficIfQuotaAllows, hasTrafficQuotaForBytes } from '../services/effective-quota'
 import { listMatters } from '../services/matter'
 import { getMemberRole, isPersonalOrg } from '../services/org'
 import {
@@ -20,7 +21,9 @@ import {
 } from '../services/save-to-drive'
 import {
   createShare,
+  decrementDownloads,
   getShareCreatorByToken,
+  hasDownloadsAvailable,
   incrementDownloadsAtomic,
   incrementViews,
   isAccessibleByUser,
@@ -265,13 +268,24 @@ export const publicShares = new Hono<Env>()
       return c.json({ error: 'Cannot download a folder directly' }, 400)
     }
 
-    const { ok } = await incrementDownloadsAtomic(db, share.id)
-    if (!ok) return c.json({ error: 'Download limit exceeded' }, 410)
+    if (!(await hasDownloadsAvailable(db, share.id))) return c.json({ error: 'Download limit exceeded' }, 410)
 
     const storage = (await getStorage(db, targetMatter.storageId)) as unknown as S3Storage
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
+    if (!(await hasTrafficQuotaForBytes(db, share.orgId, targetMatter.size ?? 0))) {
+      return c.json({ error: 'Traffic quota exceeded' }, 422)
+    }
+
     const url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
+    const { ok } = await incrementDownloadsAtomic(db, share.id)
+    if (!ok) return c.json({ error: 'Download limit exceeded' }, 410)
+
+    const trafficAllowed = await consumeTrafficIfQuotaAllows(db, share.orgId, targetMatter.size ?? 0)
+    if (!trafficAllowed) {
+      await decrementDownloads(db, share.id)
+      return c.json({ error: 'Traffic quota exceeded' }, 422)
+    }
 
     // Record download audit event. Use the authenticated viewer if available;
     // fall back to the share creator as the org-attributed actor for anonymous

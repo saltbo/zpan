@@ -996,7 +996,12 @@ describe('api', () => {
 
   describe('listQuotas', () => {
     it('fetches quotas list', async () => {
-      const payload = { items: [{ orgId: 'org1', quota: 1024, used: 512 }], total: 1 }
+      const payload = {
+        items: [
+          { orgId: 'org1', quota: 1024, used: 512, trafficQuota: 2048, trafficUsed: 256, trafficPeriod: '2026-05' },
+        ],
+        total: 1,
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listQuotas()
@@ -1015,17 +1020,24 @@ describe('api', () => {
 
   describe('updateQuota', () => {
     it('puts quota for an org and returns updated quota', async () => {
-      const updated = { orgId: 'org1', quota: 2048 }
+      const updated = {
+        orgId: 'org1',
+        quota: 2048,
+        used: 512,
+        trafficQuota: 4096,
+        trafficUsed: 256,
+        trafficPeriod: '2026-05',
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(updated))
 
-      const result = await updateQuota('org1', 2048)
+      const result = await updateQuota('org1', 2048, 4096)
 
       expect(result).toEqual(updated)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/admin/quotas/org1')
       expect(init.method).toBe('PUT')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ quota: 2048 })
+      expect(body).toMatchObject({ quota: 2048, trafficQuota: 4096 })
     })
 
     it('throws on error response', async () => {
@@ -1037,7 +1049,16 @@ describe('api', () => {
 
   describe('getUserQuota', () => {
     it('fetches the current user quota', async () => {
-      const payload = { orgId: 'org1', quota: 1024, used: 256 }
+      const payload = {
+        orgId: 'org1',
+        baseQuota: 1024,
+        grantedQuota: 0,
+        quota: 1024,
+        used: 256,
+        trafficQuota: 2048,
+        trafficUsed: 512,
+        trafficPeriod: '2026-05',
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await getUserQuota()

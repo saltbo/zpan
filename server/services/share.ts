@@ -103,6 +103,23 @@ export async function incrementViews(db: Database, shareId: string): Promise<voi
     .where(eq(shares.id, shareId))
 }
 
+export async function hasDownloadsAvailable(db: Database, shareId: string): Promise<boolean> {
+  const nowSecs = Math.floor(Date.now() / 1000)
+  const rows = await db
+    .select({ id: shares.id })
+    .from(shares)
+    .where(
+      and(
+        eq(shares.id, shareId),
+        eq(shares.status, 'active'),
+        or(isNull(shares.downloadLimit), sql`${shares.downloads} < ${shares.downloadLimit}`),
+        or(isNull(shares.expiresAt), sql`${shares.expiresAt} > ${nowSecs}`),
+      ),
+    )
+    .limit(1)
+  return rows.length === 1
+}
+
 export async function incrementDownloadsAtomic(
   db: Database,
   shareId: string,
@@ -128,6 +145,13 @@ export async function incrementDownloadsAtomic(
   const current = await db.select({ downloads: shares.downloads }).from(shares).where(eq(shares.id, shareId))
   if (!current[0]) throw new Error('SHARE_NOT_FOUND')
   return { ok: false, downloads: current[0].downloads }
+}
+
+export async function decrementDownloads(db: Database, shareId: string): Promise<void> {
+  await db
+    .update(shares)
+    .set({ downloads: sql`CASE WHEN ${shares.downloads} > 0 THEN ${shares.downloads} - 1 ELSE 0 END` })
+    .where(eq(shares.id, shareId))
 }
 
 export async function listShareRecipientUserIds(db: Database, shareId: string): Promise<string[]> {

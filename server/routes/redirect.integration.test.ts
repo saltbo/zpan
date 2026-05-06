@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { currentTrafficPeriod } from '../services/effective-quota.js'
 import { S3Service } from '../services/s3.js'
 import { createShare } from '../services/share.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
@@ -56,7 +57,7 @@ async function insertImageHosting(
   const now = Date.now()
   await db.run(sql`
     INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
-    VALUES (${opts.id}, ${orgId}, ${opts.token}, ${'blog/' + opts.id + '.png'}, ${opts.storageId ?? STORAGE_ID}, ${'ih/' + orgId + '/' + opts.id + '.png'}, 1024, 'image/png', ${opts.status ?? 'active'}, 0, ${now})
+    VALUES (${opts.id}, ${orgId}, ${opts.token}, ${`blog/${opts.id}.png`}, ${opts.storageId ?? STORAGE_ID}, ${`ih/${orgId}/${opts.id}.png`}, 1024, 'image/png', ${opts.status ?? 'active'}, 0, ${now})
   `)
 }
 
@@ -115,12 +116,87 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(404)
   })
+
+  it('returns 422 when direct share traffic quota is exhausted', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'ds-quota', name: 'quota.bin' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 512, traffic_used = 0, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+    const share = await createShare(db, { matterId: 'ds-quota', orgId, creatorId, kind: 'direct', downloadLimit: 1 })
+
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
+    expect(res.status).toBe(422)
+    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
+
+    const shares = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
+    expect(shares[0].downloads).toBe(0)
+  })
+
+  it('consumes traffic quota on successful direct share redirect', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'ds-quota-ok', name: 'quota.bin' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+    const share = await createShare(db, { matterId: 'ds-quota-ok', orgId, creatorId, kind: 'direct' })
+
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
+    expect(res.status).toBe(302)
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(1280)
+  })
+
+  it('compensates direct share download count when traffic is exhausted after presign', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'ds-quota-race', name: 'quota.bin' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 1024, traffic_used = 0, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+    vi.mocked(S3Service.prototype.presignDownload).mockImplementationOnce(async () => {
+      await db.run(sql`UPDATE org_quotas SET traffic_used = 1024 WHERE org_id = ${orgId}`)
+      return MOCK_PRESIGN_URL
+    })
+    const share = await createShare(db, { matterId: 'ds-quota-race', orgId, creatorId, kind: 'direct' })
+
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
+    expect(res.status).toBe(422)
+    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+
+    const shares = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
+    expect(shares[0].downloads).toBe(0)
+  })
 })
 
 // ─── ih_ image hosting tests ──────────────────────────────────────────────────
 
 describe('GET /r/:token (ih_ image hosting)', () => {
-  it('returns 302 with inline disposition and max-age for active image', async () => {
+  it('returns 302 with inline disposition and no-store cache for active image', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -131,8 +207,7 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
     const cc = res.headers.get('cache-control') ?? ''
-    expect(cc).toContain('public')
-    expect(cc).toContain('max-age=')
+    expect(cc).toContain('no-store')
   })
 
   it('strips .png extension and resolves same image', async () => {
@@ -186,6 +261,52 @@ describe('GET /r/:token (ih_ image hosting)', () => {
     expect(await getAccessCount(db, 'ih-cnt1')).toBe(0)
     await app.request('/r/ih_counttest1', { redirect: 'manual' })
     expect(await getAccessCount(db, 'ih-cnt1')).toBe(1)
+  })
+
+  it('consumes traffic quota on successful image hosting redirect', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'ih-quota-ok', token: 'ih_quotaok' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+
+    const res = await app.request('/r/ih_quotaok', { redirect: 'manual' })
+    expect(res.status).toBe(302)
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(1280)
+  })
+
+  it('rejects the next image redirect after the first one consumes the remaining monthly traffic quota', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'ih-quota-repeat', token: 'ih_quotarepeat' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 1024, traffic_used = 0, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+
+    const first = await app.request('/r/ih_quotarepeat', { redirect: 'manual' })
+    expect(first.status).toBe(302)
+    expect(first.headers.get('cache-control')).toBe('no-store')
+
+    const second = await app.request('/r/ih_quotarepeat', { redirect: 'manual' })
+    expect(second.status).toBe(422)
+    await expect(second.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    expect(S3Service.prototype.presignInline).toHaveBeenCalledTimes(1)
+    expect(await getAccessCount(db, 'ih-quota-repeat')).toBe(1)
   })
 
   it('does NOT increment accessCount on 404', async () => {
@@ -338,5 +459,24 @@ describe('GET /r/:token — two-org isolation', () => {
     const res = await app.request('/r/ih_isolationtest', { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
+  })
+
+  it('returns 422 when image hosting traffic quota is exhausted', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'ih-quota', token: 'ih_quotatest' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 512, traffic_used = 0, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+
+    const res = await app.request('/r/ih_quotatest', { redirect: 'manual' })
+    expect(res.status).toBe(422)
+    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    expect(S3Service.prototype.presignInline).not.toHaveBeenCalled()
   })
 })

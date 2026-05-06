@@ -3,8 +3,14 @@ import { Hono } from 'hono'
 import type { Storage as S3Storage } from '../../shared/types'
 import type { Env } from '../middleware/platform'
 import type { Database } from '../platform/interface'
+import { consumeTrafficIfQuotaAllows, hasTrafficQuotaForBytes } from '../services/effective-quota'
 import { incrementAccessCount, resolveActiveImageByToken } from '../services/image-hosting'
-import { incrementDownloadsAtomic, resolveShareByToken } from '../services/share'
+import {
+  decrementDownloads,
+  hasDownloadsAvailable,
+  incrementDownloadsAtomic,
+  resolveShareByToken,
+} from '../services/share'
 import { getStorage } from '../services/storage'
 import { PRESIGN_TTL_SECS, s3 } from './share-utils'
 
@@ -28,9 +34,6 @@ function checkReferer(refererAllowlist: string[], refererHeader: string | null):
   }
 }
 
-// max-age is min(PRESIGN_TTL_SECS - 30, 300) to avoid caching beyond presign validity
-const IMAGE_MAX_AGE = Math.min(PRESIGN_TTL_SECS - 30, 300)
-
 async function handleDirectShare(c: Context<Env>, db: Database, token: string): Promise<Response> {
   const resolved = await resolveShareByToken(db, token)
   if (resolved.status !== 'ok') {
@@ -43,13 +46,26 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
 
   if (share.expiresAt && share.expiresAt < new Date()) return c.json({ error: 'Share has expired' }, 410)
 
-  const { ok } = await incrementDownloadsAtomic(db, share.id)
-  if (!ok) return c.json({ error: 'Download limit exceeded' }, 410)
+  if (!(await hasDownloadsAvailable(db, share.id))) return c.json({ error: 'Download limit exceeded' }, 410)
 
   const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
+  if (!(await hasTrafficQuotaForBytes(db, share.orgId, matter.size ?? 0))) {
+    return c.json({ error: 'Traffic quota exceeded' }, 422)
+  }
+
   const url = await s3.presignDownload(storage, matter.object, matter.name, PRESIGN_TTL_SECS)
+
+  const { ok } = await incrementDownloadsAtomic(db, share.id)
+  if (!ok) return c.json({ error: 'Download limit exceeded' }, 410)
+
+  const trafficAllowed = await consumeTrafficIfQuotaAllows(db, share.orgId, matter.size ?? 0)
+  if (!trafficAllowed) {
+    await decrementDownloads(db, share.id)
+    return c.json({ error: 'Traffic quota exceeded' }, 422)
+  }
+
   const res = c.redirect(url, 302)
   res.headers.set('Cache-Control', 'no-store')
   return res
@@ -73,11 +89,18 @@ async function handleImageHosting(c: Context<Env>, db: Database, token: string):
   const storage = (await getStorage(db, image.storageId)) as unknown as S3Storage
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
-  await incrementAccessCount(db, image.id)
+  if (!(await hasTrafficQuotaForBytes(db, image.orgId, image.size))) {
+    return c.json({ error: 'Traffic quota exceeded' }, 422)
+  }
 
   const url = await s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
+
+  const trafficAllowed = await consumeTrafficIfQuotaAllows(db, image.orgId, image.size)
+  if (!trafficAllowed) return c.json({ error: 'Traffic quota exceeded' }, 422)
+  await incrementAccessCount(db, image.id)
+
   const res = c.redirect(url, 302)
-  res.headers.set('Cache-Control', `public, max-age=${IMAGE_MAX_AGE}`)
+  res.headers.set('Cache-Control', 'no-store')
   return res
 }
 

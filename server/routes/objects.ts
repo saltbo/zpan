@@ -12,6 +12,7 @@ import type { Storage as S3Storage } from '../../shared/types'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
+import { consumeTrafficIfQuotaAllows, hasTrafficQuotaForBytes } from '../services/effective-quota'
 import {
   batchMove,
   batchTrash,
@@ -194,7 +195,14 @@ const app = new Hono<Env>()
     const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
+    if (!(await hasTrafficQuotaForBytes(db, orgId, matter.size ?? 0))) {
+      return c.json({ error: 'Traffic quota exceeded' }, 422)
+    }
+
     const downloadUrl = await s3.presignDownload(storage, matter.object, matter.name)
+    const trafficAllowed = await consumeTrafficIfQuotaAllows(db, orgId, matter.size ?? 0)
+    if (!trafficAllowed) return c.json({ error: 'Traffic quota exceeded' }, 422)
+
     return c.json({ ...matter, downloadUrl })
   })
   .patch('/:id', requireTeamRole('editor'), zValidator('json', patchMatterSchema), async (c) => {

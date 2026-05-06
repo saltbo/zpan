@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
 import { orgQuotas } from '../db/schema'
 import type { Database } from '../platform/interface'
+import { currentTrafficPeriod } from './effective-quota'
 
 export interface UserWithOrg {
   id: string
@@ -161,7 +162,15 @@ export async function setUsersPersonalQuota(
   }
 
   for (const orgId of nowMissing) {
-    await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used: 0 })
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota,
+      used: 0,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: currentTrafficPeriod(),
+    })
   }
 
   return { updated: rows.length, userIds: existingIds, orgIds, quota }

@@ -62,7 +62,7 @@ async function insertImageHosting(
   const now = Date.now()
   await db.run(sql`
     INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
-    VALUES (${opts.id}, ${orgId}, ${opts.token}, ${'blog/' + opts.id + '.png'}, ${STORAGE_ID}, ${'ih/' + orgId + '/' + opts.id + '.png'}, 512, 'image/png', 'active', 0, ${now})
+    VALUES (${opts.id}, ${orgId}, ${opts.token}, ${`blog/${opts.id}.png`}, ${STORAGE_ID}, ${`ih/${orgId}/${opts.id}.png`}, 512, 'image/png', 'active', 0, ${now})
   `)
 }
 
@@ -120,7 +120,7 @@ describe('[CF] /r/:token ih_ image hosting', () => {
     const res = await app.request(`/r/${token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
     const cc = res.headers.get('cache-control') ?? ''
-    expect(cc).toContain('public')
+    expect(cc).toContain('no-store')
     vi.restoreAllMocks()
   })
 

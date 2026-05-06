@@ -119,6 +119,9 @@ describe('StoragePage', () => {
       grantedQuota: 512,
       quota: 1536,
       used: 0,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
     })
   })
 

@@ -23,6 +23,7 @@ import type {
   IhostConfigResponse,
   ImageHosting,
   Notification,
+  OrgQuota,
   PaginatedResponse,
   QuotaGrant,
   QuotaStorePackage,
@@ -267,26 +268,39 @@ export function batchUpdateUserQuota(ids: string[], quota: number) {
 
 // Admin Quotas API
 
-export interface QuotaItem {
-  orgId: string
-  quota: number
-  used: number
+export type QuotaItem = Pick<
+  OrgQuota,
+  'orgId' | 'quota' | 'used' | 'trafficQuota' | 'trafficUsed' | 'trafficPeriod'
+> & {
+  orgName?: string
+  orgType?: string
 }
 
 export function listQuotas() {
   return unwrap<{ items: QuotaItem[]; total: number }>(adminQuotas.index.$get())
 }
 
-export function updateQuota(orgId: string, quota: number) {
-  return unwrap<{ orgId: string; quota: number }>(adminQuotas[':orgId'].$put({ param: { orgId }, json: { quota } }))
+export function updateQuota(orgId: string, quota: number, trafficQuota?: number) {
+  return unwrap<QuotaItem>(
+    adminQuotas[':orgId'].$put({
+      param: { orgId },
+      json: trafficQuota == null ? { quota } : { quota, trafficQuota },
+    }),
+  )
 }
 
 // User Quotas API
 
 export function getUserQuota() {
-  return unwrap<{ orgId: string; baseQuota: number; grantedQuota: number; quota: number; used: number }>(
-    userQuotas.me.$get(),
-  )
+  return unwrap<
+    {
+      orgId: string
+      baseQuota: number
+      grantedQuota: number
+      quota: number
+      used: number
+    } & Pick<OrgQuota, 'trafficQuota' | 'trafficUsed' | 'trafficPeriod'>
+  >(userQuotas.me.$get())
 }
 
 // Quota Store API

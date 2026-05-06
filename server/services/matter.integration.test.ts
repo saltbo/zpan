@@ -20,7 +20,15 @@ async function insertStorage(db: TestDb, opts: { id?: string; used?: number } = 
 }
 
 async function insertOrgQuota(db: TestDb, orgId: string, quota: number, used = 0) {
-  await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used })
+  await db.insert(orgQuotas).values({
+    id: nanoid(),
+    orgId,
+    quota,
+    used,
+    trafficQuota: 0,
+    trafficUsed: 0,
+    trafficPeriod: '2026-05',
+  })
 }
 
 async function insertDraftFile(

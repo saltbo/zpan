@@ -41,6 +41,7 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')!
     const key = c.req.param('key')
     const body = c.req.valid('json')
+    let value = body.value
 
     if (key === 'auth_signup_mode' && body.value === SignupMode.OPEN) {
       const state = await loadBindingState(db)
@@ -59,13 +60,21 @@ const app = new Hono<Env>()
       }
     }
 
+    if (key === 'default_org_monthly_traffic_quota') {
+      value = body.value.trim()
+      const quota = Number(value)
+      if (value === '' || !Number.isInteger(quota) || quota < 0) {
+        return c.json({ error: 'Default organization monthly traffic quota must be a non-negative number' }, 400)
+      }
+    }
+
     const existing = await db
       .select({ key: systemOptions.key, public: systemOptions.public })
       .from(systemOptions)
       .where(eq(systemOptions.key, key))
     if (existing.length > 0) {
       const nextPublic = body.public ?? existing[0].public
-      await db.update(systemOptions).set({ value: body.value, public: nextPublic }).where(eq(systemOptions.key, key))
+      await db.update(systemOptions).set({ value, public: nextPublic }).where(eq(systemOptions.key, key))
       await recordActivity(db, {
         orgId,
         userId,
@@ -74,10 +83,10 @@ const app = new Hono<Env>()
         targetName: key,
         metadata: { key, public: !!nextPublic },
       })
-      return c.json({ key, value: body.value, public: !!nextPublic })
+      return c.json({ key, value, public: !!nextPublic })
     }
     const nextPublic = body.public ?? false
-    await db.insert(systemOptions).values({ key, value: body.value, public: nextPublic })
+    await db.insert(systemOptions).values({ key, value, public: nextPublic })
     await recordActivity(db, {
       orgId,
       userId,
@@ -86,7 +95,7 @@ const app = new Hono<Env>()
       targetName: key,
       metadata: { key, public: nextPublic },
     })
-    return c.json({ key, value: body.value, public: !!nextPublic }, 201)
+    return c.json({ key, value, public: !!nextPublic }, 201)
   })
   .delete('/options/:key', requireAdmin, async (c) => {
     const db = c.get('platform').db

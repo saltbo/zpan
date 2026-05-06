@@ -42,6 +42,9 @@ export const orgQuotas = sqliteTable('org_quotas', {
   orgId: text('org_id').notNull(),
   quota: integer('quota').notNull().default(0),
   used: integer('used').notNull().default(0),
+  trafficQuota: integer('traffic_quota').notNull().default(0),
+  trafficUsed: integer('traffic_used').notNull().default(0),
+  trafficPeriod: text('traffic_period').notNull().default('1970-01'),
 })
 
 export const quotaStoreSettings = sqliteTable('quota_store_settings', {

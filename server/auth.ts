@@ -6,7 +6,7 @@ import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
 import { customAlphabet, nanoid } from 'nanoid'
-import { DEFAULT_ORG_QUOTA, SignupMode } from '../shared/constants'
+import { DEFAULT_ORG_QUOTA, DEFAULT_ORG_TRAFFIC_QUOTA, SignupMode } from '../shared/constants'
 import {
   BUILTIN_PROVIDER_IDS,
   OAUTH_PROVIDER_KEY_PATTERN,
@@ -18,6 +18,7 @@ import { orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
+import { currentTrafficPeriod } from './services/effective-quota'
 import { isEmailConfigured, sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
 import { findPersonalOrg } from './services/org'
@@ -184,6 +185,9 @@ export async function createAuth(
                 limit,
               })
             }
+          },
+          afterCreateOrganization: async ({ organization }) => {
+            await createOrgQuota(db, organization.id, new Date())
           },
           afterAcceptInvitation: async ({ member, user, organization }) => {
             await recordActivity(db, {
@@ -441,7 +445,6 @@ async function createPersonalOrg(
   const now = new Date()
   const displayName = user.name || user.username
   const orgName = displayName ? `${displayName}'s Space` : 'Personal Space'
-  const defaultQuota = await getDefaultOrgQuota(db)
 
   await db.insert(authSchema.organization).values({
     id: orgId,
@@ -459,9 +462,24 @@ async function createPersonalOrg(
     createdAt: now,
   })
 
-  await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota: defaultQuota, used: 0 })
+  await createOrgQuota(db, orgId, now)
 
   return orgId
+}
+
+async function createOrgQuota(db: Database, orgId: string, now: Date): Promise<void> {
+  const defaultQuota = await getDefaultOrgQuota(db)
+  const defaultTrafficQuota = await getDefaultOrgTrafficQuota(db)
+
+  await db.insert(orgQuotas).values({
+    id: nanoid(),
+    orgId,
+    quota: defaultQuota,
+    used: 0,
+    trafficQuota: defaultTrafficQuota,
+    trafficUsed: 0,
+    trafficPeriod: currentTrafficPeriod(now),
+  })
 }
 
 async function getDefaultOrgQuota(db: Database): Promise<number> {
@@ -473,4 +491,18 @@ async function getDefaultOrgQuota(db: Database): Promise<number> {
   if (raw == null) return DEFAULT_ORG_QUOTA
   const n = Number(raw)
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_ORG_QUOTA
+}
+
+async function getDefaultOrgTrafficQuota(db: Database): Promise<number> {
+  const rows = await db
+    .select({ value: systemOptions.value })
+    .from(systemOptions)
+    .where(eq(systemOptions.key, 'default_org_monthly_traffic_quota'))
+  const raw = rows[0]?.value
+  if (raw == null) return DEFAULT_ORG_TRAFFIC_QUOTA
+  const value = raw.trim()
+  const n = Number(value)
+  if (value === '' || !Number.isInteger(n) || n < 0)
+    throw new Error('default_org_monthly_traffic_quota must be a non-negative integer')
+  return n
 }

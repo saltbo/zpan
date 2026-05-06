@@ -470,6 +470,9 @@ describe('createPersonalOrg — org name and quota edge cases', () => {
     const quotas = await ctx.db.select().from(schema.orgQuotas)
     expect(quotas).toHaveLength(1)
     expect(quotas[0].quota).toBe(10485760)
+    expect(quotas[0].trafficQuota).toBe(0)
+    expect(quotas[0].trafficUsed).toBe(0)
+    expect(quotas[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
   })
 })
 

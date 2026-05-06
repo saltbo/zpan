@@ -474,8 +474,8 @@ describe('confirmUpload — quota-then-replace atomicity', () => {
     // Insert a tight quota that allows zero growth
     const quotaId = nanoid()
     await db.run(sql`
-      INSERT INTO org_quotas (id, org_id, quota, used)
-      VALUES (${quotaId}, ${orgId}, 100, 100)
+      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+      VALUES (${quotaId}, ${orgId}, 100, 100, 0, 0, '2026-05')
     `)
 
     // Incumbent active file that 'replace' would trash

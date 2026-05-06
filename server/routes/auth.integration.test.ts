@@ -171,11 +171,15 @@ describe('Auth API', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].quota).toBe(10485760)
     expect(rows[0].used).toBe(0)
+    expect(rows[0].trafficQuota).toBe(0)
+    expect(rows[0].trafficUsed).toBe(0)
+    expect(rows[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
   })
 
-  it('signup with default_org_quota set to 1073741824 creates an org_quotas row with quota=1073741824 and used=0', async () => {
+  it('signup with default quotas set creates an org_quotas row with storage and monthly traffic quotas', async () => {
     const { app, db } = await createTestApp()
     await db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '1073741824' })
+    await db.insert(schema.systemOptions).values({ key: 'default_org_monthly_traffic_quota', value: '2147483648' })
     const signUpRes = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -194,6 +198,50 @@ describe('Auth API', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].quota).toBe(1073741824)
     expect(rows[0].used).toBe(0)
+    expect(rows[0].trafficQuota).toBe(2147483648)
+    expect(rows[0].trafficUsed).toBe(0)
+    expect(rows[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
+  })
+
+  it('team org creation initializes storage and monthly traffic quotas from defaults', async () => {
+    const { app, db } = await createTestApp()
+    await db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '1073741824' })
+    await db.insert(schema.systemOptions).values({ key: 'default_org_monthly_traffic_quota', value: '2147483648' })
+    const signUpRes = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', email: 'team-quota@example.com', password: 'password123456' }),
+    })
+    const cookie = signUpRes.headers.getSetCookie().join('; ')
+
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ name: 'Team Quota', slug: 'team-quota' }),
+    })
+    expect(createRes.status).toBe(200)
+    const org = (await createRes.json()) as { id: string }
+
+    const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, org.id))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].quota).toBe(1073741824)
+    expect(rows[0].used).toBe(0)
+    expect(rows[0].trafficQuota).toBe(2147483648)
+    expect(rows[0].trafficUsed).toBe(0)
+    expect(rows[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
+  })
+
+  it('signup fails when stored default monthly traffic quota is invalid', async () => {
+    const { app, db } = await createTestApp()
+    await db.insert(schema.systemOptions).values({ key: 'default_org_monthly_traffic_quota', value: '-1' })
+
+    const res = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', email: 'bad-traffic-default@example.com', password: 'password123456' }),
+    })
+
+    expect(res.status).not.toBe(200)
   })
 
   it('signup with default_org_quota set to 0 creates a built-in default org_quotas row', async () => {

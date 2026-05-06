@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { orgQuotas } from '../db/schema.js'
+import { currentTrafficPeriod } from '../services/effective-quota.js'
 import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
@@ -67,7 +68,15 @@ async function setOrgQuota(
   if (existing.length > 0) {
     await db.update(orgQuotas).set({ quota, used }).where(eq(orgQuotas.orgId, orgId))
   } else {
-    await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota, used })
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota,
+      used,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: currentTrafficPeriod(),
+    })
   }
 }
 
@@ -198,6 +207,56 @@ describe('POST /api/objects/copy — quota enforcement', () => {
       body: JSON.stringify({ copyFrom: 'nonexistent', parent: '' }),
     })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('GET /api/objects/:id — traffic quota enforcement', () => {
+  it('returns download URL and consumes traffic quota when allowed', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm-download-ok', name: 'download.txt', size: 100 })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 500, traffic_used = 25, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+
+    const res = await app.request('/api/objects/m-download-ok', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.downloadUrl).toBe('https://presigned-download.example.com')
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(125)
+  })
+
+  it('returns 422 when download traffic quota is exhausted', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm-download-over', name: 'download.txt', size: 100 })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 50, traffic_used = 0, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+
+    const res = await app.request('/api/objects/m-download-over', { headers })
+    expect(res.status).toBe(422)
+    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(0)
   })
 })
 

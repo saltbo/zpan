@@ -132,7 +132,10 @@ const APP_SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
     quota INTEGER NOT NULL DEFAULT 0,
-    used INTEGER NOT NULL DEFAULT 0
+    used INTEGER NOT NULL DEFAULT 0,
+    traffic_quota INTEGER NOT NULL DEFAULT 0,
+    traffic_used INTEGER NOT NULL DEFAULT 0,
+    traffic_period TEXT NOT NULL DEFAULT '1970-01'
   );
   CREATE TABLE IF NOT EXISTS quota_store_settings (
     id TEXT PRIMARY KEY,
