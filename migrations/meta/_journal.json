@@ -162,6 +162,13 @@
       "when": 1778091420434,
       "tag": "0023_add-quota-delivery-code",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1778101953600,
+      "tag": "0024_remove_quota_store_packages",
+      "breakpoints": true
     }
   ]
 }

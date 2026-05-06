@@ -143,22 +143,6 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS quota_store_packages (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    bytes INTEGER NOT NULL,
-    amount INTEGER NOT NULL,
-    currency TEXT NOT NULL,
-    active INTEGER NOT NULL DEFAULT 1,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    cloud_package_id TEXT,
-    sync_status TEXT NOT NULL DEFAULT 'pending',
-    sync_error TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS quota_store_packages_active_sort_idx ON quota_store_packages(active, sort_order);
   CREATE TABLE IF NOT EXISTS quota_grants (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,

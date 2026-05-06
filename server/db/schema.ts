@@ -54,26 +54,6 @@ export const quotaStoreSettings = sqliteTable('quota_store_settings', {
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
-export const quotaStorePackages = sqliteTable(
-  'quota_store_packages',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    description: text('description').notNull().default(''),
-    bytes: integer('bytes').notNull(),
-    amount: integer('amount').notNull(),
-    currency: text('currency').notNull(),
-    active: integer('active', { mode: 'boolean' }).notNull().default(true),
-    sortOrder: integer('sort_order').notNull().default(0),
-    cloudPackageId: text('cloud_package_id'),
-    syncStatus: text('sync_status').notNull().default('pending'),
-    syncError: text('sync_error'),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-  },
-  (t) => [index('quota_store_packages_active_sort_idx').on(t.active, t.sortOrder)],
-)
-
 export const quotaGrants = sqliteTable(
   'quota_grants',
   {
