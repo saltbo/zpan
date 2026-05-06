@@ -312,7 +312,6 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
         JSON.stringify({
           status: 'approved',
           refresh_token: 'rt-e2e-secret',
-          store_key: 'store-key-e2e',
           certificate: cert,
           binding: { id: 'e2e-binding', instance_id: instanceId, authorized_hosts: ['localhost'] },
           account: { id: 'user-123', email: 'user@example.com' },
@@ -333,7 +332,6 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     // Step 4: Verify binding stored in DB
     const state2 = await loadLicenseState(db)
     expect(state2.refreshToken).toBe('rt-e2e-secret')
-    expect(state2.storeKey).toBe('store-key-e2e')
     expect(state2.cachedCert).toBeTruthy()
 
     // Step 5: Verify features are now active

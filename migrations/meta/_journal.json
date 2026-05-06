@@ -141,6 +141,13 @@
       "when": 1778031362440,
       "tag": "0020_license-store-key",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1778038099075,
+      "tag": "0021_drop-license-store-key",
+      "breakpoints": true
     }
   ]
 }

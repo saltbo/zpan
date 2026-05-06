@@ -42,7 +42,6 @@ export async function performRefresh(db: Database, baseUrl: string): Promise<voi
     await updateLicenseBindingAfterRefresh(db, {
       id: state.id,
       refreshToken: data.refresh_token,
-      storeKey: data.store_key,
       cachedCert: cert,
       cachedExpiresAt: certificateExpiresAt,
       cloudAccountEmail: data.account.email,

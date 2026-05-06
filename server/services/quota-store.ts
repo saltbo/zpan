@@ -13,7 +13,7 @@ export async function getQuotaStoreSettings(db: Database): Promise<QuotaStoreSet
   const settings = await getRawSettings(db)
   if (!settings) return null
   const binding = await loadActiveLicenseBinding(db)
-  return settingsDto(settings, Boolean(binding?.refreshToken && binding.storeKey))
+  return settingsDto(settings, Boolean(binding?.refreshToken))
 }
 
 export async function upsertQuotaStoreSettings(
@@ -155,10 +155,10 @@ export async function listGrantsForUser(db: Database, userId: string): Promise<Q
 
 export async function getCloudStoreBinding(
   db: Database,
-): Promise<{ boundLicenseId: string; refreshToken: string; storeKey: string }> {
+): Promise<{ boundLicenseId: string; refreshToken: string; instanceId: string }> {
   const binding = await loadActiveLicenseBinding(db)
-  if (!binding?.refreshToken || !binding.storeKey) throw new Error('quota_store_binding_missing')
-  return { boundLicenseId: binding.cloudBindingId, refreshToken: binding.refreshToken, storeKey: binding.storeKey }
+  if (!binding?.refreshToken) throw new Error('quota_store_binding_missing')
+  return { boundLicenseId: binding.cloudBindingId, refreshToken: binding.refreshToken, instanceId: binding.instanceId }
 }
 
 export async function getUserTerminalLabel(db: Database, userId: string): Promise<string | null> {

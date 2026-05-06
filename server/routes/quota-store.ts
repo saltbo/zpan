@@ -10,6 +10,7 @@ import type { QuotaStorePackage } from '@shared/types'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { verifyCloudEventToken } from '../licensing/cloud-event-token'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
@@ -45,7 +46,6 @@ const cloudPackageSyncResponseSchema = z.object({
   packages: z.array(z.object({ id: z.string().min(1), externalPackageId: z.string().min(1) }).passthrough()),
 })
 const cloudRedemptionResponseSchema = z.object({ ok: z.boolean() }).passthrough()
-const MAX_SIGNATURE_SKEW_MS = 5 * 60 * 1000
 
 const adminQuotaStore = new Hono<Env>()
   .use(requireAdmin)
@@ -117,10 +117,12 @@ const quotaStore = new Hono<Env>()
     if ('error' in store) return c.json({ error: store.error }, 403)
     const pkg = await getActiveQuotaStorePackage(db, body.packageId)
     if (!pkg) return c.json({ error: 'Package not found' }, 404)
+    const binding = await getCloudStoreBinding(db)
     const result = await postUserCloud(
       c,
       '/api/store/checkout',
-      { session: await createCheckoutSession(c, pkg, body.targetOrgId, c.get('userId')!) },
+      await createCheckoutPayload(c, binding.boundLicenseId, pkg, body.targetOrgId, c.get('userId')!),
+      binding.refreshToken,
       cloudCheckoutResponseSchema,
     )
     if ('error' in result) return c.json(result, 502)
@@ -135,13 +137,12 @@ const quotaStore = new Hono<Env>()
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
+    const binding = await getCloudStoreBinding(db)
     const result = await postUserCloud(
       c,
       '/api/store/redemptions',
-      {
-        code: body.code,
-        session: await createRedemptionSession(c, body.targetOrgId, c.get('userId')!),
-      },
+      await createRedemptionPayload(c, binding.boundLicenseId, body.code, body.targetOrgId, c.get('userId')!),
+      binding.refreshToken,
       cloudRedemptionResponseSchema,
     )
     if ('error' in result) return c.json(result, 502)
@@ -160,20 +161,25 @@ const quotaStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).po
   await getRequiredSettings(db)
   const binding = await getCloudStoreBinding(db)
   const rawPayload = await c.req.text()
-  const timestamp = c.req.header('x-zpan-cloud-timestamp') ?? ''
-  const signature = c.req.header('x-zpan-cloud-signature') ?? ''
-  if (!(await verifyTimestampedSignature(rawPayload, timestamp, binding.storeKey, signature))) {
-    return c.json({ error: 'invalid_signature' }, 401)
-  }
+  const payloadHash = await sha256Hex(rawPayload)
+  const eventToken = c.req.header('x-zpan-cloud-event-token') ?? ''
+  const eventAuth = verifyCloudEventToken(eventToken, {
+    cloudBaseUrl: getCloudBaseUrl(c),
+    instanceId: binding.instanceId,
+    boundLicenseId: binding.boundLicenseId,
+    payloadHash,
+  })
+  if (!eventAuth) return c.json({ error: 'invalid_event_token' }, 401)
 
   const body = parseJson(rawPayload)
   if (!body) return c.json({ error: 'invalid_payload' }, 400)
 
   const parsed = cloudDeliveryEventSchema.safeParse(body)
   if (!parsed.success) return c.json({ error: 'invalid_payload' }, 400)
+  if (parsed.data.eventId !== eventAuth.eventId) return c.json({ error: 'invalid_event_token' }, 401)
 
   try {
-    const result = await processCloudDelivery(db, parsed.data, rawPayload, await sha256Hex(rawPayload))
+    const result = await processCloudDelivery(db, parsed.data, rawPayload, payloadHash)
     return c.json({ success: true, duplicate: result.duplicate, grantId: result.grantId })
   } catch (error) {
     return c.json({ error: (error as Error).message }, 400)
@@ -234,11 +240,11 @@ async function postUserCloud<T>(
   c: RouteContext,
   path: string,
   payload: object,
+  refreshToken: string,
   responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>,
 ) {
   try {
-    const binding = await getCloudStoreBinding(c.get('platform').db)
-    return await postCloud(getCloudBaseUrl(c), path, binding.refreshToken, payload, responseSchema)
+    return await postCloud(getCloudBaseUrl(c), path, refreshToken, payload, responseSchema)
   } catch (error) {
     return { error: (error as Error).message }
   }
@@ -261,91 +267,44 @@ function parseCloudResponse<T>(data: unknown, schema: z.ZodType<T, z.ZodTypeDef,
   return parsed.data
 }
 
-async function createCheckoutSession(
+async function createCheckoutPayload(
   c: RouteContext,
+  boundLicenseId: string,
   pkg: QuotaStorePackage,
   targetOrgId: string,
   userId: string,
-): Promise<string> {
+): Promise<object> {
   const db = c.get('platform').db
-  const binding = await getCloudStoreBinding(db)
   const origin = getInstanceOrigin(c)
-  return signStorageSession(
-    {
-      boundLicenseId: binding.boundLicenseId,
-      externalPackageId: pkg.id,
-      targetOrgId,
-      terminalUserId: userId,
-      terminalUserLabel: await getUserTerminalLabel(db, userId),
-      amount: pkg.amount,
-      currency: pkg.currency,
-      bytes: pkg.bytes,
-      successUrl: `${origin}/store`,
-      cancelUrl: `${origin}/store`,
-      expiresAt: sessionExpiry(),
-    },
-    binding.storeKey,
-  )
+  return {
+    boundLicenseId,
+    externalPackageId: pkg.id,
+    targetOrgId,
+    terminalUserId: userId,
+    terminalUserLabel: await getUserTerminalLabel(db, userId),
+    amount: pkg.amount,
+    currency: pkg.currency,
+    bytes: pkg.bytes,
+    successUrl: `${origin}/store`,
+    cancelUrl: `${origin}/store`,
+  }
 }
 
-async function createRedemptionSession(
+async function createRedemptionPayload(
   c: { get(key: 'platform'): Env['Variables']['platform'] },
+  boundLicenseId: string,
+  code: string,
   targetOrgId: string,
   userId: string,
-): Promise<string> {
+): Promise<object> {
   const db = c.get('platform').db
-  const binding = await getCloudStoreBinding(db)
-  return signStorageSession(
-    {
-      boundLicenseId: binding.boundLicenseId,
-      targetOrgId,
-      terminalUserId: userId,
-      terminalUserLabel: await getUserTerminalLabel(db, userId),
-      expiresAt: sessionExpiry(),
-    },
-    binding.storeKey,
-  )
-}
-
-function sessionExpiry(): string {
-  return new Date(Date.now() + 15 * 60 * 1000).toISOString()
-}
-
-async function signStorageSession(payload: object, secret: string): Promise<string> {
-  const encoded = base64Url(JSON.stringify(payload))
-  return `${encoded}.${await signPayload(encoded, secret)}`
-}
-
-async function signPayload(payload: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', encodeBuffer(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
-    'sign',
-  ])
-  return hex(await crypto.subtle.sign('HMAC', key, encodeBuffer(payload)))
-}
-
-async function signTimestampedPayload(payload: string, timestamp: string, secret: string): Promise<string> {
-  return signPayload(`${timestamp}.${payload}`, secret)
-}
-
-async function verifyTimestampedSignature(
-  payload: string,
-  timestamp: string,
-  secret: string,
-  signature: string,
-): Promise<boolean> {
-  const requestTime = Number(timestamp)
-  if (!Number.isInteger(requestTime) || Math.abs(Date.now() - requestTime) > MAX_SIGNATURE_SKEW_MS) return false
-  const expected = hexToBytes(await signTimestampedPayload(payload, timestamp, secret))
-  const received = hexToBytes(signature)
-  if (!expected || !received || received.length !== expected.length) return false
-  return timingSafeEqual(received, expected)
-}
-
-function base64Url(value: string): string {
-  const bytes = encodeBytes(value)
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
+  return {
+    boundLicenseId,
+    code,
+    targetOrgId,
+    terminalUserId: userId,
+    terminalUserLabel: await getUserTerminalLabel(db, userId),
+  }
 }
 
 function cloudPackagePayload(pkg: QuotaStorePackage) {
@@ -389,30 +348,8 @@ function encodeBytes(value: string): Uint8Array {
   return new TextEncoder().encode(value)
 }
 
-function encodeBuffer(value: string): ArrayBuffer {
-  const bytes = encodeBytes(value)
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
-}
-
 function hex(buffer: ArrayBuffer): string {
   return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-function hexToBytes(value: string): Uint8Array | null {
-  if (!/^[0-9a-f]+$/i.test(value) || value.length % 2 !== 0) return null
-  const bytes = new Uint8Array(value.length / 2)
-  for (let i = 0; i < bytes.length; i += 1) {
-    bytes[i] = Number.parseInt(value.slice(i * 2, i * 2 + 2), 16)
-  }
-  return bytes
-}
-
-function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-  let diff = 0
-  for (let i = 0; i < a.length; i += 1) {
-    diff |= a[i] ^ b[i]
-  }
-  return diff === 0
 }
 
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {

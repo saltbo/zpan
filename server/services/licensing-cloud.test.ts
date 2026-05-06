@@ -84,7 +84,6 @@ describe('licensing-cloud', () => {
       const payload = {
         status: 'approved',
         refresh_token: 'rt-token',
-        store_key: 'store-key',
         certificate: 'v4.public.token',
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
@@ -92,7 +91,6 @@ describe('licensing-cloud', () => {
       const result = await pollPairing(BASE_URL, 'CODE-2')
       expect(result.status).toBe('approved')
       expect(result.refresh_token).toBe('rt-token')
-      expect(result.store_key).toBe('store-key')
       expect(result.certificate).toBe('v4.public.token')
     })
 
@@ -111,7 +109,7 @@ describe('licensing-cloud', () => {
 
   describe('refreshEntitlement', () => {
     it('sends POST to /api/entitlements with Bearer token', async () => {
-      const payload = { refresh_token: 'new-rt', store_key: 'store-key', certificate: 'v4.public.newtoken' }
+      const payload = { refresh_token: 'new-rt', certificate: 'v4.public.newtoken' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await refreshEntitlement(BASE_URL, 'old-rt')
@@ -122,7 +120,6 @@ describe('licensing-cloud', () => {
       expect(init.headers).toEqual({ Authorization: 'Bearer old-rt' })
       expect(init.body).toBeUndefined()
       expect(result.refresh_token).toBe('new-rt')
-      expect(result.store_key).toBe('store-key')
       expect(result.certificate).toBe('v4.public.newtoken')
     })
 
@@ -138,8 +135,8 @@ describe('licensing-cloud', () => {
       await expect(refreshEntitlement(BASE_URL, 'old-rt')).rejects.toThrow('Cloud refresh failed')
     })
 
-    it('throws on missing store key', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ refresh_token: 'new-rt', certificate: 'cert' }))
+    it('throws on missing certificate', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ refresh_token: 'new-rt' }))
 
       await expect(refreshEntitlement(BASE_URL, 'old-rt')).rejects.toThrow(CloudInvalidResponseError)
     })

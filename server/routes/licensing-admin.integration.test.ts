@@ -47,7 +47,6 @@ async function seedBinding(db: Awaited<ReturnType<typeof createTestApp>>['db'], 
     instanceId,
     cloudAccountId: 'acct-1',
     refreshToken: 'old-token',
-    storeKey: 'old-store-key',
     cachedCert: cert,
     cachedExpiresAt: now + 3600,
     lastRefreshAt: now,
@@ -170,7 +169,6 @@ describe('GET /api/licensing/pair/:code/poll', () => {
       makeCloudResponse({
         status: 'approved',
         refresh_token: 'rt-secret',
-        store_key: 'store-key',
         certificate: signCert(instanceId),
         binding: { id: 'bind-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
         account: { id: 'acct-1', email: 'acct@example.com' },
@@ -186,45 +184,31 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     // Check that binding was persisted
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('rt-secret')
-    expect(state.storeKey).toBe('store-key')
   })
 
-  it('loads initial entitlement when approved pairing omits store key', async () => {
+  it('stores the pairing certificate when approved', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const instanceId = await getOrCreateInstanceId(db)
-    const entitlementCert = signCert(instanceId)
+    const certificate = signCert(instanceId)
 
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(
-        makeCloudResponse({
-          status: 'approved',
-          refresh_token: 'pair-rt',
-          certificate: signCert(instanceId),
-          binding: { id: 'bind-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
-          account: { id: 'acct-1', email: 'acct@example.com' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        makeCloudResponse({
-          refresh_token: 'entitlement-rt',
-          store_key: 'entitlement-store-key',
-          certificate: entitlementCert,
-          binding: { id: 'bind-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
-          account: { id: 'acct-1', email: 'acct@example.com' },
-        }),
-      )
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeCloudResponse({
+        status: 'approved',
+        refresh_token: 'pair-rt',
+        certificate,
+        binding: { id: 'bind-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
+        account: { id: 'acct-1', email: 'acct@example.com' },
+      }),
+    )
 
     const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
 
     expect(res.status).toBe(200)
     const state = await loadLicenseState(db)
-    expect(state.refreshToken).toBe('entitlement-rt')
-    expect(state.storeKey).toBe('entitlement-store-key')
-    expect(state.cachedCert).toBe(entitlementCert)
-    const [entitlementUrl, entitlementInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
-    expect(entitlementUrl).toBe('https://cloud.zpan.space/api/entitlements')
-    expect(entitlementInit.headers).toEqual({ Authorization: 'Bearer pair-rt' })
+    expect(state.refreshToken).toBe('pair-rt')
+    expect(state.cachedCert).toBe(certificate)
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(1)
   })
 
   it('rejects approved responses with an invalid certificate', async () => {
@@ -264,31 +248,26 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     expect(state.refreshToken).toBeNull()
   })
 
-  it('rejects approved responses when initial entitlement omits store key', async () => {
+  it('rejects approved responses when binding metadata is missing', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const instanceId = await getOrCreateInstanceId(db)
 
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(
-        makeCloudResponse({
-          status: 'approved',
-          refresh_token: 'rt-secret',
-          certificate: signCert(instanceId),
-          binding: { id: 'bind-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
-          account: { id: 'acct-1', email: 'acct@example.com' },
-        }),
-      )
-      .mockResolvedValueOnce(makeCloudResponse({ refresh_token: 'new-rt', certificate: signCert(instanceId) }))
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeCloudResponse({
+        status: 'approved',
+        refresh_token: 'rt-secret',
+        certificate: signCert(instanceId),
+      }),
+    )
 
     const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'invalid_pairing_response' })
+    await expect(res.json()).resolves.toEqual({ error: 'invalid_certificate' })
     const state = await loadLicenseState(db)
     expect(state.status).toBe('disconnected')
     expect(state.refreshToken).toBeNull()
-    expect(state.storeKey).toBeNull()
     expect(state.cachedCert).toBeNull()
   })
 })
@@ -316,7 +295,6 @@ describe('POST /api/licensing/refresh', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
         refresh_token: 'new-token',
-        store_key: 'new-store-key',
         certificate: signCert('inst-1'),
         binding: { id: 'bind-1', instance_id: 'inst-1', authorized_hosts: ['localhost'] },
         account: { id: 'acct-1', email: 'acct@example.com' },

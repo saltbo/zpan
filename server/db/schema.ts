@@ -167,7 +167,6 @@ export const licenseBindings = sqliteTable(
     cloudAccountEmail: text('cloud_account_email'),
     status: text('status').notNull(),
     refreshToken: text('refresh_token'),
-    storeKey: text('store_key'),
     cachedCertificate: text('cached_certificate'),
     cachedCertificateExpiresAt: integer('cached_certificate_expires_at'),
     boundAt: integer('bound_at').notNull(),

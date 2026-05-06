@@ -1,0 +1,1 @@
+ALTER TABLE `license_bindings` DROP COLUMN `store_key`;
