@@ -1,6 +1,6 @@
 import type { GenerateStorageCodesInput, StorageCodeStatus } from '@shared/schemas'
 import type { StorageRedemptionCode } from '@shared/types'
-import { Ban, Plus } from 'lucide-react'
+import { Ban, Plus, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -233,8 +233,10 @@ type CodeListProps = {
   status: StorageCodeStatus | 'all'
   available: boolean
   revokingCode: string | null
+  deletingCode: string | null
   onStatusChange: (status: StorageCodeStatus | 'all') => void
   onRevoke: (code: string) => void
+  onDelete: (code: string) => void
 }
 
 function CodeStatusSelect({ status, onStatusChange }: Pick<CodeListProps, 'status' | 'onStatusChange'>) {
@@ -278,10 +280,21 @@ function CodeTable(props: CodeListProps) {
   )
 }
 
-function CodeRow({ code, available, revokingCode, onRevoke }: CodeListProps & { code: StorageRedemptionCode }) {
+function CodeRow({
+  code,
+  available,
+  revokingCode,
+  deletingCode,
+  onRevoke,
+  onDelete,
+}: CodeListProps & { code: StorageRedemptionCode }) {
   const { t } = useTranslation()
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const revoked = Boolean(code.revokedAt)
+  const redeemed = code.usesCount >= code.maxUses
+  const canRevoke = !revoked && !redeemed
+  const canDelete = code.usesCount === 0
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">{code.code}</TableCell>
@@ -294,23 +307,38 @@ function CodeRow({ code, available, revokingCode, onRevoke }: CodeListProps & { 
         <CodeStatusBadge code={code} />
       </TableCell>
       <TableCell className="text-right">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!available || revoked || revokingCode === code.code}
-          onClick={() => setConfirmOpen(true)}
-        >
-          <Ban className="mr-2 h-4 w-4" />
-          {t('admin.storagePlans.codes.revoke')}
-        </Button>
-        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!available || !canRevoke || revokingCode === code.code}
+            onClick={() => setRevokeConfirmOpen(true)}
+          >
+            <Ban className="mr-2 h-4 w-4" />
+            {t('admin.storagePlans.codes.revoke')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!available || !canDelete || deletingCode === code.code}
+            onClick={() => setDeleteConfirmOpen(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            {t('admin.storagePlans.codes.delete')}
+          </Button>
+        </div>
+        <Dialog open={revokeConfirmOpen} onOpenChange={setRevokeConfirmOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t('admin.storagePlans.codes.revokeTitle')}</DialogTitle>
               <DialogDescription>{t('admin.storagePlans.codes.revokeConfirm', { code: code.code })}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" disabled={revokingCode === code.code} onClick={() => setConfirmOpen(false)}>
+              <Button
+                variant="outline"
+                disabled={revokingCode === code.code}
+                onClick={() => setRevokeConfirmOpen(false)}
+              >
                 {t('common.cancel')}
               </Button>
               <Button
@@ -318,10 +346,37 @@ function CodeRow({ code, available, revokingCode, onRevoke }: CodeListProps & { 
                 disabled={revokingCode === code.code}
                 onClick={() => {
                   onRevoke(code.code)
-                  setConfirmOpen(false)
+                  setRevokeConfirmOpen(false)
                 }}
               >
                 {t('admin.storagePlans.codes.revoke')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t('admin.storagePlans.codes.deleteTitle')}</DialogTitle>
+              <DialogDescription>{t('admin.storagePlans.codes.deleteConfirm', { code: code.code })}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={deletingCode === code.code}
+                onClick={() => setDeleteConfirmOpen(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deletingCode === code.code}
+                onClick={() => {
+                  onDelete(code.code)
+                  setDeleteConfirmOpen(false)
+                }}
+              >
+                {t('admin.storagePlans.codes.delete')}
               </Button>
             </DialogFooter>
           </DialogContent>

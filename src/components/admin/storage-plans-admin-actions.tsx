@@ -20,6 +20,7 @@ import {
 import {
   createQuotaStorePackage,
   deleteQuotaStorePackage,
+  deleteStorageRedemptionCode,
   generateStorageRedemptionCodes,
   revokeStorageRedemptionCode,
   updateQuotaStorePackage,
@@ -74,9 +75,11 @@ export function usePackageEditor() {
 export function useCodeActions() {
   const [form, setForm] = useState(emptyCodeForm)
   const [revokingCode, setRevokingCode] = useState<string | null>(null)
+  const [deletingCode, setDeletingCode] = useState<string | null>(null)
   const generate = useGenerateCodesMutation(form, () => setForm(emptyCodeForm))
   const revoke = useRevokeCodeMutation(setRevokingCode)
-  return { form, setForm, revokingCode, generate, revoke }
+  const deleteCode = useDeleteCodeMutation(setDeletingCode)
+  return { form, setForm, revokingCode, deletingCode, generate, revoke, deleteCode }
 }
 
 export function PackagesTab({
@@ -198,10 +201,12 @@ export function CodesTab({
       available={available}
       pending={actions.generate.isPending}
       revokingCode={actions.revokingCode}
+      deletingCode={actions.deletingCode}
       onStatusChange={onStatusChange}
       onFormChange={actions.setForm}
       onGenerate={() => actions.generate.mutate()}
       onRevoke={(code) => actions.revoke.mutate(code)}
+      onDelete={(code) => actions.deleteCode.mutate(code)}
     />
   )
 }
@@ -271,6 +276,21 @@ function useRevokeCodeMutation(setRevokingCode: (code: string | null) => void) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'storage-codes'] })
       toast.success(t('admin.storagePlans.codes.revoked'))
+    },
+    onError: (err) => toast.error(err.message),
+  })
+}
+
+function useDeleteCodeMutation(setDeletingCode: (code: string | null) => void) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteStorageRedemptionCode,
+    onMutate: (code) => setDeletingCode(code),
+    onSettled: () => setDeletingCode(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'storage-codes'] })
+      toast.success(t('admin.storagePlans.codes.deleted'))
     },
     onError: (err) => toast.error(err.message),
   })

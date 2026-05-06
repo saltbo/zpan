@@ -24,6 +24,7 @@ export type {
   QuotaStorePackagePatchInput,
   QuotaStoreSettingsInput,
   RedemptionInput,
+  RevokeStorageCodeInput,
   StorageCodeStatus,
 } from './quota-store'
 export {
@@ -34,6 +35,7 @@ export {
   quotaStorePackagePatchSchema,
   quotaStoreSettingsSchema,
   redemptionInputSchema,
+  revokeStorageCodeSchema,
   storageCodeStatusSchema,
 } from './quota-store'
 export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'

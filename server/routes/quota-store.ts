@@ -7,6 +7,7 @@ import {
   quotaStorePackagePatchSchema,
   quotaStoreSettingsSchema,
   redemptionInputSchema,
+  revokeStorageCodeSchema,
 } from '@shared/schemas'
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -122,13 +123,13 @@ const adminQuotaStore = new Hono<Env>()
     if ('error' in result) return c.json(result, 502)
     return c.json({ items: result, total: result.length }, 201)
   })
-  .patch('/storage-codes/:code', async (c) => {
+  .patch('/storage-codes/:code', zValidator('json', revokeStorageCodeSchema), async (c) => {
     const result = await requestCloudWithBinding(
       c,
       `${storageCodesPath()}/${encodeURIComponent(c.req.param('code'))}`,
       'PATCH',
       z.object({}).passthrough(),
-      await c.req.json(),
+      c.req.valid('json'),
     )
     if ('error' in result) return c.json(result, 502)
     return c.json(result)

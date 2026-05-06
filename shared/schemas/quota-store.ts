@@ -44,6 +44,10 @@ export const generateStorageCodesInputSchema = z.object({
   count: z.number().int().min(1).max(100),
 })
 
+export const revokeStorageCodeSchema = z.object({
+  revokedAt: z.string().datetime(),
+})
+
 export const cloudDeliveryEventSchema = z
   .object({
     eventId: z.string().min(1),
@@ -87,4 +91,5 @@ export type CheckoutInput = z.infer<typeof checkoutInputSchema>
 export type RedemptionInput = z.infer<typeof redemptionInputSchema>
 export type StorageCodeStatus = z.infer<typeof storageCodeStatusSchema>
 export type GenerateStorageCodesInput = z.input<typeof generateStorageCodesInputSchema>
+export type RevokeStorageCodeInput = z.infer<typeof revokeStorageCodeSchema>
 export type CloudDeliveryEvent = z.infer<typeof cloudDeliveryEventSchema>

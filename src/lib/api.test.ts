@@ -30,6 +30,7 @@ import {
   deleteQuotaStorePackage,
   deleteShare,
   deleteStorage,
+  deleteStorageRedemptionCode,
   deleteTeamLogo,
   deleteUser,
   disconnectCloud,
@@ -370,12 +371,14 @@ describe('api', () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ items: [{ code: 'ZS123' }], total: 1 }))
+        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', revokedAt: '2026-01-01T00:00:00.000Z' }))
         .mockResolvedValueOnce(makeResponse({ code: 'ZS123', deleted: true }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
       await listStorageRedemptionCodes('active')
       await generateStorageRedemptionCodes({ resourceType: 'traffic', resourceBytes: 1024, maxUses: 2, count: 3 })
       await revokeStorageRedemptionCode('ZS123')
+      await deleteStorageRedemptionCode('ZS123')
       await listAdminQuotaDeliveryRecords()
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
@@ -390,8 +393,11 @@ describe('api', () => {
         count: 3,
       })
       expect(calls[2][0]).toBe('/api/admin/quota-store/storage-codes/ZS123')
-      expect(calls[2][1].method).toBe('DELETE')
-      expect(calls[3][0]).toBe('/api/admin/quota-store/delivery-records')
+      expect(calls[2][1].method).toBe('PATCH')
+      expect(JSON.parse(calls[2][1].body as string)).toMatchObject({ revokedAt: expect.any(String) })
+      expect(calls[3][0]).toBe('/api/admin/quota-store/storage-codes/ZS123')
+      expect(calls[3][1].method).toBe('DELETE')
+      expect(calls[4][0]).toBe('/api/admin/quota-store/delivery-records')
     })
 
     it('calls user store endpoints', async () => {
@@ -459,6 +465,7 @@ describe('api', () => {
         () => generateStorageRedemptionCodes({ resourceType: 'storage', resourceBytes: 1024, count: 1 }),
       ],
       ['revokeStorageRedemptionCode', () => revokeStorageRedemptionCode('ZS123')],
+      ['deleteStorageRedemptionCode', () => deleteStorageRedemptionCode('ZS123')],
       ['listAdminQuotaDeliveryRecords', () => listAdminQuotaDeliveryRecords()],
       ['listPurchasableQuotaPackages', () => listPurchasableQuotaPackages()],
       ['listQuotaStoreTargets', () => listQuotaStoreTargets()],
