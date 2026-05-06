@@ -120,6 +120,9 @@ npm run build            # Build frontend to dist/
 npm run deploy           # Build + deploy to Cloudflare Workers
 ```
 
+Cloudflare deploys publish Worker code before applying D1 production migrations. Do not ship destructive D1
+migrations unless the already-deployed Worker no longer reads the removed schema.
+
 ## Project Structure
 
 ```
