@@ -761,7 +761,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toEqual({ error: 'cloud_request_failed_504' })
   })
 
-  it('accepts Cloud PR #15 delivery tokens with audience equal to boundLicenseId', async () => {
+  it('accepts current Cloud delivery tokens with audience equal to instance id', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -778,6 +778,35 @@ describe('Quota Store API', () => {
     })
 
     const res = await postWebhook(app, payload)
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ success: true, duplicate: false })
+  })
+
+  it("accepts Cloud PR #16 delivery tokens with audience='license_1' and boundLicenseId='binding_1'", async () => {
+    const { app, db } = await createTestApp()
+    await seedCloudPr16License(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    await seedPackage(db)
+    const payload = JSON.stringify({
+      eventId: 'evt-cloud-pr-16-token',
+      cloudOrderId: 'order-cloud-pr-16-token',
+      targetOrgId: orgId,
+      packageId: 'cloud-pkg-1',
+      source: 'stripe',
+      bytes: 4096,
+    })
+
+    const res = await app.request('/api/quota-store/webhooks/cloud', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await signedWebhookHeaders(payload, { audience: 'license_1', boundLicenseId: 'binding_1' })),
+      },
+      body: payload,
+    })
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ success: true, duplicate: false })
@@ -1259,7 +1288,7 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(await signedWebhookHeaders(payload, { audience: 'test-instance' })),
+        ...(await signedWebhookHeaders(payload, { audience: 'test-binding' })),
       },
       body: payload,
     })
@@ -1377,7 +1406,7 @@ async function signedWebhookHeaders(payload: string, overrides: Record<string, u
     type: 'zpan.cloud.event',
     purpose: 'quota_store.delivery',
     issuer: ZPAN_CLOUD_URL_DEFAULT,
-    audience: 'test-binding',
+    audience: 'test-instance',
     boundLicenseId: 'test-binding',
     eventId: body.eventId ?? 'evt-malformed',
     payloadHash: await sha256Hex(payload),
@@ -1390,6 +1419,35 @@ async function signedWebhookHeaders(payload: string, overrides: Record<string, u
   return {
     'x-zpan-cloud-event-token': token,
   }
+}
+
+async function seedCloudPr16License(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+  const { createLicenseBinding } = await import('../licensing/license-state.js')
+  const issuedAt = Math.floor(Date.now() / 1000)
+  const expiresAt = issuedAt + 3600
+  const cachedCert = sign(EVENT_SECRET, {
+    type: 'zpan.license',
+    issuer: ZPAN_CLOUD_URL_DEFAULT,
+    subject: 'binding_1',
+    accountId: 'test-account',
+    instanceId: 'license_1',
+    edition: 'pro',
+    authorizedHosts: ['localhost'],
+    licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
+    issuedAt,
+    notBefore: issuedAt,
+    expiresAt,
+  })
+
+  await createLicenseBinding(db, {
+    cloudBindingId: 'binding_1',
+    instanceId: 'license_1',
+    cloudAccountId: 'test-account',
+    refreshToken: REFRESH_TOKEN,
+    cachedCert,
+    cachedExpiresAt: expiresAt,
+    lastRefreshAt: issuedAt,
+  })
 }
 
 function parseJson(payload: string): { eventId?: string } {

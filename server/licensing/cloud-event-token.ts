@@ -22,7 +22,7 @@ export type CloudEventToken = z.infer<typeof cloudEventTokenSchema>
 
 export interface VerifyCloudEventTokenOptions {
   cloudBaseUrl: string
-  audience: string
+  instanceId: string
   boundLicenseId: string
   payloadHash: string
 }
@@ -48,7 +48,7 @@ function tryVerifyCloudEventToken(
     const event = parsed.data
     const now = Math.floor(Date.now() / 1000)
     if (event.issuer !== trustedIssuerFromCloudUrl(options.cloudBaseUrl)) return null
-    if (event.audience !== options.audience) return null
+    if (event.audience !== options.instanceId) return null
     if (event.boundLicenseId !== options.boundLicenseId) return null
     if (event.payloadHash !== options.payloadHash) return null
     if (event.issuedAt > now) return null
