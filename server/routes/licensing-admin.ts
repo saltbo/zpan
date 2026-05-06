@@ -10,7 +10,7 @@ import { normalizeHost, verifyCertificate } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
-import { createPairing, pollPairing } from '../services/licensing-cloud'
+import { createPairing, pollPairing, refreshEntitlement } from '../services/licensing-cloud'
 
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
@@ -63,23 +63,34 @@ const app = new Hono<Env>()
     const result = await pollPairing(baseUrl, code)
 
     if (result.status === 'approved' && result.refresh_token && result.certificate) {
+      const entitlement = result.store_key
+        ? {
+            refreshToken: result.refresh_token,
+            storeKey: result.store_key,
+            certificate: result.certificate,
+            binding: result.binding,
+            account: result.account,
+          }
+        : await loadInitialEntitlement(baseUrl, result.refresh_token).catch(() => null)
+      if (!entitlement) return c.json({ error: 'invalid_pairing_response' }, 502)
       const instanceId = await getOrCreateInstanceId(db)
-      const cert = result.certificate
+      const cert = entitlement.certificate
       const assertion = verifyCertificate(cert, {
         instanceId,
         currentHost: getRequestHost(c),
         cloudBaseUrl: baseUrl,
       })
-      if (!assertion || !result.binding || !result.account) {
+      if (!assertion || !entitlement.binding || !entitlement.account) {
         return c.json({ error: 'invalid_certificate' }, 502)
       }
 
       await createLicenseBinding(db, {
-        cloudBindingId: result.binding.id,
+        cloudBindingId: entitlement.binding.id,
         instanceId,
-        cloudAccountId: result.account.id,
-        cloudAccountEmail: result.account.email,
-        refreshToken: result.refresh_token,
+        cloudAccountId: entitlement.account.id,
+        cloudAccountEmail: entitlement.account.email,
+        refreshToken: entitlement.refreshToken,
+        storeKey: entitlement.storeKey,
         cachedCert: cert,
         cachedExpiresAt: assertion.expiresAt,
         lastRefreshAt: Math.floor(Date.now() / 1000),
@@ -94,8 +105,8 @@ const app = new Hono<Env>()
         userId,
         action: 'license_pair',
         targetType: 'license',
-        targetName: result.account.email ?? result.account.id,
-        metadata: { edition: assertion.edition, cloudAccountId: result.account.id },
+        targetName: entitlement.account.email ?? entitlement.account.id,
+        metadata: { edition: assertion.edition, cloudAccountId: entitlement.account.id },
       })
 
       return c.json({
@@ -152,3 +163,14 @@ const app = new Hono<Env>()
   })
 
 export default app
+
+async function loadInitialEntitlement(baseUrl: string, refreshToken: string) {
+  const data = await refreshEntitlement(baseUrl, refreshToken)
+  return {
+    refreshToken: data.refresh_token,
+    storeKey: data.store_key,
+    certificate: data.certificate,
+    binding: data.binding,
+    account: data.account,
+  }
+}

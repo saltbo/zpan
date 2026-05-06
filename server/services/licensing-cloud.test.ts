@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CloudNetworkError, CloudUnboundError, createPairing, pollPairing, refreshEntitlement } from './licensing-cloud'
+import {
+  CloudInvalidResponseError,
+  CloudNetworkError,
+  CloudUnboundError,
+  createPairing,
+  pollPairing,
+  refreshEntitlement,
+} from './licensing-cloud'
 
 const BASE_URL = 'https://cloud.zpan.space'
 
@@ -77,6 +84,7 @@ describe('licensing-cloud', () => {
       const payload = {
         status: 'approved',
         refresh_token: 'rt-token',
+        store_key: 'store-key',
         certificate: 'v4.public.token',
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
@@ -84,6 +92,7 @@ describe('licensing-cloud', () => {
       const result = await pollPairing(BASE_URL, 'CODE-2')
       expect(result.status).toBe('approved')
       expect(result.refresh_token).toBe('rt-token')
+      expect(result.store_key).toBe('store-key')
       expect(result.certificate).toBe('v4.public.token')
     })
 
@@ -102,7 +111,7 @@ describe('licensing-cloud', () => {
 
   describe('refreshEntitlement', () => {
     it('sends POST to /api/entitlements with Bearer token', async () => {
-      const payload = { refresh_token: 'new-rt', certificate: 'v4.public.newtoken' }
+      const payload = { refresh_token: 'new-rt', store_key: 'store-key', certificate: 'v4.public.newtoken' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await refreshEntitlement(BASE_URL, 'old-rt')
@@ -113,6 +122,7 @@ describe('licensing-cloud', () => {
       expect(init.headers).toEqual({ Authorization: 'Bearer old-rt' })
       expect(init.body).toBeUndefined()
       expect(result.refresh_token).toBe('new-rt')
+      expect(result.store_key).toBe('store-key')
       expect(result.certificate).toBe('v4.public.newtoken')
     })
 
@@ -128,10 +138,24 @@ describe('licensing-cloud', () => {
       await expect(refreshEntitlement(BASE_URL, 'old-rt')).rejects.toThrow('Cloud refresh failed')
     })
 
+    it('throws on missing store key', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ refresh_token: 'new-rt', certificate: 'cert' }))
+
+      await expect(refreshEntitlement(BASE_URL, 'old-rt')).rejects.toThrow(CloudInvalidResponseError)
+    })
+
     it('throws CloudNetworkError on fetch failure', async () => {
       vi.mocked(fetch).mockRejectedValueOnce(new Error('Connection refused'))
 
       await expect(refreshEntitlement(BASE_URL, 'old-rt')).rejects.toThrow(CloudNetworkError)
+    })
+
+    it('throws CloudNetworkError for non-Error fetch failures', async () => {
+      vi.mocked(fetch).mockRejectedValueOnce('offline')
+
+      const result = refreshEntitlement(BASE_URL, 'old-rt')
+      await expect(result).rejects.toThrow(CloudNetworkError)
+      await expect(result).rejects.toThrow('Cloud network error')
     })
   })
 })

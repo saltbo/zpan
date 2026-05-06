@@ -19,6 +19,7 @@ const SCHEMA_SQL = `
     cloud_account_email TEXT,
     status TEXT NOT NULL,
     refresh_token TEXT,
+    store_key TEXT,
     cached_certificate TEXT,
     cached_certificate_expires_at INTEGER,
     bound_at INTEGER NOT NULL,
@@ -121,6 +122,7 @@ describe('performRefresh', () => {
 
     const cloudPayload = {
       refresh_token: 'new-rt',
+      store_key: 'store-key-1',
       certificate: cert,
       binding: { id: 'bind-1', instance_id: 'inst-abc', authorized_hosts: [] },
       account: { id: 'acct-1', email: 'acct@example.com' },
@@ -136,6 +138,7 @@ describe('performRefresh', () => {
 
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('new-rt')
+    expect(state.storeKey).toBe('store-key-1')
     expect(state.cachedCert).toBe(cert)
     expect(state.lastRefreshAt).toBeTruthy()
     expect(state.lastRefreshError).toBeNull()
@@ -150,6 +153,7 @@ describe('performRefresh', () => {
 
     const cloudPayload = {
       refresh_token: 'new-rt-paseto',
+      store_key: 'store-key-2',
       certificate: cert,
       binding: { id: 'bind-1', instance_id: 'inst-abc', authorized_hosts: [] },
       account: { id: 'acct-1', email: 'acct@example.com' },
@@ -213,6 +217,7 @@ describe('performRefresh', () => {
       status: 200,
       json: async () => ({
         refresh_token: 'new-rt',
+        store_key: 'store-key-invalid',
         certificate: cert,
         binding: { id: 'bind-1', instance_id: 'wrong-instance', authorized_hosts: [] },
         account: { id: 'acct-1', email: 'acct@example.com' },
@@ -227,5 +232,31 @@ describe('performRefresh', () => {
     expect(state.cachedCert).toBe('old-cert')
     expect(state.cachedExpiresAt).toBe(1234567890)
     expect(state.lastRefreshError).toBe('Invalid certificate from cloud')
+  })
+
+  it('keeps the previous binding when cloud omits store_key', async () => {
+    const db = makeDb()
+    await seedBinding(db, {
+      storeKey: 'old-store-key',
+    })
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        refresh_token: 'new-rt',
+        certificate: signAssertion(),
+        binding: { id: 'bind-1', instance_id: 'inst-abc', authorized_hosts: [] },
+        account: { id: 'acct-1', email: 'acct@example.com' },
+      }),
+      text: async () => '',
+    } as unknown as Response)
+
+    await performRefresh(db, 'https://cloud.zpan.space')
+
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBe('old-rt')
+    expect(state.storeKey).toBe('old-store-key')
+    expect(state.lastRefreshError).toBe('Cloud response missing store_key')
   })
 })

@@ -12,6 +12,7 @@ export interface PairingResponse {
 export interface PairingPollResponse {
   status: 'pending' | 'approved' | 'denied' | 'expired'
   refresh_token?: string
+  store_key?: string
   certificate?: string
   binding?: LicenseBindingInfo
   account?: LicenseAccountInfo
@@ -19,6 +20,7 @@ export interface PairingPollResponse {
 
 export interface EntitlementRefreshResponse {
   refresh_token: string
+  store_key: string
   certificate: string
   binding: LicenseBindingInfo
   account: LicenseAccountInfo
@@ -34,6 +36,13 @@ export interface LicenseBindingInfo {
 export interface LicenseAccountInfo {
   id: string
   email?: string | null
+}
+
+export class CloudInvalidResponseError extends Error {
+  constructor() {
+    super('Cloud response missing store_key')
+    this.name = 'CloudInvalidResponseError'
+  }
 }
 
 export class CloudUnboundError extends Error {
@@ -116,7 +125,9 @@ export async function refreshEntitlement(baseUrl: string, refreshToken: string):
     throw new Error(`Cloud refresh failed: ${res.status} ${text}`)
   }
 
-  return res.json() as Promise<EntitlementRefreshResponse>
+  const data = (await res.json()) as EntitlementRefreshResponse
+  if (!data.store_key) throw new CloudInvalidResponseError()
+  return data
 }
 
 export async function postBoundCloudJson(

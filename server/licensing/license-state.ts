@@ -13,6 +13,7 @@ export interface LicenseState {
   cloudAccountEmail: string | null
   status: LicenseBindingStatus
   refreshToken: string | null
+  storeKey: string | null
   cachedCert: string | null
   cachedExpiresAt: number | null
   boundAt: number
@@ -39,6 +40,7 @@ export async function loadActiveLicenseBinding(db: Database): Promise<LicenseSta
     cloudAccountEmail: row.cloudAccountEmail,
     status: row.status as LicenseBindingStatus,
     refreshToken: row.refreshToken,
+    storeKey: row.storeKey,
     cachedCert: row.cachedCertificate,
     cachedExpiresAt: row.cachedCertificateExpiresAt,
     boundAt: row.boundAt,
@@ -56,6 +58,7 @@ export async function createLicenseBinding(
     cloudAccountId: string
     cloudAccountEmail?: string | null
     refreshToken: string
+    storeKey?: string | null
     cachedCert: string
     cachedExpiresAt: number
     lastRefreshAt: number
@@ -71,6 +74,7 @@ export async function createLicenseBinding(
     cloudAccountEmail: input.cloudAccountEmail ?? null,
     status: 'active',
     refreshToken: input.refreshToken,
+    storeKey: input.storeKey ?? null,
     cachedCertificate: input.cachedCert,
     cachedCertificateExpiresAt: input.cachedExpiresAt,
     boundAt: now,
@@ -85,6 +89,7 @@ export async function updateLicenseBindingAfterRefresh(
   input: {
     id: string
     refreshToken: string
+    storeKey: string
     cachedCert: string
     cachedExpiresAt: number
     cloudAccountEmail?: string | null
@@ -95,6 +100,7 @@ export async function updateLicenseBindingAfterRefresh(
     .update(licenseBindings)
     .set({
       refreshToken: input.refreshToken,
+      storeKey: input.storeKey,
       cachedCertificate: input.cachedCert,
       cachedCertificateExpiresAt: input.cachedExpiresAt,
       cloudAccountEmail: input.cloudAccountEmail ?? undefined,
@@ -119,6 +125,7 @@ export async function clearLicenseBinding(db: Database, status: LicenseBindingSt
     .set({
       status,
       refreshToken: null,
+      storeKey: null,
       cachedCertificate: null,
       cachedCertificateExpiresAt: null,
       disconnectedAt: now,
@@ -136,6 +143,7 @@ function emptyLicenseState(): LicenseState {
     cloudAccountEmail: null,
     status: 'disconnected',
     refreshToken: null,
+    storeKey: null,
     cachedCert: null,
     cachedExpiresAt: null,
     boundAt: 0,

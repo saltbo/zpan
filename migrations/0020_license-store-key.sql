@@ -1,0 +1,1 @@
+ALTER TABLE `license_bindings` ADD `store_key` text;

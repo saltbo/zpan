@@ -1,5 +1,10 @@
 import type { Database } from '../platform/interface'
-import { CloudNetworkError, CloudUnboundError, refreshEntitlement } from '../services/licensing-cloud'
+import {
+  CloudInvalidResponseError,
+  CloudNetworkError,
+  CloudUnboundError,
+  refreshEntitlement,
+} from '../services/licensing-cloud'
 import { invalidateEntitlementCache } from './entitlement'
 import {
   clearLicenseBinding,
@@ -37,6 +42,7 @@ export async function performRefresh(db: Database, baseUrl: string): Promise<voi
     await updateLicenseBindingAfterRefresh(db, {
       id: state.id,
       refreshToken: data.refresh_token,
+      storeKey: data.store_key,
       cachedCert: cert,
       cachedExpiresAt: certificateExpiresAt,
       cloudAccountEmail: data.account.email,
@@ -51,7 +57,7 @@ export async function performRefresh(db: Database, baseUrl: string): Promise<voi
       return
     }
 
-    if (err instanceof CloudNetworkError || err instanceof Error) {
+    if (err instanceof CloudInvalidResponseError || err instanceof CloudNetworkError || err instanceof Error) {
       await setLicenseRefreshError(db, state.id, err.message)
       return
     }

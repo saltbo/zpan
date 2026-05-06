@@ -45,6 +45,7 @@ const cloudPackageSyncResponseSchema = z.object({
   packages: z.array(z.object({ id: z.string().min(1), externalPackageId: z.string().min(1) }).passthrough()),
 })
 const cloudRedemptionResponseSchema = z.object({ ok: z.boolean() }).passthrough()
+const MAX_SIGNATURE_SKEW_MS = 5 * 60 * 1000
 
 const adminQuotaStore = new Hono<Env>()
   .use(requireAdmin)
@@ -159,8 +160,11 @@ const quotaStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).po
   await getRequiredSettings(db)
   const binding = await getCloudStoreBinding(db)
   const rawPayload = await c.req.text()
-  if (!verifyDeliveryAuth(c.req.header('authorization'), binding.refreshToken))
-    return c.json({ error: 'invalid_auth' }, 401)
+  const timestamp = c.req.header('x-zpan-cloud-timestamp') ?? ''
+  const signature = c.req.header('x-zpan-cloud-signature') ?? ''
+  if (!(await verifyTimestampedSignature(rawPayload, timestamp, binding.storeKey, signature))) {
+    return c.json({ error: 'invalid_signature' }, 401)
+  }
 
   const body = parseJson(rawPayload)
   if (!body) return c.json({ error: 'invalid_payload' }, 400)
@@ -214,8 +218,7 @@ async function syncCatalog(c: RouteContext, excludingPackageId?: string) {
       '/api/store/packages/sync',
       binding.refreshToken,
       {
-        cloudBindingId: binding.cloudBindingId,
-        callbackUrl: `${getInstanceOrigin(c)}/api/quota-store/webhooks/cloud`,
+        boundLicenseId: binding.boundLicenseId,
         packages: packages.map(cloudPackagePayload),
       },
       cloudPackageSyncResponseSchema,
@@ -258,57 +261,91 @@ function parseCloudResponse<T>(data: unknown, schema: z.ZodType<T, z.ZodTypeDef,
   return parsed.data
 }
 
-function verifyDeliveryAuth(authorization: string | undefined, refreshToken: string): boolean {
-  const token = authorization?.match(/^Bearer (.+)$/)?.[1]
-  if (!token) return false
-  const expected = encodeBytes(refreshToken)
-  const received = encodeBytes(token)
-  if (received.length !== expected.length) return false
-  return timingSafeEqual(received, expected)
-}
-
 async function createCheckoutSession(
   c: RouteContext,
   pkg: QuotaStorePackage,
   targetOrgId: string,
   userId: string,
-): Promise<object> {
+): Promise<string> {
   const db = c.get('platform').db
   const binding = await getCloudStoreBinding(db)
   const origin = getInstanceOrigin(c)
-  return {
-    cloudBindingId: binding.cloudBindingId,
-    externalPackageId: pkg.id,
-    targetOrgId,
-    terminalUserId: userId,
-    terminalUserLabel: await getUserTerminalLabel(db, userId),
-    amount: pkg.amount,
-    currency: pkg.currency,
-    bytes: pkg.bytes,
-    successUrl: `${origin}/store`,
-    cancelUrl: `${origin}/store`,
-    expiresAt: sessionExpiry(),
-  }
+  return signStorageSession(
+    {
+      boundLicenseId: binding.boundLicenseId,
+      externalPackageId: pkg.id,
+      targetOrgId,
+      terminalUserId: userId,
+      terminalUserLabel: await getUserTerminalLabel(db, userId),
+      amount: pkg.amount,
+      currency: pkg.currency,
+      bytes: pkg.bytes,
+      successUrl: `${origin}/store`,
+      cancelUrl: `${origin}/store`,
+      expiresAt: sessionExpiry(),
+    },
+    binding.storeKey,
+  )
 }
 
 async function createRedemptionSession(
   c: { get(key: 'platform'): Env['Variables']['platform'] },
   targetOrgId: string,
   userId: string,
-): Promise<object> {
+): Promise<string> {
   const db = c.get('platform').db
   const binding = await getCloudStoreBinding(db)
-  return {
-    cloudBindingId: binding.cloudBindingId,
-    targetOrgId,
-    terminalUserId: userId,
-    terminalUserLabel: await getUserTerminalLabel(db, userId),
-    expiresAt: sessionExpiry(),
-  }
+  return signStorageSession(
+    {
+      boundLicenseId: binding.boundLicenseId,
+      targetOrgId,
+      terminalUserId: userId,
+      terminalUserLabel: await getUserTerminalLabel(db, userId),
+      expiresAt: sessionExpiry(),
+    },
+    binding.storeKey,
+  )
 }
 
 function sessionExpiry(): string {
   return new Date(Date.now() + 15 * 60 * 1000).toISOString()
+}
+
+async function signStorageSession(payload: object, secret: string): Promise<string> {
+  const encoded = base64Url(JSON.stringify(payload))
+  return `${encoded}.${await signPayload(encoded, secret)}`
+}
+
+async function signPayload(payload: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', encodeBuffer(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
+    'sign',
+  ])
+  return hex(await crypto.subtle.sign('HMAC', key, encodeBuffer(payload)))
+}
+
+async function signTimestampedPayload(payload: string, timestamp: string, secret: string): Promise<string> {
+  return signPayload(`${timestamp}.${payload}`, secret)
+}
+
+async function verifyTimestampedSignature(
+  payload: string,
+  timestamp: string,
+  secret: string,
+  signature: string,
+): Promise<boolean> {
+  const requestTime = Number(timestamp)
+  if (!Number.isInteger(requestTime) || Math.abs(Date.now() - requestTime) > MAX_SIGNATURE_SKEW_MS) return false
+  const expected = hexToBytes(await signTimestampedPayload(payload, timestamp, secret))
+  const received = hexToBytes(signature)
+  if (!expected || !received || received.length !== expected.length) return false
+  return timingSafeEqual(received, expected)
+}
+
+function base64Url(value: string): string {
+  const bytes = encodeBytes(value)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
 }
 
 function cloudPackagePayload(pkg: QuotaStorePackage) {
@@ -352,8 +389,22 @@ function encodeBytes(value: string): Uint8Array {
   return new TextEncoder().encode(value)
 }
 
+function encodeBuffer(value: string): ArrayBuffer {
+  const bytes = encodeBytes(value)
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+}
+
 function hex(buffer: ArrayBuffer): string {
   return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function hexToBytes(value: string): Uint8Array | null {
+  if (!/^[0-9a-f]+$/i.test(value) || value.length % 2 !== 0) return null
+  const bytes = new Uint8Array(value.length / 2)
+  for (let i = 0; i < bytes.length; i += 1) {
+    bytes[i] = Number.parseInt(value.slice(i * 2, i * 2 + 2), 16)
+  }
+  return bytes
 }
 
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {

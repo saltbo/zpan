@@ -18,6 +18,7 @@ const SCHEMA_SQL = `
     cloud_account_email TEXT,
     status TEXT NOT NULL,
     refresh_token TEXT,
+    store_key TEXT,
     cached_certificate TEXT,
     cached_certificate_expires_at INTEGER,
     bound_at INTEGER NOT NULL,

@@ -11,7 +11,9 @@ const SETTINGS_ID = 'default'
 
 export async function getQuotaStoreSettings(db: Database): Promise<QuotaStoreSettings | null> {
   const settings = await getRawSettings(db)
-  return settings ? settingsDto(settings) : null
+  if (!settings) return null
+  const binding = await loadActiveLicenseBinding(db)
+  return settingsDto(settings, Boolean(binding?.refreshToken && binding.storeKey))
 }
 
 export async function upsertQuotaStoreSettings(
@@ -151,10 +153,12 @@ export async function listGrantsForUser(db: Database, userId: string): Promise<Q
   return rows.map(grantDto)
 }
 
-export async function getCloudStoreBinding(db: Database): Promise<{ cloudBindingId: string; refreshToken: string }> {
+export async function getCloudStoreBinding(
+  db: Database,
+): Promise<{ boundLicenseId: string; refreshToken: string; storeKey: string }> {
   const binding = await loadActiveLicenseBinding(db)
-  if (!binding?.refreshToken) throw new Error('quota_store_binding_missing')
-  return { cloudBindingId: binding.cloudBindingId, refreshToken: binding.refreshToken }
+  if (!binding?.refreshToken || !binding.storeKey) throw new Error('quota_store_binding_missing')
+  return { boundLicenseId: binding.cloudBindingId, refreshToken: binding.refreshToken, storeKey: binding.storeKey }
 }
 
 export async function getUserTerminalLabel(db: Database, userId: string): Promise<string | null> {
@@ -317,11 +321,11 @@ async function markDeliveryEvent(db: Database, id: string, status: string, error
     .where(eq(quotaDeliveryEvents.id, id))
 }
 
-function settingsDto(row: typeof quotaStoreSettings.$inferSelect): QuotaStoreSettings {
+function settingsDto(row: typeof quotaStoreSettings.$inferSelect, cloudReady = true): QuotaStoreSettings {
   return {
     id: row.id,
     enabled: row.enabled,
-    status: row.enabled ? 'ready' : 'store_disabled',
+    status: row.enabled ? (cloudReady ? 'ready' : 'cloud_unbound') : 'store_disabled',
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
