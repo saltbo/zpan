@@ -165,31 +165,32 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     expect(rows[0].trafficUsed).toBe(1280)
   })
 
-  it('compensates direct share download count when traffic is exhausted after presign', async () => {
+  it('refunds traffic and download count when direct share signing fails', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
-    await insertFile(db, orgId, { id: 'ds-quota-race', name: 'quota.bin' })
+    await insertFile(db, orgId, { id: 'ds-sign-fail', name: 'quota.bin' })
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
-      SET traffic_quota = 1024, traffic_used = 0, traffic_period = ${trafficPeriod}
+      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
     `)
-    vi.mocked(S3Service.prototype.presignDownload).mockImplementationOnce(async () => {
-      await db.run(sql`UPDATE org_quotas SET traffic_used = 1024 WHERE org_id = ${orgId}`)
-      return MOCK_PRESIGN_URL
-    })
-    const share = await createShare(db, { matterId: 'ds-quota-race', orgId, creatorId, kind: 'direct' })
+    vi.mocked(S3Service.prototype.presignDownload).mockRejectedValueOnce(new Error('sign failed'))
+    const share = await createShare(db, { matterId: 'ds-sign-fail', orgId, creatorId, kind: 'direct' })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
-    expect(res.status).toBe(422)
-    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    expect(res.status).toBe(500)
 
-    const shares = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
-    expect(shares[0].downloads).toBe(0)
+    const trafficRows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(trafficRows[0].trafficUsed).toBe(256)
+
+    const shareRows = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
+    expect(shareRows[0].downloads).toBe(0)
   })
 })
 
@@ -283,6 +284,30 @@ describe('GET /r/:token (ih_ image hosting)', () => {
       sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
     )
     expect(rows[0].trafficUsed).toBe(1280)
+  })
+
+  it('refunds traffic when image hosting signing fails', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'ih-sign-fail', token: 'ih_signfail' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+    vi.mocked(S3Service.prototype.presignInline).mockRejectedValueOnce(new Error('sign failed'))
+
+    const res = await app.request('/r/ih_signfail', { redirect: 'manual' })
+    expect(res.status).toBe(500)
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(256)
+    expect(await getAccessCount(db, 'ih-sign-fail')).toBe(0)
   })
 
   it('rejects the next image redirect after the first one consumes the remaining monthly traffic quota', async () => {

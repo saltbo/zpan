@@ -11,7 +11,7 @@ import { matters } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
-import { consumeTrafficIfQuotaAllows, hasTrafficQuotaForBytes } from '../services/effective-quota'
+import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import { listMatters } from '../services/matter'
 import { getMemberRole, isPersonalOrg } from '../services/org'
 import {
@@ -273,11 +273,6 @@ export const publicShares = new Hono<Env>()
     const storage = (await getStorage(db, targetMatter.storageId)) as unknown as S3Storage
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
-    if (!(await hasTrafficQuotaForBytes(db, share.orgId, targetMatter.size ?? 0))) {
-      return c.json({ error: 'Traffic quota exceeded' }, 422)
-    }
-
-    const url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
     const { ok } = await incrementDownloadsAtomic(db, share.id)
     if (!ok) return c.json({ error: 'Download limit exceeded' }, 410)
 
@@ -291,15 +286,23 @@ export const publicShares = new Hono<Env>()
     // fall back to the share creator as the org-attributed actor for anonymous
     // downloads. The presigned URL is never stored in metadata.
     const actorId = viewerId ?? share.creatorId
-    await recordActivity(db, {
-      orgId: share.orgId,
-      userId: actorId,
-      action: 'share_download',
-      targetType: 'share',
-      targetId: share.id,
-      targetName: targetMatter.name,
-      metadata: { anonymous: !viewerId },
-    })
+    let url: string
+    try {
+      url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
+      await recordActivity(db, {
+        orgId: share.orgId,
+        userId: actorId,
+        action: 'share_download',
+        targetType: 'share',
+        targetId: share.id,
+        targetName: targetMatter.name,
+        metadata: { anonymous: !viewerId },
+      })
+    } catch (e) {
+      await refundTraffic(db, share.orgId, targetMatter.size ?? 0)
+      await decrementDownloads(db, share.id)
+      throw e
+    }
 
     if (returnUrl) {
       const res = c.json({ downloadUrl: url })

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { currentTrafficPeriod } from '../services/effective-quota'
 import { S3Service } from '../services/s3'
 import { authedHeaders, createTestApp } from '../test/setup'
 
@@ -149,6 +150,84 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     const cc = res.headers.get('cache-control') ?? ''
     expect(cc).toContain('public')
     expect(cc).toMatch(/max-age=\d+/)
+  })
+
+  it('verified custom domain consumes traffic quota when inline URL is issued', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'dm-quota-ok', path: 'quota/image.png' })
+    await insertImageHostingConfig(db, orgId, { customDomain: 'img.quota.com' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+
+    const res = await app.request('/quota/image.png', {
+      headers: { host: 'img.quota.com' },
+      redirect: 'manual',
+    })
+    expect(res.status).toBe(302)
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(1280)
+  })
+
+  it('verified custom domain returns 422 when traffic quota is exhausted', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'dm-quota-over', path: 'quota/over.png' })
+    await insertImageHostingConfig(db, orgId, { customDomain: 'img.quota-over.com' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 512, traffic_used = 0, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+
+    const res = await app.request('/quota/over.png', {
+      headers: { host: 'img.quota-over.com' },
+      redirect: 'manual',
+    })
+    expect(res.status).toBe(422)
+    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    expect(S3Service.prototype.presignInline).not.toHaveBeenCalled()
+    expect(await getAccessCount(db, 'dm-quota-over')).toBe(0)
+  })
+
+  it('verified custom domain refunds traffic when inline URL signing fails', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'dm-sign-fail', path: 'quota/sign-fail.png' })
+    await insertImageHostingConfig(db, orgId, { customDomain: 'img.sign-fail.com' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+    vi.mocked(S3Service.prototype.presignInline).mockRejectedValueOnce(new Error('sign failed'))
+
+    const res = await app.request('/quota/sign-fail.png', {
+      headers: { host: 'img.sign-fail.com' },
+      redirect: 'manual',
+    })
+    expect(res.status).toBe(500)
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(256)
+    expect(await getAccessCount(db, 'dm-sign-fail')).toBe(0)
   })
 
   it('verified custom domain, path not found → 404', async () => {

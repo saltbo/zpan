@@ -3,7 +3,12 @@ import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { orgQuotas } from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
-import { consumeTrafficIfQuotaAllows, getEffectiveQuota, hasTrafficQuotaForBytes } from './effective-quota.js'
+import {
+  consumeTrafficIfQuotaAllows,
+  getEffectiveQuota,
+  hasTrafficQuotaForBytes,
+  refundTraffic,
+} from './effective-quota.js'
 
 describe('effective quota', () => {
   it('returns storage and traffic quota state', async () => {
@@ -73,6 +78,26 @@ describe('effective quota', () => {
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(1000)
+  })
+
+  it('refunds current monthly traffic usage', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 1000,
+      trafficUsed: 700,
+      trafficPeriod: '2026-05',
+    })
+
+    await refundTraffic(db, orgId, 300, now)
+
+    const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
+    expect(rows[0].trafficUsed).toBe(400)
   })
 
   it('consumes traffic from zero when the period changes', async () => {

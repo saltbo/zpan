@@ -235,6 +235,53 @@ describe('GET /api/objects/:id — traffic quota enforcement', () => {
     expect(rows[0].trafficUsed).toBe(125)
   })
 
+  it('resets stale monthly traffic period before consuming traffic', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm-download-reset', name: 'download.txt', size: 100 })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 500, traffic_used = 500, traffic_period = '1970-01'
+      WHERE org_id = ${orgId}
+    `)
+
+    const res = await app.request('/api/objects/m-download-reset', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.downloadUrl).toBe('https://presigned-download.example.com')
+
+    const rows = await db.all<{ trafficUsed: number; trafficPeriod: string }>(
+      sql`SELECT traffic_used AS trafficUsed, traffic_period AS trafficPeriod FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0]).toEqual({ trafficUsed: 100, trafficPeriod })
+  })
+
+  it('refunds traffic when download URL signing fails', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm-download-sign-fail', name: 'download.txt', size: 100 })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 500, traffic_used = 25, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
+    vi.mocked(S3Service.prototype.presignDownload).mockRejectedValueOnce(new Error('sign failed'))
+
+    const res = await app.request('/api/objects/m-download-sign-fail', { headers })
+    expect(res.status).toBe(500)
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(25)
+  })
+
   it('returns 422 when download traffic quota is exhausted', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)

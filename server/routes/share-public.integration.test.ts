@@ -296,6 +296,12 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dl1', name: 'file.txt' })
+    const trafficPeriod = currentTrafficPeriod()
+    await db.run(sql`
+      UPDATE org_quotas
+      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
+      WHERE org_id = ${orgId}
+    `)
     const share = await createShare(db, { matterId: 'dl1', orgId, creatorId, kind: 'landing' })
 
     const rootRef = await fetchRootRef(app, share.token)
@@ -303,6 +309,11 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_PRESIGN_URL)
     expect(res.headers.get('cache-control')).toBe('no-store')
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(1280)
   })
 
   it('returns JSON downloadUrl for public share when requested by preview', async () => {
@@ -347,32 +358,33 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     expect(rows[0].trafficUsed).toBe(1280)
   })
 
-  it('compensates public share download count when traffic is exhausted after presign', async () => {
+  it('refunds traffic and download count when public share signing fails', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
-    await insertFile(db, orgId, { id: 'dl-traffic-race', name: 'traffic.txt' })
+    await insertFile(db, orgId, { id: 'dl-sign-fail', name: 'traffic.txt' })
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
-      SET traffic_quota = 1024, traffic_used = 0, traffic_period = ${trafficPeriod}
+      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
     `)
-    vi.mocked(S3Service.prototype.presignDownload).mockImplementationOnce(async () => {
-      await db.run(sql`UPDATE org_quotas SET traffic_used = 1024 WHERE org_id = ${orgId}`)
-      return MOCK_PRESIGN_URL
-    })
-    const share = await createShare(db, { matterId: 'dl-traffic-race', orgId, creatorId, kind: 'landing' })
+    vi.mocked(S3Service.prototype.presignDownload).mockRejectedValueOnce(new Error('sign failed'))
+    const share = await createShare(db, { matterId: 'dl-sign-fail', orgId, creatorId, kind: 'landing' })
 
     const rootRef = await fetchRootRef(app, share.token)
     const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
-    expect(res.status).toBe(422)
-    await expect(res.json()).resolves.toEqual({ error: 'Traffic quota exceeded' })
+    expect(res.status).toBe(500)
 
-    const shares = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
-    expect(shares[0].downloads).toBe(0)
+    const trafficRows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(trafficRows[0].trafficUsed).toBe(256)
+
+    const shareRows = await db.all<{ downloads: number }>(sql`SELECT downloads FROM shares WHERE id = ${share.id}`)
+    expect(shareRows[0].downloads).toBe(0)
   })
 
   it('returns 422 when public share traffic quota is exhausted', async () => {
