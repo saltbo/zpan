@@ -137,9 +137,6 @@ const APP_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS quota_store_settings (
     id TEXT PRIMARY KEY,
     enabled INTEGER NOT NULL DEFAULT 0,
-    cloud_base_url TEXT NOT NULL,
-    public_instance_url TEXT NOT NULL,
-    webhook_signing_secret TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );

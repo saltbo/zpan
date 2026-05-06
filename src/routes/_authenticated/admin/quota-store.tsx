@@ -19,8 +19,6 @@ import {
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Card, CardContent } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import {
   ApiError,
   createQuotaStorePackage,
@@ -47,9 +45,6 @@ export function AdminQuotaStorePage() {
     if (!data?.settings) return
     setSettingsForm({
       enabled: data.settings.enabled,
-      cloudBaseUrl: data.settings.cloudBaseUrl,
-      publicInstanceUrl: data.settings.publicInstanceUrl,
-      webhookSigningSecret: '',
     })
   }, [data?.settings])
 
@@ -93,21 +88,6 @@ export function AdminQuotaStorePage() {
             <ProBadge />
           </div>
           <p className="text-sm text-muted-foreground">{t('admin.quotaStore.subtitle')}</p>
-        </div>
-        <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-          <Label htmlFor="storeEnabled" className="text-sm">
-            {t('admin.quotaStore.enabled')}
-          </Label>
-          <Switch
-            id="storeEnabled"
-            checked={data.enabled}
-            disabled={!data.available || !data.settings || settingsMutation.isPending}
-            onCheckedChange={(enabled) => {
-              const nextSettings = { ...settingsForm, enabled }
-              setSettingsForm(nextSettings)
-              settingsMutation.mutate(nextSettings)
-            }}
-          />
         </div>
       </div>
 

@@ -285,15 +285,12 @@ describe('api', () => {
 
       await updateQuotaStoreSettings({
         enabled: true,
-        cloudBaseUrl: 'https://cloud.example',
-        publicInstanceUrl: 'https://zpan.example',
-        webhookSigningSecret: 'secret',
       })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/admin/quota-store/settings')
       expect(init.method).toBe('PUT')
-      expect(JSON.parse(init.body as string)).toMatchObject({ enabled: true, webhookSigningSecret: 'secret' })
+      expect(JSON.parse(init.body as string)).toEqual({ enabled: true })
     })
 
     it('creates and updates packages with typed RPC paths', async () => {
@@ -359,15 +356,7 @@ describe('api', () => {
 
     it.each([
       ['getQuotaStoreSettings', () => getQuotaStoreSettings()],
-      [
-        'updateQuotaStoreSettings',
-        () =>
-          updateQuotaStoreSettings({
-            enabled: true,
-            cloudBaseUrl: 'https://cloud.example',
-            publicInstanceUrl: 'https://zpan.example',
-          }),
-      ],
+      ['updateQuotaStoreSettings', () => updateQuotaStoreSettings({ enabled: true })],
       ['listQuotaStorePackages', () => listQuotaStorePackages()],
       [
         'createQuotaStorePackage',

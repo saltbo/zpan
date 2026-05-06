@@ -292,12 +292,7 @@ export function getQuotaStoreSettings() {
   return unwrap<QuotaStoreSettings | null>(adminQuotaStoreApi.settings.$get())
 }
 
-export function updateQuotaStoreSettings(data: {
-  enabled: boolean
-  cloudBaseUrl: string
-  publicInstanceUrl: string
-  webhookSigningSecret?: string
-}) {
+export function updateQuotaStoreSettings(data: { enabled: boolean }) {
   return unwrap<QuotaStoreSettings>(adminQuotaStoreApi.settings.$put({ json: data }))
 }
 

@@ -127,6 +127,13 @@
       "when": 1777994764279,
       "tag": "0018_reflective_zodiak",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1778027676779,
+      "tag": "0019_quota-store-binding-settings",
+      "breakpoints": true
     }
   ]
 }

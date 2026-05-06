@@ -2,9 +2,6 @@ import { z } from 'zod'
 
 export const quotaStoreSettingsSchema = z.object({
   enabled: z.boolean(),
-  cloudBaseUrl: z.string().url(),
-  publicInstanceUrl: z.string().url(),
-  webhookSigningSecret: z.string().min(1).optional(),
 })
 
 export const quotaStorePackageInputSchema = z.object({

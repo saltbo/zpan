@@ -118,3 +118,25 @@ export async function refreshEntitlement(baseUrl: string, refreshToken: string):
 
   return res.json() as Promise<EntitlementRefreshResponse>
 }
+
+export async function postBoundCloudJson(
+  baseUrl: string,
+  path: string,
+  refreshToken: string,
+  payload: object,
+): Promise<unknown> {
+  const res = await cloudFetch(baseUrl, path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${refreshToken}` },
+    body: JSON.stringify(payload),
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const error =
+      data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : null
+    throw new Error(error ?? `cloud_request_failed_${res.status}`)
+  }
+
+  return data
+}

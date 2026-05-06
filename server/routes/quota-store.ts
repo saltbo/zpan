@@ -9,9 +9,11 @@ import {
 import type { QuotaStorePackage } from '@shared/types'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
+import { postBoundCloudJson } from '../services/licensing-cloud'
 import {
   canAccessTargetOrg,
   createQuotaStorePackage,
@@ -30,6 +32,11 @@ import {
   updateQuotaStorePackage,
   upsertQuotaStoreSettings,
 } from '../services/quota-store'
+
+type RouteContext = {
+  get(key: 'platform'): Env['Variables']['platform']
+  req: { url: string; header(name: string): string | undefined }
+}
 
 const cloudCheckoutResponseSchema = z
   .object({ orderId: z.string().min(1), url: z.string().url() })
@@ -57,14 +64,14 @@ const adminQuotaStore = new Hono<Env>()
   .post('/packages', zValidator('json', quotaStorePackageInputSchema), async (c) => {
     const db = c.get('platform').db
     const pkg = await createQuotaStorePackage(db, c.req.valid('json'))
-    const synced = await syncPackages(db, pkg.id)
+    const synced = await syncPackages(c, pkg.id)
     return c.json(synced, synced.syncStatus === 'failed' ? 202 : 201)
   })
   .put('/packages/:id', zValidator('json', quotaStorePackageInputSchema), async (c) => {
     const db = c.get('platform').db
     const pkg = await updateQuotaStorePackage(db, c.req.param('id'), c.req.valid('json'))
     if (!pkg) return c.json({ error: 'Package not found' }, 404)
-    const synced = await syncPackages(db, pkg.id)
+    const synced = await syncPackages(c, pkg.id)
     return c.json(synced)
   })
   .delete('/packages/:id', async (c) => {
@@ -73,7 +80,7 @@ const adminQuotaStore = new Hono<Env>()
     const pkg = await getQuotaStorePackage(db, id)
     if (!pkg) return c.json({ error: 'Package not found' }, 404)
 
-    const syncError = await syncCatalog(db, id)
+    const syncError = await syncCatalog(c, id)
     if (syncError) return c.json({ error: syncError }, 502)
 
     const deleted = await deleteQuotaStorePackage(db, id)
@@ -107,13 +114,12 @@ const quotaStore = new Hono<Env>()
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const settings = store.settings
     const pkg = await getActiveQuotaStorePackage(db, body.packageId)
     if (!pkg) return c.json({ error: 'Package not found' }, 404)
     const result = await postUserCloud(
-      settings,
+      c,
       '/api/store/checkout',
-      { session: await createCheckoutSession(db, settings, pkg, body.targetOrgId, c.get('userId')!) },
+      { session: await createCheckoutSession(c, pkg, body.targetOrgId, c.get('userId')!) },
       cloudCheckoutResponseSchema,
     )
     if ('error' in result) return c.json(result, 502)
@@ -128,13 +134,12 @@ const quotaStore = new Hono<Env>()
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const settings = store.settings
     const result = await postUserCloud(
-      settings,
+      c,
       '/api/store/redemptions',
       {
         code: body.code,
-        session: await createRedemptionSession(db, body.targetOrgId, c.get('userId')!),
+        session: await createRedemptionSession(c, body.targetOrgId, c.get('userId')!),
       },
       cloudRedemptionResponseSchema,
     )
@@ -151,13 +156,11 @@ const quotaStore = new Hono<Env>()
 
 const quotaStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).post('/cloud', async (c) => {
   const db = c.get('platform').db
-  const settings = await getRequiredSettings(db)
+  await getRequiredSettings(db)
+  const binding = await getCloudStoreBinding(db)
   const rawPayload = await c.req.text()
-  const timestamp = c.req.header('x-zpan-cloud-timestamp') ?? ''
-  const signature = c.req.header('x-zpan-cloud-signature') ?? ''
-  if (!(await verifyTimestampedSignature(rawPayload, timestamp, settings.webhookSigningSecret, signature))) {
-    return c.json({ error: 'invalid_signature' }, 401)
-  }
+  if (!verifyDeliveryAuth(c.req.header('authorization'), binding.refreshToken))
+    return c.json({ error: 'invalid_auth' }, 401)
 
   const body = parseJson(rawPayload)
   if (!body) return c.json({ error: 'invalid_payload' }, 400)
@@ -177,19 +180,22 @@ export { adminQuotaStore, quotaStore, quotaStoreWebhooks }
 
 async function getUserStoreSettings(db: Parameters<typeof getRequiredSettings>[0]) {
   try {
-    return { settings: await getRequiredSettings(db) }
+    await getRequiredSettings(db)
+    await getCloudStoreBinding(db)
+    return { ready: true }
   } catch (error) {
     const message = (error as Error).message
-    if (message === 'quota_store_disabled' || message === 'quota_store_webhook_secret_missing') {
+    if (message === 'quota_store_disabled' || message === 'quota_store_binding_missing') {
       return { error: message }
     }
     throw error
   }
 }
 
-async function syncPackages(db: Parameters<typeof markPackageSynced>[0], packageId: string) {
+async function syncPackages(c: RouteContext, packageId: string) {
+  const db = c.get('platform').db
   try {
-    const result = await syncCatalog(db)
+    const result = await syncCatalog(c)
     if (result) return markPackageSynced(db, packageId, { error: result })
     return (await getQuotaStorePackage(db, packageId))!
   } catch (error) {
@@ -197,18 +203,19 @@ async function syncPackages(db: Parameters<typeof markPackageSynced>[0], package
   }
 }
 
-async function syncCatalog(db: Parameters<typeof markPackageSynced>[0], excludingPackageId?: string) {
+async function syncCatalog(c: RouteContext, excludingPackageId?: string) {
+  const db = c.get('platform').db
   try {
-    const settings = await getRequiredSettings(db)
+    await getRequiredSettings(db)
     const binding = await getCloudStoreBinding(db)
     const packages = (await listQuotaStorePackages(db)).filter((pkg) => pkg.id !== excludingPackageId)
-    const result = await postStoreSignedCloud(
-      settings.cloudBaseUrl,
+    const result = await postCloud(
+      getCloudBaseUrl(c),
       '/api/store/packages/sync',
-      binding.sharedSecret,
+      binding.refreshToken,
       {
-        boundLicenseId: binding.boundLicenseId,
-        callbackUrl: `${publicInstanceUrl(settings)}/api/quota-store/webhooks/cloud`,
+        cloudBindingId: binding.cloudBindingId,
+        callbackUrl: `${getInstanceOrigin(c)}/api/quota-store/webhooks/cloud`,
         packages: packages.map(cloudPackagePayload),
       },
       cloudPackageSyncResponseSchema,
@@ -221,69 +228,28 @@ async function syncCatalog(db: Parameters<typeof markPackageSynced>[0], excludin
 }
 
 async function postUserCloud<T>(
-  settings: Awaited<ReturnType<typeof getRequiredSettings>>,
+  c: RouteContext,
   path: string,
   payload: object,
   responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>,
 ) {
   try {
-    return await postCloudJson(settings.cloudBaseUrl, path, payload, responseSchema)
+    const binding = await getCloudStoreBinding(c.get('platform').db)
+    return await postCloud(getCloudBaseUrl(c), path, binding.refreshToken, payload, responseSchema)
   } catch (error) {
     return { error: (error as Error).message }
   }
 }
 
-async function postCloudJson<T>(
+async function postCloud<T>(
   baseUrl: string,
   path: string,
+  refreshToken: string,
   payload: object,
   responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>,
 ): Promise<T> {
-  const body = JSON.stringify(payload)
-  const res = await fetch(new URL(path, baseUrl), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  })
-  const data = await readCloudJson(res)
-  if (!res.ok) throw new Error(readCloudError(data) ?? `cloud_request_failed_${res.status}`)
+  const data = await postBoundCloudJson(baseUrl, path, refreshToken, payload)
   return parseCloudResponse(data, responseSchema)
-}
-
-async function postStoreSignedCloud<T>(
-  baseUrl: string,
-  path: string,
-  secret: string,
-  payload: object,
-  responseSchema: z.ZodType<T, z.ZodTypeDef, unknown>,
-): Promise<T> {
-  const body = JSON.stringify(payload)
-  const timestamp = String(Date.now())
-  const res = await fetch(new URL(path, baseUrl), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-zpan-store-timestamp': timestamp,
-      'x-zpan-store-signature': await signTimestampedPayload(body, timestamp, secret),
-    },
-    body,
-  })
-  const data = await readCloudJson(res)
-  if (!res.ok) throw new Error(readCloudError(data) ?? `cloud_request_failed_${res.status}`)
-  return parseCloudResponse(data, responseSchema)
-}
-
-async function readCloudJson(res: Response): Promise<unknown> {
-  try {
-    return await res.json()
-  } catch {
-    return {}
-  }
-}
-
-function readCloudError(data: unknown): string | null {
-  if (!data || typeof data !== 'object' || !('error' in data)) return null
-  return typeof data.error === 'string' ? data.error : null
 }
 
 function parseCloudResponse<T>(data: unknown, schema: z.ZodType<T, z.ZodTypeDef, unknown>): T {
@@ -292,92 +258,57 @@ function parseCloudResponse<T>(data: unknown, schema: z.ZodType<T, z.ZodTypeDef,
   return parsed.data
 }
 
-async function signPayload(payload: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-  const signature = await crypto.subtle.sign('HMAC', key, encode(payload))
-  return hex(signature)
-}
-
-async function signTimestampedPayload(payload: string, timestamp: string, secret: string): Promise<string> {
-  return signPayload(`${timestamp}.${payload}`, secret)
-}
-
-async function verifyTimestampedSignature(
-  payload: string,
-  timestamp: string,
-  secret: string,
-  signature: string,
-): Promise<boolean> {
-  const requestTime = Number(timestamp)
-  if (!Number.isInteger(requestTime) || Math.abs(Date.now() - requestTime) > 5 * 60 * 1000) return false
-  const expected = hexToBytes(await signTimestampedPayload(payload, timestamp, secret))
-  const received = hexToBytes(signature)
-  if (!expected || !received || received.length !== expected.length) return false
+function verifyDeliveryAuth(authorization: string | undefined, refreshToken: string): boolean {
+  const token = authorization?.match(/^Bearer (.+)$/)?.[1]
+  if (!token) return false
+  const expected = encodeBytes(refreshToken)
+  const received = encodeBytes(token)
+  if (received.length !== expected.length) return false
   return timingSafeEqual(received, expected)
 }
 
 async function createCheckoutSession(
-  db: Parameters<typeof getCloudStoreBinding>[0],
-  settings: Awaited<ReturnType<typeof getRequiredSettings>>,
+  c: RouteContext,
   pkg: QuotaStorePackage,
   targetOrgId: string,
   userId: string,
-): Promise<string> {
+): Promise<object> {
+  const db = c.get('platform').db
   const binding = await getCloudStoreBinding(db)
-  return signStorageSession(
-    {
-      boundLicenseId: binding.boundLicenseId,
-      externalPackageId: pkg.id,
-      targetOrgId,
-      terminalUserId: userId,
-      terminalUserLabel: await getUserTerminalLabel(db, userId),
-      amount: pkg.amount,
-      currency: pkg.currency,
-      bytes: pkg.bytes,
-      successUrl: `${publicInstanceUrl(settings)}/store`,
-      cancelUrl: `${publicInstanceUrl(settings)}/store`,
-      expiresAt: sessionExpiry(),
-    },
-    binding.sharedSecret,
-  )
+  const origin = getInstanceOrigin(c)
+  return {
+    cloudBindingId: binding.cloudBindingId,
+    externalPackageId: pkg.id,
+    targetOrgId,
+    terminalUserId: userId,
+    terminalUserLabel: await getUserTerminalLabel(db, userId),
+    amount: pkg.amount,
+    currency: pkg.currency,
+    bytes: pkg.bytes,
+    successUrl: `${origin}/store`,
+    cancelUrl: `${origin}/store`,
+    expiresAt: sessionExpiry(),
+  }
 }
 
 async function createRedemptionSession(
-  db: Parameters<typeof getCloudStoreBinding>[0],
+  c: { get(key: 'platform'): Env['Variables']['platform'] },
   targetOrgId: string,
   userId: string,
-): Promise<string> {
+): Promise<object> {
+  const db = c.get('platform').db
   const binding = await getCloudStoreBinding(db)
-  return signStorageSession(
-    {
-      boundLicenseId: binding.boundLicenseId,
-      targetOrgId,
-      terminalUserId: userId,
-      terminalUserLabel: await getUserTerminalLabel(db, userId),
-      expiresAt: sessionExpiry(),
-    },
-    binding.sharedSecret,
-  )
-}
-
-async function signStorageSession(payload: object, secret: string): Promise<string> {
-  const encoded = base64Url(JSON.stringify(payload))
-  return `${encoded}.${await signPayload(encoded, secret)}`
+  return {
+    cloudBindingId: binding.cloudBindingId,
+    targetOrgId,
+    terminalUserId: userId,
+    terminalUserLabel: await getUserTerminalLabel(db, userId),
+    expiresAt: sessionExpiry(),
+  }
 }
 
 function sessionExpiry(): string {
   return new Date(Date.now() + 15 * 60 * 1000).toISOString()
-}
-
-function publicInstanceUrl(settings: Awaited<ReturnType<typeof getRequiredSettings>>): string {
-  return settings.publicInstanceUrl.replace(/\/+$/, '')
-}
-
-function base64Url(value: string): string {
-  const bytes = new TextEncoder().encode(value)
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
 }
 
 function cloudPackagePayload(pkg: QuotaStorePackage) {
@@ -414,24 +345,15 @@ function parseJson(payload: string): unknown | null {
 }
 
 async function sha256Hex(payload: string): Promise<string> {
-  return hex(await crypto.subtle.digest('SHA-256', encode(payload)))
+  return hex(await crypto.subtle.digest('SHA-256', encodeBytes(payload).buffer as ArrayBuffer))
 }
 
-function encode(value: string): ArrayBuffer {
-  return new TextEncoder().encode(value).buffer as ArrayBuffer
+function encodeBytes(value: string): Uint8Array {
+  return new TextEncoder().encode(value)
 }
 
 function hex(buffer: ArrayBuffer): string {
   return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-function hexToBytes(value: string): Uint8Array | null {
-  if (!/^[0-9a-f]+$/i.test(value) || value.length % 2 !== 0) return null
-  const bytes = new Uint8Array(value.length / 2)
-  for (let i = 0; i < bytes.length; i += 1) {
-    bytes[i] = Number.parseInt(value.slice(i * 2, i * 2 + 2), 16)
-  }
-  return bytes
 }
 
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -440,4 +362,34 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
     diff |= a[i] ^ b[i]
   }
   return diff === 0
+}
+
+function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
+  return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
+}
+
+function getInstanceOrigin(c: RouteContext): string {
+  const configuredOrigin = publicOriginFromEnv(
+    c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL'),
+  )
+  if (configuredOrigin) return configuredOrigin
+
+  const requestUrl = new URL(c.req.url)
+  if (requestUrl.protocol === 'https:' || isLocalHost(requestUrl.hostname)) return requestUrl.origin
+  return `https://${requestUrl.host}`
+}
+
+function publicOriginFromEnv(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
+function isLocalHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
 }

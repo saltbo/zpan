@@ -60,9 +60,7 @@ function settings(overrides: Partial<QuotaStoreSettings> = {}): QuotaStoreSettin
   return {
     id: 'settings-1',
     enabled: true,
-    cloudBaseUrl: 'https://cloud.example',
-    publicInstanceUrl: 'https://zpan.example',
-    webhookSigningSecretSet: true,
+    status: 'ready',
     createdAt: '2026-05-05T00:00:00.000Z',
     updatedAt: '2026-05-05T00:00:00.000Z',
     ...overrides,
@@ -152,14 +150,24 @@ describe('AdminQuotaStorePage', () => {
     expect(toast.success).toHaveBeenCalledWith('admin.quotaStore.packageSaved')
   })
 
-  it('normalizes the displayed callback URL', async () => {
-    vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings({ publicInstanceUrl: 'https://zpan.example//' }))
+  it('shows operator-facing store status without technical Cloud fields', async () => {
+    vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
     vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
 
     const view = renderAdminPage()
 
-    await waitFor(() =>
-      expect(view.getByDisplayValue('https://zpan.example/api/quota-store/webhooks/cloud')).toBeTruthy(),
-    )
+    await waitFor(() => expect(view.getByText('admin.quotaStore.status.ready')).toBeTruthy())
+    expect(view.queryByText('admin.quotaStore.cloudBaseUrl')).toBeNull()
+    expect(view.queryByText('admin.quotaStore.callbackUrl')).toBeNull()
+    expect(view.queryByText('admin.quotaStore.webhookSecret')).toBeNull()
+  })
+
+  it('shows a disabled store status before settings are created', async () => {
+    vi.mocked(getQuotaStoreSettings).mockResolvedValue(null)
+    vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
+
+    const view = renderAdminPage()
+
+    await waitFor(() => expect(view.getByText('admin.quotaStore.status.store_disabled')).toBeTruthy())
   })
 })

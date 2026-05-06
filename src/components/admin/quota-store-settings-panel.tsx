@@ -1,17 +1,13 @@
 import type { QuotaStoreSettings } from '@shared/types'
-import { Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 export const emptySettingsForm = {
   enabled: false,
-  cloudBaseUrl: '',
-  publicInstanceUrl: '',
-  webhookSigningSecret: '',
 }
 
 export type SettingsFormState = typeof emptySettingsForm
@@ -19,9 +15,6 @@ export type SettingsFormState = typeof emptySettingsForm
 export function settingsInput(form: SettingsFormState) {
   return {
     enabled: form.enabled,
-    cloudBaseUrl: form.cloudBaseUrl,
-    publicInstanceUrl: form.publicInstanceUrl,
-    ...(form.webhookSigningSecret ? { webhookSigningSecret: form.webhookSigningSecret } : {}),
   }
 }
 
@@ -41,61 +34,33 @@ export function QuotaStoreSettingsPanel({
   onSave: () => void
 }) {
   const { t } = useTranslation()
-  const callbackUrl = form.publicInstanceUrl
-    ? `${form.publicInstanceUrl.replace(/\/+$/, '')}/api/quota-store/webhooks/cloud`
-    : ''
+  const status = settings?.status ?? 'store_disabled'
 
   return (
     <Card className="border-border/60">
       <CardHeader>
-        <CardTitle>{t('admin.quotaStore.cloudTitle')}</CardTitle>
-        <CardDescription>{t('admin.quotaStore.cloudDescription')}</CardDescription>
+        <CardTitle>{t('admin.quotaStore.settingsTitle')}</CardTitle>
+        <CardDescription>{t('admin.quotaStore.settingsDescription')}</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-[1fr_180px]">
+      <CardContent className="grid gap-4 md:grid-cols-[1fr_auto]">
         <div className="space-y-2">
-          <Label>{t('admin.quotaStore.cloudBaseUrl')}</Label>
-          <Input
-            value={form.cloudBaseUrl}
-            onChange={(e) => onFormChange({ ...form, cloudBaseUrl: e.target.value })}
-            disabled={!available}
-          />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label>{t('admin.quotaStore.publicInstanceUrl')}</Label>
-          <Input
-            value={form.publicInstanceUrl}
-            onChange={(e) => onFormChange({ ...form, publicInstanceUrl: e.target.value })}
-            disabled={!available}
-          />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label>{t('admin.quotaStore.callbackUrl')}</Label>
-          <div className="flex gap-2">
-            <Input value={callbackUrl} readOnly />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={!callbackUrl}
-              onClick={() => navigator.clipboard.writeText(callbackUrl)}
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
+          <Label>{t('admin.quotaStore.storeStatus')}</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={status === 'ready' ? 'default' : 'secondary'}>
+              {t(`admin.quotaStore.status.${status}`)}
+            </Badge>
+            <span className="text-sm text-muted-foreground">{t(`admin.quotaStore.statusCopy.${status}`)}</span>
           </div>
         </div>
-        <div className="space-y-2">
-          <Label>{t('admin.quotaStore.signing')}</Label>
-          <Badge variant={settings?.webhookSigningSecretSet ? 'default' : 'secondary'}>
-            {settings?.webhookSigningSecretSet ? t('common.configured') : t('common.notConfigured')}
-          </Badge>
-        </div>
-        <div className="space-y-2">
-          <Label>{t('admin.quotaStore.webhookSecret')}</Label>
-          <Input
-            type="password"
-            value={form.webhookSigningSecret}
-            onChange={(e) => onFormChange({ ...form, webhookSigningSecret: e.target.value })}
-            disabled={!available}
+        <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+          <Label htmlFor="quotaStoreEnabled" className="text-sm">
+            {t('admin.quotaStore.enabled')}
+          </Label>
+          <Switch
+            id="quotaStoreEnabled"
+            checked={form.enabled}
+            disabled={!available || pending}
+            onCheckedChange={(enabled) => onFormChange({ ...form, enabled })}
           />
         </div>
         <div className="flex justify-end md:col-span-2">
