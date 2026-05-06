@@ -6,6 +6,8 @@ import type {
   CreateShareRequest,
   CreateStorageInput,
   GenerateStorageCodesInput,
+  QuotaStorePackageInput,
+  QuotaStorePackagePatchInput,
   StorageCodeStatus,
   UpdateStorageInput,
 } from '@shared/schemas'
@@ -317,19 +319,11 @@ export function listQuotaStorePackages() {
   return unwrap<{ items: QuotaStorePackage[]; total: number }>(adminQuotaStoreApi.packages.$get())
 }
 
-export function createQuotaStorePackage(data: {
-  name: string
-  description?: string
-  resourceType: 'storage' | 'traffic'
-  resourceBytes: number
-  prices: Array<{ currency: 'usd' | 'cny'; amount: number }>
-  active?: boolean
-  sortOrder?: number
-}) {
+export function createQuotaStorePackage(data: QuotaStorePackageInput) {
   return unwrap<QuotaStorePackage>(adminQuotaStoreApi.packages.$post({ json: data }))
 }
 
-export function updateQuotaStorePackage(id: string, data: Parameters<typeof createQuotaStorePackage>[0]) {
+export function updateQuotaStorePackage(id: string, data: QuotaStorePackagePatchInput) {
   return unwrap<QuotaStorePackage>(adminQuotaStoreApi.packages[':id'].$patch({ param: { id }, json: data }))
 }
 

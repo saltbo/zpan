@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
 const units = { MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 } as const
@@ -21,7 +20,6 @@ export const emptyPackageForm = {
   unit: 'GB' as Unit,
   usdAmount: '999',
   cnyAmount: '',
-  active: true,
   sortOrder: '0',
 }
 
@@ -34,7 +32,6 @@ export function packageInputFromForm(form: PackageFormState): QuotaStorePackageI
     resourceType: form.resourceType,
     resourceBytes: Math.round(Number(form.size) * units[form.unit]),
     prices: packagePricesFromForm(form),
-    active: form.active,
     sortOrder: Math.round(Number(form.sortOrder)),
   }
 }
@@ -49,7 +46,6 @@ export function packageFormFromPackage(pkg: QuotaStorePackage): PackageFormState
     unit: display.unit,
     usdAmount: String(pkg.prices.find((price) => price.currency === 'usd')?.amount ?? ''),
     cnyAmount: String(pkg.prices.find((price) => price.currency === 'cny')?.amount ?? ''),
-    active: pkg.active,
     sortOrder: String(pkg.sortOrder),
   }
 }
@@ -85,7 +81,6 @@ export function StoragePlanForm({
         value={form.sortOrder}
         onChange={(sortOrder) => onFormChange({ ...form, sortOrder })}
       />
-      <PackageActiveSwitch active={form.active} onChange={(active) => onFormChange({ ...form, active })} />
       <PackageFormActions
         editing={editing}
         available={available}
@@ -176,7 +171,7 @@ function PackageResourceTypeField({
         value={form.resourceType}
         onValueChange={(resourceType: 'storage' | 'traffic') => onFormChange({ ...form, resourceType })}
       >
-        <SelectTrigger>
+        <SelectTrigger aria-label={t('admin.storagePlans.resourceType')}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -239,7 +234,7 @@ function NumberField({
 function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: Unit) => void }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
+      <SelectTrigger aria-label={value}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -250,16 +245,6 @@ function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: Unit) =
         ))}
       </SelectContent>
     </Select>
-  )
-}
-
-function PackageActiveSwitch({ active, onChange }: { active: boolean; onChange: (active: boolean) => void }) {
-  const { t } = useTranslation()
-  return (
-    <div className="flex items-center justify-between rounded-md border px-3 py-2">
-      <Label htmlFor="packageActive">{t('admin.storagePlans.active')}</Label>
-      <Switch id="packageActive" checked={active} onCheckedChange={onChange} />
-    </div>
   )
 }
 

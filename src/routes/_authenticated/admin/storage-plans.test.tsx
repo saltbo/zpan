@@ -7,12 +7,14 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   ApiError,
   createQuotaStorePackage,
+  deleteQuotaStorePackage,
   generateStorageRedemptionCodes,
   getQuotaStoreSettings,
   listAdminQuotaDeliveryRecords,
   listQuotaStorePackages,
   listStorageRedemptionCodes,
   revokeStorageRedemptionCode,
+  updateQuotaStorePackage,
   updateQuotaStoreSettings,
 } from '@/lib/api'
 import { AdminStoragePlansPage } from './storage-plans'
@@ -54,6 +56,7 @@ vi.mock('@/lib/api', () => {
   return {
     ApiError: MockApiError,
     createQuotaStorePackage: vi.fn(),
+    deleteQuotaStorePackage: vi.fn(),
     generateStorageRedemptionCodes: vi.fn(),
     getQuotaStoreSettings: vi.fn(),
     listAdminQuotaDeliveryRecords: vi.fn(),
@@ -157,11 +160,50 @@ describe('AdminStoragePlansPage', () => {
           { currency: 'usd', amount: 1999 },
           { currency: 'cny', amount: 12900 },
         ],
-        active: true,
         sortOrder: 2,
       }),
     )
     expect(toast.success).toHaveBeenCalledWith('admin.storagePlans.packageSaved')
+  })
+
+  it('creates a traffic package with USD and CNY prices', async () => {
+    vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
+    vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(createQuotaStorePackage).mockResolvedValue(quotaPackage({ id: 'pkg-traffic', resourceType: 'traffic' }))
+
+    const view = renderAdminPage()
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'admin.storagePlans.newPackage' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.newPackage' }))
+    const dialog = await view.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.packageName'), {
+      target: { value: '1 TB traffic' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.description'), {
+      target: { value: 'Download traffic' },
+    })
+    fireEvent.click(within(dialog).getByLabelText('admin.storagePlans.resourceType'))
+    fireEvent.click(await view.findByRole('option', { name: 'admin.storagePlans.resourceTraffic' }))
+    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.size'), { target: { value: '1' } })
+    fireEvent.click(within(dialog).getByLabelText('GB'))
+    fireEvent.click(await view.findByRole('option', { name: 'TB' }))
+    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.usdAmount'), { target: { value: '4999' } })
+    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.cnyAmount'), { target: { value: '32900' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() =>
+      expect(createQuotaStorePackage).toHaveBeenCalledWith({
+        name: '1 TB traffic',
+        description: 'Download traffic',
+        resourceType: 'traffic',
+        resourceBytes: 1099511627776,
+        prices: [
+          { currency: 'usd', amount: 4999 },
+          { currency: 'cny', amount: 32900 },
+        ],
+        sortOrder: 0,
+      }),
+    )
   })
 
   it('shows packages in a table and opens the package form in a dialog', async () => {
@@ -173,6 +215,9 @@ describe('AdminStoragePlansPage', () => {
     await waitFor(() => expect(view.getByRole('table')).toBeTruthy())
     expect(view.getByRole('columnheader', { name: 'admin.storagePlans.packageName' })).toBeTruthy()
     expect(view.getByRole('columnheader', { name: 'admin.storagePlans.prices' })).toBeTruthy()
+    expect(view.queryByRole('button', { name: 'admin.storagePlans.sync' })).toBeNull()
+    expect(view.queryByText('admin.storagePlans.lastSync')).toBeNull()
+    expect(view.queryByText('admin.storagePlans.lastDelivery')).toBeNull()
     expect(view.queryByLabelText('admin.storagePlans.packageName')).toBeNull()
 
     fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.newPackage' }))
@@ -180,6 +225,7 @@ describe('AdminStoragePlansPage', () => {
     const dialog = await view.findByRole('dialog')
     expect(within(dialog).getByText('admin.storagePlans.newPackage')).toBeTruthy()
     expect(within(dialog).getByLabelText('admin.storagePlans.packageName')).toBeTruthy()
+    expect(within(dialog).queryByLabelText('admin.storagePlans.active')).toBeNull()
   })
 
   it('opens existing packages for editing in the package dialog', async () => {
@@ -194,6 +240,74 @@ describe('AdminStoragePlansPage', () => {
     const dialog = await view.findByRole('dialog')
     expect(within(dialog).getByText('admin.storagePlans.editPackage')).toBeTruthy()
     expect(within(dialog).getByLabelText('admin.storagePlans.packageName')).toHaveProperty('value', '500 GB')
+    expect(within(dialog).queryByLabelText('admin.storagePlans.active')).toBeNull()
+  })
+
+  it('edits package content without sending active from the form', async () => {
+    vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
+    vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [quotaPackage({ active: false })], total: 1 })
+    vi.mocked(updateQuotaStorePackage).mockResolvedValue(quotaPackage({ active: false, name: '200 GB' }))
+
+    const view = renderAdminPage()
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'common.edit' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'common.edit' }))
+    const dialog = await view.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.packageName'), { target: { value: '200 GB' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() =>
+      expect(updateQuotaStorePackage).toHaveBeenCalledWith('pkg-1', {
+        name: '200 GB',
+        description: 'Extra storage',
+        resourceType: 'storage',
+        resourceBytes: 107374182400,
+        prices: [{ currency: 'usd', amount: 999 }],
+        sortOrder: 1,
+      }),
+    )
+  })
+
+  it('publishes and unpublishes packages from table actions', async () => {
+    vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
+    vi.mocked(listQuotaStorePackages).mockResolvedValue({
+      items: [
+        quotaPackage({ id: 'pkg-active', name: 'Active plan', active: true }),
+        quotaPackage({ id: 'pkg-disabled', name: 'Disabled plan', active: false }),
+      ],
+      total: 2,
+    })
+    vi.mocked(updateQuotaStorePackage)
+      .mockResolvedValueOnce(quotaPackage({ id: 'pkg-active', active: false }))
+      .mockResolvedValueOnce(quotaPackage({ id: 'pkg-disabled', active: true }))
+
+    const view = renderAdminPage()
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'admin.storagePlans.unpublish' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.unpublish' }))
+    await waitFor(() => expect(updateQuotaStorePackage).toHaveBeenCalledWith('pkg-active', { active: false }))
+
+    fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.publish' }))
+    await waitFor(() => expect(updateQuotaStorePackage).toHaveBeenCalledWith('pkg-disabled', { active: true }))
+  })
+
+  it('deletes packages only after confirmation', async () => {
+    vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
+    vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [quotaPackage({ name: 'Delete me' })], total: 1 })
+    vi.mocked(deleteQuotaStorePackage).mockResolvedValue({ id: 'pkg-1', deleted: true })
+
+    const view = renderAdminPage()
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'common.delete' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'common.delete' }))
+    expect(deleteQuotaStorePackage).not.toHaveBeenCalled()
+
+    const dialog = await view.findByRole('dialog')
+    expect(within(dialog).getByText('admin.storagePlans.deleteTitle')).toBeTruthy()
+    expect(within(dialog).getByText('admin.storagePlans.deleteConfirm')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common.delete' }))
+
+    await waitFor(() => expect(deleteQuotaStorePackage).toHaveBeenCalledWith('pkg-1', expect.anything()))
   })
 
   it('filters packages from the packages toolbar', async () => {

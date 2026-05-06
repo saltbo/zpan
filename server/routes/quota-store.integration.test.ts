@@ -134,6 +134,11 @@ beforeEach(() => {
           status: 200,
           json: async () => ({
             id: String(url).split('/').at(-1)?.startsWith('pkg-') ? String(url).split('/').at(-1) : 'cloud-pkg-1',
+            name: 'Small',
+            description: 'starter',
+            resourceType: 'storage',
+            resourceBytes: 4096,
+            prices: [{ currency: 'usd', amount: 500 }],
             active: true,
             sortOrder: 1,
             createdAt: '2026-05-06T00:00:00.000Z',
@@ -911,6 +916,25 @@ describe('Quota Store API', () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
     expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/packages/cloud-pkg-1`)
     expect(init.method).toBe('PATCH')
+  })
+
+  it('publishes and unpublishes packages through partial Cloud patches', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const res = await app.request('/api/admin/quota-store/packages/cloud-pkg-1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: false }),
+    })
+
+    expect(res.status).toBe(200)
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/packages/cloud-pkg-1`)
+    expect(init.method).toBe('PATCH')
+    expect(JSON.parse(String(init.body))).toEqual({ active: false })
   })
 
   it('surfaces package update Cloud failures without local writes', async () => {

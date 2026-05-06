@@ -4,6 +4,7 @@ import {
   cloudDeliveryEventSchema,
   generateStorageCodesInputSchema,
   quotaStorePackageInputSchema,
+  quotaStorePackagePatchSchema,
   quotaStoreSettingsSchema,
   redemptionInputSchema,
 } from '@shared/schemas'
@@ -73,7 +74,7 @@ const adminQuotaStore = new Hono<Env>()
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })
-  .patch('/packages/:id', zValidator('json', quotaStorePackageInputSchema), async (c) => {
+  .patch('/packages/:id', zValidator('json', quotaStorePackagePatchSchema), async (c) => {
     const result = await patchCloudWithBinding(
       c,
       packagesPath(c.req.param('id')),

@@ -21,6 +21,8 @@ export const quotaStorePackageInputSchema = z.object({
   sortOrder: z.number().int().default(0),
 })
 
+export const quotaStorePackagePatchSchema = quotaStorePackageInputSchema.partial()
+
 export const checkoutInputSchema = z.object({
   packageId: z.string().min(1),
   targetOrgId: z.string().min(1),
@@ -79,7 +81,8 @@ export type QuotaStoreSettingsInput = z.infer<typeof quotaStoreSettingsSchema>
 export type QuotaStoreResourceType = z.infer<typeof quotaStoreResourceTypeSchema>
 export type QuotaStoreCurrency = z.infer<typeof quotaStoreCurrencySchema>
 export type QuotaStorePackagePrice = z.infer<typeof quotaStorePackagePriceSchema>
-export type QuotaStorePackageInput = z.infer<typeof quotaStorePackageInputSchema>
+export type QuotaStorePackageInput = z.input<typeof quotaStorePackageInputSchema>
+export type QuotaStorePackagePatchInput = z.input<typeof quotaStorePackagePatchSchema>
 export type CheckoutInput = z.infer<typeof checkoutInputSchema>
 export type RedemptionInput = z.infer<typeof redemptionInputSchema>
 export type StorageCodeStatus = z.infer<typeof storageCodeStatusSchema>

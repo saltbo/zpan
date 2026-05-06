@@ -1,4 +1,5 @@
 import type { QuotaStorePackage } from '@shared/types'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,9 +9,15 @@ import { formatSize } from '@/lib/format'
 export function StoragePlanList({
   packages,
   onEdit,
+  onDelete,
+  onPublishChange,
+  actionPending,
 }: {
   packages: QuotaStorePackage[]
   onEdit: (pkg: QuotaStorePackage) => void
+  onDelete: (pkg: QuotaStorePackage) => void
+  onPublishChange: (pkg: QuotaStorePackage, active: boolean) => void
+  actionPending?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -24,7 +31,7 @@ export function StoragePlanList({
             <TableHead>{t('admin.storagePlans.prices')}</TableHead>
             <TableHead>{t('admin.storagePlans.active')}</TableHead>
             <TableHead>{t('admin.storagePlans.sortOrder')}</TableHead>
-            <TableHead className="w-24 text-right">{t('common.actions')}</TableHead>
+            <TableHead className="w-56 text-right">{t('common.actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -42,10 +49,31 @@ export function StoragePlanList({
                 </Badge>
               </TableCell>
               <TableCell className="tabular-nums">{pkg.sortOrder}</TableCell>
-              <TableCell className="text-right">
-                <Button variant="outline" size="sm" onClick={() => onEdit(pkg)}>
-                  {t('common.edit')}
-                </Button>
+              <TableCell>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={actionPending}
+                    onClick={() => onPublishChange(pkg, !pkg.active)}
+                  >
+                    {pkg.active ? t('admin.storagePlans.unpublish') : t('admin.storagePlans.publish')}
+                  </Button>
+                  <Button variant="outline" size="icon-sm" onClick={() => onEdit(pkg)} title={t('common.edit')}>
+                    <Pencil />
+                    <span className="sr-only">{t('common.edit')}</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={actionPending}
+                    onClick={() => onDelete(pkg)}
+                    title={t('common.delete')}
+                  >
+                    <Trash2 className="text-destructive" />
+                    <span className="sr-only">{t('common.delete')}</span>
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

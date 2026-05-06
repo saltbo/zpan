@@ -19,12 +19,13 @@ import {
 } from '@/components/admin/storage-redemption-code-panel'
 import {
   createQuotaStorePackage,
+  deleteQuotaStorePackage,
   generateStorageRedemptionCodes,
   revokeStorageRedemptionCode,
   updateQuotaStorePackage,
 } from '@/lib/api'
 import { Button } from '../ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 
 type PackageFilter = 'all' | 'active' | 'disabled'
@@ -32,15 +33,19 @@ type PackageFilter = 'all' | 'active' | 'disabled'
 export function usePackageEditor() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<QuotaStorePackage | null>(null)
+  const [deleting, setDeleting] = useState<QuotaStorePackage | null>(null)
   const [form, setForm] = useState(emptyPackageForm)
   const mutation = usePackageMutation(editing, form, () => {
     setOpen(false)
     setEditing(null)
     setForm(emptyPackageForm)
   })
+  const publishMutation = usePackagePublishMutation()
+  const deleteMutation = usePackageDeleteMutation(() => setDeleting(null))
   return {
     open,
     editing,
+    deleting,
     form,
     setForm,
     newPackage: () => {
@@ -49,7 +54,15 @@ export function usePackageEditor() {
       setOpen(true)
     },
     mutation,
+    publishMutation,
+    deleteMutation,
     edit: (pkg: QuotaStorePackage) => editPackage(pkg, setEditing, setForm, setOpen),
+    publish: (pkg: QuotaStorePackage, active: boolean) => publishMutation.mutate({ id: pkg.id, active }),
+    delete: (pkg: QuotaStorePackage) => setDeleting(pkg),
+    cancelDelete: () => setDeleting(null),
+    confirmDelete: () => {
+      if (deleting) deleteMutation.mutate(deleting.id)
+    },
     cancel: () => {
       setOpen(false)
       setEditing(null)
@@ -97,8 +110,15 @@ export function PackagesTab({
           {t('admin.storagePlans.newPackage')}
         </Button>
       </div>
-      <StoragePlanList packages={visiblePackages} onEdit={editor.edit} />
+      <StoragePlanList
+        packages={visiblePackages}
+        actionPending={editor.publishMutation.isPending || editor.deleteMutation.isPending}
+        onEdit={editor.edit}
+        onDelete={editor.delete}
+        onPublishChange={editor.publish}
+      />
       <PackageDialog available={available} editor={editor} />
+      <DeletePackageDialog editor={editor} />
     </div>
   )
 }
@@ -122,6 +142,36 @@ function PackageDialog({ available, editor }: { available: boolean; editor: Retu
           onCancel={editor.cancel}
           onSubmit={() => editor.mutation.mutate()}
         />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DeletePackageDialog({ editor }: { editor: ReturnType<typeof usePackageEditor> }) {
+  const { t } = useTranslation()
+  const pkg = editor.deleting
+  if (!pkg) return null
+
+  return (
+    <Dialog
+      open={Boolean(pkg)}
+      onOpenChange={(open) => {
+        if (!open && !editor.deleteMutation.isPending) editor.cancelDelete()
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('admin.storagePlans.deleteTitle')}</DialogTitle>
+          <DialogDescription>{t('admin.storagePlans.deleteConfirm', { name: pkg.name })}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={editor.cancelDelete} disabled={editor.deleteMutation.isPending}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="destructive" disabled={editor.deleteMutation.isPending} onClick={editor.confirmDelete}>
+            {editor.deleteMutation.isPending ? t('common.loading') : t('common.delete')}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -165,6 +215,33 @@ function usePackageMutation(editing: QuotaStorePackage | null, form: typeof empt
       onSaved()
       queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans'] })
       toast.success(t('admin.storagePlans.packageSaved'))
+    },
+    onError: (err) => toast.error(err.message),
+  })
+}
+
+function usePackagePublishMutation() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => updateQuotaStorePackage(id, { active }),
+    onSuccess: (_pkg, input) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans'] })
+      toast.success(t(input.active ? 'admin.storagePlans.packagePublished' : 'admin.storagePlans.packageUnpublished'))
+    },
+    onError: (err) => toast.error(err.message),
+  })
+}
+
+function usePackageDeleteMutation(onDeleted: () => void) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteQuotaStorePackage,
+    onSuccess: () => {
+      onDeleted()
+      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans'] })
+      toast.success(t('admin.storagePlans.packageDeleted'))
     },
     onError: (err) => toast.error(err.message),
   })

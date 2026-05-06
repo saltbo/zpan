@@ -297,38 +297,59 @@ describe('api', () => {
       expect(JSON.parse(init.body as string)).toEqual({ enabled: true })
     })
 
-    it('creates and updates packages with typed RPC paths', async () => {
+    it('creates packages with typed RPC paths', async () => {
       const payload: Parameters<typeof createQuotaStorePackage>[0] = {
         name: 'Small',
         resourceType: 'storage',
         resourceBytes: 1024,
-        prices: [{ currency: 'usd' as const, amount: 500 }],
+        prices: [
+          { currency: 'usd' as const, amount: 500 },
+          { currency: 'cny' as const, amount: 3600 },
+        ],
       }
-      vi.mocked(fetch)
-        .mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
-        .mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
 
       await createQuotaStorePackage(payload)
-      await updateQuotaStorePackage('pkg-1', payload)
 
       const [createUrl, createInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      const [updateUrl, updateInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
       expect(createUrl).toBe('/api/admin/quota-store/packages')
       expect(createInit.method).toBe('POST')
       expect(JSON.parse(createInit.body as string)).toEqual({
         name: 'Small',
         resourceType: 'storage',
         resourceBytes: 1024,
-        prices: [{ currency: 'usd', amount: 500 }],
+        prices: [
+          { currency: 'usd', amount: 500 },
+          { currency: 'cny', amount: 3600 },
+        ],
       })
+    })
+
+    it('updates packages with partial typed RPC payloads', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'pkg-1', active: false }))
+
+      await updateQuotaStorePackage('pkg-1', { active: false })
+
+      const [updateUrl, updateInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(updateUrl).toBe('/api/admin/quota-store/packages/pkg-1')
       expect(updateInit.method).toBe('PATCH')
-      expect(JSON.parse(updateInit.body as string)).toEqual({
-        name: 'Small',
-        resourceType: 'storage',
-        resourceBytes: 1024,
-        prices: [{ currency: 'usd', amount: 500 }],
-      })
+      expect(JSON.parse(updateInit.body as string)).toEqual({ active: false })
+    })
+
+    it('throws ApiError for failed package writes', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse({ error: 'package create failed' }, false, 502))
+        .mockResolvedValueOnce(makeResponse({ error: 'package update failed' }, false, 502))
+
+      await expect(
+        createQuotaStorePackage({
+          name: 'Small',
+          resourceType: 'storage',
+          resourceBytes: 1024,
+          prices: [{ currency: 'usd', amount: 500 }],
+        }),
+      ).rejects.toThrow('package create failed')
+      await expect(updateQuotaStorePackage('pkg-1', { active: false })).rejects.toThrow('package update failed')
     })
 
     it('lists and deletes admin packages', async () => {
