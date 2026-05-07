@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { HardDrive } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getUserQuota, listPurchasableQuotaPackages, listQuotaGrants } from '@/lib/api'
+import { getUserQuota, listPurchasableQuotaPackages, listStoreOrders } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
 
 function formatSize(bytes: number): string {
@@ -28,17 +28,17 @@ export function QuotaPanel({ enabled }: { enabled: boolean }) {
     enabled,
     retry: false,
   })
-  const { data: grants } = useQuery({
-    queryKey: ['storage-plans', 'grants', workspaceId],
-    queryFn: listQuotaGrants,
+  const { data: orders } = useQuery({
+    queryKey: ['storage-plans', 'orders', workspaceId],
+    queryFn: listStoreOrders,
     enabled: enabled && packagesQuery.isSuccess,
   })
 
   if (!quota) return null
 
-  const purchasedBytes = (grants?.items ?? [])
-    .filter((grant) => grant.active && grant.orgId === quota.orgId)
-    .reduce((sum, grant) => sum + grant.bytes, 0)
+  const purchasedBytes = (orders?.items ?? [])
+    .filter((order) => order.paymentStatus === 'paid' && order.orgId === quota.orgId)
+    .reduce((sum, order) => sum + order.storageBytes, 0)
   return (
     <Link
       to="/storage"

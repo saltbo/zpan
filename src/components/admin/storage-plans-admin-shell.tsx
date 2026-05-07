@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export type StoragePlansAdminTab = 'packages' | 'codes' | 'delivery'
+export type StoragePlansAdminTab = 'packages' | 'codes' | 'orders'
 
 export function StoragePlansTabBar({
   activeTab,
@@ -14,7 +14,7 @@ export function StoragePlansTabBar({
   const tabs: Array<{ id: StoragePlansAdminTab; label: string }> = [
     { id: 'packages', label: t('admin.storagePlans.tabs.packages') },
     { id: 'codes', label: t('admin.storagePlans.tabs.codes') },
-    { id: 'delivery', label: t('admin.storagePlans.tabs.delivery') },
+    { id: 'orders', label: t('admin.storagePlans.tabs.orders') },
   ]
   return (
     <div role="tablist" className="flex w-full gap-6 border-b border-border">

@@ -2,33 +2,34 @@ import { sql } from 'drizzle-orm'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import type { StoreGiftCard } from '../../shared/types'
 import { PUBLIC_KEYS } from '../licensing/public-keys.js'
 import { getQuotaStoreSettings } from '../services/quota-store.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 import {
+  cloudGiftCardsResponseSchema,
   cloudPackageResponseSchema,
-  cloudStorageCodesResponseSchema,
   getUserStoreSettings,
 } from './quota-store-helpers.js'
 
 const REFRESH_TOKEN = 'test-refresh-token'
 const { secretKey: EVENT_SECRET, publicKey: EVENT_PUBLIC } = generateKeys('public')
 
-const zpanCloudStorageCodeResponseFixture = {
+const zpanCloudGiftCardResponseFixture: StoreGiftCard = {
+  id: 'gift-card-1',
   code: 'ZS11-ACTV-0000-0001',
-  resourceType: 'storage',
-  bytes: 1024,
-  maxUses: 1,
-  usesCount: 0,
+  initialAmount: 1000,
+  remainingAmount: 1000,
+  currency: 'usd',
+  status: 'active',
   expiresAt: null,
   createdAt: '2026-05-06T00:00:00.000Z',
-  revokedAt: null,
-  createdByAdmin: 'admin',
-  createdByBoundLicense: 'binding_1',
+  updatedAt: '2026-05-06T00:00:00.000Z',
+  disabledAt: null,
 }
 
-function cloudStorageCode(overrides: Partial<typeof zpanCloudStorageCodeResponseFixture> = {}) {
-  return { ...zpanCloudStorageCodeResponseFixture, ...overrides }
+function cloudGiftCard(overrides: Partial<typeof zpanCloudGiftCardResponseFixture> = {}) {
+  return { ...zpanCloudGiftCardResponseFixture, ...overrides }
 }
 
 beforeEach(() => {
@@ -36,7 +37,7 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url, init) => {
-      if (String(url).includes('/api/store/storage-codes')) {
+      if (String(url).includes('/api/store/gift-cards')) {
         if (init?.method === 'DELETE') {
           return { ok: true, status: 204, json: async () => ({}) } as Response
         }
@@ -44,25 +45,19 @@ beforeEach(() => {
           return {
             ok: true,
             status: 200,
-            json: async () => [cloudStorageCode({ code: 'ZS-LIST-1', bytes: 2048, maxUses: 2, usesCount: 1 })],
+            json: async () => [cloudGiftCard({ code: 'ZS-LIST-1', initialAmount: 2048, remainingAmount: 1024 })],
           } as Response
         }
-        const body = JSON.parse(String(init?.body ?? '{}')) as {
-          resourceType?: string
-          bytes?: number
-          max_uses?: number
-          count?: number
-        }
+        const body = JSON.parse(String(init?.body ?? '{}')) as { amount?: number; count?: number }
         return {
           ok: true,
           status: 200,
           json: async () =>
             Array.from({ length: body.count ?? 1 }, (_, index) =>
-              cloudStorageCode({
+              cloudGiftCard({
                 code: `ZS-GEN-${index + 1}`,
-                resourceType: body.resourceType ?? 'storage',
-                bytes: body.bytes ?? 1024,
-                maxUses: body.max_uses ?? 1,
+                initialAmount: body.amount ?? 1024,
+                remainingAmount: body.amount ?? 1024,
               }),
             ),
         } as Response
@@ -78,8 +73,8 @@ beforeEach(() => {
                 id,
                 name: 'Small',
                 description: 'starter',
-                resourceType: 'storage',
-                resourceBytes: 4096,
+                storageBytes: 4096,
+                trafficBytes: 0,
                 prices: [
                   { currency: 'usd', amount: 500 },
                   { currency: 'cny', amount: 3600 },
@@ -99,8 +94,8 @@ beforeEach(() => {
                 id: 'cloud-pkg-1',
                 name: 'Small',
                 description: 'starter',
-                resourceType: 'storage',
-                resourceBytes: 4096,
+                storageBytes: 4096,
+                trafficBytes: 0,
                 prices: [
                   { currency: 'usd', amount: 500 },
                   { currency: 'cny', amount: 3600 },
@@ -114,8 +109,8 @@ beforeEach(() => {
                 id: 'cloud-pkg-inactive',
                 name: 'Retired',
                 description: 'hidden from users',
-                resourceType: 'traffic',
-                resourceBytes: 8192,
+                storageBytes: 0,
+                trafficBytes: 8192,
                 prices: [{ currency: 'usd', amount: 900 }],
                 active: false,
                 sortOrder: 2,
@@ -136,8 +131,8 @@ beforeEach(() => {
             id: String(url).split('/').at(-1)?.startsWith('pkg-') ? String(url).split('/').at(-1) : 'cloud-pkg-1',
             name: 'Small',
             description: 'starter',
-            resourceType: 'storage',
-            resourceBytes: 4096,
+            storageBytes: 4096,
+            trafficBytes: 0,
             prices: [{ currency: 'usd', amount: 500 }],
             active: true,
             sortOrder: 1,
@@ -147,29 +142,39 @@ beforeEach(() => {
           }),
         } as Response
       }
-      if (String(url).includes('/api/store/grants')) {
+      if (String(url).includes('/api/store/orders')) {
         const requestedOrgId = new URL(String(url)).searchParams.get('targetOrgIds')?.split(',')[0] ?? 'org-placeholder'
         return {
           ok: true,
           status: 200,
-          json: async () => [
-            {
-              id: 'cloud-grant-1',
-              org_id: requestedOrgId,
-              source: 'stripe',
-              external_event_id: 'evt-cloud-grant',
-              cloud_order_id: 'order-cloud-grant',
-              cloud_redemption_id: null,
-              code: null,
-              bytes: 512,
-              package_snapshot: null,
-              granted_by: null,
-              terminal_user_id: null,
-              terminal_user_email: null,
-              active: true,
-              created_at: '2026-05-06T00:00:00.000Z',
-            },
-          ],
+          json: async () => ({
+            items: [
+              {
+                id: 'cloud-order-1',
+                orgId: requestedOrgId,
+                packageName: 'Small',
+                packageDescription: 'starter',
+                storageBytes: 512,
+                trafficBytes: 0,
+                subtotalAmount: 500,
+                giftCardAmount: 0,
+                stripeAmount: 500,
+                paidAmount: 500,
+                currency: 'usd',
+                giftCardId: null,
+                stripeSessionId: null,
+                stripePaymentIntentId: null,
+                paymentStatus: 'paid',
+                fulfillmentStatus: 'delivered',
+                terminalUserId: null,
+                terminalUserEmail: null,
+                createdAt: '2026-05-06T00:00:00.000Z',
+                paidAt: '2026-05-06T00:00:00.000Z',
+                fulfilledAt: '2026-05-06T00:00:00.000Z',
+              },
+            ],
+            total: 1,
+          }),
         } as Response
       }
       return {
@@ -188,94 +193,7 @@ afterEach(() => {
 })
 
 describe('Quota Store API', () => {
-  it('parses Cloud package and storage-code response shapes', () => {
-    // legacy camelCase: resourceType/resourceBytes
-    expect(
-      cloudPackageResponseSchema.parse({
-        id: 'pkg-camel-legacy',
-        name: 'Camel Legacy',
-        description: null,
-        resourceType: 'storage',
-        resourceBytes: 1024,
-        prices: [{ currency: 'usd', amount: 500 }],
-        active: true,
-        sortOrder: 1,
-        createdAt: '2026-05-06T00:00:00.000Z',
-        updatedAt: '2026-05-06T00:00:00.000Z',
-      }),
-    ).toEqual({
-      id: 'pkg-camel-legacy',
-      name: 'Camel Legacy',
-      description: '',
-      storageBytes: 1024,
-      trafficBytes: 0,
-      prices: [{ currency: 'usd', amount: 500 }],
-      active: true,
-      sortOrder: 1,
-      createdAt: '2026-05-06T00:00:00.000Z',
-      updatedAt: '2026-05-06T00:00:00.000Z',
-    })
-
-    // legacy camelCase: resourceType/resourceBytes (traffic case to cover both ternary branches)
-    expect(
-      cloudPackageResponseSchema.parse({
-        id: 'pkg-camel-legacy-traffic',
-        name: 'Camel Legacy Traffic',
-        description: null,
-        resourceType: 'traffic',
-        resourceBytes: 512,
-        prices: [{ currency: 'usd', amount: 200 }],
-        active: true,
-        sortOrder: 0,
-        createdAt: '2026-05-06T00:00:00.000Z',
-        updatedAt: '2026-05-06T00:00:00.000Z',
-      }),
-    ).toMatchObject({ storageBytes: 0, trafficBytes: 512 })
-
-    // legacy snake_case: resource_type/resource_bytes (storage case to cover both ternary branches)
-    expect(
-      cloudPackageResponseSchema.parse({
-        id: 'pkg-snake-storage',
-        name: 'Snake Storage',
-        description: null,
-        resource_type: 'storage',
-        resource_bytes: 2048,
-        prices: [{ currency: 'cny', unit_amount: 3600 }],
-        active: true,
-        sort_order: 4,
-        created_at: '2026-05-06T00:00:00.000Z',
-        updated_at: '2026-05-06T00:00:00.000Z',
-      }),
-    ).toMatchObject({ storageBytes: 2048, trafficBytes: 0 })
-
-    // legacy snake_case: resource_type/resource_bytes (traffic case - original test)
-    expect(
-      cloudPackageResponseSchema.parse({
-        id: 'pkg-snake',
-        name: 'Snake Package',
-        description: null,
-        resource_type: 'traffic',
-        resource_bytes: 2048,
-        prices: [{ currency: 'cny', unit_amount: 3600 }],
-        active: true,
-        sort_order: 4,
-        created_at: '2026-05-06T00:00:00.000Z',
-        updated_at: '2026-05-06T00:00:00.000Z',
-      }),
-    ).toEqual({
-      id: 'pkg-snake',
-      name: 'Snake Package',
-      description: '',
-      storageBytes: 0,
-      trafficBytes: 2048,
-      prices: [{ currency: 'cny', amount: 3600 }],
-      active: true,
-      sortOrder: 4,
-      createdAt: '2026-05-06T00:00:00.000Z',
-      updatedAt: '2026-05-06T00:00:00.000Z',
-    })
-
-    // new snake_case: storage_bytes/traffic_bytes
+  it('parses Cloud package and gift-card response shapes', () => {
     expect(
       cloudPackageResponseSchema.parse({
         id: 'pkg-snake-new',
@@ -330,25 +248,26 @@ describe('Quota Store API', () => {
     })
 
     expect(
-      cloudStorageCodesResponseSchema.parse([
-        cloudStorageCode({
+      cloudGiftCardsResponseSchema.parse([
+        cloudGiftCard({
           code: 'ZS11-ACTV-0000-0001',
-          resourceType: 'storage',
-          bytes: 4096,
-          maxUses: 2,
-          usesCount: 1,
+          initialAmount: 4096,
+          remainingAmount: 2048,
+          currency: 'usd',
         }),
       ]),
     ).toEqual([
       {
+        id: 'gift-card-1',
         code: 'ZS11-ACTV-0000-0001',
-        resourceType: 'storage',
-        resourceBytes: 4096,
-        maxUses: 2,
-        usesCount: 1,
+        initialAmount: 4096,
+        remainingAmount: 2048,
+        currency: 'usd',
+        status: 'active',
         expiresAt: null,
         createdAt: '2026-05-06T00:00:00.000Z',
-        revokedAt: null,
+        updatedAt: '2026-05-06T00:00:00.000Z',
+        disabledAt: null,
       },
     ])
   })
@@ -380,17 +299,18 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(402)
   })
 
-  it('returns 402 for Cloud delivery when Pro quota_store is absent', async () => {
+  it('returns 402 for Cloud quota-change webhook when Pro quota_store is absent', async () => {
     const { app, db } = await createTestApp()
     await seedSettingsRow(db)
     const payload = JSON.stringify({
       eventId: 'evt-no-pro',
+      eventType: 'order.quota_changed',
       cloudOrderId: 'order-no-pro',
       targetOrgId: 'org-no-pro',
       source: 'stripe',
-      resourceType: 'storage',
-      operation: 'increase',
-      resourceBytes: 1024,
+      direction: 'increase',
+      storageBytes: 1024,
+      trafficBytes: 0,
     })
 
     const res = await postWebhook(app, payload)
@@ -509,7 +429,7 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('accepts Cloud package object lists and compatibility PUT updates', async () => {
+  it('accepts Cloud package object lists and PUT updates', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -523,8 +443,8 @@ describe('Quota Store API', () => {
             id: 'cloud-pkg-object',
             name: 'Object Shape',
             description: null,
-            resourceType: 'traffic',
-            resourceBytes: 4096,
+            storageBytes: 0,
+            trafficBytes: 4096,
             prices: [
               { currency: 'usd', amount: 500 },
               { currency: 'cny', amount: 3600 },
@@ -614,7 +534,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkout', {
+    const checkout = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: {
         ...headers,
@@ -669,7 +589,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkout', {
+    const checkout = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: {
         ...headers,
@@ -697,7 +617,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('http://files.example.com/api/quota-store/checkout', {
+    const checkout = await app.request('http://files.example.com/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, Host: 'localhost', 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -720,7 +640,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkout', {
+    const checkout = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -743,7 +663,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkout', {
+    const checkout = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -766,7 +686,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkout', {
+    const checkout = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -891,62 +811,60 @@ describe('Quota Store API', () => {
     expect(init.method).toBe('DELETE')
   })
 
-  it('proxies admin storage code management through the bound Cloud API', async () => {
+  it('proxies admin gift card management through the bound Cloud API', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const generated = await app.request('/api/admin/quota-store/storage-codes', {
+    const generated = await app.request('/api/admin/quota-store/gift-cards', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        resourceType: 'traffic',
-        resourceBytes: 4096,
-        maxUses: 3,
+        amount: 4096,
+        currency: 'usd',
         expiresAt: '2026-06-01T00:00:00.000Z',
         count: 2,
       }),
     })
-    const listed = await app.request('/api/admin/quota-store/storage-codes?status=active', { headers })
-    const revoked = await app.request('/api/admin/quota-store/storage-codes/ZS-GEN-1', { method: 'DELETE', headers })
+    const listed = await app.request('/api/admin/quota-store/gift-cards?status=active', { headers })
+    const deleted = await app.request('/api/admin/quota-store/gift-cards/ZS-GEN-1', { method: 'DELETE', headers })
 
     expect(generated.status).toBe(201)
     await expect(generated.json()).resolves.toMatchObject({
       total: 2,
       items: [
-        { code: 'ZS-GEN-1', resourceType: 'traffic', resourceBytes: 4096 },
-        { code: 'ZS-GEN-2', resourceType: 'traffic', resourceBytes: 4096 },
+        { code: 'ZS-GEN-1', initialAmount: 4096, remainingAmount: 4096 },
+        { code: 'ZS-GEN-2', initialAmount: 4096, remainingAmount: 4096 },
       ],
     })
     expect(listed.status).toBe(200)
     await expect(listed.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ code: 'ZS-LIST-1', resourceType: 'storage', resourceBytes: 2048, maxUses: 2 }],
+      items: [{ code: 'ZS-LIST-1', initialAmount: 2048, remainingAmount: 1024 }],
     })
-    expect(revoked.status).toBe(200)
-    await expect(revoked.json()).resolves.toEqual({ code: 'ZS-GEN-1', deleted: true })
+    expect(deleted.status).toBe(200)
+    await expect(deleted.json()).resolves.toEqual({ code: 'ZS-GEN-1', deleted: true })
 
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     const [generateUrl, generateInit] = calls[0]
     const [listUrl, listInit] = calls[1]
-    const [revokeUrl, revokeInit] = calls[2]
-    expect(String(generateUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/storage-codes`)
+    const [deleteUrl, deleteInit] = calls[2]
+    expect(String(generateUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/gift-cards`)
     expect(generateInit.headers).toMatchObject({ Authorization: `Bearer ${REFRESH_TOKEN}` })
     expect(JSON.parse(generateInit.body as string)).toEqual({
-      resourceType: 'traffic',
-      bytes: 4096,
-      max_uses: 3,
+      amount: 4096,
+      currency: 'usd',
       expires_at: '2026-06-01T00:00:00.000Z',
       count: 2,
     })
-    expect(String(listUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/storage-codes?status=active`)
+    expect(String(listUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/gift-cards?status=active`)
     expect(listInit.headers).toMatchObject({ Authorization: `Bearer ${REFRESH_TOKEN}` })
-    expect(String(revokeUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/storage-codes/ZS-GEN-1`)
-    expect(revokeInit.method).toBe('DELETE')
+    expect(String(deleteUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/gift-cards/ZS-GEN-1`)
+    expect(deleteInit.method).toBe('DELETE')
   })
 
-  it('patches admin storage code state through Cloud', async () => {
+  it('disables admin gift cards through Cloud', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -954,48 +872,48 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({}),
+      json: async () => cloudGiftCard({ code: 'ZS-GEN-1', status: 'disabled' }),
     } as Response)
 
-    const res = await app.request('/api/admin/quota-store/storage-codes/ZS-GEN-1', {
+    const res = await app.request('/api/admin/quota-store/gift-cards/ZS-GEN-1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ revoked: true }),
+      body: JSON.stringify({ disabled: true }),
     })
 
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ code: 'ZS-GEN-1', revoked: true })
+    await expect(res.json()).resolves.toEqual({ code: 'ZS-GEN-1', disabled: true })
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/storage-codes/ZS-GEN-1`)
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/gift-cards/ZS-GEN-1`)
     expect(init.method).toBe('PATCH')
-    expect(JSON.parse(init.body as string)).toEqual({ revoked: true })
+    expect(JSON.parse(init.body as string)).toEqual({ disabled: true })
   })
 
-  it('rejects non-admin storage code management', async () => {
+  it('rejects non-admin gift card management', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const admin = await adminHeaders(app)
     await seedSettings(app, admin)
     const headers = await authedHeaders(app, 'buyer@example.com')
 
-    const res = await app.request('/api/admin/quota-store/storage-codes', { headers })
+    const res = await app.request('/api/admin/quota-store/gift-cards', { headers })
 
     expect(res.status).toBe(403)
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('proxies admin delivery records from Cloud grants', async () => {
+  it('proxies admin store orders from Cloud', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/admin/quota-store/delivery-records', { headers })
+    const res = await app.request('/api/admin/quota-store/orders', { headers })
 
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({ total: 1, items: [{ id: 'cloud-grant-1', bytes: 512 }] })
+    await expect(res.json()).resolves.toMatchObject({ total: 1, items: [{ id: 'cloud-order-1', storageBytes: 512 }] })
     const [url] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/grants`)
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/orders`)
   })
 
   it('updates packages through Cloud', async () => {
@@ -1010,8 +928,8 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         name: 'Small',
         description: '',
-        resourceType: 'storage',
-        resourceBytes: 4096,
+        storageBytes: 4096,
+        trafficBytes: 0,
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -1059,8 +977,8 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         name: 'Small',
         description: '',
-        resourceType: 'storage',
-        resourceBytes: 4096,
+        storageBytes: 4096,
+        trafficBytes: 0,
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -1095,7 +1013,7 @@ describe('Quota Store API', () => {
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/quota-store/checkout', {
+    const res = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId: 'pkg-1', targetOrgId: 'other-org' }),
@@ -1119,22 +1037,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(403)
   })
 
-  it('rejects redemption target orgs the user cannot access', async () => {
-    const { app, db } = await createTestApp()
-    await seedProLicense(db)
-    const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
-
-    const res = await app.request('/api/quota-store/redemptions', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'CODE-NOPE', targetOrgId: 'other-org' }),
-    })
-
-    expect(res.status).toBe(403)
-  })
-
-  it('lists purchasable packages, targets, checkout, redemptions, and grants', async () => {
+  it('lists purchasable packages, targets, checkout, and orders', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1147,14 +1050,9 @@ describe('Quota Store API', () => {
     const checkout = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId, currency: 'cny' }),
+      body: JSON.stringify({ packageId, targetOrgId: orgId, currency: 'cny', giftCardCode: 'GIFT-OK' }),
     })
-    const redemption = await app.request('/api/quota-store/redemptions', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'CODE-OK', targetOrgId: orgId }),
-    })
-    const grants = await app.request('/api/quota-store/grants', { headers })
+    const orders = await app.request('/api/quota-store/orders', { headers })
 
     expect(packages.status).toBe(200)
     await expect(packages.json()).resolves.toMatchObject({
@@ -1165,20 +1063,11 @@ describe('Quota Store API', () => {
     await expect(targets.json()).resolves.toMatchObject({ total: 1, items: [{ orgId, type: 'personal' }] })
     expect(checkout.status).toBe(200)
     await expect(checkout.json()).resolves.toEqual({ checkoutUrl: 'https://cloud.example/checkout' })
-    expect(redemption.status).toBe(200)
-    await expect(redemption.json()).resolves.toMatchObject({ ok: true })
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     const [checkoutUrl, checkoutInit] = calls.find(([url]) => String(url).includes('/api/store/checkouts'))!
-    const [redemptionUrl, redemptionInit] = calls.find(([url]) => String(url).includes('/api/store/redemptions'))!
     const checkoutBody = JSON.parse(String(checkoutInit.body))
-    const redemptionBody = JSON.parse(String(redemptionInit.body))
     expect(String(checkoutUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/checkouts`)
-    expect(String(redemptionUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}/api/store/redemptions`)
     expect(checkoutInit.headers).toEqual({
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${REFRESH_TOKEN}`,
-    })
-    expect(redemptionInit.headers).toEqual({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${REFRESH_TOKEN}`,
     })
@@ -1187,27 +1076,20 @@ describe('Quota Store API', () => {
       packageId,
       targetOrgId: orgId,
       currency: 'cny',
+      giftCardCode: 'GIFT-OK',
       terminalUserId: expect.any(String),
       terminalUserLabel: 'buyer@example.com',
       successUrl: 'http://localhost/storage',
       cancelUrl: 'http://localhost/storage',
     })
     expect(checkoutBody).not.toHaveProperty('session')
-    expect(redemptionBody).toMatchObject({
-      boundLicenseId: 'test-binding',
-      code: 'CODE-OK',
-      targetOrgId: orgId,
-      terminalUserId: expect.any(String),
-      terminalUserLabel: 'buyer@example.com',
-    })
-    expect(redemptionBody).not.toHaveProperty('session')
-    expect(grants.status).toBe(200)
-    await expect(grants.json()).resolves.toMatchObject({
+    expect(orders.status).toBe(200)
+    await expect(orders.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-grant-1', orgId, bytes: 512 }],
+      items: [{ id: 'cloud-order-1', orgId, storageBytes: 512 }],
     })
-    const [grantsUrl] = calls.find(([url]) => String(url).includes('/api/store/grants'))!
-    expect(String(grantsUrl)).toContain(`targetOrgIds=${encodeURIComponent(orgId)}`)
+    const [ordersUrl] = calls.find(([url]) => String(url).includes('/api/store/orders'))!
+    expect(String(ordersUrl)).toContain(`targetOrgIds=${encodeURIComponent(orgId)}`)
   })
 
   it('hides self-service packages when the store is disabled', async () => {
@@ -1227,17 +1109,12 @@ describe('Quota Store API', () => {
     const packageId = await seedPackage(db)
     const packages = await app.request('/api/quota-store/packages', { headers })
     const targets = await app.request('/api/quota-store/targets', { headers })
-    const checkout = await app.request('/api/quota-store/checkout', {
+    const checkout = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
     })
-    const redemption = await app.request('/api/quota-store/redemptions', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'CODE-OK', targetOrgId: orgId }),
-    })
-    const grants = await app.request('/api/quota-store/grants', { headers })
+    const orders = await app.request('/api/quota-store/orders', { headers })
 
     expect(packages.status).toBe(403)
     await expect(packages.json()).resolves.toEqual({ error: 'quota_store_disabled' })
@@ -1245,10 +1122,8 @@ describe('Quota Store API', () => {
     await expect(targets.json()).resolves.toEqual({ error: 'quota_store_disabled' })
     expect(checkout.status).toBe(403)
     await expect(checkout.json()).resolves.toEqual({ error: 'quota_store_disabled' })
-    expect(redemption.status).toBe(403)
-    await expect(redemption.json()).resolves.toEqual({ error: 'quota_store_disabled' })
-    expect(grants.status).toBe(403)
-    await expect(grants.json()).resolves.toEqual({ error: 'quota_store_disabled' })
+    expect(orders.status).toBe(403)
+    await expect(orders.json()).resolves.toEqual({ error: 'quota_store_disabled' })
   })
 
   it('hides self-service store endpoints until Cloud is bound', async () => {
@@ -1262,17 +1137,12 @@ describe('Quota Store API', () => {
     const packageId = await seedPackage(db)
     const packages = await app.request('/api/quota-store/packages', { headers })
     const targets = await app.request('/api/quota-store/targets', { headers })
-    const checkout = await app.request('/api/quota-store/checkout', {
+    const checkout = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
     })
-    const redemption = await app.request('/api/quota-store/redemptions', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'CODE-OK', targetOrgId: orgId }),
-    })
-    const grants = await app.request('/api/quota-store/grants', { headers })
+    const orders = await app.request('/api/quota-store/orders', { headers })
 
     expect(packages.status).toBe(402)
     await expect(packages.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
@@ -1280,10 +1150,8 @@ describe('Quota Store API', () => {
     await expect(targets.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
     expect(checkout.status).toBe(402)
     await expect(checkout.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
-    expect(redemption.status).toBe(402)
-    await expect(redemption.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
-    expect(grants.status).toBe(402)
-    await expect(grants.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
+    expect(orders.status).toBe(402)
+    await expect(orders.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
   })
 
   it('rejects malformed successful checkout responses', async () => {
@@ -1295,7 +1163,7 @@ describe('Quota Store API', () => {
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
 
-    const res = await app.request('/api/quota-store/checkout', {
+    const res = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -1318,7 +1186,7 @@ describe('Quota Store API', () => {
       json: async () => ({ error: 'cloud_down' }),
     } as Response)
 
-    const res = await app.request('/api/quota-store/checkout', {
+    const res = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -1341,7 +1209,7 @@ describe('Quota Store API', () => {
       json: async () => ({ error: 504 }),
     } as Response)
 
-    const res = await app.request('/api/quota-store/checkout', {
+    const res = await app.request('/api/quota-store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -1351,7 +1219,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toEqual({ error: 'cloud_request_failed_504' })
   })
 
-  it('accepts current Cloud delivery tokens with audience equal to instance id', async () => {
+  it('accepts current Cloud quota-change webhook tokens with audience equal to instance id', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1361,9 +1229,10 @@ describe('Quota Store API', () => {
       eventId: 'evt-cloud-pr-15-token',
       cloudOrderId: 'order-cloud-pr-15-token',
       targetOrgId: orgId,
-      resourceType: 'storage',
-      operation: 'increase',
-      resourceBytes: 4096,
+      eventType: 'order.quota_changed',
+      direction: 'increase',
+      storageBytes: 4096,
+      trafficBytes: 0,
       source: 'stripe',
     })
 
@@ -1373,7 +1242,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ success: true, duplicate: false })
   })
 
-  it("accepts Cloud PR #16 delivery tokens with audience='license_1' and boundLicenseId='binding_1'", async () => {
+  it("accepts Cloud PR #16 quota-change webhook tokens with audience='license_1' and boundLicenseId='binding_1'", async () => {
     const { app, db } = await createTestApp()
     await seedCloudPr16License(db)
     const headers = await adminHeaders(app)
@@ -1383,9 +1252,10 @@ describe('Quota Store API', () => {
       eventId: 'evt-cloud-pr-16-token',
       cloudOrderId: 'order-cloud-pr-16-token',
       targetOrgId: orgId,
-      resourceType: 'storage',
-      operation: 'increase',
-      resourceBytes: 4096,
+      eventType: 'order.quota_changed',
+      direction: 'increase',
+      storageBytes: 4096,
+      trafficBytes: 0,
       source: 'stripe',
     })
 
@@ -1402,7 +1272,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ success: true, duplicate: false })
   })
 
-  it('valid Cloud delivery updates org quota once and records audit', async () => {
+  it('valid Cloud quota-change webhook updates org quota once and records audit', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1414,9 +1284,10 @@ describe('Quota Store API', () => {
       eventId: 'evt-1',
       cloudOrderId: 'order-1',
       targetOrgId: orgId,
-      resourceType: 'storage',
-      operation: 'increase',
-      resourceBytes: 4096,
+      eventType: 'order.quota_changed',
+      direction: 'increase',
+      storageBytes: 4096,
+      trafficBytes: 0,
       source: 'stripe',
     })
 
@@ -1428,19 +1299,39 @@ describe('Quota Store API', () => {
     expect(duplicate.status).toBe(200)
     await expect(duplicate.json()).resolves.toMatchObject({ success: true, duplicate: true, eventId: 'evt-1' })
     const events = await db.all<{ status: string; error: string | null; processedAt: number | null }>(
-      sql`SELECT status, error, processed_at AS processedAt FROM quota_delivery_events WHERE event_id = 'evt-1'`,
+      sql`SELECT status, error, processed_at AS processedAt FROM webhook_events WHERE event_id = 'evt-1'`,
     )
     expect(events).toEqual([{ status: 'processed', error: null, processedAt: expect.any(Number) }])
 
     const quotaRes = await app.request('/api/quotas/me', { headers })
-    const quota = (await quotaRes.json()) as { baseQuota: number; grantedQuota: number; quota: number }
-    expect(quota.grantedQuota).toBe(0)
+    const quota = (await quotaRes.json()) as { baseQuota: number; quota: number }
     expect(quota.quota).toBe(before[0].quota + 4096)
     const audit = await db.all<{ action: string; metadata: string }>(
       sql`SELECT action, metadata FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 1`,
     )
-    expect(audit[0].action).toBe('quota_storage_increase')
-    expect(JSON.parse(audit[0].metadata)).toMatchObject({ eventId: 'evt-1', resourceBytes: 4096 })
+    expect(audit[0].action).toBe('quota_order_increase')
+    expect(JSON.parse(audit[0].metadata)).toMatchObject({ eventId: 'evt-1', storageBytes: 4096, trafficBytes: 0 })
+  })
+
+  it('rejects legacy order delivery event types', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const payload = JSON.stringify({
+      eventId: 'evt-legacy-event-type',
+      eventType: 'order.delivered',
+      cloudOrderId: 'order-legacy-event-type',
+      targetOrgId: await getFirstOrgId(db),
+      direction: 'increase',
+      storageBytes: 4096,
+      trafficBytes: 0,
+    })
+
+    const res = await postWebhook(app, payload)
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toEqual({ error: 'invalid_payload' })
   })
 
   it('applies storage decreases without going below zero', async () => {
@@ -1455,10 +1346,12 @@ describe('Quota Store API', () => {
       app,
       JSON.stringify({
         eventId: 'evt-storage-decrease',
+        cloudOrderId: 'order-storage-decrease',
         targetOrgId: orgId,
-        resourceType: 'storage',
-        operation: 'decrease',
-        resourceBytes: 4096,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 4096,
+        trafficBytes: 0,
       }),
     )
 
@@ -1478,20 +1371,24 @@ describe('Quota Store API', () => {
       app,
       JSON.stringify({
         eventId: 'evt-traffic-increase',
+        cloudOrderId: 'order-traffic-increase',
         targetOrgId: orgId,
-        resourceType: 'traffic',
-        operation: 'increase',
-        resourceBytes: 4096,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 0,
+        trafficBytes: 4096,
       }),
     )
     await postWebhook(
       app,
       JSON.stringify({
         eventId: 'evt-traffic-decrease',
+        cloudOrderId: 'order-traffic-decrease',
         targetOrgId: orgId,
-        resourceType: 'traffic',
-        operation: 'decrease',
-        resourceBytes: 1024,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 0,
+        trafficBytes: 1024,
       }),
     )
 
@@ -1499,52 +1396,6 @@ describe('Quota Store API', () => {
       sql`SELECT traffic_quota AS trafficQuota FROM org_quotas WHERE org_id = ${orgId}`,
     )
     expect(rows[0].trafficQuota).toBe(3072)
-  })
-
-  it('does not apply the same redemption code twice', async () => {
-    const { app, db } = await createTestApp()
-    await seedProLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
-    const before = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
-
-    const first = await postWebhook(
-      app,
-      JSON.stringify({
-        eventId: 'evt-code-first',
-        cloudRedemptionId: 'redemption-first',
-        targetOrgId: orgId,
-        resourceType: 'storage',
-        operation: 'increase',
-        resourceBytes: 4096,
-        source: 'redeem_code',
-        code: 'ZS-SAME-CODE',
-      }),
-    )
-    const duplicate = await postWebhook(
-      app,
-      JSON.stringify({
-        eventId: 'evt-code-second',
-        cloudRedemptionId: 'redemption-second',
-        targetOrgId: orgId,
-        resourceType: 'storage',
-        operation: 'increase',
-        resourceBytes: 4096,
-        source: 'redeem_code',
-        code: 'ZS-SAME-CODE',
-      }),
-    )
-
-    expect(first.status).toBe(200)
-    expect(duplicate.status).toBe(200)
-    await expect(duplicate.json()).resolves.toMatchObject({ success: true, duplicate: true })
-    const rows = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
-    expect(rows[0].quota).toBe(before[0].quota + 4096)
-    const deliveries = await db.all<{ status: string }>(
-      sql`SELECT status FROM quota_delivery_events WHERE code = 'ZS-SAME-CODE'`,
-    )
-    expect(deliveries).toEqual([{ status: 'processed' }])
   })
 
   it('processes same-order increase then decrease as two independent events', async () => {
@@ -1561,9 +1412,10 @@ describe('Quota Store API', () => {
         eventId: 'evt-order-increase',
         cloudOrderId: 'order-reversal-test',
         targetOrgId: orgId,
-        resourceType: 'storage',
-        operation: 'increase',
-        resourceBytes: 4096,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 4096,
+        trafficBytes: 0,
         source: 'stripe',
       }),
     )
@@ -1573,9 +1425,10 @@ describe('Quota Store API', () => {
         eventId: 'evt-order-decrease',
         cloudOrderId: 'order-reversal-test',
         targetOrgId: orgId,
-        resourceType: 'storage',
-        operation: 'decrease',
-        resourceBytes: 4096,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 4096,
+        trafficBytes: 0,
         source: 'stripe',
       }),
     )
@@ -1589,7 +1442,7 @@ describe('Quota Store API', () => {
     expect(rows[0].quota).toBe(8192)
 
     const deliveries = await db.all<{ eventId: string; status: string }>(
-      sql`SELECT event_id AS eventId, status FROM quota_delivery_events WHERE cloud_order_id = 'order-reversal-test' ORDER BY created_at`,
+      sql`SELECT event_id AS eventId, status FROM webhook_events WHERE event_id IN ('evt-order-increase', 'evt-order-decrease') ORDER BY created_at`,
     )
     expect(deliveries).toEqual([
       { eventId: 'evt-order-increase', status: 'processed' },
@@ -1599,8 +1452,8 @@ describe('Quota Store API', () => {
     const auditRows = await db.all<{ action: string }>(
       sql`SELECT action FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 2`,
     )
-    expect(auditRows.map((r) => r.action)).toContain('quota_storage_decrease')
-    expect(auditRows.map((r) => r.action)).toContain('quota_storage_increase')
+    expect(auditRows.map((r) => r.action)).toContain('quota_order_decrease')
+    expect(auditRows.map((r) => r.action)).toContain('quota_order_increase')
   })
 
   it('replaying the same decrease event is idempotent and does not double-deduct', async () => {
@@ -1615,9 +1468,10 @@ describe('Quota Store API', () => {
       eventId: 'evt-decrease-idempotent',
       cloudOrderId: 'order-decrease-dup',
       targetOrgId: orgId,
-      resourceType: 'storage',
-      operation: 'decrease',
-      resourceBytes: 2048,
+      eventType: 'order.quota_changed',
+      direction: 'decrease',
+      storageBytes: 2048,
+      trafficBytes: 0,
       source: 'stripe',
     })
 
@@ -1651,9 +1505,10 @@ describe('Quota Store API', () => {
         eventId: 'evt-audit-decrease',
         cloudOrderId: 'order-audit-dec',
         targetOrgId: orgId,
-        resourceType: 'storage',
-        operation: 'decrease',
-        resourceBytes: 1024,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 1024,
+        trafficBytes: 0,
         source: 'stripe',
       }),
     )
@@ -1661,12 +1516,13 @@ describe('Quota Store API', () => {
     const audit = await db.all<{ action: string; metadata: string }>(
       sql`SELECT action, metadata FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 1`,
     )
-    expect(audit[0].action).toBe('quota_storage_decrease')
+    expect(audit[0].action).toBe('quota_order_decrease')
     expect(JSON.parse(audit[0].metadata)).toMatchObject({
       eventId: 'evt-audit-decrease',
-      resourceType: 'storage',
-      operation: 'decrease',
-      resourceBytes: 1024,
+      eventType: 'order.quota_changed',
+      direction: 'decrease',
+      storageBytes: 1024,
+      trafficBytes: 0,
     })
   })
 
@@ -1683,9 +1539,10 @@ describe('Quota Store API', () => {
         eventId: 'evt-traffic-order-inc',
         cloudOrderId: 'order-traffic-reversal',
         targetOrgId: orgId,
-        resourceType: 'traffic',
-        operation: 'increase',
-        resourceBytes: 8192,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 0,
+        trafficBytes: 8192,
         source: 'stripe',
       }),
     )
@@ -1695,9 +1552,10 @@ describe('Quota Store API', () => {
         eventId: 'evt-traffic-order-dec',
         cloudOrderId: 'order-traffic-reversal',
         targetOrgId: orgId,
-        resourceType: 'traffic',
-        operation: 'decrease',
-        resourceBytes: 8192,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 0,
+        trafficBytes: 8192,
         source: 'stripe',
       }),
     )
@@ -1721,9 +1579,10 @@ describe('Quota Store API', () => {
       eventId: 'evt-hash-conflict',
       cloudOrderId: 'order-hash-conflict',
       targetOrgId: orgId,
-      resourceType: 'storage',
-      operation: 'increase',
-      resourceBytes: 4096,
+      eventType: 'order.quota_changed',
+      direction: 'increase',
+      storageBytes: 4096,
+      trafficBytes: 0,
       source: 'stripe',
     })
 
@@ -1734,16 +1593,17 @@ describe('Quota Store API', () => {
         eventId: 'evt-hash-conflict',
         cloudOrderId: 'order-hash-conflict',
         targetOrgId: orgId,
-        resourceType: 'storage',
-        operation: 'increase',
-        resourceBytes: 8192,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 8192,
+        trafficBytes: 0,
         source: 'stripe',
       }),
     )
 
     expect(first.status).toBe(200)
     expect(retry.status).toBe(400)
-    await expect(retry.json()).resolves.toEqual({ error: 'delivery_payload_conflict' })
+    await expect(retry.json()).resolves.toEqual({ error: 'webhook_payload_conflict' })
   })
 
   it('allows failed delivery retries when the payload is unchanged', async () => {
@@ -1757,9 +1617,10 @@ describe('Quota Store API', () => {
       eventId: 'evt-failed-same-payload',
       cloudOrderId: 'order-failed-same-payload',
       targetOrgId: orgId,
-      resourceType: 'storage',
-      operation: 'increase',
-      resourceBytes: 4096,
+      eventType: 'order.quota_changed',
+      direction: 'increase',
+      storageBytes: 4096,
+      trafficBytes: 0,
       source: 'stripe',
     })
 
@@ -1775,12 +1636,12 @@ describe('Quota Store API', () => {
     expect(retry.status).toBe(200)
     await expect(retry.json()).resolves.toMatchObject({ success: true, duplicate: false })
     const deliveries = await db.all<{ status: string; error: string | null }>(
-      sql`SELECT status, error FROM quota_delivery_events WHERE event_id = 'evt-failed-same-payload'`,
+      sql`SELECT status, error FROM webhook_events WHERE event_id = 'evt-failed-same-payload'`,
     )
     expect(deliveries).toEqual([{ status: 'processed', error: null }])
   })
 
-  it('rejects missing Cloud delivery auth', async () => {
+  it('rejects missing Cloud quota-change webhook auth', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1797,7 +1658,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects malformed Cloud delivery event tokens', async () => {
+  it('rejects malformed Cloud quota-change webhook event tokens', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1816,7 +1677,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects Cloud delivery event tokens with the wrong purpose', async () => {
+  it('rejects Cloud quota-change webhook event tokens with the wrong purpose', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1835,7 +1696,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects expired Cloud delivery event tokens', async () => {
+  it('rejects expired Cloud quota-change webhook event tokens', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1855,7 +1716,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects Cloud delivery event tokens without issuedAt', async () => {
+  it('rejects Cloud quota-change webhook event tokens without issuedAt', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1874,7 +1735,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects Cloud delivery event tokens with future issuedAt and no notBefore', async () => {
+  it('rejects Cloud quota-change webhook event tokens with future issuedAt and no notBefore', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1894,7 +1755,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects Cloud delivery event tokens with an overlong TTL', async () => {
+  it('rejects Cloud quota-change webhook event tokens with an overlong TTL', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1914,7 +1775,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects Cloud delivery event tokens with the wrong payload hash', async () => {
+  it('rejects Cloud quota-change webhook event tokens with the wrong payload hash', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1933,7 +1794,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects Cloud delivery event tokens with a mismatched event id', async () => {
+  it('rejects Cloud quota-change webhook event tokens with a mismatched event id', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1942,9 +1803,10 @@ describe('Quota Store API', () => {
       eventId: 'evt-body-id',
       cloudOrderId: 'order-event-id',
       targetOrgId: await getFirstOrgId(db),
-      resourceType: 'storage',
-      operation: 'increase',
-      resourceBytes: 4096,
+      eventType: 'order.quota_changed',
+      direction: 'increase',
+      storageBytes: 4096,
+      trafficBytes: 0,
       source: 'stripe',
     })
 
@@ -1960,7 +1822,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects Cloud delivery event tokens with the wrong audience', async () => {
+  it('rejects Cloud quota-change webhook event tokens with the wrong audience', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -2002,26 +1864,6 @@ describe('Quota Store API', () => {
       cloudOrderId: 'order-no-package',
       targetOrgId: await getFirstOrgId(db),
       source: 'stripe',
-    })
-
-    const res = await postWebhook(app, payload)
-
-    expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
-  })
-
-  it('rejects redemption deliveries without a Cloud redemption id', async () => {
-    const { app, db } = await createTestApp()
-    await seedProLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    const payload = JSON.stringify({
-      eventId: 'evt-no-code',
-      targetOrgId: await getFirstOrgId(db),
-      resourceType: 'storage',
-      operation: 'increase',
-      resourceBytes: 4096,
-      source: 'redeem_code',
     })
 
     const res = await postWebhook(app, payload)

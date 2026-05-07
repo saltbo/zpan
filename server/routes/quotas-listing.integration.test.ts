@@ -28,14 +28,6 @@ describe('Admin quota listing', () => {
       VALUES ('team-quota-listing-row', 'team-quota-listing', 2000, 100, 3000, 2500, '1970-01')
     `)
     await db.run(sql`UPDATE org_quotas SET traffic_quota = 1000, traffic_used = 900, traffic_period = '1970-01'`)
-    await db.run(sql`
-      INSERT INTO quota_grants (id, org_id, source, external_event_id, bytes, active, created_at)
-      VALUES
-        ('grant-active-a', ${adminOrg[0].id}, 'stripe', 'evt-active-a', 500, 1, ${now}),
-        ('grant-active-b', ${adminOrg[0].id}, 'stripe', 'evt-active-b', 700, 1, ${now}),
-        ('grant-inactive', ${adminOrg[0].id}, 'stripe', 'evt-inactive', 900, 0, ${now})
-    `)
-
     const res = await app.request('/api/admin/quotas', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
@@ -46,6 +38,6 @@ describe('Admin quota listing', () => {
     expect(body.items.every((item) => /^\d{4}-\d{2}$/.test(String(item.trafficPeriod)))).toBe(true)
 
     const adminItem = body.items.find((item) => item.orgId === adminOrg[0].id)
-    expect(adminItem).toMatchObject({ baseQuota: 10485760, grantedQuota: 0, quota: 10485760 })
+    expect(adminItem).toMatchObject({ baseQuota: 10485760, quota: 10485760 })
   })
 })

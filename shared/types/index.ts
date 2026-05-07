@@ -44,8 +44,7 @@ export interface OrgQuota {
   trafficPeriod: string
 }
 
-export type QuotaGrantSource = 'stripe' | 'redeem_code' | 'admin_adjustment'
-export type QuotaDeliveryEventStatus = 'processed' | 'duplicate' | 'failed'
+export type WebhookEventStatus = 'processed' | 'duplicate' | 'failed'
 
 export interface QuotaStoreSettings {
   id: string
@@ -73,32 +72,41 @@ export interface QuotaStorePackagePrice {
   amount: number
 }
 
-export interface QuotaGrant {
+export interface StoreOrder {
   id: string
   orgId: string
-  source: QuotaGrantSource
-  externalEventId: string | null
-  cloudOrderId: string | null
-  cloudRedemptionId: string | null
-  code: string | null
-  bytes: number
-  packageSnapshot: string | null
-  grantedBy: string | null
+  packageName: string
+  packageDescription: string | null
+  storageBytes: number
+  trafficBytes: number
+  subtotalAmount: number
+  giftCardAmount: number
+  stripeAmount: number
+  paidAmount: number
+  currency: string
+  giftCardId: string | null
+  stripeSessionId: string | null
+  stripePaymentIntentId: string | null
+  paymentStatus: 'pending' | 'paid' | 'refunded' | 'canceled'
+  fulfillmentStatus: 'pending' | 'delivering' | 'delivered' | 'failed' | null
   terminalUserId: string | null
   terminalUserEmail: string | null
-  active: boolean
   createdAt: string
+  paidAt: string | null
+  fulfilledAt: string | null
 }
 
-export interface StorageRedemptionCode {
+export interface StoreGiftCard {
+  id: string
   code: string
-  resourceType: 'storage' | 'traffic'
-  resourceBytes: number
-  maxUses: number
-  usesCount: number
+  initialAmount: number
+  remainingAmount: number
+  currency: string
+  status: 'active' | 'disabled' | 'exhausted' | 'expired'
   expiresAt: string | null
+  disabledAt: string | null
   createdAt: string
-  revokedAt: string | null
+  updatedAt: string
 }
 
 export interface QuotaTarget {

@@ -22,6 +22,7 @@ import {
   createShare,
   createSiteInvitation,
   createStorage,
+  createStoreGiftCards,
   deleteAnnouncement,
   deleteAvatar,
   deleteIhostConfig,
@@ -30,13 +31,13 @@ import {
   deleteQuotaStorePackage,
   deleteShare,
   deleteStorage,
-  deleteStorageRedemptionCode,
+  deleteStoreGiftCard,
   deleteTeamLogo,
   deleteUser,
+  disableStoreGiftCard,
   disconnectCloud,
   emptyTrash,
   enableIhostFeature,
-  generateStorageRedemptionCodes,
   getAnnouncement,
   getBranding,
   getEmailConfig,
@@ -55,7 +56,7 @@ import {
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
-  listAdminQuotaDeliveryRecords,
+  listAdminStoreOrders,
   listAnnouncements,
   listAuthProviders,
   listIhostApiKeys,
@@ -63,28 +64,26 @@ import {
   listNotifications,
   listObjects,
   listPurchasableQuotaPackages,
-  listQuotaGrants,
   listQuotaStorePackages,
   listQuotaStoreTargets,
   listQuotas,
   listShareObjects,
   listShares,
   listSiteInvitations,
-  listStorageRedemptionCodes,
   listStorages,
+  listStoreGiftCards,
+  listStoreOrders,
   listSystemOptions,
   listUsers,
   markAllNotificationsRead,
   markNotificationRead,
   pollPairing,
-  redeemQuotaCode,
   refreshLicense,
   resendSiteInvitation,
   resetBrandingField,
   restoreObject,
   revokeIhostApiKey,
   revokeSiteInvitation,
-  revokeStorageRedemptionCode,
   saveBranding,
   saveEmailConfig,
   saveShareToDrive,
@@ -364,37 +363,36 @@ describe('api', () => {
       expect(deleteInit.method).toBe('DELETE')
     })
 
-    it('calls admin storage code and delivery record endpoints', async () => {
+    it('calls admin gift card and order endpoints', async () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ items: [{ code: 'ZS123' }], total: 1 }))
-        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', revoked: true }))
+        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', disabled: true }))
         .mockResolvedValueOnce(makeResponse({ code: 'ZS123', deleted: true }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
-      await listStorageRedemptionCodes('active')
-      await generateStorageRedemptionCodes({ resourceType: 'traffic', resourceBytes: 1024, maxUses: 2, count: 3 })
-      await revokeStorageRedemptionCode('ZS123')
-      await deleteStorageRedemptionCode('ZS123')
-      await listAdminQuotaDeliveryRecords()
+      await listStoreGiftCards('active')
+      await createStoreGiftCards({ amount: 1024, currency: 'usd', count: 3 })
+      await disableStoreGiftCard('ZS123')
+      await deleteStoreGiftCard('ZS123')
+      await listAdminStoreOrders()
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
-      expect(calls[0][0]).toBe('/api/admin/quota-store/storage-codes?status=active')
+      expect(calls[0][0]).toBe('/api/admin/quota-store/gift-cards?status=active')
       expect(calls[0][1].method).toBe('GET')
-      expect(calls[1][0]).toBe('/api/admin/quota-store/storage-codes')
+      expect(calls[1][0]).toBe('/api/admin/quota-store/gift-cards')
       expect(calls[1][1].method).toBe('POST')
       expect(JSON.parse(calls[1][1].body as string)).toEqual({
-        resourceType: 'traffic',
-        resourceBytes: 1024,
-        maxUses: 2,
+        amount: 1024,
+        currency: 'usd',
         count: 3,
       })
-      expect(calls[2][0]).toBe('/api/admin/quota-store/storage-codes/ZS123')
+      expect(calls[2][0]).toBe('/api/admin/quota-store/gift-cards/ZS123')
       expect(calls[2][1].method).toBe('PATCH')
-      expect(JSON.parse(calls[2][1].body as string)).toEqual({ revoked: true })
-      expect(calls[3][0]).toBe('/api/admin/quota-store/storage-codes/ZS123')
+      expect(JSON.parse(calls[2][1].body as string)).toEqual({ disabled: true })
+      expect(calls[3][0]).toBe('/api/admin/quota-store/gift-cards/ZS123')
       expect(calls[3][1].method).toBe('DELETE')
-      expect(calls[4][0]).toBe('/api/admin/quota-store/delivery-records')
+      expect(calls[4][0]).toBe('/api/admin/quota-store/orders')
     })
 
     it('calls user store endpoints', async () => {
@@ -402,14 +400,12 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ checkoutUrl: 'https://cloud.example/checkout' }))
-        .mockResolvedValueOnce(makeResponse({ redeemed: true }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
       await listPurchasableQuotaPackages()
       await listQuotaStoreTargets()
-      await createQuotaCheckout('pkg-1', 'org-1', 'cny')
-      await redeemQuotaCode('CODE', 'org-1')
-      await listQuotaGrants()
+      await createQuotaCheckout('pkg-1', 'org-1', 'cny', 'GC123')
+      await listStoreOrders()
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
       expect(calls[0][0]).toBe('/api/quota-store/packages')
@@ -419,10 +415,9 @@ describe('api', () => {
         packageId: 'pkg-1',
         targetOrgId: 'org-1',
         currency: 'cny',
+        giftCardCode: 'GC123',
       })
-      expect(calls[3][0]).toBe('/api/quota-store/redemptions')
-      expect(JSON.parse(calls[3][1].body as string)).toEqual({ code: 'CODE', targetOrgId: 'org-1' })
-      expect(calls[4][0]).toBe('/api/quota-store/grants')
+      expect(calls[3][0]).toBe('/api/quota-store/orders')
     })
 
     it('throws ApiError for quota store failures', async () => {
@@ -454,19 +449,15 @@ describe('api', () => {
           }),
       ],
       ['deleteQuotaStorePackage', () => deleteQuotaStorePackage('pkg-1')],
-      ['listStorageRedemptionCodes', () => listStorageRedemptionCodes()],
-      [
-        'generateStorageRedemptionCodes',
-        () => generateStorageRedemptionCodes({ resourceType: 'storage', resourceBytes: 1024, count: 1 }),
-      ],
-      ['revokeStorageRedemptionCode', () => revokeStorageRedemptionCode('ZS123')],
-      ['deleteStorageRedemptionCode', () => deleteStorageRedemptionCode('ZS123')],
-      ['listAdminQuotaDeliveryRecords', () => listAdminQuotaDeliveryRecords()],
+      ['listStoreGiftCards', () => listStoreGiftCards()],
+      ['createStoreGiftCards', () => createStoreGiftCards({ amount: 1024, currency: 'usd', count: 1 })],
+      ['disableStoreGiftCard', () => disableStoreGiftCard('ZS123')],
+      ['deleteStoreGiftCard', () => deleteStoreGiftCard('ZS123')],
+      ['listAdminStoreOrders', () => listAdminStoreOrders()],
       ['listPurchasableQuotaPackages', () => listPurchasableQuotaPackages()],
       ['listQuotaStoreTargets', () => listQuotaStoreTargets()],
       ['createQuotaCheckout', () => createQuotaCheckout('pkg-1', 'org-1')],
-      ['redeemQuotaCode', () => redeemQuotaCode('CODE', 'org-1')],
-      ['listQuotaGrants', () => listQuotaGrants()],
+      ['listStoreOrders', () => listStoreOrders()],
     ])('throws ApiError for %s failures', async (_name, call) => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'quota store failed' }, false, 400))
 
@@ -1109,7 +1100,6 @@ describe('api', () => {
       const payload = {
         orgId: 'org1',
         baseQuota: 1024,
-        grantedQuota: 0,
         quota: 1024,
         used: 256,
         trafficQuota: 2048,

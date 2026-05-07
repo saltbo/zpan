@@ -1,12 +1,17 @@
-import type { StorageCodeStatus } from '@shared/schemas'
+import type { GiftCardStatus } from '@shared/schemas'
 import type { QuotaStorePackage, QuotaStoreSettings } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { CheckCircle2, CircleSlash2, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StorageDeliveryRecords } from '@/components/admin/storage-delivery-records'
-import { CodesTab, PackagesTab, useCodeActions, usePackageEditor } from '@/components/admin/storage-plans-admin-actions'
+import { StorageOrdersTable } from '@/components/admin/storage-orders-table'
+import {
+  GiftCardsTab,
+  PackagesTab,
+  useGiftCardActions,
+  usePackageEditor,
+} from '@/components/admin/storage-plans-admin-actions'
 import {
   type StoragePlansAdminTab,
   StoragePlansTabBar,
@@ -19,9 +24,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import {
   ApiError,
   getQuotaStoreSettings,
-  listAdminQuotaDeliveryRecords,
+  listAdminStoreOrders,
   listQuotaStorePackages,
-  listStorageRedemptionCodes,
+  listStoreGiftCards,
 } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/storage-plans')({
@@ -38,19 +43,19 @@ export function AdminStoragePlansPage() {
 
 function useAdminStoragePlansState() {
   const [activeTab, setActiveTab] = useState<StoragePlansAdminTab>('packages')
-  const [codeStatus, setCodeStatus] = useState<StorageCodeStatus | 'all'>('all')
+  const [giftCardStatus, setGiftCardStatus] = useState<GiftCardStatus | 'all'>('all')
   const query = useQuery({ queryKey: ['admin', 'storage-plans'], queryFn: loadAdminStoragePlans })
   const packageEditor = usePackageEditor()
-  const codeActions = useCodeActions()
-  const codesQuery = useQuery({
-    queryKey: ['admin', 'storage-plans', 'storage-codes', codeStatus],
-    queryFn: () => listStorageRedemptionCodes(codeStatus === 'all' ? undefined : codeStatus),
+  const giftCardActions = useGiftCardActions()
+  const giftCardsQuery = useQuery({
+    queryKey: ['admin', 'storage-plans', 'gift-cards', giftCardStatus],
+    queryFn: () => listStoreGiftCards(giftCardStatus === 'all' ? undefined : giftCardStatus),
     enabled: query.data?.available === true && activeTab === 'codes',
     retry: false,
   })
-  const deliveryQuery = useQuery({
-    queryKey: ['admin', 'storage-plans', 'delivery-records'],
-    queryFn: listAdminQuotaDeliveryRecords,
+  const ordersQuery = useQuery({
+    queryKey: ['admin', 'storage-plans', 'orders'],
+    queryFn: listAdminStoreOrders,
     enabled: query.data?.available === true,
     retry: false,
   })
@@ -58,15 +63,15 @@ function useAdminStoragePlansState() {
 
   return {
     activeTab,
-    codeActions,
-    codesQuery,
-    codeStatus,
+    giftCardActions,
+    giftCardsQuery,
+    giftCardStatus,
     data,
-    deliveryQuery,
+    ordersQuery,
     packageEditor,
     query,
     setActiveTab,
-    setCodeStatus,
+    setGiftCardStatus,
   }
 }
 
@@ -186,30 +191,30 @@ function AdminTabs({ state }: { state: AdminStoragePlansReadyState }) {
       {state.activeTab === 'packages' && (
         <PackagesTab available={state.data.available} packages={state.data.packages} editor={state.packageEditor} />
       )}
-      {state.activeTab === 'codes' && <CodesPanel state={state} />}
-      {state.activeTab === 'delivery' && <DeliveryPanel state={state} />}
+      {state.activeTab === 'codes' && <GiftCardsPanel state={state} />}
+      {state.activeTab === 'orders' && <OrdersPanel state={state} />}
     </div>
   )
 }
 
-function CodesPanel({ state }: { state: AdminStoragePlansReadyState }) {
+function GiftCardsPanel({ state }: { state: AdminStoragePlansReadyState }) {
   return (
-    <StoragePlansTabState query={state.codesQuery}>
-      <CodesTab
-        actions={state.codeActions}
+    <StoragePlansTabState query={state.giftCardsQuery}>
+      <GiftCardsTab
+        actions={state.giftCardActions}
         available={state.data.available}
-        codes={state.codesQuery.data?.items ?? []}
-        status={state.codeStatus}
-        onStatusChange={state.setCodeStatus}
+        codes={state.giftCardsQuery.data?.items ?? []}
+        status={state.giftCardStatus}
+        onStatusChange={state.setGiftCardStatus}
       />
     </StoragePlansTabState>
   )
 }
 
-function DeliveryPanel({ state }: { state: AdminStoragePlansReadyState }) {
+function OrdersPanel({ state }: { state: AdminStoragePlansReadyState }) {
   return (
-    <StoragePlansTabState query={state.deliveryQuery}>
-      <StorageDeliveryRecords grants={state.deliveryQuery.data?.items ?? []} />
+    <StoragePlansTabState query={state.ordersQuery}>
+      <StorageOrdersTable orders={state.ordersQuery.data?.items ?? []} />
     </StoragePlansTabState>
   )
 }

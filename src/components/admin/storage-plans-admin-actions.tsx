@@ -1,10 +1,15 @@
-import type { StorageCodeStatus } from '@shared/schemas'
+import type { GiftCardStatus } from '@shared/schemas'
 import type { QuotaStorePackage } from '@shared/types'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import {
+  emptyGiftCardForm,
+  giftCardInputFromForm,
+  StorageGiftCardPanel,
+} from '@/components/admin/storage-gift-card-panel'
 import {
   emptyPackageForm,
   packageFormFromPackage,
@@ -13,16 +18,11 @@ import {
 } from '@/components/admin/storage-plan-form'
 import { StoragePlanList } from '@/components/admin/storage-plan-list'
 import {
-  codeInputFromForm,
-  emptyCodeForm,
-  StorageRedemptionCodePanel,
-} from '@/components/admin/storage-redemption-code-panel'
-import {
   createQuotaStorePackage,
+  createStoreGiftCards,
   deleteQuotaStorePackage,
-  deleteStorageRedemptionCode,
-  generateStorageRedemptionCodes,
-  revokeStorageRedemptionCode,
+  deleteStoreGiftCard,
+  disableStoreGiftCard,
   updateQuotaStorePackage,
 } from '@/lib/api'
 import { Button } from '../ui/button'
@@ -72,14 +72,14 @@ export function usePackageEditor() {
   }
 }
 
-export function useCodeActions() {
-  const [form, setForm] = useState(emptyCodeForm)
-  const [revokingCode, setRevokingCode] = useState<string | null>(null)
-  const [deletingCode, setDeletingCode] = useState<string | null>(null)
-  const generate = useGenerateCodesMutation(form, () => setForm(emptyCodeForm))
-  const revoke = useRevokeCodeMutation(setRevokingCode)
-  const deleteCode = useDeleteCodeMutation(setDeletingCode)
-  return { form, setForm, revokingCode, deletingCode, generate, revoke, deleteCode }
+export function useGiftCardActions() {
+  const [form, setForm] = useState(emptyGiftCardForm)
+  const [disablingGiftCard, setDisablingGiftCard] = useState<string | null>(null)
+  const [deletingGiftCard, setDeletingGiftCard] = useState<string | null>(null)
+  const generate = useGenerateGiftCardsMutation(form, () => setForm(emptyGiftCardForm))
+  const disable = useDisableGiftCardMutation(setDisablingGiftCard)
+  const deleteGiftCard = useDeleteGiftCardMutation(setDeletingGiftCard)
+  return { form, setForm, disablingGiftCard, deletingGiftCard, generate, disable, deleteGiftCard }
 }
 
 export function PackagesTab({
@@ -180,33 +180,33 @@ function DeletePackageDialog({ editor }: { editor: ReturnType<typeof usePackageE
   )
 }
 
-export function CodesTab({
+export function GiftCardsTab({
   actions,
   available,
   codes,
   status,
   onStatusChange,
 }: {
-  actions: ReturnType<typeof useCodeActions>
+  actions: ReturnType<typeof useGiftCardActions>
   available: boolean
-  codes: Parameters<typeof StorageRedemptionCodePanel>[0]['codes']
-  status: StorageCodeStatus | 'all'
-  onStatusChange: (status: StorageCodeStatus | 'all') => void
+  codes: Parameters<typeof StorageGiftCardPanel>[0]['codes']
+  status: GiftCardStatus | 'all'
+  onStatusChange: (status: GiftCardStatus | 'all') => void
 }) {
   return (
-    <StorageRedemptionCodePanel
+    <StorageGiftCardPanel
       codes={codes}
       status={status}
       form={actions.form}
       available={available}
       pending={actions.generate.isPending}
-      revokingCode={actions.revokingCode}
-      deletingCode={actions.deletingCode}
+      disablingGiftCard={actions.disablingGiftCard}
+      deletingGiftCard={actions.deletingGiftCard}
       onStatusChange={onStatusChange}
       onFormChange={actions.setForm}
       onGenerate={() => actions.generate.mutate()}
-      onRevoke={(code) => actions.revoke.mutate(code)}
-      onDelete={(code) => actions.deleteCode.mutate(code)}
+      onRevoke={(code) => actions.disable.mutate(code)}
+      onDelete={(code) => actions.deleteGiftCard.mutate(code)}
     />
   )
 }
@@ -252,44 +252,44 @@ function usePackageDeleteMutation(onDeleted: () => void) {
   })
 }
 
-function useGenerateCodesMutation(form: typeof emptyCodeForm, onGenerated: () => void) {
+function useGenerateGiftCardsMutation(form: typeof emptyGiftCardForm, onGenerated: () => void) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => generateStorageRedemptionCodes(codeInputFromForm(form)),
+    mutationFn: () => createStoreGiftCards(giftCardInputFromForm(form)),
     onSuccess: () => {
       onGenerated()
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'storage-codes'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'gift-cards'] })
       toast.success(t('admin.storagePlans.codes.generated'))
     },
     onError: (err) => toast.error(err.message),
   })
 }
 
-function useRevokeCodeMutation(setRevokingCode: (code: string | null) => void) {
+function useDisableGiftCardMutation(setDisablingGiftCard: (code: string | null) => void) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: revokeStorageRedemptionCode,
-    onMutate: (code) => setRevokingCode(code),
-    onSettled: () => setRevokingCode(null),
+    mutationFn: disableStoreGiftCard,
+    onMutate: (code) => setDisablingGiftCard(code),
+    onSettled: () => setDisablingGiftCard(null),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'storage-codes'] })
-      toast.success(t('admin.storagePlans.codes.revoked'))
+      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'gift-cards'] })
+      toast.success(t('admin.storagePlans.codes.disabled'))
     },
     onError: (err) => toast.error(err.message),
   })
 }
 
-function useDeleteCodeMutation(setDeletingCode: (code: string | null) => void) {
+function useDeleteGiftCardMutation(setDeletingGiftCard: (code: string | null) => void) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: deleteStorageRedemptionCode,
-    onMutate: (code) => setDeletingCode(code),
-    onSettled: () => setDeletingCode(null),
+    mutationFn: deleteStoreGiftCard,
+    onMutate: (code) => setDeletingGiftCard(code),
+    onSettled: () => setDeletingGiftCard(null),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'storage-codes'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'gift-cards'] })
       toast.success(t('admin.storagePlans.codes.deleted'))
     },
     onError: (err) => toast.error(err.message),

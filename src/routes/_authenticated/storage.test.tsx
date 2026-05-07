@@ -1,4 +1,4 @@
-import type { QuotaGrant, QuotaStorePackage } from '@shared/types'
+import type { QuotaStorePackage, StoreOrder } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
@@ -8,9 +8,8 @@ import {
   createQuotaCheckout,
   getUserQuota,
   listPurchasableQuotaPackages,
-  listQuotaGrants,
   listQuotaStoreTargets,
-  redeemQuotaCode,
+  listStoreOrders,
 } from '@/lib/api'
 import { StoragePage } from './storage'
 
@@ -27,6 +26,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
+    info: vi.fn(),
     error: vi.fn(),
   },
 }))
@@ -53,28 +53,34 @@ vi.mock('@/lib/api', () => {
     createQuotaCheckout: vi.fn(),
     getUserQuota: vi.fn(),
     listPurchasableQuotaPackages: vi.fn(),
-    listQuotaGrants: vi.fn(),
     listQuotaStoreTargets: vi.fn(),
-    redeemQuotaCode: vi.fn(),
+    listStoreOrders: vi.fn(),
   }
 })
 
-function grant(overrides: Partial<QuotaGrant> = {}): QuotaGrant {
+function order(overrides: Partial<StoreOrder> = {}): StoreOrder {
   return {
-    id: 'grant-1',
+    id: 'order-1',
     orgId: 'org-1',
-    source: 'stripe' as const,
-    externalEventId: null,
-    cloudOrderId: null,
-    cloudRedemptionId: null,
-    code: null,
-    bytes: 1024,
-    packageSnapshot: null,
-    grantedBy: null,
+    packageName: '100 GB',
+    packageDescription: null,
+    storageBytes: 1024,
+    trafficBytes: 0,
+    subtotalAmount: 999,
+    giftCardAmount: 0,
+    stripeAmount: 999,
+    paidAmount: 999,
+    currency: 'usd',
+    giftCardId: null,
+    stripeSessionId: null,
+    stripePaymentIntentId: null,
+    paymentStatus: 'paid',
+    fulfillmentStatus: 'delivered',
     terminalUserId: null,
     terminalUserEmail: null,
-    active: true,
     createdAt: '2026-05-05T00:00:00.000Z',
+    paidAt: '2026-05-05T00:00:00.000Z',
+    fulfilledAt: '2026-05-05T00:00:00.000Z',
     ...overrides,
   }
 }
@@ -113,7 +119,6 @@ describe('StoragePage', () => {
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
       baseQuota: 1024,
-      grantedQuota: 512,
       quota: 1536,
       used: 0,
       trafficQuota: 0,
@@ -122,14 +127,14 @@ describe('StoragePage', () => {
     })
   })
 
-  it('refreshes quota when a checkout grant is delivered', async () => {
+  it('refreshes quota when a checkout order is delivered', async () => {
     vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listQuotaStoreTargets).mockResolvedValue({
       items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
       total: 1,
     })
-    vi.mocked(listQuotaGrants).mockResolvedValue({
-      items: [grant()],
+    vi.mocked(listStoreOrders).mockResolvedValue({
+      items: [order()],
       total: 1,
     })
 
@@ -151,7 +156,7 @@ describe('StoragePage', () => {
       items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
       total: 1,
     })
-    vi.mocked(listQuotaGrants).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -166,20 +171,19 @@ describe('StoragePage', () => {
     expect(view.getByText('storage.disabledBuying')).toBeTruthy()
     expect(view.getByText('storage.disabledRedeeming')).toBeTruthy()
     expect(view.getByText('storage.disabledExistingStorage')).toBeTruthy()
-    expect(view.queryByLabelText('storage.storageCode')).toBeNull()
+    expect(view.queryByLabelText('storage.giftCardCode')).toBeNull()
     expect(view.queryByText('storage.historyTitle')).toBeNull()
     expect(listQuotaStoreTargets).not.toHaveBeenCalled()
-    expect(listQuotaGrants).not.toHaveBeenCalled()
+    expect(listStoreOrders).not.toHaveBeenCalled()
   })
 
-  it('refreshes quota and grants after redemption', async () => {
+  it('applies gift cards through checkout', async () => {
     vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listQuotaStoreTargets).mockResolvedValue({
       items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
       total: 1,
     })
-    vi.mocked(listQuotaGrants).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(redeemQuotaCode).mockResolvedValue({ ok: true })
+    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -192,13 +196,11 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.redeemTitle' }))
-    fireEvent.change(view.getByLabelText('storage.storageCode'), { target: { value: 'STORE-CODE' } })
+    fireEvent.change(view.getByLabelText('storage.giftCardCode'), { target: { value: 'STORE-CODE' } })
     fireEvent.click(view.getByRole('button', { name: 'storage.redeemButton' }))
 
-    await waitFor(() => expect(redeemQuotaCode).toHaveBeenCalledWith('STORE-CODE', 'org-1'))
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] })
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['storage-plans', 'grants'] })
-    expect(toast.success).toHaveBeenCalledWith('storage.redeemed')
+    expect(toast.info).toHaveBeenCalledWith('storage.applyGiftCardAtCheckout')
+    expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ['storage-plans', 'orders'] })
   })
 
   it('closes the checkout window when checkout fails', async () => {
@@ -207,7 +209,7 @@ describe('StoragePage', () => {
       items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
       total: 1,
     })
-    vi.mocked(listQuotaGrants).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(createQuotaCheckout).mockRejectedValue(new Error('checkout failed'))
     const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
     vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
@@ -225,18 +227,18 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkout/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
+    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd', undefined))
     expect(checkoutWindow.close).toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('checkout failed')
   })
 
-  it('refreshes quota and grants after checkout starts', async () => {
+  it('refreshes quota and orders after checkout starts', async () => {
     vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listQuotaStoreTargets).mockResolvedValue({
       items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
       total: 1,
     })
-    vi.mocked(listQuotaGrants).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(createQuotaCheckout).mockResolvedValue({
       checkoutUrl: 'https://cloud.example.test/checkout',
     })
@@ -259,10 +261,10 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(checkoutWindow.location.href).toBe('https://cloud.example.test/checkout'))
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] })
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['storage-plans', 'grants'] })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['storage-plans', 'orders'] })
   })
 
-  it('uses the active workspace for grants and checkout', async () => {
+  it('uses the active workspace for orders and checkout', async () => {
     activeOrganization.value = { id: 'org-2' }
     vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listQuotaStoreTargets).mockResolvedValue({
@@ -272,8 +274,8 @@ describe('StoragePage', () => {
       ],
       total: 2,
     })
-    vi.mocked(listQuotaGrants).mockResolvedValue({
-      items: [grant({ orgId: 'org-1' }), grant({ id: 'grant-2', orgId: 'org-2' })],
+    vi.mocked(listStoreOrders).mockResolvedValue({
+      items: [order({ orgId: 'org-1' }), order({ id: 'order-2', orgId: 'org-2' })],
       total: 2,
     })
     vi.mocked(createQuotaCheckout).mockResolvedValue({
@@ -295,7 +297,7 @@ describe('StoragePage', () => {
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
     fireEvent.click(await view.findByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-2', 'usd'))
+    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-2', 'usd', undefined))
   })
 
   it('uses dedicated dialog layouts instead of nesting cards in dialogs', async () => {
@@ -304,7 +306,7 @@ describe('StoragePage', () => {
       items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
       total: 1,
     })
-    vi.mocked(listQuotaGrants).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
 
     const queryClient = new QueryClient({
       defaultOptions: {

@@ -54,41 +54,13 @@ export const quotaStoreSettings = sqliteTable('quota_store_settings', {
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
-export const quotaGrants = sqliteTable(
-  'quota_grants',
+export const webhookEvents = sqliteTable(
+  'webhook_events',
   {
     id: text('id').primaryKey(),
-    orgId: text('org_id').notNull(),
-    source: text('source').notNull(),
-    externalEventId: text('external_event_id'),
-    cloudOrderId: text('cloud_order_id'),
-    cloudRedemptionId: text('cloud_redemption_id'),
-    code: text('code'),
-    bytes: integer('bytes').notNull(),
-    packageSnapshot: text('package_snapshot'),
-    grantedBy: text('granted_by'),
-    terminalUserId: text('terminal_user_id'),
-    terminalUserEmail: text('terminal_user_email'),
-    active: integer('active', { mode: 'boolean' }).notNull().default(true),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  },
-  (t) => [
-    index('quota_grants_org_created_idx').on(t.orgId, t.createdAt),
-    uniqueIndex('quota_grants_external_event_uniq').on(t.externalEventId),
-    uniqueIndex('quota_grants_cloud_order_uniq').on(t.cloudOrderId),
-    uniqueIndex('quota_grants_cloud_redemption_uniq').on(t.cloudRedemptionId),
-    uniqueIndex('quota_grants_code_uniq').on(t.code),
-  ],
-)
-
-export const quotaDeliveryEvents = sqliteTable(
-  'quota_delivery_events',
-  {
-    id: text('id').primaryKey(),
+    source: text('source').notNull().default('cloud'),
     eventId: text('event_id').notNull(),
-    cloudOrderId: text('cloud_order_id'),
-    cloudRedemptionId: text('cloud_redemption_id'),
-    code: text('code'),
+    eventType: text('event_type').notNull().default('order.quota_changed'),
     payloadHash: text('payload_hash').notNull(),
     rawPayload: text('raw_payload').notNull(),
     status: text('status').notNull(),
@@ -97,10 +69,9 @@ export const quotaDeliveryEvents = sqliteTable(
     processedAt: integer('processed_at', { mode: 'timestamp_ms' }),
   },
   (t) => [
-    uniqueIndex('quota_delivery_events_event_uniq').on(t.eventId),
-    index('quota_delivery_events_order_idx').on(t.cloudOrderId),
-    uniqueIndex('quota_delivery_events_redemption_uniq').on(t.cloudRedemptionId),
-    uniqueIndex('quota_delivery_events_code_uniq').on(t.code),
+    uniqueIndex('webhook_events_source_event_uniq').on(t.source, t.eventId),
+    index('webhook_events_source_created_idx').on(t.source, t.createdAt),
+    index('webhook_events_status_idx').on(t.status),
   ],
 )
 

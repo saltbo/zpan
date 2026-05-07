@@ -79,14 +79,9 @@ describe('incrementUsageIfAllowed', () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     await insertOrgQuota(db, orgId, 0, 5000)
-    await db.run(sql`
-      INSERT INTO quota_grants
-        (id, org_id, source, external_event_id, cloud_order_id, bytes, active, created_at)
-      VALUES ('grant-unlimited', ${orgId}, 'stripe', 'evt-unlimited', 'order-unlimited', 100, 1, ${Date.now()})
-    `)
 
     await expect(hasQuotaForBytes(db, orgId, 10_000_000)).resolves.toBe(true)
-    await expect(getEffectiveQuota(db, orgId)).resolves.toMatchObject({ baseQuota: 0, grantedQuota: 0, quota: 0 })
+    await expect(getEffectiveQuota(db, orgId)).resolves.toMatchObject({ baseQuota: 0, quota: 0 })
   })
 
   it('returns true and increments when used + bytes is within quota', async () => {
@@ -133,11 +128,6 @@ describe('incrementUsageIfAllowed', () => {
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-grant', used: 0 })
     await insertOrgQuota(db, orgId, 1000, 800)
-    await db.run(sql`
-      INSERT INTO quota_grants
-        (id, org_id, source, external_event_id, cloud_order_id, bytes, active, created_at)
-      VALUES ('grant-upload', ${orgId}, 'stripe', 'evt-upload', 'order-upload', 500, 1, ${Date.now()})
-    `)
 
     const result = await incrementUsageIfAllowed(db, orgId, storageId, 600)
 

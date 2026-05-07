@@ -47,7 +47,6 @@ const adminQuotas = new Hono<Env>()
       id: r.id,
       orgId: r.orgId,
       baseQuota: r.baseQuota,
-      grantedQuota: 0,
       quota: r.baseQuota,
       used: r.used,
       trafficQuota: r.trafficQuota,

@@ -10,3 +10,7 @@ export function formatSize(bytes: number): string {
   const size = (bytes / 1024 ** i).toFixed(i > 0 ? 1 : 0)
   return `${size} ${units[i]}`
 }
+
+export function formatMoney(amount: number, currency: string): string {
+  return `${(amount / 100).toFixed(2)} ${currency.toUpperCase()}`
+}

@@ -1,9 +1,9 @@
-import type { CloudDeliveryEvent, QuotaStoreSettingsInput } from '@shared/schemas'
+import type { CloudOrderQuotaChange, QuotaStoreSettingsInput } from '@shared/schemas'
 import type { QuotaStoreSettings, QuotaTarget } from '@shared/types'
 import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
-import { activityEvents, orgQuotas, quotaDeliveryEvents, quotaStoreSettings } from '../db/schema'
+import { activityEvents, orgQuotas, quotaStoreSettings, webhookEvents } from '../db/schema'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
 
@@ -69,19 +69,19 @@ export async function getUserTerminalLabel(db: Database, userId: string): Promis
   return rows[0]?.email ?? null
 }
 
-export async function processCloudDelivery(
+export async function processCloudOrderQuotaChange(
   db: Database,
-  event: CloudDeliveryEvent,
+  event: CloudOrderQuotaChange,
   rawPayload: string,
   payloadHash: string,
 ): Promise<{ duplicate: boolean; eventId: string }> {
-  const delivery = await beginDeliveryEvent(db, event, rawPayload, payloadHash)
-  if (delivery.duplicate) return { duplicate: true, eventId: event.eventId }
+  const webhook = await beginWebhookEvent(db, event, rawPayload, payloadHash)
+  if (webhook.duplicate) return { duplicate: true, eventId: event.eventId }
 
   try {
-    await processDeliveryTransaction(db, delivery.id, event)
+    await processQuotaChangeTransaction(db, webhook.id, event)
   } catch (error) {
-    await markDeliveryEvent(db, delivery.id, 'failed', (error as Error).message)
+    await markWebhookEvent(db, webhook.id, 'failed', (error as Error).message)
     throw error
   }
 
@@ -99,46 +99,44 @@ async function getRawSettings(db: Database) {
   return rows[0] ?? null
 }
 
-async function processDeliveryTransaction(db: Database, deliveryId: string, event: CloudDeliveryEvent): Promise<void> {
+async function processQuotaChangeTransaction(
+  db: Database,
+  webhookId: string,
+  event: CloudOrderQuotaChange,
+): Promise<void> {
   if (isSyncDatabase(db)) {
     db.transaction((tx) => {
-      applyDeliveryResourceSync(tx as Database, event)
-      recordDeliveryAuditSync(tx as Database, event)
-      markDeliveryEventSync(tx as Database, deliveryId, 'processed', null)
+      applyQuotaChangeSync(tx as Database, event)
+      recordQuotaChangeAuditSync(tx as Database, event)
+      markWebhookEventSync(tx as Database, webhookId, 'processed', null)
     })
     return
   }
 
   await db.transaction(async (tx) => {
-    await applyDeliveryResource(tx as Database, event)
-    await recordDeliveryAudit(tx as Database, event)
-    await markDeliveryEvent(tx as Database, deliveryId, 'processed', null)
+    await applyQuotaChange(tx as Database, event)
+    await recordQuotaChangeAudit(tx as Database, event)
+    await markWebhookEvent(tx as Database, webhookId, 'processed', null)
   })
 }
 
-async function applyDeliveryResource(db: Database, event: CloudDeliveryEvent): Promise<void> {
-  const values =
-    event.resourceType === 'storage'
-      ? { quota: quotaUpdateExpression(event) }
-      : { trafficQuota: quotaUpdateExpression(event) }
-
+async function applyQuotaChange(db: Database, event: CloudOrderQuotaChange): Promise<void> {
   const rows = await db
     .update(orgQuotas)
-    .set(values)
+    .set(quotaUpdateValues(event))
     .where(eq(orgQuotas.orgId, event.targetOrgId))
     .returning({ id: orgQuotas.id })
 
   if (rows.length === 0) throw new Error('target_quota_missing')
 }
 
-function applyDeliveryResourceSync(db: Database, event: CloudDeliveryEvent): void {
-  const values =
-    event.resourceType === 'storage'
-      ? { quota: quotaUpdateExpression(event) }
-      : { trafficQuota: quotaUpdateExpression(event) }
-
+function applyQuotaChangeSync(db: Database, event: CloudOrderQuotaChange): void {
   const rows = (
-    db.update(orgQuotas).set(values).where(eq(orgQuotas.orgId, event.targetOrgId)).returning({ id: orgQuotas.id }) as {
+    db
+      .update(orgQuotas)
+      .set(quotaUpdateValues(event))
+      .where(eq(orgQuotas.orgId, event.targetOrgId))
+      .returning({ id: orgQuotas.id }) as {
       all(): Array<{ id: string }>
     }
   ).all()
@@ -146,56 +144,64 @@ function applyDeliveryResourceSync(db: Database, event: CloudDeliveryEvent): voi
   if (rows.length === 0) throw new Error('target_quota_missing')
 }
 
-function quotaUpdateExpression(event: CloudDeliveryEvent) {
-  const column = event.resourceType === 'storage' ? orgQuotas.quota : orgQuotas.trafficQuota
-  if (event.operation === 'increase') return sql`${column} + ${event.resourceBytes}`
-  return sql`MAX(0, ${column} - ${event.resourceBytes})`
+function quotaUpdateValues(event: CloudOrderQuotaChange) {
+  return {
+    quota: quotaUpdateExpression(orgQuotas.quota, event.storageBytes, event.direction),
+    trafficQuota: quotaUpdateExpression(orgQuotas.trafficQuota, event.trafficBytes, event.direction),
+  }
 }
 
-async function recordDeliveryAudit(db: Database, event: CloudDeliveryEvent): Promise<void> {
-  await db.insert(activityEvents).values(deliveryAuditValues(event))
+function quotaUpdateExpression(
+  column: typeof orgQuotas.quota | typeof orgQuotas.trafficQuota,
+  bytes: number,
+  direction: CloudOrderQuotaChange['direction'],
+) {
+  if (direction === 'increase') return sql`${column} + ${bytes}`
+  return sql`MAX(0, ${column} - ${bytes})`
 }
 
-function recordDeliveryAuditSync(db: Database, event: CloudDeliveryEvent): void {
-  ;(db.insert(activityEvents).values(deliveryAuditValues(event)) as { run(): void }).run()
+async function recordQuotaChangeAudit(db: Database, event: CloudOrderQuotaChange): Promise<void> {
+  await db.insert(activityEvents).values(quotaChangeAuditValues(event))
 }
 
-function deliveryAuditValues(event: CloudDeliveryEvent): typeof activityEvents.$inferInsert {
+function recordQuotaChangeAuditSync(db: Database, event: CloudOrderQuotaChange): void {
+  ;(db.insert(activityEvents).values(quotaChangeAuditValues(event)) as { run(): void }).run()
+}
+
+function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEvents.$inferInsert {
   return {
     id: nanoid(),
     orgId: event.targetOrgId,
     userId: event.terminalUserId ?? 'cloud-store',
-    action: `quota_${event.resourceType}_${event.operation}`,
+    action: `quota_order_${event.direction}`,
     targetType: 'quota',
     targetId: event.targetOrgId,
     targetName: event.targetOrgId,
     metadata: JSON.stringify({
       eventId: event.eventId,
-      resourceType: event.resourceType,
-      operation: event.operation,
-      resourceBytes: event.resourceBytes,
+      eventType: event.eventType,
+      direction: event.direction,
+      storageBytes: event.storageBytes,
+      trafficBytes: event.trafficBytes,
       cloudOrderId: event.cloudOrderId ?? null,
-      cloudRedemptionId: event.cloudRedemptionId ?? null,
-      code: event.code ?? null,
     }),
     createdAt: new Date(),
   }
 }
 
-async function beginDeliveryEvent(
+async function beginWebhookEvent(
   db: Database,
-  event: CloudDeliveryEvent,
+  event: CloudOrderQuotaChange,
   rawPayload: string,
   payloadHash: string,
 ): Promise<{ id: string; duplicate: boolean }> {
   const id = nanoid()
   try {
-    await db.insert(quotaDeliveryEvents).values({
+    await db.insert(webhookEvents).values({
       id,
+      source: 'cloud',
       eventId: event.eventId,
-      cloudOrderId: event.cloudOrderId ?? null,
-      cloudRedemptionId: event.cloudRedemptionId ?? null,
-      code: event.code ?? null,
+      eventType: event.eventType,
       payloadHash,
       rawPayload,
       status: 'processing',
@@ -203,66 +209,51 @@ async function beginDeliveryEvent(
     })
     return { id, duplicate: false }
   } catch (error) {
-    if (isUniqueConflict(error)) return resumeDeliveryEvent(db, event, rawPayload, payloadHash)
+    if (isUniqueConflict(error)) return resumeWebhookEvent(db, event, rawPayload, payloadHash)
     throw error
   }
 }
 
-async function resumeDeliveryEvent(
+async function resumeWebhookEvent(
   db: Database,
-  event: CloudDeliveryEvent,
+  event: CloudOrderQuotaChange,
   rawPayload: string,
   payloadHash: string,
 ): Promise<{ id: string; duplicate: boolean }> {
   const rows = await db
     .select({
-      id: quotaDeliveryEvents.id,
-      code: quotaDeliveryEvents.code,
-      payloadHash: quotaDeliveryEvents.payloadHash,
-      status: quotaDeliveryEvents.status,
+      id: webhookEvents.id,
+      payloadHash: webhookEvents.payloadHash,
+      status: webhookEvents.status,
     })
-    .from(quotaDeliveryEvents)
-    .where(
-      sql`${quotaDeliveryEvents.eventId} = ${event.eventId}
-        OR (${event.cloudRedemptionId ?? null} IS NOT NULL
-          AND ${quotaDeliveryEvents.cloudRedemptionId} = ${event.cloudRedemptionId ?? null})
-        OR (${event.code ?? null} IS NOT NULL AND ${quotaDeliveryEvents.code} = ${event.code ?? null})`,
-    )
+    .from(webhookEvents)
+    .where(and(eq(webhookEvents.source, 'cloud'), eq(webhookEvents.eventId, event.eventId)))
     .limit(1)
 
   const existing = rows[0]
-  if (!existing) throw new Error('delivery_event_conflict')
+  if (!existing) throw new Error('webhook_event_conflict')
   if (existing.payloadHash !== payloadHash) {
-    if (event.code && existing.code === event.code && existing.status !== 'failed') {
-      return { id: existing.id, duplicate: true }
-    }
-    throw new Error('delivery_payload_conflict')
+    throw new Error('webhook_payload_conflict')
   }
   if (existing.status === 'processed' || existing.status === 'duplicate' || existing.status === 'processing') {
     return { id: existing.id, duplicate: true }
   }
 
   await db
-    .update(quotaDeliveryEvents)
+    .update(webhookEvents)
     .set({ rawPayload, status: 'processing', error: null, processedAt: null })
-    .where(eq(quotaDeliveryEvents.id, existing.id))
+    .where(eq(webhookEvents.id, existing.id))
 
   return { id: existing.id, duplicate: false }
 }
 
-async function markDeliveryEvent(db: Database, id: string, status: string, error: string | null): Promise<void> {
-  await db
-    .update(quotaDeliveryEvents)
-    .set({ status, error, processedAt: new Date() })
-    .where(eq(quotaDeliveryEvents.id, id))
+async function markWebhookEvent(db: Database, id: string, status: string, error: string | null): Promise<void> {
+  await db.update(webhookEvents).set({ status, error, processedAt: new Date() }).where(eq(webhookEvents.id, id))
 }
 
-function markDeliveryEventSync(db: Database, id: string, status: string, error: string | null): void {
+function markWebhookEventSync(db: Database, id: string, status: string, error: string | null): void {
   ;(
-    db
-      .update(quotaDeliveryEvents)
-      .set({ status, error, processedAt: new Date() })
-      .where(eq(quotaDeliveryEvents.id, id)) as {
+    db.update(webhookEvents).set({ status, error, processedAt: new Date() }).where(eq(webhookEvents.id, id)) as {
       run(): void
     }
   ).run()

@@ -27,7 +27,6 @@ describe('effective quota', () => {
     await expect(getEffectiveQuota(db, orgId, new Date('2026-05-06T00:00:00Z'))).resolves.toMatchObject({
       orgId,
       baseQuota: 1000,
-      grantedQuota: 0,
       quota: 1000,
       used: 250,
       trafficQuota: 2000,

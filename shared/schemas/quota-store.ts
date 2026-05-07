@@ -4,7 +4,6 @@ export const quotaStoreSettingsSchema = z.object({
   enabled: z.boolean(),
 })
 
-const quotaStoreResourceTypeSchema = z.enum(['storage', 'traffic'])
 export const quotaStoreCurrencySchema = z.string().min(1)
 export const quotaStorePackagePriceSchema = z.object({
   currency: quotaStoreCurrencySchema,
@@ -47,56 +46,44 @@ export const checkoutInputSchema = z.object({
   packageId: z.string().min(1),
   targetOrgId: z.string().min(1),
   currency: quotaStoreCurrencySchema.optional(),
+  giftCardCode: z.string().min(1).optional(),
 })
 
-export const redemptionInputSchema = z.object({
-  code: z.string().min(1),
-  targetOrgId: z.string().min(1),
-})
+export const giftCardStatusSchema = z.enum(['active', 'disabled', 'exhausted', 'expired'])
 
-export const storageCodeStatusSchema = z.enum(['active', 'redeemed', 'expired', 'revoked'])
-
-export const generateStorageCodesInputSchema = z.object({
-  resourceType: quotaStoreResourceTypeSchema,
-  resourceBytes: z.number().int().positive(),
-  maxUses: z.number().int().positive().default(1),
+export const createGiftCardInputSchema = z.object({
+  amount: z.number().int().positive(),
+  currency: quotaStoreCurrencySchema,
   expiresAt: z.string().datetime().optional(),
   count: z.number().int().min(1).max(100),
 })
 
-export const revokeStorageCodeSchema = z.object({
-  revoked: z.literal(true),
+export const disableGiftCardSchema = z.object({
+  disabled: z.literal(true),
 })
 
-export const cloudDeliveryEventSchema = z
+export const cloudOrderQuotaChangeSchema = z
   .object({
     eventId: z.string().min(1),
-    cloudOrderId: z.string().min(1).optional(),
-    cloudRedemptionId: z.string().min(1).optional(),
+    eventType: z.literal('order.quota_changed'),
+    cloudOrderId: z.string().min(1),
     targetOrgId: z.string().min(1),
-    resourceType: z.enum(['storage', 'traffic']),
-    operation: z.enum(['increase', 'decrease']),
-    resourceBytes: z.number().int().positive(),
+    direction: z.enum(['increase', 'decrease']),
+    storageBytes: z.number().int().min(0).default(0),
+    trafficBytes: z.number().int().min(0).default(0),
     source: z.string().min(1).optional(),
     packageId: z.string().min(1).optional(),
-    code: z.string().min(1).optional(),
     occurredAt: z.string().min(1).optional(),
     terminalUserId: z.string().optional(),
     terminalUserEmail: z.string().email().optional(),
   })
+  .strict()
   .superRefine((event, ctx) => {
-    if (event.source === 'stripe' && !event.cloudOrderId) {
+    if (event.storageBytes === 0 && event.trafficBytes === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['cloudOrderId'],
-        message: 'cloudOrderId is required for stripe deliveries',
-      })
-    }
-    if (event.source === 'redeem_code' && !event.cloudRedemptionId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['cloudRedemptionId'],
-        message: 'cloudRedemptionId is required for redeem_code deliveries',
+        path: ['storageBytes'],
+        message: 'At least one of storageBytes or trafficBytes must be greater than 0',
       })
     }
   })
@@ -107,8 +94,7 @@ export type QuotaStorePackagePrice = z.infer<typeof quotaStorePackagePriceSchema
 export type QuotaStorePackageInput = z.input<typeof quotaStorePackageInputSchema>
 export type QuotaStorePackagePatchInput = z.input<typeof quotaStorePackagePatchSchema>
 export type CheckoutInput = z.infer<typeof checkoutInputSchema>
-export type RedemptionInput = z.infer<typeof redemptionInputSchema>
-export type StorageCodeStatus = z.infer<typeof storageCodeStatusSchema>
-export type GenerateStorageCodesInput = z.input<typeof generateStorageCodesInputSchema>
-export type RevokeStorageCodeInput = z.infer<typeof revokeStorageCodeSchema>
-export type CloudDeliveryEvent = z.infer<typeof cloudDeliveryEventSchema>
+export type GiftCardStatus = z.infer<typeof giftCardStatusSchema>
+export type CreateGiftCardInput = z.input<typeof createGiftCardInputSchema>
+export type DisableGiftCardInput = z.infer<typeof disableGiftCardSchema>
+export type CloudOrderQuotaChange = z.infer<typeof cloudOrderQuotaChangeSchema>

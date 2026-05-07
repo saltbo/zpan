@@ -3,12 +3,12 @@ import type {
   AllowedImageMime,
   AnnouncementInput,
   ConflictStrategy,
+  CreateGiftCardInput,
   CreateShareRequest,
   CreateStorageInput,
-  GenerateStorageCodesInput,
+  GiftCardStatus,
   QuotaStorePackageInput,
   QuotaStorePackagePatchInput,
-  StorageCodeStatus,
   UpdateStorageInput,
 } from '@shared/schemas'
 import type {
@@ -27,7 +27,6 @@ import type {
   Notification,
   OrgQuota,
   PaginatedResponse,
-  QuotaGrant,
   QuotaStorePackage,
   QuotaStoreSettings,
   QuotaTarget,
@@ -36,7 +35,8 @@ import type {
   SiteInvitation,
   Storage,
   StorageObject,
-  StorageRedemptionCode,
+  StoreGiftCard,
+  StoreOrder,
 } from '@shared/types'
 import {
   adminAnnouncementsApi,
@@ -298,7 +298,6 @@ export function getUserQuota() {
     {
       orgId: string
       baseQuota: number
-      grantedQuota: number
       quota: number
       used: number
     } & Pick<OrgQuota, 'trafficQuota' | 'trafficUsed' | 'trafficPeriod'>
@@ -331,34 +330,32 @@ export function deleteQuotaStorePackage(id: string) {
   return unwrap<{ id: string; deleted: boolean }>(adminQuotaStoreApi.packages[':id'].$delete({ param: { id } }))
 }
 
-export function listStorageRedemptionCodes(status?: StorageCodeStatus) {
+export function listStoreGiftCards(status?: GiftCardStatus) {
   const query = status ? { status } : {}
-  return unwrap<{ items: StorageRedemptionCode[]; total: number }>(adminQuotaStoreApi['storage-codes'].$get({ query }))
+  return unwrap<{ items: StoreGiftCard[]; total: number }>(adminQuotaStoreApi['gift-cards'].$get({ query }))
 }
 
-export function generateStorageRedemptionCodes(data: GenerateStorageCodesInput) {
-  return unwrap<{ items: StorageRedemptionCode[]; total: number }>(
-    adminQuotaStoreApi['storage-codes'].$post({ json: data }),
-  )
+export function createStoreGiftCards(data: CreateGiftCardInput) {
+  return unwrap<{ items: StoreGiftCard[]; total: number }>(adminQuotaStoreApi['gift-cards'].$post({ json: data }))
 }
 
-export function revokeStorageRedemptionCode(code: string) {
-  return unwrap<{ code: string; revoked: true }>(
-    adminQuotaStoreApi['storage-codes'][':code'].$patch({
+export function disableStoreGiftCard(code: string) {
+  return unwrap<{ code: string; disabled: true }>(
+    adminQuotaStoreApi['gift-cards'][':code'].$patch({
       param: { code },
-      json: { revoked: true },
+      json: { disabled: true },
     }),
   )
 }
 
-export function deleteStorageRedemptionCode(code: string) {
+export function deleteStoreGiftCard(code: string) {
   return unwrap<{ code: string; deleted: boolean }>(
-    adminQuotaStoreApi['storage-codes'][':code'].$delete({ param: { code } }),
+    adminQuotaStoreApi['gift-cards'][':code'].$delete({ param: { code } }),
   )
 }
 
-export function listAdminQuotaDeliveryRecords() {
-  return unwrap<{ items: QuotaGrant[]; total: number }>(adminQuotaStoreApi['delivery-records'].$get())
+export function listAdminStoreOrders() {
+  return unwrap<{ items: StoreOrder[]; total: number }>(adminQuotaStoreApi.orders.$get())
 }
 
 export function listPurchasableQuotaPackages() {
@@ -369,16 +366,14 @@ export function listQuotaStoreTargets() {
   return unwrap<{ items: QuotaTarget[]; total: number }>(quotaStoreApi.targets.$get())
 }
 
-export function createQuotaCheckout(packageId: string, targetOrgId: string, currency?: string) {
-  return unwrap<{ checkoutUrl: string }>(quotaStoreApi.checkouts.$post({ json: { packageId, targetOrgId, currency } }))
+export function createQuotaCheckout(packageId: string, targetOrgId: string, currency?: string, giftCardCode?: string) {
+  return unwrap<{ checkoutUrl: string }>(
+    quotaStoreApi.checkouts.$post({ json: { packageId, targetOrgId, currency, giftCardCode } }),
+  )
 }
 
-export function redeemQuotaCode(code: string, targetOrgId: string) {
-  return unwrap<Record<string, unknown>>(quotaStoreApi.redemptions.$post({ json: { code, targetOrgId } }))
-}
-
-export function listQuotaGrants() {
-  return unwrap<{ items: QuotaGrant[]; total: number }>(quotaStoreApi.grants.$get())
+export function listStoreOrders() {
+  return unwrap<{ items: StoreOrder[]; total: number }>(quotaStoreApi.orders.$get())
 }
 
 // System Options API
