@@ -189,6 +189,34 @@ afterEach(() => {
 
 describe('Quota Store API', () => {
   it('parses Cloud package and storage-code response shapes', () => {
+    // legacy camelCase: resourceType/resourceBytes
+    expect(
+      cloudPackageResponseSchema.parse({
+        id: 'pkg-camel-legacy',
+        name: 'Camel Legacy',
+        description: null,
+        resourceType: 'storage',
+        resourceBytes: 1024,
+        prices: [{ currency: 'usd', amount: 500 }],
+        active: true,
+        sortOrder: 1,
+        createdAt: '2026-05-06T00:00:00.000Z',
+        updatedAt: '2026-05-06T00:00:00.000Z',
+      }),
+    ).toEqual({
+      id: 'pkg-camel-legacy',
+      name: 'Camel Legacy',
+      description: '',
+      storageBytes: 1024,
+      trafficBytes: 0,
+      prices: [{ currency: 'usd', amount: 500 }],
+      active: true,
+      sortOrder: 1,
+      createdAt: '2026-05-06T00:00:00.000Z',
+      updatedAt: '2026-05-06T00:00:00.000Z',
+    })
+
+    // legacy snake_case: resource_type/resource_bytes
     expect(
       cloudPackageResponseSchema.parse({
         id: 'pkg-snake',
@@ -211,6 +239,60 @@ describe('Quota Store API', () => {
       prices: [{ currency: 'cny', amount: 3600 }],
       active: true,
       sortOrder: 4,
+      createdAt: '2026-05-06T00:00:00.000Z',
+      updatedAt: '2026-05-06T00:00:00.000Z',
+    })
+
+    // new snake_case: storage_bytes/traffic_bytes
+    expect(
+      cloudPackageResponseSchema.parse({
+        id: 'pkg-snake-new',
+        name: 'Snake New',
+        description: null,
+        storage_bytes: 4096,
+        traffic_bytes: 8192,
+        prices: [{ currency: 'usd', amount: 999 }],
+        active: true,
+        sort_order: 2,
+        created_at: '2026-05-06T00:00:00.000Z',
+        updated_at: '2026-05-06T00:00:00.000Z',
+      }),
+    ).toEqual({
+      id: 'pkg-snake-new',
+      name: 'Snake New',
+      description: '',
+      storageBytes: 4096,
+      trafficBytes: 8192,
+      prices: [{ currency: 'usd', amount: 999 }],
+      active: true,
+      sortOrder: 2,
+      createdAt: '2026-05-06T00:00:00.000Z',
+      updatedAt: '2026-05-06T00:00:00.000Z',
+    })
+
+    // new camelCase: storageBytes/trafficBytes
+    expect(
+      cloudPackageResponseSchema.parse({
+        id: 'pkg-camel-new',
+        name: 'Camel New',
+        description: null,
+        storageBytes: 2048,
+        trafficBytes: 0,
+        prices: [{ currency: 'eur', amount: 799 }],
+        active: false,
+        sortOrder: 5,
+        createdAt: '2026-05-06T00:00:00.000Z',
+        updatedAt: '2026-05-06T00:00:00.000Z',
+      }),
+    ).toEqual({
+      id: 'pkg-camel-new',
+      name: 'Camel New',
+      description: '',
+      storageBytes: 2048,
+      trafficBytes: 0,
+      prices: [{ currency: 'eur', amount: 799 }],
+      active: false,
+      sortOrder: 5,
       createdAt: '2026-05-06T00:00:00.000Z',
       updatedAt: '2026-05-06T00:00:00.000Z',
     })
