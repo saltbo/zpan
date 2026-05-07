@@ -1,6 +1,6 @@
 import type { QuotaStorePackage } from '@shared/types'
 import { Activity, Gift, HardDrive, PlusCircle, ShoppingCart } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,118 +16,43 @@ import { Label } from '@/components/ui/label'
 import { formatSize } from '@/lib/format'
 
 export function StorageActions({
-  code,
   packages,
   packagesDisabled,
-  redeemDisabled,
-  onCodeChange,
   onCheckout,
-  onRedeem,
 }: {
-  code: string
   packages: QuotaStorePackage[]
   packagesDisabled: boolean
-  redeemDisabled: boolean
-  onCodeChange: (code: string) => void
   onCheckout: (packageId: string, currency: string, giftCardCode?: string) => void
-  onRedeem: () => void
 }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      <StorageDialogButton icon={<Gift />} label={t('storage.redeemTitle')}>
-        <RedeemPanel code={code} disabled={redeemDisabled} onCodeChange={onCodeChange} onRedeem={onRedeem} />
-      </StorageDialogButton>
-      <StorageDialogButton icon={<ShoppingCart />} label={t('storage.packagesTitle')} wide>
-        <PackagePanel packages={packages} giftCardCode={code} disabled={packagesDisabled} onCheckout={onCheckout} />
-      </StorageDialogButton>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <ShoppingCart />
+            {t('storage.packagesTitle')}
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="gap-4 p-5 sm:max-w-xl">
+          <PackagePanel packages={packages} disabled={packagesDisabled} onCheckout={onCheckout} />
+        </DialogContent>
+      </Dialog>
     </div>
-  )
-}
-
-function StorageDialogButton({
-  icon,
-  label,
-  wide = false,
-  children,
-}: {
-  icon: ReactNode
-  label: string
-  wide?: boolean
-  children: ReactNode
-}) {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          {icon}
-          {label}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className={wide ? 'gap-4 p-5 sm:max-w-xl' : 'gap-4 p-5 sm:max-w-[340px]'}>
-        {children}
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function RedeemPanel({
-  code,
-  disabled,
-  onCodeChange,
-  onRedeem,
-}: {
-  code: string
-  disabled: boolean
-  onCodeChange: (code: string) => void
-  onRedeem: () => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <>
-      <DialogHeader className="text-left">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <Gift className="size-4" />
-          </div>
-          <div className="space-y-1">
-            <DialogTitle className="text-base">{t('storage.redeemTitle')}</DialogTitle>
-            <DialogDescription className="text-xs leading-5">{t('storage.redeemDescription')}</DialogDescription>
-          </div>
-        </div>
-      </DialogHeader>
-      <div className="space-y-3">
-        <div className="space-y-2">
-          <Label htmlFor="giftCardCode" className="text-xs">
-            {t('storage.giftCardCode')}
-          </Label>
-          <Input
-            id="giftCardCode"
-            className="h-9 font-mono text-sm tracking-wider uppercase"
-            value={code}
-            onChange={(event) => onCodeChange(event.target.value)}
-          />
-        </div>
-        <Button className="h-9 w-full text-sm" disabled={disabled} onClick={onRedeem}>
-          {t('storage.redeemButton')}
-        </Button>
-      </div>
-    </>
   )
 }
 
 function PackagePanel({
   packages,
-  giftCardCode,
   disabled,
   onCheckout,
 }: {
   packages: QuotaStorePackage[]
-  giftCardCode: string
   disabled: boolean
   onCheckout: (packageId: string, currency: string, giftCardCode?: string) => void
 }) {
   const { t } = useTranslation()
+  const [giftCardCode, setGiftCardCode] = useState('')
   return (
     <>
       <DialogHeader className="space-y-1">
@@ -148,6 +73,27 @@ function PackagePanel({
             {t('storage.noPackages')}
           </div>
         )}
+      </div>
+      <div className="border-t pt-3">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <Gift className="size-3.5" />
+          </div>
+          <div className="flex-1 space-y-1.5">
+            <p className="text-xs font-medium">{t('storage.redeemTitle')}</p>
+            <p className="text-xs leading-5 text-muted-foreground">{t('storage.redeemDescription')}</p>
+            <Label htmlFor="giftCardCode" className="sr-only">
+              {t('storage.giftCardCode')}
+            </Label>
+            <Input
+              id="giftCardCode"
+              className="h-8 font-mono text-xs tracking-wider uppercase"
+              placeholder={t('storage.giftCardCode')}
+              value={giftCardCode}
+              onChange={(event) => setGiftCardCode(event.target.value)}
+            />
+          </div>
+        </div>
       </div>
     </>
   )

@@ -178,12 +178,15 @@ describe('StoragePage', () => {
   })
 
   it('applies gift cards through checkout', async () => {
-    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listQuotaStoreTargets).mockResolvedValue({
       items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
       total: 1,
     })
     vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(createQuotaCheckout).mockResolvedValue({ checkoutUrl: 'https://cloud.example.test/checkout' })
+    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
+    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -191,16 +194,16 @@ describe('StoragePage', () => {
         mutations: { retry: false },
       },
     })
-    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.redeemTitle' }))
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.packagesTitle' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
+    await waitFor(() => expect(view.getByLabelText('storage.giftCardCode')).toBeTruthy())
     fireEvent.change(view.getByLabelText('storage.giftCardCode'), { target: { value: 'STORE-CODE' } })
-    fireEvent.click(view.getByRole('button', { name: 'storage.redeemButton' }))
+    fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
-    expect(toast.info).toHaveBeenCalledWith('storage.applyGiftCardAtCheckout')
-    expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ['storage-plans', 'orders'] })
+    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd', 'STORE-CODE'))
+    expect(toast.info).not.toHaveBeenCalled()
   })
 
   it('closes the checkout window when checkout fails', async () => {
@@ -316,13 +319,10 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.redeemTitle' }))
-    expect(document.body.querySelector('[data-slot="dialog-content"] [data-slot="card"]')).toBeNull()
-    fireEvent.click(view.getByRole('button', { name: 'common.close' }))
-
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.packagesTitle' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
     await waitFor(() => expect(view.getByText('100 GB')).toBeTruthy())
     expect(document.body.querySelector('[data-slot="dialog-content"] [data-slot="card"]')).toBeNull()
+    expect(view.queryByRole('button', { name: 'storage.redeemTitle' })).toBeNull()
   })
 })

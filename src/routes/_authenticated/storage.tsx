@@ -24,7 +24,6 @@ export const Route = createFileRoute('/_authenticated/storage')({
 export function StoragePage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [code, setCode] = useState('')
   const [checkoutRefreshActive, setCheckoutRefreshActive] = useState(false)
   const { data: activeOrg } = useActiveOrganization()
   const storagePlansQuery = useQuery({
@@ -122,15 +121,9 @@ export function StoragePage() {
           <p className="text-sm text-muted-foreground">{t('storage.subtitle')}</p>
         </div>
         <StorageActions
-          code={code}
           packages={storagePlansQuery.data?.items ?? []}
           packagesDisabled={!targetOrgId || checkoutMutation.isPending}
-          redeemDisabled={!code || !targetOrgId || checkoutMutation.isPending}
-          onCodeChange={setCode}
           onCheckout={startCheckout}
-          onRedeem={() => {
-            toast.info(t('storage.applyGiftCardAtCheckout'))
-          }}
         />
       </div>
 
