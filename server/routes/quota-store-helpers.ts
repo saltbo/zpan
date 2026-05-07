@@ -114,31 +114,6 @@ const cloudPackageSchema = z.union([
       updatedAt: z.string().min(1),
     })
     .transform((pkg) => ({ ...pkg, description: pkg.description ?? '' })),
-  z
-    .object({
-      id: z.string().min(1),
-      name: z.string().min(1),
-      description: z.string().nullable().default(''),
-      resourceType: z.enum(['storage', 'traffic']),
-      resourceBytes: z.number().int().positive(),
-      prices: z.array(cloudPackagePriceSchema).min(1),
-      active: z.boolean().default(true),
-      sortOrder: z.number().int().default(0),
-      createdAt: z.string().min(1),
-      updatedAt: z.string().min(1),
-    })
-    .transform((pkg) => ({
-      id: pkg.id,
-      name: pkg.name,
-      description: pkg.description ?? '',
-      storageBytes: pkg.resourceType === 'storage' ? pkg.resourceBytes : 0,
-      trafficBytes: pkg.resourceType === 'traffic' ? pkg.resourceBytes : 0,
-      prices: pkg.prices,
-      active: pkg.active,
-      sortOrder: pkg.sortOrder,
-      createdAt: pkg.createdAt,
-      updatedAt: pkg.updatedAt,
-    })),
 ])
 export const cloudPackageResponseSchema = cloudPackageSchema
 export const cloudPackageListResponseSchema = z.union([
