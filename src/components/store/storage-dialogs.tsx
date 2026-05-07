@@ -29,7 +29,7 @@ export function StorageActions({
   packagesDisabled: boolean
   redeemDisabled: boolean
   onCodeChange: (code: string) => void
-  onCheckout: (packageId: string, currency: string) => void
+  onCheckout: (packageId: string, currency: string, giftCardCode?: string) => void
   onRedeem: () => void
 }) {
   const { t } = useTranslation()
@@ -39,7 +39,7 @@ export function StorageActions({
         <RedeemPanel code={code} disabled={redeemDisabled} onCodeChange={onCodeChange} onRedeem={onRedeem} />
       </StorageDialogButton>
       <StorageDialogButton icon={<ShoppingCart />} label={t('storage.packagesTitle')} wide>
-        <PackagePanel packages={packages} disabled={packagesDisabled} onCheckout={onCheckout} />
+        <PackagePanel packages={packages} giftCardCode={code} disabled={packagesDisabled} onCheckout={onCheckout} />
       </StorageDialogButton>
     </div>
   )
@@ -98,11 +98,11 @@ function RedeemPanel({
       </DialogHeader>
       <div className="space-y-3">
         <div className="space-y-2">
-          <Label htmlFor="storageCode" className="text-xs">
-            {t('storage.storageCode')}
+          <Label htmlFor="giftCardCode" className="text-xs">
+            {t('storage.giftCardCode')}
           </Label>
           <Input
-            id="storageCode"
+            id="giftCardCode"
             className="h-9 font-mono text-sm tracking-wider uppercase"
             value={code}
             onChange={(event) => onCodeChange(event.target.value)}
@@ -118,12 +118,14 @@ function RedeemPanel({
 
 function PackagePanel({
   packages,
+  giftCardCode,
   disabled,
   onCheckout,
 }: {
   packages: QuotaStorePackage[]
+  giftCardCode: string
   disabled: boolean
-  onCheckout: (packageId: string, currency: string) => void
+  onCheckout: (packageId: string, currency: string, giftCardCode?: string) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -138,7 +140,7 @@ function PackagePanel({
             key={pkg.id}
             pkg={pkg}
             disabled={disabled}
-            onCheckout={(currency) => onCheckout(pkg.id, currency)}
+            onCheckout={(currency) => onCheckout(pkg.id, currency, giftCardCode.trim() || undefined)}
           />
         ))}
         {packages.length === 0 && (

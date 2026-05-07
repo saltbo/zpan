@@ -161,16 +161,16 @@ describe('licensing-cloud', () => {
     it('sends PATCH requests with bound authorization and JSON payloads', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ state: 'revoked' }))
 
-      const result = await requestBoundCloudJson(BASE_URL, '/api/store/storage-codes/ZS123', 'rt-bound', {
+      const result = await requestBoundCloudJson(BASE_URL, '/api/store/gift-cards/ZS123', 'rt-bound', {
         method: 'PATCH',
-        payload: { state: 'revoked' },
+        payload: { disabled: true },
       })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('https://cloud.zpan.space/api/store/storage-codes/ZS123')
+      expect(url).toBe('https://cloud.zpan.space/api/store/gift-cards/ZS123')
       expect(init.method).toBe('PATCH')
       expect(init.headers).toEqual({ Authorization: 'Bearer rt-bound', 'Content-Type': 'application/json' })
-      expect(JSON.parse(init.body as string)).toEqual({ state: 'revoked' })
+      expect(JSON.parse(init.body as string)).toEqual({ disabled: true })
       expect(result).toEqual({ state: 'revoked' })
     })
   })

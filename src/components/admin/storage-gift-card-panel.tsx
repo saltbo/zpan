@@ -1,5 +1,5 @@
-import type { GenerateStorageCodesInput, StorageCodeStatus } from '@shared/schemas'
-import type { StorageRedemptionCode } from '@shared/types'
+import type { CreateGiftCardInput, GiftCardStatus } from '@shared/schemas'
+import type { StoreGiftCard } from '@shared/types'
 import { Ban, Plus, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,33 +18,27 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { formatSize } from '@/lib/format'
+import { formatMoney } from '@/lib/format'
 
-const units = { MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 } as const
-type Unit = keyof typeof units
-
-export const emptyCodeForm = {
-  resourceType: 'storage' as 'storage' | 'traffic',
-  size: '100',
-  unit: 'GB' as Unit,
-  maxUses: '1',
+export const emptyGiftCardForm = {
+  amount: '10',
+  currency: 'usd',
   expiresAt: '',
   count: '1',
 }
-export type CodeFormState = typeof emptyCodeForm
+export type GiftCardFormState = typeof emptyGiftCardForm
 
-export function codeInputFromForm(form: CodeFormState): GenerateStorageCodesInput {
-  const input: GenerateStorageCodesInput = {
-    resourceType: form.resourceType,
-    resourceBytes: Math.round(Number(form.size) * units[form.unit]),
-    maxUses: Math.round(Number(form.maxUses)),
+export function giftCardInputFromForm(form: GiftCardFormState): CreateGiftCardInput {
+  const input: CreateGiftCardInput = {
+    amount: Math.round(Number(form.amount) * 100),
+    currency: form.currency.trim().toLowerCase(),
     count: Math.round(Number(form.count)),
   }
   if (form.expiresAt) input.expiresAt = new Date(form.expiresAt).toISOString()
   return input
 }
 
-export function StorageRedemptionCodePanel(props: CodeGenerateFormProps & CodeListProps) {
+export function StorageGiftCardPanel(props: CodeGenerateFormProps & CodeListProps) {
   const { t } = useTranslation()
   return (
     <div className="space-y-3">
@@ -62,10 +56,10 @@ export function StorageRedemptionCodePanel(props: CodeGenerateFormProps & CodeLi
 }
 
 type CodeGenerateFormProps = {
-  form: CodeFormState
+  form: GiftCardFormState
   available: boolean
   pending: boolean
-  onFormChange: (form: CodeFormState) => void
+  onFormChange: (form: GiftCardFormState) => void
   onGenerate: () => void
 }
 
@@ -116,14 +110,19 @@ function CodeGenerateForm({ form, available, pending, onFormChange, onGenerate }
   const { t } = useTranslation()
   return (
     <div className="space-y-4">
-      <ResourceTypeField form={form} onFormChange={onFormChange} />
-      <SizeFields form={form} onFormChange={onFormChange} />
       <NumberField
-        id="codeMaxUses"
-        label={t('admin.storagePlans.codes.maxUses')}
-        value={form.maxUses}
-        onChange={(maxUses) => onFormChange({ ...form, maxUses })}
+        id="giftCardAmount"
+        label={t('admin.storagePlans.codes.amount')}
+        value={form.amount}
+        onChange={(amount) => onFormChange({ ...form, amount })}
       />
+      <Field label={t('admin.storagePlans.codes.currency')} htmlFor="giftCardCurrency">
+        <Input
+          id="giftCardCurrency"
+          value={form.currency}
+          onChange={(event) => onFormChange({ ...form, currency: event.target.value })}
+        />
+      </Field>
       <DateField value={form.expiresAt} onChange={(expiresAt) => onFormChange({ ...form, expiresAt })} />
       <NumberField
         id="codeCount"
@@ -136,60 +135,6 @@ function CodeGenerateForm({ form, available, pending, onFormChange, onGenerate }
         <Plus className="mr-2 h-4 w-4" />
         {t('admin.storagePlans.codes.generate')}
       </Button>
-    </div>
-  )
-}
-
-function ResourceTypeField({
-  form,
-  onFormChange,
-}: {
-  form: CodeFormState
-  onFormChange: (form: CodeFormState) => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <Field label={t('admin.storagePlans.resourceType')}>
-      <Select
-        value={form.resourceType}
-        onValueChange={(resourceType: 'storage' | 'traffic') => onFormChange({ ...form, resourceType })}
-      >
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="storage">{t('admin.storagePlans.resourceStorage')}</SelectItem>
-          <SelectItem value="traffic">{t('admin.storagePlans.resourceTraffic')}</SelectItem>
-        </SelectContent>
-      </Select>
-    </Field>
-  )
-}
-
-function SizeFields({ form, onFormChange }: { form: CodeFormState; onFormChange: (form: CodeFormState) => void }) {
-  const { t } = useTranslation()
-  return (
-    <div className="grid grid-cols-[1fr_96px] gap-2">
-      <NumberField
-        id="codeSize"
-        label={t('admin.storagePlans.size')}
-        value={form.size}
-        onChange={(size) => onFormChange({ ...form, size })}
-      />
-      <Field label={t('admin.storagePlans.unit')}>
-        <Select value={form.unit} onValueChange={(unit: Unit) => onFormChange({ ...form, unit })}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.keys(units).map((unit) => (
-              <SelectItem key={unit} value={unit}>
-                {unit}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
     </div>
   )
 }
@@ -229,12 +174,12 @@ function DateField({ value, onChange }: { value: string; onChange: (value: strin
 }
 
 type CodeListProps = {
-  codes: StorageRedemptionCode[]
-  status: StorageCodeStatus | 'all'
+  codes: StoreGiftCard[]
+  status: GiftCardStatus | 'all'
   available: boolean
-  revokingCode: string | null
-  deletingCode: string | null
-  onStatusChange: (status: StorageCodeStatus | 'all') => void
+  disablingGiftCard: string | null
+  deletingGiftCard: string | null
+  onStatusChange: (status: GiftCardStatus | 'all') => void
   onRevoke: (code: string) => void
   onDelete: (code: string) => void
 }
@@ -242,12 +187,12 @@ type CodeListProps = {
 function CodeStatusSelect({ status, onStatusChange }: Pick<CodeListProps, 'status' | 'onStatusChange'>) {
   const { t } = useTranslation()
   return (
-    <Select value={status} onValueChange={(value: StorageCodeStatus | 'all') => onStatusChange(value)}>
+    <Select value={status} onValueChange={(value: GiftCardStatus | 'all') => onStatusChange(value)}>
       <SelectTrigger className="h-9 w-full sm:w-44">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {(['all', 'active', 'redeemed', 'expired', 'revoked'] as const).map((value) => (
+        {(['all', 'active', 'disabled', 'exhausted', 'expired'] as const).map((value) => (
           <SelectItem key={value} value={value}>
             {t(`admin.storagePlans.codes.status.${value}`)}
           </SelectItem>
@@ -283,25 +228,23 @@ function CodeTable(props: CodeListProps) {
 function CodeRow({
   code,
   available,
-  revokingCode,
-  deletingCode,
+  disablingGiftCard,
+  deletingGiftCard,
   onRevoke,
   onDelete,
-}: CodeListProps & { code: StorageRedemptionCode }) {
+}: CodeListProps & { code: StoreGiftCard }) {
   const { t } = useTranslation()
-  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false)
+  const [disableConfirmOpen, setRevokeConfirmOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const revoked = Boolean(code.revokedAt)
-  const redeemed = code.usesCount >= code.maxUses
-  const canRevoke = !revoked && !redeemed
-  const canDelete = code.usesCount === 0
+  const disabled = Boolean(code.disabledAt)
+  const exhausted = code.remainingAmount === 0
+  const canRevoke = !disabled && !exhausted
+  const canDelete = code.remainingAmount === code.initialAmount
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">{code.code}</TableCell>
-      <TableCell>{formatSize(code.resourceBytes)}</TableCell>
-      <TableCell>
-        {code.usesCount}/{code.maxUses}
-      </TableCell>
+      <TableCell>{formatMoney(code.initialAmount, code.currency)}</TableCell>
+      <TableCell>{formatMoney(code.remainingAmount, code.currency)}</TableCell>
       <TableCell>{code.expiresAt ? new Date(code.expiresAt).toLocaleString() : '-'}</TableCell>
       <TableCell>
         <CodeStatusBadge code={code} />
@@ -311,45 +254,45 @@ function CodeRow({
           <Button
             variant="outline"
             size="sm"
-            disabled={!available || !canRevoke || revokingCode === code.code}
+            disabled={!available || !canRevoke || disablingGiftCard === code.code}
             onClick={() => setRevokeConfirmOpen(true)}
           >
             <Ban className="mr-2 h-4 w-4" />
-            {t('admin.storagePlans.codes.revoke')}
+            {t('admin.storagePlans.codes.disable')}
           </Button>
           <Button
             variant="outline"
             size="sm"
-            disabled={!available || !canDelete || deletingCode === code.code}
+            disabled={!available || !canDelete || deletingGiftCard === code.code}
             onClick={() => setDeleteConfirmOpen(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
             {t('admin.storagePlans.codes.delete')}
           </Button>
         </div>
-        <Dialog open={revokeConfirmOpen} onOpenChange={setRevokeConfirmOpen}>
+        <Dialog open={disableConfirmOpen} onOpenChange={setRevokeConfirmOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{t('admin.storagePlans.codes.revokeTitle')}</DialogTitle>
-              <DialogDescription>{t('admin.storagePlans.codes.revokeConfirm', { code: code.code })}</DialogDescription>
+              <DialogTitle>{t('admin.storagePlans.codes.disableTitle')}</DialogTitle>
+              <DialogDescription>{t('admin.storagePlans.codes.disableConfirm', { code: code.code })}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button
                 variant="outline"
-                disabled={revokingCode === code.code}
+                disabled={disablingGiftCard === code.code}
                 onClick={() => setRevokeConfirmOpen(false)}
               >
                 {t('common.cancel')}
               </Button>
               <Button
                 variant="destructive"
-                disabled={revokingCode === code.code}
+                disabled={disablingGiftCard === code.code}
                 onClick={() => {
                   onRevoke(code.code)
                   setRevokeConfirmOpen(false)
                 }}
               >
-                {t('admin.storagePlans.codes.revoke')}
+                {t('admin.storagePlans.codes.disable')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -363,14 +306,14 @@ function CodeRow({
             <DialogFooter>
               <Button
                 variant="outline"
-                disabled={deletingCode === code.code}
+                disabled={deletingGiftCard === code.code}
                 onClick={() => setDeleteConfirmOpen(false)}
               >
                 {t('common.cancel')}
               </Button>
               <Button
                 variant="destructive"
-                disabled={deletingCode === code.code}
+                disabled={deletingGiftCard === code.code}
                 onClick={() => {
                   onDelete(code.code)
                   setDeleteConfirmOpen(false)
@@ -386,7 +329,7 @@ function CodeRow({
   )
 }
 
-function CodeStatusBadge({ code }: { code: StorageRedemptionCode }) {
+function CodeStatusBadge({ code }: { code: StoreGiftCard }) {
   const { t } = useTranslation()
   const status = getCodeStatus(code)
   return (
@@ -396,11 +339,11 @@ function CodeStatusBadge({ code }: { code: StorageRedemptionCode }) {
   )
 }
 
-function getCodeStatus(code: StorageRedemptionCode) {
+function getCodeStatus(code: StoreGiftCard) {
   const expired = code.expiresAt ? new Date(code.expiresAt).getTime() <= Date.now() : false
-  if (code.revokedAt) return 'revoked'
+  if (code.disabledAt) return 'disabled'
   if (expired) return 'expired'
-  if (code.usesCount >= code.maxUses) return 'redeemed'
+  if (code.remainingAmount === 0) return 'exhausted'
   return 'active'
 }
 

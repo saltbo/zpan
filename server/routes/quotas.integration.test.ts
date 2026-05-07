@@ -316,12 +316,6 @@ describe('User Quotas API — /api/quotas', () => {
     )
     const orgId = orgs[0].id
 
-    await db.run(sql`
-      INSERT INTO quota_grants
-        (id, org_id, source, external_event_id, cloud_order_id, bytes, active, created_at)
-      VALUES ('grant-1', ${orgId}, 'stripe', 'evt-quota', 'order-quota', 500, 1, ${Date.now()})
-    `)
-
     const putRes = await app.request(`/api/admin/quotas/${orgId}`, {
       method: 'PUT',
       headers: { ...adminH, 'Content-Type': 'application/json' },
@@ -330,13 +324,11 @@ describe('User Quotas API — /api/quotas', () => {
     expect(putRes.status).toBe(200)
     const updated = (await putRes.json()) as Record<string, unknown>
     expect(updated.baseQuota).toBe(1000)
-    expect(updated.grantedQuota).toBe(0)
     expect(updated.quota).toBe(1000)
 
     const res = await app.request('/api/quotas/me', { headers: adminH })
     const body = (await res.json()) as Record<string, unknown>
     expect(body.baseQuota).toBe(1000)
-    expect(body.grantedQuota).toBe(0)
     expect(body.quota).toBe(1000)
   })
 })

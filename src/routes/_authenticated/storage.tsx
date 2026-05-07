@@ -5,16 +5,15 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { StorageActions, StorageGrantHistory, StorageStatusMetrics } from '@/components/store/storage-panels'
+import { StorageActions, StorageOrderHistory, StorageStatusMetrics } from '@/components/store/storage-panels'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   ApiError,
   createQuotaCheckout,
   getUserQuota,
   listPurchasableQuotaPackages,
-  listQuotaGrants,
   listQuotaStoreTargets,
-  redeemQuotaCode,
+  listStoreOrders,
 } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
 
@@ -41,9 +40,9 @@ export function StoragePage() {
   })
   const targets = targetsQuery.data?.items ?? []
   const targetOrgId = activeOrg?.id ?? targets.find((target) => target.type === 'personal')?.orgId ?? ''
-  const grantsQuery = useQuery({
-    queryKey: ['storage-plans', 'grants', targetOrgId],
-    queryFn: listQuotaGrants,
+  const ordersQuery = useQuery({
+    queryKey: ['storage-plans', 'orders', targetOrgId],
+    queryFn: listStoreOrders,
     enabled: storagePlansQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
@@ -53,8 +52,8 @@ export function StoragePage() {
     enabled: storagePlansQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
-  const currentGrants = (grantsQuery.data?.items ?? []).filter((grant) => grant.orgId === targetOrgId)
-  const deliveredCheckoutCount = currentGrants.filter((grant) => grant.source === 'stripe' && grant.active).length
+  const currentOrders = (ordersQuery.data?.items ?? []).filter((order) => order.orgId === targetOrgId)
+  const deliveredCheckoutCount = currentOrders.filter((order) => order.fulfillmentStatus === 'delivered').length
 
   useEffect(() => {
     if (deliveredCheckoutCount > 0) queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
@@ -64,7 +63,7 @@ export function StoragePage() {
     if (!checkoutRefreshActive) return
     const interval = window.setInterval(() => {
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
-      queryClient.invalidateQueries({ queryKey: ['storage-plans', 'grants'] })
+      queryClient.invalidateQueries({ queryKey: ['storage-plans', 'orders'] })
     }, 5000)
     const timeout = window.setTimeout(() => setCheckoutRefreshActive(false), 120000)
     return () => {
@@ -74,8 +73,16 @@ export function StoragePage() {
   }, [checkoutRefreshActive, queryClient])
 
   const checkoutMutation = useMutation({
-    mutationFn: ({ packageId, currency }: { packageId: string; currency: string; checkoutWindow: Window | null }) =>
-      createQuotaCheckout(packageId, targetOrgId, currency),
+    mutationFn: ({
+      packageId,
+      currency,
+      giftCardCode,
+    }: {
+      packageId: string
+      currency: string
+      giftCardCode?: string
+      checkoutWindow: Window | null
+    }) => createQuotaCheckout(packageId, targetOrgId, currency, giftCardCode),
     onSuccess: (result, variables) => {
       if (variables.checkoutWindow) {
         variables.checkoutWindow.location.href = result.checkoutUrl
@@ -84,7 +91,7 @@ export function StoragePage() {
       }
       setCheckoutRefreshActive(true)
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
-      queryClient.invalidateQueries({ queryKey: ['storage-plans', 'grants'] })
+      queryClient.invalidateQueries({ queryKey: ['storage-plans', 'orders'] })
     },
     onError: (err, variables) => {
       variables.checkoutWindow?.close()
@@ -92,22 +99,11 @@ export function StoragePage() {
     },
   })
 
-  function startCheckout(packageId: string, currency: string) {
+  function startCheckout(packageId: string, currency: string, giftCardCode?: string) {
     const checkoutWindow = window.open('about:blank', '_blank')
     if (checkoutWindow) checkoutWindow.opener = null
-    checkoutMutation.mutate({ packageId, currency, checkoutWindow })
+    checkoutMutation.mutate({ packageId, currency, giftCardCode, checkoutWindow })
   }
-
-  const redemptionMutation = useMutation({
-    mutationFn: () => redeemQuotaCode(code, targetOrgId),
-    onSuccess: () => {
-      setCode('')
-      queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
-      queryClient.invalidateQueries({ queryKey: ['storage-plans', 'grants'] })
-      toast.success(t('storage.redeemed'))
-    },
-    onError: (err) => toast.error(err.message),
-  })
 
   if (storagePlansQuery.isLoading || (storagePlansQuery.isSuccess && targetsQuery.isLoading)) {
     return <p className="py-20 text-center text-muted-foreground">{t('common.loading')}</p>
@@ -129,15 +125,17 @@ export function StoragePage() {
           code={code}
           packages={storagePlansQuery.data?.items ?? []}
           packagesDisabled={!targetOrgId || checkoutMutation.isPending}
-          redeemDisabled={!code || !targetOrgId || redemptionMutation.isPending}
+          redeemDisabled={!code || !targetOrgId || checkoutMutation.isPending}
           onCodeChange={setCode}
           onCheckout={startCheckout}
-          onRedeem={() => redemptionMutation.mutate()}
+          onRedeem={() => {
+            toast.info(t('storage.applyGiftCardAtCheckout'))
+          }}
         />
       </div>
 
       <StorageStatusMetrics quota={quotaQuery.data} />
-      <StorageGrantHistory grants={currentGrants} />
+      <StorageOrderHistory orders={currentOrders} />
     </div>
   )
 }

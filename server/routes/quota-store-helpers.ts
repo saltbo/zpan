@@ -1,4 +1,4 @@
-import { storageCodeStatusSchema } from '@shared/schemas'
+import { giftCardStatusSchema } from '@shared/schemas'
 import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
@@ -13,7 +13,6 @@ export type RouteContext = {
 export const cloudCheckoutResponseSchema = z
   .object({ orderId: z.string().min(1), url: z.string().url() })
   .transform((value) => ({ checkoutUrl: value.url }))
-export const cloudRedemptionResponseSchema = z.object({ ok: z.boolean() }).passthrough()
 const cloudPackagePriceSchema = z.union([
   z.object({ currency: z.string().min(1), amount: z.number().int().positive() }),
   z
@@ -21,59 +20,6 @@ const cloudPackagePriceSchema = z.union([
     .transform((price) => ({ currency: price.currency, amount: price.unit_amount })),
 ])
 const cloudPackageSchema = z.union([
-  // Legacy camelCase: resourceType/resourceBytes → storageBytes/trafficBytes
-  z
-    .object({
-      id: z.string().min(1),
-      name: z.string().min(1),
-      description: z.string().nullable().default(''),
-      resourceType: z.enum(['storage', 'traffic']),
-      resourceBytes: z.number().int().positive(),
-      prices: z.array(cloudPackagePriceSchema).min(1),
-      active: z.boolean().default(true),
-      sortOrder: z.number().int().default(0),
-      createdAt: z.string().min(1),
-      updatedAt: z.string().min(1),
-    })
-    .transform((pkg) => ({
-      id: pkg.id,
-      name: pkg.name,
-      description: pkg.description ?? '',
-      storageBytes: pkg.resourceType === 'storage' ? pkg.resourceBytes : 0,
-      trafficBytes: pkg.resourceType === 'traffic' ? pkg.resourceBytes : 0,
-      prices: pkg.prices,
-      active: pkg.active,
-      sortOrder: pkg.sortOrder,
-      createdAt: pkg.createdAt,
-      updatedAt: pkg.updatedAt,
-    })),
-  // Legacy snake_case: resource_type/resource_bytes → storageBytes/trafficBytes
-  z
-    .object({
-      id: z.string().min(1),
-      name: z.string().min(1),
-      description: z.string().nullable().default(''),
-      resource_type: z.enum(['storage', 'traffic']),
-      resource_bytes: z.number().int().positive(),
-      prices: z.array(cloudPackagePriceSchema).min(1),
-      active: z.boolean().default(true),
-      sort_order: z.number().int().default(0),
-      created_at: z.string().min(1),
-      updated_at: z.string().min(1),
-    })
-    .transform((pkg) => ({
-      id: pkg.id,
-      name: pkg.name,
-      description: pkg.description ?? '',
-      storageBytes: pkg.resource_type === 'storage' ? pkg.resource_bytes : 0,
-      trafficBytes: pkg.resource_type === 'traffic' ? pkg.resource_bytes : 0,
-      prices: pkg.prices,
-      active: pkg.active,
-      sortOrder: pkg.sort_order,
-      createdAt: pkg.created_at,
-      updatedAt: pkg.updated_at,
-    })),
-  // New snake_case: storage_bytes/traffic_bytes
   z
     .object({
       id: z.string().min(1),
@@ -99,7 +45,6 @@ const cloudPackageSchema = z.union([
       createdAt: pkg.created_at,
       updatedAt: pkg.updated_at,
     })),
-  // New camelCase: storageBytes/trafficBytes (must come last due to optional defaults)
   z
     .object({
       id: z.string().min(1),
@@ -123,83 +68,130 @@ export const cloudPackageListResponseSchema = z.union([
     total: result.total ?? result.items.length,
   })),
 ])
-export const cloudStorageCodesResponseSchema = z.array(
-  z
-    .object({
-      code: z.string().min(1),
-      resourceType: z.enum(['storage', 'traffic']),
-      bytes: z.number().int().positive(),
-      maxUses: z.number().int().positive(),
-      usesCount: z.number().int().min(0),
-      expiresAt: z.string().nullable(),
-      createdAt: z.string().min(1),
-      revokedAt: z.string().nullable(),
-    })
-    .transform((code) => ({
-      code: code.code,
-      resourceType: code.resourceType,
-      resourceBytes: code.bytes,
-      maxUses: code.maxUses,
-      usesCount: code.usesCount,
-      expiresAt: code.expiresAt,
-      createdAt: code.createdAt,
-      revokedAt: code.revokedAt,
-    })),
-)
-export const cloudQuotaGrantsResponseSchema = z.array(
+const cloudOrderSchema = z
+  .object({
+    id: z.string().min(1),
+    orgId: z.string().min(1),
+    packageName: z.string().min(1),
+    packageDescription: z.string().nullable().default(null),
+    storageBytes: z.number().int().min(0),
+    trafficBytes: z.number().int().min(0),
+    subtotalAmount: z.number().int().min(0),
+    giftCardAmount: z.number().int().min(0).default(0),
+    stripeAmount: z.number().int().min(0).default(0),
+    paidAmount: z.number().int().min(0).default(0),
+    currency: z.string().min(1),
+    giftCardId: z.string().nullable().default(null),
+    stripeSessionId: z.string().nullable().default(null),
+    stripePaymentIntentId: z.string().nullable().default(null),
+    paymentStatus: z.enum(['pending', 'paid', 'refunded', 'canceled']),
+    fulfillmentStatus: z.enum(['pending', 'delivering', 'delivered', 'failed']).nullable().default(null),
+    terminalUserId: z.string().nullable().default(null),
+    terminalUserEmail: z.string().nullable().default(null),
+    createdAt: z.string().min(1),
+    paidAt: z.string().nullable().default(null),
+    fulfilledAt: z.string().nullable().default(null),
+  })
+  .or(
+    z
+      .object({
+        id: z.string().min(1),
+        target_org_id: z.string().min(1),
+        package_name: z.string().min(1),
+        package_description: z.string().nullable().default(null),
+        storage_bytes: z.number().int().min(0),
+        traffic_bytes: z.number().int().min(0),
+        subtotal_amount: z.number().int().min(0),
+        gift_card_amount: z.number().int().min(0).default(0),
+        stripe_amount: z.number().int().min(0).default(0),
+        paid_amount: z.number().int().min(0).default(0),
+        currency: z.string().min(1),
+        gift_card_id: z.string().nullable().default(null),
+        stripe_session_id: z.string().nullable().default(null),
+        stripe_payment_intent_id: z.string().nullable().default(null),
+        payment_status: z.enum(['pending', 'paid', 'refunded', 'canceled']),
+        fulfillment_status: z.enum(['pending', 'delivering', 'delivered', 'failed']).nullable().default(null),
+        terminal_user_id: z.string().nullable().default(null),
+        terminal_user_email: z.string().nullable().default(null),
+        created_at: z.string().min(1),
+        paid_at: z.string().nullable().default(null),
+        fulfilled_at: z.string().nullable().default(null),
+      })
+      .transform((order) => ({
+        id: order.id,
+        orgId: order.target_org_id,
+        packageName: order.package_name,
+        packageDescription: order.package_description,
+        storageBytes: order.storage_bytes,
+        trafficBytes: order.traffic_bytes,
+        subtotalAmount: order.subtotal_amount,
+        giftCardAmount: order.gift_card_amount,
+        stripeAmount: order.stripe_amount,
+        paidAmount: order.paid_amount,
+        currency: order.currency,
+        giftCardId: order.gift_card_id,
+        stripeSessionId: order.stripe_session_id,
+        stripePaymentIntentId: order.stripe_payment_intent_id,
+        paymentStatus: order.payment_status,
+        fulfillmentStatus: order.fulfillment_status,
+        terminalUserId: order.terminal_user_id,
+        terminalUserEmail: order.terminal_user_email,
+        createdAt: order.created_at,
+        paidAt: order.paid_at,
+        fulfilledAt: order.fulfilled_at,
+      })),
+  )
+
+export const cloudOrdersResponseSchema = z.union([
+  z.array(cloudOrderSchema).transform((items) => ({ items, total: items.length })),
+  z.object({ items: z.array(cloudOrderSchema), total: z.number().int().min(0).optional() }).transform((result) => ({
+    items: result.items,
+    total: result.total ?? result.items.length,
+  })),
+])
+
+export const cloudGiftCardsResponseSchema = z.array(
   z.union([
     z.object({
       id: z.string().min(1),
-      orgId: z.string().min(1),
-      source: z.enum(['stripe', 'redeem_code', 'admin_adjustment']),
-      externalEventId: z.string().nullable(),
-      cloudOrderId: z.string().nullable(),
-      cloudRedemptionId: z.string().nullable(),
-      code: z.string().nullable(),
-      bytes: z.number().int().positive(),
-      packageSnapshot: z.string().nullable(),
-      grantedBy: z.string().nullable(),
-      terminalUserId: z.string().nullable(),
-      terminalUserEmail: z.string().nullable(),
-      active: z.boolean(),
+      code: z.string().min(1),
+      initialAmount: z.number().int().positive(),
+      remainingAmount: z.number().int().min(0),
+      currency: z.string().min(1),
+      status: z.enum(['active', 'disabled', 'exhausted', 'expired']),
+      expiresAt: z.string().nullable(),
       createdAt: z.string().min(1),
+      updatedAt: z.string().min(1),
+      disabledAt: z.string().nullable(),
     }),
     z
       .object({
         id: z.string().min(1),
-        org_id: z.string().min(1),
-        source: z.enum(['stripe', 'redeem_code', 'admin_adjustment']),
-        external_event_id: z.string().nullable(),
-        cloud_order_id: z.string().nullable(),
-        cloud_redemption_id: z.string().nullable(),
         code: z.string().nullable(),
-        bytes: z.number().int().positive(),
-        package_snapshot: z.string().nullable(),
-        granted_by: z.string().nullable(),
-        terminal_user_id: z.string().nullable(),
-        terminal_user_email: z.string().nullable(),
-        active: z.boolean(),
+        initial_amount: z.number().int().positive(),
+        remaining_amount: z.number().int().min(0),
+        currency: z.string().min(1),
+        status: z.enum(['active', 'disabled', 'exhausted', 'expired']),
+        expires_at: z.string().nullable(),
         created_at: z.string().min(1),
+        updated_at: z.string().min(1),
+        disabled_at: z.string().nullable(),
       })
-      .transform((grant) => ({
-        id: grant.id,
-        orgId: grant.org_id,
-        source: grant.source,
-        externalEventId: grant.external_event_id,
-        cloudOrderId: grant.cloud_order_id,
-        cloudRedemptionId: grant.cloud_redemption_id,
-        code: grant.code,
-        bytes: grant.bytes,
-        packageSnapshot: grant.package_snapshot,
-        grantedBy: grant.granted_by,
-        terminalUserId: grant.terminal_user_id,
-        terminalUserEmail: grant.terminal_user_email,
-        active: grant.active,
-        createdAt: grant.created_at,
+      .transform((card) => ({
+        id: card.id,
+        code: card.code ?? '',
+        initialAmount: card.initial_amount,
+        remainingAmount: card.remaining_amount,
+        currency: card.currency,
+        status: card.status,
+        expiresAt: card.expires_at,
+        createdAt: card.created_at,
+        updatedAt: card.updated_at,
+        disabledAt: card.disabled_at,
       })),
   ]),
 )
-export const storageCodeListQuerySchema = z.object({ status: storageCodeStatusSchema.optional() })
+export const giftCardListQuerySchema = z.object({ status: giftCardStatusSchema.optional() })
 
 export async function getUserStoreSettings(db: Parameters<typeof getRequiredSettings>[0]) {
   try {
@@ -275,9 +267,9 @@ export async function deleteCloud(c: RouteContext, path: string) {
   }
 }
 
-export function storageCodesPath(status?: z.infer<typeof storageCodeStatusSchema>) {
-  if (!status) return '/api/store/storage-codes'
-  return `/api/store/storage-codes?status=${encodeURIComponent(status)}`
+export function giftCardsPath(status?: z.infer<typeof giftCardStatusSchema>) {
+  if (!status) return '/api/store/gift-cards'
+  return `/api/store/gift-cards?status=${encodeURIComponent(status)}`
 }
 
 export function packagesPath(packageId?: string) {
@@ -285,8 +277,9 @@ export function packagesPath(packageId?: string) {
   return `/api/store/packages/${encodeURIComponent(packageId)}`
 }
 
-export function quotaGrantsPath(orgIds: string[]) {
-  return `/api/store/grants?targetOrgIds=${encodeURIComponent(orgIds.join(','))}`
+export function ordersPath(orgIds?: string[]) {
+  if (!orgIds?.length) return '/api/store/orders'
+  return `/api/store/orders?targetOrgIds=${encodeURIComponent(orgIds.join(','))}`
 }
 
 export async function createCheckoutPayload(
@@ -296,6 +289,7 @@ export async function createCheckoutPayload(
   targetOrgId: string,
   userId: string,
   currency?: string,
+  giftCardCode?: string,
 ) {
   const origin = getInstanceOrigin(c)
   return {
@@ -305,24 +299,9 @@ export async function createCheckoutPayload(
     terminalUserId: userId,
     terminalUserLabel: await getUserTerminalLabel(c.get('platform').db, userId),
     currency,
+    giftCardCode,
     successUrl: `${origin}/storage`,
     cancelUrl: `${origin}/storage`,
-  }
-}
-
-export async function createRedemptionPayload(
-  c: { get(key: 'platform'): Env['Variables']['platform'] },
-  boundLicenseId: string,
-  code: string,
-  targetOrgId: string,
-  userId: string,
-) {
-  return {
-    boundLicenseId,
-    code,
-    targetOrgId,
-    terminalUserId: userId,
-    terminalUserLabel: await getUserTerminalLabel(c.get('platform').db, userId),
   }
 }
 

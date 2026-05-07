@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { activityEvents, orgQuotas, quotaDeliveryEvents } from '../db/schema'
+import { activityEvents, orgQuotas, webhookEvents } from '../db/schema'
 import type { Database } from '../platform/interface'
-import { processCloudDelivery } from './quota-store'
+import { processCloudOrderQuotaChange } from './quota-store'
 
 function createAsyncDb(quotaRows: Array<{ id: string }> = [{ id: 'quota-1' }]) {
   const state = {
     audits: 0,
-    deliveryStatus: '',
+    webhookStatus: '',
     quotaUpdates: 0,
   }
   const db = {
@@ -14,7 +14,7 @@ function createAsyncDb(quotaRows: Array<{ id: string }> = [{ id: 'quota-1' }]) {
     transaction: async (fn: (tx: unknown) => Promise<void>) => fn(db),
     insert: (table: unknown) => ({
       values: async (values: Record<string, unknown>) => {
-        if (table === quotaDeliveryEvents) state.deliveryStatus = String(values.status)
+        if (table === webhookEvents) state.webhookStatus = String(values.status)
         if (table === activityEvents) state.audits += 1
       },
     }),
@@ -29,7 +29,7 @@ function createAsyncDb(quotaRows: Array<{ id: string }> = [{ id: 'quota-1' }]) {
               },
             }
           }
-          if (table === quotaDeliveryEvents) state.deliveryStatus = String(values.status)
+          if (table === webhookEvents) state.webhookStatus = String(values.status)
           return Promise.resolve()
         },
       }),
@@ -52,7 +52,7 @@ function createFailingBeginDb() {
 function createSyncDb() {
   const state = {
     audits: 0,
-    deliveryStatus: '',
+    webhookStatus: '',
     quotaUpdates: 0,
   }
 
@@ -66,7 +66,7 @@ function createSyncDb() {
         values: (values: Record<string, unknown>) => {
           return {
             run: () => {
-              if (table === quotaDeliveryEvents) state.deliveryStatus = String(values.status)
+              if (table === webhookEvents) state.webhookStatus = String(values.status)
               if (table === activityEvents) state.audits += 1
             },
           }
@@ -88,7 +88,7 @@ function createSyncDb() {
                 }),
               }
             }
-            state.deliveryStatus = String(values.status)
+            state.webhookStatus = String(values.status)
             return { run: () => undefined }
           },
         }),
@@ -99,68 +99,76 @@ function createSyncDb() {
   return { db: new BetterSQLite3Database() as unknown as Database, state }
 }
 
-describe('processCloudDelivery', () => {
-  it('processes delivery with an async transaction database', async () => {
+describe('processCloudOrderQuotaChange', () => {
+  it('processes quota change with an async transaction database', async () => {
     const { db, state } = createAsyncDb()
     const event = {
       eventId: 'evt-async',
+      eventType: 'order.quota_changed' as const,
+      cloudOrderId: 'order-async',
       targetOrgId: 'org-async',
-      resourceType: 'storage' as const,
-      operation: 'increase' as const,
-      resourceBytes: 4096,
+      direction: 'increase' as const,
+      storageBytes: 4096,
+      trafficBytes: 0,
     }
 
-    await expect(processCloudDelivery(db, event, JSON.stringify(event), 'hash-async')).resolves.toEqual({
+    await expect(processCloudOrderQuotaChange(db, event, JSON.stringify(event), 'hash-async')).resolves.toEqual({
       duplicate: false,
       eventId: 'evt-async',
     })
-    expect(state).toMatchObject({ audits: 1, deliveryStatus: 'processed', quotaUpdates: 1 })
+    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', quotaUpdates: 1 })
   })
 
-  it('processes delivery with a sync transaction database', async () => {
+  it('processes quota change with a sync transaction database', async () => {
     const { db, state } = createSyncDb()
     const event = {
       eventId: 'evt-sync',
+      eventType: 'order.quota_changed' as const,
+      cloudOrderId: 'order-sync',
       targetOrgId: 'org-sync',
-      resourceType: 'traffic' as const,
-      operation: 'decrease' as const,
-      resourceBytes: 2048,
+      direction: 'decrease' as const,
+      storageBytes: 0,
+      trafficBytes: 2048,
     }
 
-    await expect(processCloudDelivery(db, event, JSON.stringify(event), 'hash-sync')).resolves.toEqual({
+    await expect(processCloudOrderQuotaChange(db, event, JSON.stringify(event), 'hash-sync')).resolves.toEqual({
       duplicate: false,
       eventId: 'evt-sync',
     })
-    expect(state).toMatchObject({ audits: 1, deliveryStatus: 'processed', quotaUpdates: 1 })
+    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', quotaUpdates: 1 })
   })
 
-  it('marks async delivery failed when the target quota is missing', async () => {
+  it('marks async quota change failed when the target quota is missing', async () => {
     const { db, state } = createAsyncDb([])
     const event = {
       eventId: 'evt-async-missing',
+      eventType: 'order.quota_changed' as const,
+      cloudOrderId: 'order-missing',
       targetOrgId: 'org-missing',
-      resourceType: 'traffic' as const,
-      operation: 'decrease' as const,
-      resourceBytes: 1024,
+      direction: 'decrease' as const,
+      storageBytes: 0,
+      trafficBytes: 1024,
     }
 
-    await expect(processCloudDelivery(db, event, JSON.stringify(event), 'hash-missing')).rejects.toThrow(
+    await expect(processCloudOrderQuotaChange(db, event, JSON.stringify(event), 'hash-missing')).rejects.toThrow(
       'target_quota_missing',
     )
-    expect(state).toMatchObject({ audits: 0, deliveryStatus: 'failed', quotaUpdates: 1 })
+    expect(state).toMatchObject({ audits: 0, webhookStatus: 'failed', quotaUpdates: 1 })
   })
 
-  it('surfaces delivery event insert failures', async () => {
+  it('surfaces quota change webhook insert failures', async () => {
     const event = {
       eventId: 'evt-insert-failed',
+      eventType: 'order.quota_changed' as const,
+      cloudOrderId: 'order-failed',
       targetOrgId: 'org-failed',
-      resourceType: 'storage' as const,
-      operation: 'increase' as const,
-      resourceBytes: 1024,
+      direction: 'increase' as const,
+      storageBytes: 1024,
+      trafficBytes: 0,
     }
 
     await expect(
-      processCloudDelivery(createFailingBeginDb(), event, JSON.stringify(event), 'hash-failed'),
+      processCloudOrderQuotaChange(createFailingBeginDb(), event, JSON.stringify(event), 'hash-failed'),
     ).rejects.toThrow('insert failed')
   })
 })

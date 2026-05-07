@@ -1,4 +1,4 @@
-import type { QuotaStorePackage, QuotaStoreSettings } from '@shared/types'
+import type { QuotaStorePackage, QuotaStoreSettings, StoreGiftCard, StoreOrder } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
 import { toast } from 'sonner'
@@ -7,14 +7,14 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   ApiError,
   createQuotaStorePackage,
+  createStoreGiftCards,
   deleteQuotaStorePackage,
-  deleteStorageRedemptionCode,
-  generateStorageRedemptionCodes,
+  deleteStoreGiftCard,
+  disableStoreGiftCard,
   getQuotaStoreSettings,
-  listAdminQuotaDeliveryRecords,
+  listAdminStoreOrders,
   listQuotaStorePackages,
-  listStorageRedemptionCodes,
-  revokeStorageRedemptionCode,
+  listStoreGiftCards,
   updateQuotaStorePackage,
   updateQuotaStoreSettings,
 } from '@/lib/api'
@@ -57,14 +57,14 @@ vi.mock('@/lib/api', () => {
   return {
     ApiError: MockApiError,
     createQuotaStorePackage: vi.fn(),
+    createStoreGiftCards: vi.fn(),
     deleteQuotaStorePackage: vi.fn(),
-    deleteStorageRedemptionCode: vi.fn(),
-    generateStorageRedemptionCodes: vi.fn(),
+    deleteStoreGiftCard: vi.fn(),
+    disableStoreGiftCard: vi.fn(),
     getQuotaStoreSettings: vi.fn(),
-    listAdminQuotaDeliveryRecords: vi.fn(),
+    listAdminStoreOrders: vi.fn(),
     listQuotaStorePackages: vi.fn(),
-    listStorageRedemptionCodes: vi.fn(),
-    revokeStorageRedemptionCode: vi.fn(),
+    listStoreGiftCards: vi.fn(),
     updateQuotaStorePackage: vi.fn(),
     updateQuotaStoreSettings: vi.fn(),
   }
@@ -97,6 +97,49 @@ function quotaPackage(overrides: Partial<QuotaStorePackage> = {}): QuotaStorePac
   }
 }
 
+function giftCard(overrides: Partial<StoreGiftCard> = {}): StoreGiftCard {
+  return {
+    id: 'gift-card-1',
+    code: 'ZS-CODE-1',
+    initialAmount: 10_000,
+    remainingAmount: 10_000,
+    currency: 'usd',
+    status: 'active',
+    expiresAt: null,
+    disabledAt: null,
+    createdAt: '2026-05-05T00:00:00.000Z',
+    updatedAt: '2026-05-05T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function storeOrder(overrides: Partial<StoreOrder> = {}): StoreOrder {
+  return {
+    id: 'order-1',
+    orgId: 'org-1',
+    packageName: '100 GB',
+    packageDescription: null,
+    storageBytes: 1024,
+    trafficBytes: 0,
+    subtotalAmount: 999,
+    giftCardAmount: 999,
+    stripeAmount: 0,
+    paidAmount: 0,
+    currency: 'usd',
+    giftCardId: 'gift-card-1',
+    stripeSessionId: null,
+    stripePaymentIntentId: null,
+    paymentStatus: 'paid',
+    fulfillmentStatus: 'delivered',
+    terminalUserId: 'user-1',
+    terminalUserEmail: 'user@example.com',
+    createdAt: '2026-05-05T00:00:00.000Z',
+    paidAt: '2026-05-05T00:00:00.000Z',
+    fulfilledAt: '2026-05-05T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
 function renderAdminPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -122,7 +165,7 @@ afterEach(() => {
 describe('AdminStoragePlansPage', () => {
   beforeEach(() => {
     HTMLElement.prototype.scrollIntoView = vi.fn()
-    vi.mocked(listAdminQuotaDeliveryRecords).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listAdminStoreOrders).mockResolvedValue({ items: [], total: 0 })
   })
 
   it('shows the Pro gate when quota store settings are unavailable', async () => {
@@ -219,7 +262,7 @@ describe('AdminStoragePlansPage', () => {
     expect(view.getByRole('columnheader', { name: 'admin.storagePlans.prices' })).toBeTruthy()
     expect(view.queryByRole('button', { name: 'admin.storagePlans.sync' })).toBeNull()
     expect(view.queryByText('admin.storagePlans.lastSync')).toBeNull()
-    expect(view.queryByText('admin.storagePlans.lastDelivery')).toBeNull()
+    expect(view.queryByText('admin.storagePlans.lastOrder')).toBeNull()
     expect(view.queryByLabelText('admin.storagePlans.packageName')).toBeNull()
 
     fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.newPackage' }))
@@ -364,30 +407,19 @@ describe('AdminStoragePlansPage', () => {
     expect(view.queryByRole('button', { name: 'common.save' })).toBeNull()
     expect(view.queryByRole('button', { name: 'admin.storagePlans.sync' })).toBeNull()
     expect(listQuotaStorePackages).toHaveBeenCalled()
-    expect(listAdminQuotaDeliveryRecords).toHaveBeenCalled()
+    expect(listAdminStoreOrders).toHaveBeenCalled()
     expect(updateQuotaStoreSettings).not.toHaveBeenCalled()
   })
 
-  it('generates and revokes storage redemption codes from the codes tab', async () => {
+  it('generates and disables gift cards from the gift cards tab', async () => {
     vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
     vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listStorageRedemptionCodes).mockResolvedValue({
-      items: [
-        {
-          code: 'ZS-CODE-1',
-          resourceType: 'storage',
-          resourceBytes: 107374182400,
-          maxUses: 1,
-          usesCount: 0,
-          expiresAt: null,
-          createdAt: '2026-05-05T00:00:00.000Z',
-          revokedAt: null,
-        },
-      ],
+    vi.mocked(listStoreGiftCards).mockResolvedValue({
+      items: [giftCard()],
       total: 1,
     })
-    vi.mocked(generateStorageRedemptionCodes).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(revokeStorageRedemptionCode).mockResolvedValue({ code: 'ZS-CODE-1', revoked: true })
+    vi.mocked(createStoreGiftCards).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(disableStoreGiftCard).mockResolvedValue({ code: 'ZS-CODE-1', disabled: true })
 
     const view = renderAdminPage()
 
@@ -395,48 +427,36 @@ describe('AdminStoragePlansPage', () => {
     fireEvent.click(view.getByRole('tab', { name: 'admin.storagePlans.tabs.codes' }))
     await waitFor(() => expect(view.getByText('ZS-CODE-1')).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.codes.generateTitle' }))
-    fireEvent.change(view.getByLabelText('admin.storagePlans.size'), { target: { value: '50' } })
-    fireEvent.change(view.getByLabelText('admin.storagePlans.codes.maxUses'), { target: { value: '2' } })
+    fireEvent.change(view.getByLabelText('admin.storagePlans.codes.amount'), { target: { value: '50' } })
+    fireEvent.change(view.getByLabelText('admin.storagePlans.codes.currency'), { target: { value: 'usd' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.codes.count'), { target: { value: '3' } })
     fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.codes.generate' }))
 
     await waitFor(() =>
-      expect(generateStorageRedemptionCodes).toHaveBeenCalledWith({
-        resourceType: 'storage',
-        resourceBytes: 53687091200,
-        maxUses: 2,
+      expect(createStoreGiftCards).toHaveBeenCalledWith({
+        amount: 5000,
+        currency: 'usd',
         count: 3,
       }),
     )
-    fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.codes.revoke' }))
-    expect(revokeStorageRedemptionCode).not.toHaveBeenCalled()
+    fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.codes.disable' }))
+    expect(disableStoreGiftCard).not.toHaveBeenCalled()
 
-    const revokeDialog = await view.findByRole('dialog')
-    expect(within(revokeDialog).getByText('admin.storagePlans.codes.revokeTitle')).toBeTruthy()
-    fireEvent.click(within(revokeDialog).getByRole('button', { name: 'admin.storagePlans.codes.revoke' }))
+    const disableDialog = await view.findByRole('dialog')
+    expect(within(disableDialog).getByText('admin.storagePlans.codes.disableTitle')).toBeTruthy()
+    fireEvent.click(within(disableDialog).getByRole('button', { name: 'admin.storagePlans.codes.disable' }))
 
-    await waitFor(() => expect(revokeStorageRedemptionCode).toHaveBeenCalledWith('ZS-CODE-1', expect.anything()))
+    await waitFor(() => expect(vi.mocked(disableStoreGiftCard).mock.calls[0][0]).toBe('ZS-CODE-1'))
   })
 
-  it('deletes an eligible storage redemption code from the codes tab', async () => {
+  it('deletes an eligible gift card from the codes tab', async () => {
     vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
     vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listStorageRedemptionCodes).mockResolvedValue({
-      items: [
-        {
-          code: 'ZS-CODE-1',
-          resourceType: 'storage',
-          resourceBytes: 107374182400,
-          maxUses: 1,
-          usesCount: 0,
-          expiresAt: null,
-          createdAt: '2026-05-05T00:00:00.000Z',
-          revokedAt: null,
-        },
-      ],
+    vi.mocked(listStoreGiftCards).mockResolvedValue({
+      items: [giftCard()],
       total: 1,
     })
-    vi.mocked(deleteStorageRedemptionCode).mockResolvedValue({ code: 'ZS-CODE-1', deleted: true })
+    vi.mocked(deleteStoreGiftCard).mockResolvedValue({ code: 'ZS-CODE-1', deleted: true })
 
     const view = renderAdminPage()
 
@@ -445,31 +465,20 @@ describe('AdminStoragePlansPage', () => {
     await waitFor(() => expect(view.getByText('ZS-CODE-1')).toBeTruthy())
 
     fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.codes.delete' }))
-    expect(deleteStorageRedemptionCode).not.toHaveBeenCalled()
+    expect(deleteStoreGiftCard).not.toHaveBeenCalled()
 
     const deleteDialog = await view.findByRole('dialog')
     expect(within(deleteDialog).getByText('admin.storagePlans.codes.deleteTitle')).toBeTruthy()
     fireEvent.click(within(deleteDialog).getByRole('button', { name: 'admin.storagePlans.codes.delete' }))
 
-    await waitFor(() => expect(deleteStorageRedemptionCode).toHaveBeenCalledWith('ZS-CODE-1', expect.anything()))
+    await waitFor(() => expect(vi.mocked(deleteStoreGiftCard).mock.calls[0][0]).toBe('ZS-CODE-1'))
   })
 
-  it('shows redemption codes in a table and opens generation fields in a dialog', async () => {
+  it('shows gift cards in a table and opens generation fields in a dialog', async () => {
     vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
     vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listStorageRedemptionCodes).mockResolvedValue({
-      items: [
-        {
-          code: 'ZS-CODE-2',
-          resourceType: 'traffic',
-          resourceBytes: 53687091200,
-          maxUses: 2,
-          usesCount: 1,
-          expiresAt: null,
-          createdAt: '2026-05-05T00:00:00.000Z',
-          revokedAt: null,
-        },
-      ],
+    vi.mocked(listStoreGiftCards).mockResolvedValue({
+      items: [giftCard({ id: 'gift-card-2', code: 'ZS-CODE-2', remainingAmount: 5000 })],
       total: 1,
     })
 
@@ -490,35 +499,18 @@ describe('AdminStoragePlansPage', () => {
     expect(within(dialog).getByLabelText('admin.storagePlans.codes.count')).toBeTruthy()
   })
 
-  it('loads delivery records from the delivery tab', async () => {
+  it('loads orders from the orders tab', async () => {
     vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
     vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listAdminQuotaDeliveryRecords).mockResolvedValue({
-      items: [
-        {
-          id: 'grant-1',
-          orgId: 'org-1',
-          source: 'redeem_code',
-          externalEventId: 'evt-1',
-          cloudOrderId: null,
-          cloudRedemptionId: 'redemption-1',
-          code: 'ZS-CODE-1',
-          bytes: 1024,
-          packageSnapshot: null,
-          grantedBy: null,
-          terminalUserId: 'user-1',
-          terminalUserEmail: 'user@example.com',
-          active: true,
-          createdAt: '2026-05-05T00:00:00.000Z',
-        },
-      ],
+    vi.mocked(listAdminStoreOrders).mockResolvedValue({
+      items: [storeOrder()],
       total: 1,
     })
 
     const view = renderAdminPage()
 
-    await waitFor(() => expect(view.getByRole('tab', { name: 'admin.storagePlans.tabs.delivery' })).toBeTruthy())
-    fireEvent.click(view.getByRole('tab', { name: 'admin.storagePlans.tabs.delivery' }))
+    await waitFor(() => expect(view.getByRole('tab', { name: 'admin.storagePlans.tabs.orders' })).toBeTruthy())
+    fireEvent.click(view.getByRole('tab', { name: 'admin.storagePlans.tabs.orders' }))
     await waitFor(() => expect(view.getByText('user@example.com')).toBeTruthy())
   })
 

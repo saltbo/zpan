@@ -18,25 +18,23 @@ export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
 export type {
   CheckoutInput,
-  CloudDeliveryEvent,
-  GenerateStorageCodesInput,
+  CloudOrderQuotaChange,
+  CreateGiftCardInput,
+  DisableGiftCardInput,
+  GiftCardStatus,
   QuotaStorePackageInput,
   QuotaStorePackagePatchInput,
   QuotaStoreSettingsInput,
-  RedemptionInput,
-  RevokeStorageCodeInput,
-  StorageCodeStatus,
 } from './quota-store'
 export {
   checkoutInputSchema,
-  cloudDeliveryEventSchema,
-  generateStorageCodesInputSchema,
+  cloudOrderQuotaChangeSchema,
+  createGiftCardInputSchema,
+  disableGiftCardSchema,
+  giftCardStatusSchema,
   quotaStorePackageInputSchema,
   quotaStorePackagePatchSchema,
   quotaStoreSettingsSchema,
-  redemptionInputSchema,
-  revokeStorageCodeSchema,
-  storageCodeStatusSchema,
 } from './quota-store'
 export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'
 export {

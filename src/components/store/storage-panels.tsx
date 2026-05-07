@@ -1,4 +1,4 @@
-import type { QuotaGrant, QuotaStorePackage } from '@shared/types'
+import type { QuotaStorePackage, StoreOrder } from '@shared/types'
 import { Activity, HardDrive, PlusCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -8,13 +8,12 @@ import { formatSize } from '@/lib/format'
 
 export { StorageActions } from './storage-dialogs'
 
-export function StorageStatusMetrics({ quota }: { quota?: { quota: number; grantedQuota: number } }) {
+export function StorageStatusMetrics({ quota }: { quota?: { quota: number } }) {
   const { t } = useTranslation()
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2">
       <StatusMetric label={t('storage.status')} value={t('storage.available')} />
       <StatusMetric label={t('storage.currentQuota')} value={quota ? formatSize(quota.quota) : '-'} />
-      <StatusMetric label={t('storage.grantedQuota')} value={quota ? formatSize(quota.grantedQuota) : '-'} />
     </div>
   )
 }
@@ -45,7 +44,7 @@ export function StoragePackages({
   )
 }
 
-export function StorageGrantHistory({ grants }: { grants: QuotaGrant[] }) {
+export function StorageOrderHistory({ orders }: { orders: StoreOrder[] }) {
   const { t } = useTranslation()
   return (
     <Card className="border-border/60">
@@ -54,7 +53,7 @@ export function StorageGrantHistory({ grants }: { grants: QuotaGrant[] }) {
         <CardDescription>{t('storage.historyDescription')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <GrantRows grants={grants} />
+        <OrderRows orders={orders} />
       </CardContent>
     </Card>
   )
@@ -123,34 +122,35 @@ function PackageHeader({ pkg }: { pkg: QuotaStorePackage }) {
   )
 }
 
-function GrantRows({ grants }: { grants: QuotaGrant[] }) {
+function OrderRows({ orders }: { orders: StoreOrder[] }) {
   return (
     <>
-      {grants.map((grant) => (
-        <GrantRow key={grant.id} grant={grant} />
+      {orders.map((order) => (
+        <OrderRow key={order.id} order={order} />
       ))}
-      {grants.length === 0 && <GrantEmptyState />}
+      {orders.length === 0 && <OrderEmptyState />}
     </>
   )
 }
 
-function GrantRow({ grant }: { grant: QuotaGrant }) {
+function OrderRow({ order }: { order: StoreOrder }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3">
       <div>
         <div className="flex items-center gap-2">
-          <span className="font-medium">{formatSize(grant.bytes)}</span>
-          <Badge variant="outline">{grant.source}</Badge>
-          <Badge variant={grant.active ? 'default' : 'secondary'}>{grant.active ? 'active' : 'inactive'}</Badge>
+          <span className="font-medium">{order.packageName}</span>
+          <Badge variant="outline">{formatSize(order.storageBytes)}</Badge>
+          {order.trafficBytes > 0 && <Badge variant="outline">{formatSize(order.trafficBytes)}</Badge>}
+          <Badge variant={order.paymentStatus === 'paid' ? 'default' : 'secondary'}>{order.paymentStatus}</Badge>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">{grant.orgId}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{order.orgId}</p>
       </div>
-      <span className="text-xs text-muted-foreground">{new Date(grant.createdAt).toLocaleString()}</span>
+      <span className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleString()}</span>
     </div>
   )
 }
 
-function GrantEmptyState() {
+function OrderEmptyState() {
   const { t } = useTranslation()
   return (
     <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">

@@ -5,7 +5,6 @@ import type { Database } from '../platform/interface'
 export interface EffectiveQuota {
   orgId: string
   baseQuota: number
-  grantedQuota: number
   quota: number
   used: number
   trafficQuota: number
@@ -45,7 +44,6 @@ export async function getEffectiveQuota(db: Database, orgId: string, now = new D
   return {
     orgId,
     baseQuota,
-    grantedQuota: 0,
     quota: baseQuota,
     used: quotaRow?.used ?? 0,
     trafficQuota: quotaRow?.trafficQuota ?? 0,
