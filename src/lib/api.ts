@@ -369,7 +369,7 @@ export function listQuotaStoreTargets() {
   return unwrap<{ items: QuotaTarget[]; total: number }>(quotaStoreApi.targets.$get())
 }
 
-export function createQuotaCheckout(packageId: string, targetOrgId: string, currency?: 'usd' | 'cny') {
+export function createQuotaCheckout(packageId: string, targetOrgId: string, currency?: string) {
   return unwrap<{ checkoutUrl: string }>(quotaStoreApi.checkouts.$post({ json: { packageId, targetOrgId, currency } }))
 }
 

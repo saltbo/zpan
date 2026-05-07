@@ -27,7 +27,8 @@ export function StoragePlanList({
         <TableHeader>
           <TableRow>
             <TableHead>{t('admin.storagePlans.packageName')}</TableHead>
-            <TableHead>{t('admin.storagePlans.size')}</TableHead>
+            <TableHead>{t('admin.storagePlans.storageQuota')}</TableHead>
+            <TableHead>{t('admin.storagePlans.trafficQuota')}</TableHead>
             <TableHead>{t('admin.storagePlans.prices')}</TableHead>
             <TableHead>{t('admin.storagePlans.active')}</TableHead>
             <TableHead>{t('admin.storagePlans.sortOrder')}</TableHead>
@@ -41,7 +42,12 @@ export function StoragePlanList({
                 <div className="font-medium">{pkg.name}</div>
                 <div className="mt-1 whitespace-normal text-xs text-muted-foreground">{pkg.description}</div>
               </TableCell>
-              <TableCell className="tabular-nums">{formatSize(pkg.resourceBytes)}</TableCell>
+              <TableCell className="tabular-nums">
+                {pkg.storageBytes > 0 ? formatSize(pkg.storageBytes) : '—'}
+              </TableCell>
+              <TableCell className="tabular-nums">
+                {pkg.trafficBytes > 0 ? formatSize(pkg.trafficBytes) : '—'}
+              </TableCell>
               <TableCell className="tabular-nums">{formatPrices(pkg.prices)}</TableCell>
               <TableCell>
                 <Badge variant={pkg.active ? 'default' : 'secondary'}>

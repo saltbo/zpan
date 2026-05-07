@@ -1060,9 +1060,10 @@
   "admin.storagePlans.description": "描述",
   "admin.storagePlans.size": "容量",
   "admin.storagePlans.unit": "单位",
-  "admin.storagePlans.resourceType": "资源类型",
-  "admin.storagePlans.resourceStorage": "存储",
-  "admin.storagePlans.resourceTraffic": "流量",
+  "admin.storagePlans.storageQuota": "存储配额",
+  "admin.storagePlans.trafficQuota": "下载流量配额",
+  "admin.storagePlans.quotaOptionalHint": "留空则不包含",
+  "admin.storagePlans.quotaRequired": "存储配额和下载流量配额至少填写一项。",
   "admin.storagePlans.prices": "价格",
   "admin.storagePlans.usdAmount": "美元金额（最小货币单位）",
   "admin.storagePlans.cnyAmount": "人民币金额（最小货币单位）",
@@ -1137,5 +1138,6 @@
   "storage.historyTitle": "最近授予",
   "storage.historyDescription": "当前工作空间的近期购买和兑换记录。",
   "storage.noPackages": "当前暂无可用存储套餐。",
+  "storage.trafficQuota": "{{size}} 下载流量",
   "storage.noHistory": "暂无存储授予记录。"
 }

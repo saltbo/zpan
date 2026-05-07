@@ -86,8 +86,8 @@ function quotaPackage(overrides: Partial<QuotaStorePackage> = {}): QuotaStorePac
     id: 'pkg-1',
     name: '100 GB',
     description: 'Extra storage',
-    resourceType: 'storage',
-    resourceBytes: 107374182400,
+    storageBytes: 107374182400,
+    trafficBytes: 0,
     prices: [{ currency: 'usd', amount: 999 }],
     active: true,
     sortOrder: 1,
@@ -146,7 +146,7 @@ describe('AdminStoragePlansPage', () => {
     fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.newPackage' }))
     fireEvent.change(view.getByLabelText('admin.storagePlans.packageName'), { target: { value: '250 GB' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.description'), { target: { value: 'Team storage' } })
-    fireEvent.change(view.getByLabelText('admin.storagePlans.size'), { target: { value: '250' } })
+    fireEvent.change(view.getByLabelText('admin.storagePlans.storageQuota'), { target: { value: '250' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.usdAmount'), { target: { value: '1999' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.cnyAmount'), { target: { value: '12900' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.sortOrder'), { target: { value: '2' } })
@@ -156,8 +156,8 @@ describe('AdminStoragePlansPage', () => {
       expect(createQuotaStorePackage).toHaveBeenCalledWith({
         name: '250 GB',
         description: 'Team storage',
-        resourceType: 'storage',
-        resourceBytes: 268435456000,
+        storageBytes: 268435456000,
+        trafficBytes: 0,
         prices: [
           { currency: 'usd', amount: 1999 },
           { currency: 'cny', amount: 12900 },
@@ -168,10 +168,12 @@ describe('AdminStoragePlansPage', () => {
     expect(toast.success).toHaveBeenCalledWith('admin.storagePlans.packageSaved')
   })
 
-  it('creates a traffic package with USD and CNY prices', async () => {
+  it('creates a traffic-only package with USD and CNY prices', async () => {
     vi.mocked(getQuotaStoreSettings).mockResolvedValue(settings())
     vi.mocked(listQuotaStorePackages).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createQuotaStorePackage).mockResolvedValue(quotaPackage({ id: 'pkg-traffic', resourceType: 'traffic' }))
+    vi.mocked(createQuotaStorePackage).mockResolvedValue(
+      quotaPackage({ id: 'pkg-traffic', trafficBytes: 1099511627776, storageBytes: 0 }),
+    )
 
     const view = renderAdminPage()
 
@@ -184,10 +186,8 @@ describe('AdminStoragePlansPage', () => {
     fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.description'), {
       target: { value: 'Download traffic' },
     })
-    fireEvent.click(within(dialog).getByLabelText('admin.storagePlans.resourceType'))
-    fireEvent.click(await view.findByRole('option', { name: 'admin.storagePlans.resourceTraffic' }))
-    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.size'), { target: { value: '1' } })
-    fireEvent.click(within(dialog).getByLabelText('GB'))
+    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.trafficQuota'), { target: { value: '1' } })
+    fireEvent.click(within(dialog).getByLabelText('admin.storagePlans.trafficQuota unit'))
     fireEvent.click(await view.findByRole('option', { name: 'TB' }))
     fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.usdAmount'), { target: { value: '4999' } })
     fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.cnyAmount'), { target: { value: '32900' } })
@@ -197,8 +197,8 @@ describe('AdminStoragePlansPage', () => {
       expect(createQuotaStorePackage).toHaveBeenCalledWith({
         name: '1 TB traffic',
         description: 'Download traffic',
-        resourceType: 'traffic',
-        resourceBytes: 1099511627776,
+        storageBytes: 0,
+        trafficBytes: 1099511627776,
         prices: [
           { currency: 'usd', amount: 4999 },
           { currency: 'cny', amount: 32900 },
@@ -262,8 +262,8 @@ describe('AdminStoragePlansPage', () => {
       expect(updateQuotaStorePackage).toHaveBeenCalledWith('pkg-1', {
         name: '200 GB',
         description: 'Extra storage',
-        resourceType: 'storage',
-        resourceBytes: 107374182400,
+        storageBytes: 107374182400,
+        trafficBytes: 0,
         prices: [{ currency: 'usd', amount: 999 }],
         sortOrder: 1,
       }),

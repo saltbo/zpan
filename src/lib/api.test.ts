@@ -301,11 +301,10 @@ describe('api', () => {
     it('creates packages with typed RPC paths', async () => {
       const payload: Parameters<typeof createQuotaStorePackage>[0] = {
         name: 'Small',
-        resourceType: 'storage',
-        resourceBytes: 1024,
+        storageBytes: 1024,
         prices: [
-          { currency: 'usd' as const, amount: 500 },
-          { currency: 'cny' as const, amount: 3600 },
+          { currency: 'usd', amount: 500 },
+          { currency: 'cny', amount: 3600 },
         ],
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
@@ -317,8 +316,7 @@ describe('api', () => {
       expect(createInit.method).toBe('POST')
       expect(JSON.parse(createInit.body as string)).toEqual({
         name: 'Small',
-        resourceType: 'storage',
-        resourceBytes: 1024,
+        storageBytes: 1024,
         prices: [
           { currency: 'usd', amount: 500 },
           { currency: 'cny', amount: 3600 },
@@ -345,8 +343,7 @@ describe('api', () => {
       await expect(
         createQuotaStorePackage({
           name: 'Small',
-          resourceType: 'storage',
-          resourceBytes: 1024,
+          storageBytes: 1024,
           prices: [{ currency: 'usd', amount: 500 }],
         }),
       ).rejects.toThrow('package create failed')
@@ -443,8 +440,7 @@ describe('api', () => {
         () =>
           createQuotaStorePackage({
             name: 'Small',
-            resourceType: 'storage',
-            resourceBytes: 1024,
+            storageBytes: 1024,
             prices: [{ currency: 'usd', amount: 500 }],
           }),
       ],
@@ -453,8 +449,7 @@ describe('api', () => {
         () =>
           updateQuotaStorePackage('pkg-1', {
             name: 'Small',
-            resourceType: 'storage',
-            resourceBytes: 1024,
+            storageBytes: 1024,
             prices: [{ currency: 'usd', amount: 500 }],
           }),
       ],

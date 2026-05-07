@@ -15,9 +15,10 @@ type Unit = keyof typeof units
 export const emptyPackageForm = {
   name: '',
   description: '',
-  resourceType: 'storage' as 'storage' | 'traffic',
-  size: '100',
-  unit: 'GB' as Unit,
+  storageSize: '',
+  storageUnit: 'GB' as Unit,
+  trafficSize: '',
+  trafficUnit: 'GB' as Unit,
   usdAmount: '999',
   cnyAmount: '',
   sortOrder: '0',
@@ -29,21 +30,23 @@ export function packageInputFromForm(form: PackageFormState): QuotaStorePackageI
   return {
     name: form.name,
     description: form.description,
-    resourceType: form.resourceType,
-    resourceBytes: Math.round(Number(form.size) * units[form.unit]),
+    storageBytes: form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0,
+    trafficBytes: form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0,
     prices: packagePricesFromForm(form),
     sortOrder: Math.round(Number(form.sortOrder)),
   }
 }
 
 export function packageFormFromPackage(pkg: QuotaStorePackage): PackageFormState {
-  const display = bytesToDisplay(pkg.resourceBytes)
+  const storageDisplay = pkg.storageBytes > 0 ? bytesToDisplay(pkg.storageBytes) : null
+  const trafficDisplay = pkg.trafficBytes > 0 ? bytesToDisplay(pkg.trafficBytes) : null
   return {
     name: pkg.name,
     description: pkg.description,
-    resourceType: pkg.resourceType,
-    size: String(display.size),
-    unit: display.unit,
+    storageSize: storageDisplay ? String(storageDisplay.size) : '',
+    storageUnit: storageDisplay?.unit ?? 'GB',
+    trafficSize: trafficDisplay ? String(trafficDisplay.size) : '',
+    trafficUnit: trafficDisplay?.unit ?? 'GB',
     usdAmount: String(pkg.prices.find((price) => price.currency === 'usd')?.amount ?? ''),
     cnyAmount: String(pkg.prices.find((price) => price.currency === 'cny')?.amount ?? ''),
     sortOrder: String(pkg.sortOrder),
@@ -69,11 +72,32 @@ export function StoragePlanForm({
 }) {
   const { t } = useTranslation()
 
+  const storageBytes = form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0
+  const trafficBytes = form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0
+  const quotaValid = storageBytes > 0 || trafficBytes > 0
+
   return (
     <div className="space-y-4">
       <PackageIdentityFields form={form} onFormChange={onFormChange} />
-      <PackageResourceTypeField form={form} onFormChange={onFormChange} />
-      <PackageSizeFields form={form} onFormChange={onFormChange} />
+      <PackageQuotaFields
+        label={t('admin.storagePlans.storageQuota')}
+        sizeId="packageStorageSize"
+        sizeValue={form.storageSize}
+        unit={form.storageUnit}
+        onSizeChange={(storageSize) => onFormChange({ ...form, storageSize })}
+        onUnitChange={(storageUnit) => onFormChange({ ...form, storageUnit })}
+      />
+      <PackageQuotaFields
+        label={t('admin.storagePlans.trafficQuota')}
+        sizeId="packageTrafficSize"
+        sizeValue={form.trafficSize}
+        unit={form.trafficUnit}
+        onSizeChange={(trafficSize) => onFormChange({ ...form, trafficSize })}
+        onUnitChange={(trafficUnit) => onFormChange({ ...form, trafficUnit })}
+      />
+      {!quotaValid && (form.storageSize !== '' || form.trafficSize !== '') && (
+        <p className="text-xs text-destructive">{t('admin.storagePlans.quotaRequired')}</p>
+      )}
       <PackageAmountFields form={form} onFormChange={onFormChange} />
       <NumberField
         label={t('admin.storagePlans.sortOrder')}
@@ -83,7 +107,7 @@ export function StoragePlanForm({
       />
       <PackageFormActions
         editing={editing}
-        available={available}
+        available={available && quotaValid}
         pending={pending}
         onCancel={onCancel}
         onSubmit={onSubmit}
@@ -133,53 +157,38 @@ function PackageIdentityFields({
   )
 }
 
-function PackageSizeFields({
-  form,
-  onFormChange,
+function PackageQuotaFields({
+  label,
+  sizeId,
+  sizeValue,
+  unit,
+  onSizeChange,
+  onUnitChange,
 }: {
-  form: PackageFormState
-  onFormChange: (form: PackageFormState) => void
+  label: string
+  sizeId: string
+  sizeValue: string
+  unit: Unit
+  onSizeChange: (value: string) => void
+  onUnitChange: (unit: Unit) => void
 }) {
   const { t } = useTranslation()
   return (
     <div className="grid grid-cols-[1fr_96px] gap-2">
-      <NumberField
-        label={t('admin.storagePlans.size')}
-        id="packageSize"
-        min="1"
-        value={form.size}
-        onChange={(size) => onFormChange({ ...form, size })}
-      />
+      <Field label={label} htmlFor={sizeId}>
+        <Input
+          id={sizeId}
+          type="number"
+          min="1"
+          placeholder={t('admin.storagePlans.quotaOptionalHint')}
+          value={sizeValue}
+          onChange={(e) => onSizeChange(e.target.value)}
+        />
+      </Field>
       <Field label={t('admin.storagePlans.unit')}>
-        <UnitSelect value={form.unit} onChange={(unit) => onFormChange({ ...form, unit })} />
+        <UnitSelect value={unit} onChange={onUnitChange} ariaLabel={`${label} unit`} />
       </Field>
     </div>
-  )
-}
-
-function PackageResourceTypeField({
-  form,
-  onFormChange,
-}: {
-  form: PackageFormState
-  onFormChange: (form: PackageFormState) => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <Field label={t('admin.storagePlans.resourceType')}>
-      <Select
-        value={form.resourceType}
-        onValueChange={(resourceType: 'storage' | 'traffic') => onFormChange({ ...form, resourceType })}
-      >
-        <SelectTrigger aria-label={t('admin.storagePlans.resourceType')}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="storage">{t('admin.storagePlans.resourceStorage')}</SelectItem>
-          <SelectItem value="traffic">{t('admin.storagePlans.resourceTraffic')}</SelectItem>
-        </SelectContent>
-      </Select>
-    </Field>
   )
 }
 
@@ -231,10 +240,18 @@ function NumberField({
   )
 }
 
-function UnitSelect({ value, onChange }: { value: Unit; onChange: (unit: Unit) => void }) {
+function UnitSelect({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: Unit
+  onChange: (unit: Unit) => void
+  ariaLabel?: string
+}) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger aria-label={value}>
+      <SelectTrigger aria-label={ariaLabel ?? value}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -15,12 +15,13 @@ export const cloudCheckoutResponseSchema = z
   .transform((value) => ({ checkoutUrl: value.url }))
 export const cloudRedemptionResponseSchema = z.object({ ok: z.boolean() }).passthrough()
 const cloudPackagePriceSchema = z.union([
-  z.object({ currency: z.enum(['usd', 'cny']), amount: z.number().int().positive() }),
+  z.object({ currency: z.string().min(1), amount: z.number().int().positive() }),
   z
-    .object({ currency: z.enum(['usd', 'cny']), unit_amount: z.number().int().positive() })
+    .object({ currency: z.string().min(1), unit_amount: z.number().int().positive() })
     .transform((price) => ({ currency: price.currency, amount: price.unit_amount })),
 ])
 const cloudPackageSchema = z.union([
+  // Legacy camelCase: resourceType/resourceBytes → storageBytes/trafficBytes
   z
     .object({
       id: z.string().min(1),
@@ -34,7 +35,19 @@ const cloudPackageSchema = z.union([
       createdAt: z.string().min(1),
       updatedAt: z.string().min(1),
     })
-    .transform((pkg) => ({ ...pkg, description: pkg.description ?? '' })),
+    .transform((pkg) => ({
+      id: pkg.id,
+      name: pkg.name,
+      description: pkg.description ?? '',
+      storageBytes: pkg.resourceType === 'storage' ? pkg.resourceBytes : 0,
+      trafficBytes: pkg.resourceType === 'traffic' ? pkg.resourceBytes : 0,
+      prices: pkg.prices,
+      active: pkg.active,
+      sortOrder: pkg.sortOrder,
+      createdAt: pkg.createdAt,
+      updatedAt: pkg.updatedAt,
+    })),
+  // Legacy snake_case: resource_type/resource_bytes → storageBytes/trafficBytes
   z
     .object({
       id: z.string().min(1),
@@ -52,13 +65,79 @@ const cloudPackageSchema = z.union([
       id: pkg.id,
       name: pkg.name,
       description: pkg.description ?? '',
-      resourceType: pkg.resource_type,
-      resourceBytes: pkg.resource_bytes,
+      storageBytes: pkg.resource_type === 'storage' ? pkg.resource_bytes : 0,
+      trafficBytes: pkg.resource_type === 'traffic' ? pkg.resource_bytes : 0,
       prices: pkg.prices,
       active: pkg.active,
       sortOrder: pkg.sort_order,
       createdAt: pkg.created_at,
       updatedAt: pkg.updated_at,
+    })),
+  // New snake_case: storage_bytes/traffic_bytes
+  z
+    .object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      description: z.string().nullable().default(''),
+      storage_bytes: z.number().int().min(0).default(0),
+      traffic_bytes: z.number().int().min(0).default(0),
+      prices: z.array(cloudPackagePriceSchema).min(1),
+      active: z.boolean().default(true),
+      sort_order: z.number().int().default(0),
+      created_at: z.string().min(1),
+      updated_at: z.string().min(1),
+    })
+    .transform((pkg) => ({
+      id: pkg.id,
+      name: pkg.name,
+      description: pkg.description ?? '',
+      storageBytes: pkg.storage_bytes,
+      trafficBytes: pkg.traffic_bytes,
+      prices: pkg.prices,
+      active: pkg.active,
+      sortOrder: pkg.sort_order,
+      createdAt: pkg.created_at,
+      updatedAt: pkg.updated_at,
+    })),
+  // New camelCase: storageBytes/trafficBytes (must come last due to optional defaults)
+  z
+    .object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      description: z.string().nullable().default(''),
+      storageBytes: z.number().int().min(0).default(0),
+      trafficBytes: z.number().int().min(0).default(0),
+      prices: z.array(cloudPackagePriceSchema).min(1),
+      active: z.boolean().default(true),
+      sortOrder: z.number().int().default(0),
+      createdAt: z.string().min(1),
+      updatedAt: z.string().min(1),
+    })
+    .transform((pkg) => ({ ...pkg, description: pkg.description ?? '' })),
+  z
+    .object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      description: z.string().nullable().default(''),
+      resourceType: z.enum(['storage', 'traffic']),
+      resourceBytes: z.number().int().positive(),
+      prices: z.array(cloudPackagePriceSchema).min(1),
+      active: z.boolean().default(true),
+      sortOrder: z.number().int().default(0),
+      createdAt: z.string().min(1),
+      updatedAt: z.string().min(1),
+    })
+    .transform((pkg) => ({
+      id: pkg.id,
+      name: pkg.name,
+      description: pkg.description ?? '',
+      storageBytes: pkg.resourceType === 'storage' ? pkg.resourceBytes : 0,
+      trafficBytes: pkg.resourceType === 'traffic' ? pkg.resourceBytes : 0,
+      prices: pkg.prices,
+      active: pkg.active,
+      sortOrder: pkg.sortOrder,
+      createdAt: pkg.createdAt,
+      updatedAt: pkg.updatedAt,
     })),
 ])
 export const cloudPackageResponseSchema = cloudPackageSchema

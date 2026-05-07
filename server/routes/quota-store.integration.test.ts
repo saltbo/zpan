@@ -206,8 +206,8 @@ describe('Quota Store API', () => {
       id: 'pkg-snake',
       name: 'Snake Package',
       description: '',
-      resourceType: 'traffic',
-      resourceBytes: 2048,
+      storageBytes: 0,
+      trafficBytes: 2048,
       prices: [{ currency: 'cny', amount: 3600 }],
       active: true,
       sortOrder: 4,
@@ -292,7 +292,7 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/quota-store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Bad', description: '', resourceType: 'storage', resourceBytes: 0, prices: [] }),
+      body: JSON.stringify({ name: 'Bad', description: '', storageBytes: 0, trafficBytes: 0, prices: [] }),
     })
 
     expect(res.status).toBe(400)
@@ -366,8 +366,7 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         name: 'Small',
         description: 'starter',
-        resourceType: 'storage',
-        resourceBytes: 4096,
+        storageBytes: 4096,
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -382,8 +381,7 @@ describe('Quota Store API', () => {
     expect(JSON.parse(body)).toMatchObject({
       name: 'Small',
       description: 'starter',
-      resourceType: 'storage',
-      resourceBytes: 4096,
+      storageBytes: 4096,
       prices: [{ currency: 'usd', amount: 500 }],
     })
     expect(JSON.parse(body)).not.toHaveProperty('callbackUrl')
@@ -433,8 +431,7 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         name: 'Updated',
         description: '',
-        resourceType: 'traffic',
-        resourceBytes: 8192,
+        trafficBytes: 8192,
         prices: [{ currency: 'cny', amount: 900 }],
       }),
     })
@@ -442,7 +439,7 @@ describe('Quota Store API', () => {
     expect(listed.status).toBe(200)
     await expect(listed.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-pkg-object', description: '', resourceType: 'traffic', sortOrder: 3 }],
+      items: [{ id: 'cloud-pkg-object', description: '', trafficBytes: 4096, storageBytes: 0, sortOrder: 3 }],
     })
     expect(updated.status).toBe(200)
     const [, updateInit] = vi.mocked(fetch).mock.calls[1] as [URL, RequestInit]
@@ -450,8 +447,8 @@ describe('Quota Store API', () => {
     expect(JSON.parse(updateInit.body as string)).toEqual({
       name: 'Updated',
       description: '',
-      resourceType: 'traffic',
-      resourceBytes: 8192,
+      trafficBytes: 8192,
+      storageBytes: 0,
       prices: [{ currency: 'cny', amount: 900 }],
       active: true,
       sortOrder: 0,
@@ -485,8 +482,7 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         name: 'Configured',
         description: '',
-        resourceType: 'storage',
-        resourceBytes: 4096,
+        storageBytes: 4096,
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -541,8 +537,7 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         name: 'Bad Proto',
         description: '',
-        resourceType: 'storage',
-        resourceBytes: 4096,
+        storageBytes: 4096,
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -685,8 +680,7 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         name: 'Small',
         description: '',
-        resourceType: 'storage',
-        resourceBytes: 4096,
+        storageBytes: 4096,
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -708,8 +702,7 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         name: 'Small',
         description: '',
-        resourceType: 'storage',
-        resourceBytes: 4096,
+        storageBytes: 4096,
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -718,7 +711,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toEqual({ error: 'invalid_cloud_response' })
   })
 
-  it('rejects price currencies Cloud does not accept', async () => {
+  it('rejects prices with empty currency strings', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -727,11 +720,10 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: 'Euro',
+        name: 'Bad Currency',
         description: '',
-        resourceType: 'storage',
-        resourceBytes: 4096,
-        prices: [{ currency: 'eur', amount: 500 }],
+        storageBytes: 4096,
+        prices: [{ currency: '', amount: 500 }],
       }),
     })
 
@@ -757,8 +749,7 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         name: 'Small',
         description: '',
-        resourceType: 'storage',
-        resourceBytes: 4096,
+        storageBytes: 4096,
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })

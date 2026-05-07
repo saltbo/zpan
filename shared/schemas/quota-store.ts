@@ -4,24 +4,44 @@ export const quotaStoreSettingsSchema = z.object({
   enabled: z.boolean(),
 })
 
-export const quotaStoreResourceTypeSchema = z.enum(['storage', 'traffic'])
-export const quotaStoreCurrencySchema = z.enum(['usd', 'cny'])
+const quotaStoreResourceTypeSchema = z.enum(['storage', 'traffic'])
+export const quotaStoreCurrencySchema = z.string().min(1)
 export const quotaStorePackagePriceSchema = z.object({
   currency: quotaStoreCurrencySchema,
   amount: z.number().int().positive(),
 })
 
-export const quotaStorePackageInputSchema = z.object({
-  name: z.string().min(1).max(120),
-  description: z.string().max(1000).default(''),
-  resourceType: quotaStoreResourceTypeSchema,
-  resourceBytes: z.number().int().positive(),
-  prices: z.array(quotaStorePackagePriceSchema).min(1),
-  active: z.boolean().default(true),
-  sortOrder: z.number().int().default(0),
-})
+export const quotaStorePackageInputSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    description: z.string().max(1000).default(''),
+    storageBytes: z.number().int().min(0).default(0),
+    trafficBytes: z.number().int().min(0).default(0),
+    prices: z.array(quotaStorePackagePriceSchema).min(1),
+    active: z.boolean().default(true),
+    sortOrder: z.number().int().default(0),
+  })
+  .superRefine((data, ctx) => {
+    if (data.storageBytes === 0 && data.trafficBytes === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['storageBytes'],
+        message: 'At least one of storageBytes or trafficBytes must be greater than 0',
+      })
+    }
+  })
 
-export const quotaStorePackagePatchSchema = quotaStorePackageInputSchema.partial()
+export const quotaStorePackagePatchSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    description: z.string().max(1000),
+    storageBytes: z.number().int().min(0),
+    trafficBytes: z.number().int().min(0),
+    prices: z.array(quotaStorePackagePriceSchema).min(1),
+    active: z.boolean(),
+    sortOrder: z.number().int(),
+  })
+  .partial()
 
 export const checkoutInputSchema = z.object({
   packageId: z.string().min(1),
@@ -82,7 +102,6 @@ export const cloudDeliveryEventSchema = z
   })
 
 export type QuotaStoreSettingsInput = z.infer<typeof quotaStoreSettingsSchema>
-export type QuotaStoreResourceType = z.infer<typeof quotaStoreResourceTypeSchema>
 export type QuotaStoreCurrency = z.infer<typeof quotaStoreCurrencySchema>
 export type QuotaStorePackagePrice = z.infer<typeof quotaStorePackagePriceSchema>
 export type QuotaStorePackageInput = z.input<typeof quotaStorePackageInputSchema>

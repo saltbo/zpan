@@ -59,8 +59,8 @@ export interface QuotaStorePackage {
   id: string
   name: string
   description: string
-  resourceType: 'storage' | 'traffic'
-  resourceBytes: number
+  storageBytes: number
+  trafficBytes: number
   prices: QuotaStorePackagePrice[]
   active: boolean
   sortOrder: number
@@ -69,7 +69,7 @@ export interface QuotaStorePackage {
 }
 
 export interface QuotaStorePackagePrice {
-  currency: 'usd' | 'cny'
+  currency: string
   amount: number
 }
 

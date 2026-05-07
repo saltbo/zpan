@@ -1060,9 +1060,10 @@
   "admin.storagePlans.description": "Description",
   "admin.storagePlans.size": "Size",
   "admin.storagePlans.unit": "Unit",
-  "admin.storagePlans.resourceType": "Resource type",
-  "admin.storagePlans.resourceStorage": "Storage",
-  "admin.storagePlans.resourceTraffic": "Traffic",
+  "admin.storagePlans.storageQuota": "Storage quota",
+  "admin.storagePlans.trafficQuota": "Download traffic quota",
+  "admin.storagePlans.quotaOptionalHint": "Leave blank to omit",
+  "admin.storagePlans.quotaRequired": "At least one of storage quota or download traffic quota must be set.",
   "admin.storagePlans.prices": "Prices",
   "admin.storagePlans.usdAmount": "USD amount (minor units)",
   "admin.storagePlans.cnyAmount": "CNY amount (minor units)",
@@ -1137,5 +1138,6 @@
   "storage.historyTitle": "Recent grants",
   "storage.historyDescription": "Recent purchased and redeemed storage for the current workspace.",
   "storage.noPackages": "No storage packages are available right now.",
+  "storage.trafficQuota": "{{size}} download traffic",
   "storage.noHistory": "No storage grants yet."
 }

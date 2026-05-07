@@ -26,7 +26,7 @@ export function StoragePackages({
 }: {
   packages: QuotaStorePackage[]
   disabled: boolean
-  onCheckout: (packageId: string, currency: 'usd' | 'cny') => void
+  onCheckout: (packageId: string, currency: string) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -76,7 +76,7 @@ function PackageCard({
 }: {
   pkg: QuotaStorePackage
   disabled: boolean
-  onCheckout: (packageId: string, currency: 'usd' | 'cny') => void
+  onCheckout: (packageId: string, currency: string) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -86,7 +86,12 @@ function PackageCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-2xl font-semibold">{formatSize(pkg.resourceBytes)}</p>
+          {pkg.storageBytes > 0 && <p className="text-2xl font-semibold">{formatSize(pkg.storageBytes)}</p>}
+          {pkg.trafficBytes > 0 && (
+            <p className={pkg.storageBytes > 0 ? 'text-sm font-medium' : 'text-2xl font-semibold'}>
+              {t('storage.trafficQuota', { size: formatSize(pkg.trafficBytes) })}
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">{formatPrices(pkg.prices)}</p>
         </div>
         {pkg.prices.map((price) => (
@@ -106,7 +111,7 @@ function PackageCard({
 }
 
 function PackageHeader({ pkg }: { pkg: QuotaStorePackage }) {
-  const Icon = pkg.resourceType === 'storage' ? HardDrive : Activity
+  const Icon = pkg.storageBytes > 0 && pkg.trafficBytes > 0 ? HardDrive : pkg.trafficBytes > 0 ? Activity : HardDrive
   return (
     <div className="flex items-start justify-between gap-3">
       <div>

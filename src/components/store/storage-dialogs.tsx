@@ -29,7 +29,7 @@ export function StorageActions({
   packagesDisabled: boolean
   redeemDisabled: boolean
   onCodeChange: (code: string) => void
-  onCheckout: (packageId: string, currency: 'usd' | 'cny') => void
+  onCheckout: (packageId: string, currency: string) => void
   onRedeem: () => void
 }) {
   const { t } = useTranslation()
@@ -123,7 +123,7 @@ function PackagePanel({
 }: {
   packages: QuotaStorePackage[]
   disabled: boolean
-  onCheckout: (packageId: string, currency: 'usd' | 'cny') => void
+  onCheckout: (packageId: string, currency: string) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -158,10 +158,10 @@ function PackageOption({
 }: {
   pkg: QuotaStorePackage
   disabled: boolean
-  onCheckout: (currency: 'usd' | 'cny') => void
+  onCheckout: (currency: string) => void
 }) {
   const { t } = useTranslation()
-  const Icon = pkg.resourceType === 'storage' ? HardDrive : Activity
+  const Icon = pkg.storageBytes > 0 && pkg.trafficBytes > 0 ? HardDrive : pkg.trafficBytes > 0 ? Activity : HardDrive
   return (
     <div className="group flex flex-col justify-between rounded-md border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted/30">
       <div className="space-y-2.5">
@@ -175,7 +175,14 @@ function PackageOption({
           </div>
         </div>
         <div>
-          <p className="text-xl font-semibold tracking-normal">{formatSize(pkg.resourceBytes)}</p>
+          {pkg.storageBytes > 0 && (
+            <p className="text-xl font-semibold tracking-normal">{formatSize(pkg.storageBytes)}</p>
+          )}
+          {pkg.trafficBytes > 0 && (
+            <p className={pkg.storageBytes > 0 ? 'text-sm font-medium' : 'text-xl font-semibold tracking-normal'}>
+              {t('storage.trafficQuota', { size: formatSize(pkg.trafficBytes) })}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">{formatPrices(pkg.prices)}</p>
         </div>
       </div>
