@@ -216,7 +216,39 @@ describe('Quota Store API', () => {
       updatedAt: '2026-05-06T00:00:00.000Z',
     })
 
-    // legacy snake_case: resource_type/resource_bytes
+    // legacy camelCase: resourceType/resourceBytes (traffic case to cover both ternary branches)
+    expect(
+      cloudPackageResponseSchema.parse({
+        id: 'pkg-camel-legacy-traffic',
+        name: 'Camel Legacy Traffic',
+        description: null,
+        resourceType: 'traffic',
+        resourceBytes: 512,
+        prices: [{ currency: 'usd', amount: 200 }],
+        active: true,
+        sortOrder: 0,
+        createdAt: '2026-05-06T00:00:00.000Z',
+        updatedAt: '2026-05-06T00:00:00.000Z',
+      }),
+    ).toMatchObject({ storageBytes: 0, trafficBytes: 512 })
+
+    // legacy snake_case: resource_type/resource_bytes (storage case to cover both ternary branches)
+    expect(
+      cloudPackageResponseSchema.parse({
+        id: 'pkg-snake-storage',
+        name: 'Snake Storage',
+        description: null,
+        resource_type: 'storage',
+        resource_bytes: 2048,
+        prices: [{ currency: 'cny', unit_amount: 3600 }],
+        active: true,
+        sort_order: 4,
+        created_at: '2026-05-06T00:00:00.000Z',
+        updated_at: '2026-05-06T00:00:00.000Z',
+      }),
+    ).toMatchObject({ storageBytes: 2048, trafficBytes: 0 })
+
+    // legacy snake_case: resource_type/resource_bytes (traffic case - original test)
     expect(
       cloudPackageResponseSchema.parse({
         id: 'pkg-snake',
