@@ -69,7 +69,6 @@ const app = new Hono<Env>()
         binding: result.binding,
         account: result.account,
       }
-      if (!entitlement) return c.json({ error: 'invalid_pairing_response' }, 502)
       const instanceId = await getOrCreateInstanceId(db)
       const cert = entitlement.certificate
       const assertion = verifyCertificate(cert, {
@@ -77,12 +76,13 @@ const app = new Hono<Env>()
         currentHost: getRequestHost(c),
         cloudBaseUrl: baseUrl,
       })
-      if (!assertion || !entitlement.binding || !entitlement.account) {
+      if (!assertion || !entitlement.binding?.store_id || !entitlement.account) {
         return c.json({ error: 'invalid_certificate' }, 502)
       }
 
       await createLicenseBinding(db, {
         cloudBindingId: entitlement.binding.id,
+        cloudStoreId: entitlement.binding.store_id,
         instanceId,
         cloudAccountId: entitlement.account.id,
         cloudAccountEmail: entitlement.account.email,

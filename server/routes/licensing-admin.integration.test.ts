@@ -46,6 +46,7 @@ async function seedBinding(db: Awaited<ReturnType<typeof createTestApp>>['db'], 
     cloudBindingId: 'bind-1',
     instanceId,
     cloudAccountId: 'acct-1',
+    cloudStoreId: 'store-1',
     refreshToken: 'old-token',
     cachedCert: cert,
     cachedExpiresAt: now + 3600,
@@ -170,7 +171,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
         status: 'approved',
         refresh_token: 'rt-secret',
         certificate: signCert(instanceId),
-        binding: { id: 'bind-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
+        binding: { id: 'bind-1', store_id: 'store-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
     )
@@ -184,6 +185,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     // Check that binding was persisted
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('rt-secret')
+    expect(state.cloudStoreId).toBe('store-1')
   })
 
   it('stores the pairing certificate when approved', async () => {
@@ -197,7 +199,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
         status: 'approved',
         refresh_token: 'pair-rt',
         certificate,
-        binding: { id: 'bind-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
+        binding: { id: 'bind-1', store_id: 'store-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
     )
@@ -296,7 +298,7 @@ describe('POST /api/licensing/refresh', () => {
       makeCloudResponse({
         refresh_token: 'new-token',
         certificate: signCert('inst-1'),
-        binding: { id: 'bind-1', instance_id: 'inst-1', authorized_hosts: ['localhost'] },
+        binding: { id: 'bind-1', store_id: 'store-1', instance_id: 'inst-1', authorized_hosts: ['localhost'] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
     )

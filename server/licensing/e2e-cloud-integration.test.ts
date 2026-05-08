@@ -204,6 +204,7 @@ describe('E2E: Feature gates — expired certificate', () => {
     const expiresAt = nowSec() - 1
     await createLicenseBinding(db, {
       cloudBindingId: 'expired-binding',
+      cloudStoreId: 'store-expired',
       instanceId: 'test-instance',
       cloudAccountId: 'user-123',
       refreshToken: 'test-token',
@@ -313,7 +314,12 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
           status: 'approved',
           refresh_token: 'rt-e2e-secret',
           certificate: cert,
-          binding: { id: 'e2e-binding', instance_id: instanceId, authorized_hosts: ['localhost'] },
+          binding: {
+            id: 'e2e-binding',
+            store_id: 'store-e2e',
+            instance_id: instanceId,
+            authorized_hosts: ['localhost'],
+          },
           account: { id: 'user-123', email: 'user@example.com' },
         }),
         { headers: { 'Content-Type': 'application/json' } },
@@ -385,6 +391,7 @@ describe('E2E: PASETO cert verification chain', () => {
 
     await createLicenseBinding(db, {
       cloudBindingId: 'fake-binding',
+      cloudStoreId: 'store-fake',
       instanceId: 'test-instance',
       cloudAccountId: 'test-account',
       refreshToken: 'test-token',

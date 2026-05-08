@@ -404,7 +404,7 @@ describe('api', () => {
 
       await listPurchasableQuotaPackages()
       await listQuotaStoreTargets()
-      await createQuotaCheckout('pkg-1', 'org-1', 'cny', 'GC123')
+      await createQuotaCheckout('pkg-1', 'org-1', 'cny')
       await listStoreOrders()
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
@@ -415,7 +415,6 @@ describe('api', () => {
         packageId: 'pkg-1',
         targetOrgId: 'org-1',
         currency: 'cny',
-        giftCardCode: 'GC123',
       })
       expect(calls[3][0]).toBe('/api/quota-store/orders')
     })

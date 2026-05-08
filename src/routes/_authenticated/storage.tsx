@@ -72,16 +72,8 @@ export function StoragePage() {
   }, [checkoutRefreshActive, queryClient])
 
   const checkoutMutation = useMutation({
-    mutationFn: ({
-      packageId,
-      currency,
-      giftCardCode,
-    }: {
-      packageId: string
-      currency: string
-      giftCardCode?: string
-      checkoutWindow: Window | null
-    }) => createQuotaCheckout(packageId, targetOrgId, currency, giftCardCode),
+    mutationFn: ({ packageId, currency }: { packageId: string; currency: string; checkoutWindow: Window | null }) =>
+      createQuotaCheckout(packageId, targetOrgId, currency),
     onSuccess: (result, variables) => {
       if (variables.checkoutWindow) {
         variables.checkoutWindow.location.href = result.checkoutUrl
@@ -98,10 +90,10 @@ export function StoragePage() {
     },
   })
 
-  function startCheckout(packageId: string, currency: string, giftCardCode?: string) {
+  function startCheckout(packageId: string, currency: string) {
     const checkoutWindow = window.open('about:blank', '_blank')
     if (checkoutWindow) checkoutWindow.opener = null
-    checkoutMutation.mutate({ packageId, currency, giftCardCode, checkoutWindow })
+    checkoutMutation.mutate({ packageId, currency, checkoutWindow })
   }
 
   if (storagePlansQuery.isLoading || (storagePlansQuery.isSuccess && targetsQuery.isLoading)) {

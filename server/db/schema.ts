@@ -118,6 +118,7 @@ export const licenseBindings = sqliteTable(
   {
     id: text('id').primaryKey(),
     cloudBindingId: text('cloud_binding_id').notNull(),
+    cloudStoreId: text('cloud_store_id'),
     instanceId: text('instance_id').notNull(),
     cloudAccountId: text('cloud_account_id').notNull(),
     cloudAccountEmail: text('cloud_account_email'),

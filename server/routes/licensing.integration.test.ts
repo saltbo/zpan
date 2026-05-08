@@ -18,6 +18,7 @@ describe('GET /api/licensing/status', () => {
 
     await createLicenseBinding(db, {
       cloudBindingId: 'bind-1',
+      cloudStoreId: 'store-1',
       instanceId: 'inst-1',
       cloudAccountId: 'acc-1',
       cloudAccountEmail: 'user@example.com',
@@ -43,6 +44,7 @@ describe('GET /api/licensing/status', () => {
 
     await createLicenseBinding(db, {
       cloudBindingId: 'bind-1',
+      cloudStoreId: 'store-1',
       instanceId: 'inst-1',
       cloudAccountId: 'acc-1',
       refreshToken: 'secret',

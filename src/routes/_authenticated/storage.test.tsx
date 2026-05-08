@@ -177,7 +177,7 @@ describe('StoragePage', () => {
     expect(listStoreOrders).not.toHaveBeenCalled()
   })
 
-  it('applies gift cards through checkout', async () => {
+  it('starts checkout from the packages dialog', async () => {
     vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listQuotaStoreTargets).mockResolvedValue({
       items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
@@ -198,11 +198,10 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.packagesTitle' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
-    await waitFor(() => expect(view.getByLabelText('storage.giftCardCode')).toBeTruthy())
-    fireEvent.change(view.getByLabelText('storage.giftCardCode'), { target: { value: 'STORE-CODE' } })
+    await waitFor(() => expect(view.queryByLabelText('storage.giftCardCode')).toBeNull())
     fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd', 'STORE-CODE'))
+    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
     expect(toast.info).not.toHaveBeenCalled()
   })
 
@@ -230,7 +229,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkout/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd', undefined))
+    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
     expect(checkoutWindow.close).toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('checkout failed')
   })
@@ -300,7 +299,7 @@ describe('StoragePage', () => {
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
     fireEvent.click(await view.findByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-2', 'usd', undefined))
+    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-2', 'usd'))
   })
 
   it('uses dedicated dialog layouts instead of nesting cards in dialogs', async () => {

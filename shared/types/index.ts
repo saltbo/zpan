@@ -102,7 +102,7 @@ export interface StoreGiftCard {
   initialAmount: number
   remainingAmount: number
   currency: string
-  status: 'active' | 'disabled' | 'exhausted' | 'expired'
+  status: 'created' | 'active' | 'disabled' | 'exhausted' | 'expired' | 'revoked'
   expiresAt: string | null
   disabledAt: string | null
   createdAt: string

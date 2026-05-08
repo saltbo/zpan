@@ -58,10 +58,15 @@ export async function canAccessTargetOrg(db: Database, userId: string, orgId: st
 
 export async function getCloudStoreBinding(
   db: Database,
-): Promise<{ boundLicenseId: string; refreshToken: string; instanceId: string }> {
+): Promise<{ boundLicenseId: string; storeId: string; refreshToken: string; instanceId: string }> {
   const binding = await loadActiveLicenseBinding(db)
-  if (!binding?.refreshToken) throw new Error('quota_store_binding_missing')
-  return { boundLicenseId: binding.cloudBindingId, refreshToken: binding.refreshToken, instanceId: binding.instanceId }
+  if (!binding?.refreshToken || !binding.cloudStoreId) throw new Error('quota_store_binding_missing')
+  return {
+    boundLicenseId: binding.cloudBindingId,
+    storeId: binding.cloudStoreId,
+    refreshToken: binding.refreshToken,
+    instanceId: binding.instanceId,
+  }
 }
 
 export async function getUserTerminalLabel(db: Database, userId: string): Promise<string | null> {

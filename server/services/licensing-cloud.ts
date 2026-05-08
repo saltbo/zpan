@@ -28,6 +28,7 @@ export interface EntitlementRefreshResponse {
 export interface LicenseBindingInfo {
   id: string
   instance_id: string
+  store_id: string
   authorized_hosts: string[]
 }
 

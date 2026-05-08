@@ -1,6 +1,5 @@
 import type { QuotaStorePackage } from '@shared/types'
-import { Activity, Gift, HardDrive, PlusCircle, ShoppingCart } from 'lucide-react'
-import { useState } from 'react'
+import { Activity, HardDrive, PlusCircle, ShoppingCart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,8 +10,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { formatSize } from '@/lib/format'
 
 export function StorageActions({
@@ -22,7 +19,7 @@ export function StorageActions({
 }: {
   packages: QuotaStorePackage[]
   packagesDisabled: boolean
-  onCheckout: (packageId: string, currency: string, giftCardCode?: string) => void
+  onCheckout: (packageId: string, currency: string) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -49,10 +46,9 @@ function PackagePanel({
 }: {
   packages: QuotaStorePackage[]
   disabled: boolean
-  onCheckout: (packageId: string, currency: string, giftCardCode?: string) => void
+  onCheckout: (packageId: string, currency: string) => void
 }) {
   const { t } = useTranslation()
-  const [giftCardCode, setGiftCardCode] = useState('')
   return (
     <>
       <DialogHeader className="space-y-1">
@@ -65,7 +61,7 @@ function PackagePanel({
             key={pkg.id}
             pkg={pkg}
             disabled={disabled}
-            onCheckout={(currency) => onCheckout(pkg.id, currency, giftCardCode.trim() || undefined)}
+            onCheckout={(currency) => onCheckout(pkg.id, currency)}
           />
         ))}
         {packages.length === 0 && (
@@ -73,27 +69,6 @@ function PackagePanel({
             {t('storage.noPackages')}
           </div>
         )}
-      </div>
-      <div className="border-t pt-3">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <Gift className="size-3.5" />
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <p className="text-xs font-medium">{t('storage.redeemTitle')}</p>
-            <p className="text-xs leading-5 text-muted-foreground">{t('storage.redeemDescription')}</p>
-            <Label htmlFor="giftCardCode" className="sr-only">
-              {t('storage.giftCardCode')}
-            </Label>
-            <Input
-              id="giftCardCode"
-              className="h-8 font-mono text-xs tracking-wider uppercase"
-              placeholder={t('storage.giftCardCode')}
-              value={giftCardCode}
-              onChange={(event) => setGiftCardCode(event.target.value)}
-            />
-          </div>
-        </div>
       </div>
     </>
   )

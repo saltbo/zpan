@@ -13,6 +13,7 @@ const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS license_bindings (
     id TEXT PRIMARY KEY,
     cloud_binding_id TEXT NOT NULL,
+    cloud_store_id TEXT,
     instance_id TEXT NOT NULL,
     cloud_account_id TEXT NOT NULL,
     cloud_account_email TEXT,
@@ -66,6 +67,7 @@ function signAssertion(overrides: Record<string, unknown> = {}): string {
     subject: 'bind-1',
     accountId: 'acct-1',
     instanceId: 'inst-1',
+    storeId: 'store-1',
     edition: 'pro',
     authorizedHosts: [],
     licenseValidUntil: now + 365 * 24 * 60 * 60,
@@ -82,6 +84,7 @@ async function seedBinding(db: DB, cachedCert: string | null) {
     cloudBindingId: 'bind-1',
     instanceId: 'inst-1',
     cloudAccountId: 'acct-1',
+    cloudStoreId: 'store-1',
     refreshToken: 'token',
     cachedCert: cachedCert ?? '',
     cachedExpiresAt: now + 3600,
