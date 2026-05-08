@@ -138,7 +138,7 @@ describe('QuotaPanel', () => {
     const view = renderQuotaPanel()
 
     await waitFor(() => expect(view.getByRole('link', { name: 'quota.storage' })).toBeTruthy())
-    expect(listCloudOrders).toHaveBeenCalledWith('personal')
+    expect(listCloudOrders).toHaveBeenCalledWith()
   })
 
   it('shows the store entry and matching purchased storage', async () => {
@@ -160,7 +160,7 @@ describe('QuotaPanel', () => {
     const view = renderQuotaPanel()
 
     await waitFor(() => expect(view.getByRole('link', { name: 'quota.storage' })).toBeTruthy())
-    expect(listCloudOrders).toHaveBeenCalledWith('personal')
+    expect(listCloudOrders).toHaveBeenCalledWith()
     await waitFor(() => expect(view.getByText('quota.purchased:100 GB')).toBeTruthy())
   })
 })
