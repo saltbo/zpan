@@ -3,7 +3,6 @@ import { cloudflare } from '@cloudflare/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
-import devServer from '@hono/vite-dev-server'
 import { defineConfig } from 'vite'
 
 export default defineConfig(({ mode }) => ({
@@ -19,9 +18,7 @@ export default defineConfig(({ mode }) => ({
     }),
     react(),
     tailwindcss(),
-    ...(mode === 'node'
-      ? [devServer({ entry: './server/dev.ts', injectClientScript: false, exclude: [/^(?!\/api\/).*/] })]
-      : [cloudflare()]),
+    ...(mode === 'node' ? [] : [cloudflare()]),
   ],
   resolve: {
     alias: {
@@ -32,5 +29,15 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 5173,
+    ...(mode === 'node'
+      ? {
+          proxy: {
+            '/api': {
+              target: 'http://localhost:8222',
+              changeOrigin: true,
+            },
+          },
+        }
+      : {}),
   },
 }))

@@ -47,13 +47,6 @@ export const orgQuotas = sqliteTable('org_quotas', {
   trafficPeriod: text('traffic_period').notNull().default('1970-01'),
 })
 
-export const quotaStoreSettings = sqliteTable('quota_store_settings', {
-  id: text('id').primaryKey(),
-  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-})
-
 export const webhookEvents = sqliteTable(
   'webhook_events',
   {

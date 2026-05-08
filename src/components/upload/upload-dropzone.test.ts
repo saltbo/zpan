@@ -58,8 +58,7 @@ async function simulateOnDropWithUploadFn(
     let anySuccess = false
     for (const file of files) {
       const p = uploadFn(file)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(toast as any).promise(p, {
+      toast.promise(p, {
         loading: t('files.uploading', { name: file.name }),
         success: t('files.uploadSuccess', { name: file.name }),
         error: t('files.uploadFailed', { name: file.name }),
@@ -80,8 +79,7 @@ async function simulateOnDropWithUploadFn(
 // ---------------------------------------------------------------------------
 
 async function simulateDefaultUpload(file: File, parent: string, onUploadComplete: () => void): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const created = await (createObject as any)({
+  const created = await createObject({
     name: file.name,
     type: file.type || 'application/octet-stream',
     size: file.size,
@@ -90,10 +88,8 @@ async function simulateDefaultUpload(file: File, parent: string, onUploadComplet
   })
   if (!created) return
   if (!created.uploadUrl) throw new Error('No upload URL returned')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (uploadToS3 as any)(created.uploadUrl, file)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (confirmUpload as any)(created.id)
+  await uploadToS3(created.uploadUrl, file)
+  await confirmUpload(created.id)
   onUploadComplete()
 }
 

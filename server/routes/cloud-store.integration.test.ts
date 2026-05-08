@@ -2,31 +2,36 @@ import { sql } from 'drizzle-orm'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import type { StoreGiftCard } from '../../shared/types'
+import type { CloudGiftCard } from '../../shared/types'
 import { PUBLIC_KEYS } from '../licensing/public-keys.js'
-import { getQuotaStoreSettings } from '../services/quota-store.js'
+import { getCloudStoreSettings } from '../services/cloud-store.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 import {
   cloudGiftCardsResponseSchema,
   cloudPackageResponseSchema,
   getUserStoreSettings,
-} from './quota-store-helpers.js'
+} from './cloud-store-helpers.js'
 
 const REFRESH_TOKEN = 'test-refresh-token'
 const INSTANCE_STORE_PATH = '/api/stores/store-test-binding'
 const { secretKey: EVENT_SECRET, publicKey: EVENT_PUBLIC } = generateKeys('public')
 
-const zpanCloudGiftCardResponseFixture: StoreGiftCard = {
+const zpanCloudGiftCardResponseFixture: CloudGiftCard = {
   id: 'gift-card-1',
+  boundLicenseId: null,
   code: 'ZS11-ACTV-0000-0001',
-  initialAmount: 1000,
-  remainingAmount: 1000,
+  amount: 1000,
   currency: 'usd',
   status: 'active',
   expiresAt: null,
+  firstRedeemedAt: null,
+  lastRedeemedAt: null,
+  redemptionCount: 0,
   createdAt: '2026-05-06T00:00:00.000Z',
   updatedAt: '2026-05-06T00:00:00.000Z',
   disabledAt: null,
+  revokedAt: null,
+  createdByAdmin: 'admin',
 }
 
 function cloudGiftCard(overrides: Partial<typeof zpanCloudGiftCardResponseFixture> = {}) {
@@ -55,7 +60,10 @@ function cloudProduct(overrides: Record<string, unknown> = {}) {
 function cloudOrder(overrides: Record<string, unknown> = {}) {
   return {
     id: 'cloud-order-1',
+    storeId: 'store-test-binding',
+    buyerAccountId: 'buyer-1',
     target: { orgId: 'org-placeholder' },
+    status: 'paid',
     paymentStatus: 'paid',
     fulfillmentStatus: 'fulfilled',
     subtotalAmount: 500,
@@ -64,15 +72,36 @@ function cloudOrder(overrides: Record<string, unknown> = {}) {
     currency: 'usd',
     items: [
       {
+        id: 'order-item-1',
+        orderId: 'cloud-order-1',
+        productId: 'cloud-pkg-1',
+        productType: 'zpan_quota',
         name: 'Small',
         description: 'starter',
+        quantity: 1,
+        unitAmount: 500,
+        totalAmount: 500,
         fulfillmentPayload: { storageBytes: 512, trafficBytes: 0 },
       },
     ],
-    payments: [],
+    payments: [
+      {
+        id: 'payment-1',
+        orderId: 'cloud-order-1',
+        provider: 'stripe',
+        amount: 500,
+        currency: 'usd',
+        status: 'paid',
+        providerSessionId: 'cs_test_1',
+        providerPaymentIntentId: 'pi_test_1',
+        createdAt: '2026-05-06T00:00:00.000Z',
+        paidAt: '2026-05-06T00:00:00.000Z',
+      },
+    ],
     createdAt: '2026-05-06T00:00:00.000Z',
     paidAt: '2026-05-06T00:00:00.000Z',
     fulfilledAt: '2026-05-06T00:00:00.000Z',
+    canceledAt: null,
     ...overrides,
   }
 }
@@ -95,30 +124,46 @@ beforeEach(() => {
         if (init?.method === 'DELETE') {
           return { ok: true, status: 204, json: async () => ({}) } as Response
         }
+        if (init?.method === 'PATCH') {
+          return { ok: true, status: 204, json: async () => null } as Response
+        }
         if (init?.method === 'GET') {
           return {
             ok: true,
             status: 200,
-            json: async () => [cloudGiftCard({ code: 'ZS-LIST-1', initialAmount: 2048, remainingAmount: 1024 })],
+            json: async () => ({
+              items: [cloudGiftCard({ code: 'ZS-LIST-1', amount: 1024, redemptionCount: 1 })],
+              total: 1,
+              limit: 50,
+              offset: 0,
+              data: {
+                items: [cloudGiftCard({ code: 'ZS-LIST-1', amount: 1024, redemptionCount: 1 })],
+                total: 1,
+                limit: 50,
+                offset: 0,
+              },
+            }),
           } as Response
         }
-        const body = JSON.parse(String(init?.body ?? '{}')) as { initialAmount?: number; count?: number }
+        const body = JSON.parse(String(init?.body ?? '{}')) as { amount?: number; count?: number }
         return {
           ok: true,
-          status: 200,
-          json: async () =>
-            Array.from({ length: body.count ?? 1 }, (_, index) =>
+          status: 201,
+          json: async () => ({
+            data: Array.from({ length: body.count ?? 1 }, (_, index) =>
               cloudGiftCard({
                 code: `ZS-GEN-${index + 1}`,
-                initialAmount: body.initialAmount ?? 1024,
-                remainingAmount: body.initialAmount ?? 1024,
+                amount: body.amount ?? 1024,
+                status: 'created',
               }),
             ),
+          }),
         } as Response
       }
       if (String(url).includes('/api/stores/') && String(url).includes('/products')) {
         if (init?.method === 'GET') {
-          const id = new URL(String(url)).pathname.split('/').at(-1)
+          const parsedUrl = new URL(String(url))
+          const id = parsedUrl.pathname.split('/').at(-1)
           if (id?.startsWith('cloud-pkg-')) {
             return {
               ok: true,
@@ -126,23 +171,25 @@ beforeEach(() => {
               json: async () => cloudProduct({ id }),
             } as Response
           }
+          const status = parsedUrl.searchParams.get('status')
+          const items = [
+            cloudProduct(),
+            cloudProduct({
+              id: 'cloud-pkg-inactive',
+              name: 'Retired',
+              description: 'hidden from users',
+              metadata: { storageBytes: 0, trafficBytes: 8192 },
+              prices: [{ currency: 'usd', amount: 900 }],
+              active: false,
+              sortOrder: 2,
+            }),
+          ].filter((product) => (status === 'active' ? product.active : status === 'inactive' ? !product.active : true))
           return {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [
-                cloudProduct(),
-                cloudProduct({
-                  id: 'cloud-pkg-inactive',
-                  name: 'Retired',
-                  description: 'hidden from users',
-                  metadata: { storageBytes: 0, trafficBytes: 8192 },
-                  prices: [{ currency: 'usd', amount: 900 }],
-                  active: false,
-                  sortOrder: 2,
-                }),
-              ],
-              total: 2,
+              items,
+              total: items.length,
             }),
           } as Response
         }
@@ -178,35 +225,17 @@ beforeEach(() => {
         if (init?.method === 'POST') {
           const body = JSON.parse(String(init.body)) as { target?: { orgId?: string } }
           lastTargetOrgId = body.target?.orgId ?? lastTargetOrgId
-          return { ok: true, status: 201, json: async () => ({ id: 'order-cloud-1' }) } as Response
+          return {
+            ok: true,
+            status: 201,
+            json: async () => cloudOrder({ id: 'order-cloud-1', target: body.target ?? null }),
+          } as Response
         }
         return {
           ok: true,
           status: 200,
           json: async () => ({
-            items: [
-              {
-                id: 'cloud-order-1',
-                target: { orgId: lastTargetOrgId },
-                paymentStatus: 'paid',
-                fulfillmentStatus: 'fulfilled',
-                subtotalAmount: 500,
-                discountAmount: 0,
-                totalAmount: 500,
-                currency: 'usd',
-                items: [
-                  {
-                    name: 'Small',
-                    description: 'starter',
-                    fulfillmentPayload: { storageBytes: 512, trafficBytes: 0 },
-                  },
-                ],
-                payments: [],
-                createdAt: '2026-05-06T00:00:00.000Z',
-                paidAt: '2026-05-06T00:00:00.000Z',
-                fulfilledAt: '2026-05-06T00:00:00.000Z',
-              },
-            ],
+            items: [cloudOrder({ target: { orgId: lastTargetOrgId } })],
             total: 1,
           }),
         } as Response
@@ -243,10 +272,10 @@ describe('Quota Store API', () => {
       }),
     ).toEqual({
       id: 'pkg-snake-new',
+      type: 'zpan_quota',
       name: 'Snake New',
-      description: '',
-      storageBytes: 4096,
-      trafficBytes: 8192,
+      description: null,
+      metadata: { storageBytes: 4096, trafficBytes: 8192 },
       prices: [{ currency: 'usd', amount: 999 }],
       active: true,
       sortOrder: 2,
@@ -270,10 +299,10 @@ describe('Quota Store API', () => {
       }),
     ).toEqual({
       id: 'pkg-camel-new',
+      type: 'zpan_quota',
       name: 'Camel New',
-      description: '',
-      storageBytes: 2048,
-      trafficBytes: 0,
+      description: null,
+      metadata: { storageBytes: 2048, trafficBytes: 0 },
       prices: [{ currency: 'eur', amount: 799 }],
       active: false,
       sortOrder: 5,
@@ -282,27 +311,35 @@ describe('Quota Store API', () => {
     })
 
     expect(
-      cloudGiftCardsResponseSchema.parse([
-        cloudGiftCard({
-          code: 'ZS11-ACTV-0000-0001',
-          initialAmount: 4096,
-          remainingAmount: 2048,
-          currency: 'usd',
-        }),
-      ]),
+      cloudGiftCardsResponseSchema.parse({
+        items: [
+          cloudGiftCard({
+            code: 'ZS11-ACTV-0000-0001',
+            amount: 2048,
+            redemptionCount: 1,
+            currency: 'usd',
+          }),
+        ],
+        total: 1,
+      }),
     ).toEqual({
       items: [
         {
           id: 'gift-card-1',
+          boundLicenseId: null,
           code: 'ZS11-ACTV-0000-0001',
-          initialAmount: 4096,
-          remainingAmount: 2048,
+          amount: 2048,
           currency: 'usd',
           status: 'active',
           expiresAt: null,
+          firstRedeemedAt: null,
+          lastRedeemedAt: null,
+          redemptionCount: 1,
           createdAt: '2026-05-06T00:00:00.000Z',
           updatedAt: '2026-05-06T00:00:00.000Z',
           disabledAt: null,
+          revokedAt: null,
+          createdByAdmin: 'admin',
         },
       ],
       total: 1,
@@ -313,11 +350,9 @@ describe('Quota Store API', () => {
     const db = {
       select: () => ({
         from: () => ({
-          where: () => ({
-            limit: async () => {
-              throw new Error('settings read failed')
-            },
-          }),
+          where: async () => {
+            throw new Error('settings read failed')
+          },
         }),
       }),
     }
@@ -363,7 +398,13 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Bad', description: '', storageBytes: 0, trafficBytes: 0, prices: [] }),
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Bad',
+        description: '',
+        metadata: { storageBytes: 0, trafficBytes: 0 },
+        prices: [],
+      }),
     })
 
     expect(res.status).toBe(400)
@@ -417,7 +458,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     await db.run(sql`UPDATE license_bindings SET refresh_token = NULL`)
 
-    const settings = await getQuotaStoreSettings(db)
+    const settings = await getCloudStoreSettings(db)
 
     expect(settings).toMatchObject({
       enabled: true,
@@ -435,9 +476,10 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Small',
         description: 'starter',
-        storageBytes: 4096,
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -461,8 +503,8 @@ describe('Quota Store API', () => {
     await expect(listed.json()).resolves.toMatchObject({
       total: 2,
       items: [
-        { id: 'cloud-pkg-1', active: true },
-        { id: 'cloud-pkg-inactive', active: false },
+        { id: 'cloud-pkg-1', metadata: { storageBytes: 4096, trafficBytes: 0 }, active: true },
+        { id: 'cloud-pkg-inactive', metadata: { storageBytes: 0, trafficBytes: 8192 }, active: false },
       ],
     })
   })
@@ -490,6 +532,7 @@ describe('Quota Store API', () => {
             sortOrder: 3,
           }),
         ],
+        total: 1,
       }),
     } as Response)
 
@@ -498,9 +541,10 @@ describe('Quota Store API', () => {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Updated',
         description: '',
-        trafficBytes: 8192,
+        metadata: { storageBytes: 0, trafficBytes: 8192 },
         prices: [{ currency: 'cny', amount: 900 }],
       }),
     })
@@ -508,7 +552,14 @@ describe('Quota Store API', () => {
     expect(listed.status).toBe(200)
     await expect(listed.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-pkg-object', description: '', trafficBytes: 4096, storageBytes: 0, sortOrder: 3 }],
+      items: [
+        {
+          id: 'cloud-pkg-object',
+          description: null,
+          metadata: { storageBytes: 0, trafficBytes: 4096 },
+          sortOrder: 3,
+        },
+      ],
     })
     expect(updated.status).toBe(200)
     const [, updateInit] = vi.mocked(fetch).mock.calls[1] as [URL, RequestInit]
@@ -549,9 +600,10 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Configured',
         description: '',
-        storageBytes: 4096,
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -602,9 +654,10 @@ describe('Quota Store API', () => {
         'x-forwarded-host': 'localhost',
       },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Bad Proto',
         description: '',
-        storageBytes: 4096,
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -735,9 +788,10 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Small',
         description: '',
-        storageBytes: 4096,
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -757,9 +811,10 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Small',
         description: '',
-        storageBytes: 4096,
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -777,9 +832,10 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Bad Currency',
         description: '',
-        storageBytes: 4096,
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
         prices: [{ currency: '', amount: 500 }],
       }),
     })
@@ -804,9 +860,10 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Small',
         description: '',
-        storageBytes: 4096,
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -854,17 +911,14 @@ describe('Quota Store API', () => {
     const deleted = await app.request('/api/admin/store/gift-cards/ZS-GEN-1', { method: 'DELETE', headers })
 
     expect(generated.status).toBe(201)
-    await expect(generated.json()).resolves.toMatchObject({
-      total: 2,
-      items: [
-        { code: 'ZS-GEN-1', initialAmount: 4096, remainingAmount: 4096 },
-        { code: 'ZS-GEN-2', initialAmount: 4096, remainingAmount: 4096 },
-      ],
-    })
+    await expect(generated.json()).resolves.toMatchObject([
+      { code: 'ZS-GEN-1', amount: 4096, status: 'created' },
+      { code: 'ZS-GEN-2', amount: 4096, status: 'created' },
+    ])
     expect(listed.status).toBe(200)
     await expect(listed.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ code: 'ZS-LIST-1', initialAmount: 2048, remainingAmount: 1024 }],
+      items: [{ code: 'ZS-LIST-1', amount: 1024, redemptionCount: 1 }],
     })
     expect(deleted.status).toBe(200)
     await expect(deleted.json()).resolves.toEqual({ code: 'ZS-GEN-1', deleted: true })
@@ -876,7 +930,7 @@ describe('Quota Store API', () => {
     expect(String(generateUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
     expect(generateInit.headers).toMatchObject({ Authorization: `Bearer ${REFRESH_TOKEN}` })
     expect(JSON.parse(generateInit.body as string)).toEqual({
-      initialAmount: 4096,
+      amount: 4096,
       currency: 'usd',
       expiresAt: '2026-06-01T00:00:00.000Z',
       count: 2,
@@ -911,8 +965,8 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      status: 200,
-      json: async () => cloudGiftCard({ code: 'ZS-GEN-1', status: 'disabled' }),
+      status: 204,
+      json: async () => null,
     } as Response)
 
     const res = await app.request('/api/admin/store/gift-cards/ZS-GEN-1', {
@@ -951,7 +1005,10 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/store/orders', { headers })
 
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({ total: 1, items: [{ id: 'cloud-order-1', storageBytes: 512 }] })
+    await expect(res.json()).resolves.toMatchObject({
+      total: 1,
+      items: [{ id: 'cloud-order-1', items: [{ fulfillmentPayload: { storageBytes: 512, trafficBytes: 0 } }] }],
+    })
     const [url] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
     expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=100`)
   })
@@ -961,28 +1018,21 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
-    vi.mocked(fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ items: [cloudOrder({ id: 'cloud-order-1' })], total: 2 }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ items: [cloudOrder({ id: 'cloud-order-2' })], total: 2 }),
-      } as Response)
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [cloudOrder({ id: 'cloud-order-2' })], total: 2 }),
+    } as Response)
 
-    const res = await app.request('/api/admin/store/orders', { headers })
+    const res = await app.request('/api/admin/store/orders?limit=1&offset=1', { headers })
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
       total: 2,
-      items: [{ id: 'cloud-order-1' }, { id: 'cloud-order-2' }],
+      items: [{ id: 'cloud-order-2' }],
     })
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
-    expect(String(calls[0][0])).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=100`)
-    expect(String(calls[1][0])).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=100&offset=1`)
+    expect(String(calls[0][0])).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=1&offset=1`)
   })
 
   it('updates packages through Cloud', async () => {
@@ -995,10 +1045,10 @@ describe('Quota Store API', () => {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Small',
         description: '',
-        storageBytes: 4096,
-        trafficBytes: 0,
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -1044,10 +1094,10 @@ describe('Quota Store API', () => {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'zpan_quota',
         name: 'Small',
         description: '',
-        storageBytes: 4096,
-        trafficBytes: 0,
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
@@ -1121,7 +1171,7 @@ describe('Quota Store API', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId, currency: 'cny' }),
     })
-    const orders = await app.request('/api/store/orders', { headers })
+    const orders = await app.request(`/api/store/orders?targetOrgId=${encodeURIComponent(orgId)}`, { headers })
 
     expect(packages.status).toBe(200)
     await expect(packages.json()).resolves.toMatchObject({
@@ -1131,7 +1181,7 @@ describe('Quota Store API', () => {
     expect(targets.status).toBe(200)
     await expect(targets.json()).resolves.toMatchObject({ total: 1, items: [{ orgId, type: 'personal' }] })
     expect(checkout.status).toBe(200)
-    await expect(checkout.json()).resolves.toEqual({ checkoutUrl: 'https://cloud.example/checkout' })
+    await expect(checkout.json()).resolves.toEqual({ orderId: 'order-cloud-1', url: 'https://cloud.example/checkout' })
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     const [orderUrl, orderInit] = calls.find(
       ([url, init]) => init.method === 'POST' && String(url).endsWith('/orders'),
@@ -1147,7 +1197,7 @@ describe('Quota Store API', () => {
       currency: 'cny',
       target: {
         orgId,
-        endUserId: expect.any(String),
+        endUserId: orgId,
         endUserLabel: 'buyer@example.com',
       },
       walletCreditAmount: 'max',
@@ -1167,7 +1217,7 @@ describe('Quota Store API', () => {
     expect(orders.status).toBe(200)
     await expect(orders.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-order-1', orgId, storageBytes: 512 }],
+      items: [{ id: 'cloud-order-1', target: { orgId }, items: [{ fulfillmentPayload: { storageBytes: 512 } }] }],
     })
     const [ordersUrl] = calls
       .filter(([url]) => {
@@ -1178,7 +1228,7 @@ describe('Quota Store API', () => {
     const parsedOrdersUrl = new URL(String(ordersUrl))
     expect(parsedOrdersUrl.pathname).toBe('/api/stores/store-test-binding/orders')
     expect(parsedOrdersUrl.searchParams.get('limit')).toBe('100')
-    expect(parsedOrdersUrl.searchParams.get('endUserId')).toBeTruthy()
+    expect(parsedOrdersUrl.searchParams.get('endUserId')).toBe(orgId)
   })
 
   it('hides self-service packages when the store is disabled', async () => {
@@ -1203,7 +1253,7 @@ describe('Quota Store API', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
     })
-    const orders = await app.request('/api/store/orders', { headers })
+    const orders = await app.request(`/api/store/orders?targetOrgId=${encodeURIComponent(orgId)}`, { headers })
 
     expect(packages.status).toBe(403)
     await expect(packages.json()).resolves.toEqual({ error: 'quota_store_disabled' })
@@ -1231,7 +1281,7 @@ describe('Quota Store API', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
     })
-    const orders = await app.request('/api/store/orders', { headers })
+    const orders = await app.request(`/api/store/orders?targetOrgId=${encodeURIComponent(orgId)}`, { headers })
 
     expect(packages.status).toBe(402)
     await expect(packages.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
@@ -1980,11 +2030,14 @@ async function seedPackage(_db: Awaited<ReturnType<typeof createTestApp>>['db'])
 }
 
 async function seedSettingsRow(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  const now = Date.now()
+  const now = new Date().toISOString()
   await db.run(sql`
-    INSERT INTO quota_store_settings
-      (id, enabled, created_at, updated_at)
-    VALUES ('default', 1, ${now}, ${now})
+    INSERT INTO system_options
+      (key, value, public)
+    VALUES
+      ('cloud_store_enabled', 'true', 0),
+      ('cloud_store_created_at', ${now}, 0),
+      ('cloud_store_updated_at', ${now}, 0)
   `)
 }
 

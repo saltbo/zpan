@@ -137,12 +137,6 @@ const APP_SCHEMA_SQL = `
     traffic_used INTEGER NOT NULL DEFAULT 0,
     traffic_period TEXT NOT NULL DEFAULT '1970-01'
   );
-  CREATE TABLE IF NOT EXISTS quota_store_settings (
-    id TEXT PRIMARY KEY,
-    enabled INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
   CREATE TABLE IF NOT EXISTS webhook_events (
     id TEXT PRIMARY KEY,
     source TEXT NOT NULL,

@@ -1,4 +1,4 @@
-import type { QuotaStorePackage, StoreOrder } from '@shared/types'
+import type { CloudOrder, CloudProduct } from '@shared/types'
 import { Activity, HardDrive, PlusCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -23,7 +23,7 @@ export function StoragePackages({
   disabled,
   onCheckout,
 }: {
-  packages: QuotaStorePackage[]
+  packages: CloudProduct[]
   disabled: boolean
   onCheckout: (packageId: string, currency: string) => void
 }) {
@@ -44,7 +44,7 @@ export function StoragePackages({
   )
 }
 
-export function StorageOrderHistory({ orders }: { orders: StoreOrder[] }) {
+export function StorageOrderHistory({ orders }: { orders: CloudOrder[] }) {
   const { t } = useTranslation()
   return (
     <Card className="border-border/60">
@@ -73,7 +73,7 @@ function PackageCard({
   disabled,
   onCheckout,
 }: {
-  pkg: QuotaStorePackage
+  pkg: CloudProduct
   disabled: boolean
   onCheckout: (packageId: string, currency: string) => void
 }) {
@@ -85,10 +85,12 @@ function PackageCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          {pkg.storageBytes > 0 && <p className="text-2xl font-semibold">{formatSize(pkg.storageBytes)}</p>}
-          {pkg.trafficBytes > 0 && (
-            <p className={pkg.storageBytes > 0 ? 'text-sm font-medium' : 'text-2xl font-semibold'}>
-              {t('storage.trafficQuota', { size: formatSize(pkg.trafficBytes) })}
+          {pkg.metadata.storageBytes > 0 && (
+            <p className="text-2xl font-semibold">{formatSize(pkg.metadata.storageBytes)}</p>
+          )}
+          {pkg.metadata.trafficBytes > 0 && (
+            <p className={pkg.metadata.storageBytes > 0 ? 'text-sm font-medium' : 'text-2xl font-semibold'}>
+              {t('storage.trafficQuota', { size: formatSize(pkg.metadata.trafficBytes) })}
             </p>
           )}
           <p className="text-sm text-muted-foreground">{formatPrices(pkg.prices)}</p>
@@ -109,20 +111,25 @@ function PackageCard({
   )
 }
 
-function PackageHeader({ pkg }: { pkg: QuotaStorePackage }) {
-  const Icon = pkg.storageBytes > 0 && pkg.trafficBytes > 0 ? HardDrive : pkg.trafficBytes > 0 ? Activity : HardDrive
+function PackageHeader({ pkg }: { pkg: CloudProduct }) {
+  const Icon =
+    pkg.metadata.storageBytes > 0 && pkg.metadata.trafficBytes > 0
+      ? HardDrive
+      : pkg.metadata.trafficBytes > 0
+        ? Activity
+        : HardDrive
   return (
     <div className="flex items-start justify-between gap-3">
       <div>
         <CardTitle>{pkg.name}</CardTitle>
-        <CardDescription className="mt-1">{pkg.description}</CardDescription>
+        <CardDescription className="mt-1">{pkg.description ?? ''}</CardDescription>
       </div>
       <Icon className="h-5 w-5 text-muted-foreground" />
     </div>
   )
 }
 
-function OrderRows({ orders }: { orders: StoreOrder[] }) {
+function OrderRows({ orders }: { orders: CloudOrder[] }) {
   return (
     <>
       {orders.map((order) => (
@@ -133,17 +140,21 @@ function OrderRows({ orders }: { orders: StoreOrder[] }) {
   )
 }
 
-function OrderRow({ order }: { order: StoreOrder }) {
+function OrderRow({ order }: { order: CloudOrder }) {
+  const item = order.items[0]
+  const payload = item?.fulfillmentPayload
+  const storageBytes = payload?.storageBytes ?? 0
+  const trafficBytes = payload?.trafficBytes ?? 0
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3">
       <div>
         <div className="flex items-center gap-2">
-          <span className="font-medium">{order.packageName}</span>
-          <Badge variant="outline">{formatSize(order.storageBytes)}</Badge>
-          {order.trafficBytes > 0 && <Badge variant="outline">{formatSize(order.trafficBytes)}</Badge>}
+          <span className="font-medium">{item?.name ?? order.id}</span>
+          <Badge variant="outline">{formatSize(storageBytes)}</Badge>
+          {trafficBytes > 0 && <Badge variant="outline">{formatSize(trafficBytes)}</Badge>}
           <Badge variant={order.paymentStatus === 'paid' ? 'default' : 'secondary'}>{order.paymentStatus}</Badge>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">{order.orgId}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{order.target?.orgId ?? '-'}</p>
       </div>
       <span className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleString()}</span>
     </div>
@@ -159,7 +170,7 @@ function OrderEmptyState() {
   )
 }
 
-function formatPrices(prices: QuotaStorePackage['prices']) {
+function formatPrices(prices: CloudProduct['prices']) {
   return prices.map((price) => formatMoney(price.amount, price.currency)).join(' / ')
 }
 

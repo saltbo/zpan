@@ -7,14 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { StorageActions, StorageOrderHistory, StorageStatusMetrics } from '@/components/store/storage-panels'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  ApiError,
-  createQuotaCheckout,
-  getUserQuota,
-  listPurchasableQuotaPackages,
-  listQuotaStoreTargets,
-  listStoreOrders,
-} from '@/lib/api'
+import { ApiError, createCloudCheckout, getUserQuota, listCloudOrders, listCloudProducts } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/storage')({
@@ -26,33 +19,26 @@ export function StoragePage() {
   const queryClient = useQueryClient()
   const [checkoutRefreshActive, setCheckoutRefreshActive] = useState(false)
   const { data: activeOrg } = useActiveOrganization()
-  const storagePlansQuery = useQuery({
-    queryKey: ['storage-plans', 'packages'],
-    queryFn: listPurchasableQuotaPackages,
+  const cloudStoreQuery = useQuery({
+    queryKey: ['cloud-store', 'packages'],
+    queryFn: listCloudProducts,
     retry: false,
   })
-  const targetsQuery = useQuery({
-    queryKey: ['storage-plans', 'targets'],
-    queryFn: listQuotaStoreTargets,
-    enabled: storagePlansQuery.isSuccess,
-    retry: false,
-  })
-  const targets = targetsQuery.data?.items ?? []
-  const targetOrgId = activeOrg?.id ?? targets.find((target) => target.type === 'personal')?.orgId ?? ''
+  const targetOrgId = activeOrg?.id ?? ''
   const ordersQuery = useQuery({
-    queryKey: ['storage-plans', 'orders', targetOrgId],
-    queryFn: listStoreOrders,
-    enabled: storagePlansQuery.isSuccess && !!targetOrgId,
+    queryKey: ['cloud-store', 'orders', targetOrgId],
+    queryFn: () => listCloudOrders(targetOrgId),
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
   const quotaQuery = useQuery({
     queryKey: ['user', 'quota', targetOrgId],
     queryFn: getUserQuota,
-    enabled: storagePlansQuery.isSuccess && !!targetOrgId,
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
-  const currentOrders = (ordersQuery.data?.items ?? []).filter((order) => order.orgId === targetOrgId)
-  const deliveredCheckoutCount = currentOrders.filter((order) => order.fulfillmentStatus === 'delivered').length
+  const currentOrders = ordersQuery.data?.items ?? []
+  const deliveredCheckoutCount = currentOrders.filter((order) => order.fulfillmentStatus === 'fulfilled').length
 
   useEffect(() => {
     if (deliveredCheckoutCount > 0) queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
@@ -62,7 +48,7 @@ export function StoragePage() {
     if (!checkoutRefreshActive) return
     const interval = window.setInterval(() => {
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
-      queryClient.invalidateQueries({ queryKey: ['storage-plans', 'orders'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
     }, 5000)
     const timeout = window.setTimeout(() => setCheckoutRefreshActive(false), 120000)
     return () => {
@@ -73,16 +59,16 @@ export function StoragePage() {
 
   const checkoutMutation = useMutation({
     mutationFn: ({ packageId, currency }: { packageId: string; currency: string; checkoutWindow: Window | null }) =>
-      createQuotaCheckout(packageId, targetOrgId, currency),
+      createCloudCheckout(packageId, targetOrgId, currency),
     onSuccess: (result, variables) => {
       if (variables.checkoutWindow) {
-        variables.checkoutWindow.location.href = result.checkoutUrl
+        variables.checkoutWindow.location.href = result.url
       } else {
-        window.location.assign(result.checkoutUrl)
+        window.location.assign(result.url)
       }
       setCheckoutRefreshActive(true)
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
-      queryClient.invalidateQueries({ queryKey: ['storage-plans', 'orders'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
     },
     onError: (err, variables) => {
       variables.checkoutWindow?.close()
@@ -96,12 +82,12 @@ export function StoragePage() {
     checkoutMutation.mutate({ packageId, currency, checkoutWindow })
   }
 
-  if (storagePlansQuery.isLoading || (storagePlansQuery.isSuccess && targetsQuery.isLoading)) {
+  if (cloudStoreQuery.isLoading) {
     return <p className="py-20 text-center text-muted-foreground">{t('common.loading')}</p>
   }
 
-  if (storagePlansQuery.isError) {
-    const disabled = isStoragePlansDisabledError(storagePlansQuery.error)
+  if (cloudStoreQuery.isError) {
+    const disabled = isCloudStoreDisabledError(cloudStoreQuery.error)
     return <StorageUnavailableState disabled={disabled} />
   }
 
@@ -113,7 +99,7 @@ export function StoragePage() {
           <p className="text-sm text-muted-foreground">{t('storage.subtitle')}</p>
         </div>
         <StorageActions
-          packages={storagePlansQuery.data?.items ?? []}
+          packages={cloudStoreQuery.data?.items ?? []}
           packagesDisabled={!targetOrgId || checkoutMutation.isPending}
           onCheckout={startCheckout}
         />
@@ -125,7 +111,7 @@ export function StoragePage() {
   )
 }
 
-function isStoragePlansDisabledError(error: unknown) {
+function isCloudStoreDisabledError(error: unknown) {
   return error instanceof ApiError && error.body.error === 'quota_store_disabled'
 }
 

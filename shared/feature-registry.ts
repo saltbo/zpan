@@ -110,7 +110,7 @@ export const FEATURE_REGISTRY = [
     gateKey: 'storages_unlimited',
   },
   {
-    i18nKey: 'features.quotaStore',
+    i18nKey: 'features.cloudStore',
     category: 'pro',
     community: false,
     pro: true,

@@ -288,7 +288,7 @@ function makeOrgs(count: number) {
 
 // Lazy-import the component after mocks are registered
 async function renderTeamsPage() {
-  const { TeamsPage } = await import('./TeamsPage.test-helper')
+  const { TeamsPage } = await import('./-TeamsPage.test-helper')
   return render(<TeamsPage />)
 }
 

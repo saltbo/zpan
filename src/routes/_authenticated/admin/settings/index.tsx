@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { BrandingSection } from '@/components/admin/branding-section'
-import { type StorageQuotaUnit, StorageSettingsSection } from '@/components/admin/storage-settings-section'
+import { type StorageQuotaUnit, StorageSettingsSection } from '@/components/admin/cloud-store-settings-section'
 import { ProBadge } from '@/components/ProBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +19,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { siteOptionsQueryKey, useSiteOptions } from '@/hooks/use-site-options'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { getQuotaStoreSettings, setSystemOption, updateQuotaStoreSettings } from '@/lib/api'
+import { getCloudStoreSettings, setSystemOption, updateCloudStoreSettings } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/settings/')({
   component: SettingsPage,
@@ -37,7 +37,7 @@ const settingsSchema = z.object({
   siteDescription: z.string(),
   quotaValue: z.coerce.number().positive('Quota must be a positive number'),
   quotaUnit: z.enum(['MB', 'GB']),
-  storagePlansEnabled: z.boolean(),
+  cloudStoreEnabled: z.boolean(),
   registrationsEnabled: z.boolean(),
 })
 
@@ -62,11 +62,11 @@ export function SettingsPage() {
   const { hasFeature } = useEntitlement()
   const hasWhiteLabel = hasFeature('white_label')
   const hasOpenRegistration = hasFeature('open_registration')
-  const hasStoragePlans = hasFeature('quota_store')
-  const storagePlansQuery = useQuery({
-    queryKey: ['admin', 'storage-plans', 'settings'],
-    queryFn: getQuotaStoreSettings,
-    enabled: hasStoragePlans,
+  const hasCloudStore = hasFeature('quota_store')
+  const cloudStoreQuery = useQuery({
+    queryKey: ['admin', 'cloud-store', 'settings'],
+    queryFn: getCloudStoreSettings,
+    enabled: hasCloudStore,
     retry: false,
   })
 
@@ -77,7 +77,7 @@ export function SettingsPage() {
       siteDescription: '',
       quotaValue: 0,
       quotaUnit: 'MB',
-      storagePlansEnabled: false,
+      cloudStoreEnabled: false,
       registrationsEnabled: false,
     },
   })
@@ -90,10 +90,10 @@ export function SettingsPage() {
       siteDescription,
       quotaValue: value,
       quotaUnit: unit,
-      storagePlansEnabled: storagePlansQuery.data?.enabled ?? false,
+      cloudStoreEnabled: cloudStoreQuery.data?.enabled ?? false,
       registrationsEnabled: authSignupMode === SignupMode.OPEN,
     })
-  }, [isLoading, siteName, siteDescription, quotaBytes, storagePlansQuery.data, authSignupMode, form])
+  }, [isLoading, siteName, siteDescription, quotaBytes, cloudStoreQuery.data, authSignupMode, form])
 
   const identityMutation = useMutation({
     mutationFn: async () => {
@@ -119,16 +119,16 @@ export function SettingsPage() {
       const values = form.getValues()
       const bytes = Math.round(values.quotaValue * UNITS[values.quotaUnit])
       await setSystemOption('default_org_quota', String(bytes), false)
-      if (hasStoragePlans) await updateQuotaStoreSettings({ enabled: values.storagePlansEnabled })
+      if (hasCloudStore) await updateCloudStoreSettings({ enabled: values.cloudStoreEnabled })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans'] })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'settings'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store', 'settings'] })
       toast.success(t('admin.settings.saved'))
     },
     onError: (err) => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'settings'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store', 'settings'] })
       toast.error(err.message)
     },
   })
@@ -147,7 +147,7 @@ export function SettingsPage() {
   })
 
   const quotaUnit = form.watch('quotaUnit')
-  const storagePlansEnabled = form.watch('storagePlansEnabled')
+  const cloudStoreEnabled = form.watch('cloudStoreEnabled')
   const registrationsEnabled = form.watch('registrationsEnabled')
 
   if (isLoading) {
@@ -257,17 +257,17 @@ export function SettingsPage() {
         </Card>
 
         <StorageSettingsSection
-          hasStoragePlans={hasStoragePlans}
+          hasCloudStore={hasCloudStore}
           quotaUnit={quotaUnit}
-          storagePlansEnabled={storagePlansEnabled}
+          cloudStoreEnabled={cloudStoreEnabled}
           quotaError={form.formState.errors.quotaValue?.message}
           quotaInputProps={form.register('quotaValue')}
           pending={storageMutation.isPending}
-          storagePlansLoading={storagePlansQuery.isLoading}
+          cloudStoreLoading={cloudStoreQuery.isLoading}
           onQuotaUnitChange={(unit) => form.setValue('quotaUnit', unit)}
           onSave={() => storageMutation.mutate()}
-          onStoragePlansChange={(checked) => {
-            form.setValue('storagePlansEnabled', checked, { shouldDirty: true })
+          onCloudStoreChange={(checked) => {
+            form.setValue('cloudStoreEnabled', checked, { shouldDirty: true })
           }}
         />
       </form>

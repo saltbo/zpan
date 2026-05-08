@@ -33,6 +33,22 @@ vi.mock('react-i18next', () => ({
 import { toast } from 'sonner'
 import { deleteIhostImage } from '@/lib/api'
 
+type ToastActionOptions = {
+  action: {
+    label: string
+    onClick: (event?: unknown) => void
+  }
+  duration: number
+}
+
+type ToastController = ((message: string, options: ToastActionOptions) => string | number) & {
+  dismiss: (id: string | number) => void
+  error: (message: string) => void
+}
+
+const toastController = toast as unknown as ToastController
+const deleteIhostImageFn = deleteIhostImage as unknown as (id: string) => Promise<void>
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -94,19 +110,22 @@ function handleCopyUrl(
 // handleDeleteItems logic extracted
 // ---------------------------------------------------------------------------
 
+type SetQueryDataMock = ((
+  queryKey: readonly unknown[],
+  updater: (old: { items: StorageObject[] } | undefined) => unknown,
+) => void) & { mock: { calls: unknown[][] } }
+
+type InvalidateQueriesMock = ((options: { queryKey: readonly unknown[] }) => void) & { mock: { calls: unknown[][] } }
+
 type QueryClientStub = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setQueryData: (...args: any[]) => any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  invalidateQueries: (...args: any[]) => any
-} & { setQueryData: { mock: { calls: any[][] } }; invalidateQueries: { mock: { calls: any[][] } } }
+  setQueryData: SetQueryDataMock
+  invalidateQueries: InvalidateQueriesMock
+}
 
 function makeQueryClientStub(): QueryClientStub {
   return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setQueryData: vi.fn() as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    invalidateQueries: vi.fn() as any,
+    setQueryData: vi.fn() as unknown as SetQueryDataMock,
+    invalidateQueries: vi.fn() as unknown as InvalidateQueriesMock,
   }
 }
 
@@ -125,15 +144,13 @@ async function handleDeleteItems(
 
   let cancelled = false
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const toastId = (toast as any)(t('ihost.delete.undoToast'), {
+  const toastId = toastController(t('ihost.delete.undoToast'), {
     action: {
       label: t('ihost.delete.undo'),
       onClick: () => {
         cancelled = true
         queryClient.invalidateQueries({ queryKey: imageHostDataSource.queryKeyPrefix })
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(toast as any).dismiss(toastId)
+        toastController.dismiss(toastId)
       },
     },
     duration: 5000,
@@ -143,12 +160,10 @@ async function handleDeleteItems(
     setTimeout(async () => {
       if (cancelled) return
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (deleteIhostImage as any)(id)
+        await deleteIhostImageFn(id)
       } catch {
         queryClient.invalidateQueries({ queryKey: imageHostDataSource.queryKeyPrefix })
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(toast as any).error(t('common.error'))
+        toastController.error(t('common.error'))
       }
     }, 5000)
   }
@@ -317,8 +332,7 @@ describe('ImageHostView — handleDeleteItems undo action', () => {
     await handleDeleteItems(['img-1'], queryClient, t)
 
     const toastCall = vi.mocked(toast).mock.calls[0]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const options = toastCall[1] as any
+    const options = toastCall[1] as unknown as { action: { onClick: (event?: unknown) => void } }
     options.action.onClick()
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({

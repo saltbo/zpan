@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { HardDrive } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getUserQuota, listPurchasableQuotaPackages, listStoreOrders } from '@/lib/api'
+import { getUserQuota, listCloudOrders, listCloudProducts } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
 
 function formatSize(bytes: number): string {
@@ -23,22 +23,22 @@ export function QuotaPanel({ enabled }: { enabled: boolean }) {
     enabled,
   })
   const packagesQuery = useQuery({
-    queryKey: ['storage-plans', 'packages'],
-    queryFn: listPurchasableQuotaPackages,
+    queryKey: ['cloud-store', 'packages'],
+    queryFn: listCloudProducts,
     enabled,
     retry: false,
   })
   const { data: orders } = useQuery({
-    queryKey: ['storage-plans', 'orders', workspaceId],
-    queryFn: listStoreOrders,
+    queryKey: ['cloud-store', 'orders', workspaceId],
+    queryFn: () => listCloudOrders(workspaceId),
     enabled: enabled && packagesQuery.isSuccess,
   })
 
   if (!quota) return null
 
   const purchasedBytes = (orders?.items ?? [])
-    .filter((order) => order.paymentStatus === 'paid' && order.orgId === quota.orgId)
-    .reduce((sum, order) => sum + order.storageBytes, 0)
+    .filter((order) => order.paymentStatus === 'paid')
+    .reduce((sum, order) => sum + (order.items[0]?.fulfillmentPayload.storageBytes ?? 0), 0)
   return (
     <Link
       to="/storage"

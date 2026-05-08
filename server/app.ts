@@ -11,6 +11,7 @@ import { adminAnnouncements, announcements } from './routes/announcements'
 import { adminAudit } from './routes/audit'
 import { adminAuthProviders, publicAuthProviders } from './routes/auth-providers'
 import { brandingAdmin, publicBranding } from './routes/branding'
+import { adminCloudStore, cloudStore, cloudStoreWebhooks } from './routes/cloud-store'
 import emailConfig from './routes/email-config'
 import ihost from './routes/ihost'
 import ihostConfig from './routes/ihost-config'
@@ -21,7 +22,6 @@ import { me } from './routes/me'
 import { notifications } from './routes/notifications'
 import objects from './routes/objects'
 import profile from './routes/profile'
-import { adminQuotaStore, quotaStore, quotaStoreWebhooks } from './routes/quota-store'
 import { adminQuotas, userQuotas } from './routes/quotas'
 import redirect from './routes/redirect'
 import { authedShares, publicShares } from './routes/shares'
@@ -66,7 +66,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/licensing', licensing)
   app.route('/api/branding', publicBranding)
   app.route('/api/site-invitations', publicSiteInvitations)
-  app.route('/api/store/webhooks', quotaStoreWebhooks)
+  app.route('/api/store/webhooks', cloudStoreWebhooks)
 
   app.use('/api/*', authMiddleware)
 
@@ -87,8 +87,8 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/admin/site-invitations', adminSiteInvitations)
   app.route('/api/admin/quotas', adminQuotas)
   app.route('/api/quotas', userQuotas)
-  app.route('/api/store', quotaStore)
-  app.route('/api/admin/store', adminQuotaStore)
+  app.route('/api/store', cloudStore)
+  app.route('/api/admin/store', adminCloudStore)
   app.route('/api/system', system)
   app.route('/api/admin/auth-providers', adminAuthProviders)
   app.route('/api/notifications', notifications)
@@ -124,9 +124,9 @@ export type PublicSiteInvitationsRoute = typeof publicSiteInvitations
 export type AuthProvidersRoute = typeof publicAuthProviders
 export type AdminAuthProvidersRoute = typeof adminAuthProviders
 export type ProfileRoute = typeof profile
-export type QuotaStoreRoute = typeof quotaStore
-export type QuotaStoreWebhooksRoute = typeof quotaStoreWebhooks
-export type AdminQuotaStoreRoute = typeof adminQuotaStore
+export type CloudStoreRoute = typeof cloudStore
+export type CloudStoreWebhooksRoute = typeof cloudStoreWebhooks
+export type AdminCloudStoreRoute = typeof adminCloudStore
 export type TeamsRoute = typeof teams
 export type PublicTeamsRoute = typeof publicTeams
 export type NotificationsRoute = typeof notifications

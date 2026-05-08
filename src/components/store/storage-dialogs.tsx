@@ -1,4 +1,4 @@
-import type { QuotaStorePackage } from '@shared/types'
+import type { CloudProduct } from '@shared/types'
 import { Activity, HardDrive, PlusCircle, ShoppingCart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,7 @@ export function StorageActions({
   packagesDisabled,
   onCheckout,
 }: {
-  packages: QuotaStorePackage[]
+  packages: CloudProduct[]
   packagesDisabled: boolean
   onCheckout: (packageId: string, currency: string) => void
 }) {
@@ -44,7 +44,7 @@ function PackagePanel({
   disabled,
   onCheckout,
 }: {
-  packages: QuotaStorePackage[]
+  packages: CloudProduct[]
   disabled: boolean
   onCheckout: (packageId: string, currency: string) => void
 }) {
@@ -79,31 +79,40 @@ function PackageOption({
   disabled,
   onCheckout,
 }: {
-  pkg: QuotaStorePackage
+  pkg: CloudProduct
   disabled: boolean
   onCheckout: (currency: string) => void
 }) {
   const { t } = useTranslation()
-  const Icon = pkg.storageBytes > 0 && pkg.trafficBytes > 0 ? HardDrive : pkg.trafficBytes > 0 ? Activity : HardDrive
+  const Icon =
+    pkg.metadata.storageBytes > 0 && pkg.metadata.trafficBytes > 0
+      ? HardDrive
+      : pkg.metadata.trafficBytes > 0
+        ? Activity
+        : HardDrive
   return (
     <div className="group flex flex-col justify-between rounded-md border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted/30">
       <div className="space-y-2.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium leading-none">{pkg.name}</p>
-            <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{pkg.description}</p>
+            <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{pkg.description ?? ''}</p>
           </div>
           <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
             <Icon className="size-3.5" />
           </div>
         </div>
         <div>
-          {pkg.storageBytes > 0 && (
-            <p className="text-xl font-semibold tracking-normal">{formatSize(pkg.storageBytes)}</p>
+          {pkg.metadata.storageBytes > 0 && (
+            <p className="text-xl font-semibold tracking-normal">{formatSize(pkg.metadata.storageBytes)}</p>
           )}
-          {pkg.trafficBytes > 0 && (
-            <p className={pkg.storageBytes > 0 ? 'text-sm font-medium' : 'text-xl font-semibold tracking-normal'}>
-              {t('storage.trafficQuota', { size: formatSize(pkg.trafficBytes) })}
+          {pkg.metadata.trafficBytes > 0 && (
+            <p
+              className={
+                pkg.metadata.storageBytes > 0 ? 'text-sm font-medium' : 'text-xl font-semibold tracking-normal'
+              }
+            >
+              {t('storage.trafficQuota', { size: formatSize(pkg.metadata.trafficBytes) })}
             </p>
           )}
           <p className="text-xs text-muted-foreground">{formatPrices(pkg.prices)}</p>
@@ -126,7 +135,7 @@ function PackageOption({
   )
 }
 
-function formatPrices(prices: QuotaStorePackage['prices']) {
+function formatPrices(prices: CloudProduct['prices']) {
   return prices.map((price) => formatMoney(price.amount, price.currency)).join(' / ')
 }
 

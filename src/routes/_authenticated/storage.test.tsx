@@ -1,16 +1,9 @@
-import type { QuotaStorePackage, StoreOrder } from '@shared/types'
+import type { CloudOrder, CloudProduct } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  ApiError,
-  createQuotaCheckout,
-  getUserQuota,
-  listPurchasableQuotaPackages,
-  listQuotaStoreTargets,
-  listStoreOrders,
-} from '@/lib/api'
+import { ApiError, createCloudCheckout, getUserQuota, listCloudOrders, listCloudProducts } from '@/lib/api'
 import { StoragePage } from './storage'
 
 const activeOrganization = vi.hoisted(() => ({
@@ -50,48 +43,56 @@ vi.mock('@/lib/api', () => {
 
   return {
     ApiError: MockApiError,
-    createQuotaCheckout: vi.fn(),
+    createCloudCheckout: vi.fn(),
     getUserQuota: vi.fn(),
-    listPurchasableQuotaPackages: vi.fn(),
-    listQuotaStoreTargets: vi.fn(),
-    listStoreOrders: vi.fn(),
+    listCloudProducts: vi.fn(),
+    listCloudOrders: vi.fn(),
   }
 })
 
-function order(overrides: Partial<StoreOrder> = {}): StoreOrder {
+function order(overrides: Partial<CloudOrder> = {}): CloudOrder {
   return {
     id: 'order-1',
-    orgId: 'org-1',
-    packageName: '100 GB',
-    packageDescription: null,
-    storageBytes: 1024,
-    trafficBytes: 0,
+    storeId: 'store-1',
+    buyerAccountId: 'buyer-1',
+    target: { orgId: 'org-1' },
+    status: 'paid',
     subtotalAmount: 999,
-    giftCardAmount: 0,
-    stripeAmount: 999,
-    paidAmount: 999,
+    discountAmount: 0,
+    totalAmount: 999,
     currency: 'usd',
-    giftCardId: null,
-    stripeSessionId: null,
-    stripePaymentIntentId: null,
+    items: [
+      {
+        id: 'item-1',
+        orderId: 'order-1',
+        productId: 'pkg-1',
+        productType: 'zpan_quota',
+        name: '100 GB',
+        description: null,
+        quantity: 1,
+        unitAmount: 999,
+        totalAmount: 999,
+        fulfillmentPayload: { storageBytes: 1024, trafficBytes: 0 },
+      },
+    ],
+    payments: [],
     paymentStatus: 'paid',
-    fulfillmentStatus: 'delivered',
-    terminalUserId: null,
-    terminalUserEmail: null,
+    fulfillmentStatus: 'fulfilled',
     createdAt: '2026-05-05T00:00:00.000Z',
     paidAt: '2026-05-05T00:00:00.000Z',
     fulfilledAt: '2026-05-05T00:00:00.000Z',
+    canceledAt: null,
     ...overrides,
   }
 }
 
-function quotaPackage(): QuotaStorePackage {
+function quotaPackage(): CloudProduct {
   return {
     id: 'pkg-1',
+    type: 'zpan_quota',
     name: '100 GB',
     description: 'Extra storage',
-    storageBytes: 107374182400,
-    trafficBytes: 0,
+    metadata: { storageBytes: 107374182400, trafficBytes: 0 },
     prices: [{ currency: 'usd', amount: 999 }],
     active: true,
     sortOrder: 1,
@@ -111,11 +112,12 @@ function renderStoragePage(queryClient: QueryClient) {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  activeOrganization.value = null
+  activeOrganization.value = { id: 'org-1' }
 })
 
 describe('StoragePage', () => {
   beforeEach(() => {
+    activeOrganization.value = { id: 'org-1' }
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
       baseQuota: 1024,
@@ -128,12 +130,8 @@ describe('StoragePage', () => {
   })
 
   it('refreshes quota when a checkout order is delivered', async () => {
-    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listQuotaStoreTargets).mockResolvedValue({
-      items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
-      total: 1,
-    })
-    vi.mocked(listStoreOrders).mockResolvedValue({
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudOrders).mockResolvedValue({
       items: [order()],
       total: 1,
     })
@@ -151,12 +149,8 @@ describe('StoragePage', () => {
   })
 
   it('hides self-service forms when storage purchases are disabled', async () => {
-    vi.mocked(listPurchasableQuotaPackages).mockRejectedValue(new ApiError(403, { error: 'quota_store_disabled' }))
-    vi.mocked(listQuotaStoreTargets).mockResolvedValue({
-      items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
-      total: 1,
-    })
-    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudProducts).mockRejectedValue(new ApiError(403, { error: 'quota_store_disabled' }))
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -173,18 +167,13 @@ describe('StoragePage', () => {
     expect(view.getByText('storage.disabledExistingStorage')).toBeTruthy()
     expect(view.queryByLabelText('storage.giftCardCode')).toBeNull()
     expect(view.queryByText('storage.historyTitle')).toBeNull()
-    expect(listQuotaStoreTargets).not.toHaveBeenCalled()
-    expect(listStoreOrders).not.toHaveBeenCalled()
+    expect(listCloudOrders).not.toHaveBeenCalled()
   })
 
   it('starts checkout from the packages dialog', async () => {
-    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
-    vi.mocked(listQuotaStoreTargets).mockResolvedValue({
-      items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
-      total: 1,
-    })
-    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createQuotaCheckout).mockResolvedValue({ checkoutUrl: 'https://cloud.example.test/checkout' })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(createCloudCheckout).mockResolvedValue({ orderId: 'order-1', url: 'https://cloud.example.test/checkout' })
     const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
     vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
 
@@ -201,18 +190,14 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.queryByLabelText('storage.giftCardCode')).toBeNull())
     fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
     expect(toast.info).not.toHaveBeenCalled()
   })
 
   it('closes the checkout window when checkout fails', async () => {
-    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
-    vi.mocked(listQuotaStoreTargets).mockResolvedValue({
-      items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
-      total: 1,
-    })
-    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createQuotaCheckout).mockRejectedValue(new Error('checkout failed'))
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(createCloudCheckout).mockRejectedValue(new Error('checkout failed'))
     const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
     vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
 
@@ -229,20 +214,17 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkout/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
     expect(checkoutWindow.close).toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('checkout failed')
   })
 
   it('refreshes quota and orders after checkout starts', async () => {
-    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
-    vi.mocked(listQuotaStoreTargets).mockResolvedValue({
-      items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
-      total: 1,
-    })
-    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createQuotaCheckout).mockResolvedValue({
-      checkoutUrl: 'https://cloud.example.test/checkout',
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(createCloudCheckout).mockResolvedValue({
+      orderId: 'order-1',
+      url: 'https://cloud.example.test/checkout',
     })
     const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
     vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
@@ -263,25 +245,19 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(checkoutWindow.location.href).toBe('https://cloud.example.test/checkout'))
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] })
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['storage-plans', 'orders'] })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
   })
 
   it('uses the active workspace for orders and checkout', async () => {
     activeOrganization.value = { id: 'org-2' }
-    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
-    vi.mocked(listQuotaStoreTargets).mockResolvedValue({
-      items: [
-        { orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' },
-        { orgId: 'org-2', name: 'Team', role: 'owner', type: 'organization' },
-      ],
-      total: 2,
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({
+      items: [order({ id: 'order-2', target: { orgId: 'org-2' } })],
+      total: 1,
     })
-    vi.mocked(listStoreOrders).mockResolvedValue({
-      items: [order({ orgId: 'org-1' }), order({ id: 'order-2', orgId: 'org-2' })],
-      total: 2,
-    })
-    vi.mocked(createQuotaCheckout).mockResolvedValue({
-      checkoutUrl: 'https://cloud.example.test/checkout',
+    vi.mocked(createCloudCheckout).mockResolvedValue({
+      orderId: 'order-1',
+      url: 'https://cloud.example.test/checkout',
     })
     const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
     vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
@@ -295,20 +271,41 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.getByText('org-2')).toBeTruthy())
-    expect(view.queryByText('org-1')).toBeNull()
+    expect(vi.mocked(listCloudOrders)).toHaveBeenCalledWith('org-2')
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
     fireEvent.click(await view.findByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createQuotaCheckout).toHaveBeenCalledWith('pkg-1', 'org-2', 'usd'))
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'org-2', 'usd'))
+  })
+
+  it('requires an active organization to checkout', async () => {
+    activeOrganization.value = null
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.packagesTitle' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
+    await waitFor(() => expect(view.queryByLabelText('storage.giftCardCode')).toBeNull())
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkout/ })).toBeTruthy())
+    const checkoutButton = view.getByRole('button', { name: /storage.checkout/ }) as HTMLButtonElement
+    expect(checkoutButton.disabled).toBe(true)
+    fireEvent.click(checkoutButton)
+
+    expect(listCloudOrders).not.toHaveBeenCalled()
+    expect(vi.mocked(createCloudCheckout)).not.toHaveBeenCalled()
   })
 
   it('uses dedicated dialog layouts instead of nesting cards in dialogs', async () => {
-    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
-    vi.mocked(listQuotaStoreTargets).mockResolvedValue({
-      items: [{ orgId: 'org-1', name: 'Personal', role: 'owner', type: 'personal' }],
-      total: 1,
-    })
-    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
 
     const queryClient = new QueryClient({
       defaultOptions: {

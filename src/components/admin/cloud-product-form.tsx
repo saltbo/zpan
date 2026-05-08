@@ -1,5 +1,5 @@
-import type { QuotaStorePackageInput } from '@shared/schemas'
-import type { QuotaStorePackage } from '@shared/types'
+import type { CloudProductInput } from '@shared/schemas'
+import type { CloudProduct } from '@shared/types'
 import { Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,23 +26,27 @@ export const emptyPackageForm = {
 
 export type PackageFormState = typeof emptyPackageForm
 
-export function packageInputFromForm(form: PackageFormState): QuotaStorePackageInput {
+export function packageInputFromForm(form: PackageFormState): CloudProductInput {
   return {
+    type: 'zpan_quota',
     name: form.name,
     description: form.description,
-    storageBytes: form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0,
-    trafficBytes: form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0,
+    metadata: {
+      storageBytes: form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0,
+      trafficBytes: form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0,
+    },
     prices: packagePricesFromForm(form),
+    active: true,
     sortOrder: Math.round(Number(form.sortOrder)),
   }
 }
 
-export function packageFormFromPackage(pkg: QuotaStorePackage): PackageFormState {
-  const storageDisplay = pkg.storageBytes > 0 ? bytesToDisplay(pkg.storageBytes) : null
-  const trafficDisplay = pkg.trafficBytes > 0 ? bytesToDisplay(pkg.trafficBytes) : null
+export function packageFormFromPackage(pkg: CloudProduct): PackageFormState {
+  const storageDisplay = pkg.metadata.storageBytes > 0 ? bytesToDisplay(pkg.metadata.storageBytes) : null
+  const trafficDisplay = pkg.metadata.trafficBytes > 0 ? bytesToDisplay(pkg.metadata.trafficBytes) : null
   return {
     name: pkg.name,
-    description: pkg.description,
+    description: pkg.description ?? '',
     storageSize: storageDisplay ? String(storageDisplay.size) : '',
     storageUnit: storageDisplay?.unit ?? 'GB',
     trafficSize: trafficDisplay ? String(trafficDisplay.size) : '',
@@ -62,7 +66,7 @@ export function StoragePlanForm({
   onCancel,
   onSubmit,
 }: {
-  editing: QuotaStorePackage | null
+  editing: CloudProduct | null
   form: PackageFormState
   available: boolean
   pending: boolean
@@ -80,7 +84,7 @@ export function StoragePlanForm({
     <div className="space-y-4">
       <PackageIdentityFields form={form} onFormChange={onFormChange} />
       <PackageQuotaFields
-        label={t('admin.storagePlans.storageQuota')}
+        label={t('admin.cloudStore.storageQuota')}
         sizeId="packageStorageSize"
         sizeValue={form.storageSize}
         unit={form.storageUnit}
@@ -88,7 +92,7 @@ export function StoragePlanForm({
         onUnitChange={(storageUnit) => onFormChange({ ...form, storageUnit })}
       />
       <PackageQuotaFields
-        label={t('admin.storagePlans.trafficQuota')}
+        label={t('admin.cloudStore.trafficQuota')}
         sizeId="packageTrafficSize"
         sizeValue={form.trafficSize}
         unit={form.trafficUnit}
@@ -96,7 +100,7 @@ export function StoragePlanForm({
         onUnitChange={(trafficUnit) => onFormChange({ ...form, trafficUnit })}
       />
       {!quotaValid && (form.storageSize !== '' || form.trafficSize !== '') && (
-        <p className="text-xs text-destructive">{t('admin.storagePlans.quotaRequired')}</p>
+        <p className="text-xs text-destructive">{t('admin.cloudStore.quotaRequired')}</p>
       )}
       <PackageAmountFields form={form} onFormChange={onFormChange} />
       <PackageFormActions
@@ -144,10 +148,10 @@ function PackageIdentityFields({
   const { t } = useTranslation()
   return (
     <>
-      <Field label={t('admin.storagePlans.packageName')} htmlFor="packageName">
+      <Field label={t('admin.cloudStore.packageName')} htmlFor="packageName">
         <Input id="packageName" value={form.name} onChange={(e) => onFormChange({ ...form, name: e.target.value })} />
       </Field>
-      <Field label={t('admin.storagePlans.description')} htmlFor="packageDescription">
+      <Field label={t('admin.cloudStore.description')} htmlFor="packageDescription">
         <Textarea
           id="packageDescription"
           value={form.description}
@@ -182,12 +186,12 @@ function PackageQuotaFields({
           id={sizeId}
           type="number"
           min="1"
-          placeholder={t('admin.storagePlans.quotaOptionalHint')}
+          placeholder={t('admin.cloudStore.quotaOptionalHint')}
           value={sizeValue}
           onChange={(e) => onSizeChange(e.target.value)}
         />
       </Field>
-      <Field label={t('admin.storagePlans.unit')}>
+      <Field label={t('admin.cloudStore.unit')}>
         <UnitSelect value={unit} onChange={onUnitChange} ariaLabel={`${label} unit`} />
       </Field>
     </div>
@@ -205,7 +209,7 @@ function PackageAmountFields({
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <NumberField
-        label={t('admin.storagePlans.usdAmount')}
+        label={t('admin.cloudStore.usdAmount')}
         id="packageUsdAmount"
         min="0.01"
         step="0.01"
@@ -213,7 +217,7 @@ function PackageAmountFields({
         onChange={(usdAmount) => onFormChange({ ...form, usdAmount })}
       />
       <NumberField
-        label={t('admin.storagePlans.cnyAmount')}
+        label={t('admin.cloudStore.cnyAmount')}
         id="packageCnyAmount"
         min="0.01"
         step="0.01"
@@ -278,7 +282,7 @@ function PackageFormActions({
   onCancel,
   onSubmit,
 }: {
-  editing: QuotaStorePackage | null
+  editing: CloudProduct | null
   available: boolean
   pending: boolean
   onCancel: () => void

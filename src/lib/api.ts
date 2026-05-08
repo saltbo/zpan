@@ -2,13 +2,13 @@ import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
   AllowedImageMime,
   AnnouncementInput,
+  CloudProductInput,
+  CloudProductPatchInput,
   ConflictStrategy,
   CreateGiftCardInput,
   CreateShareRequest,
   CreateStorageInput,
   GiftCardStatus,
-  QuotaStorePackageInput,
-  QuotaStorePackagePatchInput,
   UpdateStorageInput,
 } from '@shared/schemas'
 import type {
@@ -22,33 +22,34 @@ import type {
   BrandingThemeMode,
   BrandingThemePresetId,
   BrandingThemeValues,
+  CloudGiftCard,
+  CloudOrder,
+  CloudProduct,
+  CloudStoreSettings,
+  CloudStoreTarget,
   IhostConfigResponse,
   ImageHosting,
   Notification,
   OrgQuota,
   PaginatedResponse,
-  QuotaStorePackage,
-  QuotaStoreSettings,
-  QuotaTarget,
   ShareListItem,
   ShareView,
   SiteInvitation,
   Storage,
   StorageObject,
-  StoreGiftCard,
-  StoreOrder,
 } from '@shared/types'
 import {
   adminAnnouncementsApi,
   adminAuditApi,
   adminAuthProviders,
-  adminQuotaStoreApi,
+  adminCloudStoreApi,
   adminQuotas,
   adminSiteInvitations,
   announcementsApi,
   authedSharesApi,
   authProviders,
   brandingAdminApi,
+  cloudStoreApi,
   emailConfig,
   ihostApi,
   ihostConfigApi,
@@ -62,7 +63,6 @@ import {
   publicBrandingApi,
   publicSharesApi,
   publicSiteInvitations,
-  quotaStoreApi,
   storages,
   system,
   teamsApi,
@@ -306,72 +306,83 @@ export function getUserQuota() {
 
 // Quota Store API
 
-export function getQuotaStoreSettings() {
-  return unwrap<QuotaStoreSettings | null>(adminQuotaStoreApi.settings.$get())
+export function getCloudStoreSettings() {
+  return unwrap<CloudStoreSettings | null>(adminCloudStoreApi.settings.$get())
 }
 
-export function updateQuotaStoreSettings(data: { enabled: boolean }) {
-  return unwrap<QuotaStoreSettings>(adminQuotaStoreApi.settings.$put({ json: data }))
+export function updateCloudStoreSettings(data: { enabled: boolean }) {
+  return unwrap<CloudStoreSettings>(adminCloudStoreApi.settings.$put({ json: data }))
 }
 
-export function listQuotaStorePackages() {
-  return unwrap<{ items: QuotaStorePackage[]; total: number }>(adminQuotaStoreApi.packages.$get())
+export function listAdminCloudProducts() {
+  return unwrap<{ items: CloudProduct[]; total: number }>(adminCloudStoreApi.packages.$get())
 }
 
-export function createQuotaStorePackage(data: QuotaStorePackageInput) {
-  return unwrap<QuotaStorePackage>(adminQuotaStoreApi.packages.$post({ json: data }))
+export function createCloudProduct(data: CloudProductInput) {
+  return unwrap<CloudProduct>(adminCloudStoreApi.packages.$post({ json: data }))
 }
 
-export function updateQuotaStorePackage(id: string, data: QuotaStorePackagePatchInput) {
-  return unwrap<QuotaStorePackage>(adminQuotaStoreApi.packages[':id'].$patch({ param: { id }, json: data }))
+export function updateCloudProduct(id: string, data: CloudProductPatchInput) {
+  return unwrap<CloudProduct>(adminCloudStoreApi.packages[':id'].$patch({ param: { id }, json: data }))
 }
 
-export function deleteQuotaStorePackage(id: string) {
-  return unwrap<{ id: string; deleted: boolean }>(adminQuotaStoreApi.packages[':id'].$delete({ param: { id } }))
+export function deleteCloudProduct(id: string) {
+  return unwrap<{ id: string; deleted: boolean }>(adminCloudStoreApi.packages[':id'].$delete({ param: { id } }))
 }
 
-export function listStoreGiftCards(status?: GiftCardStatus) {
+export function listCloudGiftCards(status?: GiftCardStatus) {
   const query = status ? { status } : {}
-  return unwrap<{ items: StoreGiftCard[]; total: number }>(adminQuotaStoreApi['gift-cards'].$get({ query }))
+  return unwrap<{ items: CloudGiftCard[]; total: number }>(adminCloudStoreApi['gift-cards'].$get({ query }))
 }
 
-export function createStoreGiftCards(data: CreateGiftCardInput) {
-  return unwrap<{ items: StoreGiftCard[]; total: number }>(adminQuotaStoreApi['gift-cards'].$post({ json: data }))
+export function createCloudGiftCards(data: CreateGiftCardInput) {
+  return unwrap<CloudGiftCard[]>(adminCloudStoreApi['gift-cards'].$post({ json: data }))
 }
 
-export function disableStoreGiftCard(code: string) {
+export function disableCloudGiftCard(code: string) {
   return unwrap<{ code: string; disabled: true }>(
-    adminQuotaStoreApi['gift-cards'][':code'].$patch({
+    adminCloudStoreApi['gift-cards'][':code'].$patch({
       param: { code },
       json: { disabled: true },
     }),
   )
 }
 
-export function deleteStoreGiftCard(code: string) {
+export function deleteCloudGiftCard(code: string) {
   return unwrap<{ code: string; deleted: boolean }>(
-    adminQuotaStoreApi['gift-cards'][':code'].$delete({ param: { code } }),
+    adminCloudStoreApi['gift-cards'][':code'].$delete({ param: { code } }),
   )
 }
 
-export function listAdminStoreOrders() {
-  return unwrap<{ items: StoreOrder[]; total: number }>(adminQuotaStoreApi.orders.$get())
+export function listAdminCloudOrders(options: { limit?: number; offset?: number } = {}) {
+  const query = {
+    ...(options.limit !== undefined ? { limit: options.limit } : {}),
+    ...(options.offset !== undefined ? { offset: options.offset } : {}),
+  }
+  return unwrap<{ items: CloudOrder[]; total: number }>(adminCloudStoreApi.orders.$get({ query }))
 }
 
-export function listPurchasableQuotaPackages() {
-  return unwrap<{ items: QuotaStorePackage[]; total: number }>(quotaStoreApi.packages.$get())
+export function listCloudProducts() {
+  return unwrap<{ items: CloudProduct[]; total: number }>(cloudStoreApi.packages.$get())
 }
 
-export function listQuotaStoreTargets() {
-  return unwrap<{ items: QuotaTarget[]; total: number }>(quotaStoreApi.targets.$get())
+export function listCloudStoreTargets() {
+  return unwrap<{ items: CloudStoreTarget[]; total: number }>(cloudStoreApi.targets.$get())
 }
 
-export function createQuotaCheckout(packageId: string, targetOrgId: string, currency?: string) {
-  return unwrap<{ checkoutUrl: string }>(quotaStoreApi.checkouts.$post({ json: { packageId, targetOrgId, currency } }))
+export function createCloudCheckout(packageId: string, targetOrgId: string, currency?: string) {
+  return unwrap<{ orderId: string; url: string; paymentId?: string }>(
+    cloudStoreApi.checkouts.$post({ json: { packageId, targetOrgId, currency } }),
+  )
 }
 
-export function listStoreOrders() {
-  return unwrap<{ items: StoreOrder[]; total: number }>(quotaStoreApi.orders.$get())
+export function listCloudOrders(targetOrgId: string, options: { limit?: number; offset?: number } = {}) {
+  const query = {
+    targetOrgId,
+    ...(options.limit !== undefined ? { limit: options.limit } : {}),
+    ...(options.offset !== undefined ? { offset: options.offset } : {}),
+  }
+  return unwrap<{ items: CloudOrder[]; total: number }>(cloudStoreApi.orders.$get({ query }))
 }
 
 // System Options API

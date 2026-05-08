@@ -1,42 +1,48 @@
 import { z } from 'zod'
 
-export const quotaStoreSettingsSchema = z.object({
+export const cloudStoreSettingsSchema = z.object({
   enabled: z.boolean(),
 })
 
-export const quotaStoreCurrencySchema = z.string().min(1)
-export const quotaStorePackagePriceSchema = z.object({
-  currency: quotaStoreCurrencySchema,
+export const cloudStoreCurrencySchema = z.string().min(1)
+export const cloudProductPriceSchema = z.object({
+  currency: cloudStoreCurrencySchema,
   amount: z.number().int().positive(),
 })
 
-export const quotaStorePackageInputSchema = z
+export const cloudProductInputSchema = z
   .object({
+    type: z.literal('zpan_quota'),
     name: z.string().min(1).max(120),
     description: z.string().max(1000).default(''),
-    storageBytes: z.number().int().min(0).default(0),
-    trafficBytes: z.number().int().min(0).default(0),
-    prices: z.array(quotaStorePackagePriceSchema).min(1),
+    metadata: z.object({
+      storageBytes: z.number().int().min(0).default(0),
+      trafficBytes: z.number().int().min(0).default(0),
+    }),
+    prices: z.array(cloudProductPriceSchema).min(1),
     active: z.boolean().default(true),
     sortOrder: z.number().int().default(0),
   })
   .superRefine((data, ctx) => {
-    if (data.storageBytes === 0 && data.trafficBytes === 0) {
+    if (data.metadata.storageBytes === 0 && data.metadata.trafficBytes === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['storageBytes'],
+        path: ['metadata', 'storageBytes'],
         message: 'At least one of storageBytes or trafficBytes must be greater than 0',
       })
     }
   })
 
-export const quotaStorePackagePatchSchema = z
+export const cloudProductPatchSchema = z
   .object({
+    type: z.literal('zpan_quota'),
     name: z.string().min(1).max(120),
     description: z.string().max(1000),
-    storageBytes: z.number().int().min(0),
-    trafficBytes: z.number().int().min(0),
-    prices: z.array(quotaStorePackagePriceSchema).min(1),
+    metadata: z.object({
+      storageBytes: z.number().int().min(0),
+      trafficBytes: z.number().int().min(0),
+    }),
+    prices: z.array(cloudProductPriceSchema).min(1),
     active: z.boolean(),
     sortOrder: z.number().int(),
   })
@@ -45,14 +51,14 @@ export const quotaStorePackagePatchSchema = z
 export const checkoutInputSchema = z.object({
   packageId: z.string().min(1),
   targetOrgId: z.string().min(1),
-  currency: quotaStoreCurrencySchema.optional(),
+  currency: cloudStoreCurrencySchema.optional(),
 })
 
 export const giftCardStatusSchema = z.enum(['created', 'active', 'disabled', 'exhausted', 'expired', 'revoked'])
 
 export const createGiftCardInputSchema = z.object({
   amount: z.number().int().positive(),
-  currency: quotaStoreCurrencySchema,
+  currency: cloudStoreCurrencySchema,
   expiresAt: z.string().datetime().optional(),
   count: z.number().int().min(1).max(100),
 })
@@ -87,11 +93,11 @@ export const cloudOrderQuotaChangeSchema = z
     }
   })
 
-export type QuotaStoreSettingsInput = z.infer<typeof quotaStoreSettingsSchema>
-export type QuotaStoreCurrency = z.infer<typeof quotaStoreCurrencySchema>
-export type QuotaStorePackagePrice = z.infer<typeof quotaStorePackagePriceSchema>
-export type QuotaStorePackageInput = z.input<typeof quotaStorePackageInputSchema>
-export type QuotaStorePackagePatchInput = z.input<typeof quotaStorePackagePatchSchema>
+export type CloudStoreSettingsInput = z.infer<typeof cloudStoreSettingsSchema>
+export type CloudStoreCurrency = z.infer<typeof cloudStoreCurrencySchema>
+export type CloudProductPrice = z.infer<typeof cloudProductPriceSchema>
+export type CloudProductInput = z.infer<typeof cloudProductInputSchema>
+export type CloudProductPatchInput = z.input<typeof cloudProductPatchSchema>
 export type CheckoutInput = z.infer<typeof checkoutInputSchema>
 export type GiftCardStatus = z.infer<typeof giftCardStatusSchema>
 export type CreateGiftCardInput = z.input<typeof createGiftCardInputSchema>

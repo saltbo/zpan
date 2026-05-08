@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { activityEvents, orgQuotas, webhookEvents } from '../db/schema'
 import type { Database } from '../platform/interface'
-import { processCloudOrderQuotaChange } from './quota-store'
+import { processCloudOrderQuotaChange } from './cloud-store'
 
 function createAsyncDb(quotaRows: Array<{ id: string }> = [{ id: 'quota-1' }]) {
   const state = {

@@ -1,9 +1,9 @@
-import type { QuotaStorePackage, StoreOrder } from '@shared/types'
+import type { CloudOrder, CloudProduct } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getUserQuota, listPurchasableQuotaPackages, listStoreOrders } from '@/lib/api'
+import { getUserQuota, listCloudOrders, listCloudProducts } from '@/lib/api'
 import { QuotaPanel } from './quota-panel'
 
 vi.mock('react-i18next', () => ({
@@ -26,17 +26,17 @@ vi.mock('@/lib/auth-client', () => ({
 
 vi.mock('@/lib/api', () => ({
   getUserQuota: vi.fn(),
-  listPurchasableQuotaPackages: vi.fn(),
-  listStoreOrders: vi.fn(),
+  listCloudProducts: vi.fn(),
+  listCloudOrders: vi.fn(),
 }))
 
-function quotaPackage(): QuotaStorePackage {
+function quotaPackage(): CloudProduct {
   return {
     id: 'pkg-1',
+    type: 'zpan_quota',
     name: '100 GB',
     description: 'Extra storage',
-    storageBytes: 107374182400,
-    trafficBytes: 0,
+    metadata: { storageBytes: 107374182400, trafficBytes: 0 },
     prices: [{ currency: 'usd', amount: 999 }],
     active: true,
     sortOrder: 1,
@@ -45,29 +45,38 @@ function quotaPackage(): QuotaStorePackage {
   }
 }
 
-function order(overrides: Partial<StoreOrder> = {}): StoreOrder {
+function order(overrides: Partial<CloudOrder> = {}): CloudOrder {
   return {
     id: 'order-1',
-    orgId: 'org-1',
-    packageName: '100 GB',
-    packageDescription: null,
-    storageBytes: 107374182400,
-    trafficBytes: 0,
+    storeId: 'store-1',
+    buyerAccountId: 'buyer-1',
+    target: { orgId: 'org-1' },
+    status: 'paid',
     subtotalAmount: 999,
-    giftCardAmount: 0,
-    stripeAmount: 999,
-    paidAmount: 999,
+    discountAmount: 0,
+    totalAmount: 999,
     currency: 'usd',
-    giftCardId: null,
-    stripeSessionId: null,
-    stripePaymentIntentId: null,
+    items: [
+      {
+        id: 'item-1',
+        orderId: 'order-1',
+        productId: 'pkg-1',
+        productType: 'zpan_quota',
+        name: '100 GB',
+        description: null,
+        quantity: 1,
+        unitAmount: 999,
+        totalAmount: 999,
+        fulfillmentPayload: { storageBytes: 107374182400, trafficBytes: 0 },
+      },
+    ],
+    payments: [],
     paymentStatus: 'paid',
-    fulfillmentStatus: 'delivered',
-    terminalUserId: null,
-    terminalUserEmail: null,
+    fulfillmentStatus: 'fulfilled',
     createdAt: '2026-05-05T00:00:00.000Z',
     paidAt: '2026-05-05T00:00:00.000Z',
     fulfilledAt: '2026-05-05T00:00:00.000Z',
+    canceledAt: null,
     ...overrides,
   }
 }
@@ -103,14 +112,14 @@ describe('QuotaPanel', () => {
       trafficUsed: 0,
       trafficPeriod: '2026-05',
     })
-    vi.mocked(listPurchasableQuotaPackages).mockRejectedValue(new Error('quota_store_disabled'))
-    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudProducts).mockRejectedValue(new Error('quota_store_disabled'))
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
 
     const view = renderQuotaPanel()
 
     await waitFor(() => expect(view.getByText('quota.storage')).toBeTruthy())
     expect(view.getByRole('link', { name: 'quota.storage' }).getAttribute('href')).toBe('/storage')
-    expect(listStoreOrders).not.toHaveBeenCalled()
+    expect(listCloudOrders).not.toHaveBeenCalled()
   })
 
   it('loads orders when store is available without packages', async () => {
@@ -123,13 +132,13 @@ describe('QuotaPanel', () => {
       trafficUsed: 0,
       trafficPeriod: '2026-05',
     })
-    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(listStoreOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
 
     const view = renderQuotaPanel()
 
     await waitFor(() => expect(view.getByRole('link', { name: 'quota.storage' })).toBeTruthy())
-    expect(listStoreOrders).toHaveBeenCalled()
+    expect(listCloudOrders).toHaveBeenCalledWith('personal')
   })
 
   it('shows the store entry and matching purchased storage', async () => {
@@ -142,15 +151,16 @@ describe('QuotaPanel', () => {
       trafficUsed: 0,
       trafficPeriod: '2026-05',
     })
-    vi.mocked(listPurchasableQuotaPackages).mockResolvedValue({ items: [quotaPackage()], total: 1 })
-    vi.mocked(listStoreOrders).mockResolvedValue({
-      items: [order(), order({ id: 'order-2', orgId: 'org-2' }), order({ id: 'order-3', paymentStatus: 'pending' })],
-      total: 3,
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({
+      items: [order(), order({ id: 'order-3', paymentStatus: 'pending' })],
+      total: 2,
     })
 
     const view = renderQuotaPanel()
 
     await waitFor(() => expect(view.getByRole('link', { name: 'quota.storage' })).toBeTruthy())
+    expect(listCloudOrders).toHaveBeenCalledWith('personal')
     await waitFor(() => expect(view.getByText('quota.purchased:100 GB')).toBeTruthy())
   })
 })

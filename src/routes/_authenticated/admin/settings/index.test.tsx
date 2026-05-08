@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getQuotaStoreSettings, setSystemOption, updateQuotaStoreSettings } from '@/lib/api'
+import { getCloudStoreSettings, setSystemOption, updateCloudStoreSettings } from '@/lib/api'
 import { SettingsPage } from './index'
 
 vi.mock('react-i18next', () => ({
@@ -46,9 +46,9 @@ vi.mock('@/hooks/useEntitlement', () => ({
 }))
 
 vi.mock('@/lib/api', () => ({
-  getQuotaStoreSettings: vi.fn(),
+  getCloudStoreSettings: vi.fn(),
   setSystemOption: vi.fn(),
-  updateQuotaStoreSettings: vi.fn(),
+  updateCloudStoreSettings: vi.fn(),
 }))
 
 function renderSettingsPage() {
@@ -81,14 +81,14 @@ describe('SettingsPage', () => {
         disconnect() {}
       },
     )
-    vi.mocked(getQuotaStoreSettings).mockResolvedValue({
+    vi.mocked(getCloudStoreSettings).mockResolvedValue({
       id: 'settings-1',
       enabled: false,
       status: 'ready',
       createdAt: '2026-05-05T00:00:00.000Z',
       updatedAt: '2026-05-05T00:00:00.000Z',
     })
-    vi.mocked(updateQuotaStoreSettings).mockResolvedValue({
+    vi.mocked(updateCloudStoreSettings).mockResolvedValue({
       id: 'settings-1',
       enabled: true,
       status: 'ready',
@@ -98,19 +98,19 @@ describe('SettingsPage', () => {
 
     const view = renderSettingsPage()
 
-    const storagePlansSwitch = await view.findByRole('switch', { name: 'admin.settings.storagePlansEnabled' })
+    const storagePlansSwitch = await view.findByRole('switch', { name: 'admin.settings.cloudStoreEnabled' })
     await waitFor(() => expect(storagePlansSwitch.hasAttribute('disabled')).toBe(false))
     expect(storagePlansSwitch.getAttribute('aria-checked')).toBe('false')
 
     fireEvent.click(storagePlansSwitch)
     await waitFor(() => expect(storagePlansSwitch.getAttribute('aria-checked')).toBe('true'))
-    expect(updateQuotaStoreSettings).not.toHaveBeenCalled()
+    expect(updateCloudStoreSettings).not.toHaveBeenCalled()
 
     const saveButtons = view.getAllByRole('button', { name: 'common.save' })
     fireEvent.click(saveButtons[saveButtons.length - 1])
 
     await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('default_org_quota', '1073741824', false))
-    await waitFor(() => expect(updateQuotaStoreSettings).toHaveBeenCalledWith({ enabled: true }))
+    await waitFor(() => expect(updateCloudStoreSettings).toHaveBeenCalledWith({ enabled: true }))
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
   })
 })

@@ -1,64 +1,64 @@
 import type { GiftCardStatus } from '@shared/schemas'
-import type { QuotaStorePackage, QuotaStoreSettings } from '@shared/types'
+import type { CloudProduct, CloudStoreSettings } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { CheckCircle2, CircleSlash2, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StorageOrdersTable } from '@/components/admin/storage-orders-table'
+import { StorageOrdersTable } from '@/components/admin/cloud-orders-table'
 import {
   GiftCardsTab,
   PackagesTab,
   useGiftCardActions,
   usePackageEditor,
-} from '@/components/admin/storage-plans-admin-actions'
+} from '@/components/admin/cloud-store-admin-actions'
 import {
-  type StoragePlansAdminTab,
-  StoragePlansTabBar,
-  StoragePlansTabState,
-} from '@/components/admin/storage-plans-admin-shell'
+  type CloudStoreAdminTab,
+  CloudStoreTabBar,
+  CloudStoreTabState,
+} from '@/components/admin/cloud-store-admin-shell'
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   ApiError,
-  getQuotaStoreSettings,
-  listAdminStoreOrders,
-  listQuotaStorePackages,
-  listStoreGiftCards,
+  getCloudStoreSettings,
+  listAdminCloudOrders,
+  listAdminCloudProducts,
+  listCloudGiftCards,
 } from '@/lib/api'
 
-export const Route = createFileRoute('/_authenticated/admin/storage-plans')({
-  component: AdminStoragePlansPage,
+export const Route = createFileRoute('/_authenticated/admin/cloud-store')({
+  component: AdminCloudStorePage,
 })
 
-export function AdminStoragePlansPage() {
-  const state = useAdminStoragePlansState()
+export function AdminCloudStorePage() {
+  const state = useAdminCloudStoreState()
   const { t } = useTranslation()
   if (state.query.isLoading) return <p className="py-20 text-center text-muted-foreground">{t('common.loading')}</p>
   if (state.query.isError) {
-    return <p className="py-20 text-center text-destructive">{t('admin.storagePlans.tabError')}</p>
+    return <p className="py-20 text-center text-destructive">{t('admin.cloudStore.tabError')}</p>
   }
   if (!state.data) return null
-  return <AdminStoragePlansContent state={state as AdminStoragePlansReadyState} />
+  return <AdminCloudStoreContent state={state as AdminCloudStoreReadyState} />
 }
 
-function useAdminStoragePlansState() {
-  const [activeTab, setActiveTab] = useState<StoragePlansAdminTab>('packages')
+function useAdminCloudStoreState() {
+  const [activeTab, setActiveTab] = useState<CloudStoreAdminTab>('packages')
   const [giftCardStatus, setGiftCardStatus] = useState<GiftCardStatus | 'all'>('all')
-  const query = useQuery({ queryKey: ['admin', 'storage-plans'], queryFn: loadAdminStoragePlans })
+  const query = useQuery({ queryKey: ['admin', 'cloud-store'], queryFn: loadAdminCloudStore })
   const packageEditor = usePackageEditor()
   const giftCardActions = useGiftCardActions()
   const giftCardsQuery = useQuery({
-    queryKey: ['admin', 'storage-plans', 'gift-cards', giftCardStatus],
-    queryFn: () => listStoreGiftCards(giftCardStatus === 'all' ? undefined : giftCardStatus),
+    queryKey: ['admin', 'cloud-store', 'gift-cards', giftCardStatus],
+    queryFn: () => listCloudGiftCards(giftCardStatus === 'all' ? undefined : giftCardStatus),
     enabled: query.data?.available === true && activeTab === 'codes',
     retry: false,
   })
   const ordersQuery = useQuery({
-    queryKey: ['admin', 'storage-plans', 'orders'],
-    queryFn: listAdminStoreOrders,
+    queryKey: ['admin', 'cloud-store', 'orders'],
+    queryFn: () => listAdminCloudOrders(),
     enabled: query.data?.available === true,
     retry: false,
   })
@@ -78,11 +78,11 @@ function useAdminStoragePlansState() {
   }
 }
 
-type AdminStoragePlansReadyState = ReturnType<typeof useAdminStoragePlansState> & {
-  data: NonNullable<ReturnType<typeof useAdminStoragePlansState>['data']>
+type AdminCloudStoreReadyState = ReturnType<typeof useAdminCloudStoreState> & {
+  data: NonNullable<ReturnType<typeof useAdminCloudStoreState>['data']>
 }
 
-function AdminStoragePlansContent({ state }: { state: AdminStoragePlansReadyState }) {
+function AdminCloudStoreContent({ state }: { state: AdminCloudStoreReadyState }) {
   const { data } = state
   return (
     <div className="max-w-6xl space-y-5">
@@ -93,18 +93,18 @@ function AdminStoragePlansContent({ state }: { state: AdminStoragePlansReadyStat
   )
 }
 
-function PageHeading({ settings }: { settings: QuotaStoreSettings | null }) {
+function PageHeading({ settings }: { settings: CloudStoreSettings | null }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-semibold tracking-tight">{t('admin.storagePlans.title')}</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">{t('admin.cloudStore.title')}</h2>
           <ProBadge />
         </div>
-        <p className="text-sm text-muted-foreground">{t('admin.storagePlans.subtitle')}</p>
+        <p className="text-sm text-muted-foreground">{t('admin.cloudStore.subtitle')}</p>
       </div>
-      <StoragePlanStatusSummary settings={settings} />
+      <CloudStoreStatusSummary settings={settings} />
     </div>
   )
 }
@@ -120,7 +120,7 @@ function UpgradeGate({ available }: { available: boolean }) {
   )
 }
 
-function StoragePlanStatusSummary({ settings }: { settings: QuotaStoreSettings | null }) {
+function CloudStoreStatusSummary({ settings }: { settings: CloudStoreSettings | null }) {
   const { t } = useTranslation()
   const open = settings?.enabled ?? false
   const connected = settings?.status === 'ready'
@@ -128,14 +128,14 @@ function StoragePlanStatusSummary({ settings }: { settings: QuotaStoreSettings |
     <div className="flex flex-wrap items-center gap-2 pt-1">
       <StatusPill
         active={open}
-        label={t('admin.storagePlans.storeStatus')}
-        tooltip={t(`admin.storagePlans.storeTip.${open ? 'open' : 'closed'}`)}
+        label={t('admin.cloudStore.storeStatus')}
+        tooltip={t(`admin.cloudStore.storeTip.${open ? 'open' : 'closed'}`)}
         tone={open ? 'open' : 'closed'}
       />
       <StatusPill
         active={connected}
-        label={t('admin.storagePlans.cloudConnection')}
-        tooltip={t(`admin.storagePlans.cloudTip.${connected ? 'connected' : 'notConnected'}`)}
+        label={t('admin.cloudStore.cloudConnection')}
+        tooltip={t(`admin.cloudStore.cloudTip.${connected ? 'connected' : 'notConnected'}`)}
         tone={connected ? 'connected' : 'muted'}
       />
     </div>
@@ -186,11 +186,11 @@ function StatusPill({
   )
 }
 
-function AdminTabs({ state }: { state: AdminStoragePlansReadyState }) {
+function AdminTabs({ state }: { state: AdminCloudStoreReadyState }) {
   if (!state.data.available) return null
   return (
     <div className="space-y-4">
-      <StoragePlansTabBar activeTab={state.activeTab} onChange={state.setActiveTab} />
+      <CloudStoreTabBar activeTab={state.activeTab} onChange={state.setActiveTab} />
       {state.activeTab === 'packages' && (
         <PackagesTab available={state.data.available} packages={state.data.packages} editor={state.packageEditor} />
       )}
@@ -200,9 +200,9 @@ function AdminTabs({ state }: { state: AdminStoragePlansReadyState }) {
   )
 }
 
-function GiftCardsPanel({ state }: { state: AdminStoragePlansReadyState }) {
+function GiftCardsPanel({ state }: { state: AdminCloudStoreReadyState }) {
   return (
-    <StoragePlansTabState query={state.giftCardsQuery}>
+    <CloudStoreTabState query={state.giftCardsQuery}>
       <GiftCardsTab
         actions={state.giftCardActions}
         available={state.data.available}
@@ -210,26 +210,26 @@ function GiftCardsPanel({ state }: { state: AdminStoragePlansReadyState }) {
         status={state.giftCardStatus}
         onStatusChange={state.setGiftCardStatus}
       />
-    </StoragePlansTabState>
+    </CloudStoreTabState>
   )
 }
 
-function OrdersPanel({ state }: { state: AdminStoragePlansReadyState }) {
+function OrdersPanel({ state }: { state: AdminCloudStoreReadyState }) {
   return (
-    <StoragePlansTabState query={state.ordersQuery}>
+    <CloudStoreTabState query={state.ordersQuery}>
       <StorageOrdersTable orders={state.ordersQuery.data?.items ?? []} />
-    </StoragePlansTabState>
+    </CloudStoreTabState>
   )
 }
 
-async function loadAdminStoragePlans(): Promise<{
+async function loadAdminCloudStore(): Promise<{
   available: boolean
   enabled: boolean
-  settings: QuotaStoreSettings | null
-  packages: QuotaStorePackage[]
+  settings: CloudStoreSettings | null
+  packages: CloudProduct[]
 }> {
   try {
-    const [settings, packages] = await Promise.all([getQuotaStoreSettings(), listQuotaStorePackages()])
+    const [settings, packages] = await Promise.all([getCloudStoreSettings(), listAdminCloudProducts()])
     return { available: true, enabled: settings?.enabled ?? false, settings, packages: packages.items }
   } catch (err) {
     if (err instanceof ApiError && err.status === 402) {
