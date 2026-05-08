@@ -52,6 +52,13 @@ const CLOUD_ORDER_PAGE_SIZE = 100
 type CloudOrders = z.infer<typeof cloudOrdersResponseSchema>
 
 async function listCloudOrders(c: RouteContext): Promise<CloudOrders | { error: string }> {
+  return listCloudOrdersByUser(c)
+}
+
+async function listCloudOrdersByUser(
+  c: RouteContext,
+  options: { endUserId?: string } = {},
+): Promise<CloudOrders | { error: string }> {
   const items: CloudOrders['items'] = []
   let total = 0
   let offset = 0
@@ -59,7 +66,18 @@ async function listCloudOrders(c: RouteContext): Promise<CloudOrders | { error: 
   while (true) {
     const result = await getCloud(
       c,
-      ordersPath(offset === 0 ? { limit: CLOUD_ORDER_PAGE_SIZE } : { limit: CLOUD_ORDER_PAGE_SIZE, offset }),
+      ordersPath(
+        offset === 0
+          ? {
+              limit: CLOUD_ORDER_PAGE_SIZE,
+              ...(options.endUserId ? { endUserId: options.endUserId } : {}),
+            }
+          : {
+              limit: CLOUD_ORDER_PAGE_SIZE,
+              offset,
+              ...(options.endUserId ? { endUserId: options.endUserId } : {}),
+            },
+      ),
       cloudOrdersResponseSchema,
     )
     if ('error' in result) return result
@@ -219,9 +237,11 @@ const quotaStore = new Hono<Env>()
     const db = c.get('platform').db
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const targets = await getAccessibleTargets(db, c.get('userId')!)
+    const userId = c.get('userId')
+    if (!userId) return c.json({ error: 'forbidden' }, 403)
+    const targets = await getAccessibleTargets(db, userId)
     if (targets.length === 0) return c.json({ items: [], total: 0 })
-    const result = await listCloudOrders(c)
+    const result = await listCloudOrdersByUser(c, { endUserId: userId })
     if ('error' in result) return c.json(result, 502)
     const accessibleOrgIds = new Set(targets.map((target) => target.orgId))
     const items = result.items.filter((order) => accessibleOrgIds.has(order.orgId))

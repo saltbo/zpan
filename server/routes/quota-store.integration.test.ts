@@ -1169,8 +1169,16 @@ describe('Quota Store API', () => {
       total: 1,
       items: [{ id: 'cloud-order-1', orgId, storageBytes: 512 }],
     })
-    const [ordersUrl] = calls.filter(([url]) => String(url).endsWith('/orders?limit=100')).at(-1)!
-    expect(String(ordersUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=100`)
+    const [ordersUrl] = calls
+      .filter(([url]) => {
+        const parsed = new URL(String(url))
+        return parsed.pathname.endsWith('/orders') && parsed.searchParams.get('limit') === '100'
+      })
+      .at(-1)!
+    const parsedOrdersUrl = new URL(String(ordersUrl))
+    expect(parsedOrdersUrl.pathname).toBe('/api/stores/store-test-binding/orders')
+    expect(parsedOrdersUrl.searchParams.get('limit')).toBe('100')
+    expect(parsedOrdersUrl.searchParams.get('endUserId')).toBeTruthy()
   })
 
   it('hides self-service packages when the store is disabled', async () => {

@@ -333,12 +333,13 @@ export function packagesPath(packageId?: string) {
   }
 }
 
-export function ordersPath(options: { limit?: number; offset?: number } = {}) {
+export function ordersPath(options: { limit?: number; offset?: number; endUserId?: string } = {}) {
   return (storeId: string) => {
     const path = `/api/stores/${encodeURIComponent(storeId)}/orders`
     const search = new URLSearchParams()
     if (options.limit !== undefined) search.set('limit', String(options.limit))
     if (options.offset !== undefined) search.set('offset', String(options.offset))
+    if (options.endUserId) search.set('endUserId', options.endUserId)
     const query = search.toString()
     return query ? `${path}?${query}` : path
   }

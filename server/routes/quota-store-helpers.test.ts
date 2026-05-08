@@ -44,6 +44,9 @@ describe('quota store helper paths', () => {
     expect(ordersPath()('store-1')).toBe('/api/stores/store-1/orders')
     expect(ordersPath({ limit: 100 })('store-1')).toBe('/api/stores/store-1/orders?limit=100')
     expect(ordersPath({ limit: 100, offset: 100 })('store-1')).toBe('/api/stores/store-1/orders?limit=100&offset=100')
+    expect(ordersPath({ limit: 100, endUserId: 'user-1' })('store-1')).toBe(
+      '/api/stores/store-1/orders?limit=100&endUserId=user-1',
+    )
   })
 
   it('builds Cloud commerce order and payment payloads', async () => {
