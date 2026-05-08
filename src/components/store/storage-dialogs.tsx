@@ -21,7 +21,7 @@ export function StorageActions({
   packagesDisabled: boolean
   onCheckout: (packageId: string, currency: string) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <div className="flex flex-wrap justify-end gap-2">
       <Dialog>
@@ -32,7 +32,12 @@ export function StorageActions({
           </Button>
         </DialogTrigger>
         <DialogContent className="gap-4 p-5 sm:max-w-xl">
-          <PackagePanel packages={packages} disabled={packagesDisabled} onCheckout={onCheckout} />
+          <PackagePanel
+            packages={packages}
+            disabled={packagesDisabled}
+            language={i18n.resolvedLanguage ?? 'en'}
+            onCheckout={onCheckout}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -42,10 +47,12 @@ export function StorageActions({
 function PackagePanel({
   packages,
   disabled,
+  language,
   onCheckout,
 }: {
   packages: CloudProduct[]
   disabled: boolean
+  language: string
   onCheckout: (packageId: string, currency: string) => void
 }) {
   const { t } = useTranslation()
@@ -61,6 +68,7 @@ function PackagePanel({
             key={pkg.id}
             pkg={pkg}
             disabled={disabled}
+            language={language}
             onCheckout={(currency) => onCheckout(pkg.id, currency)}
           />
         ))}
@@ -77,13 +85,16 @@ function PackagePanel({
 function PackageOption({
   pkg,
   disabled,
+  language,
   onCheckout,
 }: {
   pkg: CloudProduct
   disabled: boolean
+  language: string
   onCheckout: (currency: string) => void
 }) {
   const { t } = useTranslation()
+  const price = selectPrice(pkg.prices, language)
   const Icon =
     pkg.metadata.storageBytes > 0 && pkg.metadata.trafficBytes > 0
       ? HardDrive
@@ -115,30 +126,26 @@ function PackageOption({
               {t('storage.trafficQuota', { size: formatSize(pkg.metadata.trafficBytes) })}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">{formatPrices(pkg.prices)}</p>
+          <p className="text-xs text-muted-foreground">{formatMoney(price.amount, price.currency, language)}</p>
         </div>
       </div>
-      <div className="mt-3 grid gap-1.5">
-        {pkg.prices.map((price) => (
-          <Button
-            key={price.currency}
-            className="h-8 w-full text-xs"
-            disabled={disabled}
-            onClick={() => onCheckout(price.currency)}
-          >
-            <PlusCircle className="mr-1.5 size-3.5" />
-            {t('storage.checkout')} · {formatMoney(price.amount, price.currency)}
-          </Button>
-        ))}
+      <div className="mt-3">
+        <Button className="h-8 w-full text-xs" disabled={disabled} onClick={() => onCheckout(price.currency)}>
+          <PlusCircle className="mr-1.5 size-3.5" />
+          {t('storage.checkout')} · {formatMoney(price.amount, price.currency, language)}
+        </Button>
       </div>
     </div>
   )
 }
 
-function formatPrices(prices: CloudProduct['prices']) {
-  return prices.map((price) => formatMoney(price.amount, price.currency)).join(' / ')
+function selectPrice(prices: CloudProduct['prices'], language: string) {
+  const currency = language.startsWith('zh') ? 'cny' : 'usd'
+  const price = prices.find((item) => item.currency === currency)
+  if (!price) throw new Error(`cloud_product_price_missing_${currency.toLowerCase()}`)
+  return price
 }
 
-function formatMoney(amount: number, currency: string) {
-  return `${(amount / 100).toFixed(2)} ${currency}`
+function formatMoney(amount: number, currency: string, language: string) {
+  return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
 }

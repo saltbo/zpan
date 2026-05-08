@@ -370,15 +370,14 @@ export function listCloudStoreTargets() {
   return unwrap<{ items: CloudStoreTarget[]; total: number }>(cloudStoreApi.targets.$get())
 }
 
-export function createCloudCheckout(packageId: string, targetOrgId: string, currency?: string) {
+export function createCloudCheckout(packageId: string, currency?: string) {
   return unwrap<{ orderId: string; url: string; paymentId?: string }>(
-    cloudStoreApi.checkouts.$post({ json: { packageId, targetOrgId, currency } }),
+    cloudStoreApi.checkouts.$post({ json: { packageId, currency } }),
   )
 }
 
-export function listCloudOrders(targetOrgId: string, options: { limit?: number; offset?: number } = {}) {
+export function listCloudOrders(options: { limit?: number; offset?: number } = {}) {
   const query = {
-    targetOrgId,
     ...(options.limit !== undefined ? { limit: options.limit } : {}),
     ...(options.offset !== undefined ? { offset: options.offset } : {}),
   }

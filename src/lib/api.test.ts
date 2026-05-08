@@ -416,8 +416,8 @@ describe('api', () => {
 
       await listCloudProducts()
       await listCloudStoreTargets()
-      await createCloudCheckout('pkg-1', 'org-1', 'cny')
-      await listCloudOrders('org-1', { limit: 100, offset: 100 })
+      await createCloudCheckout('pkg-1', 'cny')
+      await listCloudOrders({ limit: 100, offset: 100 })
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
       expect(calls[0][0]).toBe('/api/store/packages')
@@ -425,10 +425,9 @@ describe('api', () => {
       expect(calls[2][0]).toBe('/api/store/checkouts')
       expect(JSON.parse(calls[2][1].body as string)).toEqual({
         packageId: 'pkg-1',
-        targetOrgId: 'org-1',
         currency: 'cny',
       })
-      expect(calls[3][0]).toBe('/api/store/orders?targetOrgId=org-1&limit=100&offset=100')
+      expect(calls[3][0]).toBe('/api/store/orders?limit=100&offset=100')
     })
 
     it('throws ApiError for quota store failures', async () => {
@@ -474,8 +473,8 @@ describe('api', () => {
       ['listAdminCloudOrders', () => listAdminCloudOrders()],
       ['listCloudProducts', () => listCloudProducts()],
       ['listCloudStoreTargets', () => listCloudStoreTargets()],
-      ['createCloudCheckout', () => createCloudCheckout('pkg-1', 'org-1')],
-      ['listCloudOrders', () => listCloudOrders('org-1')],
+      ['createCloudCheckout', () => createCloudCheckout('pkg-1')],
+      ['listCloudOrders', () => listCloudOrders()],
     ])('throws ApiError for %s failures', async (_name, call) => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'quota store failed' }, false, 400))
 

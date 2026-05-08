@@ -562,7 +562,9 @@ describe('Quota Store API', () => {
       ],
     })
     expect(updated.status).toBe(200)
-    const [, updateInit] = vi.mocked(fetch).mock.calls[1] as [URL, RequestInit]
+    const updateCall = vi.mocked(fetch).mock.calls.find((call) => call[1]?.method === 'PATCH')
+    expect(updateCall).toBeTruthy()
+    const [, updateInit] = updateCall as [URL, RequestInit]
     expect(updateInit.method).toBe('PATCH')
     expect(JSON.parse(updateInit.body as string)).toEqual({
       name: 'Updated',
@@ -618,7 +620,6 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
@@ -629,7 +630,7 @@ describe('Quota Store API', () => {
         'x-forwarded-proto': 'https',
         'x-forwarded-host': 'attacker.example',
       },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(checkout.status).toBe(200)
@@ -672,7 +673,6 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
@@ -683,7 +683,7 @@ describe('Quota Store API', () => {
         'x-forwarded-proto': 'http',
         'x-forwarded-host': 'localhost',
       },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(checkout.status).toBe(200)
@@ -698,13 +698,12 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('http://files.example.com/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, Host: 'localhost', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(checkout.status).toBe(200)
@@ -719,13 +718,12 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(checkout.status).toBe(200)
@@ -740,13 +738,12 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(checkout.status).toBe(200)
@@ -761,13 +758,12 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(checkout.status).toBe(200)
@@ -1135,25 +1131,10 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId: 'pkg-1', targetOrgId: 'other-org' }),
+      body: JSON.stringify({ packageId: 'pkg-1' }),
     })
 
-    expect(res.status).toBe(403)
-  })
-
-  it('rejects checkouts target orgs the user cannot access', async () => {
-    const { app, db } = await createTestApp()
-    await seedProLicense(db)
-    const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
-
-    const res = await app.request('/api/store/checkouts', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId: 'cloud-pkg-1', targetOrgId: 'other-org' }),
-    })
-
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(200)
   })
 
   it('lists purchasable packages, targets, checkout, and orders', async () => {
@@ -1169,9 +1150,9 @@ describe('Quota Store API', () => {
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId, currency: 'cny' }),
+      body: JSON.stringify({ packageId, currency: 'cny' }),
     })
-    const orders = await app.request(`/api/store/orders?targetOrgId=${encodeURIComponent(orgId)}`, { headers })
+    const orders = await app.request('/api/store/orders', { headers })
 
     expect(packages.status).toBe(200)
     await expect(packages.json()).resolves.toMatchObject({
@@ -1210,7 +1191,6 @@ describe('Quota Store API', () => {
     const paymentBody = JSON.parse(String(paymentInit.body))
     expect(String(paymentUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/order-cloud-1/payments`)
     expect(paymentBody).toMatchObject({
-      provider: 'stripe',
       successUrl: 'http://localhost/storage',
       cancelUrl: 'http://localhost/storage',
     })
@@ -1244,16 +1224,15 @@ describe('Quota Store API', () => {
       }),
     })
 
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
     const packages = await app.request('/api/store/packages', { headers })
     const targets = await app.request('/api/store/targets', { headers })
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
-    const orders = await app.request(`/api/store/orders?targetOrgId=${encodeURIComponent(orgId)}`, { headers })
+    const orders = await app.request('/api/store/orders', { headers })
 
     expect(packages.status).toBe(403)
     await expect(packages.json()).resolves.toEqual({ error: 'quota_store_disabled' })
@@ -1272,16 +1251,15 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     await db.run(sql`UPDATE license_bindings SET refresh_token = NULL`)
 
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
     const packages = await app.request('/api/store/packages', { headers })
     const targets = await app.request('/api/store/targets', { headers })
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
-    const orders = await app.request(`/api/store/orders?targetOrgId=${encodeURIComponent(orgId)}`, { headers })
+    const orders = await app.request('/api/store/orders', { headers })
 
     expect(packages.status).toBe(402)
     await expect(packages.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
@@ -1298,14 +1276,13 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
 
     const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(res.status).toBe(502)
@@ -1317,7 +1294,6 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
@@ -1328,7 +1304,7 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(res.status).toBe(502)
@@ -1340,7 +1316,6 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
@@ -1351,7 +1326,7 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, targetOrgId: orgId }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(res.status).toBe(502)

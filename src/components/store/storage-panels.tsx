@@ -27,12 +27,18 @@ export function StoragePackages({
   disabled: boolean
   onCheckout: (packageId: string, currency: string) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {packages.map((pkg) => (
-          <PackageCard key={pkg.id} pkg={pkg} disabled={disabled} onCheckout={onCheckout} />
+          <PackageCard
+            key={pkg.id}
+            pkg={pkg}
+            disabled={disabled}
+            language={i18n.resolvedLanguage ?? 'en'}
+            onCheckout={onCheckout}
+          />
         ))}
       </div>
       {packages.length === 0 && (
@@ -71,13 +77,16 @@ function StatusMetric({ label, value }: { label: string; value: string }) {
 function PackageCard({
   pkg,
   disabled,
+  language,
   onCheckout,
 }: {
   pkg: CloudProduct
   disabled: boolean
+  language: string
   onCheckout: (packageId: string, currency: string) => void
 }) {
   const { t } = useTranslation()
+  const price = selectPrice(pkg.prices, language)
   return (
     <Card className="border-border/60">
       <CardHeader>
@@ -93,19 +102,12 @@ function PackageCard({
               {t('storage.trafficQuota', { size: formatSize(pkg.metadata.trafficBytes) })}
             </p>
           )}
-          <p className="text-sm text-muted-foreground">{formatPrices(pkg.prices)}</p>
+          <p className="text-sm text-muted-foreground">{formatMoney(price.amount, price.currency, language)}</p>
         </div>
-        {pkg.prices.map((price) => (
-          <Button
-            key={price.currency}
-            className="w-full"
-            disabled={disabled}
-            onClick={() => onCheckout(pkg.id, price.currency)}
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            {t('storage.checkout')} · {formatMoney(price.amount, price.currency)}
-          </Button>
-        ))}
+        <Button className="w-full" disabled={disabled} onClick={() => onCheckout(pkg.id, price.currency)}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          {t('storage.checkout')} · {formatMoney(price.amount, price.currency, language)}
+        </Button>
       </CardContent>
     </Card>
   )
@@ -170,10 +172,13 @@ function OrderEmptyState() {
   )
 }
 
-function formatPrices(prices: CloudProduct['prices']) {
-  return prices.map((price) => formatMoney(price.amount, price.currency)).join(' / ')
+function selectPrice(prices: CloudProduct['prices'], language: string) {
+  const currency = language.startsWith('zh') ? 'cny' : 'usd'
+  const price = prices.find((item) => item.currency === currency)
+  if (!price) throw new Error(`cloud_product_price_missing_${currency.toLowerCase()}`)
+  return price
 }
 
-function formatMoney(amount: number, currency: string) {
-  return `${(amount / 100).toFixed(2)} ${currency}`
+function formatMoney(amount: number, currency: string, language: string) {
+  return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
 }

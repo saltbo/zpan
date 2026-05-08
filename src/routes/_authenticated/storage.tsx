@@ -27,7 +27,7 @@ export function StoragePage() {
   const targetOrgId = activeOrg?.id ?? ''
   const ordersQuery = useQuery({
     queryKey: ['cloud-store', 'orders', targetOrgId],
-    queryFn: () => listCloudOrders(targetOrgId),
+    queryFn: () => listCloudOrders(),
     enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
@@ -59,7 +59,7 @@ export function StoragePage() {
 
   const checkoutMutation = useMutation({
     mutationFn: ({ packageId, currency }: { packageId: string; currency: string; checkoutWindow: Window | null }) =>
-      createCloudCheckout(packageId, targetOrgId, currency),
+      createCloudCheckout(packageId, currency),
     onSuccess: (result, variables) => {
       if (variables.checkoutWindow) {
         variables.checkoutWindow.location.href = result.url

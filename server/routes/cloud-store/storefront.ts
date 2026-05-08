@@ -39,7 +39,9 @@ export const cloudStore = new Hono<Env>()
     const body = c.req.valid('json')
     const db = c.get('platform').db
     const userId = c.get('userId')!
-    if (!(await canAccessTargetOrg(db, userId, body.targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
+    const targetOrgId = c.get('orgId')
+    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
+    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
@@ -50,8 +52,8 @@ export const cloudStore = new Hono<Env>()
         items: [{ productId: body.packageId }],
         currency: body.currency ?? 'usd',
         target: {
-          orgId: body.targetOrgId,
-          endUserId: body.targetOrgId,
+          orgId: targetOrgId,
+          endUserId: targetOrgId,
           endUserLabel: await getUserTerminalLabel(db, userId),
         },
         walletCreditAmount: 'max' as const,
@@ -64,7 +66,6 @@ export const cloudStore = new Hono<Env>()
       c,
       (storeId) => `${ordersPath()(storeId)}/${encodeURIComponent(order.id)}/payments`,
       {
-        provider: 'stripe',
         successUrl: `${origin}/storage`,
         cancelUrl: `${origin}/storage`,
       },
@@ -79,9 +80,11 @@ export const cloudStore = new Hono<Env>()
     if ('error' in store) return c.json({ error: store.error }, 403)
     const userId = c.get('userId')
     if (!userId) return c.json({ error: 'forbidden' }, 403)
+    const targetOrgId = c.get('orgId')
+    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const query = c.req.valid('query')
-    if (!(await canAccessTargetOrg(db, userId, query.targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
-    const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, endUserId: query.targetOrgId })
+    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
+    const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, endUserId: targetOrgId })
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })

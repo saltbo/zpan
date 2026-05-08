@@ -13,6 +13,7 @@ const activeOrganization = vi.hoisted(() => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: { amount?: string }) => (values?.amount ? `${key}:${values.amount}` : key),
+    i18n: { resolvedLanguage: 'en' },
   }),
 }))
 
@@ -190,7 +191,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.queryByLabelText('storage.giftCardCode')).toBeNull())
     fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
     expect(toast.info).not.toHaveBeenCalled()
   })
 
@@ -214,7 +215,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkout/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'org-1', 'usd'))
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
     expect(checkoutWindow.close).toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('checkout failed')
   })
@@ -271,11 +272,11 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.getByText('org-2')).toBeTruthy())
-    expect(vi.mocked(listCloudOrders)).toHaveBeenCalledWith('org-2')
+    expect(vi.mocked(listCloudOrders)).toHaveBeenCalledWith()
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
     fireEvent.click(await view.findByRole('button', { name: /storage.checkout/ }))
 
-    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'org-2', 'usd'))
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
   })
 
   it('requires an active organization to checkout', async () => {

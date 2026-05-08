@@ -50,7 +50,6 @@ export const cloudProductPatchSchema = z
 
 export const checkoutInputSchema = z.object({
   packageId: z.string().min(1),
-  targetOrgId: z.string().min(1),
   currency: cloudStoreCurrencySchema.optional(),
 })
 

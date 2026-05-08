@@ -30,7 +30,7 @@ export function QuotaPanel({ enabled }: { enabled: boolean }) {
   })
   const { data: orders } = useQuery({
     queryKey: ['cloud-store', 'orders', workspaceId],
-    queryFn: () => listCloudOrders(workspaceId),
+    queryFn: () => listCloudOrders(),
     enabled: enabled && packagesQuery.isSuccess,
   })
 
