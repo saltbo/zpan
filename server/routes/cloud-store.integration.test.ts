@@ -254,6 +254,19 @@ beforeEach(() => {
         } as Response
       }
       if (String(url).includes('/api/stores/') && String(url).includes('/orders')) {
+        if (init?.method === 'PATCH') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () =>
+              cloudOrder({
+                id: new URL(String(url)).pathname.split('/').at(-1),
+                status: 'canceled',
+                paymentStatus: 'canceled',
+                fulfillmentStatus: 'canceled',
+              }),
+          } as Response
+        }
         if (init?.method === 'POST') {
           const body = JSON.parse(String(init.body)) as { target?: { orgId?: string } }
           lastTargetOrgId = body.target?.orgId ?? lastTargetOrgId
@@ -1288,6 +1301,51 @@ describe('Quota Store API', () => {
     expect(String(redeemUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/redemptions`)
     expect(redeemInit.method).toBe('POST')
     expect(JSON.parse(String(redeemInit.body))).toEqual({ codes: ['ZS-1234-5678'] })
+  })
+
+  it('continues payment and cancels orders through Cloud', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+
+    const payment = await app.request('/api/store/orders/order-cloud-1/payments', {
+      method: 'POST',
+      headers,
+    })
+    const canceled = await app.request('/api/store/orders/order-cloud-1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+
+    expect(payment.status).toBe(200)
+    await expect(payment.json()).resolves.toEqual({
+      orderId: 'order-cloud-1',
+      url: 'https://cloud.example/checkout',
+    })
+    expect(canceled.status).toBe(200)
+    await expect(canceled.json()).resolves.toMatchObject({
+      id: 'order-cloud-1',
+      status: 'canceled',
+      paymentStatus: 'canceled',
+      fulfillmentStatus: 'canceled',
+    })
+
+    const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
+    const [paymentUrl, paymentInit] = calls.find(([url]) => String(url).includes('/orders/order-cloud-1/payments'))!
+    const [cancelUrl, cancelInit] = calls.find(
+      ([url, init]) => String(url).includes('/orders/order-cloud-1') && init.method === 'PATCH',
+    )!
+    expect(String(paymentUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/order-cloud-1/payments`)
+    expect(paymentInit.method).toBe('POST')
+    expect(JSON.parse(String(paymentInit.body))).toEqual({
+      successUrl: 'http://localhost/storage',
+      cancelUrl: 'http://localhost/storage',
+    })
+    expect(String(cancelUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/order-cloud-1`)
+    expect(cancelInit.method).toBe('PATCH')
+    expect(JSON.parse(String(cancelInit.body))).toEqual({ status: 'canceled' })
   })
 
   it('hides self-service packages when the store is disabled', async () => {

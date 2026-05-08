@@ -1,9 +1,11 @@
 import type { CloudOrder, CloudProduct } from '@shared/types'
-import { Activity, HardDrive, PlusCircle } from 'lucide-react'
+import { Activity, CreditCard, HardDrive, PlusCircle, Wallet, X } from 'lucide-react'
+import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatSize } from '@/lib/format'
 
 export { StorageActions } from './storage-dialogs'
@@ -12,17 +14,31 @@ export function StorageStatusMetrics({
   quota,
   wallet,
 }: {
-  quota?: { quota: number }
+  quota?: { quota: number; trafficQuota: number }
   wallet?: { balance: number; currency: string }
 }) {
   const { t, i18n } = useTranslation()
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <StatusMetric label={t('storage.status')} value={t('storage.available')} />
-      <StatusMetric label={t('storage.currentQuota')} value={quota ? formatSize(quota.quota) : '-'} />
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <StatusMetric
+        label={t('storage.status')}
+        value={t('storage.available')}
+        icon={<HardDrive className="h-4 w-4" />}
+      />
+      <StatusMetric
+        label={t('storage.currentQuota')}
+        value={quota ? formatSize(quota.quota) : '-'}
+        icon={<HardDrive className="h-4 w-4" />}
+      />
+      <StatusMetric
+        label={t('storage.currentTrafficQuota')}
+        value={quota ? formatSize(quota.trafficQuota) : '-'}
+        icon={<Activity className="h-4 w-4" />}
+      />
       <StatusMetric
         label={t('storage.walletBalance')}
         value={wallet ? formatMoney(wallet.balance, wallet.currency, i18n.resolvedLanguage ?? 'en') : '-'}
+        icon={<Wallet className="h-4 w-4" />}
       />
     </div>
   )
@@ -60,26 +76,14 @@ export function StoragePackages({
   )
 }
 
-export function StorageOrderHistory({ orders }: { orders: CloudOrder[] }) {
-  const { t } = useTranslation()
+function StatusMetric({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
-    <Card className="border-border/60">
-      <CardHeader>
-        <CardTitle>{t('storage.historyTitle')}</CardTitle>
-        <CardDescription>{t('storage.historyDescription')}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <OrderRows orders={orders} />
-      </CardContent>
-    </Card>
-  )
-}
-
-function StatusMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border px-4 py-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-sm font-medium">{value}</div>
+    <div className="rounded-xl border bg-card/50 px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="text-muted-foreground">{icon}</div>
+      </div>
+      <div className="mt-2 text-sm font-medium">{value}</div>
     </div>
   )
 }
@@ -141,34 +145,141 @@ function PackageHeader({ pkg }: { pkg: CloudProduct }) {
   )
 }
 
-function OrderRows({ orders }: { orders: CloudOrder[] }) {
+export function StorageOrderHistory({
+  orders,
+  onContinuePayment,
+  onCancelOrder,
+  continuingOrderId,
+  cancelingOrderId,
+}: {
+  orders: CloudOrder[]
+  onContinuePayment?: (orderId: string) => void
+  onCancelOrder?: (orderId: string) => void
+  continuingOrderId?: string | null
+  cancelingOrderId?: string | null
+}) {
+  const { t } = useTranslation()
+  return (
+    <Card className="border-border/60">
+      <CardHeader>
+        <CardTitle>{t('storage.historyTitle')}</CardTitle>
+        <CardDescription>{t('storage.historyDescription')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <OrderRows
+          orders={orders}
+          onContinuePayment={onContinuePayment}
+          onCancelOrder={onCancelOrder}
+          continuingOrderId={continuingOrderId}
+          cancelingOrderId={cancelingOrderId}
+        />
+      </CardContent>
+    </Card>
+  )
+}
+
+function OrderRows({
+  orders,
+  onContinuePayment,
+  onCancelOrder,
+  continuingOrderId,
+  cancelingOrderId,
+}: {
+  orders: CloudOrder[]
+  onContinuePayment?: (orderId: string) => void
+  onCancelOrder?: (orderId: string) => void
+  continuingOrderId?: string | null
+  cancelingOrderId?: string | null
+}) {
   return (
     <>
       {orders.map((order) => (
-        <OrderRow key={order.id} order={order} />
+        <OrderRow
+          key={order.id}
+          order={order}
+          onContinuePayment={onContinuePayment}
+          onCancelOrder={onCancelOrder}
+          isContinuing={continuingOrderId === order.id}
+          isCanceling={cancelingOrderId === order.id}
+        />
       ))}
       {orders.length === 0 && <OrderEmptyState />}
     </>
   )
 }
 
-function OrderRow({ order }: { order: CloudOrder }) {
+function OrderRow({
+  order,
+  onContinuePayment,
+  onCancelOrder,
+  isContinuing,
+  isCanceling,
+}: {
+  order: CloudOrder
+  onContinuePayment?: (orderId: string) => void
+  onCancelOrder?: (orderId: string) => void
+  isContinuing: boolean
+  isCanceling: boolean
+}) {
+  const { t, i18n } = useTranslation()
   const item = order.items[0]
   const payload = item?.fulfillmentPayload
   const storageBytes = payload?.storageBytes ?? 0
   const trafficBytes = payload?.trafficBytes ?? 0
+  const actionable = isActionableOrder(order)
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3">
-      <div>
-        <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border bg-card/40 px-4 py-4">
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{item?.name ?? order.id}</span>
-          <Badge variant="outline">{formatSize(storageBytes)}</Badge>
-          {trafficBytes > 0 && <Badge variant="outline">{formatSize(trafficBytes)}</Badge>}
           <Badge variant={order.paymentStatus === 'paid' ? 'default' : 'secondary'}>{order.paymentStatus}</Badge>
+          <Badge variant="outline">#{order.id.slice(0, 8)}</Badge>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">{order.target?.orgId ?? '-'}</p>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {storageBytes > 0 && (
+            <Badge variant="outline">{t('storage.quotaChip', { size: formatSize(storageBytes) })}</Badge>
+          )}
+          {trafficBytes > 0 && (
+            <Badge variant="outline">{t('storage.trafficQuota', { size: formatSize(trafficBytes) })}</Badge>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>{order.target?.orgId ?? '-'}</span>
+          <span>{new Date(order.createdAt).toLocaleString()}</span>
+        </div>
       </div>
-      <span className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleString()}</span>
+      <div className="flex items-center gap-3 self-center">
+        <div className="text-right">
+          <div className="text-sm font-medium tabular-nums">
+            {formatMoney(order.totalAmount, order.currency, i18n.resolvedLanguage ?? 'en')}
+          </div>
+          {order.discountAmount > 0 && (
+            <div className="text-xs text-muted-foreground">
+              {t('storage.walletCredit', {
+                amount: formatMoney(order.discountAmount, order.currency, i18n.resolvedLanguage ?? 'en'),
+              })}
+            </div>
+          )}
+        </div>
+        {actionable && (
+          <TooltipProvider>
+            <div className="flex items-center gap-1">
+              <OrderIconButton
+                label={t('storage.continuePayment')}
+                disabled={isContinuing || isCanceling}
+                onClick={() => onContinuePayment?.(order.id)}
+                icon={<CreditCard className="h-4 w-4" />}
+              />
+              <OrderIconButton
+                label={t('storage.cancelOrder')}
+                disabled={isContinuing || isCanceling}
+                onClick={() => onCancelOrder?.(order.id)}
+                icon={<X className="h-4 w-4" />}
+              />
+            </div>
+          </TooltipProvider>
+        )}
+      </div>
     </div>
   )
 }
@@ -191,4 +302,40 @@ function selectPrice(prices: CloudProduct['prices'], language: string) {
 
 function formatMoney(amount: number, currency: string, language: string) {
   return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
+}
+
+function isActionableOrder(order: CloudOrder) {
+  if (order.status !== 'pending') return false
+  return order.paymentStatus !== 'paid' && order.paymentStatus !== 'canceled'
+}
+
+function OrderIconButton({
+  label,
+  disabled,
+  onClick,
+  icon,
+}: {
+  label: string
+  disabled: boolean
+  onClick: () => void
+  icon: React.ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label={label}
+          title={label}
+          disabled={disabled}
+          onClick={onClick}
+        >
+          {icon}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
 }

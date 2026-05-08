@@ -114,6 +114,7 @@ export const cloudOrdersResponseSchema = z.object({
   items: z.array(cloudOrderSchema),
   total: z.number().int().min(0),
 })
+export const cloudOrderResponseSchema = cloudOrderSchema
 export const cloudOrdersQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),

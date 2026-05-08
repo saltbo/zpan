@@ -8,10 +8,12 @@ import {
   batchUpdateUserQuota,
   batchUpdateUserStatus,
   buildShareObjectUrl,
+  cancelCloudOrder,
   cancelUpload,
   confirmIhostImage,
   confirmUpload,
   connectCloud,
+  continueCloudOrderPayment,
   copyObject,
   createAnnouncement,
   createCloudCheckout,
@@ -432,7 +434,7 @@ describe('api', () => {
       expect(calls[3][0]).toBe('/api/store/orders?limit=100&offset=100')
     })
 
-    it('calls wallet and redemption endpoints', async () => {
+    it('calls wallet, redemption, and order action endpoints', async () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(
           makeResponse({
@@ -458,9 +460,13 @@ describe('api', () => {
             failures: [],
           }),
         )
+        .mockResolvedValueOnce(makeResponse({ orderId: 'order-1', url: 'https://cloud.example/pay' }))
+        .mockResolvedValueOnce(makeResponse({ id: 'order-1', status: 'canceled' }))
 
       const wallet = await getCloudWallet()
       const redeem = await redeemCloudGiftCard('GIFT-123')
+      const payment = await continueCloudOrderPayment('order-1')
+      const canceled = await cancelCloudOrder('order-1')
 
       expect(wallet).toEqual({
         balances: [
@@ -477,12 +483,19 @@ describe('api', () => {
         ],
       })
       expect(redeem).toEqual({ redeemedAmount: 1000, currency: 'usd', entries: [], failures: [] })
+      expect(payment).toEqual({ orderId: 'order-1', url: 'https://cloud.example/pay' })
+      expect(canceled).toEqual({ id: 'order-1', status: 'canceled' })
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
       expect(calls[0][0]).toBe('/api/store/wallet')
       expect(calls[1][0]).toBe('/api/store/gift-cards/redeem')
       expect(calls[1][1].method).toBe('POST')
       expect(JSON.parse(calls[1][1].body as string)).toEqual({ code: 'GIFT-123' })
+      expect(calls[2][0]).toBe('/api/store/orders/order-1/payments')
+      expect(calls[2][1].method).toBe('POST')
+      expect(calls[3][0]).toBe('/api/store/orders/order-1')
+      expect(calls[3][1].method).toBe('PATCH')
+      expect(JSON.parse(calls[3][1].body as string)).toEqual({ status: 'canceled' })
     })
 
     it('throws ApiError for quota store failures', async () => {

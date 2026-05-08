@@ -6,9 +6,20 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { StorageActions, StorageOrderHistory, StorageStatusMetrics } from '@/components/store/storage-panels'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   ApiError,
+  cancelCloudOrder,
+  continueCloudOrderPayment,
   createCloudCheckout,
   getCloudWallet,
   getUserQuota,
@@ -26,6 +37,7 @@ export function StoragePage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [checkoutRefreshActive, setCheckoutRefreshActive] = useState(false)
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null)
   const { data: activeOrg } = useActiveOrganization()
   const cloudStoreQuery = useQuery({
     queryKey: ['cloud-store', 'packages'],
@@ -91,6 +103,35 @@ export function StoragePage() {
     },
   })
 
+  const continuePaymentMutation = useMutation({
+    mutationFn: ({ orderId }: { orderId: string; checkoutWindow: Window | null }) => continueCloudOrderPayment(orderId),
+    onSuccess: (result, variables) => {
+      if (variables.checkoutWindow) {
+        variables.checkoutWindow.location.href = result.url
+      } else {
+        window.location.assign(result.url)
+      }
+      setCheckoutRefreshActive(true)
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
+    },
+    onError: (err, variables) => {
+      variables.checkoutWindow?.close()
+      toast.error(err.message)
+    },
+  })
+
+  const cancelOrderMutation = useMutation({
+    mutationFn: (orderId: string) => cancelCloudOrder(orderId),
+    onSuccess: () => {
+      toast.success(t('storage.cancelSuccess'))
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
   const redeemMutation = useMutation({
     mutationFn: (code: string) => redeemCloudGiftCard(code),
     onSuccess: (result) => {
@@ -111,6 +152,25 @@ export function StoragePage() {
     const checkoutWindow = window.open('about:blank', '_blank')
     if (checkoutWindow) checkoutWindow.opener = null
     checkoutMutation.mutate({ packageId, currency, checkoutWindow })
+  }
+
+  function continuePayment(orderId: string) {
+    const checkoutWindow = window.open('about:blank', '_blank')
+    if (checkoutWindow) checkoutWindow.opener = null
+    continuePaymentMutation.mutate({ orderId, checkoutWindow })
+  }
+
+  function cancelOrder(orderId: string) {
+    setCancelOrderId(orderId)
+  }
+
+  function confirmCancelOrder() {
+    if (!cancelOrderId) return
+    cancelOrderMutation.mutate(cancelOrderId, {
+      onSuccess: () => {
+        setCancelOrderId(null)
+      },
+    })
   }
 
   if (cloudStoreQuery.isLoading) {
@@ -149,7 +209,29 @@ export function StoragePage() {
             : undefined
         }
       />
-      <StorageOrderHistory orders={currentOrders} />
+      <StorageOrderHistory
+        orders={currentOrders}
+        onContinuePayment={continuePayment}
+        onCancelOrder={cancelOrder}
+        continuingOrderId={continuePaymentMutation.isPending ? continuePaymentMutation.variables?.orderId : null}
+        cancelingOrderId={cancelOrderMutation.isPending ? cancelOrderMutation.variables : null}
+      />
+      <Dialog open={!!cancelOrderId} onOpenChange={(open) => !open && setCancelOrderId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('storage.cancelOrder')}</DialogTitle>
+            <DialogDescription>{t('storage.cancelConfirm')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOrderId(null)} disabled={cancelOrderMutation.isPending}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="destructive" onClick={confirmCancelOrder} disabled={cancelOrderMutation.isPending}>
+              {cancelOrderMutation.isPending ? t('common.loading') : t('common.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

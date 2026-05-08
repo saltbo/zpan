@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
+  cancelCloudOrder,
+  continueCloudOrderPayment,
   createCloudCheckout,
   getCloudWallet,
   getUserQuota,
@@ -52,6 +54,8 @@ vi.mock('@/lib/api', () => {
 
   return {
     ApiError: MockApiError,
+    cancelCloudOrder: vi.fn(),
+    continueCloudOrderPayment: vi.fn(),
     createCloudCheckout: vi.fn(),
     getUserQuota: vi.fn(),
     getCloudWallet: vi.fn(),
@@ -363,6 +367,7 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
     expect(view.getByText('storage.walletBalance')).toBeTruthy()
+    expect(view.getByText('storage.currentTrafficQuota')).toBeTruthy()
     await waitFor(() => expect(view.getByText(/12\.50/)).toBeTruthy())
   })
 
@@ -392,6 +397,66 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(redeemCloudGiftCard).toHaveBeenCalledWith('ZS-1234-5678'))
     expect(toast.success).toHaveBeenCalledWith('storage.redeemSuccess:50')
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'wallet'] })
+  })
+
+  it('continues payment for an unpaid order', async () => {
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudOrders).mockResolvedValue({
+      items: [order({ id: 'order-unpaid', paymentStatus: 'unpaid', status: 'pending' })],
+      total: 1,
+    })
+    vi.mocked(continueCloudOrderPayment).mockResolvedValue({
+      orderId: 'order-unpaid',
+      url: 'https://cloud.example.test/pay',
+    })
+    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
+    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByLabelText('storage.continuePayment')).toBeTruthy())
+    fireEvent.click(view.getByLabelText('storage.continuePayment'))
+
+    await waitFor(() => expect(continueCloudOrderPayment).toHaveBeenCalledWith('order-unpaid'))
+    expect(checkoutWindow.location.href).toBe('https://cloud.example.test/pay')
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
+  })
+
+  it('cancels an unpaid order', async () => {
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudOrders).mockResolvedValue({
+      items: [order({ id: 'order-unpaid', paymentStatus: 'unpaid', status: 'pending' })],
+      total: 1,
+    })
+    vi.mocked(cancelCloudOrder).mockResolvedValue(
+      order({ id: 'order-unpaid', status: 'canceled', paymentStatus: 'canceled' }),
+    )
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByLabelText('storage.cancelOrder')).toBeTruthy())
+    fireEvent.click(view.getByLabelText('storage.cancelOrder'))
+    expect(await view.findByText('storage.cancelConfirm')).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: 'common.confirm' }))
+
+    await waitFor(() => expect(cancelCloudOrder).toHaveBeenCalledWith('order-unpaid'))
+    expect(toast.success).toHaveBeenCalledWith('storage.cancelSuccess')
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'wallet'] })
   })
 })

@@ -13,12 +13,14 @@ import { requireFeature } from '../../middleware/require-feature'
 import { canAccessTargetOrg, getAccessibleTargets, getUserTerminalLabel } from '../../services/cloud-store'
 import {
   cloudCheckoutResponseSchema,
+  cloudOrderResponseSchema,
   cloudPackageListResponseSchema,
   cloudStoreOrdersQuerySchema,
   getCloud,
   getUserStoreSettings,
   ordersPath,
   packagesPath,
+  patchCloudWithBinding,
   postCloudWithBinding,
   redemptionPath,
   walletPath,
@@ -115,6 +117,40 @@ export const cloudStore = new Hono<Env>()
     const query = c.req.valid('query')
     if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
     const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, endUserId: targetOrgId })
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
+  })
+  .post('/orders/:orderId/payments', async (c) => {
+    const db = c.get('platform').db
+    const store = await getUserStoreSettings(db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const orderId = c.req.param('orderId')
+    if (!orderId) return c.json({ error: 'not_found' }, 404)
+    const origin = getInstanceOrigin(c)
+    const result = await postCloudWithBinding(
+      c,
+      (storeId) => `${ordersPath()(storeId)}/${encodeURIComponent(orderId)}/payments`,
+      {
+        successUrl: `${origin}/storage`,
+        cancelUrl: `${origin}/storage`,
+      },
+      cloudCheckoutResponseSchema,
+    )
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
+  })
+  .patch('/orders/:orderId', zValidator('json', z.object({ status: z.literal('canceled') })), async (c) => {
+    const db = c.get('platform').db
+    const store = await getUserStoreSettings(db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const orderId = c.req.param('orderId')
+    if (!orderId) return c.json({ error: 'not_found' }, 404)
+    const result = await patchCloudWithBinding(
+      c,
+      (storeId) => `${ordersPath()(storeId)}/${encodeURIComponent(orderId)}`,
+      c.req.valid('json'),
+      cloudOrderResponseSchema,
+    )
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })

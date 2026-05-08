@@ -386,6 +386,18 @@ export function createCloudCheckout(packageId: string, currency?: string) {
   )
 }
 
+export function continueCloudOrderPayment(orderId: string) {
+  return unwrap<{ orderId: string; url: string; paymentId?: string }>(
+    cloudStoreApi.orders[':orderId'].payments.$post({ param: { orderId } }),
+  )
+}
+
+export function cancelCloudOrder(orderId: string) {
+  return unwrap<CloudOrder>(
+    cloudStoreApi.orders[':orderId'].$patch({ param: { orderId }, json: { status: 'canceled' } }),
+  )
+}
+
 export function listCloudOrders(options: { limit?: number; offset?: number } = {}) {
   const query = {
     ...(options.limit !== undefined ? { limit: options.limit } : {}),
