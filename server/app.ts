@@ -66,7 +66,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/licensing', licensing)
   app.route('/api/branding', publicBranding)
   app.route('/api/site-invitations', publicSiteInvitations)
-  app.route('/api/quota-store/webhooks', quotaStoreWebhooks)
+  app.route('/api/store/webhooks', quotaStoreWebhooks)
 
   app.use('/api/*', authMiddleware)
 
@@ -87,8 +87,8 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/admin/site-invitations', adminSiteInvitations)
   app.route('/api/admin/quotas', adminQuotas)
   app.route('/api/quotas', userQuotas)
-  app.route('/api/quota-store', quotaStore)
-  app.route('/api/admin/quota-store', adminQuotaStore)
+  app.route('/api/store', quotaStore)
+  app.route('/api/admin/store', adminQuotaStore)
   app.route('/api/system', system)
   app.route('/api/admin/auth-providers', adminAuthProviders)
   app.route('/api/notifications', notifications)

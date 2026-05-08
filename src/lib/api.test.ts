@@ -280,7 +280,7 @@ describe('api', () => {
       await getQuotaStoreSettings()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/quota-store/settings')
+      expect(url).toBe('/api/admin/store/settings')
       expect(init.method).toBe('GET')
     })
 
@@ -292,7 +292,7 @@ describe('api', () => {
       })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/quota-store/settings')
+      expect(url).toBe('/api/admin/store/settings')
       expect(init.method).toBe('PUT')
       expect(JSON.parse(init.body as string)).toEqual({ enabled: true })
     })
@@ -311,7 +311,7 @@ describe('api', () => {
       await createQuotaStorePackage(payload)
 
       const [createUrl, createInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(createUrl).toBe('/api/admin/quota-store/packages')
+      expect(createUrl).toBe('/api/admin/store/packages')
       expect(createInit.method).toBe('POST')
       expect(JSON.parse(createInit.body as string)).toEqual({
         name: 'Small',
@@ -329,7 +329,7 @@ describe('api', () => {
       await updateQuotaStorePackage('pkg-1', { active: false })
 
       const [updateUrl, updateInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(updateUrl).toBe('/api/admin/quota-store/packages/pkg-1')
+      expect(updateUrl).toBe('/api/admin/store/packages/pkg-1')
       expect(updateInit.method).toBe('PATCH')
       expect(JSON.parse(updateInit.body as string)).toEqual({ active: false })
     })
@@ -357,9 +357,9 @@ describe('api', () => {
       await listQuotaStorePackages()
       await deleteQuotaStorePackage('pkg-1')
 
-      expect((vi.mocked(fetch).mock.calls[0] as [string])[0]).toBe('/api/admin/quota-store/packages')
+      expect((vi.mocked(fetch).mock.calls[0] as [string])[0]).toBe('/api/admin/store/packages')
       const [deleteUrl, deleteInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
-      expect(deleteUrl).toBe('/api/admin/quota-store/packages/pkg-1')
+      expect(deleteUrl).toBe('/api/admin/store/packages/pkg-1')
       expect(deleteInit.method).toBe('DELETE')
     })
 
@@ -378,21 +378,21 @@ describe('api', () => {
       await listAdminStoreOrders()
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
-      expect(calls[0][0]).toBe('/api/admin/quota-store/gift-cards?status=active')
+      expect(calls[0][0]).toBe('/api/admin/store/gift-cards?status=active')
       expect(calls[0][1].method).toBe('GET')
-      expect(calls[1][0]).toBe('/api/admin/quota-store/gift-cards')
+      expect(calls[1][0]).toBe('/api/admin/store/gift-cards')
       expect(calls[1][1].method).toBe('POST')
       expect(JSON.parse(calls[1][1].body as string)).toEqual({
         amount: 1024,
         currency: 'usd',
         count: 3,
       })
-      expect(calls[2][0]).toBe('/api/admin/quota-store/gift-cards/ZS123')
+      expect(calls[2][0]).toBe('/api/admin/store/gift-cards/ZS123')
       expect(calls[2][1].method).toBe('PATCH')
       expect(JSON.parse(calls[2][1].body as string)).toEqual({ disabled: true })
-      expect(calls[3][0]).toBe('/api/admin/quota-store/gift-cards/ZS123')
+      expect(calls[3][0]).toBe('/api/admin/store/gift-cards/ZS123')
       expect(calls[3][1].method).toBe('DELETE')
-      expect(calls[4][0]).toBe('/api/admin/quota-store/orders')
+      expect(calls[4][0]).toBe('/api/admin/store/orders')
     })
 
     it('calls user store endpoints', async () => {
@@ -408,15 +408,15 @@ describe('api', () => {
       await listStoreOrders()
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
-      expect(calls[0][0]).toBe('/api/quota-store/packages')
-      expect(calls[1][0]).toBe('/api/quota-store/targets')
-      expect(calls[2][0]).toBe('/api/quota-store/checkouts')
+      expect(calls[0][0]).toBe('/api/store/packages')
+      expect(calls[1][0]).toBe('/api/store/targets')
+      expect(calls[2][0]).toBe('/api/store/checkouts')
       expect(JSON.parse(calls[2][1].body as string)).toEqual({
         packageId: 'pkg-1',
         targetOrgId: 'org-1',
         currency: 'cny',
       })
-      expect(calls[3][0]).toBe('/api/quota-store/orders')
+      expect(calls[3][0]).toBe('/api/store/orders')
     })
 
     it('throws ApiError for quota store failures', async () => {

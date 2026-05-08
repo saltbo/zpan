@@ -331,7 +331,7 @@ describe('Quota Store API', () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/quota-store/packages', { headers })
+    const res = await app.request('/api/admin/store/packages', { headers })
 
     expect(res.status).toBe(402)
   })
@@ -360,7 +360,7 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/quota-store/packages', {
+    const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Bad', description: '', storageBytes: 0, trafficBytes: 0, prices: [] }),
@@ -374,9 +374,9 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const empty = await app.request('/api/admin/quota-store/settings', { headers })
+    const empty = await app.request('/api/admin/store/settings', { headers })
     await seedSettings(app, headers)
-    const filled = await app.request('/api/admin/quota-store/settings', { headers })
+    const filled = await app.request('/api/admin/store/settings', { headers })
 
     expect(empty.status).toBe(200)
     await expect(empty.json()).resolves.toBeNull()
@@ -397,7 +397,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const updated = await app.request('/api/admin/quota-store/settings', {
+    const updated = await app.request('/api/admin/store/settings', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: false }),
@@ -431,7 +431,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const created = await app.request('/api/admin/quota-store/packages', {
+    const created = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -441,7 +441,7 @@ describe('Quota Store API', () => {
         prices: [{ currency: 'usd', amount: 500 }],
       }),
     })
-    const listed = await app.request('/api/admin/quota-store/packages', { headers })
+    const listed = await app.request('/api/admin/store/packages', { headers })
 
     expect(created.status).toBe(201)
     await expect(created.json()).resolves.toMatchObject({ id: 'cloud-pkg-1', name: 'Small' })
@@ -493,8 +493,8 @@ describe('Quota Store API', () => {
       }),
     } as Response)
 
-    const listed = await app.request('/api/admin/quota-store/packages', { headers })
-    const updated = await app.request('/api/admin/quota-store/packages/cloud-pkg-object', {
+    const listed = await app.request('/api/admin/store/packages', { headers })
+    const updated = await app.request('/api/admin/store/packages/cloud-pkg-object', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -530,7 +530,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/admin/quota-store/packages/cloud-pkg-1', { headers })
+    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', { headers })
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ id: 'cloud-pkg-1', active: true })
@@ -545,7 +545,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const created = await app.request('/api/admin/quota-store/packages', {
+    const created = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -569,7 +569,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkouts', {
+    const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: {
         ...headers,
@@ -593,7 +593,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const created = await app.request('/api/admin/quota-store/packages', {
+    const created = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: {
         ...headers,
@@ -622,7 +622,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkouts', {
+    const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: {
         ...headers,
@@ -648,7 +648,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('http://files.example.com/api/quota-store/checkouts', {
+    const checkout = await app.request('http://files.example.com/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, Host: 'localhost', 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -669,7 +669,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkouts', {
+    const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -690,7 +690,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkouts', {
+    const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -711,7 +711,7 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const checkout = await app.request('/api/quota-store/checkouts', {
+    const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -731,7 +731,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 502, json: async () => ({}) } as Response)
 
-    const res = await app.request('/api/admin/quota-store/packages', {
+    const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -753,7 +753,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
 
-    const res = await app.request('/api/admin/quota-store/packages', {
+    const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -773,7 +773,7 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
-    const res = await app.request('/api/admin/quota-store/packages', {
+    const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -800,7 +800,7 @@ describe('Quota Store API', () => {
       },
     } as unknown as Response)
 
-    const res = await app.request('/api/admin/quota-store/packages', {
+    const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -822,7 +822,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
-    const res = await app.request(`/api/admin/quota-store/packages/${packageId}`, {
+    const res = await app.request(`/api/admin/store/packages/${packageId}`, {
       method: 'DELETE',
       headers,
     })
@@ -840,7 +840,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const generated = await app.request('/api/admin/quota-store/gift-cards', {
+    const generated = await app.request('/api/admin/store/gift-cards', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -850,8 +850,8 @@ describe('Quota Store API', () => {
         count: 2,
       }),
     })
-    const listed = await app.request('/api/admin/quota-store/gift-cards?status=active', { headers })
-    const deleted = await app.request('/api/admin/quota-store/gift-cards/ZS-GEN-1', { method: 'DELETE', headers })
+    const listed = await app.request('/api/admin/store/gift-cards?status=active', { headers })
+    const deleted = await app.request('/api/admin/store/gift-cards/ZS-GEN-1', { method: 'DELETE', headers })
 
     expect(generated.status).toBe(201)
     await expect(generated.json()).resolves.toMatchObject({
@@ -898,7 +898,7 @@ describe('Quota Store API', () => {
       json: async () => ({ items: [cloudGiftCard({ code: 'ZS-PAGED-1' })], total: 9 }),
     } as Response)
 
-    const res = await app.request('/api/admin/quota-store/gift-cards?status=active', { headers })
+    const res = await app.request('/api/admin/store/gift-cards?status=active', { headers })
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ total: 9, items: [{ code: 'ZS-PAGED-1' }] })
@@ -915,7 +915,7 @@ describe('Quota Store API', () => {
       json: async () => cloudGiftCard({ code: 'ZS-GEN-1', status: 'disabled' }),
     } as Response)
 
-    const res = await app.request('/api/admin/quota-store/gift-cards/ZS-GEN-1', {
+    const res = await app.request('/api/admin/store/gift-cards/ZS-GEN-1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ disabled: true }),
@@ -936,7 +936,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, admin)
     const headers = await authedHeaders(app, 'buyer@example.com')
 
-    const res = await app.request('/api/admin/quota-store/gift-cards', { headers })
+    const res = await app.request('/api/admin/store/gift-cards', { headers })
 
     expect(res.status).toBe(403)
     expect(fetch).not.toHaveBeenCalled()
@@ -948,7 +948,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/admin/quota-store/orders', { headers })
+    const res = await app.request('/api/admin/store/orders', { headers })
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ total: 1, items: [{ id: 'cloud-order-1', storageBytes: 512 }] })
@@ -973,7 +973,7 @@ describe('Quota Store API', () => {
         json: async () => ({ items: [cloudOrder({ id: 'cloud-order-2' })], total: 2 }),
       } as Response)
 
-    const res = await app.request('/api/admin/quota-store/orders', { headers })
+    const res = await app.request('/api/admin/store/orders', { headers })
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
@@ -991,7 +991,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/admin/quota-store/packages/cloud-pkg-1', {
+    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1016,7 +1016,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/admin/quota-store/packages/cloud-pkg-1', {
+    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ active: false }),
@@ -1040,7 +1040,7 @@ describe('Quota Store API', () => {
       json: async () => ({ error: 'cloud_down' }),
     } as Response)
 
-    const res = await app.request('/api/admin/quota-store/packages/cloud-pkg-1', {
+    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1067,7 +1067,7 @@ describe('Quota Store API', () => {
       json: async () => ({ error: 'cloud_unavailable' }),
     } as Response)
 
-    const res = await app.request('/api/admin/quota-store/packages/cloud-pkg-1', {
+    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
       method: 'DELETE',
       headers,
     })
@@ -1082,7 +1082,7 @@ describe('Quota Store API', () => {
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/quota-store/checkouts', {
+    const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId: 'pkg-1', targetOrgId: 'other-org' }),
@@ -1097,7 +1097,7 @@ describe('Quota Store API', () => {
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/quota-store/checkouts', {
+    const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId: 'cloud-pkg-1', targetOrgId: 'other-org' }),
@@ -1114,14 +1114,14 @@ describe('Quota Store API', () => {
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
-    const packages = await app.request('/api/quota-store/packages', { headers })
-    const targets = await app.request('/api/quota-store/targets', { headers })
-    const checkout = await app.request('/api/quota-store/checkouts', {
+    const packages = await app.request('/api/store/packages', { headers })
+    const targets = await app.request('/api/store/targets', { headers })
+    const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId, currency: 'cny' }),
     })
-    const orders = await app.request('/api/quota-store/orders', { headers })
+    const orders = await app.request('/api/store/orders', { headers })
 
     expect(packages.status).toBe(200)
     await expect(packages.json()).resolves.toMatchObject({
@@ -1186,7 +1186,7 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
-    await app.request('/api/admin/quota-store/settings', {
+    await app.request('/api/admin/store/settings', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1196,14 +1196,14 @@ describe('Quota Store API', () => {
 
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
-    const packages = await app.request('/api/quota-store/packages', { headers })
-    const targets = await app.request('/api/quota-store/targets', { headers })
-    const checkout = await app.request('/api/quota-store/checkouts', {
+    const packages = await app.request('/api/store/packages', { headers })
+    const targets = await app.request('/api/store/targets', { headers })
+    const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
     })
-    const orders = await app.request('/api/quota-store/orders', { headers })
+    const orders = await app.request('/api/store/orders', { headers })
 
     expect(packages.status).toBe(403)
     await expect(packages.json()).resolves.toEqual({ error: 'quota_store_disabled' })
@@ -1224,14 +1224,14 @@ describe('Quota Store API', () => {
 
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
-    const packages = await app.request('/api/quota-store/packages', { headers })
-    const targets = await app.request('/api/quota-store/targets', { headers })
-    const checkout = await app.request('/api/quota-store/checkouts', {
+    const packages = await app.request('/api/store/packages', { headers })
+    const targets = await app.request('/api/store/targets', { headers })
+    const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
     })
-    const orders = await app.request('/api/quota-store/orders', { headers })
+    const orders = await app.request('/api/store/orders', { headers })
 
     expect(packages.status).toBe(402)
     await expect(packages.json()).resolves.toMatchObject({ error: 'feature_not_available', feature: 'quota_store' })
@@ -1252,7 +1252,7 @@ describe('Quota Store API', () => {
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
 
-    const res = await app.request('/api/quota-store/checkouts', {
+    const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -1275,7 +1275,7 @@ describe('Quota Store API', () => {
       json: async () => ({ error: 'cloud_down' }),
     } as Response)
 
-    const res = await app.request('/api/quota-store/checkouts', {
+    const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -1298,7 +1298,7 @@ describe('Quota Store API', () => {
       json: async () => ({ error: 504 }),
     } as Response)
 
-    const res = await app.request('/api/quota-store/checkouts', {
+    const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageId, targetOrgId: orgId }),
@@ -1348,7 +1348,7 @@ describe('Quota Store API', () => {
       source: 'stripe',
     })
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1736,7 +1736,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1754,7 +1754,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-bad-token' })
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1773,7 +1773,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-purpose' })
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1793,7 +1793,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({ eventId: 'evt-expired-token' })
     const now = Math.floor(Date.now() / 1000)
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1812,7 +1812,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-missing-issued-at' })
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1832,7 +1832,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({ eventId: 'evt-future-issued-at' })
     const issuedAt = Math.floor(Date.now() / 1000) + 60
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1852,7 +1852,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({ eventId: 'evt-overlong-token' })
     const issuedAt = Math.floor(Date.now() / 1000)
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1871,7 +1871,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-hash' })
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1899,7 +1899,7 @@ describe('Quota Store API', () => {
       source: 'stripe',
     })
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1918,7 +1918,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-audience' })
 
-    const res = await app.request('/api/quota-store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhooks/cloud', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1963,7 +1963,7 @@ describe('Quota Store API', () => {
 })
 
 async function seedSettings(app: Awaited<ReturnType<typeof createTestApp>>['app'], headers: Record<string, string>) {
-  await app.request('/api/admin/quota-store/settings', {
+  await app.request('/api/admin/store/settings', {
     method: 'PUT',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled: true }),
@@ -1989,7 +1989,7 @@ async function seedSettingsRow(db: Awaited<ReturnType<typeof createTestApp>>['db
 }
 
 async function postWebhook(app: Awaited<ReturnType<typeof createTestApp>>['app'], payload: string) {
-  return app.request('/api/quota-store/webhooks/cloud', {
+  return app.request('/api/store/webhooks/cloud', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

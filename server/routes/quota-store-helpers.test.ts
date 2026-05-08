@@ -31,7 +31,7 @@ function createRouteContext(): RouteContext {
       }
     },
     req: {
-      url: 'http://internal.local/api/quota-store/checkouts',
+      url: 'http://internal.local/api/store/checkouts',
       header: () => undefined,
     },
   } as unknown as RouteContext
