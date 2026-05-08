@@ -1,3 +1,4 @@
+import type { CloudWalletTransaction } from '@shared/schemas'
 import type { CloudOrder, CloudProduct } from '@shared/types'
 import { Activity, CreditCard, HardDrive, PlusCircle, Wallet, X } from 'lucide-react'
 import type * as React from 'react'
@@ -5,6 +6,14 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatSize } from '@/lib/format'
 
@@ -13,18 +22,17 @@ export { StorageActions } from './storage-dialogs'
 export function StorageStatusMetrics({
   quota,
   wallet,
+  walletTransactions,
+  walletTransactionsLoading,
 }: {
   quota?: { quota: number; trafficQuota: number }
   wallet?: { balance: number; currency: string }
+  walletTransactions: CloudWalletTransaction[]
+  walletTransactionsLoading: boolean
 }) {
   const { t, i18n } = useTranslation()
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <StatusMetric
-        label={t('storage.status')}
-        value={t('storage.available')}
-        icon={<HardDrive className="h-4 w-4" />}
-      />
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <StatusMetric
         label={t('storage.currentQuota')}
         value={quota ? formatSize(quota.quota) : '-'}
@@ -37,7 +45,30 @@ export function StorageStatusMetrics({
       />
       <StatusMetric
         label={t('storage.walletBalance')}
-        value={wallet ? formatMoney(wallet.balance, wallet.currency, i18n.resolvedLanguage ?? 'en') : '-'}
+        value={
+          <Dialog>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className="cursor-pointer text-left text-sm font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label={t('storage.viewWalletTransactions')}
+              >
+                {wallet ? formatMoney(wallet.balance, wallet.currency, i18n.resolvedLanguage ?? 'en') : '-'}
+              </button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>{t('storage.walletTransactionsTitle')}</DialogTitle>
+                <DialogDescription>{t('storage.walletTransactionsDescription')}</DialogDescription>
+              </DialogHeader>
+              <WalletTransactions
+                entries={walletTransactions}
+                language={i18n.resolvedLanguage ?? 'en'}
+                loading={walletTransactionsLoading}
+              />
+            </DialogContent>
+          </Dialog>
+        }
         icon={<Wallet className="h-4 w-4" />}
       />
     </div>
@@ -76,14 +107,14 @@ export function StoragePackages({
   )
 }
 
-function StatusMetric({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+function StatusMetric({ label, value, icon }: { label: string; value: React.ReactNode; icon: React.ReactNode }) {
   return (
     <div className="rounded-xl border bg-card/50 px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div className="text-muted-foreground">{icon}</div>
       </div>
-      <div className="mt-2 text-sm font-medium">{value}</div>
+      <div className="mt-2">{value}</div>
     </div>
   )
 }
@@ -293,6 +324,70 @@ function OrderEmptyState() {
   )
 }
 
+function WalletTransactions({
+  entries,
+  language,
+  loading,
+}: {
+  entries: CloudWalletTransaction[]
+  language: string
+  loading: boolean
+}) {
+  const { t } = useTranslation()
+
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+        {t('common.loading')}
+      </div>
+    )
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+        {t('storage.walletTransactionsEmpty')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-h-[60vh] overflow-auto rounded-lg border">
+      <table className="w-full caption-bottom text-left text-sm">
+        <thead className="sticky top-0 border-b bg-background">
+          <tr>
+            <th className="h-10 px-3 font-medium text-muted-foreground">{t('storage.walletTableType')}</th>
+            <th className="h-10 px-3 font-medium text-muted-foreground">{t('storage.walletTableChange')}</th>
+            <th className="h-10 px-3 font-medium text-muted-foreground">{t('storage.walletTableStatus')}</th>
+            <th className="h-10 px-3 font-medium text-muted-foreground">{t('storage.walletTableReference')}</th>
+            <th className="h-10 px-3 font-medium text-muted-foreground">{t('storage.walletTableDate')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry) => (
+            <tr key={entry.id} className="border-b last:border-0">
+              <td className="p-3 align-middle font-medium">{walletSourceLabel(entry.sourceType, t)}</td>
+              <td
+                className={`p-3 align-middle font-mono font-semibold ${
+                  entry.direction === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'
+                }`}
+              >
+                {entry.direction === 'credit' ? '+' : '-'}
+                {formatMoney(entry.amount, entry.currency, language)}
+              </td>
+              <td className="p-3 align-middle">
+                <Badge variant="outline">{walletStatusLabel(entry.status, t)}</Badge>
+              </td>
+              <td className="p-3 align-middle text-muted-foreground">{walletReference(entry)}</td>
+              <td className="p-3 align-middle text-muted-foreground">{new Date(entry.createdAt).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function selectPrice(prices: CloudProduct['prices'], language: string) {
   const currency = language.startsWith('zh') ? 'cny' : 'usd'
   const price = prices.find((item) => item.currency === currency)
@@ -307,6 +402,44 @@ function formatMoney(amount: number, currency: string, language: string) {
 function isActionableOrder(order: CloudOrder) {
   if (order.status !== 'pending') return false
   return order.paymentStatus !== 'paid' && order.paymentStatus !== 'canceled'
+}
+
+function walletSourceLabel(
+  sourceType: CloudWalletTransaction['sourceType'],
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  switch (sourceType) {
+    case 'gift_card_redemption':
+      return t('storage.walletSourceGiftCard')
+    case 'order_payment':
+      return t('storage.walletSourceOrderPayment')
+    case 'stripe_invoice':
+      return t('storage.walletSourceStripeInvoice')
+    case 'adjustment':
+      return t('storage.walletSourceAdjustment')
+    case 'refund':
+      return t('storage.walletSourceRefund')
+  }
+}
+
+function walletStatusLabel(status: CloudWalletTransaction['status'], t: ReturnType<typeof useTranslation>['t']) {
+  switch (status) {
+    case 'posted':
+      return t('storage.walletStatusPosted')
+    case 'pending':
+      return t('storage.walletStatusPending')
+    case 'released':
+      return t('storage.walletStatusReleased')
+    case 'refunded':
+      return t('storage.walletStatusRefunded')
+  }
+}
+
+function walletReference(entry: CloudWalletTransaction) {
+  if (entry.paymentId) return entry.paymentId.slice(0, 8)
+  if (entry.orderId) return entry.orderId.slice(0, 8)
+  if (entry.sourceId) return entry.sourceId.slice(0, 8)
+  return '-'
 }
 
 function OrderIconButton({

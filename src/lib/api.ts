@@ -5,6 +5,7 @@ import type {
   CloudProductInput,
   CloudProductPatchInput,
   CloudWalletResponse,
+  CloudWalletTransactionsResponse,
   ConflictStrategy,
   CreateGiftCardInput,
   CreateShareRequest,
@@ -374,6 +375,10 @@ export function listCloudStoreTargets() {
 
 export function getCloudWallet() {
   return unwrap<CloudWalletResponse>(cloudStoreApi.wallet.$get())
+}
+
+export function listCloudWalletTransactions() {
+  return unwrap<CloudWalletTransactionsResponse>(cloudStoreApi.wallet.transactions.$get())
 }
 
 export function redeemCloudGiftCard(code: string) {

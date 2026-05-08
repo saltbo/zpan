@@ -12,6 +12,7 @@ import {
   getUserQuota,
   listCloudOrders,
   listCloudProducts,
+  listCloudWalletTransactions,
   redeemCloudGiftCard,
 } from '@/lib/api'
 import { StoragePage } from './storage'
@@ -62,6 +63,7 @@ vi.mock('@/lib/api', () => {
     redeemCloudGiftCard: vi.fn(),
     listCloudProducts: vi.fn(),
     listCloudOrders: vi.fn(),
+    listCloudWalletTransactions: vi.fn(),
   }
 })
 
@@ -143,6 +145,7 @@ describe('StoragePage', () => {
       trafficPeriod: '2026-05',
     })
     vi.mocked(getCloudWallet).mockResolvedValue({ balances: [] })
+    vi.mocked(listCloudWalletTransactions).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
   })
 
   it('refreshes quota when a checkout order is delivered', async () => {
@@ -369,6 +372,61 @@ describe('StoragePage', () => {
     expect(view.getByText('storage.walletBalance')).toBeTruthy()
     expect(view.getByText('storage.currentTrafficQuota')).toBeTruthy()
     await waitFor(() => expect(view.getByText(/12\.50/)).toBeTruthy())
+  })
+
+  it('opens wallet transactions dialog', async () => {
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(getCloudWallet).mockResolvedValue({
+      balances: [
+        {
+          id: 'wallet-1',
+          storeId: 'store-1',
+          endUserId: 'org-1',
+          currency: 'usd',
+          availableAmount: 1250,
+          pendingAmount: 0,
+          stripeCustomerId: null,
+          updatedAt: '2026-05-08T00:00:00.000Z',
+        },
+      ],
+    })
+    vi.mocked(listCloudWalletTransactions).mockResolvedValue({
+      items: [
+        {
+          id: 'ledger-1',
+          storeId: 'store-1',
+          endUserId: 'org-1',
+          currency: 'usd',
+          amount: 500,
+          direction: 'credit',
+          status: 'posted',
+          sourceType: 'gift_card_redemption',
+          sourceId: 'gift-1',
+          orderId: null,
+          paymentId: null,
+          stripeCustomerBalanceTransactionId: null,
+          createdAt: '2026-05-08T00:00:00.000Z',
+        },
+      ],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByLabelText('storage.viewWalletTransactions')).toBeTruthy())
+    fireEvent.click(view.getByLabelText('storage.viewWalletTransactions'))
+
+    expect(await view.findByText('storage.walletTransactionsTitle')).toBeTruthy()
+    expect(view.getByText('storage.walletSourceGiftCard')).toBeTruthy()
   })
 
   it('redeems a gift card successfully', async () => {

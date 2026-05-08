@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import {
   checkoutInputSchema,
   cloudWalletResponseSchema,
+  cloudWalletTransactionsResponseSchema,
   redeemGiftCardInputSchema,
   redeemGiftCardResponseSchema,
 } from '@shared/schemas'
@@ -50,6 +51,19 @@ export const cloudStore = new Hono<Env>()
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const result = await getCloud(c, walletPath(targetOrgId), cloudWalletResponseSchema)
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
+  })
+  .get('/wallet/transactions', async (c) => {
+    const targetOrgId = c.get('orgId')
+    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
+    const store = await getUserStoreSettings(c.get('platform').db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const result = await getCloud(
+      c,
+      (storeId) => `/api/stores/${encodeURIComponent(storeId)}/wallets/${encodeURIComponent(targetOrgId)}/transactions`,
+      cloudWalletTransactionsResponseSchema,
+    )
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })

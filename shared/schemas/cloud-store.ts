@@ -120,6 +120,32 @@ export const cloudWalletResponseSchema = z.object({
 
 export type CloudWalletResponse = z.infer<typeof cloudWalletResponseSchema>
 
+export const cloudWalletTransactionSchema = z.object({
+  id: z.string().min(1),
+  storeId: z.string().min(1),
+  endUserId: z.string().nullable(),
+  currency: z.string().min(1),
+  amount: z.number().int().min(0),
+  direction: z.enum(['credit', 'debit']),
+  status: z.enum(['posted', 'pending', 'released', 'refunded']),
+  sourceType: z.enum(['gift_card_redemption', 'order_payment', 'stripe_invoice', 'adjustment', 'refund']),
+  sourceId: z.string().nullable(),
+  orderId: z.string().nullable(),
+  paymentId: z.string().nullable(),
+  stripeCustomerBalanceTransactionId: z.string().nullable(),
+  createdAt: z.string().min(1),
+})
+
+export const cloudWalletTransactionsResponseSchema = z.object({
+  items: z.array(cloudWalletTransactionSchema),
+  total: z.number().int().min(0),
+  limit: z.number().int().min(0),
+  offset: z.number().int().min(0),
+})
+
+export type CloudWalletTransaction = z.infer<typeof cloudWalletTransactionSchema>
+export type CloudWalletTransactionsResponse = z.infer<typeof cloudWalletTransactionsResponseSchema>
+
 export const redeemGiftCardInputSchema = z.object({
   code: z.string().min(1),
 })

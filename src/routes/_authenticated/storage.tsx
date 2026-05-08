@@ -25,6 +25,7 @@ import {
   getUserQuota,
   listCloudOrders,
   listCloudProducts,
+  listCloudWalletTransactions,
   redeemCloudGiftCard,
 } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
@@ -60,6 +61,12 @@ export function StoragePage() {
   const walletQuery = useQuery({
     queryKey: ['cloud-store', 'wallet', targetOrgId],
     queryFn: getCloudWallet,
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
+    retry: false,
+  })
+  const walletTransactionsQuery = useQuery({
+    queryKey: ['cloud-store', 'wallet', 'transactions', targetOrgId],
+    queryFn: listCloudWalletTransactions,
     enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
@@ -208,6 +215,8 @@ export function StoragePage() {
               }
             : undefined
         }
+        walletTransactions={walletTransactionsQuery.data?.items ?? []}
+        walletTransactionsLoading={walletTransactionsQuery.isLoading}
       />
       <StorageOrderHistory
         orders={currentOrders}
