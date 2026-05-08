@@ -137,6 +137,22 @@ const APP_SCHEMA_SQL = `
     traffic_used INTEGER NOT NULL DEFAULT 0,
     traffic_period TEXT NOT NULL DEFAULT '1970-01'
   );
+  CREATE TABLE IF NOT EXISTS cloud_traffic_reports (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    period TEXT NOT NULL,
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    bytes INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS cloud_traffic_reports_event_uniq ON cloud_traffic_reports(event_id);
+  CREATE INDEX IF NOT EXISTS cloud_traffic_reports_org_period_idx ON cloud_traffic_reports(org_id, period);
+  CREATE INDEX IF NOT EXISTS cloud_traffic_reports_status_idx ON cloud_traffic_reports(status);
   CREATE TABLE IF NOT EXISTS org_quota_entitlements (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,

@@ -4,6 +4,7 @@ import type { Storage as S3Storage } from '../../shared/types'
 import { imageHostingConfigs } from '../db/schema'
 import type { Env } from '../middleware/platform'
 import { PRESIGN_TTL_SECS, s3 } from '../routes/share-utils'
+import { reportTrafficForDownload } from '../routes/traffic-metering-utils'
 import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import { getImageByOrgPath, incrementAccessCount, resolveCustomDomain } from '../services/image-hosting'
 import { getStorage } from '../services/storage'
@@ -70,10 +71,23 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
   let url: string
   try {
     url = await s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
-    await incrementAccessCount(db, image.id)
   } catch (e) {
     await refundTraffic(db, image.orgId, image.size)
     throw e
+  }
+
+  const trafficReportError = await reportTrafficForDownload(c, {
+    orgId: image.orgId,
+    bytes: image.size,
+    source: 'custom_domain_image',
+    sourceId: image.id,
+  })
+  if (trafficReportError) return trafficReportError
+
+  try {
+    await incrementAccessCount(db, image.id)
+  } catch (error) {
+    console.error('[image-hosting-domain] incrementAccessCount failed:', error)
   }
   const res = c.redirect(url, 302)
   res.headers.set('Cache-Control', 'no-store')

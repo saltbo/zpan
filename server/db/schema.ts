@@ -47,6 +47,28 @@ export const orgQuotas = sqliteTable('org_quotas', {
   trafficPeriod: text('traffic_period').notNull().default('1970-01'),
 })
 
+export const cloudTrafficReports = sqliteTable(
+  'cloud_traffic_reports',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    period: text('period').notNull(),
+    source: text('source').notNull(),
+    sourceId: text('source_id').notNull(),
+    eventId: text('event_id').notNull(),
+    bytes: integer('bytes').notNull(),
+    status: text('status').notNull(),
+    error: text('error'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('cloud_traffic_reports_event_uniq').on(t.eventId),
+    index('cloud_traffic_reports_org_period_idx').on(t.orgId, t.period),
+    index('cloud_traffic_reports_status_idx').on(t.status),
+  ],
+)
+
 export const orgQuotaEntitlements = sqliteTable(
   'org_quota_entitlements',
   {
