@@ -43,16 +43,25 @@ export const cloudStore = new Hono<Env>()
     return c.json({ items, total: items.length })
   })
   .get('/wallet', async (c) => {
+    const targetOrgId = c.get('orgId')
+    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await getCloud(c, walletPath(), cloudWalletResponseSchema)
+    const result = await getCloud(c, walletPath(targetOrgId), cloudWalletResponseSchema)
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })
   .post('/gift-cards/redeem', zValidator('json', redeemGiftCardInputSchema), async (c) => {
+    const targetOrgId = c.get('orgId')
+    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await postCloudWithBinding(c, redemptionPath(), c.req.valid('json'), redeemGiftCardResponseSchema)
+    const result = await postCloudWithBinding(
+      c,
+      redemptionPath(targetOrgId),
+      { codes: [c.req.valid('json').code] },
+      redeemGiftCardResponseSchema,
+    )
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })

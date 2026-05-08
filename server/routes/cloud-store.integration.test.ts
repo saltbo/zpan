@@ -120,6 +120,38 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url, init) => {
+      if (String(url).includes('/api/stores/') && String(url).includes('/wallets/')) {
+        if (init?.method === 'GET') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              balances: [
+                {
+                  id: 'wallet-1',
+                  storeId: 'store-test-binding',
+                  endUserId: 'org-placeholder',
+                  currency: 'usd',
+                  availableAmount: 1250,
+                  pendingAmount: 0,
+                  stripeCustomerId: null,
+                  updatedAt: '2026-05-06T00:00:00.000Z',
+                },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            redeemedAmount: 1000,
+            currency: 'usd',
+            entries: [],
+            failures: [],
+          }),
+        } as Response
+      }
       if (String(url).includes('/api/stores/') && String(url).includes('/gift-cards')) {
         if (init?.method === 'DELETE') {
           return { ok: true, status: 204, json: async () => ({}) } as Response
@@ -1209,6 +1241,53 @@ describe('Quota Store API', () => {
     expect(parsedOrdersUrl.pathname).toBe('/api/stores/store-test-binding/orders')
     expect(parsedOrdersUrl.searchParams.get('limit')).toBe('100')
     expect(parsedOrdersUrl.searchParams.get('endUserId')).toBe(orgId)
+  })
+
+  it('proxies wallet balance and gift card redemption through wallet endpoints', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+
+    const wallet = await app.request('/api/store/wallet', { headers })
+    const redeem = await app.request('/api/store/gift-cards/redeem', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'ZS-1234-5678' }),
+    })
+
+    expect(wallet.status).toBe(200)
+    await expect(wallet.json()).resolves.toEqual({
+      balances: [
+        {
+          id: 'wallet-1',
+          storeId: 'store-test-binding',
+          endUserId: 'org-placeholder',
+          currency: 'usd',
+          availableAmount: 1250,
+          pendingAmount: 0,
+          stripeCustomerId: null,
+          updatedAt: '2026-05-06T00:00:00.000Z',
+        },
+      ],
+    })
+    expect(redeem.status).toBe(200)
+    await expect(redeem.json()).resolves.toEqual({
+      redeemedAmount: 1000,
+      currency: 'usd',
+      entries: [],
+      failures: [],
+    })
+
+    const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
+    const [walletUrl, walletInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/balance`))!
+    const [redeemUrl, redeemInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/redemptions`))!
+    expect(String(walletUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/balance`)
+    expect(walletInit.method).toBe('GET')
+    expect(String(redeemUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/redemptions`)
+    expect(redeemInit.method).toBe('POST')
+    expect(JSON.parse(String(redeemInit.body))).toEqual({ codes: ['ZS-1234-5678'] })
   })
 
   it('hides self-service packages when the store is disabled', async () => {

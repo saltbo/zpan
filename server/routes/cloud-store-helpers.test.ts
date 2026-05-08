@@ -6,6 +6,8 @@ import {
   giftCardsPath,
   ordersPath,
   packagesPath,
+  redemptionPath,
+  walletPath,
 } from './cloud-store-helpers'
 
 describe('quota store helper paths', () => {
@@ -22,6 +24,8 @@ describe('quota store helper paths', () => {
     expect(ordersPath({ limit: 100, endUserId: 'user-1' })('store-1')).toBe(
       '/api/stores/store-1/orders?limit=100&endUserId=user-1',
     )
+    expect(walletPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/balance')
+    expect(redemptionPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/redemptions')
   })
 
   it('parses Cloud commerce order responses', () => {

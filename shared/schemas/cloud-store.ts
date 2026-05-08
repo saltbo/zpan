@@ -103,9 +103,19 @@ export type CreateGiftCardInput = z.input<typeof createGiftCardInputSchema>
 export type DisableGiftCardInput = z.infer<typeof disableGiftCardSchema>
 export type CloudOrderQuotaChange = z.infer<typeof cloudOrderQuotaChangeSchema>
 
-export const cloudWalletResponseSchema = z.object({
-  balance: z.number().int().min(0),
+export const cloudWalletBalanceSchema = z.object({
+  id: z.string().min(1),
+  storeId: z.string().min(1),
+  endUserId: z.string().nullable(),
   currency: z.string().min(1),
+  availableAmount: z.number().int().min(0),
+  pendingAmount: z.number().int().min(0),
+  stripeCustomerId: z.string().nullable(),
+  updatedAt: z.string().min(1),
+})
+
+export const cloudWalletResponseSchema = z.object({
+  balances: z.array(cloudWalletBalanceSchema),
 })
 
 export type CloudWalletResponse = z.infer<typeof cloudWalletResponseSchema>
@@ -117,9 +127,31 @@ export const redeemGiftCardInputSchema = z.object({
 export type RedeemGiftCardInput = z.infer<typeof redeemGiftCardInputSchema>
 
 export const redeemGiftCardResponseSchema = z.object({
-  success: z.boolean(),
-  amount: z.number().int().min(0),
-  currency: z.string().min(1),
+  redeemedAmount: z.number().int().min(0),
+  currency: z.string().nullable(),
+  entries: z.array(
+    z.object({
+      id: z.string().min(1),
+      storeId: z.string().min(1),
+      endUserId: z.string().nullable(),
+      currency: z.string().min(1),
+      amount: z.number().int().min(0),
+      direction: z.enum(['credit', 'debit']),
+      status: z.string().min(1),
+      sourceType: z.string().min(1),
+      sourceId: z.string().min(1),
+      orderId: z.string().nullable().optional(),
+      paymentId: z.string().nullable().optional(),
+      stripeCustomerBalanceTransactionId: z.string().nullable().optional(),
+      createdAt: z.string().min(1),
+    }),
+  ),
+  failures: z.array(
+    z.object({
+      code: z.string().min(1),
+      error: z.string().min(1),
+    }),
+  ),
 })
 
 export type RedeemGiftCardResponse = z.infer<typeof redeemGiftCardResponseSchema>

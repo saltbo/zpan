@@ -33,6 +33,7 @@ export {
   cloudProductInputSchema,
   cloudProductPatchSchema,
   cloudStoreSettingsSchema,
+  cloudWalletBalanceSchema,
   cloudWalletResponseSchema,
   createGiftCardInputSchema,
   disableGiftCardSchema,

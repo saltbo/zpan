@@ -434,14 +434,49 @@ describe('api', () => {
 
     it('calls wallet and redemption endpoints', async () => {
       vi.mocked(fetch)
-        .mockResolvedValueOnce(makeResponse({ balance: 500, currency: 'usd' }))
-        .mockResolvedValueOnce(makeResponse({ success: true, amount: 1000, currency: 'usd' }))
+        .mockResolvedValueOnce(
+          makeResponse({
+            balances: [
+              {
+                id: 'wallet-1',
+                storeId: 'store-1',
+                endUserId: 'org-1',
+                currency: 'usd',
+                availableAmount: 500,
+                pendingAmount: 0,
+                stripeCustomerId: null,
+                updatedAt: '2026-05-08T00:00:00.000Z',
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeResponse({
+            redeemedAmount: 1000,
+            currency: 'usd',
+            entries: [],
+            failures: [],
+          }),
+        )
 
       const wallet = await getCloudWallet()
       const redeem = await redeemCloudGiftCard('GIFT-123')
 
-      expect(wallet).toEqual({ balance: 500, currency: 'usd' })
-      expect(redeem).toEqual({ success: true, amount: 1000, currency: 'usd' })
+      expect(wallet).toEqual({
+        balances: [
+          {
+            id: 'wallet-1',
+            storeId: 'store-1',
+            endUserId: 'org-1',
+            currency: 'usd',
+            availableAmount: 500,
+            pendingAmount: 0,
+            stripeCustomerId: null,
+            updatedAt: '2026-05-08T00:00:00.000Z',
+          },
+        ],
+      })
+      expect(redeem).toEqual({ redeemedAmount: 1000, currency: 'usd', entries: [], failures: [] })
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
       expect(calls[0][0]).toBe('/api/store/wallet')

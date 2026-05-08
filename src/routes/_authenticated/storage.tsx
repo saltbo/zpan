@@ -46,9 +46,9 @@ export function StoragePage() {
     retry: false,
   })
   const walletQuery = useQuery({
-    queryKey: ['cloud-store', 'wallet'],
+    queryKey: ['cloud-store', 'wallet', targetOrgId],
     queryFn: getCloudWallet,
-    enabled: cloudStoreQuery.isSuccess,
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
   const currentOrders = ordersQuery.data?.items ?? []
@@ -95,7 +95,10 @@ export function StoragePage() {
     mutationFn: (code: string) => redeemCloudGiftCard(code),
     onSuccess: (result) => {
       toast.success(
-        t('storage.redeemSuccess', { amount: result.amount / 100, currency: result.currency.toUpperCase() }),
+        t('storage.redeemSuccess', {
+          amount: result.redeemedAmount / 100,
+          currency: result.currency?.toUpperCase() ?? 'USD',
+        }),
       )
       queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
     },
@@ -135,7 +138,17 @@ export function StoragePage() {
         />
       </div>
 
-      <StorageStatusMetrics quota={quotaQuery.data} wallet={walletQuery.data} />
+      <StorageStatusMetrics
+        quota={quotaQuery.data}
+        wallet={
+          walletQuery.data
+            ? {
+                balance: walletQuery.data.balances[0]?.availableAmount ?? 0,
+                currency: walletQuery.data.balances[0]?.currency ?? 'usd',
+              }
+            : undefined
+        }
+      />
       <StorageOrderHistory orders={currentOrders} />
     </div>
   )

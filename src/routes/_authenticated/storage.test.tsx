@@ -138,7 +138,7 @@ describe('StoragePage', () => {
       trafficUsed: 0,
       trafficPeriod: '2026-05',
     })
-    vi.mocked(getCloudWallet).mockResolvedValue({ balance: 0, currency: 'usd' })
+    vi.mocked(getCloudWallet).mockResolvedValue({ balances: [] })
   })
 
   it('refreshes quota when a checkout order is delivered', async () => {
@@ -338,7 +338,20 @@ describe('StoragePage', () => {
   it('displays wallet balance', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(getCloudWallet).mockResolvedValue({ balance: 1250, currency: 'usd' })
+    vi.mocked(getCloudWallet).mockResolvedValue({
+      balances: [
+        {
+          id: 'wallet-1',
+          storeId: 'store-1',
+          endUserId: 'org-1',
+          currency: 'usd',
+          availableAmount: 1250,
+          pendingAmount: 0,
+          stripeCustomerId: null,
+          updatedAt: '2026-05-08T00:00:00.000Z',
+        },
+      ],
+    })
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -356,7 +369,12 @@ describe('StoragePage', () => {
   it('redeems a gift card successfully', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(redeemCloudGiftCard).mockResolvedValue({ success: true, amount: 5000, currency: 'usd' })
+    vi.mocked(redeemCloudGiftCard).mockResolvedValue({
+      redeemedAmount: 5000,
+      currency: 'usd',
+      entries: [],
+      failures: [],
+    })
 
     const queryClient = new QueryClient({
       defaultOptions: {
