@@ -3,7 +3,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, createCloudCheckout, getUserQuota, listCloudOrders, listCloudProducts } from '@/lib/api'
+import {
+  ApiError,
+  createCloudCheckout,
+  getCloudWallet,
+  getUserQuota,
+  listCloudOrders,
+  listCloudProducts,
+  redeemCloudGiftCard,
+} from '@/lib/api'
 import { StoragePage } from './storage'
 
 const activeOrganization = vi.hoisted(() => ({
@@ -46,6 +54,8 @@ vi.mock('@/lib/api', () => {
     ApiError: MockApiError,
     createCloudCheckout: vi.fn(),
     getUserQuota: vi.fn(),
+    getCloudWallet: vi.fn(),
+    redeemCloudGiftCard: vi.fn(),
     listCloudProducts: vi.fn(),
     listCloudOrders: vi.fn(),
   }
@@ -128,6 +138,7 @@ describe('StoragePage', () => {
       trafficUsed: 0,
       trafficPeriod: '2026-05',
     })
+    vi.mocked(getCloudWallet).mockResolvedValue({ balance: 0, currency: 'usd' })
   })
 
   it('refreshes quota when a checkout order is delivered', async () => {
@@ -316,10 +327,53 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
+    await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.packagesTitle' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.packagesTitle' }))
     await waitFor(() => expect(view.getByText('100 GB')).toBeTruthy())
     expect(document.body.querySelector('[data-slot="dialog-content"] [data-slot="card"]')).toBeNull()
-    expect(view.queryByRole('button', { name: 'storage.redeemTitle' })).toBeNull()
+    expect(await view.findByText('storage.redeemTitle')).toBeTruthy()
+  })
+
+  it('displays wallet balance', async () => {
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(getCloudWallet).mockResolvedValue({ balance: 1250, currency: 'usd' })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
+    expect(view.getByText('storage.walletBalance')).toBeTruthy()
+    await waitFor(() => expect(view.getByText(/12\.50/)).toBeTruthy())
+  })
+
+  it('redeems a gift card successfully', async () => {
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(redeemCloudGiftCard).mockResolvedValue({ success: true, amount: 5000, currency: 'usd' })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
+    fireEvent.click(view.getByRole('button', { name: 'storage.redeemTitle' }))
+    fireEvent.change(view.getByLabelText('storage.giftCardCode'), { target: { value: 'ZS-1234-5678' } })
+    fireEvent.click(view.getByRole('button', { name: 'storage.redeemAction' }))
+
+    await waitFor(() => expect(redeemCloudGiftCard).toHaveBeenCalledWith('ZS-1234-5678'))
+    expect(toast.success).toHaveBeenCalledWith('storage.redeemSuccess:50')
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'wallet'] })
   })
 })

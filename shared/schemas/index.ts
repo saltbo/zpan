@@ -20,9 +20,12 @@ export type {
   CloudProductInput,
   CloudProductPatchInput,
   CloudStoreSettingsInput,
+  CloudWalletResponse,
   CreateGiftCardInput,
   DisableGiftCardInput,
   GiftCardStatus,
+  RedeemGiftCardInput,
+  RedeemGiftCardResponse,
 } from './cloud-store'
 export {
   checkoutInputSchema,
@@ -30,9 +33,12 @@ export {
   cloudProductInputSchema,
   cloudProductPatchSchema,
   cloudStoreSettingsSchema,
+  cloudWalletResponseSchema,
   createGiftCardInputSchema,
   disableGiftCardSchema,
   giftCardStatusSchema,
+  redeemGiftCardInputSchema,
+  redeemGiftCardResponseSchema,
 } from './cloud-store'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'

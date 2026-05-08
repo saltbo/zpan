@@ -1,5 +1,10 @@
 import { zValidator } from '@hono/zod-validator'
-import { checkoutInputSchema } from '@shared/schemas'
+import {
+  checkoutInputSchema,
+  cloudWalletResponseSchema,
+  redeemGiftCardInputSchema,
+  redeemGiftCardResponseSchema,
+} from '@shared/schemas'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth'
@@ -15,6 +20,8 @@ import {
   ordersPath,
   packagesPath,
   postCloudWithBinding,
+  redemptionPath,
+  walletPath,
 } from '../cloud-store-helpers'
 import { getCloudOrders, getInstanceOrigin } from './shared'
 
@@ -34,6 +41,20 @@ export const cloudStore = new Hono<Env>()
     if ('error' in store) return c.json({ error: store.error }, 403)
     const items = await getAccessibleTargets(db, c.get('userId')!)
     return c.json({ items, total: items.length })
+  })
+  .get('/wallet', async (c) => {
+    const store = await getUserStoreSettings(c.get('platform').db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const result = await getCloud(c, walletPath(), cloudWalletResponseSchema)
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
+  })
+  .post('/gift-cards/redeem', zValidator('json', redeemGiftCardInputSchema), async (c) => {
+    const store = await getUserStoreSettings(c.get('platform').db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const result = await postCloudWithBinding(c, redemptionPath(), c.req.valid('json'), redeemGiftCardResponseSchema)
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
   })
   .post('/checkouts', zValidator('json', checkoutInputSchema), async (c) => {
     const body = c.req.valid('json')

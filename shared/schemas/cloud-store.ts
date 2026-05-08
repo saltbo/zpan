@@ -102,3 +102,24 @@ export type GiftCardStatus = z.infer<typeof giftCardStatusSchema>
 export type CreateGiftCardInput = z.input<typeof createGiftCardInputSchema>
 export type DisableGiftCardInput = z.infer<typeof disableGiftCardSchema>
 export type CloudOrderQuotaChange = z.infer<typeof cloudOrderQuotaChangeSchema>
+
+export const cloudWalletResponseSchema = z.object({
+  balance: z.number().int().min(0),
+  currency: z.string().min(1),
+})
+
+export type CloudWalletResponse = z.infer<typeof cloudWalletResponseSchema>
+
+export const redeemGiftCardInputSchema = z.object({
+  code: z.string().min(1),
+})
+
+export type RedeemGiftCardInput = z.infer<typeof redeemGiftCardInputSchema>
+
+export const redeemGiftCardResponseSchema = z.object({
+  success: z.boolean(),
+  amount: z.number().int().min(0),
+  currency: z.string().min(1),
+})
+
+export type RedeemGiftCardResponse = z.infer<typeof redeemGiftCardResponseSchema>

@@ -41,6 +41,7 @@ import {
   getAnnouncement,
   getBranding,
   getCloudStoreSettings,
+  getCloudWallet,
   getEmailConfig,
   getIhostConfig,
   getLicensingStatus,
@@ -78,6 +79,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   pollPairing,
+  redeemCloudGiftCard,
   refreshLicense,
   resendSiteInvitation,
   resetBrandingField,
@@ -428,6 +430,24 @@ describe('api', () => {
         currency: 'cny',
       })
       expect(calls[3][0]).toBe('/api/store/orders?limit=100&offset=100')
+    })
+
+    it('calls wallet and redemption endpoints', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse({ balance: 500, currency: 'usd' }))
+        .mockResolvedValueOnce(makeResponse({ success: true, amount: 1000, currency: 'usd' }))
+
+      const wallet = await getCloudWallet()
+      const redeem = await redeemCloudGiftCard('GIFT-123')
+
+      expect(wallet).toEqual({ balance: 500, currency: 'usd' })
+      expect(redeem).toEqual({ success: true, amount: 1000, currency: 'usd' })
+
+      const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
+      expect(calls[0][0]).toBe('/api/store/wallet')
+      expect(calls[1][0]).toBe('/api/store/gift-cards/redeem')
+      expect(calls[1][1].method).toBe('POST')
+      expect(JSON.parse(calls[1][1].body as string)).toEqual({ code: 'GIFT-123' })
     })
 
     it('throws ApiError for quota store failures', async () => {

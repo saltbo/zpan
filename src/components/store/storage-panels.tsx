@@ -8,12 +8,22 @@ import { formatSize } from '@/lib/format'
 
 export { StorageActions } from './storage-dialogs'
 
-export function StorageStatusMetrics({ quota }: { quota?: { quota: number } }) {
-  const { t } = useTranslation()
+export function StorageStatusMetrics({
+  quota,
+  wallet,
+}: {
+  quota?: { quota: number }
+  wallet?: { balance: number; currency: string }
+}) {
+  const { t, i18n } = useTranslation()
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <StatusMetric label={t('storage.status')} value={t('storage.available')} />
       <StatusMetric label={t('storage.currentQuota')} value={quota ? formatSize(quota.quota) : '-'} />
+      <StatusMetric
+        label={t('storage.walletBalance')}
+        value={wallet ? formatMoney(wallet.balance, wallet.currency, i18n.resolvedLanguage ?? 'en') : '-'}
+      />
     </div>
   )
 }

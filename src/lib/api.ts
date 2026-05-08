@@ -4,11 +4,13 @@ import type {
   AnnouncementInput,
   CloudProductInput,
   CloudProductPatchInput,
+  CloudWalletResponse,
   ConflictStrategy,
   CreateGiftCardInput,
   CreateShareRequest,
   CreateStorageInput,
   GiftCardStatus,
+  RedeemGiftCardResponse,
   UpdateStorageInput,
 } from '@shared/schemas'
 import type {
@@ -368,6 +370,14 @@ export function listCloudProducts() {
 
 export function listCloudStoreTargets() {
   return unwrap<{ items: CloudStoreTarget[]; total: number }>(cloudStoreApi.targets.$get())
+}
+
+export function getCloudWallet() {
+  return unwrap<CloudWalletResponse>(cloudStoreApi.wallet.$get())
+}
+
+export function redeemCloudGiftCard(code: string) {
+  return unwrap<RedeemGiftCardResponse>(cloudStoreApi['gift-cards'].redeem.$post({ json: { code } }))
 }
 
 export function createCloudCheckout(packageId: string, currency?: string) {

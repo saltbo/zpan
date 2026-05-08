@@ -7,7 +7,15 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { StorageActions, StorageOrderHistory, StorageStatusMetrics } from '@/components/store/storage-panels'
 import { Card, CardContent } from '@/components/ui/card'
-import { ApiError, createCloudCheckout, getUserQuota, listCloudOrders, listCloudProducts } from '@/lib/api'
+import {
+  ApiError,
+  createCloudCheckout,
+  getCloudWallet,
+  getUserQuota,
+  listCloudOrders,
+  listCloudProducts,
+  redeemCloudGiftCard,
+} from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_authenticated/storage')({
@@ -37,6 +45,12 @@ export function StoragePage() {
     enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
+  const walletQuery = useQuery({
+    queryKey: ['cloud-store', 'wallet'],
+    queryFn: getCloudWallet,
+    enabled: cloudStoreQuery.isSuccess,
+    retry: false,
+  })
   const currentOrders = ordersQuery.data?.items ?? []
   const deliveredCheckoutCount = currentOrders.filter((order) => order.fulfillmentStatus === 'fulfilled').length
 
@@ -49,6 +63,7 @@ export function StoragePage() {
     const interval = window.setInterval(() => {
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
       queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
     }, 5000)
     const timeout = window.setTimeout(() => setCheckoutRefreshActive(false), 120000)
     return () => {
@@ -72,6 +87,19 @@ export function StoragePage() {
     },
     onError: (err, variables) => {
       variables.checkoutWindow?.close()
+      toast.error(err.message)
+    },
+  })
+
+  const redeemMutation = useMutation({
+    mutationFn: (code: string) => redeemCloudGiftCard(code),
+    onSuccess: (result) => {
+      toast.success(
+        t('storage.redeemSuccess', { amount: result.amount / 100, currency: result.currency.toUpperCase() }),
+      )
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
+    },
+    onError: (err) => {
       toast.error(err.message)
     },
   })
@@ -102,10 +130,12 @@ export function StoragePage() {
           packages={cloudStoreQuery.data?.items ?? []}
           packagesDisabled={!targetOrgId || checkoutMutation.isPending}
           onCheckout={startCheckout}
+          onRedeem={(code) => redeemMutation.mutate(code)}
+          isRedeeming={redeemMutation.isPending}
         />
       </div>
 
-      <StorageStatusMetrics quota={quotaQuery.data} />
+      <StorageStatusMetrics quota={quotaQuery.data} wallet={walletQuery.data} />
       <StorageOrderHistory orders={currentOrders} />
     </div>
   )

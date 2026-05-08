@@ -247,6 +247,14 @@ export function ordersPath(options: { limit?: number; offset?: number; endUserId
   }
 }
 
+export function walletPath() {
+  return (storeId: string) => `/api/stores/${encodeURIComponent(storeId)}/wallet`
+}
+
+export function redemptionPath() {
+  return (storeId: string) => `/api/stores/${encodeURIComponent(storeId)}/gift-cards/redeem`
+}
+
 export function parseJson(payload: string): unknown | null {
   try {
     return JSON.parse(payload) as unknown
