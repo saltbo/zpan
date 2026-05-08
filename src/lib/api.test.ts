@@ -1180,7 +1180,18 @@ describe('api', () => {
     it('fetches quotas list', async () => {
       const payload = {
         items: [
-          { orgId: 'org1', quota: 1024, used: 512, trafficQuota: 2048, trafficUsed: 256, trafficPeriod: '2026-05' },
+          {
+            orgId: 'org1',
+            baseQuota: 1024,
+            entitlementQuota: 0,
+            quota: 1024,
+            used: 512,
+            baseTrafficQuota: 2048,
+            entitlementTrafficQuota: 0,
+            trafficQuota: 2048,
+            trafficUsed: 256,
+            trafficPeriod: '2026-05',
+          },
         ],
         total: 1,
       }
@@ -1204,8 +1215,12 @@ describe('api', () => {
     it('puts quota for an org and returns updated quota', async () => {
       const updated = {
         orgId: 'org1',
+        baseQuota: 2048,
+        entitlementQuota: 0,
         quota: 2048,
         used: 512,
+        baseTrafficQuota: 4096,
+        entitlementTrafficQuota: 0,
         trafficQuota: 4096,
         trafficUsed: 256,
         trafficPeriod: '2026-05',
@@ -1234,8 +1249,11 @@ describe('api', () => {
       const payload = {
         orgId: 'org1',
         baseQuota: 1024,
+        entitlementQuota: 0,
         quota: 1024,
         used: 256,
+        baseTrafficQuota: 2048,
+        entitlementTrafficQuota: 0,
         trafficQuota: 2048,
         trafficUsed: 512,
         trafficPeriod: '2026-05',

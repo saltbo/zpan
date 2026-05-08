@@ -3,7 +3,7 @@ import type { CloudStoreSettings, CloudStoreTarget } from '@shared/types'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
-import { activityEvents, orgQuotas, systemOptions, webhookEvents } from '../db/schema'
+import { activityEvents, orgQuotaEntitlements, orgQuotas, systemOptions, webhookEvents } from '../db/schema'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
 
@@ -154,43 +154,33 @@ async function processQuotaChangeTransaction(
 }
 
 async function applyQuotaChange(db: Database, event: CloudOrderQuotaChange): Promise<void> {
-  const rows = await db
-    .update(orgQuotas)
-    .set(quotaUpdateValues(event))
-    .where(eq(orgQuotas.orgId, event.targetOrgId))
-    .returning({ id: orgQuotas.id })
+  await requireTargetQuota(db, event.targetOrgId)
 
-  if (rows.length === 0) throw new Error('target_quota_missing')
+  const now = new Date(event.occurredAt ?? Date.now())
+  if (event.direction === 'increase') {
+    await insertQuotaEntitlements(db, event, now)
+    return
+  }
+
+  await revokeQuotaEntitlements(db, event, now)
 }
 
 function applyQuotaChangeSync(db: Database, event: CloudOrderQuotaChange): void {
   const rows = (
-    db
-      .update(orgQuotas)
-      .set(quotaUpdateValues(event))
-      .where(eq(orgQuotas.orgId, event.targetOrgId))
-      .returning({ id: orgQuotas.id }) as {
+    db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, event.targetOrgId)).limit(1) as {
       all(): Array<{ id: string }>
     }
   ).all()
 
   if (rows.length === 0) throw new Error('target_quota_missing')
-}
 
-function quotaUpdateValues(event: CloudOrderQuotaChange) {
-  return {
-    quota: quotaUpdateExpression(orgQuotas.quota, event.storageBytes, event.direction),
-    trafficQuota: quotaUpdateExpression(orgQuotas.trafficQuota, event.trafficBytes, event.direction),
+  const now = new Date(event.occurredAt ?? Date.now())
+  if (event.direction === 'increase') {
+    insertQuotaEntitlementsSync(db, event, now)
+    return
   }
-}
 
-function quotaUpdateExpression(
-  column: typeof orgQuotas.quota | typeof orgQuotas.trafficQuota,
-  bytes: number,
-  direction: CloudOrderQuotaChange['direction'],
-) {
-  if (direction === 'increase') return sql`${column} + ${bytes}`
-  return sql`MAX(0, ${column} - ${bytes})`
+  revokeQuotaEntitlementsSync(db, event, now)
 }
 
 async function recordQuotaChangeAudit(db: Database, event: CloudOrderQuotaChange): Promise<void> {
@@ -219,6 +209,218 @@ function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEv
       cloudOrderId: event.cloudOrderId ?? null,
     }),
     createdAt: new Date(),
+  }
+}
+
+async function requireTargetQuota(db: Database, orgId: string): Promise<void> {
+  const rows = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, orgId)).limit(1)
+  if (rows.length === 0) throw new Error('target_quota_missing')
+}
+
+async function insertQuotaEntitlements(db: Database, event: CloudOrderQuotaChange, now: Date): Promise<void> {
+  const values = quotaEntitlementValues(event, now)
+  if (values.length === 0) return
+  for (const value of values) {
+    await db
+      .insert(orgQuotaEntitlements)
+      .values(value)
+      .onConflictDoUpdate({
+        target: [orgQuotaEntitlements.source, orgQuotaEntitlements.sourceId, orgQuotaEntitlements.resourceType],
+        set: quotaEntitlementIncreaseValues(value, now),
+      })
+  }
+}
+
+function insertQuotaEntitlementsSync(db: Database, event: CloudOrderQuotaChange, now: Date): void {
+  const values = quotaEntitlementValues(event, now)
+  if (values.length === 0) return
+  for (const value of values) {
+    ;(
+      db
+        .insert(orgQuotaEntitlements)
+        .values(value)
+        .onConflictDoUpdate({
+          target: [orgQuotaEntitlements.source, orgQuotaEntitlements.sourceId, orgQuotaEntitlements.resourceType],
+          set: quotaEntitlementIncreaseValues(value, now),
+        }) as { run(): void }
+    ).run()
+  }
+}
+
+async function revokeQuotaEntitlements(db: Database, event: CloudOrderQuotaChange, now: Date): Promise<void> {
+  const storageRevoked = await revokeQuotaEntitlement(db, event, 'storage', event.storageBytes, now)
+  const trafficRevoked = await revokeQuotaEntitlement(db, event, 'traffic', event.trafficBytes, now)
+  await applyLegacyQuotaDecrease(db, event, storageRevoked, trafficRevoked)
+}
+
+function revokeQuotaEntitlementsSync(db: Database, event: CloudOrderQuotaChange, now: Date): void {
+  const storageRevoked = revokeQuotaEntitlementSync(db, event, 'storage', event.storageBytes, now)
+  const trafficRevoked = revokeQuotaEntitlementSync(db, event, 'traffic', event.trafficBytes, now)
+  applyLegacyQuotaDecreaseSync(db, event, storageRevoked, trafficRevoked)
+}
+
+async function revokeQuotaEntitlement(
+  db: Database,
+  event: CloudOrderQuotaChange,
+  resourceType: 'storage' | 'traffic',
+  bytes: number,
+  now: Date,
+): Promise<boolean> {
+  if (bytes === 0) return true
+  const rows = await db
+    .update(orgQuotaEntitlements)
+    .set(quotaEntitlementDecreaseValues(bytes, now))
+    .where(quotaEntitlementMatch(event, resourceType))
+    .returning({ id: orgQuotaEntitlements.id })
+  if (rows.length > 0) return true
+
+  const existing = await db
+    .select({ id: orgQuotaEntitlements.id })
+    .from(orgQuotaEntitlements)
+    .where(quotaEntitlementSourceMatch(event, resourceType))
+    .limit(1)
+  return existing.length > 0
+}
+
+function revokeQuotaEntitlementSync(
+  db: Database,
+  event: CloudOrderQuotaChange,
+  resourceType: 'storage' | 'traffic',
+  bytes: number,
+  now: Date,
+): boolean {
+  if (bytes === 0) return true
+  const rows = (
+    db
+      .update(orgQuotaEntitlements)
+      .set(quotaEntitlementDecreaseValues(bytes, now))
+      .where(quotaEntitlementMatch(event, resourceType)) as {
+      returning(fields: { id: typeof orgQuotaEntitlements.id }): { all(): Array<{ id: string }> }
+    }
+  )
+    .returning({ id: orgQuotaEntitlements.id })
+    .all()
+  if (rows.length > 0) return true
+
+  const existing = (
+    db
+      .select({ id: orgQuotaEntitlements.id })
+      .from(orgQuotaEntitlements)
+      .where(quotaEntitlementSourceMatch(event, resourceType))
+      .limit(1) as { all(): Array<{ id: string }> }
+  ).all()
+  return existing.length > 0
+}
+
+async function applyLegacyQuotaDecrease(
+  db: Database,
+  event: CloudOrderQuotaChange,
+  storageRevoked: boolean,
+  trafficRevoked: boolean,
+): Promise<void> {
+  const values = legacyQuotaDecreaseValues(event, storageRevoked, trafficRevoked)
+  if (!values) return
+  await db.update(orgQuotas).set(values).where(eq(orgQuotas.orgId, event.targetOrgId))
+}
+
+function applyLegacyQuotaDecreaseSync(
+  db: Database,
+  event: CloudOrderQuotaChange,
+  storageRevoked: boolean,
+  trafficRevoked: boolean,
+): void {
+  const values = legacyQuotaDecreaseValues(event, storageRevoked, trafficRevoked)
+  if (!values) return
+  ;(db.update(orgQuotas).set(values).where(eq(orgQuotas.orgId, event.targetOrgId)) as { run(): void }).run()
+}
+
+function legacyQuotaDecreaseValues(
+  event: CloudOrderQuotaChange,
+  storageRevoked: boolean,
+  trafficRevoked: boolean,
+): Partial<typeof orgQuotas.$inferInsert> | null {
+  const values: Partial<typeof orgQuotas.$inferInsert> = {}
+  if (!storageRevoked && event.storageBytes > 0)
+    values.quota = sql`MAX(0, ${orgQuotas.quota} - ${event.storageBytes})` as unknown as number
+  if (!trafficRevoked && event.trafficBytes > 0) {
+    values.trafficQuota = sql`MAX(0, ${orgQuotas.trafficQuota} - ${event.trafficBytes})` as unknown as number
+  }
+  return Object.keys(values).length === 0 ? null : values
+}
+
+function quotaEntitlementValues(event: CloudOrderQuotaChange, now: Date): (typeof orgQuotaEntitlements.$inferInsert)[] {
+  return [
+    quotaEntitlementValue(event, 'storage', event.storageBytes, now),
+    quotaEntitlementValue(event, 'traffic', event.trafficBytes, now),
+  ].filter((value): value is typeof orgQuotaEntitlements.$inferInsert => value !== null)
+}
+
+function quotaEntitlementIncreaseValues(value: typeof orgQuotaEntitlements.$inferInsert, now: Date) {
+  return {
+    bytes: sql`CASE
+      WHEN ${orgQuotaEntitlements.status} = 'active' THEN ${orgQuotaEntitlements.bytes} + ${value.bytes}
+      ELSE ${value.bytes}
+    END`,
+    status: 'active',
+    expiresAt: value.expiresAt,
+    metadata: value.metadata,
+    updatedAt: now,
+  }
+}
+
+function quotaEntitlementDecreaseValues(bytes: number, now: Date) {
+  return {
+    bytes: sql`MAX(0, ${orgQuotaEntitlements.bytes} - ${bytes})`,
+    status:
+      sql`CASE WHEN ${orgQuotaEntitlements.bytes} <= ${bytes} THEN 'revoked' ELSE 'active' END` as unknown as string,
+    updatedAt: now,
+  }
+}
+
+function quotaEntitlementValue(
+  event: CloudOrderQuotaChange,
+  resourceType: 'storage' | 'traffic',
+  bytes: number,
+  now: Date,
+): typeof orgQuotaEntitlements.$inferInsert | null {
+  if (bytes === 0) return null
+  return {
+    id: nanoid(),
+    orgId: event.targetOrgId,
+    resourceType,
+    source: 'cloud_order',
+    sourceId: event.cloudOrderId,
+    bytes,
+    startsAt: now,
+    expiresAt: null,
+    status: 'active',
+    metadata: JSON.stringify(quotaEntitlementMetadata(event)),
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+function quotaEntitlementMatch(event: CloudOrderQuotaChange, resourceType: 'storage' | 'traffic') {
+  return and(quotaEntitlementSourceMatch(event, resourceType), eq(orgQuotaEntitlements.status, 'active'))
+}
+
+function quotaEntitlementSourceMatch(event: CloudOrderQuotaChange, resourceType: 'storage' | 'traffic') {
+  return and(
+    eq(orgQuotaEntitlements.orgId, event.targetOrgId),
+    eq(orgQuotaEntitlements.resourceType, resourceType),
+    eq(orgQuotaEntitlements.source, 'cloud_order'),
+    eq(orgQuotaEntitlements.sourceId, event.cloudOrderId),
+  )
+}
+
+function quotaEntitlementMetadata(event: CloudOrderQuotaChange) {
+  return {
+    eventId: event.eventId,
+    eventType: event.eventType,
+    source: event.source ?? null,
+    packageId: event.packageId ?? null,
+    terminalUserId: event.terminalUserId ?? null,
+    terminalUserEmail: event.terminalUserEmail ?? null,
   }
 }
 

@@ -1,11 +1,12 @@
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { orgQuotas } from '../db/schema.js'
+import { orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
 import {
   consumeTrafficIfQuotaAllows,
   getEffectiveQuota,
+  hasQuotaForBytes,
   hasTrafficQuotaForBytes,
   refundTraffic,
 } from './effective-quota.js'
@@ -32,6 +33,39 @@ describe('effective quota', () => {
       trafficQuota: 2000,
       trafficUsed: 500,
       trafficPeriod: '2026-05',
+    })
+  })
+
+  it('adds active entitlement bytes to effective storage and traffic quota', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 250,
+      trafficQuota: 2000,
+      trafficUsed: 500,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values([
+      entitlement(orgId, 'storage', 'active-storage', 300, 'active', now),
+      entitlement(orgId, 'traffic', 'active-traffic', 700, 'active', now),
+      entitlement(orgId, 'storage', 'revoked-storage', 900, 'revoked', now),
+      {
+        ...entitlement(orgId, 'storage', 'expired-storage', 900, 'active', now),
+        expiresAt: new Date('2026-05-05T00:00:00Z'),
+      },
+    ])
+
+    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+      baseQuota: 1000,
+      entitlementQuota: 300,
+      quota: 1300,
+      baseTrafficQuota: 2000,
+      entitlementTrafficQuota: 700,
+      trafficQuota: 2700,
     })
   })
 
@@ -77,6 +111,48 @@ describe('effective quota', () => {
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(1000)
+  })
+
+  it('consumes traffic against active traffic entitlements', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 1000,
+      trafficUsed: 900,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values(entitlement(orgId, 'traffic', 'traffic-overage', 500, 'active', now))
+
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 400, now)).resolves.toBe(true)
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 201, now)).resolves.toBe(false)
+
+    const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
+    expect(rows[0].trafficUsed).toBe(1300)
+  })
+
+  it('treats zero base traffic quota as limited when traffic entitlements exist', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 0,
+      used: 0,
+      trafficQuota: 0,
+      trafficUsed: 400,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values(entitlement(orgId, 'traffic', 'traffic-zero-base', 500, 'active', now))
+
+    await expect(hasTrafficQuotaForBytes(db, orgId, 100, now)).resolves.toBe(true)
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 100, now)).resolves.toBe(true)
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1, now)).resolves.toBe(false)
   })
 
   it('refunds current monthly traffic usage', async () => {
@@ -179,4 +255,47 @@ describe('effective quota', () => {
     await expect(hasTrafficQuotaForBytes(db, orgId, 1024, now)).resolves.toBe(true)
     await expect(consumeTrafficIfQuotaAllows(db, orgId, 1024, now)).resolves.toBe(true)
   })
+
+  it('treats zero base storage quota as limited when storage entitlements exist', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 0,
+      used: 400,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values(entitlement(orgId, 'storage', 'storage-zero-base', 500, 'active', now))
+
+    await expect(hasQuotaForBytes(db, orgId, 100)).resolves.toBe(true)
+    await expect(hasQuotaForBytes(db, orgId, 101)).resolves.toBe(false)
+  })
 })
+
+function entitlement(
+  orgId: string,
+  resourceType: 'storage' | 'traffic',
+  sourceId: string,
+  bytes: number,
+  status: string,
+  now: Date,
+): typeof orgQuotaEntitlements.$inferInsert {
+  return {
+    id: nanoid(),
+    orgId,
+    resourceType,
+    source: 'test',
+    sourceId,
+    bytes,
+    startsAt: now,
+    expiresAt: null,
+    status,
+    metadata: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+}

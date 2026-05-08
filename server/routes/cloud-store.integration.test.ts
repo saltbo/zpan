@@ -1646,7 +1646,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ success: true, duplicate: false })
   })
 
-  it('valid Cloud quota-change webhook updates org quota once and records audit', async () => {
+  it('valid Cloud quota-change webhook records active entitlement once and records audit', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1678,13 +1678,183 @@ describe('Quota Store API', () => {
     expect(events).toEqual([{ status: 'processed', error: null, processedAt: expect.any(Number) }])
 
     const quotaRes = await app.request('/api/quotas/me', { headers })
-    const quota = (await quotaRes.json()) as { baseQuota: number; quota: number }
+    const quota = (await quotaRes.json()) as { baseQuota: number; entitlementQuota: number; quota: number }
+    expect(quota.baseQuota).toBe(before[0].quota)
+    expect(quota.entitlementQuota).toBe(4096)
     expect(quota.quota).toBe(before[0].quota + 4096)
+    const entitlement = await db.all<{ bytes: number; status: string; sourceId: string }>(sql`
+      SELECT bytes, status, source_id AS sourceId
+      FROM org_quota_entitlements
+      WHERE org_id = ${orgId} AND resource_type = 'storage'
+    `)
+    expect(entitlement).toEqual([{ bytes: 4096, status: 'active', sourceId: 'order-1' }])
     const audit = await db.all<{ action: string; metadata: string }>(
       sql`SELECT action, metadata FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 1`,
     )
     expect(audit[0].action).toBe('quota_order_increase')
     expect(JSON.parse(audit[0].metadata)).toMatchObject({ eventId: 'evt-1', storageBytes: 4096, trafficBytes: 0 })
+  })
+
+  it('accumulates repeated Cloud increases for the same order and resource', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+
+    const first = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-repeat-increase-1',
+        cloudOrderId: 'order-repeat-increase',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 4096,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+    const second = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-repeat-increase-2',
+        cloudOrderId: 'order-repeat-increase',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 2048,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    const entitlements = await db.all<{ bytes: number; status: string }>(
+      sql`SELECT bytes, status FROM org_quota_entitlements WHERE source_id = 'order-repeat-increase' AND resource_type = 'storage'`,
+    )
+    expect(entitlements).toEqual([{ bytes: 6144, status: 'active' }])
+
+    const quotaRes = await app.request('/api/quotas/me', { headers })
+    const quota = (await quotaRes.json()) as { entitlementQuota: number }
+    expect(quota.entitlementQuota).toBe(6144)
+  })
+
+  it('decreases accumulated Cloud order entitlement bytes without revoking the remainder', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+
+    await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-partial-decrease-inc-1',
+        cloudOrderId: 'order-partial-decrease',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 4096,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+    await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-partial-decrease-inc-2',
+        cloudOrderId: 'order-partial-decrease',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 2048,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+    const decrease = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-partial-decrease-dec',
+        cloudOrderId: 'order-partial-decrease',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 2048,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+
+    expect(decrease.status).toBe(200)
+    const entitlements = await db.all<{ bytes: number; status: string }>(
+      sql`SELECT bytes, status FROM org_quota_entitlements WHERE source_id = 'order-partial-decrease' AND resource_type = 'storage'`,
+    )
+    expect(entitlements).toEqual([{ bytes: 4096, status: 'active' }])
+
+    const quotaRes = await app.request('/api/quotas/me', { headers })
+    const quota = (await quotaRes.json()) as { entitlementQuota: number }
+    expect(quota.entitlementQuota).toBe(4096)
+  })
+
+  it('restarts entitlement bytes when a new increase follows full revocation', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+
+    await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-reactivate-inc-1',
+        cloudOrderId: 'order-reactivate',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 4096,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+    await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-reactivate-dec',
+        cloudOrderId: 'order-reactivate',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 4096,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+    const increase = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-reactivate-inc-2',
+        cloudOrderId: 'order-reactivate',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 2048,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+
+    expect(increase.status).toBe(200)
+    const entitlements = await db.all<{ bytes: number; status: string }>(
+      sql`SELECT bytes, status FROM org_quota_entitlements WHERE source_id = 'order-reactivate' AND resource_type = 'storage'`,
+    )
+    expect(entitlements).toEqual([{ bytes: 2048, status: 'active' }])
+
+    const quotaRes = await app.request('/api/quotas/me', { headers })
+    const quota = (await quotaRes.json()) as { entitlementQuota: number }
+    expect(quota.entitlementQuota).toBe(2048)
   })
 
   it('rejects legacy order delivery event types', async () => {
@@ -1708,13 +1878,20 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toEqual({ error: 'invalid_payload' })
   })
 
-  it('applies storage decreases without going below zero', async () => {
+  it('storage decreases revoke matching Cloud order entitlements without changing base quota', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`UPDATE org_quotas SET quota = 2048 WHERE org_id = ${orgId}`)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        ('ent-storage-decrease', ${orgId}, 'storage', 'cloud_order', 'order-storage-decrease', 4096, ${now}, NULL, 'active', NULL, ${now}, ${now})
+    `)
 
     const res = await postWebhook(
       app,
@@ -1731,10 +1908,14 @@ describe('Quota Store API', () => {
 
     expect(res.status).toBe(200)
     const rows = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
-    expect(rows[0].quota).toBe(0)
+    expect(rows[0].quota).toBe(2048)
+    const entitlements = await db.all<{ status: string }>(
+      sql`SELECT status FROM org_quota_entitlements WHERE source_id = 'order-storage-decrease'`,
+    )
+    expect(entitlements).toEqual([{ status: 'revoked' }])
   })
 
-  it('applies traffic increases and decreases', async () => {
+  it('records traffic increases and revokes them on matching decreases', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1757,7 +1938,7 @@ describe('Quota Store API', () => {
       app,
       JSON.stringify({
         eventId: 'evt-traffic-decrease',
-        cloudOrderId: 'order-traffic-decrease',
+        cloudOrderId: 'order-traffic-increase',
         targetOrgId: orgId,
         eventType: 'order.quota_changed',
         direction: 'decrease',
@@ -1766,10 +1947,15 @@ describe('Quota Store API', () => {
       }),
     )
 
-    const rows = await db.all<{ trafficQuota: number }>(
-      sql`SELECT traffic_quota AS trafficQuota FROM org_quotas WHERE org_id = ${orgId}`,
+    const rows = await db.all<{ trafficQuota: number; status: string }>(
+      sql`SELECT bytes AS trafficQuota, status FROM org_quota_entitlements WHERE source_id = 'order-traffic-increase'`,
     )
-    expect(rows[0].trafficQuota).toBe(3072)
+    expect(rows[0]).toEqual({ trafficQuota: 3072, status: 'active' })
+
+    const quotaRes = await app.request('/api/quotas/me', { headers })
+    const quota = (await quotaRes.json()) as { entitlementTrafficQuota: number; trafficQuota: number }
+    expect(quota.entitlementTrafficQuota).toBe(3072)
+    expect(quota.trafficQuota).toBe(3072)
   })
 
   it('processes same-order increase then decrease as two independent events', async () => {
@@ -1814,6 +2000,10 @@ describe('Quota Store API', () => {
 
     const rows = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
     expect(rows[0].quota).toBe(8192)
+    const entitlements = await db.all<{ status: string }>(
+      sql`SELECT status FROM org_quota_entitlements WHERE source_id = 'order-reversal-test'`,
+    )
+    expect(entitlements).toEqual([{ status: 'revoked' }])
 
     const deliveries = await db.all<{ eventId: string; status: string }>(
       sql`SELECT event_id AS eventId, status FROM webhook_events WHERE event_id IN ('evt-order-increase', 'evt-order-decrease') ORDER BY created_at`,
@@ -1828,6 +2018,60 @@ describe('Quota Store API', () => {
     )
     expect(auditRows.map((r) => r.action)).toContain('quota_order_decrease')
     expect(auditRows.map((r) => r.action)).toContain('quota_order_increase')
+  })
+
+  it('does not fall back to base quota when a second decrease sees an already revoked entitlement', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    await db.run(sql`UPDATE org_quotas SET quota = 8192 WHERE org_id = ${orgId}`)
+
+    await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-double-decrease-increase',
+        cloudOrderId: 'order-double-decrease',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 4096,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+    const firstDecrease = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-double-decrease-first',
+        cloudOrderId: 'order-double-decrease',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 4096,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+    const secondDecrease = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-double-decrease-second',
+        cloudOrderId: 'order-double-decrease',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 4096,
+        trafficBytes: 0,
+        source: 'stripe',
+      }),
+    )
+
+    expect(firstDecrease.status).toBe(200)
+    expect(secondDecrease.status).toBe(200)
+    const rows = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(rows[0].quota).toBe(8192)
   })
 
   it('replaying the same decrease event is idempotent and does not double-deduct', async () => {
@@ -1863,6 +2107,36 @@ describe('Quota Store API', () => {
 
     const rows = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
     expect(rows[0].quota).toBe(6144)
+  })
+
+  it('reverses pre-migration Cloud order quota stored in base quota', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    await db.run(sql`UPDATE org_quotas SET quota = 8192, traffic_quota = 4096 WHERE org_id = ${orgId}`)
+
+    const decrease = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-legacy-base-decrease',
+        cloudOrderId: 'order-legacy-base',
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 2048,
+        trafficBytes: 1024,
+        source: 'stripe',
+      }),
+    )
+
+    expect(decrease.status).toBe(200)
+    await expect(decrease.json()).resolves.toMatchObject({ success: true, duplicate: false })
+    const rows = await db.all<{ quota: number; trafficQuota: number }>(
+      sql`SELECT quota, traffic_quota AS trafficQuota FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0]).toEqual({ quota: 6144, trafficQuota: 3072 })
   })
 
   it('records decrease audit event with correct action and metadata', async () => {
@@ -1937,10 +2211,10 @@ describe('Quota Store API', () => {
     expect(decrease.status).toBe(200)
     await expect(decrease.json()).resolves.toMatchObject({ success: true, duplicate: false })
 
-    const rows = await db.all<{ trafficQuota: number }>(
-      sql`SELECT traffic_quota AS trafficQuota FROM org_quotas WHERE org_id = ${orgId}`,
+    const rows = await db.all<{ status: string }>(
+      sql`SELECT status FROM org_quota_entitlements WHERE source_id = 'order-traffic-reversal'`,
     )
-    expect(rows[0].trafficQuota).toBe(0)
+    expect(rows[0].status).toBe('revoked')
   })
 
   it('rejects failed delivery retries when the payload hash changes', async () => {

@@ -47,6 +47,28 @@ export const orgQuotas = sqliteTable('org_quotas', {
   trafficPeriod: text('traffic_period').notNull().default('1970-01'),
 })
 
+export const orgQuotaEntitlements = sqliteTable(
+  'org_quota_entitlements',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    resourceType: text('resource_type').notNull(),
+    source: text('source').notNull(),
+    sourceId: text('source_id').notNull(),
+    bytes: integer('bytes').notNull(),
+    startsAt: integer('starts_at', { mode: 'timestamp_ms' }).notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+    status: text('status').notNull(),
+    metadata: text('metadata'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('org_quota_entitlements_org_resource_idx').on(t.orgId, t.resourceType, t.status),
+    uniqueIndex('org_quota_entitlements_source_resource_uniq').on(t.source, t.sourceId, t.resourceType),
+  ],
+)
+
 export const webhookEvents = sqliteTable(
   'webhook_events',
   {

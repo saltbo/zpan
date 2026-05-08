@@ -138,8 +138,11 @@ describe('StoragePage', () => {
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
       baseQuota: 1024,
+      entitlementQuota: 512,
       quota: 1536,
       used: 0,
+      baseTrafficQuota: 0,
+      entitlementTrafficQuota: 0,
       trafficQuota: 0,
       trafficUsed: 0,
       trafficPeriod: '2026-05',

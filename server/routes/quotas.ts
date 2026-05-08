@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { organization } from '../db/auth-schema'
-import { orgQuotas } from '../db/schema'
+import { orgQuotaEntitlements, orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
@@ -21,6 +21,7 @@ const adminQuotas = new Hono<Env>()
   .get('/', async (c) => {
     const db = c.get('platform').db
     const period = currentTrafficPeriod()
+    const now = new Date()
 
     await db
       .update(orgQuotas)
@@ -32,7 +33,10 @@ const adminQuotas = new Hono<Env>()
         id: orgQuotas.id,
         orgId: orgQuotas.orgId,
         baseQuota: orgQuotas.quota,
+        entitlementQuota: activeEntitlementBytesSql('storage', now),
         used: orgQuotas.used,
+        baseTrafficQuota: orgQuotas.trafficQuota,
+        entitlementTrafficQuota: activeEntitlementBytesSql('traffic', now),
         trafficQuota: orgQuotas.trafficQuota,
         trafficUsed: orgQuotas.trafficUsed,
         trafficPeriod: orgQuotas.trafficPeriod,
@@ -47,9 +51,12 @@ const adminQuotas = new Hono<Env>()
       id: r.id,
       orgId: r.orgId,
       baseQuota: r.baseQuota,
-      quota: r.baseQuota,
+      entitlementQuota: r.entitlementQuota,
+      quota: r.baseQuota + r.entitlementQuota,
       used: r.used,
-      trafficQuota: r.trafficQuota,
+      baseTrafficQuota: r.baseTrafficQuota,
+      entitlementTrafficQuota: r.entitlementTrafficQuota,
+      trafficQuota: r.trafficQuota + r.entitlementTrafficQuota,
       trafficUsed: r.trafficUsed,
       trafficPeriod: r.trafficPeriod,
       orgName: r.orgName,
@@ -119,4 +126,17 @@ function parseOrgType(metadata: string | null): string {
   } catch {
     return 'unknown'
   }
+}
+
+function activeEntitlementBytesSql(resourceType: 'storage' | 'traffic', now: Date) {
+  const timestamp = now.getTime()
+  return sql<number>`(
+    SELECT COALESCE(SUM(${orgQuotaEntitlements.bytes}), 0)
+    FROM ${orgQuotaEntitlements}
+    WHERE ${orgQuotaEntitlements.orgId} = ${orgQuotas.orgId}
+      AND ${orgQuotaEntitlements.resourceType} = ${resourceType}
+      AND ${orgQuotaEntitlements.status} = 'active'
+      AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
+      AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
+  )`
 }
