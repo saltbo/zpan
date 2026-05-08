@@ -39,15 +39,15 @@ export async function performRefresh(db: Database, baseUrl: string): Promise<voi
       await setLicenseRefreshError(db, state.id, INVALID_CERTIFICATE_ERROR)
       return
     }
-    if (!data.binding?.store_id || !data.account) {
+    if (!data.binding?.storeId || !data.account) {
       await setLicenseRefreshError(db, state.id, INVALID_ENTITLEMENT_RESPONSE_ERROR)
       return
     }
 
     await updateLicenseBindingAfterRefresh(db, {
       id: state.id,
-      refreshToken: data.refresh_token,
-      cloudStoreId: data.binding.store_id,
+      refreshToken: data.refreshToken,
+      cloudStoreId: data.binding.storeId,
       cachedCert: cert,
       cachedExpiresAt: certificateExpiresAt,
       cloudAccountEmail: data.account.email,

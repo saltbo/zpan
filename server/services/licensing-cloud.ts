@@ -1,35 +1,35 @@
 // HTTP client for cloud.zpan.space — pairing and entitlement refresh.
-// All requests have a 10s timeout. Cloud API uses snake_case JSON payloads.
+// All requests have a 10s timeout.
 
 const CLOUD_REQUEST_TIMEOUT_MS = 10_000
 
 export interface PairingResponse {
   code: string
-  pairing_url: string
-  expires_at: string
+  pairingUrl: string
+  expiresAt: string
 }
 
 export interface PairingPollResponse {
   status: 'pending' | 'approved' | 'denied' | 'expired'
-  refresh_token?: string
+  refreshToken?: string
   certificate?: string
   binding?: LicenseBindingInfo
   account?: LicenseAccountInfo
 }
 
 export interface EntitlementRefreshResponse {
-  refresh_token: string
+  refreshToken: string
   certificate: string
   binding: LicenseBindingInfo
   account: LicenseAccountInfo
-  next_refresh_after?: string
+  nextRefreshAfter?: string
 }
 
 export interface LicenseBindingInfo {
   id: string
-  instance_id: string
-  store_id: string
-  authorized_hosts: string[]
+  instanceId: string
+  storeId: string
+  authorizedHosts: string[]
 }
 
 export interface LicenseAccountInfo {
@@ -82,7 +82,7 @@ export async function createPairing(
   const res = await cloudFetch(baseUrl, '/api/pairings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ instance_id: instanceId, instance_name: instanceName, instance_host: instanceHost }),
+    body: JSON.stringify({ instanceId, instanceName, instanceHost }),
   })
 
   if (!res.ok) {
@@ -106,7 +106,7 @@ export async function pollPairing(baseUrl: string, code: string): Promise<Pairin
   return unwrapCloudData<PairingPollResponse>(await res.json())
 }
 
-// Calls POST /api/entitlements with the stored refresh_token.
+// Calls POST /api/entitlements with the stored refreshToken.
 // Throws CloudUnboundError on 401 (instance was unbound from cloud side).
 // Throws CloudNetworkError on network failure.
 export async function refreshEntitlement(baseUrl: string, refreshToken: string): Promise<EntitlementRefreshResponse> {

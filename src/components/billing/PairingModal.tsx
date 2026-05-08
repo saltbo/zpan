@@ -49,7 +49,7 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
   const [state, setState] = useState<PairingState>('loading')
   const [pairingInfo, setPairingInfo] = useState<PairingInfo | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const countdown = useCountdown(pairingInfo?.expires_at ?? null)
+  const countdown = useCountdown(pairingInfo?.expiresAt ?? null)
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -145,7 +145,7 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
               <li>
                 <span className="text-muted-foreground">{t('settings.billing.pairing.step1')} </span>
                 <a
-                  href={pairingInfo.pairing_url}
+                  href={pairingInfo.pairingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium underline underline-offset-4"
@@ -183,7 +183,7 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
         <DialogFooter className="flex-col gap-2 sm:flex-row">
           {pairingInfo && (
             <Button variant="outline" asChild className="w-full sm:w-auto">
-              <a href={pairingInfo.pairing_url} target="_blank" rel="noopener noreferrer">
+              <a href={pairingInfo.pairingUrl} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="mr-2 size-4" />
                 {t('settings.billing.pairing.openDashboard')}
               </a>

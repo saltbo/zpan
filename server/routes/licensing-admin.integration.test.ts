@@ -114,8 +114,8 @@ describe('POST /api/licensing/pair', () => {
 
     const cloudPayload = {
       code: 'ABC-123',
-      pairing_url: 'https://cloud.zpan.space/pair',
-      expires_at: '2026-01-01T00:00:00Z',
+      pairingUrl: 'https://cloud.zpan.space/pair',
+      expiresAt: '2026-01-01T00:00:00Z',
     }
     vi.mocked(fetch).mockResolvedValueOnce(makeCloudResponse(cloudPayload))
 
@@ -127,10 +127,10 @@ describe('POST /api/licensing/pair', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.code).toBe('ABC-123')
-    expect(body.pairing_url).toBe('https://cloud.zpan.space/pair')
+    expect(body.pairingUrl).toBe('https://cloud.zpan.space/pair')
 
     const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(init.body)).instance_host).toBe('http://localhost')
+    expect(JSON.parse(String(init.body)).instanceHost).toBe('http://localhost')
   })
 })
 
@@ -169,9 +169,9 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
         status: 'approved',
-        refresh_token: 'rt-secret',
+        refreshToken: 'rt-secret',
         certificate: signCert(instanceId),
-        binding: { id: 'bind-1', store_id: 'store-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
+        binding: { id: 'bind-1', storeId: 'store-1', instanceId, authorizedHosts: ['localhost'] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
     )
@@ -197,9 +197,9 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
         status: 'approved',
-        refresh_token: 'pair-rt',
+        refreshToken: 'pair-rt',
         certificate,
-        binding: { id: 'bind-1', store_id: 'store-1', instance_id: instanceId, authorized_hosts: ['localhost'] },
+        binding: { id: 'bind-1', storeId: 'store-1', instanceId, authorizedHosts: ['localhost'] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
     )
@@ -220,7 +220,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
         status: 'approved',
-        refresh_token: 'rt-secret',
+        refreshToken: 'rt-secret',
         certificate: signCert('wrong-instance'),
       }),
     )
@@ -239,7 +239,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
         status: 'approved',
-        refresh_token: 'rt-secret',
+        refreshToken: 'rt-secret',
       }),
     )
 
@@ -258,7 +258,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
         status: 'approved',
-        refresh_token: 'rt-secret',
+        refreshToken: 'rt-secret',
         certificate: signCert(instanceId),
       }),
     )
@@ -296,9 +296,9 @@ describe('POST /api/licensing/refresh', () => {
 
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
-        refresh_token: 'new-token',
+        refreshToken: 'new-token',
         certificate: signCert('inst-1'),
-        binding: { id: 'bind-1', store_id: 'store-1', instance_id: 'inst-1', authorized_hosts: ['localhost'] },
+        binding: { id: 'bind-1', storeId: 'store-1', instanceId: 'inst-1', authorizedHosts: ['localhost'] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
     )

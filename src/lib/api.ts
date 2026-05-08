@@ -785,8 +785,8 @@ export type { BindingState }
 
 export interface PairingInfo {
   code: string
-  pairing_url: string
-  expires_at: string
+  pairingUrl: string
+  expiresAt: string
 }
 
 export interface PairingPollResult {

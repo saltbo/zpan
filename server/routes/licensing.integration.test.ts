@@ -34,7 +34,7 @@ describe('GET /api/licensing/status', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.bound).toBe(true)
     expect(body.account_email).toBe('user@example.com')
-    // refresh_token must never appear in the response
+    // refreshToken must never appear in the response
     expect(body.refresh_token).toBeUndefined()
     expect(body.refreshToken).toBeUndefined()
   })
@@ -131,7 +131,7 @@ describe('POST /api/licensing/refresh-cron', () => {
 
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
-        refresh_token: 'new-token',
+        refreshToken: 'new-token',
         certificate: 'v4.public.fake-cert-for-test',
       }),
     )

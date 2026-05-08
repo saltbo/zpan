@@ -116,16 +116,16 @@ describe('performRefresh', () => {
     await expect(performRefresh(db, 'https://cloud.zpan.space')).resolves.toBeUndefined()
   })
 
-  it('rotates refresh_token and stores PASETO certificate from cloud', async () => {
+  it('rotates refreshToken and stores PASETO certificate from cloud', async () => {
     const db = makeDb()
     await seedBinding(db)
 
     const cert = signAssertion({ expiresAt: nowSec() + 86400 })
 
     const cloudPayload = {
-      refresh_token: 'new-rt',
+      refreshToken: 'new-rt',
       certificate: cert,
-      binding: { id: 'bind-1', store_id: 'store-new', instance_id: 'inst-abc', authorized_hosts: [] },
+      binding: { id: 'bind-1', storeId: 'store-new', instanceId: 'inst-abc', authorizedHosts: [] },
       account: { id: 'acct-1', email: 'acct@example.com' },
     }
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -153,9 +153,9 @@ describe('performRefresh', () => {
     const cert = signAssertion({ expiresAt })
 
     const cloudPayload = {
-      refresh_token: 'new-rt-paseto',
+      refreshToken: 'new-rt-paseto',
       certificate: cert,
-      binding: { id: 'bind-1', store_id: 'store-new', instance_id: 'inst-abc', authorized_hosts: [] },
+      binding: { id: 'bind-1', storeId: 'store-new', instanceId: 'inst-abc', authorizedHosts: [] },
       account: { id: 'acct-1', email: 'acct@example.com' },
     }
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -216,9 +216,9 @@ describe('performRefresh', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        refresh_token: 'new-rt',
+        refreshToken: 'new-rt',
         certificate: cert,
-        binding: { id: 'bind-1', instance_id: 'wrong-instance', authorized_hosts: [] },
+        binding: { id: 'bind-1', instanceId: 'wrong-instance', authorizedHosts: [] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
       text: async () => '',
@@ -241,8 +241,8 @@ describe('performRefresh', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        refresh_token: 'new-rt',
-        binding: { id: 'bind-1', instance_id: 'inst-abc', authorized_hosts: [] },
+        refreshToken: 'new-rt',
+        binding: { id: 'bind-1', instanceId: 'inst-abc', authorizedHosts: [] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
       text: async () => '',
