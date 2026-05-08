@@ -1,34 +1,57 @@
 import { describe, expect, it } from 'vitest'
-import { activityEvents, orgQuotas, webhookEvents } from '../db/schema'
+import { activityEvents, orgQuotaEntitlements, orgQuotas, webhookEvents } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { processCloudOrderQuotaChange } from './cloud-store'
 
-function createAsyncDb(quotaRows: Array<{ id: string }> = [{ id: 'quota-1' }]) {
+function createAsyncDb(
+  quotaRows: Array<{ id: string }> = [{ id: 'quota-1' }],
+  entitlementRevokeRows: Array<{ id: string }> = [{ id: 'entitlement-revoked' }],
+  existingEntitlementRows: Array<{ id: string }> = [],
+) {
   const state = {
     audits: 0,
     webhookStatus: '',
-    quotaUpdates: 0,
+    entitlementInserts: 0,
+    entitlementRevokes: 0,
+    legacyQuotaUpdates: 0,
   }
   const db = {
     constructor: { name: 'AsyncTestDatabase' },
     transaction: async (fn: (tx: unknown) => Promise<void>) => fn(db),
     insert: (table: unknown) => ({
-      values: async (values: Record<string, unknown>) => {
-        if (table === webhookEvents) state.webhookStatus = String(values.status)
-        if (table === activityEvents) state.audits += 1
+      values: (values: Record<string, unknown>) => {
+        const apply = () => {
+          if (table === webhookEvents) state.webhookStatus = String(values.status)
+          if (table === activityEvents) state.audits += 1
+          if (table === orgQuotaEntitlements) state.entitlementInserts += Array.isArray(values) ? values.length : 1
+        }
+        if (table === orgQuotaEntitlements) return { onConflictDoUpdate: async () => apply() }
+        return Promise.resolve(apply())
       },
+    }),
+    select: () => ({
+      from: (table: unknown) => ({
+        where: () => ({
+          limit: async () => {
+            if (table === orgQuotas) return quotaRows
+            if (table === orgQuotaEntitlements) return existingEntitlementRows
+            return []
+          },
+        }),
+      }),
     }),
     update: (table: unknown) => ({
       set: (values: Record<string, unknown>) => ({
         where: () => {
-          if (table === orgQuotas) {
+          if (table === orgQuotaEntitlements) {
             return {
               returning: async () => {
-                state.quotaUpdates += 1
-                return quotaRows
+                state.entitlementRevokes += 1
+                return entitlementRevokeRows
               },
             }
           }
+          if (table === orgQuotas) state.legacyQuotaUpdates += 1
           if (table === webhookEvents) state.webhookStatus = String(values.status)
           return Promise.resolve()
         },
@@ -53,7 +76,8 @@ function createUniqueConflictDb(existing: { id: string; payloadHash: string; sta
   const state = {
     audits: 0,
     webhookStatus: existing?.status ?? '',
-    quotaUpdates: 0,
+    entitlementInserts: 0,
+    entitlementRevokes: 0,
   }
   const db = {
     constructor: { name: 'AsyncTestDatabase' },
@@ -62,24 +86,29 @@ function createUniqueConflictDb(existing: { id: string; payloadHash: string; sta
       values: async (values: Record<string, unknown>) => {
         if (table === webhookEvents) throw new Error('UNIQUE constraint failed: webhook_events.source, event_id')
         if (table === activityEvents) state.audits += 1
+        if (table === orgQuotaEntitlements) state.entitlementInserts += Array.isArray(values) ? values.length : 1
         return values
       },
     }),
     select: () => ({
-      from: () => ({
+      from: (table: unknown) => ({
         where: () => ({
-          limit: async () => (existing ? [existing] : []),
+          limit: async () => {
+            if (table === webhookEvents) return existing ? [existing] : []
+            if (table === orgQuotas) return [{ id: 'quota-retry' }]
+            return []
+          },
         }),
       }),
     }),
     update: (table: unknown) => ({
       set: (values: Record<string, unknown>) => ({
         where: () => {
-          if (table === orgQuotas) {
+          if (table === orgQuotaEntitlements) {
             return {
               returning: async () => {
-                state.quotaUpdates += 1
-                return [{ id: 'quota-retry' }]
+                state.entitlementRevokes += 1
+                return [{ id: 'entitlement-revoked' }]
               },
             }
           }
@@ -93,11 +122,16 @@ function createUniqueConflictDb(existing: { id: string; payloadHash: string; sta
   return { db: db as unknown as Database, state }
 }
 
-function createSyncDb() {
+function createSyncDb(
+  entitlementRevokeRows: Array<{ id: string }> = [{ id: 'entitlement-revoked' }],
+  existingEntitlementRows: Array<{ id: string }> = [],
+) {
   const state = {
     audits: 0,
     webhookStatus: '',
-    quotaUpdates: 0,
+    entitlementInserts: 0,
+    entitlementRevokes: 0,
+    legacyQuotaUpdates: 0,
   }
 
   class BetterSQLite3Database {
@@ -108,13 +142,32 @@ function createSyncDb() {
     insert(table: unknown) {
       return {
         values: (values: Record<string, unknown>) => {
+          const apply = () => {
+            if (table === webhookEvents) state.webhookStatus = String(values.status)
+            if (table === activityEvents) state.audits += 1
+            if (table === orgQuotaEntitlements) state.entitlementInserts += Array.isArray(values) ? values.length : 1
+          }
           return {
-            run: () => {
-              if (table === webhookEvents) state.webhookStatus = String(values.status)
-              if (table === activityEvents) state.audits += 1
-            },
+            run: apply,
+            onConflictDoUpdate: () => ({ run: apply }),
           }
         },
+      }
+    }
+
+    select() {
+      return {
+        from: (table: unknown) => ({
+          where: () => ({
+            limit: () => ({
+              all: () => {
+                if (table === orgQuotas) return [{ id: 'quota-sync' }]
+                if (table === orgQuotaEntitlements) return existingEntitlementRows
+                return []
+              },
+            }),
+          }),
+        }),
       }
     }
 
@@ -122,16 +175,17 @@ function createSyncDb() {
       return {
         set: (values: Record<string, unknown>) => ({
           where: () => {
-            if (table === orgQuotas) {
+            if (table === orgQuotaEntitlements) {
               return {
                 returning: () => ({
                   all: () => {
-                    state.quotaUpdates += 1
-                    return [{ id: 'quota-sync' }]
+                    state.entitlementRevokes += 1
+                    return entitlementRevokeRows
                   },
                 }),
               }
             }
+            if (table === orgQuotas) state.legacyQuotaUpdates += 1
             state.webhookStatus = String(values.status)
             return { run: () => undefined }
           },
@@ -160,7 +214,7 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-async',
     })
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', quotaUpdates: 1 })
+    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', entitlementInserts: 1 })
   })
 
   it('processes quota change with a sync transaction database', async () => {
@@ -179,7 +233,85 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-sync',
     })
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', quotaUpdates: 1 })
+    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', entitlementRevokes: 1 })
+  })
+
+  it('applies legacy base quota decrease with a sync transaction database', async () => {
+    const { db, state } = createSyncDb([], [])
+    const event = {
+      eventId: 'evt-sync-legacy',
+      eventType: 'order.quota_changed' as const,
+      cloudOrderId: 'order-sync-legacy',
+      targetOrgId: 'org-sync-legacy',
+      direction: 'decrease' as const,
+      storageBytes: 4096,
+      trafficBytes: 0,
+    }
+
+    await expect(processCloudOrderQuotaChange(db, event, JSON.stringify(event), 'hash-sync-legacy')).resolves.toEqual({
+      duplicate: false,
+      eventId: 'evt-sync-legacy',
+    })
+    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', legacyQuotaUpdates: 1 })
+  })
+
+  it('does not apply sync legacy base decrease when a matching entitlement already exists', async () => {
+    const { db, state } = createSyncDb([], [{ id: 'entitlement-revoked' }])
+    const event = {
+      eventId: 'evt-sync-existing',
+      eventType: 'order.quota_changed' as const,
+      cloudOrderId: 'order-sync-existing',
+      targetOrgId: 'org-sync-existing',
+      direction: 'decrease' as const,
+      storageBytes: 4096,
+      trafficBytes: 0,
+    }
+
+    await expect(processCloudOrderQuotaChange(db, event, JSON.stringify(event), 'hash-sync-existing')).resolves.toEqual(
+      {
+        duplicate: false,
+        eventId: 'evt-sync-existing',
+      },
+    )
+    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', legacyQuotaUpdates: 0 })
+  })
+
+  it('applies legacy base quota decrease when no entitlement exists for the Cloud order', async () => {
+    const { db, state } = createAsyncDb([{ id: 'quota-legacy' }], [], [])
+    const event = {
+      eventId: 'evt-legacy-decrease',
+      eventType: 'order.quota_changed' as const,
+      cloudOrderId: 'order-legacy-decrease',
+      targetOrgId: 'org-legacy',
+      direction: 'decrease' as const,
+      storageBytes: 4096,
+      trafficBytes: 2048,
+    }
+
+    await expect(processCloudOrderQuotaChange(db, event, JSON.stringify(event), 'hash-legacy')).resolves.toEqual({
+      duplicate: false,
+      eventId: 'evt-legacy-decrease',
+    })
+    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', legacyQuotaUpdates: 1 })
+  })
+
+  it('does not apply legacy base decrease when a matching entitlement already exists', async () => {
+    const { db, state } = createAsyncDb([{ id: 'quota-existing-entitlement' }], [], [{ id: 'entitlement-revoked' }])
+    const event = {
+      eventId: 'evt-existing-entitlement-decrease',
+      eventType: 'order.quota_changed' as const,
+      cloudOrderId: 'order-existing-entitlement',
+      targetOrgId: 'org-existing-entitlement',
+      direction: 'decrease' as const,
+      storageBytes: 4096,
+      trafficBytes: 0,
+    }
+
+    await expect(processCloudOrderQuotaChange(db, event, JSON.stringify(event), 'hash-existing')).resolves.toEqual({
+      duplicate: false,
+      eventId: 'evt-existing-entitlement-decrease',
+    })
+    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', legacyQuotaUpdates: 0 })
   })
 
   it('marks async quota change failed when the target quota is missing', async () => {
@@ -197,7 +329,7 @@ describe('processCloudOrderQuotaChange', () => {
     await expect(processCloudOrderQuotaChange(db, event, JSON.stringify(event), 'hash-missing')).rejects.toThrow(
       'target_quota_missing',
     )
-    expect(state).toMatchObject({ audits: 0, webhookStatus: 'failed', quotaUpdates: 1 })
+    expect(state).toMatchObject({ audits: 0, webhookStatus: 'failed', entitlementRevokes: 0 })
   })
 
   it('surfaces quota change webhook insert failures', async () => {
@@ -236,7 +368,7 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: true,
       eventId: 'evt-duplicate',
     })
-    expect(state).toMatchObject({ audits: 0, webhookStatus: 'processed', quotaUpdates: 0 })
+    expect(state).toMatchObject({ audits: 0, webhookStatus: 'processed', entitlementInserts: 0 })
   })
 
   it('rejects duplicate webhook events when the payload hash changes', async () => {
@@ -280,6 +412,6 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-retry',
     })
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', quotaUpdates: 1 })
+    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', entitlementRevokes: 2 })
   })
 })

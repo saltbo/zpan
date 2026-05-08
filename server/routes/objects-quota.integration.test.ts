@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { orgQuotas } from '../db/schema.js'
+import { orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
 import { currentTrafficPeriod } from '../services/effective-quota.js'
 import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
@@ -78,6 +78,28 @@ async function setOrgQuota(
       trafficPeriod: currentTrafficPeriod(),
     })
   }
+}
+
+async function addStorageEntitlement(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  orgId: string,
+  bytes: number,
+) {
+  const now = new Date()
+  await db.insert(orgQuotaEntitlements).values({
+    id: nanoid(),
+    orgId,
+    resourceType: 'storage',
+    source: 'test',
+    sourceId: nanoid(),
+    bytes,
+    startsAt: now,
+    expiresAt: null,
+    status: 'active',
+    metadata: null,
+    createdAt: now,
+    updatedAt: now,
+  })
 }
 
 // ─── POST /api/objects/copy — quota enforcement ──────────────────────────
@@ -330,6 +352,49 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
 
     const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
     expect(quotaRows[0].used).toBe(350)
+  })
+
+  it('uses active storage entitlements when confirming upload', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await setOrgQuota(db, orgId, 100, 90)
+    await addStorageEntitlement(db, orgId, 100)
+    await insertFile(db, orgId, { id: 'm-done-entitlement', name: 'entitled.txt', size: 50, status: 'draft' })
+
+    const res = await app.request('/api/objects/m-done-entitlement', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'confirm' }),
+    })
+
+    expect(res.status).toBe(200)
+    const quotaRows = await db.all<{ used: number; quota: number }>(
+      sql`SELECT used, quota FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(quotaRows[0]).toEqual({ used: 140, quota: 100 })
+  })
+
+  it('enforces storage entitlements when base quota is unlimited', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await setOrgQuota(db, orgId, 0, 90)
+    await addStorageEntitlement(db, orgId, 100)
+    await insertFile(db, orgId, { id: 'm-done-zero-base-entitlement', name: 'limited.txt', size: 11, status: 'draft' })
+
+    const res = await app.request('/api/objects/m-done-zero-base-entitlement', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'confirm' }),
+    })
+
+    expect(res.status).toBe(422)
+    await expect(res.json()).resolves.toMatchObject({ error: 'Quota exceeded' })
   })
 
   it('returns 200 and increments storages.used when quota allows', async () => {

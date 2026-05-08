@@ -1,7 +1,7 @@
 import { and, count, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
-import { orgQuotas } from '../db/schema'
+import { orgQuotaEntitlements, orgQuotas } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { currentTrafficPeriod } from './effective-quota'
 
@@ -33,6 +33,7 @@ export async function listUsers(
 ): Promise<{ items: UserWithOrg[]; total: number }> {
   const offset = (page - 1) * pageSize
   const term = search?.trim().toLowerCase()
+  const now = new Date()
   const filter = term
     ? or(
         sql`lower(${user.name}) like ${`%${term}%`}`,
@@ -59,7 +60,7 @@ export async function listUsers(
       orgId: organization.id,
       orgName: organization.name,
       quotaUsed: orgQuotas.used,
-      quotaTotal: orgQuotas.quota,
+      quotaTotal: sql<number>`COALESCE(${orgQuotas.quota}, 0) + ${activeStorageEntitlementBytesSql(now)}`,
     })
     .from(user)
     .leftJoin(organization, eq(organization.slug, sql`'personal-' || ${user.id}`))
@@ -75,6 +76,19 @@ export async function listUsers(
   }))
 
   return { items, total }
+}
+
+function activeStorageEntitlementBytesSql(now: Date) {
+  const timestamp = now.getTime()
+  return sql`(
+    SELECT COALESCE(SUM(${orgQuotaEntitlements.bytes}), 0)
+    FROM ${orgQuotaEntitlements}
+    WHERE ${orgQuotaEntitlements.orgId} = ${organization.id}
+      AND ${orgQuotaEntitlements.resourceType} = 'storage'
+      AND ${orgQuotaEntitlements.status} = 'active'
+      AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
+      AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
+  )`
 }
 
 export async function setUserStatus(db: Database, userId: string, status: 'active' | 'disabled'): Promise<boolean> {

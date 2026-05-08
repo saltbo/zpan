@@ -275,7 +275,16 @@ export function batchUpdateUserQuota(ids: string[], quota: number) {
 
 export type QuotaItem = Pick<
   OrgQuota,
-  'orgId' | 'quota' | 'used' | 'trafficQuota' | 'trafficUsed' | 'trafficPeriod'
+  | 'orgId'
+  | 'baseQuota'
+  | 'entitlementQuota'
+  | 'quota'
+  | 'used'
+  | 'baseTrafficQuota'
+  | 'entitlementTrafficQuota'
+  | 'trafficQuota'
+  | 'trafficUsed'
+  | 'trafficPeriod'
 > & {
   orgName?: string
   orgType?: string
@@ -301,9 +310,13 @@ export function getUserQuota() {
     {
       orgId: string
       baseQuota: number
+      entitlementQuota: number
       quota: number
       used: number
-    } & Pick<OrgQuota, 'trafficQuota' | 'trafficUsed' | 'trafficPeriod'>
+    } & Pick<
+      OrgQuota,
+      'baseTrafficQuota' | 'entitlementTrafficQuota' | 'trafficQuota' | 'trafficUsed' | 'trafficPeriod'
+    >
   >(userQuotas.me.$get())
 }
 

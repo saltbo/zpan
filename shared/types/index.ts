@@ -37,8 +37,12 @@ export interface Storage {
 export interface OrgQuota {
   id: string
   orgId: string
+  baseQuota: number
+  entitlementQuota: number
   quota: number
   used: number
+  baseTrafficQuota: number
+  entitlementTrafficQuota: number
   trafficQuota: number
   trafficUsed: number
   trafficPeriod: string

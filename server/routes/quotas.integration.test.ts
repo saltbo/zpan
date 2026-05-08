@@ -241,6 +241,38 @@ describe('Admin Quotas API', () => {
     expect(body.items[0].orgName).toBeTruthy()
     expect(body.items[0].orgType).toBe('personal')
   })
+
+  it('GET /api/admin/quotas lists effective quota with active entitlements', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const orgs = await db.all<{ id: string }>(
+      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    const orgId = orgs[0].id
+    const now = Date.now()
+    await db.run(sql`UPDATE org_quotas SET quota = 5000, traffic_quota = 1000 WHERE org_id = ${orgId}`)
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        ('ent-admin-storage', ${orgId}, 'storage', 'test', 'admin-storage', 3000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
+        ('ent-admin-traffic', ${orgId}, 'traffic', 'test', 'admin-traffic', 2000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
+        ('ent-admin-revoked', ${orgId}, 'storage', 'test', 'admin-revoked', 9000, ${now}, NULL, 'revoked', NULL, ${now}, ${now})
+    `)
+
+    const res = await app.request('/api/admin/quotas', { headers })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
+    expect(body.items[0]).toMatchObject({
+      baseQuota: 5000,
+      entitlementQuota: 3000,
+      quota: 8000,
+      baseTrafficQuota: 1000,
+      entitlementTrafficQuota: 2000,
+      trafficQuota: 3000,
+    })
+  })
 })
 
 describe('User Quotas API — /api/quotas', () => {
@@ -306,6 +338,37 @@ describe('User Quotas API — /api/quotas', () => {
     expect(body.used).toBe(0)
     expect(body.trafficQuota).toBe(0)
     expect(body.trafficUsed).toBe(0)
+  })
+
+  it('GET /api/quotas/me returns base quota plus active entitlements', async () => {
+    const { app, db } = await createTestApp()
+    const adminH = await adminHeaders(app)
+    const orgs = await db.all<{ id: string }>(
+      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    const orgId = orgs[0].id
+    const now = Date.now()
+    await db.run(sql`UPDATE org_quotas SET quota = 1000, traffic_quota = 2000 WHERE org_id = ${orgId}`)
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        ('ent-user-storage', ${orgId}, 'storage', 'test', 'user-storage', 4000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
+        ('ent-user-traffic', ${orgId}, 'traffic', 'test', 'user-traffic', 6000, ${now}, NULL, 'active', NULL, ${now}, ${now})
+    `)
+
+    const res = await app.request('/api/quotas/me', { headers: adminH })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body).toMatchObject({
+      baseQuota: 1000,
+      entitlementQuota: 4000,
+      quota: 5000,
+      baseTrafficQuota: 2000,
+      entitlementTrafficQuota: 6000,
+      trafficQuota: 8000,
+    })
   })
 
   it('admin quota updates current org quota without historical grant aggregation', async () => {
