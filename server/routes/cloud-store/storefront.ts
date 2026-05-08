@@ -138,12 +138,19 @@ export const cloudStore = new Hono<Env>()
     const db = c.get('platform').db
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
+    const userId = c.get('userId')!
+    const targetOrgId = c.get('orgId')
+    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
+    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
     const orderId = c.req.param('orderId')
     if (!orderId) return c.json({ error: 'not_found' }, 404)
+    const order = await getCloud(c, orderPath(orderId), cloudOrderResponseSchema)
+    if ('error' in order) return c.json(order, 502)
+    if (!orderBelongsToTarget(order.target, targetOrgId)) return c.json({ error: 'Forbidden' }, 403)
     const origin = getInstanceOrigin(c)
     const result = await postCloudWithBinding(
       c,
-      (storeId) => `${ordersPath()(storeId)}/${encodeURIComponent(orderId)}/payments`,
+      (storeId) => `${orderPath(orderId)(storeId)}/payments`,
       {
         successUrl: `${origin}/storage`,
         cancelUrl: `${origin}/storage`,
@@ -157,14 +164,24 @@ export const cloudStore = new Hono<Env>()
     const db = c.get('platform').db
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
+    const userId = c.get('userId')!
+    const targetOrgId = c.get('orgId')
+    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
+    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
     const orderId = c.req.param('orderId')
     if (!orderId) return c.json({ error: 'not_found' }, 404)
-    const result = await patchCloudWithBinding(
-      c,
-      (storeId) => `${ordersPath()(storeId)}/${encodeURIComponent(orderId)}`,
-      c.req.valid('json'),
-      cloudOrderResponseSchema,
-    )
+    const order = await getCloud(c, orderPath(orderId), cloudOrderResponseSchema)
+    if ('error' in order) return c.json(order, 502)
+    if (!orderBelongsToTarget(order.target, targetOrgId)) return c.json({ error: 'Forbidden' }, 403)
+    const result = await patchCloudWithBinding(c, orderPath(orderId), c.req.valid('json'), cloudOrderResponseSchema)
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })
+
+function orderPath(orderId: string) {
+  return (storeId: string) => `${ordersPath()(storeId)}/${encodeURIComponent(orderId)}`
+}
+
+function orderBelongsToTarget(target: Record<string, unknown> | null, targetOrgId: string): boolean {
+  return target?.orgId === targetOrgId || target?.endUserId === targetOrgId
+}

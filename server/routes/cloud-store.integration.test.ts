@@ -282,13 +282,15 @@ beforeEach(() => {
         } as Response
       }
       if (String(url).includes('/api/stores/') && String(url).includes('/orders')) {
+        const parsedUrl = new URL(String(url))
+        const orderId = parsedUrl.pathname.split('/').at(-1)
         if (init?.method === 'PATCH') {
           return {
             ok: true,
             status: 200,
             json: async () =>
               cloudOrder({
-                id: new URL(String(url)).pathname.split('/').at(-1),
+                id: orderId,
                 status: 'canceled',
                 paymentStatus: 'canceled',
                 fulfillmentStatus: 'canceled',
@@ -302,6 +304,18 @@ beforeEach(() => {
             ok: true,
             status: 201,
             json: async () => cloudOrder({ id: 'order-cloud-1', target: body.target ?? null }),
+          } as Response
+        }
+        if (orderId?.startsWith('order-')) {
+          const targetOrgId = orderId === 'order-other-org' ? 'org-other' : lastTargetOrgId
+          return {
+            ok: true,
+            status: 200,
+            json: async () =>
+              cloudOrder({
+                id: orderId,
+                target: { orgId: targetOrgId, endUserId: targetOrgId },
+              }),
           } as Response
         }
         return {
@@ -1379,11 +1393,22 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, endUserId: orgId } }),
+    } as Response)
 
     const payment = await app.request('/api/store/orders/order-cloud-1/payments', {
       method: 'POST',
       headers,
     })
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, endUserId: orgId } }),
+    } as Response)
     const canceled = await app.request('/api/store/orders/order-cloud-1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -1417,6 +1442,33 @@ describe('Quota Store API', () => {
     expect(String(cancelUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/order-cloud-1`)
     expect(cancelInit.method).toBe('PATCH')
     expect(JSON.parse(String(cancelInit.body))).toEqual({ status: 'canceled' })
+  })
+
+  it('rejects payment continuation and cancellation for another org order', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+
+    const payment = await app.request('/api/store/orders/order-other-org/payments', {
+      method: 'POST',
+      headers,
+    })
+    const canceled = await app.request('/api/store/orders/order-other-org', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+
+    expect(payment.status).toBe(403)
+    await expect(payment.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(canceled.status).toBe(403)
+    await expect(canceled.json()).resolves.toEqual({ error: 'Forbidden' })
+    const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
+    expect(calls.some(([url]) => String(url).includes('/orders/order-other-org/payments'))).toBe(false)
+    expect(
+      calls.some(([url, init]) => String(url).includes('/orders/order-other-org') && init.method === 'PATCH'),
+    ).toBe(false)
   })
 
   it('hides self-service packages when the store is disabled', async () => {
