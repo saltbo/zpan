@@ -117,11 +117,15 @@ function CodeGenerateForm({ form, available, pending, onFormChange, onGenerate }
         onChange={(amount) => onFormChange({ ...form, amount })}
       />
       <Field label={t('admin.storagePlans.codes.currency')} htmlFor="giftCardCurrency">
-        <Input
-          id="giftCardCurrency"
-          value={form.currency}
-          onChange={(event) => onFormChange({ ...form, currency: event.target.value })}
-        />
+        <Select value={form.currency} onValueChange={(currency) => onFormChange({ ...form, currency })}>
+          <SelectTrigger id="giftCardCurrency">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="usd">USD</SelectItem>
+            <SelectItem value="cny">CNY</SelectItem>
+          </SelectContent>
+        </Select>
       </Field>
       <DateField value={form.expiresAt} onChange={(expiresAt) => onFormChange({ ...form, expiresAt })} />
       <NumberField

@@ -19,7 +19,7 @@ export const emptyPackageForm = {
   storageUnit: 'GB' as Unit,
   trafficSize: '',
   trafficUnit: 'GB' as Unit,
-  usdAmount: '999',
+  usdAmount: '9.99',
   cnyAmount: '',
   sortOrder: '0',
 }
@@ -47,8 +47,8 @@ export function packageFormFromPackage(pkg: QuotaStorePackage): PackageFormState
     storageUnit: storageDisplay?.unit ?? 'GB',
     trafficSize: trafficDisplay ? String(trafficDisplay.size) : '',
     trafficUnit: trafficDisplay?.unit ?? 'GB',
-    usdAmount: String(pkg.prices.find((price) => price.currency === 'usd')?.amount ?? ''),
-    cnyAmount: String(pkg.prices.find((price) => price.currency === 'cny')?.amount ?? ''),
+    usdAmount: formatMinorAmount(pkg.prices.find((price) => price.currency === 'usd')?.amount),
+    cnyAmount: formatMinorAmount(pkg.prices.find((price) => price.currency === 'cny')?.amount),
     sortOrder: String(pkg.sortOrder),
   }
 }
@@ -99,12 +99,6 @@ export function StoragePlanForm({
         <p className="text-xs text-destructive">{t('admin.storagePlans.quotaRequired')}</p>
       )}
       <PackageAmountFields form={form} onFormChange={onFormChange} />
-      <NumberField
-        label={t('admin.storagePlans.sortOrder')}
-        id="packageSortOrder"
-        value={form.sortOrder}
-        onChange={(sortOrder) => onFormChange({ ...form, sortOrder })}
-      />
       <PackageFormActions
         editing={editing}
         available={available && quotaValid}
@@ -118,9 +112,17 @@ export function StoragePlanForm({
 
 function packagePricesFromForm(form: PackageFormState) {
   return [
-    { currency: 'usd' as const, amount: Math.round(Number(form.usdAmount)) },
-    { currency: 'cny' as const, amount: Math.round(Number(form.cnyAmount)) },
+    { currency: 'usd' as const, amount: convertCurrencyAmount(form.usdAmount) },
+    { currency: 'cny' as const, amount: convertCurrencyAmount(form.cnyAmount) },
   ].filter((price) => Number.isFinite(price.amount) && price.amount > 0)
+}
+
+function convertCurrencyAmount(amount: string): number {
+  return Math.round(Number(amount) * 100)
+}
+
+function formatMinorAmount(minorAmount: number | undefined): string {
+  return minorAmount === undefined ? '' : (minorAmount / 100).toString()
 }
 
 function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
@@ -205,14 +207,16 @@ function PackageAmountFields({
       <NumberField
         label={t('admin.storagePlans.usdAmount')}
         id="packageUsdAmount"
-        min="1"
+        min="0.01"
+        step="0.01"
         value={form.usdAmount}
         onChange={(usdAmount) => onFormChange({ ...form, usdAmount })}
       />
       <NumberField
         label={t('admin.storagePlans.cnyAmount')}
         id="packageCnyAmount"
-        min="1"
+        min="0.01"
+        step="0.01"
         value={form.cnyAmount}
         onChange={(cnyAmount) => onFormChange({ ...form, cnyAmount })}
       />
@@ -224,18 +228,20 @@ function NumberField({
   label,
   id,
   min,
+  step,
   value,
   onChange,
 }: {
   label: string
   id: string
   min?: string
+  step?: string
   value: string
   onChange: (value: string) => void
 }) {
   return (
     <Field label={label} htmlFor={id}>
-      <Input id={id} type="number" min={min} value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input id={id} type="number" min={min} step={step} value={value} onChange={(e) => onChange(e.target.value)} />
     </Field>
   )
 }

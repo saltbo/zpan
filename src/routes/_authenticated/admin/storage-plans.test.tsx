@@ -190,9 +190,8 @@ describe('AdminStoragePlansPage', () => {
     fireEvent.change(view.getByLabelText('admin.storagePlans.packageName'), { target: { value: '250 GB' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.description'), { target: { value: 'Team storage' } })
     fireEvent.change(view.getByLabelText('admin.storagePlans.storageQuota'), { target: { value: '250' } })
-    fireEvent.change(view.getByLabelText('admin.storagePlans.usdAmount'), { target: { value: '1999' } })
-    fireEvent.change(view.getByLabelText('admin.storagePlans.cnyAmount'), { target: { value: '12900' } })
-    fireEvent.change(view.getByLabelText('admin.storagePlans.sortOrder'), { target: { value: '2' } })
+    fireEvent.change(view.getByLabelText('admin.storagePlans.usdAmount'), { target: { value: '19.99' } })
+    fireEvent.change(view.getByLabelText('admin.storagePlans.cnyAmount'), { target: { value: '129.00' } })
     fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
@@ -205,7 +204,7 @@ describe('AdminStoragePlansPage', () => {
           { currency: 'usd', amount: 1999 },
           { currency: 'cny', amount: 12900 },
         ],
-        sortOrder: 2,
+        sortOrder: 0,
       }),
     )
     expect(toast.success).toHaveBeenCalledWith('admin.storagePlans.packageSaved')
@@ -232,8 +231,8 @@ describe('AdminStoragePlansPage', () => {
     fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.trafficQuota'), { target: { value: '1' } })
     fireEvent.click(within(dialog).getByLabelText('admin.storagePlans.trafficQuota unit'))
     fireEvent.click(await view.findByRole('option', { name: 'TB' }))
-    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.usdAmount'), { target: { value: '4999' } })
-    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.cnyAmount'), { target: { value: '32900' } })
+    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.usdAmount'), { target: { value: '49.99' } })
+    fireEvent.change(within(dialog).getByLabelText('admin.storagePlans.cnyAmount'), { target: { value: '329.00' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
@@ -270,6 +269,7 @@ describe('AdminStoragePlansPage', () => {
     const dialog = await view.findByRole('dialog')
     expect(within(dialog).getByText('admin.storagePlans.newPackage')).toBeTruthy()
     expect(within(dialog).getByLabelText('admin.storagePlans.packageName')).toBeTruthy()
+    expect(within(dialog).queryByLabelText('admin.storagePlans.sortOrder')).toBeNull()
     expect(within(dialog).queryByLabelText('admin.storagePlans.active')).toBeNull()
   })
 
@@ -427,8 +427,10 @@ describe('AdminStoragePlansPage', () => {
     fireEvent.click(view.getByRole('tab', { name: 'admin.storagePlans.tabs.codes' }))
     await waitFor(() => expect(view.getByText('ZS-CODE-1')).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.codes.generateTitle' }))
+    const dialog = await view.findByRole('dialog')
     fireEvent.change(view.getByLabelText('admin.storagePlans.codes.amount'), { target: { value: '50' } })
-    fireEvent.change(view.getByLabelText('admin.storagePlans.codes.currency'), { target: { value: 'usd' } })
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'admin.storagePlans.codes.currency' }))
+    fireEvent.click(await view.findByRole('option', { name: 'USD' }))
     fireEvent.change(view.getByLabelText('admin.storagePlans.codes.count'), { target: { value: '3' } })
     fireEvent.click(view.getByRole('button', { name: 'admin.storagePlans.codes.generate' }))
 
