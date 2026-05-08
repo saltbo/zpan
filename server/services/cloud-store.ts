@@ -1,42 +1,42 @@
-import type { CloudOrderQuotaChange, QuotaStoreSettingsInput } from '@shared/schemas'
-import type { QuotaStoreSettings, QuotaTarget } from '@shared/types'
-import { and, eq, sql } from 'drizzle-orm'
+import type { CloudOrderQuotaChange, CloudStoreSettingsInput } from '@shared/schemas'
+import type { CloudStoreSettings, CloudStoreTarget } from '@shared/types'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
-import { activityEvents, orgQuotas, quotaStoreSettings, webhookEvents } from '../db/schema'
+import { activityEvents, orgQuotas, systemOptions, webhookEvents } from '../db/schema'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
 
-const SETTINGS_ID = 'default'
+const CLOUD_STORE_ENABLED_KEY = 'cloud_store_enabled'
+const CLOUD_STORE_CREATED_AT_KEY = 'cloud_store_created_at'
+const CLOUD_STORE_UPDATED_AT_KEY = 'cloud_store_updated_at'
+const CLOUD_STORE_SETTING_KEYS = [
+  CLOUD_STORE_ENABLED_KEY,
+  CLOUD_STORE_CREATED_AT_KEY,
+  CLOUD_STORE_UPDATED_AT_KEY,
+] as const
 
-export async function getQuotaStoreSettings(db: Database): Promise<QuotaStoreSettings | null> {
+export async function getCloudStoreSettings(db: Database): Promise<CloudStoreSettings | null> {
   const settings = await getRawSettings(db)
   if (!settings) return null
   const binding = await loadActiveLicenseBinding(db)
   return settingsDto(settings, Boolean(binding?.refreshToken))
 }
 
-export async function upsertQuotaStoreSettings(
+export async function upsertCloudStoreSettings(
   db: Database,
-  input: QuotaStoreSettingsInput,
-): Promise<QuotaStoreSettings> {
+  input: CloudStoreSettingsInput,
+): Promise<CloudStoreSettings> {
   const now = new Date()
-  const existing = await getQuotaStoreSettings(db)
-  const values = {
-    enabled: input.enabled,
-    updatedAt: now,
-  }
-
-  if (existing) {
-    await db.update(quotaStoreSettings).set(values).where(eq(quotaStoreSettings.id, SETTINGS_ID))
-  } else {
-    await db.insert(quotaStoreSettings).values({ id: SETTINGS_ID, ...values, createdAt: now })
-  }
-
-  return (await getQuotaStoreSettings(db))!
+  const existing = await getRawSettings(db)
+  const createdAt = existing?.createdAt ?? now
+  await writeSystemOption(db, CLOUD_STORE_ENABLED_KEY, input.enabled ? 'true' : 'false')
+  await writeSystemOption(db, CLOUD_STORE_CREATED_AT_KEY, createdAt.toISOString())
+  await writeSystemOption(db, CLOUD_STORE_UPDATED_AT_KEY, now.toISOString())
+  return (await getCloudStoreSettings(db))!
 }
 
-export async function getAccessibleTargets(db: Database, userId: string): Promise<QuotaTarget[]> {
+export async function getAccessibleTargets(db: Database, userId: string): Promise<CloudStoreTarget[]> {
   const rows = await db
     .select({ orgId: organization.id, name: organization.name, metadata: organization.metadata, role: member.role })
     .from(member)
@@ -58,10 +58,15 @@ export async function canAccessTargetOrg(db: Database, userId: string, orgId: st
 
 export async function getCloudStoreBinding(
   db: Database,
-): Promise<{ boundLicenseId: string; refreshToken: string; instanceId: string }> {
+): Promise<{ boundLicenseId: string; storeId: string; refreshToken: string; instanceId: string }> {
   const binding = await loadActiveLicenseBinding(db)
-  if (!binding?.refreshToken) throw new Error('quota_store_binding_missing')
-  return { boundLicenseId: binding.cloudBindingId, refreshToken: binding.refreshToken, instanceId: binding.instanceId }
+  if (!binding?.refreshToken || !binding.cloudStoreId) throw new Error('quota_store_binding_missing')
+  return {
+    boundLicenseId: binding.cloudBindingId,
+    storeId: binding.cloudStoreId,
+    refreshToken: binding.refreshToken,
+    instanceId: binding.instanceId,
+  }
 }
 
 export async function getUserTerminalLabel(db: Database, userId: string): Promise<string | null> {
@@ -95,8 +100,36 @@ export async function getRequiredSettings(db: Database) {
 }
 
 async function getRawSettings(db: Database) {
-  const rows = await db.select().from(quotaStoreSettings).where(eq(quotaStoreSettings.id, SETTINGS_ID)).limit(1)
-  return rows[0] ?? null
+  const rows = await db
+    .select({ key: systemOptions.key, value: systemOptions.value })
+    .from(systemOptions)
+    .where(inArray(systemOptions.key, [...CLOUD_STORE_SETTING_KEYS]))
+  if (rows.length === 0) return null
+  const values = new Map(rows.map((row) => [row.key, row.value]))
+  const enabled = values.get(CLOUD_STORE_ENABLED_KEY)
+  if (enabled === undefined) return null
+  const createdAt = values.get(CLOUD_STORE_CREATED_AT_KEY)
+  const updatedAt = values.get(CLOUD_STORE_UPDATED_AT_KEY)
+  if (!createdAt || !updatedAt) throw new Error('cloud_store_settings_incomplete')
+  return {
+    id: CLOUD_STORE_ENABLED_KEY,
+    enabled: enabled === 'true',
+    createdAt: new Date(createdAt),
+    updatedAt: new Date(updatedAt),
+  }
+}
+
+async function writeSystemOption(db: Database, key: string, value: string) {
+  const existing = await db
+    .select({ key: systemOptions.key })
+    .from(systemOptions)
+    .where(eq(systemOptions.key, key))
+    .limit(1)
+  if (existing.length > 0) {
+    await db.update(systemOptions).set({ value, public: false }).where(eq(systemOptions.key, key))
+    return
+  }
+  await db.insert(systemOptions).values({ key, value, public: false })
 }
 
 async function processQuotaChangeTransaction(
@@ -259,7 +292,10 @@ function markWebhookEventSync(db: Database, id: string, status: string, error: s
   ).run()
 }
 
-function settingsDto(row: typeof quotaStoreSettings.$inferSelect, cloudReady = true): QuotaStoreSettings {
+function settingsDto(
+  row: { id: string; enabled: boolean; createdAt: Date; updatedAt: Date },
+  cloudReady = true,
+): CloudStoreSettings {
   return {
     id: row.id,
     enabled: row.enabled,

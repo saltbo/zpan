@@ -32,6 +32,7 @@ jobs:
           files: coverage/coverage-final.json
           flags: unit
           fail_ci_if_error: false
+          handle_no_reports_found: true
       - run: npx vitest run --project integration --coverage
       - uses: codecov/codecov-action@v5
         if: always()
@@ -39,6 +40,7 @@ jobs:
           files: coverage/coverage-final.json
           flags: integration
           fail_ci_if_error: false
+          handle_no_reports_found: true
       - run: mkdir -p dist
       - run: npm run test:cf
 

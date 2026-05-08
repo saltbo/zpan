@@ -137,12 +137,6 @@ const APP_SCHEMA_SQL = `
     traffic_used INTEGER NOT NULL DEFAULT 0,
     traffic_period TEXT NOT NULL DEFAULT '1970-01'
   );
-  CREATE TABLE IF NOT EXISTS quota_store_settings (
-    id TEXT PRIMARY KEY,
-    enabled INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
   CREATE TABLE IF NOT EXISTS webhook_events (
     id TEXT PRIMARY KEY,
     source TEXT NOT NULL,
@@ -321,6 +315,7 @@ const APP_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS license_bindings (
     id TEXT PRIMARY KEY,
     cloud_binding_id TEXT NOT NULL,
+    cloud_store_id TEXT,
     instance_id TEXT NOT NULL,
     cloud_account_id TEXT NOT NULL,
     cloud_account_email TEXT,
@@ -410,6 +405,7 @@ export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp
     subject: 'test-binding',
     accountId: 'test-account',
     instanceId: 'test-instance',
+    storeId: 'store-test-binding',
     edition: 'pro',
     authorizedHosts: ['localhost'],
     licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
@@ -420,6 +416,7 @@ export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp
 
   await createLicenseBinding(db, {
     cloudBindingId: 'test-binding',
+    cloudStoreId: 'store-test-binding',
     instanceId: 'test-instance',
     cloudAccountId: 'test-account',
     refreshToken: 'test-refresh-token',

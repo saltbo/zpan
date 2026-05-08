@@ -4,12 +4,9 @@
  * Ensures an admin user and a storage backend exist.
  */
 import { test as setup } from '@playwright/test'
+import Database from 'better-sqlite3'
+import { hashPassword } from '../server/lib/password'
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from './helpers'
-
-const ADMIN_ACCOUNTS = [
-  { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-  { email: 'admin@zpan.dev', password: 'adminadmin' },
-]
 
 const storageConfig = {
   title: 'E2E Storage',
@@ -39,33 +36,87 @@ function isAvailablePrivateStorage(storage: StorageItem) {
   )
 }
 
+function prepareNodeDatabase() {
+  if (process.env.E2E_RUNTIME === 'cf') return
+
+  const dbPath = process.env.DATABASE_URL || './zpan.db'
+  const sqlite = new Database(dbPath)
+  const passwordHash = hashPassword(ADMIN_PASSWORD)
+
+  sqlite
+    .prepare(
+      `
+        INSERT INTO system_options (key, value, public)
+        VALUES ('auth_signup_mode', '', 1)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, public = excluded.public
+      `,
+    )
+    .run()
+
+  sqlite
+    .prepare(
+      `
+        INSERT INTO system_options (key, value, public)
+        VALUES ('cloud_store_enabled', 'true', 0)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, public = excluded.public
+      `,
+    )
+    .run()
+
+  sqlite
+    .prepare(
+      `
+        INSERT INTO system_options (key, value, public)
+        VALUES (?, ?, 0), (?, ?, 0)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `,
+    )
+    .run('cloud_store_created_at', new Date().toISOString(), 'cloud_store_updated_at', new Date().toISOString())
+
+  sqlite
+    .prepare(
+      `
+        UPDATE user
+        SET role = 'admin', updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
+        WHERE email = ?
+      `,
+    )
+    .run(ADMIN_EMAIL)
+
+  sqlite
+    .prepare(
+      `
+        UPDATE account
+        SET password = ?, updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
+        WHERE provider_id = 'credential'
+          AND user_id = (SELECT id FROM user WHERE email = ?)
+      `,
+    )
+    .run(passwordHash, ADMIN_EMAIL)
+
+  sqlite.close()
+}
+
 setup('seed admin and storage', async ({ request }) => {
   const headers = { Origin: 'http://localhost:5173' }
+  prepareNodeDatabase()
 
-  // Try each known admin account
-  let authed = false
-  for (const cred of ADMIN_ACCOUNTS) {
-    const resp = await request.post('/api/auth/sign-in/email', {
-      headers,
-      data: { email: cred.email, password: cred.password },
-    })
-    if (resp.ok()) {
-      authed = true
-      break
-    }
-  }
+  let authResp = await request.post('/api/auth/sign-in/email', {
+    headers,
+    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+  })
 
-  // If none worked, register a new admin (fresh DB in CI)
-  if (!authed) {
+  if (!authResp.ok()) {
     await request.post('/api/auth/sign-up/email', {
       headers,
-      data: { name: 'E2E Admin', email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+      data: { name: 'E2E Admin', email: ADMIN_EMAIL, username: 'e2eadmin', password: ADMIN_PASSWORD },
     })
-    const resp = await request.post('/api/auth/sign-in/email', {
+    prepareNodeDatabase()
+    authResp = await request.post('/api/auth/sign-in/email', {
       headers,
       data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
     })
-    if (!resp.ok()) {
+    if (!authResp.ok()) {
       console.warn('[setup] could not authenticate admin')
       return
     }
@@ -74,11 +125,6 @@ setup('seed admin and storage', async ({ request }) => {
   // E2E specs rely on self-service sign-up to create isolated users. Force the
   // local test environment into OPEN mode so existing dev DB settings do not
   // make the suite depend on invite codes.
-  await request.put('/api/system/options/auth_signup_mode', {
-    headers,
-    data: { value: 'open', public: true },
-  })
-
   // Check if storage already exists
   const list = await request.get('/api/admin/storages', { headers })
   if (list.ok()) {
@@ -98,9 +144,9 @@ setup('seed admin and storage', async ({ request }) => {
   }
 
   // Seed storage
-  const resp = await request.post('/api/admin/storages', {
+  const storageResp = await request.post('/api/admin/storages', {
     headers,
     data: storageConfig,
   })
-  if (!resp.ok()) throw new Error(`could not create E2E storage: ${resp.status()}`)
+  if (!storageResp.ok()) throw new Error(`could not create E2E storage: ${storageResp.status()}`)
 })

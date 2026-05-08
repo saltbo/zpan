@@ -8,6 +8,7 @@ export type LicenseBindingStatus = 'active' | 'disconnected' | 'revoked'
 export interface LicenseState {
   id: string
   cloudBindingId: string
+  cloudStoreId: string | null
   instanceId: string
   cloudAccountId: string
   cloudAccountEmail: string | null
@@ -34,6 +35,7 @@ export async function loadActiveLicenseBinding(db: Database): Promise<LicenseSta
   return {
     id: row.id,
     cloudBindingId: row.cloudBindingId,
+    cloudStoreId: row.cloudStoreId,
     instanceId: row.instanceId,
     cloudAccountId: row.cloudAccountId,
     cloudAccountEmail: row.cloudAccountEmail,
@@ -52,6 +54,7 @@ export async function createLicenseBinding(
   db: Database,
   input: {
     cloudBindingId: string
+    cloudStoreId?: string | null
     instanceId: string
     cloudAccountId: string
     cloudAccountEmail?: string | null
@@ -66,6 +69,7 @@ export async function createLicenseBinding(
   await db.insert(licenseBindings).values({
     id: nanoid(),
     cloudBindingId: input.cloudBindingId,
+    cloudStoreId: input.cloudStoreId ?? null,
     instanceId: input.instanceId,
     cloudAccountId: input.cloudAccountId,
     cloudAccountEmail: input.cloudAccountEmail ?? null,
@@ -85,6 +89,7 @@ export async function updateLicenseBindingAfterRefresh(
   input: {
     id: string
     refreshToken: string
+    cloudStoreId?: string | null
     cachedCert: string
     cachedExpiresAt: number
     cloudAccountEmail?: string | null
@@ -95,6 +100,7 @@ export async function updateLicenseBindingAfterRefresh(
     .update(licenseBindings)
     .set({
       refreshToken: input.refreshToken,
+      cloudStoreId: input.cloudStoreId ?? undefined,
       cachedCertificate: input.cachedCert,
       cachedCertificateExpiresAt: input.cachedExpiresAt,
       cloudAccountEmail: input.cloudAccountEmail ?? undefined,
@@ -131,6 +137,7 @@ function emptyLicenseState(): LicenseState {
   return {
     id: '',
     cloudBindingId: '',
+    cloudStoreId: null,
     instanceId: '',
     cloudAccountId: '',
     cloudAccountEmail: null,

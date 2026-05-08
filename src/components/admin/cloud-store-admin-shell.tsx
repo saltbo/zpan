@@ -1,20 +1,20 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export type StoragePlansAdminTab = 'packages' | 'codes' | 'orders'
+export type CloudStoreAdminTab = 'packages' | 'codes' | 'orders'
 
-export function StoragePlansTabBar({
+export function CloudStoreTabBar({
   activeTab,
   onChange,
 }: {
-  activeTab: StoragePlansAdminTab
-  onChange: (tab: StoragePlansAdminTab) => void
+  activeTab: CloudStoreAdminTab
+  onChange: (tab: CloudStoreAdminTab) => void
 }) {
   const { t } = useTranslation()
-  const tabs: Array<{ id: StoragePlansAdminTab; label: string }> = [
-    { id: 'packages', label: t('admin.storagePlans.tabs.packages') },
-    { id: 'codes', label: t('admin.storagePlans.tabs.codes') },
-    { id: 'orders', label: t('admin.storagePlans.tabs.orders') },
+  const tabs: Array<{ id: CloudStoreAdminTab; label: string }> = [
+    { id: 'packages', label: t('admin.cloudStore.tabs.packages') },
+    { id: 'codes', label: t('admin.cloudStore.tabs.codes') },
+    { id: 'orders', label: t('admin.cloudStore.tabs.orders') },
   ]
   return (
     <div role="tablist" className="flex w-full gap-6 border-b border-border">
@@ -38,7 +38,7 @@ export function StoragePlansTabBar({
   )
 }
 
-export function StoragePlansTabState({
+export function CloudStoreTabState({
   query,
   children,
 }: {
@@ -52,7 +52,7 @@ export function StoragePlansTabState({
   if (query.isError) {
     return (
       <div className="rounded-md border border-destructive/40 p-8 text-center text-sm text-destructive">
-        {t('admin.storagePlans.tabError')}
+        {t('admin.cloudStore.tabError')}
       </div>
     )
   }

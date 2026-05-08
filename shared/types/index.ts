@@ -46,7 +46,7 @@ export interface OrgQuota {
 
 export type WebhookEventStatus = 'processed' | 'duplicate' | 'failed'
 
-export interface QuotaStoreSettings {
+export interface CloudStoreSettings {
   id: string
   enabled: boolean
   status: 'ready' | 'cloud_unbound'
@@ -54,62 +54,106 @@ export interface QuotaStoreSettings {
   updatedAt: string
 }
 
-export interface QuotaStorePackage {
+export interface CloudProduct {
   id: string
+  type: 'zpan_quota'
   name: string
-  description: string
-  storageBytes: number
-  trafficBytes: number
-  prices: QuotaStorePackagePrice[]
+  description: string | null
+  metadata: {
+    storageBytes: number
+    trafficBytes: number
+  }
+  prices: CloudProductPrice[]
   active: boolean
   sortOrder: number
   createdAt: string
   updatedAt: string
 }
 
-export interface QuotaStorePackagePrice {
+export interface CloudProductPrice {
+  id?: string
   currency: string
   amount: number
 }
 
-export interface StoreOrder {
+export interface CloudOrderFulfillmentPayload {
+  storageBytes?: number
+  trafficBytes?: number
+  [key: string]: unknown
+}
+
+export interface CloudOrderItem {
   id: string
-  orgId: string
-  packageName: string
-  packageDescription: string | null
-  storageBytes: number
-  trafficBytes: number
-  subtotalAmount: number
-  giftCardAmount: number
-  stripeAmount: number
-  paidAmount: number
+  orderId: string
+  productId: string
+  productType: string
+  name: string
+  description: string | null
+  quantity: number
+  unitAmount: number
+  totalAmount: number
+  fulfillmentPayload: CloudOrderFulfillmentPayload
+}
+
+export interface CloudOrderTarget {
+  orgId?: string
+  endUserId?: string
+  endUserLabel?: string
+}
+
+export interface CloudOrderPayment {
+  id: string
+  orderId: string
+  provider: string
+  amount: number
   currency: string
-  giftCardId: string | null
-  stripeSessionId: string | null
-  stripePaymentIntentId: string | null
-  paymentStatus: 'pending' | 'paid' | 'refunded' | 'canceled'
-  fulfillmentStatus: 'pending' | 'delivering' | 'delivered' | 'failed' | null
-  terminalUserId: string | null
-  terminalUserEmail: string | null
+  status: 'pending' | 'paid' | 'failed' | 'refunded' | 'canceled'
+  providerSessionId: string | null
+  providerPaymentIntentId: string | null
+  createdAt: string
+  paidAt: string | null
+}
+
+export interface CloudOrder {
+  id: string
+  storeId: string
+  buyerAccountId: string | null
+  target: CloudOrderTarget | null
+  status: 'pending' | 'paid' | 'fulfilled' | 'failed' | 'canceled' | 'refunded'
+  paymentStatus: 'unpaid' | 'pending' | 'paid' | 'failed' | 'refunded' | 'canceled'
+  fulfillmentStatus: 'pending' | 'fulfilled' | 'failed' | 'canceled'
+  currency: string
+  subtotalAmount: number
+  discountAmount: number
+  totalAmount: number
+  items: CloudOrderItem[]
+  payments?: CloudOrderPayment[]
   createdAt: string
   paidAt: string | null
   fulfilledAt: string | null
+  canceledAt: string | null
 }
 
-export interface StoreGiftCard {
+export interface CloudGiftCard {
   id: string
+  storeId?: string | null
+  boundLicenseId: string | null
   code: string
-  initialAmount: number
-  remainingAmount: number
+  amount: number
   currency: string
-  status: 'active' | 'disabled' | 'exhausted' | 'expired'
+  status: 'created' | 'active' | 'disabled' | 'exhausted' | 'expired' | 'revoked'
   expiresAt: string | null
+  firstRedeemedAt: string | null
+  lastRedeemedAt: string | null
+  redemptionCount: number
   disabledAt: string | null
+  revokedAt: string | null
   createdAt: string
   updatedAt: string
+  createdByAdmin: string
 }
 
-export interface QuotaTarget {
+export interface CloudStoreTarget {
   orgId: string
   name: string
   type: string

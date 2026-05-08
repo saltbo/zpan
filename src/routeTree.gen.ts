@@ -33,8 +33,8 @@ import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedSettingsIhostRouteImport } from './routes/_authenticated/settings/ihost'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
-import { Route as AuthenticatedAdminStoragePlansRouteImport } from './routes/_authenticated/admin/storage-plans'
 import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authenticated/admin/licensing'
+import { Route as AuthenticatedAdminCloudStoreRouteImport } from './routes/_authenticated/admin/cloud-store'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
 import { Route as AuthenticatedAdminAnnouncementRouteImport } from './routes/_authenticated/admin/announcement'
 import { Route as AuthenticatedTeamsTeamIdRouteRouteImport } from './routes/_authenticated/teams/$teamId/route'
@@ -177,16 +177,16 @@ const AuthenticatedSettingsAppearanceRoute =
     path: '/appearance',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
-const AuthenticatedAdminStoragePlansRoute =
-  AuthenticatedAdminStoragePlansRouteImport.update({
-    id: '/storage-plans',
-    path: '/storage-plans',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
 const AuthenticatedAdminLicensingRoute =
   AuthenticatedAdminLicensingRouteImport.update({
     id: '/licensing',
     path: '/licensing',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminCloudStoreRoute =
+  AuthenticatedAdminCloudStoreRouteImport.update({
+    id: '/cloud-store',
+    path: '/cloud-store',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
 const AuthenticatedAdminAuditRoute = AuthenticatedAdminAuditRouteImport.update({
@@ -274,8 +274,8 @@ export interface FileRoutesByFullPath {
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
+  '/admin/cloud-store': typeof AuthenticatedAdminCloudStoreRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/admin/storage-plans': typeof AuthenticatedAdminStoragePlansRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -310,8 +310,8 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
+  '/admin/cloud-store': typeof AuthenticatedAdminCloudStoreRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/admin/storage-plans': typeof AuthenticatedAdminStoragePlansRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -351,8 +351,8 @@ export interface FileRoutesById {
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   '/_authenticated/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
+  '/_authenticated/admin/cloud-store': typeof AuthenticatedAdminCloudStoreRoute
   '/_authenticated/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/_authenticated/admin/storage-plans': typeof AuthenticatedAdminStoragePlansRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -392,8 +392,8 @@ export interface FileRouteTypes {
     | '/teams/$teamId'
     | '/admin/announcement'
     | '/admin/audit'
+    | '/admin/cloud-store'
     | '/admin/licensing'
-    | '/admin/storage-plans'
     | '/settings/appearance'
     | '/settings/ihost'
     | '/settings/password'
@@ -428,8 +428,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/announcement'
     | '/admin/audit'
+    | '/admin/cloud-store'
     | '/admin/licensing'
-    | '/admin/storage-plans'
     | '/settings/appearance'
     | '/settings/ihost'
     | '/settings/password'
@@ -468,8 +468,8 @@ export interface FileRouteTypes {
     | '/_authenticated/teams/$teamId'
     | '/_authenticated/admin/announcement'
     | '/_authenticated/admin/audit'
+    | '/_authenticated/admin/cloud-store'
     | '/_authenticated/admin/licensing'
-    | '/_authenticated/admin/storage-plans'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/ihost'
     | '/_authenticated/settings/password'
@@ -673,18 +673,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
-    '/_authenticated/admin/storage-plans': {
-      id: '/_authenticated/admin/storage-plans'
-      path: '/storage-plans'
-      fullPath: '/admin/storage-plans'
-      preLoaderRoute: typeof AuthenticatedAdminStoragePlansRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
     '/_authenticated/admin/licensing': {
       id: '/_authenticated/admin/licensing'
       path: '/licensing'
       fullPath: '/admin/licensing'
       preLoaderRoute: typeof AuthenticatedAdminLicensingRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/cloud-store': {
+      id: '/_authenticated/admin/cloud-store'
+      path: '/cloud-store'
+      fullPath: '/admin/cloud-store'
+      preLoaderRoute: typeof AuthenticatedAdminCloudStoreRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
     '/_authenticated/admin/audit': {
@@ -777,8 +777,8 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminAnnouncementRoute: typeof AuthenticatedAdminAnnouncementRoute
   AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
+  AuthenticatedAdminCloudStoreRoute: typeof AuthenticatedAdminCloudStoreRoute
   AuthenticatedAdminLicensingRoute: typeof AuthenticatedAdminLicensingRoute
-  AuthenticatedAdminStoragePlansRoute: typeof AuthenticatedAdminStoragePlansRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminSettingsEmailRoute: typeof AuthenticatedAdminSettingsEmailRoute
   AuthenticatedAdminSettingsOauthRoute: typeof AuthenticatedAdminSettingsOauthRoute
@@ -791,8 +791,8 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
   {
     AuthenticatedAdminAnnouncementRoute: AuthenticatedAdminAnnouncementRoute,
     AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
+    AuthenticatedAdminCloudStoreRoute: AuthenticatedAdminCloudStoreRoute,
     AuthenticatedAdminLicensingRoute: AuthenticatedAdminLicensingRoute,
-    AuthenticatedAdminStoragePlansRoute: AuthenticatedAdminStoragePlansRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
     AuthenticatedAdminSettingsEmailRoute: AuthenticatedAdminSettingsEmailRoute,
     AuthenticatedAdminSettingsOauthRoute: AuthenticatedAdminSettingsOauthRoute,

@@ -1,5 +1,5 @@
 import type { CreateGiftCardInput, GiftCardStatus } from '@shared/schemas'
-import type { StoreGiftCard } from '@shared/types'
+import type { CloudGiftCard } from '@shared/types'
 import { Ban, Plus, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,7 +47,7 @@ export function StorageGiftCardPanel(props: CodeGenerateFormProps & CodeListProp
         <CodeTable {...props} />
         {props.codes.length === 0 && (
           <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-            {t('admin.storagePlans.codes.empty')}
+            {t('admin.cloudStore.codes.empty')}
           </div>
         )}
       </div>
@@ -71,7 +71,7 @@ function CodeToolbar(props: CodeGenerateFormProps & Pick<CodeListProps, 'status'
       <CodeGenerateDialog {...props}>
         <Button disabled={!props.available}>
           <Plus className="mr-2 h-4 w-4" />
-          {t('admin.storagePlans.codes.generateTitle')}
+          {t('admin.cloudStore.codes.generateTitle')}
         </Button>
       </CodeGenerateDialog>
     </div>
@@ -91,8 +91,8 @@ function CodeGenerateDialog({
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t('admin.storagePlans.codes.generateTitle')}</DialogTitle>
-          <DialogDescription>{t('admin.storagePlans.codes.generateDescription')}</DialogDescription>
+          <DialogTitle>{t('admin.cloudStore.codes.generateTitle')}</DialogTitle>
+          <DialogDescription>{t('admin.cloudStore.codes.generateDescription')}</DialogDescription>
         </DialogHeader>
         <CodeGenerateForm
           {...props}
@@ -112,28 +112,32 @@ function CodeGenerateForm({ form, available, pending, onFormChange, onGenerate }
     <div className="space-y-4">
       <NumberField
         id="giftCardAmount"
-        label={t('admin.storagePlans.codes.amount')}
+        label={t('admin.cloudStore.codes.amount')}
         value={form.amount}
         onChange={(amount) => onFormChange({ ...form, amount })}
       />
-      <Field label={t('admin.storagePlans.codes.currency')} htmlFor="giftCardCurrency">
-        <Input
-          id="giftCardCurrency"
-          value={form.currency}
-          onChange={(event) => onFormChange({ ...form, currency: event.target.value })}
-        />
+      <Field label={t('admin.cloudStore.codes.currency')} htmlFor="giftCardCurrency">
+        <Select value={form.currency} onValueChange={(currency) => onFormChange({ ...form, currency })}>
+          <SelectTrigger id="giftCardCurrency">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="usd">USD</SelectItem>
+            <SelectItem value="cny">CNY</SelectItem>
+          </SelectContent>
+        </Select>
       </Field>
       <DateField value={form.expiresAt} onChange={(expiresAt) => onFormChange({ ...form, expiresAt })} />
       <NumberField
         id="codeCount"
-        label={t('admin.storagePlans.codes.count')}
+        label={t('admin.cloudStore.codes.count')}
         value={form.count}
         max="100"
         onChange={(count) => onFormChange({ ...form, count })}
       />
       <Button className="w-full" disabled={!available || pending} onClick={onGenerate}>
         <Plus className="mr-2 h-4 w-4" />
-        {t('admin.storagePlans.codes.generate')}
+        {t('admin.cloudStore.codes.generate')}
       </Button>
     </div>
   )
@@ -162,7 +166,7 @@ function NumberField({
 function DateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const { t } = useTranslation()
   return (
-    <Field label={t('admin.storagePlans.codes.expiresAt')} htmlFor="codeExpiresAt">
+    <Field label={t('admin.cloudStore.codes.expiresAt')} htmlFor="codeExpiresAt">
       <Input
         id="codeExpiresAt"
         type="datetime-local"
@@ -174,7 +178,7 @@ function DateField({ value, onChange }: { value: string; onChange: (value: strin
 }
 
 type CodeListProps = {
-  codes: StoreGiftCard[]
+  codes: CloudGiftCard[]
   status: GiftCardStatus | 'all'
   available: boolean
   disablingGiftCard: string | null
@@ -192,9 +196,9 @@ function CodeStatusSelect({ status, onStatusChange }: Pick<CodeListProps, 'statu
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {(['all', 'active', 'disabled', 'exhausted', 'expired'] as const).map((value) => (
+        {(['all', 'created', 'active', 'disabled', 'exhausted', 'expired', 'revoked'] as const).map((value) => (
           <SelectItem key={value} value={value}>
-            {t(`admin.storagePlans.codes.status.${value}`)}
+            {t(`admin.cloudStore.codes.status.${value}`)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -210,7 +214,7 @@ function CodeTable(props: CodeListProps) {
         <TableHeader>
           <TableRow>
             {['code', 'storage', 'uses', 'expires', 'statusLabel'].map((key) => (
-              <TableHead key={key}>{t(`admin.storagePlans.codes.${key}`)}</TableHead>
+              <TableHead key={key}>{t(`admin.cloudStore.codes.${key}`)}</TableHead>
             ))}
             <TableHead className="text-right">{t('common.actions')}</TableHead>
           </TableRow>
@@ -232,19 +236,17 @@ function CodeRow({
   deletingGiftCard,
   onRevoke,
   onDelete,
-}: CodeListProps & { code: StoreGiftCard }) {
+}: CodeListProps & { code: CloudGiftCard }) {
   const { t } = useTranslation()
   const [disableConfirmOpen, setRevokeConfirmOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const disabled = Boolean(code.disabledAt)
-  const exhausted = code.remainingAmount === 0
-  const canRevoke = !disabled && !exhausted
-  const canDelete = code.remainingAmount === code.initialAmount
+  const canDisable = code.status === 'created' || code.status === 'active'
+  const canDelete = code.status === 'created'
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">{code.code}</TableCell>
-      <TableCell>{formatMoney(code.initialAmount, code.currency)}</TableCell>
-      <TableCell>{formatMoney(code.remainingAmount, code.currency)}</TableCell>
+      <TableCell>{formatMoney(code.amount, code.currency)}</TableCell>
+      <TableCell>{code.redemptionCount}</TableCell>
       <TableCell>{code.expiresAt ? new Date(code.expiresAt).toLocaleString() : '-'}</TableCell>
       <TableCell>
         <CodeStatusBadge code={code} />
@@ -254,11 +256,11 @@ function CodeRow({
           <Button
             variant="outline"
             size="sm"
-            disabled={!available || !canRevoke || disablingGiftCard === code.code}
+            disabled={!available || !canDisable || disablingGiftCard === code.code}
             onClick={() => setRevokeConfirmOpen(true)}
           >
             <Ban className="mr-2 h-4 w-4" />
-            {t('admin.storagePlans.codes.disable')}
+            {t('admin.cloudStore.codes.disable')}
           </Button>
           <Button
             variant="outline"
@@ -267,14 +269,14 @@ function CodeRow({
             onClick={() => setDeleteConfirmOpen(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            {t('admin.storagePlans.codes.delete')}
+            {t('admin.cloudStore.codes.delete')}
           </Button>
         </div>
         <Dialog open={disableConfirmOpen} onOpenChange={setRevokeConfirmOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{t('admin.storagePlans.codes.disableTitle')}</DialogTitle>
-              <DialogDescription>{t('admin.storagePlans.codes.disableConfirm', { code: code.code })}</DialogDescription>
+              <DialogTitle>{t('admin.cloudStore.codes.disableTitle')}</DialogTitle>
+              <DialogDescription>{t('admin.cloudStore.codes.disableConfirm', { code: code.code })}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button
@@ -292,7 +294,7 @@ function CodeRow({
                   setRevokeConfirmOpen(false)
                 }}
               >
-                {t('admin.storagePlans.codes.disable')}
+                {t('admin.cloudStore.codes.disable')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -300,8 +302,8 @@ function CodeRow({
         <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{t('admin.storagePlans.codes.deleteTitle')}</DialogTitle>
-              <DialogDescription>{t('admin.storagePlans.codes.deleteConfirm', { code: code.code })}</DialogDescription>
+              <DialogTitle>{t('admin.cloudStore.codes.deleteTitle')}</DialogTitle>
+              <DialogDescription>{t('admin.cloudStore.codes.deleteConfirm', { code: code.code })}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button
@@ -319,7 +321,7 @@ function CodeRow({
                   setDeleteConfirmOpen(false)
                 }}
               >
-                {t('admin.storagePlans.codes.delete')}
+                {t('admin.cloudStore.codes.delete')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -329,22 +331,18 @@ function CodeRow({
   )
 }
 
-function CodeStatusBadge({ code }: { code: StoreGiftCard }) {
+function CodeStatusBadge({ code }: { code: CloudGiftCard }) {
   const { t } = useTranslation()
   const status = getCodeStatus(code)
   return (
     <Badge variant={status === 'active' ? 'default' : 'secondary'}>
-      {t(`admin.storagePlans.codes.status.${status}`)}
+      {t(`admin.cloudStore.codes.status.${status}`)}
     </Badge>
   )
 }
 
-function getCodeStatus(code: StoreGiftCard) {
-  const expired = code.expiresAt ? new Date(code.expiresAt).getTime() <= Date.now() : false
-  if (code.disabledAt) return 'disabled'
-  if (expired) return 'expired'
-  if (code.remainingAmount === 0) return 'exhausted'
-  return 'active'
+function getCodeStatus(code: CloudGiftCard) {
+  return code.status
 }
 
 function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {

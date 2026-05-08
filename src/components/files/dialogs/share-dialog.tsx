@@ -210,11 +210,7 @@ export function ShareDialog({ open, item, onOpenChange, onViewShares }: ShareDia
                 />
               )}
 
-              {mode === 'page' && (
-                <>
-                  <PasswordField enabled={passwordEnabled} onToggle={handlePasswordToggle} />
-                </>
-              )}
+              {mode === 'page' && <PasswordField enabled={passwordEnabled} onToggle={handlePasswordToggle} />}
 
               <ExpiresField
                 option={expiresOption}

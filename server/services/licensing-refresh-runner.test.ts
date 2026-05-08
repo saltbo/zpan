@@ -14,6 +14,7 @@ async function seedLicenseBinding(
 ) {
   await createLicenseBinding(db, {
     cloudBindingId: 'bind-1',
+    cloudStoreId: 'store-1',
     instanceId: 'inst-1',
     cloudAccountId: 'acct-1',
     refreshToken: 'some-token',

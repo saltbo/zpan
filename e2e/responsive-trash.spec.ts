@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test'
+import { expandSignUpForm } from './helpers'
 
 // Helper: register and go to recycle bin
 async function signUpAndGoToTrash(page: import('@playwright/test').Page) {
   await page.goto('/sign-up')
+  await expandSignUpForm(page)
   await page.getByLabel('Email').fill(`trash-${Date.now()}@example.com`)
   await page.getByLabel('Username').fill(`trash${Date.now()}`)
   await page.getByLabel('Password').fill('password123456')

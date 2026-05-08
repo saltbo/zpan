@@ -12,27 +12,27 @@ import { Switch } from '@/components/ui/switch'
 export type StorageQuotaUnit = 'MB' | 'GB'
 
 export function StorageSettingsSection({
-  hasStoragePlans,
+  hasCloudStore,
   quotaUnit,
-  storagePlansEnabled,
+  cloudStoreEnabled,
   quotaError,
   quotaInputProps,
   pending,
-  storagePlansLoading,
+  cloudStoreLoading,
   onQuotaUnitChange,
   onSave,
-  onStoragePlansChange,
+  onCloudStoreChange,
 }: {
-  hasStoragePlans: boolean
+  hasCloudStore: boolean
   quotaUnit: StorageQuotaUnit
-  storagePlansEnabled: boolean
+  cloudStoreEnabled: boolean
   quotaError?: string
   quotaInputProps: UseFormRegisterReturn
   pending: boolean
-  storagePlansLoading: boolean
+  cloudStoreLoading: boolean
   onQuotaUnitChange: (unit: StorageQuotaUnit) => void
   onSave: () => void
-  onStoragePlansChange: (enabled: boolean) => void
+  onCloudStoreChange: (enabled: boolean) => void
 }) {
   const { t } = useTranslation()
 
@@ -70,21 +70,21 @@ export function StorageSettingsSection({
 
         <div
           className={`flex items-center justify-between gap-4 rounded-md border p-3 ${
-            !hasStoragePlans ? 'opacity-60' : ''
+            !hasCloudStore ? 'opacity-60' : ''
           }`}
         >
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Label htmlFor="storagePlansEnabled">{t('admin.settings.storagePlansEnabled')}</Label>
+              <Label htmlFor="cloudStoreEnabled">{t('admin.settings.cloudStoreEnabled')}</Label>
               <ProBadge tooltip={t('admin.settings.storageProTooltip')} />
             </div>
-            <p className="text-xs leading-5 text-muted-foreground">{t('admin.settings.storagePlansEnabledHint')}</p>
+            <p className="text-xs leading-5 text-muted-foreground">{t('admin.settings.cloudStoreEnabledHint')}</p>
           </div>
           <Switch
-            id="storagePlansEnabled"
-            checked={storagePlansEnabled}
-            disabled={!hasStoragePlans || pending || storagePlansLoading}
-            onCheckedChange={onStoragePlansChange}
+            id="cloudStoreEnabled"
+            checked={cloudStoreEnabled}
+            disabled={!hasCloudStore || pending || cloudStoreLoading}
+            onCheckedChange={onCloudStoreChange}
           />
         </div>
 

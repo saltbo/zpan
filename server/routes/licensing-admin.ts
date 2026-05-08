@@ -62,14 +62,13 @@ const app = new Hono<Env>()
 
     const result = await pollPairing(baseUrl, code)
 
-    if (result.status === 'approved' && result.refresh_token && result.certificate) {
+    if (result.status === 'approved' && result.refreshToken && result.certificate) {
       const entitlement = {
-        refreshToken: result.refresh_token,
+        refreshToken: result.refreshToken,
         certificate: result.certificate,
         binding: result.binding,
         account: result.account,
       }
-      if (!entitlement) return c.json({ error: 'invalid_pairing_response' }, 502)
       const instanceId = await getOrCreateInstanceId(db)
       const cert = entitlement.certificate
       const assertion = verifyCertificate(cert, {
@@ -77,12 +76,13 @@ const app = new Hono<Env>()
         currentHost: getRequestHost(c),
         cloudBaseUrl: baseUrl,
       })
-      if (!assertion || !entitlement.binding || !entitlement.account) {
+      if (!assertion || !entitlement.binding?.storeId || !entitlement.account) {
         return c.json({ error: 'invalid_certificate' }, 502)
       }
 
       await createLicenseBinding(db, {
         cloudBindingId: entitlement.binding.id,
+        cloudStoreId: entitlement.binding.storeId,
         instanceId,
         cloudAccountId: entitlement.account.id,
         cloudAccountEmail: entitlement.account.email,

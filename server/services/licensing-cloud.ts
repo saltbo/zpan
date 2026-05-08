@@ -1,34 +1,35 @@
 // HTTP client for cloud.zpan.space — pairing and entitlement refresh.
-// All requests have a 10s timeout. Cloud API uses snake_case JSON payloads.
+// All requests have a 10s timeout.
 
 const CLOUD_REQUEST_TIMEOUT_MS = 10_000
 
 export interface PairingResponse {
   code: string
-  pairing_url: string
-  expires_at: string
+  pairingUrl: string
+  expiresAt: string
 }
 
 export interface PairingPollResponse {
   status: 'pending' | 'approved' | 'denied' | 'expired'
-  refresh_token?: string
+  refreshToken?: string
   certificate?: string
   binding?: LicenseBindingInfo
   account?: LicenseAccountInfo
 }
 
 export interface EntitlementRefreshResponse {
-  refresh_token: string
+  refreshToken: string
   certificate: string
   binding: LicenseBindingInfo
   account: LicenseAccountInfo
-  next_refresh_after?: string
+  nextRefreshAfter?: string
 }
 
 export interface LicenseBindingInfo {
   id: string
-  instance_id: string
-  authorized_hosts: string[]
+  instanceId: string
+  storeId: string
+  authorizedHosts: string[]
 }
 
 export interface LicenseAccountInfo {
@@ -81,7 +82,7 @@ export async function createPairing(
   const res = await cloudFetch(baseUrl, '/api/pairings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ instance_id: instanceId, instance_name: instanceName, instance_host: instanceHost }),
+    body: JSON.stringify({ instanceId, instanceName, instanceHost }),
   })
 
   if (!res.ok) {
@@ -89,7 +90,7 @@ export async function createPairing(
     throw new Error(`Cloud pairing failed: ${res.status} ${text}`)
   }
 
-  return res.json() as Promise<PairingResponse>
+  return unwrapCloudData<PairingResponse>(await res.json())
 }
 
 export async function pollPairing(baseUrl: string, code: string): Promise<PairingPollResponse> {
@@ -102,10 +103,10 @@ export async function pollPairing(baseUrl: string, code: string): Promise<Pairin
     throw new Error(`Cloud poll failed: ${res.status} ${text}`)
   }
 
-  return res.json() as Promise<PairingPollResponse>
+  return unwrapCloudData<PairingPollResponse>(await res.json())
 }
 
-// Calls POST /api/entitlements with the stored refresh_token.
+// Calls POST /api/entitlements with the stored refreshToken.
 // Throws CloudUnboundError on 401 (instance was unbound from cloud side).
 // Throws CloudNetworkError on network failure.
 export async function refreshEntitlement(baseUrl: string, refreshToken: string): Promise<EntitlementRefreshResponse> {
@@ -123,7 +124,7 @@ export async function refreshEntitlement(baseUrl: string, refreshToken: string):
     throw new Error(`Cloud refresh failed: ${res.status} ${text}`)
   }
 
-  const data = (await res.json()) as EntitlementRefreshResponse
+  const data = unwrapCloudData<EntitlementRefreshResponse>(await res.json())
   if (!data.certificate) throw new CloudInvalidResponseError()
   return data
 }
@@ -143,13 +144,26 @@ export async function requestBoundCloudJson(
     body: init.payload ? JSON.stringify(init.payload) : undefined,
   })
 
-  const data = await res.json().catch(() => ({}))
+  if (res.status === 204) return null
+
+  const data = await res.json().catch(() => null)
   if (!res.ok) {
     const error =
-      data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : null
+      data &&
+      typeof data === 'object' &&
+      'error' in data &&
+      data.error &&
+      typeof data.error === 'object' &&
+      'code' in data.error &&
+      typeof data.error.code === 'string'
+        ? data.error.code
+        : data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+          ? data.error
+          : null
     throw new Error(error ?? `cloud_request_failed_${res.status}`)
   }
 
+  if (data && typeof data === 'object' && 'data' in data) return data.data
   return data
 }
 
@@ -160,4 +174,9 @@ export async function postBoundCloudJson(
   payload: object,
 ): Promise<unknown> {
   return requestBoundCloudJson(baseUrl, path, refreshToken, { method: 'POST', payload })
+}
+
+function unwrapCloudData<T>(data: unknown): T {
+  if (data && typeof data === 'object' && 'data' in data) return data.data as T
+  return data as T
 }

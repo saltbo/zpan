@@ -14,6 +14,7 @@ const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS license_bindings (
     id TEXT PRIMARY KEY,
     cloud_binding_id TEXT NOT NULL,
+    cloud_store_id TEXT,
     instance_id TEXT NOT NULL,
     cloud_account_id TEXT NOT NULL,
     cloud_account_email TEXT,
@@ -67,6 +68,7 @@ function signAssertion(overrides: Record<string, unknown> = {}): string {
     subject: 'bind-1',
     accountId: 'acct-1',
     instanceId: 'inst-abc',
+    storeId: 'store-1',
     edition: 'pro',
     authorizedHosts: [],
     licenseValidUntil: now + 365 * 24 * 60 * 60,
@@ -85,6 +87,7 @@ async function seedBinding(
   const lastRefreshError = overrides.lastRefreshError
   await createLicenseBinding(db, {
     cloudBindingId: 'bind-1',
+    cloudStoreId: 'store-old',
     instanceId: 'inst-abc',
     cloudAccountId: 'acct-1',
     refreshToken: 'old-rt',
@@ -113,16 +116,16 @@ describe('performRefresh', () => {
     await expect(performRefresh(db, 'https://cloud.zpan.space')).resolves.toBeUndefined()
   })
 
-  it('rotates refresh_token and stores PASETO certificate from cloud', async () => {
+  it('rotates refreshToken and stores PASETO certificate from cloud', async () => {
     const db = makeDb()
     await seedBinding(db)
 
     const cert = signAssertion({ expiresAt: nowSec() + 86400 })
 
     const cloudPayload = {
-      refresh_token: 'new-rt',
+      refreshToken: 'new-rt',
       certificate: cert,
-      binding: { id: 'bind-1', instance_id: 'inst-abc', authorized_hosts: [] },
+      binding: { id: 'bind-1', storeId: 'store-new', instanceId: 'inst-abc', authorizedHosts: [] },
       account: { id: 'acct-1', email: 'acct@example.com' },
     }
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -136,6 +139,7 @@ describe('performRefresh', () => {
 
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('new-rt')
+    expect(state.cloudStoreId).toBe('store-new')
     expect(state.cachedCert).toBe(cert)
     expect(state.lastRefreshAt).toBeTruthy()
     expect(state.lastRefreshError).toBeNull()
@@ -149,9 +153,9 @@ describe('performRefresh', () => {
     const cert = signAssertion({ expiresAt })
 
     const cloudPayload = {
-      refresh_token: 'new-rt-paseto',
+      refreshToken: 'new-rt-paseto',
       certificate: cert,
-      binding: { id: 'bind-1', instance_id: 'inst-abc', authorized_hosts: [] },
+      binding: { id: 'bind-1', storeId: 'store-new', instanceId: 'inst-abc', authorizedHosts: [] },
       account: { id: 'acct-1', email: 'acct@example.com' },
     }
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -212,9 +216,9 @@ describe('performRefresh', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        refresh_token: 'new-rt',
+        refreshToken: 'new-rt',
         certificate: cert,
-        binding: { id: 'bind-1', instance_id: 'wrong-instance', authorized_hosts: [] },
+        binding: { id: 'bind-1', instanceId: 'wrong-instance', authorizedHosts: [] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
       text: async () => '',
@@ -237,8 +241,8 @@ describe('performRefresh', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        refresh_token: 'new-rt',
-        binding: { id: 'bind-1', instance_id: 'inst-abc', authorized_hosts: [] },
+        refreshToken: 'new-rt',
+        binding: { id: 'bind-1', instanceId: 'inst-abc', authorizedHosts: [] },
         account: { id: 'acct-1', email: 'acct@example.com' },
       }),
       text: async () => '',

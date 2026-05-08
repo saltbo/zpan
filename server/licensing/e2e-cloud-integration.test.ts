@@ -67,8 +67,8 @@ describe('E2E: zpan-cloud API contract', () => {
 
     expect(result).toMatchObject({
       code: expect.stringMatching(/^[A-Z0-9]{3}-[A-Z0-9]{3}$/),
-      pairing_url: expect.stringContaining('/pair?code='),
-      expires_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      pairingUrl: expect.stringContaining('/pair?code='),
+      expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     })
   })
 
@@ -83,7 +83,7 @@ describe('E2E: zpan-cloud API contract', () => {
     const result = await pollPairing(CLOUD_BASE_URL, pairing.code)
 
     expect(result.status).toBe('pending')
-    expect(result.refresh_token).toBeUndefined()
+    expect(result.refreshToken).toBeUndefined()
     expect(result.certificate).toBeUndefined()
   })
 
@@ -204,6 +204,7 @@ describe('E2E: Feature gates — expired certificate', () => {
     const expiresAt = nowSec() - 1
     await createLicenseBinding(db, {
       cloudBindingId: 'expired-binding',
+      cloudStoreId: 'store-expired',
       instanceId: 'test-instance',
       cloudAccountId: 'user-123',
       refreshToken: 'test-token',
@@ -273,8 +274,8 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
       new Response(
         JSON.stringify({
           code: 'E2E-TST',
-          pairing_url: 'https://cloud.zpan.space/pair?code=E2E-TST',
-          expires_at: new Date(Date.now() + 900_000).toISOString(),
+          pairingUrl: 'https://cloud.zpan.space/pair?code=E2E-TST',
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
         }),
         { status: 201, headers: { 'Content-Type': 'application/json' } },
       ),
@@ -311,9 +312,14 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
       new Response(
         JSON.stringify({
           status: 'approved',
-          refresh_token: 'rt-e2e-secret',
+          refreshToken: 'rt-e2e-secret',
           certificate: cert,
-          binding: { id: 'e2e-binding', instance_id: instanceId, authorized_hosts: ['localhost'] },
+          binding: {
+            id: 'e2e-binding',
+            storeId: 'store-e2e',
+            instanceId,
+            authorizedHosts: ['localhost'],
+          },
           account: { id: 'user-123', email: 'user@example.com' },
         }),
         { headers: { 'Content-Type': 'application/json' } },
@@ -385,6 +391,7 @@ describe('E2E: PASETO cert verification chain', () => {
 
     await createLicenseBinding(db, {
       cloudBindingId: 'fake-binding',
+      cloudStoreId: 'store-fake',
       instanceId: 'test-instance',
       cloudAccountId: 'test-account',
       refreshToken: 'test-token',

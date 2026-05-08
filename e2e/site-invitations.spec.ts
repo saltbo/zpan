@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signInAsAdmin } from './helpers'
+import { expandSignUpForm, signInAsAdmin } from './helpers'
 
 async function setSignupMode(page: import('@playwright/test').Page, value: string) {
   const result = await page.evaluate(async (nextValue) => {
@@ -78,6 +78,7 @@ test.describe('Site invitation signup flow', () => {
     await expect(emailInput).toHaveValue(invitationEmail)
     await expect(emailInput).toHaveAttribute('readonly')
 
+    await expandSignUpForm(page)
     const username = `invitee${Date.now()}`
     await page.getByLabel('Username').fill(username)
     await page.getByLabel('Password').fill('password123456')

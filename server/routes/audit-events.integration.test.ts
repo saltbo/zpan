@@ -11,7 +11,6 @@ import { S3Service } from '../services/s3.js'
 import { createShare } from '../services/share.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
-type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -806,7 +805,7 @@ describe('Org/team lifecycle audit events (Better Auth hooks)', () => {
     // Manually insert the member
     const now = Date.now()
     await db.run(
-      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES (${'mem-' + memberId}, ${org.id}, ${memberId}, 'viewer', ${now})`,
+      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES (${`mem-${memberId}`}, ${org.id}, ${memberId}, 'viewer', ${now})`,
     )
     const memberRow = await db.all<{ id: string }>(
       sql`SELECT id FROM member WHERE organization_id = ${org.id} AND user_id = ${memberId}`,
@@ -967,14 +966,14 @@ describe('Admin audit API with new event types', () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const admin = await adminHeaders(app)
-    const headers = await authedHeaders(app, 'test@example.com')
+    await authedHeaders(app, 'test@example.com')
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
 
     // Create a folder (records 'create' event)
     await insertFile(db, orgId, { id: 'legacy-file', name: 'legacy.txt' })
 
-    const res = await app.request('/api/admin/audit?action=upload', { headers: admin })
+    await app.request('/api/admin/audit?action=upload', { headers: admin })
     // Upload events come from confirmUpload now but we can still filter on file create
     const res2 = await app.request('/api/admin/audit?targetType=file', { headers: admin })
     expect(res2.status).toBe(200)

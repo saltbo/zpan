@@ -1,4 +1,4 @@
-import type { QuotaStorePackage } from '@shared/types'
+import type { CloudProduct } from '@shared/types'
 import { Pencil, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -13,10 +13,10 @@ export function StoragePlanList({
   onPublishChange,
   actionPending,
 }: {
-  packages: QuotaStorePackage[]
-  onEdit: (pkg: QuotaStorePackage) => void
-  onDelete: (pkg: QuotaStorePackage) => void
-  onPublishChange: (pkg: QuotaStorePackage, active: boolean) => void
+  packages: CloudProduct[]
+  onEdit: (pkg: CloudProduct) => void
+  onDelete: (pkg: CloudProduct) => void
+  onPublishChange: (pkg: CloudProduct, active: boolean) => void
   actionPending?: boolean
 }) {
   const { t } = useTranslation()
@@ -26,12 +26,12 @@ export function StoragePlanList({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{t('admin.storagePlans.packageName')}</TableHead>
-            <TableHead>{t('admin.storagePlans.storageQuota')}</TableHead>
-            <TableHead>{t('admin.storagePlans.trafficQuota')}</TableHead>
-            <TableHead>{t('admin.storagePlans.prices')}</TableHead>
-            <TableHead>{t('admin.storagePlans.active')}</TableHead>
-            <TableHead>{t('admin.storagePlans.sortOrder')}</TableHead>
+            <TableHead>{t('admin.cloudStore.packageName')}</TableHead>
+            <TableHead>{t('admin.cloudStore.storageQuota')}</TableHead>
+            <TableHead>{t('admin.cloudStore.trafficQuota')}</TableHead>
+            <TableHead>{t('admin.cloudStore.prices')}</TableHead>
+            <TableHead>{t('admin.cloudStore.active')}</TableHead>
+            <TableHead>{t('admin.cloudStore.sortOrder')}</TableHead>
             <TableHead className="w-56 text-right">{t('common.actions')}</TableHead>
           </TableRow>
         </TableHeader>
@@ -40,13 +40,13 @@ export function StoragePlanList({
             <TableRow key={pkg.id}>
               <TableCell className="max-w-md">
                 <div className="font-medium">{pkg.name}</div>
-                <div className="mt-1 whitespace-normal text-xs text-muted-foreground">{pkg.description}</div>
+                <div className="mt-1 whitespace-normal text-xs text-muted-foreground">{pkg.description ?? ''}</div>
               </TableCell>
               <TableCell className="tabular-nums">
-                {pkg.storageBytes > 0 ? formatSize(pkg.storageBytes) : '—'}
+                {pkg.metadata.storageBytes > 0 ? formatSize(pkg.metadata.storageBytes) : '—'}
               </TableCell>
               <TableCell className="tabular-nums">
-                {pkg.trafficBytes > 0 ? formatSize(pkg.trafficBytes) : '—'}
+                {pkg.metadata.trafficBytes > 0 ? formatSize(pkg.metadata.trafficBytes) : '—'}
               </TableCell>
               <TableCell className="tabular-nums">{formatPrices(pkg.prices)}</TableCell>
               <TableCell>
@@ -63,7 +63,7 @@ export function StoragePlanList({
                     disabled={actionPending}
                     onClick={() => onPublishChange(pkg, !pkg.active)}
                   >
-                    {pkg.active ? t('admin.storagePlans.unpublish') : t('admin.storagePlans.publish')}
+                    {pkg.active ? t('admin.cloudStore.unpublish') : t('admin.cloudStore.publish')}
                   </Button>
                   <Button variant="outline" size="icon-sm" onClick={() => onEdit(pkg)} title={t('common.edit')}>
                     <Pencil />
@@ -86,14 +86,12 @@ export function StoragePlanList({
         </TableBody>
       </Table>
       {packages.length === 0 && (
-        <div className="border-t p-8 text-center text-sm text-muted-foreground">
-          {t('admin.storagePlans.noPackages')}
-        </div>
+        <div className="border-t p-8 text-center text-sm text-muted-foreground">{t('admin.cloudStore.noPackages')}</div>
       )}
     </div>
   )
 }
 
-function formatPrices(prices: QuotaStorePackage['prices']) {
+function formatPrices(prices: CloudProduct['prices']) {
   return prices.map((price) => `${(price.amount / 100).toFixed(2)} ${price.currency}`).join(' / ')
 }

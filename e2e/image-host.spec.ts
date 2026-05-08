@@ -9,6 +9,7 @@
  */
 
 import { expect, test } from '@playwright/test'
+import { expandSignUpForm } from './helpers'
 
 const EMAIL = () => `ihost-${Date.now()}@example.com`
 const USERNAME = () => `ihost${Date.now()}`
@@ -16,6 +17,7 @@ const PASSWORD = 'password123456'
 
 async function signUpAndGoToImageHost(page: import('@playwright/test').Page) {
   await page.goto('/sign-up')
+  await expandSignUpForm(page)
   await page.getByLabel('Email').fill(EMAIL())
   await page.getByLabel('Username').fill(USERNAME())
   await page.getByLabel('Password').fill(PASSWORD)
@@ -32,9 +34,11 @@ async function enableImageHostFromSettings(page: import('@playwright/test').Page
   await expect(page).toHaveURL(/settings\/ihost/, { timeout: 10000 })
   const enableBtn = page.getByRole('button', { name: /enable|activate/i })
   await expect(enableBtn).toBeVisible({ timeout: 10000 })
-  await enableBtn.click()
-  // Wait for config to update
-  await page.waitForResponse((r) => r.url().includes('/api/ihost/config'), { timeout: 10000 })
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/api/ihost/config'), { timeout: 10000 }),
+    enableBtn.click(),
+  ])
+  expect(response.ok()).toBe(true)
 }
 
 // ---------------------------------------------------------------------------

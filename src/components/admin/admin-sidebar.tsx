@@ -34,7 +34,7 @@ const adminNavItems = [
   { titleKey: 'admin.nav.auth', url: '/admin/settings/oauth', icon: KeyRound },
   { titleKey: 'admin.nav.email', url: '/admin/settings/email', icon: Mail },
   { titleKey: 'admin.nav.settings', url: '/admin/settings', icon: Settings },
-  { titleKey: 'admin.nav.storagePlans', url: '/admin/storage-plans', icon: ShoppingCart },
+  { titleKey: 'admin.nav.cloudStore', url: '/admin/cloud-store', icon: ShoppingCart },
   { titleKey: 'admin.nav.announcement', url: '/admin/announcement', icon: Megaphone },
   { titleKey: 'admin.nav.audit', url: '/admin/audit', icon: ShieldCheck },
   { titleKey: 'admin.nav.licensing', url: '/admin/licensing', icon: BadgeCheck },

@@ -1258,8 +1258,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "quota_store_settings": {
-      "name": "quota_store_settings",
+    "cloud_store_settings": {
+      "name": "cloud_store_settings",
       "columns": {
         "id": {
           "name": "id",

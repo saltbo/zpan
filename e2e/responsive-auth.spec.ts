@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { expandSignUpForm } from './helpers'
 
 // ---------------------------------------------------------------------------
 // Auth pages: sign-in and sign-up should not overflow on any device
@@ -48,6 +49,7 @@ test.describe('Auth pages responsive layout', () => {
   test('mobile: sign-up form fields are usable @mobile', async ({ page }) => {
     await page.goto('/sign-up')
 
+    await expandSignUpForm(page)
     await expect(page.getByLabel('Email', { exact: true })).toBeVisible()
     await expect(page.getByLabel('Username')).toBeVisible()
     await expect(page.getByLabel(/password/i)).toBeVisible()

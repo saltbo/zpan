@@ -53,7 +53,7 @@ CREATE TABLE `quota_store_packages` (
 );
 --> statement-breakpoint
 CREATE INDEX `quota_store_packages_active_sort_idx` ON `quota_store_packages` (`active`,`sort_order`);--> statement-breakpoint
-CREATE TABLE `quota_store_settings` (
+CREATE TABLE `cloud_store_settings` (
 	`id` text PRIMARY KEY NOT NULL,
 	`enabled` integer DEFAULT false NOT NULL,
 	`cloud_base_url` text NOT NULL,

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { expandSignUpForm } from './helpers'
 
 test.describe('Auth flow', () => {
   test('redirects to sign-in when not authenticated @all', async ({ page }) => {
@@ -10,6 +11,7 @@ test.describe('Auth flow', () => {
     await page.goto('/sign-up')
     await expect(page.getByRole('heading', { name: 'ZPan' })).toBeVisible()
 
+    await expandSignUpForm(page)
     await page.getByLabel('Email').fill(`test-${Date.now()}@example.com`)
     await page.getByLabel('Username').fill(`test${Date.now()}`)
     await page.getByLabel('Password').fill('password123456')
@@ -29,6 +31,7 @@ test.describe('Auth flow', () => {
 
     // Register via UI
     await page.goto('/sign-up')
+    await expandSignUpForm(page)
     await page.getByLabel('Email').fill(email)
     await page.getByLabel('Username').fill(`login${Date.now()}`)
     await page.getByLabel('Password').fill('password123456')
@@ -56,6 +59,7 @@ test.describe('Auth flow', () => {
 
   test('sidebar shows only My Files and Trash for regular users @desktop @tablet', async ({ page }) => {
     await page.goto('/sign-up')
+    await expandSignUpForm(page)
     await page.getByLabel('Email').fill(`sidebar-${Date.now()}@example.com`)
     await page.getByLabel('Username').fill(`sidebar${Date.now()}`)
     await page.getByLabel('Password').fill('password123456')

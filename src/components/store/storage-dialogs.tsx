@@ -1,6 +1,6 @@
-import type { QuotaStorePackage } from '@shared/types'
+import type { CloudProduct } from '@shared/types'
 import { Activity, Gift, HardDrive, PlusCircle, ShoppingCart } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,116 +16,94 @@ import { Label } from '@/components/ui/label'
 import { formatSize } from '@/lib/format'
 
 export function StorageActions({
-  code,
   packages,
   packagesDisabled,
-  redeemDisabled,
-  onCodeChange,
   onCheckout,
   onRedeem,
+  isRedeeming,
 }: {
-  code: string
-  packages: QuotaStorePackage[]
+  packages: CloudProduct[]
   packagesDisabled: boolean
-  redeemDisabled: boolean
-  onCodeChange: (code: string) => void
-  onCheckout: (packageId: string, currency: string, giftCardCode?: string) => void
-  onRedeem: () => void
+  onCheckout: (packageId: string, currency: string) => void
+  onRedeem: (code: string) => void
+  isRedeeming: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const [redeemOpen, setRedeemOpen] = useState(false)
+  const [code, setCode] = useState('')
+
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      <StorageDialogButton icon={<Gift />} label={t('storage.redeemTitle')}>
-        <RedeemPanel code={code} disabled={redeemDisabled} onCodeChange={onCodeChange} onRedeem={onRedeem} />
-      </StorageDialogButton>
-      <StorageDialogButton icon={<ShoppingCart />} label={t('storage.packagesTitle')} wide>
-        <PackagePanel packages={packages} giftCardCode={code} disabled={packagesDisabled} onCheckout={onCheckout} />
-      </StorageDialogButton>
-    </div>
-  )
-}
-
-function StorageDialogButton({
-  icon,
-  label,
-  wide = false,
-  children,
-}: {
-  icon: ReactNode
-  label: string
-  wide?: boolean
-  children: ReactNode
-}) {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          {icon}
-          {label}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className={wide ? 'gap-4 p-5 sm:max-w-xl' : 'gap-4 p-5 sm:max-w-[340px]'}>
-        {children}
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function RedeemPanel({
-  code,
-  disabled,
-  onCodeChange,
-  onRedeem,
-}: {
-  code: string
-  disabled: boolean
-  onCodeChange: (code: string) => void
-  onRedeem: () => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <>
-      <DialogHeader className="text-left">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <Gift className="size-4" />
-          </div>
-          <div className="space-y-1">
+      <Dialog open={redeemOpen} onOpenChange={setRedeemOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <Gift />
+            {t('storage.redeemTitle')}
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="gap-4 p-5 sm:max-w-md">
+          <DialogHeader className="space-y-1">
             <DialogTitle className="text-base">{t('storage.redeemTitle')}</DialogTitle>
             <DialogDescription className="text-xs leading-5">{t('storage.redeemDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="code" className="text-xs">
+                {t('storage.giftCardCode')}
+              </Label>
+              <Input
+                id="code"
+                placeholder="ZS-XXXX-XXXX"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                disabled={isRedeeming}
+              />
+            </div>
+            <Button
+              className="w-full"
+              disabled={!code.trim() || isRedeeming}
+              onClick={() => {
+                onRedeem(code.trim())
+                setCode('')
+                setRedeemOpen(false)
+              }}
+            >
+              {t('storage.redeemAction')}
+            </Button>
           </div>
-        </div>
-      </DialogHeader>
-      <div className="space-y-3">
-        <div className="space-y-2">
-          <Label htmlFor="giftCardCode" className="text-xs">
-            {t('storage.giftCardCode')}
-          </Label>
-          <Input
-            id="giftCardCode"
-            className="h-9 font-mono text-sm tracking-wider uppercase"
-            value={code}
-            onChange={(event) => onCodeChange(event.target.value)}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <ShoppingCart />
+            {t('storage.packagesTitle')}
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="gap-4 p-5 sm:max-w-xl">
+          <PackagePanel
+            packages={packages}
+            disabled={packagesDisabled}
+            language={i18n.resolvedLanguage ?? 'en'}
+            onCheckout={onCheckout}
           />
-        </div>
-        <Button className="h-9 w-full text-sm" disabled={disabled} onClick={onRedeem}>
-          {t('storage.redeemButton')}
-        </Button>
-      </div>
-    </>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }
 
 function PackagePanel({
   packages,
-  giftCardCode,
   disabled,
+  language,
   onCheckout,
 }: {
-  packages: QuotaStorePackage[]
-  giftCardCode: string
+  packages: CloudProduct[]
   disabled: boolean
-  onCheckout: (packageId: string, currency: string, giftCardCode?: string) => void
+  language: string
+  onCheckout: (packageId: string, currency: string) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -140,7 +118,8 @@ function PackagePanel({
             key={pkg.id}
             pkg={pkg}
             disabled={disabled}
-            onCheckout={(currency) => onCheckout(pkg.id, currency, giftCardCode.trim() || undefined)}
+            language={language}
+            onCheckout={(currency) => onCheckout(pkg.id, currency)}
           />
         ))}
         {packages.length === 0 && (
@@ -156,59 +135,67 @@ function PackagePanel({
 function PackageOption({
   pkg,
   disabled,
+  language,
   onCheckout,
 }: {
-  pkg: QuotaStorePackage
+  pkg: CloudProduct
   disabled: boolean
+  language: string
   onCheckout: (currency: string) => void
 }) {
   const { t } = useTranslation()
-  const Icon = pkg.storageBytes > 0 && pkg.trafficBytes > 0 ? HardDrive : pkg.trafficBytes > 0 ? Activity : HardDrive
+  const price = selectPrice(pkg.prices, language)
+  const Icon =
+    pkg.metadata.storageBytes > 0 && pkg.metadata.trafficBytes > 0
+      ? HardDrive
+      : pkg.metadata.trafficBytes > 0
+        ? Activity
+        : HardDrive
   return (
     <div className="group flex flex-col justify-between rounded-md border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted/30">
       <div className="space-y-2.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium leading-none">{pkg.name}</p>
-            <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{pkg.description}</p>
+            <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{pkg.description ?? ''}</p>
           </div>
           <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
             <Icon className="size-3.5" />
           </div>
         </div>
         <div>
-          {pkg.storageBytes > 0 && (
-            <p className="text-xl font-semibold tracking-normal">{formatSize(pkg.storageBytes)}</p>
+          {pkg.metadata.storageBytes > 0 && (
+            <p className="text-xl font-semibold tracking-normal">{formatSize(pkg.metadata.storageBytes)}</p>
           )}
-          {pkg.trafficBytes > 0 && (
-            <p className={pkg.storageBytes > 0 ? 'text-sm font-medium' : 'text-xl font-semibold tracking-normal'}>
-              {t('storage.trafficQuota', { size: formatSize(pkg.trafficBytes) })}
+          {pkg.metadata.trafficBytes > 0 && (
+            <p
+              className={
+                pkg.metadata.storageBytes > 0 ? 'text-sm font-medium' : 'text-xl font-semibold tracking-normal'
+              }
+            >
+              {t('storage.trafficQuota', { size: formatSize(pkg.metadata.trafficBytes) })}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">{formatPrices(pkg.prices)}</p>
+          <p className="text-xs text-muted-foreground">{formatMoney(price.amount, price.currency, language)}</p>
         </div>
       </div>
-      <div className="mt-3 grid gap-1.5">
-        {pkg.prices.map((price) => (
-          <Button
-            key={price.currency}
-            className="h-8 w-full text-xs"
-            disabled={disabled}
-            onClick={() => onCheckout(price.currency)}
-          >
-            <PlusCircle className="mr-1.5 size-3.5" />
-            {t('storage.checkout')} · {formatMoney(price.amount, price.currency)}
-          </Button>
-        ))}
+      <div className="mt-3">
+        <Button className="h-8 w-full text-xs" disabled={disabled} onClick={() => onCheckout(price.currency)}>
+          <PlusCircle className="mr-1.5 size-3.5" />
+          {t('storage.checkout')} · {formatMoney(price.amount, price.currency, language)}
+        </Button>
       </div>
     </div>
   )
 }
 
-function formatPrices(prices: QuotaStorePackage['prices']) {
-  return prices.map((price) => formatMoney(price.amount, price.currency)).join(' / ')
+function selectPrice(prices: CloudProduct['prices'], language: string) {
+  const currency = language.startsWith('zh') ? 'cny' : 'usd'
+  const price = prices.find((item) => item.currency === currency)
+  if (!price) throw new Error(`cloud_product_price_missing_${currency.toLowerCase()}`)
+  return price
 }
 
-function formatMoney(amount: number, currency: string) {
-  return `${(amount / 100).toFixed(2)} ${currency}`
+function formatMoney(amount: number, currency: string, language: string) {
+  return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
 }

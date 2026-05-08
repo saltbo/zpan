@@ -18,6 +18,7 @@ describe('GET /api/licensing/status', () => {
 
     await createLicenseBinding(db, {
       cloudBindingId: 'bind-1',
+      cloudStoreId: 'store-1',
       instanceId: 'inst-1',
       cloudAccountId: 'acc-1',
       cloudAccountEmail: 'user@example.com',
@@ -33,7 +34,7 @@ describe('GET /api/licensing/status', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.bound).toBe(true)
     expect(body.account_email).toBe('user@example.com')
-    // refresh_token must never appear in the response
+    // refreshToken must never appear in the response
     expect(body.refresh_token).toBeUndefined()
     expect(body.refreshToken).toBeUndefined()
   })
@@ -43,6 +44,7 @@ describe('GET /api/licensing/status', () => {
 
     await createLicenseBinding(db, {
       cloudBindingId: 'bind-1',
+      cloudStoreId: 'store-1',
       instanceId: 'inst-1',
       cloudAccountId: 'acc-1',
       refreshToken: 'secret',
@@ -129,7 +131,7 @@ describe('POST /api/licensing/refresh-cron', () => {
 
     vi.mocked(fetch).mockResolvedValueOnce(
       makeCloudResponse({
-        refresh_token: 'new-token',
+        refreshToken: 'new-token',
         certificate: 'v4.public.fake-cert-for-test',
       }),
     )

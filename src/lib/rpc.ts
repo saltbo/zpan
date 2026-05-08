@@ -2,14 +2,15 @@ import type {
   AdminAnnouncementsRoute,
   AdminAuditRoute,
   AdminAuthProvidersRoute,
+  AdminCloudStoreRoute,
   AdminInviteCodesRoute,
-  AdminQuotaStoreRoute,
   AdminQuotasRoute,
   AdminSiteInvitationsRoute,
   AnnouncementsRoute,
   AuthedSharesRoute,
   AuthProvidersRoute,
   BrandingAdminRoute,
+  CloudStoreRoute,
   EmailConfigRoute,
   IhostConfigRoute,
   IhostRoute,
@@ -23,7 +24,6 @@ import type {
   PublicSharesRoute,
   PublicSiteInvitationsRoute,
   PublicTeamsRoute,
-  QuotaStoreRoute,
   StoragesRoute,
   SystemRoute,
   TeamsRoute,
@@ -40,9 +40,9 @@ export const trash = hc<TrashRoute>('/api/trash', opts)
 export const storages = hc<StoragesRoute>('/api/admin/storages', opts)
 export const users = hc<UsersRoute>('/api/admin/users', opts)
 export const adminQuotas = hc<AdminQuotasRoute>('/api/admin/quotas', opts)
-export const adminQuotaStoreApi = hc<AdminQuotaStoreRoute>('/api/admin/quota-store', opts)
+export const adminCloudStoreApi = hc<AdminCloudStoreRoute>('/api/admin/store', opts)
 export const userQuotas = hc<UserQuotasRoute>('/api/quotas', opts)
-export const quotaStoreApi = hc<QuotaStoreRoute>('/api/quota-store', opts)
+export const cloudStoreApi = hc<CloudStoreRoute>('/api/store', opts)
 export const system = hc<SystemRoute>('/api/system', opts)
 export const authProviders = hc<AuthProvidersRoute>('/api/auth-providers', opts)
 export const adminAuthProviders = hc<AdminAuthProvidersRoute>('/api/admin/auth-providers', opts)

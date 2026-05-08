@@ -14,28 +14,39 @@ export {
 } from './announcement'
 export type { ListAdminAuditQuery } from './audit'
 export { listAdminAuditQuerySchema } from './audit'
-export type { ListNotificationsQuery } from './notification'
-export { listNotificationsQuerySchema } from './notification'
 export type {
   CheckoutInput,
   CloudOrderQuotaChange,
+  CloudProductInput,
+  CloudProductPatchInput,
+  CloudStoreSettingsInput,
+  CloudWalletResponse,
+  CloudWalletTransaction,
+  CloudWalletTransactionsResponse,
   CreateGiftCardInput,
   DisableGiftCardInput,
   GiftCardStatus,
-  QuotaStorePackageInput,
-  QuotaStorePackagePatchInput,
-  QuotaStoreSettingsInput,
-} from './quota-store'
+  RedeemGiftCardInput,
+  RedeemGiftCardResponse,
+} from './cloud-store'
 export {
   checkoutInputSchema,
   cloudOrderQuotaChangeSchema,
+  cloudProductInputSchema,
+  cloudProductPatchSchema,
+  cloudStoreSettingsSchema,
+  cloudWalletBalanceSchema,
+  cloudWalletResponseSchema,
+  cloudWalletTransactionSchema,
+  cloudWalletTransactionsResponseSchema,
   createGiftCardInputSchema,
   disableGiftCardSchema,
   giftCardStatusSchema,
-  quotaStorePackageInputSchema,
-  quotaStorePackagePatchSchema,
-  quotaStoreSettingsSchema,
-} from './quota-store'
+  redeemGiftCardInputSchema,
+  redeemGiftCardResponseSchema,
+} from './cloud-store'
+export type { ListNotificationsQuery } from './notification'
+export { listNotificationsQuerySchema } from './notification'
 export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'
 export {
   createShareRequestSchema,

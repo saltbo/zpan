@@ -8,44 +8,47 @@ import {
   batchUpdateUserQuota,
   batchUpdateUserStatus,
   buildShareObjectUrl,
+  cancelCloudOrder,
   cancelUpload,
   confirmIhostImage,
   confirmUpload,
   connectCloud,
+  continueCloudOrderPayment,
   copyObject,
   createAnnouncement,
+  createCloudCheckout,
+  createCloudGiftCards,
+  createCloudProduct,
   createIhostApiKey,
   createIhostImagePresign,
   createObject,
-  createQuotaCheckout,
-  createQuotaStorePackage,
   createShare,
   createSiteInvitation,
   createStorage,
-  createStoreGiftCards,
   deleteAnnouncement,
   deleteAvatar,
+  deleteCloudGiftCard,
+  deleteCloudProduct,
   deleteIhostConfig,
   deleteIhostImage,
   deleteObject,
-  deleteQuotaStorePackage,
   deleteShare,
   deleteStorage,
-  deleteStoreGiftCard,
   deleteTeamLogo,
   deleteUser,
-  disableStoreGiftCard,
+  disableCloudGiftCard,
   disconnectCloud,
   emptyTrash,
   enableIhostFeature,
   getAnnouncement,
   getBranding,
+  getCloudStoreSettings,
+  getCloudWallet,
   getEmailConfig,
   getIhostConfig,
   getLicensingStatus,
   getObject,
   getProfile,
-  getQuotaStoreSettings,
   getSession,
   getShare,
   getSiteInvitation,
@@ -56,28 +59,30 @@ import {
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
-  listAdminStoreOrders,
+  listAdminCloudOrders,
+  listAdminCloudProducts,
   listAnnouncements,
   listAuthProviders,
+  listCloudGiftCards,
+  listCloudOrders,
+  listCloudProducts,
+  listCloudStoreTargets,
+  listCloudWalletTransactions,
   listIhostApiKeys,
   listIhostImages,
   listNotifications,
   listObjects,
-  listPurchasableQuotaPackages,
-  listQuotaStorePackages,
-  listQuotaStoreTargets,
   listQuotas,
   listShareObjects,
   listShares,
   listSiteInvitations,
   listStorages,
-  listStoreGiftCards,
-  listStoreOrders,
   listSystemOptions,
   listUsers,
   markAllNotificationsRead,
   markNotificationRead,
   pollPairing,
+  redeemCloudGiftCard,
   refreshLicense,
   resendSiteInvitation,
   resetBrandingField,
@@ -91,11 +96,11 @@ import {
   testEmail,
   trashObject,
   updateAnnouncement,
+  updateCloudProduct,
+  updateCloudStoreSettings,
   updateIhostConfig,
   updateObject,
   updateQuota,
-  updateQuotaStorePackage,
-  updateQuotaStoreSettings,
   updateStorage,
   updateUserStatus,
   uploadAvatar,
@@ -277,59 +282,67 @@ describe('api', () => {
     it('gets admin settings', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null))
 
-      await getQuotaStoreSettings()
+      await getCloudStoreSettings()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/quota-store/settings')
+      expect(url).toBe('/api/admin/store/settings')
       expect(init.method).toBe('GET')
     })
 
     it('updates admin settings payload', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ enabled: true }))
 
-      await updateQuotaStoreSettings({
+      await updateCloudStoreSettings({
         enabled: true,
       })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/quota-store/settings')
+      expect(url).toBe('/api/admin/store/settings')
       expect(init.method).toBe('PUT')
       expect(JSON.parse(init.body as string)).toEqual({ enabled: true })
     })
 
     it('creates packages with typed RPC paths', async () => {
-      const payload: Parameters<typeof createQuotaStorePackage>[0] = {
+      const payload: Parameters<typeof createCloudProduct>[0] = {
+        type: 'zpan_quota',
         name: 'Small',
-        storageBytes: 1024,
+        description: '',
+        metadata: { storageBytes: 1024, trafficBytes: 0 },
         prices: [
           { currency: 'usd', amount: 500 },
           { currency: 'cny', amount: 3600 },
         ],
+        active: true,
+        sortOrder: 0,
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
 
-      await createQuotaStorePackage(payload)
+      await createCloudProduct(payload)
 
       const [createUrl, createInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(createUrl).toBe('/api/admin/quota-store/packages')
+      expect(createUrl).toBe('/api/admin/store/packages')
       expect(createInit.method).toBe('POST')
       expect(JSON.parse(createInit.body as string)).toEqual({
+        type: 'zpan_quota',
         name: 'Small',
-        storageBytes: 1024,
+        description: '',
+        metadata: { storageBytes: 1024, trafficBytes: 0 },
         prices: [
           { currency: 'usd', amount: 500 },
           { currency: 'cny', amount: 3600 },
         ],
+        active: true,
+        sortOrder: 0,
       })
     })
 
     it('updates packages with partial typed RPC payloads', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'pkg-1', active: false }))
 
-      await updateQuotaStorePackage('pkg-1', { active: false })
+      await updateCloudProduct('pkg-1', { active: false })
 
       const [updateUrl, updateInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(updateUrl).toBe('/api/admin/quota-store/packages/pkg-1')
+      expect(updateUrl).toBe('/api/admin/store/packages/pkg-1')
       expect(updateInit.method).toBe('PATCH')
       expect(JSON.parse(updateInit.body as string)).toEqual({ active: false })
     })
@@ -340,13 +353,17 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse({ error: 'package update failed' }, false, 502))
 
       await expect(
-        createQuotaStorePackage({
+        createCloudProduct({
+          type: 'zpan_quota',
           name: 'Small',
-          storageBytes: 1024,
+          description: '',
+          metadata: { storageBytes: 1024, trafficBytes: 0 },
           prices: [{ currency: 'usd', amount: 500 }],
+          active: true,
+          sortOrder: 0,
         }),
       ).rejects.toThrow('package create failed')
-      await expect(updateQuotaStorePackage('pkg-1', { active: false })).rejects.toThrow('package update failed')
+      await expect(updateCloudProduct('pkg-1', { active: false })).rejects.toThrow('package update failed')
     })
 
     it('lists and deletes admin packages', async () => {
@@ -354,12 +371,12 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ id: 'pkg-1', deleted: true }))
 
-      await listQuotaStorePackages()
-      await deleteQuotaStorePackage('pkg-1')
+      await listAdminCloudProducts()
+      await deleteCloudProduct('pkg-1')
 
-      expect((vi.mocked(fetch).mock.calls[0] as [string])[0]).toBe('/api/admin/quota-store/packages')
+      expect((vi.mocked(fetch).mock.calls[0] as [string])[0]).toBe('/api/admin/store/packages')
       const [deleteUrl, deleteInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
-      expect(deleteUrl).toBe('/api/admin/quota-store/packages/pkg-1')
+      expect(deleteUrl).toBe('/api/admin/store/packages/pkg-1')
       expect(deleteInit.method).toBe('DELETE')
     })
 
@@ -371,93 +388,210 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse({ code: 'ZS123', deleted: true }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
-      await listStoreGiftCards('active')
-      await createStoreGiftCards({ amount: 1024, currency: 'usd', count: 3 })
-      await disableStoreGiftCard('ZS123')
-      await deleteStoreGiftCard('ZS123')
-      await listAdminStoreOrders()
+      await listCloudGiftCards('active')
+      await createCloudGiftCards({ amount: 1024, currency: 'usd', count: 3 })
+      await disableCloudGiftCard('ZS123')
+      await deleteCloudGiftCard('ZS123')
+      await listAdminCloudOrders({ limit: 100, offset: 100 })
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
-      expect(calls[0][0]).toBe('/api/admin/quota-store/gift-cards?status=active')
+      expect(calls[0][0]).toBe('/api/admin/store/gift-cards?status=active')
       expect(calls[0][1].method).toBe('GET')
-      expect(calls[1][0]).toBe('/api/admin/quota-store/gift-cards')
+      expect(calls[1][0]).toBe('/api/admin/store/gift-cards')
       expect(calls[1][1].method).toBe('POST')
       expect(JSON.parse(calls[1][1].body as string)).toEqual({
         amount: 1024,
         currency: 'usd',
         count: 3,
       })
-      expect(calls[2][0]).toBe('/api/admin/quota-store/gift-cards/ZS123')
+      expect(calls[2][0]).toBe('/api/admin/store/gift-cards/ZS123')
       expect(calls[2][1].method).toBe('PATCH')
       expect(JSON.parse(calls[2][1].body as string)).toEqual({ disabled: true })
-      expect(calls[3][0]).toBe('/api/admin/quota-store/gift-cards/ZS123')
+      expect(calls[3][0]).toBe('/api/admin/store/gift-cards/ZS123')
       expect(calls[3][1].method).toBe('DELETE')
-      expect(calls[4][0]).toBe('/api/admin/quota-store/orders')
+      expect(calls[4][0]).toBe('/api/admin/store/orders?limit=100&offset=100')
     })
 
     it('calls user store endpoints', async () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
-        .mockResolvedValueOnce(makeResponse({ checkoutUrl: 'https://cloud.example/checkout' }))
+        .mockResolvedValueOnce(makeResponse({ orderId: 'order-1', url: 'https://cloud.example/checkout' }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
-      await listPurchasableQuotaPackages()
-      await listQuotaStoreTargets()
-      await createQuotaCheckout('pkg-1', 'org-1', 'cny', 'GC123')
-      await listStoreOrders()
+      await listCloudProducts()
+      await listCloudStoreTargets()
+      await createCloudCheckout('pkg-1', 'cny')
+      await listCloudOrders({ limit: 100, offset: 100 })
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
-      expect(calls[0][0]).toBe('/api/quota-store/packages')
-      expect(calls[1][0]).toBe('/api/quota-store/targets')
-      expect(calls[2][0]).toBe('/api/quota-store/checkouts')
+      expect(calls[0][0]).toBe('/api/store/packages')
+      expect(calls[1][0]).toBe('/api/store/targets')
+      expect(calls[2][0]).toBe('/api/store/checkouts')
       expect(JSON.parse(calls[2][1].body as string)).toEqual({
         packageId: 'pkg-1',
-        targetOrgId: 'org-1',
         currency: 'cny',
-        giftCardCode: 'GC123',
       })
-      expect(calls[3][0]).toBe('/api/quota-store/orders')
+      expect(calls[3][0]).toBe('/api/store/orders?limit=100&offset=100')
+    })
+
+    it('calls wallet, wallet transactions, redemption, and order action endpoints', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(
+          makeResponse({
+            balances: [
+              {
+                id: 'wallet-1',
+                storeId: 'store-1',
+                endUserId: 'org-1',
+                currency: 'usd',
+                availableAmount: 500,
+                pendingAmount: 0,
+                stripeCustomerId: null,
+                updatedAt: '2026-05-08T00:00:00.000Z',
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeResponse({
+            items: [
+              {
+                id: 'ledger-1',
+                storeId: 'store-1',
+                endUserId: 'org-1',
+                currency: 'usd',
+                amount: 500,
+                direction: 'credit',
+                status: 'posted',
+                sourceType: 'gift_card_redemption',
+                sourceId: 'gc-1',
+                orderId: null,
+                paymentId: null,
+                stripeCustomerBalanceTransactionId: null,
+                createdAt: '2026-05-08T00:00:00.000Z',
+              },
+            ],
+            total: 1,
+            limit: 50,
+            offset: 0,
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeResponse({
+            redeemedAmount: 1000,
+            currency: 'usd',
+            entries: [],
+            failures: [],
+          }),
+        )
+        .mockResolvedValueOnce(makeResponse({ orderId: 'order-1', url: 'https://cloud.example/pay' }))
+        .mockResolvedValueOnce(makeResponse({ id: 'order-1', status: 'canceled' }))
+
+      const wallet = await getCloudWallet()
+      const transactions = await listCloudWalletTransactions()
+      const redeem = await redeemCloudGiftCard('GIFT-123')
+      const payment = await continueCloudOrderPayment('order-1')
+      const canceled = await cancelCloudOrder('order-1')
+
+      expect(wallet).toEqual({
+        balances: [
+          {
+            id: 'wallet-1',
+            storeId: 'store-1',
+            endUserId: 'org-1',
+            currency: 'usd',
+            availableAmount: 500,
+            pendingAmount: 0,
+            stripeCustomerId: null,
+            updatedAt: '2026-05-08T00:00:00.000Z',
+          },
+        ],
+      })
+      expect(transactions).toEqual({
+        items: [
+          {
+            id: 'ledger-1',
+            storeId: 'store-1',
+            endUserId: 'org-1',
+            currency: 'usd',
+            amount: 500,
+            direction: 'credit',
+            status: 'posted',
+            sourceType: 'gift_card_redemption',
+            sourceId: 'gc-1',
+            orderId: null,
+            paymentId: null,
+            stripeCustomerBalanceTransactionId: null,
+            createdAt: '2026-05-08T00:00:00.000Z',
+          },
+        ],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      })
+      expect(redeem).toEqual({ redeemedAmount: 1000, currency: 'usd', entries: [], failures: [] })
+      expect(payment).toEqual({ orderId: 'order-1', url: 'https://cloud.example/pay' })
+      expect(canceled).toEqual({ id: 'order-1', status: 'canceled' })
+
+      const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
+      expect(calls[0][0]).toBe('/api/store/wallet')
+      expect(calls[1][0]).toBe('/api/store/wallet/transactions')
+      expect(calls[2][0]).toBe('/api/store/gift-cards/redeem')
+      expect(calls[2][1].method).toBe('POST')
+      expect(JSON.parse(calls[2][1].body as string)).toEqual({ code: 'GIFT-123' })
+      expect(calls[3][0]).toBe('/api/store/orders/order-1/payments')
+      expect(calls[3][1].method).toBe('POST')
+      expect(calls[4][0]).toBe('/api/store/orders/order-1')
+      expect(calls[4][1].method).toBe('PATCH')
+      expect(JSON.parse(calls[4][1].body as string)).toEqual({ status: 'canceled' })
     })
 
     it('throws ApiError for quota store failures', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'feature_not_available' }, false, 402))
 
-      await expect(listQuotaStorePackages()).rejects.toThrow('feature_not_available')
+      await expect(listAdminCloudProducts()).rejects.toThrow('feature_not_available')
     })
 
     it.each([
-      ['getQuotaStoreSettings', () => getQuotaStoreSettings()],
-      ['updateQuotaStoreSettings', () => updateQuotaStoreSettings({ enabled: true })],
-      ['listQuotaStorePackages', () => listQuotaStorePackages()],
+      ['getCloudStoreSettings', () => getCloudStoreSettings()],
+      ['updateCloudStoreSettings', () => updateCloudStoreSettings({ enabled: true })],
+      ['listAdminCloudProducts', () => listAdminCloudProducts()],
       [
-        'createQuotaStorePackage',
+        'createCloudProduct',
         () =>
-          createQuotaStorePackage({
+          createCloudProduct({
+            type: 'zpan_quota',
             name: 'Small',
-            storageBytes: 1024,
+            description: '',
+            metadata: { storageBytes: 1024, trafficBytes: 0 },
             prices: [{ currency: 'usd', amount: 500 }],
+            active: true,
+            sortOrder: 0,
           }),
       ],
       [
-        'updateQuotaStorePackage',
+        'updateCloudProduct',
         () =>
-          updateQuotaStorePackage('pkg-1', {
+          updateCloudProduct('pkg-1', {
+            type: 'zpan_quota',
             name: 'Small',
-            storageBytes: 1024,
+            description: '',
+            metadata: { storageBytes: 1024, trafficBytes: 0 },
             prices: [{ currency: 'usd', amount: 500 }],
+            sortOrder: 0,
           }),
       ],
-      ['deleteQuotaStorePackage', () => deleteQuotaStorePackage('pkg-1')],
-      ['listStoreGiftCards', () => listStoreGiftCards()],
-      ['createStoreGiftCards', () => createStoreGiftCards({ amount: 1024, currency: 'usd', count: 1 })],
-      ['disableStoreGiftCard', () => disableStoreGiftCard('ZS123')],
-      ['deleteStoreGiftCard', () => deleteStoreGiftCard('ZS123')],
-      ['listAdminStoreOrders', () => listAdminStoreOrders()],
-      ['listPurchasableQuotaPackages', () => listPurchasableQuotaPackages()],
-      ['listQuotaStoreTargets', () => listQuotaStoreTargets()],
-      ['createQuotaCheckout', () => createQuotaCheckout('pkg-1', 'org-1')],
-      ['listStoreOrders', () => listStoreOrders()],
+      ['deleteCloudProduct', () => deleteCloudProduct('pkg-1')],
+      ['listCloudGiftCards', () => listCloudGiftCards()],
+      ['createCloudGiftCards', () => createCloudGiftCards({ amount: 1024, currency: 'usd', count: 1 })],
+      ['disableCloudGiftCard', () => disableCloudGiftCard('ZS123')],
+      ['deleteCloudGiftCard', () => deleteCloudGiftCard('ZS123')],
+      ['listAdminCloudOrders', () => listAdminCloudOrders()],
+      ['listCloudProducts', () => listCloudProducts()],
+      ['listCloudStoreTargets', () => listCloudStoreTargets()],
+      ['createCloudCheckout', () => createCloudCheckout('pkg-1')],
+      ['listCloudOrders', () => listCloudOrders()],
     ])('throws ApiError for %s failures', async (_name, call) => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'quota store failed' }, false, 400))
 
@@ -2456,8 +2590,8 @@ describe('api', () => {
     it('calls the correct endpoint with POST', async () => {
       const payload = {
         code: 'ABC-123',
-        pairing_url: 'https://cloud.zpan.space/pair',
-        expires_at: '2026-01-01T00:00:00Z',
+        pairingUrl: 'https://cloud.zpan.space/pair',
+        expiresAt: '2026-01-01T00:00:00Z',
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
@@ -2471,8 +2605,8 @@ describe('api', () => {
     it('returns pairing info', async () => {
       const payload = {
         code: 'XYZ-789',
-        pairing_url: 'https://cloud.zpan.space/pair',
-        expires_at: '2026-01-01T00:00:00Z',
+        pairingUrl: 'https://cloud.zpan.space/pair',
+        expiresAt: '2026-01-01T00:00:00Z',
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 

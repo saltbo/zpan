@@ -1,5 +1,5 @@
 import type { GiftCardStatus } from '@shared/schemas'
-import type { QuotaStorePackage } from '@shared/types'
+import type { CloudProduct } from '@shared/types'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
@@ -9,21 +9,21 @@ import {
   emptyGiftCardForm,
   giftCardInputFromForm,
   StorageGiftCardPanel,
-} from '@/components/admin/storage-gift-card-panel'
+} from '@/components/admin/cloud-gift-card-panel'
 import {
   emptyPackageForm,
   packageFormFromPackage,
   packageInputFromForm,
   StoragePlanForm,
-} from '@/components/admin/storage-plan-form'
-import { StoragePlanList } from '@/components/admin/storage-plan-list'
+} from '@/components/admin/cloud-product-form'
+import { StoragePlanList } from '@/components/admin/cloud-product-list'
 import {
-  createQuotaStorePackage,
-  createStoreGiftCards,
-  deleteQuotaStorePackage,
-  deleteStoreGiftCard,
-  disableStoreGiftCard,
-  updateQuotaStorePackage,
+  createCloudGiftCards,
+  createCloudProduct,
+  deleteCloudGiftCard,
+  deleteCloudProduct,
+  disableCloudGiftCard,
+  updateCloudProduct,
 } from '@/lib/api'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -33,8 +33,8 @@ type PackageFilter = 'all' | 'active' | 'disabled'
 
 export function usePackageEditor() {
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<QuotaStorePackage | null>(null)
-  const [deleting, setDeleting] = useState<QuotaStorePackage | null>(null)
+  const [editing, setEditing] = useState<CloudProduct | null>(null)
+  const [deleting, setDeleting] = useState<CloudProduct | null>(null)
   const [form, setForm] = useState(emptyPackageForm)
   const mutation = usePackageMutation(editing, form, () => {
     setOpen(false)
@@ -57,9 +57,9 @@ export function usePackageEditor() {
     mutation,
     publishMutation,
     deleteMutation,
-    edit: (pkg: QuotaStorePackage) => editPackage(pkg, setEditing, setForm, setOpen),
-    publish: (pkg: QuotaStorePackage, active: boolean) => publishMutation.mutate({ id: pkg.id, active }),
-    delete: (pkg: QuotaStorePackage) => setDeleting(pkg),
+    edit: (pkg: CloudProduct) => editPackage(pkg, setEditing, setForm, setOpen),
+    publish: (pkg: CloudProduct, active: boolean) => publishMutation.mutate({ id: pkg.id, active }),
+    delete: (pkg: CloudProduct) => setDeleting(pkg),
     cancelDelete: () => setDeleting(null),
     confirmDelete: () => {
       if (deleting) deleteMutation.mutate(deleting.id)
@@ -88,7 +88,7 @@ export function PackagesTab({
   editor,
 }: {
   available: boolean
-  packages: QuotaStorePackage[]
+  packages: CloudProduct[]
   editor: ReturnType<typeof usePackageEditor>
 }) {
   const { t } = useTranslation()
@@ -103,14 +103,14 @@ export function PackagesTab({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t('admin.storagePlans.packages.filterAll')}</SelectItem>
-            <SelectItem value="active">{t('admin.storagePlans.packages.filterActive')}</SelectItem>
-            <SelectItem value="disabled">{t('admin.storagePlans.packages.filterDisabled')}</SelectItem>
+            <SelectItem value="all">{t('admin.cloudStore.packages.filterAll')}</SelectItem>
+            <SelectItem value="active">{t('admin.cloudStore.packages.filterActive')}</SelectItem>
+            <SelectItem value="disabled">{t('admin.cloudStore.packages.filterDisabled')}</SelectItem>
           </SelectContent>
         </Select>
         <Button disabled={!available} onClick={editor.newPackage}>
           <Plus className="mr-2 h-4 w-4" />
-          {t('admin.storagePlans.newPackage')}
+          {t('admin.cloudStore.newPackage')}
         </Button>
       </div>
       <StoragePlanList
@@ -133,7 +133,7 @@ function PackageDialog({ available, editor }: { available: boolean; editor: Retu
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            {editor.editing ? t('admin.storagePlans.editPackage') : t('admin.storagePlans.newPackage')}
+            {editor.editing ? t('admin.cloudStore.editPackage') : t('admin.cloudStore.newPackage')}
           </DialogTitle>
         </DialogHeader>
         <StoragePlanForm
@@ -164,8 +164,8 @@ function DeletePackageDialog({ editor }: { editor: ReturnType<typeof usePackageE
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('admin.storagePlans.deleteTitle')}</DialogTitle>
-          <DialogDescription>{t('admin.storagePlans.deleteConfirm', { name: pkg.name })}</DialogDescription>
+          <DialogTitle>{t('admin.cloudStore.deleteTitle')}</DialogTitle>
+          <DialogDescription>{t('admin.cloudStore.deleteConfirm', { name: pkg.name })}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={editor.cancelDelete} disabled={editor.deleteMutation.isPending}>
@@ -211,15 +211,15 @@ export function GiftCardsTab({
   )
 }
 
-function usePackageMutation(editing: QuotaStorePackage | null, form: typeof emptyPackageForm, onSaved: () => void) {
+function usePackageMutation(editing: CloudProduct | null, form: typeof emptyPackageForm, onSaved: () => void) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => savePackage(editing, form),
     onSuccess: () => {
       onSaved()
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans'] })
-      toast.success(t('admin.storagePlans.packageSaved'))
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store'] })
+      toast.success(t('admin.cloudStore.packageSaved'))
     },
     onError: (err) => toast.error(err.message),
   })
@@ -229,10 +229,10 @@ function usePackagePublishMutation() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, active }: { id: string; active: boolean }) => updateQuotaStorePackage(id, { active }),
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => updateCloudProduct(id, { active }),
     onSuccess: (_pkg, input) => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans'] })
-      toast.success(t(input.active ? 'admin.storagePlans.packagePublished' : 'admin.storagePlans.packageUnpublished'))
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store'] })
+      toast.success(t(input.active ? 'admin.cloudStore.packagePublished' : 'admin.cloudStore.packageUnpublished'))
     },
     onError: (err) => toast.error(err.message),
   })
@@ -242,11 +242,11 @@ function usePackageDeleteMutation(onDeleted: () => void) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: deleteQuotaStorePackage,
+    mutationFn: deleteCloudProduct,
     onSuccess: () => {
       onDeleted()
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans'] })
-      toast.success(t('admin.storagePlans.packageDeleted'))
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store'] })
+      toast.success(t('admin.cloudStore.packageDeleted'))
     },
     onError: (err) => toast.error(err.message),
   })
@@ -256,11 +256,11 @@ function useGenerateGiftCardsMutation(form: typeof emptyGiftCardForm, onGenerate
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => createStoreGiftCards(giftCardInputFromForm(form)),
+    mutationFn: () => createCloudGiftCards(giftCardInputFromForm(form)),
     onSuccess: () => {
       onGenerated()
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'gift-cards'] })
-      toast.success(t('admin.storagePlans.codes.generated'))
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store', 'gift-cards'] })
+      toast.success(t('admin.cloudStore.codes.generated'))
     },
     onError: (err) => toast.error(err.message),
   })
@@ -270,12 +270,12 @@ function useDisableGiftCardMutation(setDisablingGiftCard: (code: string | null) 
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: disableStoreGiftCard,
+    mutationFn: disableCloudGiftCard,
     onMutate: (code) => setDisablingGiftCard(code),
     onSettled: () => setDisablingGiftCard(null),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'gift-cards'] })
-      toast.success(t('admin.storagePlans.codes.disabled'))
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store', 'gift-cards'] })
+      toast.success(t('admin.cloudStore.codes.disabled'))
     },
     onError: (err) => toast.error(err.message),
   })
@@ -285,20 +285,20 @@ function useDeleteGiftCardMutation(setDeletingGiftCard: (code: string | null) =>
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: deleteStoreGiftCard,
+    mutationFn: deleteCloudGiftCard,
     onMutate: (code) => setDeletingGiftCard(code),
     onSettled: () => setDeletingGiftCard(null),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'storage-plans', 'gift-cards'] })
-      toast.success(t('admin.storagePlans.codes.deleted'))
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store', 'gift-cards'] })
+      toast.success(t('admin.cloudStore.codes.deleted'))
     },
     onError: (err) => toast.error(err.message),
   })
 }
 
 function editPackage(
-  pkg: QuotaStorePackage,
-  setEditing: (pkg: QuotaStorePackage) => void,
+  pkg: CloudProduct,
+  setEditing: (pkg: CloudProduct) => void,
   setForm: (form: typeof emptyPackageForm) => void,
   setOpen: (open: boolean) => void,
 ) {
@@ -307,12 +307,20 @@ function editPackage(
   setOpen(true)
 }
 
-function savePackage(editing: QuotaStorePackage | null, form: typeof emptyPackageForm) {
+function savePackage(editing: CloudProduct | null, form: typeof emptyPackageForm) {
   const input = packageInputFromForm(form)
-  return editing ? updateQuotaStorePackage(editing.id, input) : createQuotaStorePackage(input)
+  if (!editing) return createCloudProduct(input)
+  return updateCloudProduct(editing.id, {
+    type: input.type,
+    name: input.name,
+    description: input.description,
+    metadata: input.metadata,
+    prices: input.prices,
+    sortOrder: input.sortOrder,
+  })
 }
 
-function filterPackages(packages: QuotaStorePackage[], filter: PackageFilter) {
+function filterPackages(packages: CloudProduct[], filter: PackageFilter) {
   if (filter === 'active') return packages.filter((pkg) => pkg.active)
   if (filter === 'disabled') return packages.filter((pkg) => !pkg.active)
   return packages

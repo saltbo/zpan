@@ -34,8 +34,8 @@ describe('licensing-cloud', () => {
     it('sends POST to /api/pairings with instance info', async () => {
       const payload = {
         code: 'ABC-123',
-        pairing_url: 'https://cloud.zpan.space/pair',
-        expires_at: '2026-01-01T00:00:00Z',
+        pairingUrl: 'https://cloud.zpan.space/pair',
+        expiresAt: '2026-01-01T00:00:00Z',
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
@@ -45,9 +45,9 @@ describe('licensing-cloud', () => {
       expect(url).toBe('https://cloud.zpan.space/api/pairings')
       expect(init.method).toBe('POST')
       const body = JSON.parse(init.body as string)
-      expect(body.instance_id).toBe('inst-1')
-      expect(body.instance_name).toBe('My ZPan')
-      expect(body.instance_host).toBe('zpan.example.com')
+      expect(body.instanceId).toBe('inst-1')
+      expect(body.instanceName).toBe('My ZPan')
+      expect(body.instanceHost).toBe('zpan.example.com')
       expect(result).toEqual(payload)
     })
 
@@ -81,17 +81,17 @@ describe('licensing-cloud', () => {
       expect(result.status).toBe('pending')
     })
 
-    it('returns approved status with refresh_token and entitlement', async () => {
+    it('returns approved status with refreshToken and entitlement', async () => {
       const payload = {
         status: 'approved',
-        refresh_token: 'rt-token',
+        refreshToken: 'rt-token',
         certificate: 'v4.public.token',
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await pollPairing(BASE_URL, 'CODE-2')
       expect(result.status).toBe('approved')
-      expect(result.refresh_token).toBe('rt-token')
+      expect(result.refreshToken).toBe('rt-token')
       expect(result.certificate).toBe('v4.public.token')
     })
 
@@ -110,7 +110,7 @@ describe('licensing-cloud', () => {
 
   describe('refreshEntitlement', () => {
     it('sends POST to /api/entitlements with Bearer token', async () => {
-      const payload = { refresh_token: 'new-rt', certificate: 'v4.public.newtoken' }
+      const payload = { refreshToken: 'new-rt', certificate: 'v4.public.newtoken' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await refreshEntitlement(BASE_URL, 'old-rt')
@@ -120,7 +120,7 @@ describe('licensing-cloud', () => {
       expect(init.method).toBe('POST')
       expect(init.headers).toEqual({ Authorization: 'Bearer old-rt' })
       expect(init.body).toBeUndefined()
-      expect(result.refresh_token).toBe('new-rt')
+      expect(result.refreshToken).toBe('new-rt')
       expect(result.certificate).toBe('v4.public.newtoken')
     })
 
@@ -137,7 +137,7 @@ describe('licensing-cloud', () => {
     })
 
     it('throws on missing certificate', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ refresh_token: 'new-rt' }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ refreshToken: 'new-rt' }))
 
       await expect(refreshEntitlement(BASE_URL, 'old-rt')).rejects.toThrow(CloudInvalidResponseError)
     })

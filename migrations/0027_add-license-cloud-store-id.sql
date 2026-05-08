@@ -1,0 +1,1 @@
+ALTER TABLE `license_bindings` ADD `cloud_store_id` text;

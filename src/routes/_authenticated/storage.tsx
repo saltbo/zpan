@@ -6,14 +6,27 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { StorageActions, StorageOrderHistory, StorageStatusMetrics } from '@/components/store/storage-panels'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   ApiError,
-  createQuotaCheckout,
+  cancelCloudOrder,
+  continueCloudOrderPayment,
+  createCloudCheckout,
+  getCloudWallet,
   getUserQuota,
-  listPurchasableQuotaPackages,
-  listQuotaStoreTargets,
-  listStoreOrders,
+  listCloudOrders,
+  listCloudProducts,
+  listCloudWalletTransactions,
+  redeemCloudGiftCard,
 } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
 
@@ -24,36 +37,41 @@ export const Route = createFileRoute('/_authenticated/storage')({
 export function StoragePage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [code, setCode] = useState('')
   const [checkoutRefreshActive, setCheckoutRefreshActive] = useState(false)
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null)
   const { data: activeOrg } = useActiveOrganization()
-  const storagePlansQuery = useQuery({
-    queryKey: ['storage-plans', 'packages'],
-    queryFn: listPurchasableQuotaPackages,
+  const cloudStoreQuery = useQuery({
+    queryKey: ['cloud-store', 'packages'],
+    queryFn: listCloudProducts,
     retry: false,
   })
-  const targetsQuery = useQuery({
-    queryKey: ['storage-plans', 'targets'],
-    queryFn: listQuotaStoreTargets,
-    enabled: storagePlansQuery.isSuccess,
-    retry: false,
-  })
-  const targets = targetsQuery.data?.items ?? []
-  const targetOrgId = activeOrg?.id ?? targets.find((target) => target.type === 'personal')?.orgId ?? ''
+  const targetOrgId = activeOrg?.id ?? ''
   const ordersQuery = useQuery({
-    queryKey: ['storage-plans', 'orders', targetOrgId],
-    queryFn: listStoreOrders,
-    enabled: storagePlansQuery.isSuccess && !!targetOrgId,
+    queryKey: ['cloud-store', 'orders', targetOrgId],
+    queryFn: () => listCloudOrders(),
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
   const quotaQuery = useQuery({
     queryKey: ['user', 'quota', targetOrgId],
     queryFn: getUserQuota,
-    enabled: storagePlansQuery.isSuccess && !!targetOrgId,
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
-  const currentOrders = (ordersQuery.data?.items ?? []).filter((order) => order.orgId === targetOrgId)
-  const deliveredCheckoutCount = currentOrders.filter((order) => order.fulfillmentStatus === 'delivered').length
+  const walletQuery = useQuery({
+    queryKey: ['cloud-store', 'wallet', targetOrgId],
+    queryFn: getCloudWallet,
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
+    retry: false,
+  })
+  const walletTransactionsQuery = useQuery({
+    queryKey: ['cloud-store', 'wallet', 'transactions', targetOrgId],
+    queryFn: listCloudWalletTransactions,
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
+    retry: false,
+  })
+  const currentOrders = ordersQuery.data?.items ?? []
+  const deliveredCheckoutCount = currentOrders.filter((order) => order.fulfillmentStatus === 'fulfilled').length
 
   useEffect(() => {
     if (deliveredCheckoutCount > 0) queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
@@ -63,7 +81,8 @@ export function StoragePage() {
     if (!checkoutRefreshActive) return
     const interval = window.setInterval(() => {
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
-      queryClient.invalidateQueries({ queryKey: ['storage-plans', 'orders'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
     }, 5000)
     const timeout = window.setTimeout(() => setCheckoutRefreshActive(false), 120000)
     return () => {
@@ -73,25 +92,17 @@ export function StoragePage() {
   }, [checkoutRefreshActive, queryClient])
 
   const checkoutMutation = useMutation({
-    mutationFn: ({
-      packageId,
-      currency,
-      giftCardCode,
-    }: {
-      packageId: string
-      currency: string
-      giftCardCode?: string
-      checkoutWindow: Window | null
-    }) => createQuotaCheckout(packageId, targetOrgId, currency, giftCardCode),
+    mutationFn: ({ packageId, currency }: { packageId: string; currency: string; checkoutWindow: Window | null }) =>
+      createCloudCheckout(packageId, currency),
     onSuccess: (result, variables) => {
       if (variables.checkoutWindow) {
-        variables.checkoutWindow.location.href = result.checkoutUrl
+        variables.checkoutWindow.location.href = result.url
       } else {
-        window.location.assign(result.checkoutUrl)
+        window.location.assign(result.url)
       }
       setCheckoutRefreshActive(true)
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
-      queryClient.invalidateQueries({ queryKey: ['storage-plans', 'orders'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
     },
     onError: (err, variables) => {
       variables.checkoutWindow?.close()
@@ -99,18 +110,82 @@ export function StoragePage() {
     },
   })
 
-  function startCheckout(packageId: string, currency: string, giftCardCode?: string) {
+  const continuePaymentMutation = useMutation({
+    mutationFn: ({ orderId }: { orderId: string; checkoutWindow: Window | null }) => continueCloudOrderPayment(orderId),
+    onSuccess: (result, variables) => {
+      if (variables.checkoutWindow) {
+        variables.checkoutWindow.location.href = result.url
+      } else {
+        window.location.assign(result.url)
+      }
+      setCheckoutRefreshActive(true)
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
+    },
+    onError: (err, variables) => {
+      variables.checkoutWindow?.close()
+      toast.error(err.message)
+    },
+  })
+
+  const cancelOrderMutation = useMutation({
+    mutationFn: (orderId: string) => cancelCloudOrder(orderId),
+    onSuccess: () => {
+      toast.success(t('storage.cancelSuccess'))
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
+  const redeemMutation = useMutation({
+    mutationFn: (code: string) => redeemCloudGiftCard(code),
+    onSuccess: (result) => {
+      toast.success(
+        t('storage.redeemSuccess', {
+          amount: result.redeemedAmount / 100,
+          currency: result.currency?.toUpperCase() ?? 'USD',
+        }),
+      )
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
+
+  function startCheckout(packageId: string, currency: string) {
     const checkoutWindow = window.open('about:blank', '_blank')
     if (checkoutWindow) checkoutWindow.opener = null
-    checkoutMutation.mutate({ packageId, currency, giftCardCode, checkoutWindow })
+    checkoutMutation.mutate({ packageId, currency, checkoutWindow })
   }
 
-  if (storagePlansQuery.isLoading || (storagePlansQuery.isSuccess && targetsQuery.isLoading)) {
+  function continuePayment(orderId: string) {
+    const checkoutWindow = window.open('about:blank', '_blank')
+    if (checkoutWindow) checkoutWindow.opener = null
+    continuePaymentMutation.mutate({ orderId, checkoutWindow })
+  }
+
+  function cancelOrder(orderId: string) {
+    setCancelOrderId(orderId)
+  }
+
+  function confirmCancelOrder() {
+    if (!cancelOrderId) return
+    cancelOrderMutation.mutate(cancelOrderId, {
+      onSuccess: () => {
+        setCancelOrderId(null)
+      },
+    })
+  }
+
+  if (cloudStoreQuery.isLoading) {
     return <p className="py-20 text-center text-muted-foreground">{t('common.loading')}</p>
   }
 
-  if (storagePlansQuery.isError) {
-    const disabled = isStoragePlansDisabledError(storagePlansQuery.error)
+  if (cloudStoreQuery.isError) {
+    const disabled = isCloudStoreDisabledError(cloudStoreQuery.error)
     return <StorageUnavailableState disabled={disabled} />
   }
 
@@ -122,25 +197,55 @@ export function StoragePage() {
           <p className="text-sm text-muted-foreground">{t('storage.subtitle')}</p>
         </div>
         <StorageActions
-          code={code}
-          packages={storagePlansQuery.data?.items ?? []}
+          packages={cloudStoreQuery.data?.items ?? []}
           packagesDisabled={!targetOrgId || checkoutMutation.isPending}
-          redeemDisabled={!code || !targetOrgId || checkoutMutation.isPending}
-          onCodeChange={setCode}
           onCheckout={startCheckout}
-          onRedeem={() => {
-            toast.info(t('storage.applyGiftCardAtCheckout'))
-          }}
+          onRedeem={(code) => redeemMutation.mutate(code)}
+          isRedeeming={redeemMutation.isPending}
         />
       </div>
 
-      <StorageStatusMetrics quota={quotaQuery.data} />
-      <StorageOrderHistory orders={currentOrders} />
+      <StorageStatusMetrics
+        quota={quotaQuery.data}
+        wallet={
+          walletQuery.data
+            ? {
+                balance: walletQuery.data.balances[0]?.availableAmount ?? 0,
+                currency: walletQuery.data.balances[0]?.currency ?? 'usd',
+              }
+            : undefined
+        }
+        walletTransactions={walletTransactionsQuery.data?.items ?? []}
+        walletTransactionsLoading={walletTransactionsQuery.isLoading}
+      />
+      <StorageOrderHistory
+        orders={currentOrders}
+        onContinuePayment={continuePayment}
+        onCancelOrder={cancelOrder}
+        continuingOrderId={continuePaymentMutation.isPending ? continuePaymentMutation.variables?.orderId : null}
+        cancelingOrderId={cancelOrderMutation.isPending ? cancelOrderMutation.variables : null}
+      />
+      <Dialog open={!!cancelOrderId} onOpenChange={(open) => !open && setCancelOrderId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('storage.cancelOrder')}</DialogTitle>
+            <DialogDescription>{t('storage.cancelConfirm')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOrderId(null)} disabled={cancelOrderMutation.isPending}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="destructive" onClick={confirmCancelOrder} disabled={cancelOrderMutation.isPending}>
+              {cancelOrderMutation.isPending ? t('common.loading') : t('common.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function isStoragePlansDisabledError(error: unknown) {
+function isCloudStoreDisabledError(error: unknown) {
   return error instanceof ApiError && error.body.error === 'quota_store_disabled'
 }
 
