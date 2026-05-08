@@ -1,11 +1,12 @@
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { orgQuotas } from '../db/schema.js'
+import { orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
 import {
   consumeTrafficIfQuotaAllows,
   getEffectiveQuota,
+  hasQuotaForBytes,
   hasTrafficQuotaForBytes,
   refundTraffic,
 } from './effective-quota.js'
@@ -32,6 +33,118 @@ describe('effective quota', () => {
       trafficQuota: 2000,
       trafficUsed: 500,
       trafficPeriod: '2026-05',
+    })
+  })
+
+  it('adds active entitlement bytes to finite storage and traffic quotas', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 250,
+      trafficQuota: 2000,
+      trafficUsed: 500,
+      trafficPeriod: '2026-05',
+    })
+    const timestamp = new Date('2026-05-01T00:00:00Z')
+    await db.insert(orgQuotaEntitlements).values([
+      {
+        id: nanoid(),
+        orgId,
+        resourceType: 'storage',
+        source: 'cloud_order',
+        sourceId: 'order-storage-a',
+        bytes: 400,
+        startsAt: timestamp,
+        expiresAt: null,
+        status: 'active',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+      {
+        id: nanoid(),
+        orgId,
+        resourceType: 'storage',
+        source: 'cloud_order',
+        sourceId: 'order-storage-b',
+        bytes: 200,
+        startsAt: timestamp,
+        expiresAt: null,
+        status: 'active',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+      {
+        id: nanoid(),
+        orgId,
+        resourceType: 'traffic',
+        source: 'cloud_order',
+        sourceId: 'order-traffic',
+        bytes: 300,
+        startsAt: timestamp,
+        expiresAt: null,
+        status: 'active',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+    ])
+
+    await expect(getEffectiveQuota(db, orgId, new Date('2026-05-06T00:00:00Z'))).resolves.toMatchObject({
+      baseQuota: 1000,
+      quota: 1600,
+      used: 250,
+      trafficQuota: 2300,
+    })
+    await expect(hasQuotaForBytes(db, orgId, 1350)).resolves.toBe(true)
+    await expect(hasQuotaForBytes(db, orgId, 1351)).resolves.toBe(false)
+  })
+
+  it('ignores inactive and expired storage entitlements', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values([
+      {
+        id: nanoid(),
+        orgId,
+        resourceType: 'storage',
+        source: 'cloud_order',
+        sourceId: 'order-revoked',
+        bytes: 400,
+        startsAt: new Date('2026-05-01T00:00:00Z'),
+        expiresAt: null,
+        status: 'revoked',
+        createdAt: new Date('2026-05-01T00:00:00Z'),
+        updatedAt: new Date('2026-05-01T00:00:00Z'),
+      },
+      {
+        id: nanoid(),
+        orgId,
+        resourceType: 'storage',
+        source: 'cloud_order',
+        sourceId: 'order-expired',
+        bytes: 400,
+        startsAt: new Date('2026-04-01T00:00:00Z'),
+        expiresAt: new Date('2026-05-01T00:00:00Z'),
+        status: 'active',
+        createdAt: new Date('2026-04-01T00:00:00Z'),
+        updatedAt: new Date('2026-04-01T00:00:00Z'),
+      },
+    ])
+
+    await expect(getEffectiveQuota(db, orgId, new Date('2026-05-06T00:00:00Z'))).resolves.toMatchObject({
+      baseQuota: 1000,
+      quota: 1000,
     })
   })
 
@@ -73,10 +186,76 @@ describe('effective quota', () => {
 
     await expect(hasTrafficQuotaForBytes(db, orgId, 600, now)).resolves.toBe(true)
     await expect(consumeTrafficIfQuotaAllows(db, orgId, 600, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1, now)).resolves.toBe(false)
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 101, now)).resolves.toBe(false)
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(1000)
+  })
+
+  it('uses active traffic entitlements when consuming monthly traffic', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 1000,
+      trafficUsed: 900,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values({
+      id: nanoid(),
+      orgId,
+      resourceType: 'traffic',
+      source: 'cloud_order',
+      sourceId: 'order-traffic',
+      bytes: 500,
+      startsAt: new Date('2026-05-01T00:00:00Z'),
+      expiresAt: null,
+      status: 'active',
+      createdAt: new Date('2026-05-01T00:00:00Z'),
+      updatedAt: new Date('2026-05-01T00:00:00Z'),
+    })
+
+    await expect(hasTrafficQuotaForBytes(db, orgId, 500, now)).resolves.toBe(true)
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 500, now)).resolves.toBe(true)
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 101, now)).resolves.toBe(false)
+
+    const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
+    expect(rows[0].trafficUsed).toBe(1400)
+  })
+
+  it('keeps zero traffic quota unlimited when traffic entitlements exist', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 0,
+      trafficUsed: 900,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values({
+      id: nanoid(),
+      orgId,
+      resourceType: 'traffic',
+      source: 'cloud_order',
+      sourceId: 'order-traffic-unlimited',
+      bytes: 500,
+      startsAt: new Date('2026-05-01T00:00:00Z'),
+      expiresAt: null,
+      status: 'active',
+      createdAt: new Date('2026-05-01T00:00:00Z'),
+      updatedAt: new Date('2026-05-01T00:00:00Z'),
+    })
+
+    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({ trafficQuota: 0 })
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 10_000, now)).resolves.toBe(true)
   })
 
   it('refunds current monthly traffic usage', async () => {

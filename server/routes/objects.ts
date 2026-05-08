@@ -1,4 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
+import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { DirType } from '../../shared/constants'
 import {
@@ -9,6 +10,7 @@ import {
   patchMatterSchema,
 } from '../../shared/schemas'
 import type { Storage as S3Storage } from '../../shared/types'
+import { matters } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
@@ -21,6 +23,7 @@ import {
   confirmUpload,
   copyMatter,
   createMatter,
+  decrementUsage,
   getMatter,
   getMatters,
   incrementUsageIfAllowed,
@@ -306,30 +309,53 @@ const app = new Hono<Env>()
     if (!source) return c.json({ error: 'Not found' }, 404)
 
     const sourceSize = source.size ?? 0
+    const reservedStorageBytes = sourceSize > 0 ? new Map([[source.storageId, sourceSize]]) : new Map<string, number>()
     if (sourceSize > 0) {
       const allowed = await incrementUsageIfAllowed(db, orgId, source.storageId, sourceSize)
       if (!allowed) return c.json({ error: 'Quota exceeded' }, 422)
     }
 
+    let copiedStorage: S3Storage | null = null
+    let copiedObject = false
     let newObject = ''
-    if (source.object) {
-      const storage = (await getStorage(db, source.storageId)) as unknown as S3Storage
-      if (!storage) return c.json({ error: 'Storage not found' }, 404)
-      newObject = buildObjectKey({
-        uid: userId,
-        orgId,
-        rawExt: fileExt(source.name),
-      })
-      await s3.copyObject(storage, source.object, storage, newObject)
-    }
-
     try {
+      if (source.object) {
+        const storage = (await getStorage(db, source.storageId)) as unknown as S3Storage
+        if (!storage) {
+          await decrementUsage(db, orgId, reservedStorageBytes, sourceSize)
+          return c.json({ error: 'Storage not found' }, 404)
+        }
+        copiedStorage = storage
+        newObject = buildObjectKey({
+          uid: userId,
+          orgId,
+          rawExt: fileExt(source.name),
+        })
+        await s3.copyObject(storage, source.object, storage, newObject)
+        copiedObject = true
+      }
       const copy = await copyMatter(db, source, parent, newObject, { onConflict, userId })
       return c.json(copy, 201)
     } catch (e) {
+      if (copiedObject && newObject && (await copiedMatterExists(db, orgId, newObject))) throw e
+      await decrementUsage(db, orgId, reservedStorageBytes, sourceSize)
+      if (copiedObject && copiedStorage && newObject) await s3.deleteObject(copiedStorage, newObject)
       if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
       throw e
     }
   })
 
 export default app
+
+async function copiedMatterExists(
+  db: Env['Variables']['platform']['db'],
+  orgId: string,
+  object: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: matters.id })
+    .from(matters)
+    .where(and(eq(matters.orgId, orgId), eq(matters.object, object)))
+    .limit(1)
+  return rows.length > 0
+}

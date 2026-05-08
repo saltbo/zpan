@@ -27,6 +27,13 @@ describe('Admin quota listing', () => {
       INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
       VALUES ('team-quota-listing-row', 'team-quota-listing', 2000, 100, 3000, 2500, '1970-01')
     `)
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        ('team-quota-listing-storage-entitlement', 'team-quota-listing', 'storage', 'cloud_order', 'order-listing-storage', 500, ${now}, NULL, 'active', NULL, ${now}, ${now}),
+        ('team-quota-listing-traffic-entitlement', 'team-quota-listing', 'traffic', 'cloud_order', 'order-listing-traffic', 700, ${now}, NULL, 'active', NULL, ${now}, ${now})
+    `)
     await db.run(sql`UPDATE org_quotas SET traffic_quota = 1000, traffic_used = 900, traffic_period = '1970-01'`)
     const res = await app.request('/api/admin/quotas', { headers })
     expect(res.status).toBe(200)
@@ -39,5 +46,7 @@ describe('Admin quota listing', () => {
 
     const adminItem = body.items.find((item) => item.orgId === adminOrg[0].id)
     expect(adminItem).toMatchObject({ baseQuota: 10485760, quota: 10485760 })
+    const teamItem = body.items.find((item) => item.orgId === 'team-quota-listing')
+    expect(teamItem).toMatchObject({ baseQuota: 2000, quota: 2500, trafficQuota: 1700 })
   })
 })

@@ -1,11 +1,13 @@
 import type { CloudOrderQuotaChange, CloudStoreSettingsInput } from '@shared/schemas'
 import type { CloudStoreSettings, CloudStoreTarget } from '@shared/types'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
-import { activityEvents, orgQuotas, systemOptions, webhookEvents } from '../db/schema'
+import { activityEvents, systemOptions, webhookEvents } from '../db/schema'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
+import { quotaChangeMetadata } from './quota-change-event'
+import { applyQuotaChange, applyQuotaChangeSync } from './quota-entitlements'
 
 const CLOUD_STORE_ENABLED_KEY = 'cloud_store_enabled'
 const CLOUD_STORE_CREATED_AT_KEY = 'cloud_store_created_at'
@@ -15,6 +17,7 @@ const CLOUD_STORE_SETTING_KEYS = [
   CLOUD_STORE_CREATED_AT_KEY,
   CLOUD_STORE_UPDATED_AT_KEY,
 ] as const
+const WEBHOOK_PROCESSING_STALE_MS = 5 * 60 * 1000
 
 export async function getCloudStoreSettings(db: Database): Promise<CloudStoreSettings | null> {
   const settings = await getRawSettings(db)
@@ -153,54 +156,6 @@ async function processQuotaChangeTransaction(
   })
 }
 
-async function applyQuotaChange(db: Database, event: CloudOrderQuotaChange): Promise<void> {
-  const rows = await db
-    .update(orgQuotas)
-    .set(quotaUpdateValues(event))
-    .where(eq(orgQuotas.orgId, event.targetOrgId))
-    .returning({ id: orgQuotas.id })
-
-  if (rows.length === 0) throw new Error('target_quota_missing')
-}
-
-function applyQuotaChangeSync(db: Database, event: CloudOrderQuotaChange): void {
-  const rows = (
-    db
-      .update(orgQuotas)
-      .set(quotaUpdateValues(event))
-      .where(eq(orgQuotas.orgId, event.targetOrgId))
-      .returning({ id: orgQuotas.id }) as {
-      all(): Array<{ id: string }>
-    }
-  ).all()
-
-  if (rows.length === 0) throw new Error('target_quota_missing')
-}
-
-function quotaUpdateValues(event: CloudOrderQuotaChange) {
-  return {
-    quota: quotaUpdateExpression(orgQuotas.quota, event.storageBytes, event.direction),
-    trafficQuota: quotaUpdateExpression(orgQuotas.trafficQuota, event.trafficBytes, event.direction),
-  }
-}
-
-function quotaUpdateExpression(
-  column: typeof orgQuotas.quota | typeof orgQuotas.trafficQuota,
-  bytes: number,
-  direction: CloudOrderQuotaChange['direction'],
-) {
-  if (direction === 'increase') return sql`${column} + ${bytes}`
-  return sql`MAX(0, ${column} - ${bytes})`
-}
-
-async function recordQuotaChangeAudit(db: Database, event: CloudOrderQuotaChange): Promise<void> {
-  await db.insert(activityEvents).values(quotaChangeAuditValues(event))
-}
-
-function recordQuotaChangeAuditSync(db: Database, event: CloudOrderQuotaChange): void {
-  ;(db.insert(activityEvents).values(quotaChangeAuditValues(event)) as { run(): void }).run()
-}
-
 function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEvents.$inferInsert {
   return {
     id: nanoid(),
@@ -210,16 +165,43 @@ function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEv
     targetType: 'quota',
     targetId: event.targetOrgId,
     targetName: event.targetOrgId,
-    metadata: JSON.stringify({
-      eventId: event.eventId,
-      eventType: event.eventType,
-      direction: event.direction,
-      storageBytes: event.storageBytes,
-      trafficBytes: event.trafficBytes,
-      cloudOrderId: event.cloudOrderId ?? null,
-    }),
+    metadata: quotaChangeMetadata(event),
     createdAt: new Date(),
   }
+}
+
+function isUniqueConflict(error: unknown): boolean {
+  return error instanceof Error && error.message.toLowerCase().includes('unique')
+}
+
+function isSyncDatabase(db: Database): boolean {
+  return db.constructor.name === 'BetterSQLite3Database'
+}
+
+function settingsDto(
+  row: { id: string; enabled: boolean; createdAt: Date; updatedAt: Date },
+  cloudReady = true,
+): CloudStoreSettings {
+  return {
+    id: row.id,
+    enabled: row.enabled,
+    status: cloudReady ? 'ready' : 'cloud_unbound',
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
+function parseOrgType(metadata: string | null): string {
+  if (!metadata) return 'unknown'
+  return (JSON.parse(metadata) as { type?: string }).type ?? 'unknown'
+}
+
+async function recordQuotaChangeAudit(db: Database, event: CloudOrderQuotaChange): Promise<void> {
+  await db.insert(activityEvents).values(quotaChangeAuditValues(event))
+}
+
+function recordQuotaChangeAuditSync(db: Database, event: CloudOrderQuotaChange): void {
+  ;(db.insert(activityEvents).values(quotaChangeAuditValues(event)) as { run(): void }).run()
 }
 
 async function beginWebhookEvent(
@@ -256,6 +238,7 @@ async function resumeWebhookEvent(
   const rows = await db
     .select({
       id: webhookEvents.id,
+      createdAt: webhookEvents.createdAt,
       payloadHash: webhookEvents.payloadHash,
       status: webhookEvents.status,
     })
@@ -268,8 +251,12 @@ async function resumeWebhookEvent(
   if (existing.payloadHash !== payloadHash) {
     throw new Error('webhook_payload_conflict')
   }
-  if (existing.status === 'processed' || existing.status === 'duplicate' || existing.status === 'processing') {
+  if (existing.status === 'processed' || existing.status === 'duplicate') {
     return { id: existing.id, duplicate: true }
+  }
+  if (existing.status === 'processing') {
+    if (!isStaleProcessingWebhook(existing.createdAt)) return { id: existing.id, duplicate: true }
+    return claimStaleProcessingWebhook(db, existing.id, existing.createdAt, rawPayload)
   }
 
   await db
@@ -278,6 +265,27 @@ async function resumeWebhookEvent(
     .where(eq(webhookEvents.id, existing.id))
 
   return { id: existing.id, duplicate: false }
+}
+
+async function claimStaleProcessingWebhook(
+  db: Database,
+  id: string,
+  createdAt: Date,
+  rawPayload: string,
+): Promise<{ id: string; duplicate: boolean }> {
+  const rows = await db
+    .update(webhookEvents)
+    .set({ rawPayload, status: 'processing', error: null, processedAt: null, createdAt: new Date() })
+    .where(
+      and(eq(webhookEvents.id, id), eq(webhookEvents.status, 'processing'), eq(webhookEvents.createdAt, createdAt)),
+    )
+    .returning({ id: webhookEvents.id })
+
+  return rows.length > 0 ? { id, duplicate: false } : { id, duplicate: true }
+}
+
+function isStaleProcessingWebhook(createdAt: Date): boolean {
+  return Date.now() - createdAt.getTime() > WEBHOOK_PROCESSING_STALE_MS
 }
 
 async function markWebhookEvent(db: Database, id: string, status: string, error: string | null): Promise<void> {
@@ -290,30 +298,4 @@ function markWebhookEventSync(db: Database, id: string, status: string, error: s
       run(): void
     }
   ).run()
-}
-
-function settingsDto(
-  row: { id: string; enabled: boolean; createdAt: Date; updatedAt: Date },
-  cloudReady = true,
-): CloudStoreSettings {
-  return {
-    id: row.id,
-    enabled: row.enabled,
-    status: cloudReady ? 'ready' : 'cloud_unbound',
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }
-}
-
-function parseOrgType(metadata: string | null): string {
-  if (!metadata) return 'unknown'
-  return (JSON.parse(metadata) as { type?: string }).type ?? 'unknown'
-}
-
-function isUniqueConflict(error: unknown): boolean {
-  return error instanceof Error && error.message.toLowerCase().includes('unique')
-}
-
-function isSyncDatabase(db: Database): boolean {
-  return db.constructor.name === 'BetterSQLite3Database'
 }

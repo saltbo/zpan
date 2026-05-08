@@ -8,7 +8,7 @@ import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
-import { currentTrafficPeriod, getEffectiveQuota } from '../services/effective-quota'
+import { currentTrafficPeriod, getActiveQuotaEntitlementBytes, getEffectiveQuota } from '../services/effective-quota'
 import { findPersonalOrg } from '../services/org'
 
 const updateQuotaSchema = z.object({
@@ -43,18 +43,7 @@ const adminQuotas = new Hono<Env>()
       .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
       .orderBy(organization.name)
 
-    const items = rows.map((r) => ({
-      id: r.id,
-      orgId: r.orgId,
-      baseQuota: r.baseQuota,
-      quota: r.baseQuota,
-      used: r.used,
-      trafficQuota: r.trafficQuota,
-      trafficUsed: r.trafficUsed,
-      trafficPeriod: r.trafficPeriod,
-      orgName: r.orgName,
-      orgType: parseOrgType(r.orgMetadata),
-    }))
+    const items = await Promise.all(rows.map((row) => adminQuotaItem(db, row)))
 
     return c.json({ items, total: items.length })
   })
@@ -111,6 +100,36 @@ const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {
 })
 
 export { adminQuotas, userQuotas }
+
+async function adminQuotaItem(
+  db: Env['Variables']['platform']['db'],
+  row: {
+    id: string
+    orgId: string
+    baseQuota: number
+    used: number
+    trafficQuota: number
+    trafficUsed: number
+    trafficPeriod: string
+    orgName: string
+    orgMetadata: string | null
+  },
+) {
+  const storageEntitlements = await getActiveQuotaEntitlementBytes(db, row.orgId, 'storage')
+  const trafficEntitlements = await getActiveQuotaEntitlementBytes(db, row.orgId, 'traffic')
+  return {
+    id: row.id,
+    orgId: row.orgId,
+    baseQuota: row.baseQuota,
+    quota: row.baseQuota === 0 ? 0 : row.baseQuota + storageEntitlements,
+    used: row.used,
+    trafficQuota: row.trafficQuota === 0 ? 0 : row.trafficQuota + trafficEntitlements,
+    trafficUsed: row.trafficUsed,
+    trafficPeriod: row.trafficPeriod,
+    orgName: row.orgName,
+    orgType: parseOrgType(row.orgMetadata),
+  }
+}
 
 function parseOrgType(metadata: string | null): string {
   if (!metadata) return 'unknown'

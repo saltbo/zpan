@@ -137,6 +137,24 @@ const APP_SCHEMA_SQL = `
     traffic_used INTEGER NOT NULL DEFAULT 0,
     traffic_period TEXT NOT NULL DEFAULT '1970-01'
   );
+  CREATE TABLE IF NOT EXISTS org_quota_entitlements (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    bytes INTEGER NOT NULL,
+    starts_at INTEGER NOT NULL,
+    expires_at INTEGER,
+    status TEXT NOT NULL,
+    metadata TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS org_quota_entitlements_source_uniq
+    ON org_quota_entitlements(org_id, resource_type, source, source_id);
+  CREATE INDEX IF NOT EXISTS org_quota_entitlements_effective_idx
+    ON org_quota_entitlements(org_id, resource_type, status, starts_at, expires_at);
   CREATE TABLE IF NOT EXISTS webhook_events (
     id TEXT PRIMARY KEY,
     source TEXT NOT NULL,
