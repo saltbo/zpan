@@ -37,6 +37,9 @@ export function AdminStoragePlansPage() {
   const state = useAdminStoragePlansState()
   const { t } = useTranslation()
   if (state.query.isLoading) return <p className="py-20 text-center text-muted-foreground">{t('common.loading')}</p>
+  if (state.query.isError) {
+    return <p className="py-20 text-center text-destructive">{t('admin.storagePlans.tabError')}</p>
+  }
   if (!state.data) return null
   return <AdminStoragePlansContent state={state as AdminStoragePlansReadyState} />
 }

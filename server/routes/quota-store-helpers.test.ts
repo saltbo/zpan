@@ -3,7 +3,9 @@ import type { Database } from '../platform/interface'
 import {
   cloudGiftCardsResponseSchema,
   cloudOrdersResponseSchema,
-  createCheckoutPayload,
+  cloudPackageResponseSchema,
+  createOrderPayload,
+  createPaymentPayload,
   giftCardsPath,
   ordersPath,
   type RouteContext,
@@ -37,53 +39,54 @@ function createRouteContext(): RouteContext {
 
 describe('quota store helper paths', () => {
   it('builds gift card and order Cloud paths', () => {
-    expect(giftCardsPath()).toBe('/api/store/gift-cards')
-    expect(giftCardsPath('active')).toBe('/api/store/gift-cards?status=active')
-    expect(ordersPath()).toBe('/api/store/orders')
-    expect(ordersPath(['org-1', 'org 2'])).toBe('/api/store/orders?targetOrgIds=org-1%2Corg%202')
+    expect(giftCardsPath()('store-1')).toBe('/api/stores/store-1/gift-cards')
+    expect(giftCardsPath('active')('store-1')).toBe('/api/stores/store-1/gift-cards?status=active')
+    expect(ordersPath()('store-1')).toBe('/api/stores/store-1/orders')
+    expect(ordersPath({ limit: 100 })('store-1')).toBe('/api/stores/store-1/orders?limit=100')
+    expect(ordersPath({ limit: 100, offset: 100 })('store-1')).toBe('/api/stores/store-1/orders?limit=100&offset=100')
   })
 
-  it('includes gift card code in checkout payloads', async () => {
-    await expect(
-      createCheckoutPayload(createRouteContext(), 'binding-1', 'pkg-1', 'org-1', 'user-1', 'usd', 'GC-123'),
-    ).resolves.toEqual({
-      boundLicenseId: 'binding-1',
-      packageId: 'pkg-1',
-      targetOrgId: 'org-1',
-      terminalUserId: 'user-1',
-      terminalUserLabel: 'owner@example.com',
+  it('builds Cloud commerce order and payment payloads', async () => {
+    await expect(createOrderPayload(createRouteContext(), 'pkg-1', 'org-1', 'user-1', 'usd')).resolves.toEqual({
+      items: [{ productId: 'pkg-1' }],
       currency: 'usd',
-      giftCardCode: 'GC-123',
+      target: {
+        orgId: 'org-1',
+        endUserId: 'user-1',
+        endUserLabel: 'owner@example.com',
+      },
+      walletCreditAmount: 'max',
+    })
+    expect(createPaymentPayload(createRouteContext())).toEqual({
+      provider: 'stripe',
       successUrl: 'https://disk.example.com/storage',
       cancelUrl: 'https://disk.example.com/storage',
     })
   })
 
-  it('normalizes Cloud snake case order responses', () => {
+  it('normalizes Cloud commerce order responses', () => {
     expect(
       cloudOrdersResponseSchema.parse([
         {
           id: 'order-1',
-          target_org_id: 'org-1',
-          package_name: 'Storage Bundle',
-          package_description: null,
-          storage_bytes: 1024,
-          traffic_bytes: 2048,
-          subtotal_amount: 999,
-          gift_card_amount: 100,
-          stripe_amount: 899,
-          paid_amount: 999,
+          target: { orgId: 'org-1', endUserId: 'user-1', endUserLabel: 'owner@example.com' },
+          paymentStatus: 'paid',
+          fulfillmentStatus: 'fulfilled',
+          subtotalAmount: 999,
+          discountAmount: 100,
+          totalAmount: 899,
           currency: 'usd',
-          gift_card_id: 'gift-1',
-          stripe_session_id: 'cs_1',
-          stripe_payment_intent_id: 'pi_1',
-          payment_status: 'paid',
-          fulfillment_status: 'delivered',
-          terminal_user_id: 'user-1',
-          terminal_user_email: 'owner@example.com',
-          created_at: '2026-05-07T00:00:00.000Z',
-          paid_at: '2026-05-07T00:01:00.000Z',
-          fulfilled_at: '2026-05-07T00:02:00.000Z',
+          items: [
+            {
+              name: 'Storage Bundle',
+              description: null,
+              fulfillmentPayload: { storageBytes: 1024, trafficBytes: 2048 },
+            },
+          ],
+          payments: [{ provider: 'stripe', providerSessionId: 'cs_1', providerPaymentIntentId: 'pi_1' }],
+          createdAt: '2026-05-07T00:00:00.000Z',
+          paidAt: '2026-05-07T00:01:00.000Z',
+          fulfilledAt: '2026-05-07T00:02:00.000Z',
         },
       ]),
     ).toEqual({
@@ -100,7 +103,7 @@ describe('quota store helper paths', () => {
           stripeAmount: 899,
           paidAmount: 999,
           currency: 'usd',
-          giftCardId: 'gift-1',
+          giftCardId: null,
           stripeSessionId: 'cs_1',
           stripePaymentIntentId: 'pi_1',
           paymentStatus: 'paid',
@@ -132,19 +135,112 @@ describe('quota store helper paths', () => {
           disabled_at: null,
         },
       ]),
-    ).toEqual([
-      {
-        id: 'gift-1',
-        code: '',
-        initialAmount: 5000,
-        remainingAmount: 2500,
-        currency: 'usd',
-        status: 'active',
-        expiresAt: null,
+    ).toEqual({
+      items: [
+        {
+          id: 'gift-1',
+          code: '',
+          initialAmount: 5000,
+          remainingAmount: 2500,
+          currency: 'usd',
+          status: 'active',
+          expiresAt: null,
+          createdAt: '2026-05-07T00:00:00.000Z',
+          updatedAt: '2026-05-07T00:01:00.000Z',
+          disabledAt: null,
+        },
+      ],
+      total: 1,
+    })
+  })
+
+  it('normalizes paged Cloud gift card responses', () => {
+    expect(
+      cloudGiftCardsResponseSchema.parse({
+        items: [
+          {
+            id: 'gift-1',
+            code: 'ZS-PAGED-1',
+            initialAmount: 5000,
+            remainingAmount: 2500,
+            currency: 'usd',
+            status: 'active',
+            expiresAt: null,
+            createdAt: '2026-05-07T00:00:00.000Z',
+            updatedAt: '2026-05-07T00:01:00.000Z',
+            disabledAt: null,
+          },
+        ],
+        total: 7,
+      }),
+    ).toEqual({
+      items: [
+        {
+          id: 'gift-1',
+          code: 'ZS-PAGED-1',
+          initialAmount: 5000,
+          remainingAmount: 2500,
+          currency: 'usd',
+          status: 'active',
+          expiresAt: null,
+          createdAt: '2026-05-07T00:00:00.000Z',
+          updatedAt: '2026-05-07T00:01:00.000Z',
+          disabledAt: null,
+        },
+      ],
+      total: 7,
+    })
+  })
+
+  it('normalizes legacy storage package payload shapes', () => {
+    expect(
+      cloudPackageResponseSchema.parse({
+        id: 'legacy-storage',
+        name: 'Legacy Storage',
+        description: null,
+        resourceType: 'storage',
+        resourceBytes: 2048,
+        prices: [{ currency: 'usd', unit_amount: '1200' }],
+        sort_order: '4',
+        created_at: '2026-05-07T00:00:00.000Z',
+        updated_at: '2026-05-07T00:01:00.000Z',
+      }),
+    ).toEqual({
+      id: 'legacy-storage',
+      name: 'Legacy Storage',
+      description: '',
+      storageBytes: 2048,
+      trafficBytes: 0,
+      prices: [{ currency: 'usd', amount: 1200 }],
+      active: true,
+      sortOrder: 4,
+      createdAt: '2026-05-07T00:00:00.000Z',
+      updatedAt: '2026-05-07T00:01:00.000Z',
+    })
+    expect(
+      cloudPackageResponseSchema.parse({
+        id: 'legacy-traffic',
+        name: 'Legacy Traffic',
+        resource_type: 'traffic',
+        resource_bytes: '4096',
+        type: 'zpan_quota',
+        prices: [{ currency: 'cny', amount: 1800 }],
+        sortOrder: 5,
+        active: false,
         createdAt: '2026-05-07T00:00:00.000Z',
         updatedAt: '2026-05-07T00:01:00.000Z',
-        disabledAt: null,
-      },
-    ])
+      }),
+    ).toEqual({
+      id: 'legacy-traffic',
+      name: 'Legacy Traffic',
+      description: '',
+      storageBytes: 0,
+      trafficBytes: 4096,
+      prices: [{ currency: 'cny', amount: 1800 }],
+      active: false,
+      sortOrder: 5,
+      createdAt: '2026-05-07T00:00:00.000Z',
+      updatedAt: '2026-05-07T00:01:00.000Z',
+    })
   })
 })
