@@ -76,6 +76,20 @@ import {
 
 export type { Storage, StorageObject }
 
+export type UserQuota = Pick<
+  OrgQuota,
+  | 'orgId'
+  | 'baseQuota'
+  | 'entitlementQuota'
+  | 'quota'
+  | 'used'
+  | 'baseTrafficQuota'
+  | 'entitlementTrafficQuota'
+  | 'trafficQuota'
+  | 'trafficUsed'
+  | 'trafficPeriod'
+>
+
 export interface ApiErrorBody {
   error?: string
   code?: string
@@ -306,18 +320,7 @@ export function updateQuota(orgId: string, quota: number, trafficQuota?: number)
 // User Quotas API
 
 export function getUserQuota() {
-  return unwrap<
-    {
-      orgId: string
-      baseQuota: number
-      entitlementQuota: number
-      quota: number
-      used: number
-    } & Pick<
-      OrgQuota,
-      'baseTrafficQuota' | 'entitlementTrafficQuota' | 'trafficQuota' | 'trafficUsed' | 'trafficPeriod'
-    >
-  >(userQuotas.me.$get())
+  return unwrap<UserQuota>(userQuotas.me.$get())
 }
 
 // Quota Store API

@@ -26,7 +26,7 @@ export function StoragePlanList({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{t('admin.cloudStore.packageName')}</TableHead>
+            <TableHead>{t('admin.cloudStore.planName')}</TableHead>
             <TableHead>{t('admin.cloudStore.storageQuota')}</TableHead>
             <TableHead>{t('admin.cloudStore.trafficQuota')}</TableHead>
             <TableHead>{t('admin.cloudStore.prices')}</TableHead>
@@ -86,7 +86,7 @@ export function StoragePlanList({
         </TableBody>
       </Table>
       {packages.length === 0 && (
-        <div className="border-t p-8 text-center text-sm text-muted-foreground">{t('admin.cloudStore.noPackages')}</div>
+        <div className="border-t p-8 text-center text-sm text-muted-foreground">{t('admin.cloudStore.noPlans')}</div>
       )}
     </div>
   )

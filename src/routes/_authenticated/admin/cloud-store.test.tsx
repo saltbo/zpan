@@ -22,7 +22,7 @@ import { AdminCloudStorePage } from './cloud-store'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, values?: { size?: string }) => (values?.size ? `${key}:${values.size}` : key),
   }),
 }))
 
@@ -201,7 +201,7 @@ describe('AdminCloudStorePage', () => {
 
     await waitFor(() => expect(view.getByRole('button', { name: 'admin.cloudStore.newPackage' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.newPackage' }))
-    fireEvent.change(view.getByLabelText('admin.cloudStore.packageName'), { target: { value: '250 GB' } })
+    fireEvent.change(view.getByLabelText('admin.cloudStore.planName'), { target: { value: '250 GB' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.description'), { target: { value: 'Team storage' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.storageQuota'), { target: { value: '250' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.usdAmount'), { target: { value: '19.99' } })
@@ -240,7 +240,7 @@ describe('AdminCloudStorePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: 'admin.cloudStore.newPackage' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.newPackage' }))
     const dialog = await view.findByRole('dialog')
-    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.packageName'), {
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.planName'), {
       target: { value: '1 TB traffic' },
     })
     fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.description'), {
@@ -279,18 +279,18 @@ describe('AdminCloudStorePage', () => {
     const view = renderAdminPage()
 
     await waitFor(() => expect(view.getByRole('table')).toBeTruthy())
-    expect(view.getByRole('columnheader', { name: 'admin.cloudStore.packageName' })).toBeTruthy()
+    expect(view.getByRole('columnheader', { name: 'admin.cloudStore.planName' })).toBeTruthy()
     expect(view.getByRole('columnheader', { name: 'admin.cloudStore.prices' })).toBeTruthy()
     expect(view.queryByRole('button', { name: 'admin.cloudStore.sync' })).toBeNull()
     expect(view.queryByText('admin.cloudStore.lastSync')).toBeNull()
     expect(view.queryByText('admin.cloudStore.lastOrder')).toBeNull()
-    expect(view.queryByLabelText('admin.cloudStore.packageName')).toBeNull()
+    expect(view.queryByLabelText('admin.cloudStore.planName')).toBeNull()
 
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.newPackage' }))
 
     const dialog = await view.findByRole('dialog')
     expect(within(dialog).getByText('admin.cloudStore.newPackage')).toBeTruthy()
-    expect(within(dialog).getByLabelText('admin.cloudStore.packageName')).toBeTruthy()
+    expect(within(dialog).getByLabelText('admin.cloudStore.planName')).toBeTruthy()
     expect(within(dialog).queryByLabelText('admin.cloudStore.sortOrder')).toBeNull()
     expect(within(dialog).queryByLabelText('admin.cloudStore.active')).toBeNull()
   })
@@ -306,7 +306,7 @@ describe('AdminCloudStorePage', () => {
 
     const dialog = await view.findByRole('dialog')
     expect(within(dialog).getByText('admin.cloudStore.editPackage')).toBeTruthy()
-    expect(within(dialog).getByLabelText('admin.cloudStore.packageName')).toHaveProperty('value', '500 GB')
+    expect(within(dialog).getByLabelText('admin.cloudStore.planName')).toHaveProperty('value', '500 GB')
     expect(within(dialog).queryByLabelText('admin.cloudStore.active')).toBeNull()
   })
 
@@ -320,7 +320,7 @@ describe('AdminCloudStorePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: 'common.edit' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'common.edit' }))
     const dialog = await view.findByRole('dialog')
-    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.packageName'), { target: { value: '200 GB' } })
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.planName'), { target: { value: '200 GB' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
@@ -530,7 +530,24 @@ describe('AdminCloudStorePage', () => {
     vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
     vi.mocked(listAdminCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listAdminCloudOrders).mockResolvedValue({
-      items: [storeOrder()],
+      items: [
+        storeOrder({
+          items: [
+            {
+              id: 'item-1',
+              orderId: 'order-1',
+              productId: 'pkg-1',
+              productType: 'zpan_quota',
+              name: '100 GB',
+              description: null,
+              quantity: 1,
+              unitAmount: 999,
+              totalAmount: 999,
+              fulfillmentPayload: { storageBytes: 1024, trafficBytes: 2048 },
+            },
+          ],
+        }),
+      ],
       total: 1,
     })
 
@@ -538,6 +555,12 @@ describe('AdminCloudStorePage', () => {
 
     await waitFor(() => expect(view.getByRole('tab', { name: 'admin.cloudStore.tabs.orders' })).toBeTruthy())
     fireEvent.click(view.getByRole('tab', { name: 'admin.cloudStore.tabs.orders' }))
+    await waitFor(() =>
+      expect(view.getByRole('columnheader', { name: 'admin.cloudStore.orders.planQuota' })).toBeTruthy(),
+    )
+    expect(
+      view.getByText('admin.cloudStore.orders.storageQuota:1.0 KB / admin.cloudStore.orders.trafficQuota:2.0 KB'),
+    ).toBeTruthy()
     await waitFor(() => expect(view.getByText('user@example.com')).toBeTruthy())
   })
 

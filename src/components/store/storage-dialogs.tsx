@@ -78,7 +78,7 @@ export function StorageActions({
         <DialogTrigger asChild>
           <Button variant="outline" size="sm">
             <ShoppingCart />
-            {t('storage.packagesTitle')}
+            {t('storage.plansTitle')}
           </Button>
         </DialogTrigger>
         <DialogContent className="gap-4 p-5 sm:max-w-xl">
@@ -109,8 +109,8 @@ function PackagePanel({
   return (
     <>
       <DialogHeader className="space-y-1">
-        <DialogTitle className="text-base">{t('storage.packagesTitle')}</DialogTitle>
-        <DialogDescription className="text-xs leading-5">{t('storage.packagesDescription')}</DialogDescription>
+        <DialogTitle className="text-base">{t('storage.plansTitle')}</DialogTitle>
+        <DialogDescription className="text-xs leading-5">{t('storage.plansDescription')}</DialogDescription>
       </DialogHeader>
       <div className="grid max-h-[56vh] gap-2.5 overflow-y-auto pr-1 sm:grid-cols-2">
         {packages.map((pkg) => (
@@ -182,7 +182,7 @@ function PackageOption({
       <div className="mt-3">
         <Button className="h-8 w-full text-xs" disabled={disabled} onClick={() => onCheckout(price.currency)}>
           <PlusCircle className="mr-1.5 size-3.5" />
-          {t('storage.checkout')} · {formatMoney(price.amount, price.currency, language)}
+          {t('storage.checkoutPlan')} · {formatMoney(price.amount, price.currency, language)}
         </Button>
       </div>
     </div>
