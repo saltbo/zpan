@@ -21,6 +21,7 @@ import {
   cancelCloudOrder,
   continueCloudOrderPayment,
   createCloudCheckout,
+  createCloudSubscriptionPortal,
   getCloudWallet,
   getUserQuota,
   listCloudOrders,
@@ -72,6 +73,7 @@ export function StoragePage() {
   })
   const currentOrders = ordersQuery.data?.items ?? []
   const deliveredCheckoutCount = currentOrders.filter((order) => order.fulfillmentStatus === 'fulfilled').length
+  const hasActivePlan = Boolean(quotaQuery.data?.storagePlanName || quotaQuery.data?.trafficPlanName)
 
   useEffect(() => {
     if (deliveredCheckoutCount > 0) queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
@@ -127,6 +129,21 @@ export function StoragePage() {
     },
   })
 
+  const managePlanMutation = useMutation({
+    mutationFn: (_variables: { checkoutWindow: Window | null }) => createCloudSubscriptionPortal(),
+    onSuccess: (result, variables) => {
+      if (variables.checkoutWindow) {
+        variables.checkoutWindow.location.href = result.url
+      } else {
+        window.location.assign(result.url)
+      }
+    },
+    onError: (err, variables) => {
+      variables.checkoutWindow?.close()
+      toast.error(err.message)
+    },
+  })
+
   const cancelOrderMutation = useMutation({
     mutationFn: (orderId: string) => cancelCloudOrder(orderId),
     onSuccess: () => {
@@ -167,6 +184,12 @@ export function StoragePage() {
     continuePaymentMutation.mutate({ orderId, checkoutWindow })
   }
 
+  function managePlan() {
+    const checkoutWindow = window.open('about:blank', '_blank')
+    if (checkoutWindow) checkoutWindow.opener = null
+    managePlanMutation.mutate({ checkoutWindow })
+  }
+
   function cancelOrder(orderId: string) {
     setCancelOrderId(orderId)
   }
@@ -200,10 +223,19 @@ export function StoragePage() {
           packages={cloudStoreQuery.data?.items ?? []}
           packagesDisabled={!targetOrgId || checkoutMutation.isPending}
           onCheckout={startCheckout}
+          onManagePlan={managePlan}
           onRedeem={(code) => redeemMutation.mutate(code)}
           isRedeeming={redeemMutation.isPending}
+          hasActivePlan={hasActivePlan}
+          isManagingPlan={managePlanMutation.isPending}
         />
       </div>
+
+      {checkoutRefreshActive && (
+        <div className="rounded-md border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          {t('storage.checkoutPending')}
+        </div>
+      )}
 
       <StorageStatusMetrics
         quota={quotaQuery.data}

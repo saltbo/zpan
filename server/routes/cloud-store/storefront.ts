@@ -12,12 +12,14 @@ import { requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { canAccessTargetOrg, getAccessibleTargets, getUserTerminalLabel } from '../../services/cloud-store'
+import { getEffectiveQuota } from '../../services/effective-quota'
 import {
   cloudCheckoutResponseSchema,
   cloudOrderResponseSchema,
   cloudPackageListResponseSchema,
   cloudPackageResponseSchema,
   cloudStoreOrdersQuerySchema,
+  cloudSubscriptionPortalResponseSchema,
   getCloud,
   getUserStoreSettings,
   ordersPath,
@@ -25,6 +27,7 @@ import {
   patchCloudWithBinding,
   postCloudWithBinding,
   redemptionPath,
+  subscriptionPortalPath,
   walletPath,
 } from '../cloud-store-helpers'
 import { getCloudOrders, getInstanceOrigin } from './shared'
@@ -97,6 +100,10 @@ export const cloudStore = new Hono<Env>()
     if ('error' in product) return c.json(product, 502)
     const price = product.prices.find((item) => item.currency === currency)
     if (!price) return c.json({ error: 'package_price_missing' }, 400)
+    if (price.recurring) {
+      const quota = await getEffectiveQuota(db, targetOrgId)
+      if (quota.storagePlanName || quota.trafficPlanName) return c.json({ error: 'workspace_plan_exists' }, 409)
+    }
     const order = await postCloudWithBinding(
       c,
       ordersPath(),
@@ -125,6 +132,25 @@ export const cloudStore = new Hono<Env>()
     )
     if ('error' in payment) return c.json(payment, 502)
     return c.json(payment)
+  })
+  .post('/subscription/portal', async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const targetOrgId = c.get('orgId')
+    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
+    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
+
+    const store = await getUserStoreSettings(db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const origin = getInstanceOrigin(c)
+    const result = await postCloudWithBinding(
+      c,
+      subscriptionPortalPath(),
+      { endUserId: targetOrgId, returnUrl: `${origin}/storage` },
+      cloudSubscriptionPortalResponseSchema,
+    )
+    if ('error' in result) return c.json(result, 502)
+    return c.json(result)
   })
   .get('/orders', zValidator('query', cloudStoreOrdersQuerySchema), async (c) => {
     const db = c.get('platform').db

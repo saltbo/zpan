@@ -1374,6 +1374,48 @@ describe('Quota Store API', () => {
     expect(orderPayload()).not.toHaveProperty('walletCreditAmount')
   })
 
+  it('rejects recurring checkout when the workspace already has an active plan', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    const packageId = await seedPackage(db)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        ('ent-active-plan', ${orgId}, 'storage', 'cloud_order', ${`stripe_subscription:sub_active:${orgId}`}, 4096, ${now}, NULL, 'active', '{"packageName":"Active Plan"}', ${now}, ${now})
+    `)
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () =>
+        cloudProduct({
+          id: packageId,
+          prices: [
+            {
+              id: 'price-monthly',
+              currency: 'usd',
+              amount: 500,
+              recurring: { interval: 'month', intervalCount: 1 },
+            },
+          ],
+        }),
+    } as Response)
+
+    const checkout = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, currency: 'usd' }),
+    })
+
+    expect(checkout.status).toBe(409)
+    await expect(checkout.json()).resolves.toEqual({ error: 'workspace_plan_exists' })
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+  })
+
   it('uses wallet credit when checking out fixed-duration packages', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
@@ -1389,6 +1431,34 @@ describe('Quota Store API', () => {
 
     expect(checkout.status).toBe(200)
     expect(orderPayload()).toMatchObject({ walletCreditAmount: 'max' })
+  })
+
+  it('creates a subscription portal for the active workspace plan', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ url: 'https://billing.stripe.test/1', stripeSubscriptionId: 'sub_1' }),
+    } as Response)
+
+    const portal = await app.request('/api/store/subscription/portal', {
+      method: 'POST',
+      headers,
+    })
+
+    expect(portal.status).toBe(200)
+    await expect(portal.json()).resolves.toEqual({
+      url: 'https://billing.stripe.test/1',
+      stripeSubscriptionId: 'sub_1',
+    })
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/subscription-portal`)
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual({ endUserId: orgId, returnUrl: 'http://localhost/storage' })
   })
 
   it('lists purchasable packages, targets, checkout, and orders', async () => {
@@ -1962,6 +2032,80 @@ describe('Quota Store API', () => {
       trafficPlanName: 'Team Plan',
       trafficExtraNames: [],
     })
+  })
+
+  it('applies subscription overage caps through Cloud before processing quota changes', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    vi.mocked(fetch).mockClear()
+
+    const subscriptionSourceId = `stripe_subscription:sub_overage:${orgId}`
+    const payload = JSON.stringify({
+      eventId: 'evt-subscription-overage-cap',
+      cloudOrderId: subscriptionSourceId,
+      targetOrgId: orgId,
+      eventType: 'order.quota_changed',
+      direction: 'increase',
+      storageBytes: 4096,
+      trafficBytes: 2048,
+      overageCapCents: 2500,
+      source: 'stripe_subscription',
+      packageName: 'Team Plan',
+      expiresAt: '2026-06-01T00:00:00.000Z',
+    })
+
+    const res = await postWebhook(app, payload)
+    const canceled = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-subscription-overage-cap-canceled',
+        cloudOrderId: subscriptionSourceId,
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'decrease',
+        storageBytes: 4096,
+        trafficBytes: 2048,
+        source: 'stripe_subscription',
+        packageName: 'Team Plan',
+      }),
+    )
+    const noCap = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-subscription-overage-cap-default',
+        cloudOrderId: `stripe_subscription:sub_no_cap:${orgId}`,
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 4096,
+        trafficBytes: 2048,
+        source: 'stripe_subscription',
+        packageName: 'No Cap Plan',
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(canceled.status).toBe(200)
+    expect(noCap.status).toBe(200)
+    const capCalls = vi
+      .mocked(fetch)
+      .mock.calls.filter(
+        ([url, init]) => init?.method === 'PUT' && String(url).endsWith('/api/accounts/me/overage-cap'),
+      )
+    expect(capCalls).toHaveLength(3)
+    const [, init] = capCalls[0] as [URL, RequestInit]
+    expect(init.headers).toMatchObject({
+      Authorization: `Bearer ${REFRESH_TOKEN}`,
+      'Content-Type': 'application/json',
+    })
+    expect(JSON.parse(String(init.body))).toEqual({ endUserId: orgId, capCents: 2500 })
+    const [, resetInit] = capCalls[1] as [URL, RequestInit]
+    expect(JSON.parse(String(resetInit.body))).toEqual({ endUserId: orgId, capCents: 0 })
+    const [, defaultInit] = capCalls[2] as [URL, RequestInit]
+    expect(JSON.parse(String(defaultInit.body))).toEqual({ endUserId: orgId, capCents: 0 })
   })
 
   it('renews subscription entitlements by replacing plan bytes and extending expiry', async () => {

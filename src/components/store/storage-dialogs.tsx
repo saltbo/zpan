@@ -1,5 +1,5 @@
 import type { CloudProduct } from '@shared/types'
-import { Activity, Gift, HardDrive, PlusCircle, ShoppingCart } from 'lucide-react'
+import { Activity, CreditCard, Gift, HardDrive, PlusCircle, ShoppingCart } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -19,14 +19,20 @@ export function StorageActions({
   packages,
   packagesDisabled,
   onCheckout,
+  onManagePlan,
   onRedeem,
   isRedeeming,
+  hasActivePlan,
+  isManagingPlan,
 }: {
   packages: CloudProduct[]
   packagesDisabled: boolean
   onCheckout: (packageId: string, currency: string) => void
+  onManagePlan: () => void
   onRedeem: (code: string) => void
   isRedeeming: boolean
+  hasActivePlan: boolean
+  isManagingPlan: boolean
 }) {
   const { t, i18n } = useTranslation()
   const [redeemOpen, setRedeemOpen] = useState(false)
@@ -73,6 +79,12 @@ export function StorageActions({
           </div>
         </DialogContent>
       </Dialog>
+      {hasActivePlan && (
+        <Button variant="outline" size="sm" disabled={isManagingPlan} onClick={onManagePlan}>
+          <CreditCard />
+          {t('storage.managePlan')}
+        </Button>
+      )}
 
       <Dialog>
         <DialogTrigger asChild>
@@ -85,6 +97,7 @@ export function StorageActions({
           <PackagePanel
             packages={packages}
             disabled={packagesDisabled}
+            hasActivePlan={hasActivePlan}
             language={i18n.resolvedLanguage ?? 'en'}
             onCheckout={onCheckout}
           />
@@ -97,11 +110,13 @@ export function StorageActions({
 function PackagePanel({
   packages,
   disabled,
+  hasActivePlan,
   language,
   onCheckout,
 }: {
   packages: CloudProduct[]
   disabled: boolean
+  hasActivePlan: boolean
   language: string
   onCheckout: (packageId: string, currency: string) => void
 }) {
@@ -118,6 +133,7 @@ function PackagePanel({
             key={pkg.id}
             pkg={pkg}
             disabled={disabled}
+            hasActivePlan={hasActivePlan}
             language={language}
             onCheckout={(currency) => onCheckout(pkg.id, currency)}
           />
@@ -135,16 +151,20 @@ function PackagePanel({
 function PackageOption({
   pkg,
   disabled,
+  hasActivePlan,
   language,
   onCheckout,
 }: {
   pkg: CloudProduct
   disabled: boolean
+  hasActivePlan: boolean
   language: string
   onCheckout: (currency: string) => void
 }) {
   const { t } = useTranslation()
   const price = selectPrice(pkg.prices, language)
+  const isSubscription = Boolean(price.recurring)
+  const blockedByActivePlan = isSubscription && hasActivePlan
   const Icon =
     pkg.metadata.storageBytes > 0 && pkg.metadata.trafficBytes > 0
       ? HardDrive
@@ -180,9 +200,15 @@ function PackageOption({
         </div>
       </div>
       <div className="mt-3">
-        <Button className="h-8 w-full text-xs" disabled={disabled} onClick={() => onCheckout(price.currency)}>
+        <Button
+          className="h-8 w-full text-xs"
+          disabled={disabled || blockedByActivePlan}
+          onClick={() => onCheckout(price.currency)}
+        >
           <PlusCircle className="mr-1.5 size-3.5" />
-          {t('storage.checkoutPlan')} · {formatPackagePrice(price, pkg, language, t)}
+          {blockedByActivePlan
+            ? t('storage.planAlreadyActive')
+            : `${t('storage.checkoutPlan')} · ${formatPackagePrice(price, pkg, language, t)}`}
         </Button>
       </div>
     </div>

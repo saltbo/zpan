@@ -41,6 +41,7 @@ export const cloudProductInputSchema = z
       storageBytes: z.number().int().min(0).default(0),
       trafficBytes: z.number().int().min(0).default(0),
       validityDays: z.number().int().positive().optional(),
+      overageCapCents: z.number().int().min(0).optional(),
     }),
     prices: z.array(cloudProductPriceSchema).min(1),
     active: z.boolean().default(true),
@@ -66,6 +67,7 @@ export const cloudProductPatchSchema = z
       storageBytes: z.number().int().min(0),
       trafficBytes: z.number().int().min(0),
       validityDays: z.number().int().positive().optional(),
+      overageCapCents: z.number().int().min(0).optional(),
     }),
     prices: z.array(cloudProductPriceSchema).min(1),
     active: z.boolean(),
@@ -111,6 +113,7 @@ const legacyCloudOrderQuotaChangeSchema = z
     direction: z.enum(['increase', 'decrease']),
     storageBytes: z.number().int().min(0).default(0),
     trafficBytes: z.number().int().min(0).default(0),
+    overageCapCents: z.number().int().min(0).optional(),
     source: z.string().min(1).optional(),
     packageId: z.string().min(1).optional(),
     packageName: z.string().min(1).optional(),
@@ -166,6 +169,11 @@ function numberDeliverableValue(deliverable: Record<string, unknown>, key: strin
   return typeof value === 'number' ? value : 0
 }
 
+function optionalNumberDeliverableValue(deliverable: Record<string, unknown>, key: string) {
+  const value = deliverable[key]
+  return typeof value === 'number' ? value : undefined
+}
+
 function stringDeliverableValue(deliverable: Record<string, unknown>, key: string) {
   const value = deliverable[key]
   return typeof value === 'string' ? value : undefined
@@ -202,6 +210,7 @@ export const cloudOrderQuotaChangeSchema = z.union([
           : ('increase' as const),
       storageBytes: numberDeliverableValue(event.deliverable, 'storageBytes'),
       trafficBytes: numberDeliverableValue(event.deliverable, 'trafficBytes'),
+      overageCapCents: optionalNumberDeliverableValue(event.deliverable, 'overageCapCents'),
       source: event.context.stripeSubscriptionId ? 'stripe_subscription' : 'stripe',
       packageId: event.productId,
       packageName: stringDeliverableValue(event.deliverable, 'packageName') ?? event.productName,

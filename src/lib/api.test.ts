@@ -19,6 +19,7 @@ import {
   createCloudCheckout,
   createCloudGiftCards,
   createCloudProduct,
+  createCloudSubscriptionPortal,
   createIhostApiKey,
   createIhostImagePresign,
   createObject,
@@ -417,11 +418,13 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ orderId: 'order-1', url: 'https://cloud.example/checkout' }))
+        .mockResolvedValueOnce(makeResponse({ url: 'https://billing.stripe.test/1', stripeSubscriptionId: 'sub_1' }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
       await listCloudProducts()
       await listCloudStoreTargets()
       await createCloudCheckout('pkg-1', 'cny')
+      await createCloudSubscriptionPortal()
       await listCloudOrders({ limit: 100, offset: 100 })
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
@@ -432,7 +435,9 @@ describe('api', () => {
         packageId: 'pkg-1',
         currency: 'cny',
       })
-      expect(calls[3][0]).toBe('/api/store/orders?limit=100&offset=100')
+      expect(calls[3][0]).toBe('/api/store/subscription/portal')
+      expect(calls[3][1].method).toBe('POST')
+      expect(calls[4][0]).toBe('/api/store/orders?limit=100&offset=100')
     })
 
     it('calls wallet, wallet transactions, redemption, and order action endpoints', async () => {

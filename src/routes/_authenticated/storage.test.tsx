@@ -8,6 +8,7 @@ import {
   cancelCloudOrder,
   continueCloudOrderPayment,
   createCloudCheckout,
+  createCloudSubscriptionPortal,
   getCloudWallet,
   getUserQuota,
   listCloudOrders,
@@ -30,6 +31,7 @@ vi.mock('react-i18next', () => ({
         base?: string
         cloud?: string
         currency?: string
+        days?: number
         period?: string
         used?: string
       },
@@ -74,6 +76,7 @@ vi.mock('@/lib/api', () => {
     cancelCloudOrder: vi.fn(),
     continueCloudOrderPayment: vi.fn(),
     createCloudCheckout: vi.fn(),
+    createCloudSubscriptionPortal: vi.fn(),
     getUserQuota: vi.fn(),
     getCloudWallet: vi.fn(),
     redeemCloudGiftCard: vi.fn(),
@@ -131,6 +134,15 @@ function quotaPackage(): CloudProduct {
     sortOrder: 1,
     createdAt: '2026-05-05T00:00:00.000Z',
     updatedAt: '2026-05-05T00:00:00.000Z',
+  }
+}
+
+function subscriptionPackage(): CloudProduct {
+  return {
+    ...quotaPackage(),
+    id: 'pkg-subscription',
+    name: 'Team Plan',
+    prices: [{ currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } }],
   }
 }
 
@@ -362,8 +374,86 @@ describe('StoragePage', () => {
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPlan/ }))
 
     await waitFor(() => expect(checkoutWindow.location.href).toBe('https://cloud.example.test/checkout'))
+    expect(view.getByText('storage.checkoutPending')).toBeTruthy()
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
+  })
+
+  it('opens the Stripe portal for an active workspace plan', async () => {
+    vi.mocked(getUserQuota).mockResolvedValue({
+      orgId: 'org-1',
+      baseQuota: 1024,
+      entitlementQuota: 512,
+      quota: 1536,
+      used: 0,
+      baseTrafficQuota: 0,
+      entitlementTrafficQuota: 0,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+      storagePlanName: 'Team Plan',
+      storageExtraNames: [],
+      trafficPlanName: null,
+      trafficExtraNames: [],
+    })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [subscriptionPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(createCloudSubscriptionPortal).mockResolvedValue({
+      url: 'https://billing.stripe.test/session',
+      stripeSubscriptionId: 'sub_1',
+    })
+    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
+    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'storage.managePlan' }))
+
+    await waitFor(() => expect(createCloudSubscriptionPortal).toHaveBeenCalled())
+    expect(checkoutWindow.location.href).toBe('https://billing.stripe.test/session')
+  })
+
+  it('blocks subscription checkout when the workspace already has an active plan', async () => {
+    vi.mocked(getUserQuota).mockResolvedValue({
+      orgId: 'org-1',
+      baseQuota: 1024,
+      entitlementQuota: 512,
+      quota: 1536,
+      used: 0,
+      baseTrafficQuota: 0,
+      entitlementTrafficQuota: 0,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+      storagePlanName: 'Team Plan',
+      storageExtraNames: [],
+      trafficPlanName: null,
+      trafficExtraNames: [],
+    })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [subscriptionPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.plansTitle' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'storage.plansTitle' }))
+    const checkoutButton = await view.findByRole('button', { name: 'storage.planAlreadyActive' })
+
+    expect((checkoutButton as HTMLButtonElement).disabled).toBe(true)
+    expect(createCloudCheckout).not.toHaveBeenCalled()
   })
 
   it('uses the active workspace for orders and checkout', async () => {

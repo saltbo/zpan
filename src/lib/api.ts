@@ -412,6 +412,10 @@ export function createCloudCheckout(packageId: string, currency?: string) {
   )
 }
 
+export function createCloudSubscriptionPortal() {
+  return unwrap<{ url: string; stripeSubscriptionId: string }>(cloudStoreApi.subscription.portal.$post())
+}
+
 export function continueCloudOrderPayment(orderId: string) {
   return unwrap<{ orderId: string; url: string; paymentId?: string }>(
     cloudStoreApi.orders[':orderId'].payments.$post({ param: { orderId } }),

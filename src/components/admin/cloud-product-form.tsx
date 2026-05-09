@@ -22,6 +22,7 @@ export const emptyPackageForm = {
   storageUnit: 'GB' as Unit,
   trafficSize: '',
   trafficUnit: 'GB' as Unit,
+  overageCapAmount: '',
   usdAmount: '9.99',
   cnyAmount: '',
   sortOrder: '0',
@@ -38,6 +39,9 @@ export function packageInputFromForm(form: PackageFormState): CloudProductInput 
       storageBytes: form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0,
       trafficBytes: form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0,
       ...(form.billingMode === 'one_time' ? { validityDays: Math.round(Number(form.validityDays)) } : {}),
+      ...(form.billingMode === 'subscription' && form.overageCapAmount
+        ? { overageCapCents: Math.round(Number(form.overageCapAmount) * 100) }
+        : {}),
     },
     prices: packagePricesFromForm(form),
     active: true,
@@ -57,6 +61,7 @@ export function packageFormFromPackage(pkg: CloudProduct): PackageFormState {
     storageUnit: storageDisplay?.unit ?? 'GB',
     trafficSize: trafficDisplay ? String(trafficDisplay.size) : '',
     trafficUnit: trafficDisplay?.unit ?? 'GB',
+    overageCapAmount: pkg.metadata.overageCapCents === undefined ? '' : (pkg.metadata.overageCapCents / 100).toString(),
     usdAmount: formatMinorAmount(pkg.prices.find((price) => price.currency === 'usd')?.amount),
     cnyAmount: formatMinorAmount(pkg.prices.find((price) => price.currency === 'cny')?.amount),
     sortOrder: String(pkg.sortOrder),
@@ -91,6 +96,16 @@ export function StoragePlanForm({
     <div className="space-y-4">
       <PackageIdentityFields form={form} onFormChange={onFormChange} />
       <PackageBillingFields form={form} onFormChange={onFormChange} />
+      {form.billingMode === 'subscription' && (
+        <NumberField
+          label={t('admin.cloudStore.overageCapAmount')}
+          id="packageOverageCapAmount"
+          min="0"
+          step="0.01"
+          value={form.overageCapAmount}
+          onChange={(overageCapAmount) => onFormChange({ ...form, overageCapAmount })}
+        />
+      )}
       <PackageQuotaFields
         label={t('admin.cloudStore.storageQuota')}
         sizeId="packageStorageSize"

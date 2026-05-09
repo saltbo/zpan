@@ -15,6 +15,10 @@ type CloudPath = string | ((storeId: string) => string)
 export const cloudCheckoutResponseSchema = z
   .object({ orderId: z.string().min(1), url: z.string().url() })
   .or(z.object({ paymentId: z.string().min(1).optional(), orderId: z.string().min(1), url: z.string().url() }))
+export const cloudSubscriptionPortalResponseSchema = z.object({
+  url: z.string().url(),
+  stripeSubscriptionId: z.string().min(1),
+})
 
 const cloudPackageAmountSchema = z.number().int().positive()
 const cloudPackageResourceSchema = z.number().int().min(0)
@@ -42,6 +46,7 @@ const legacyCloudPackageSchema = z
       storageBytes: cloudPackageResourceSchema,
       trafficBytes: cloudPackageResourceSchema,
       validityDays: z.number().int().positive().optional(),
+      overageCapCents: z.number().int().min(0).optional(),
     }),
     prices: z.array(cloudPackagePriceSchema).min(1),
     active: z.boolean(),
@@ -83,6 +88,10 @@ const storeItemPackageSchema = z
         typeof pkg.metadata.deliverable.trafficBytes === 'number' ? pkg.metadata.deliverable.trafficBytes : 0,
       validityDays:
         typeof pkg.metadata.deliverable.validityDays === 'number' ? pkg.metadata.deliverable.validityDays : undefined,
+      overageCapCents:
+        typeof pkg.metadata.deliverable.overageCapCents === 'number'
+          ? pkg.metadata.deliverable.overageCapCents
+          : undefined,
     },
   }))
 export const cloudPackageResponseSchema = z.union([legacyCloudPackageSchema, storeItemPackageSchema])
@@ -281,6 +290,10 @@ export function ordersPath(options: { limit?: number; offset?: number; endUserId
     const query = search.toString()
     return query ? `${path}?${query}` : path
   }
+}
+
+export function subscriptionPortalPath() {
+  return (storeId: string) => `/api/stores/${encodeURIComponent(storeId)}/orders/subscription-portal`
 }
 
 export function walletPath(endUserId: string) {

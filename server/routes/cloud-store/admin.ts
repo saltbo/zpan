@@ -36,7 +36,7 @@ function hasRecurringPrice(input: { prices: Array<{ recurring?: unknown }> }) {
 
 function cloudProductDeliverable(input: {
   name?: string
-  metadata: { storageBytes: number; trafficBytes: number; validityDays?: number }
+  metadata: { storageBytes: number; trafficBytes: number; validityDays?: number; overageCapCents?: number }
   prices: Array<{ recurring?: unknown }>
 }) {
   return {
@@ -45,6 +45,7 @@ function cloudProductDeliverable(input: {
     storageBytes: input.metadata.storageBytes,
     trafficBytes: input.metadata.trafficBytes,
     validityDays: input.metadata.validityDays,
+    overageCapCents: input.metadata.overageCapCents,
   }
 }
 
