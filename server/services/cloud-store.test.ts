@@ -17,7 +17,9 @@ function createAsyncDb(
   }
   const db = {
     constructor: { name: 'AsyncTestDatabase' },
-    transaction: async (fn: (tx: unknown) => Promise<void>) => fn(db),
+    transaction: async () => {
+      throw new Error('failed_query_begin_params')
+    },
     insert: (table: unknown) => ({
       values: (values: Record<string, unknown>) => {
         const apply = () => {
@@ -81,7 +83,9 @@ function createUniqueConflictDb(existing: { id: string; payloadHash: string; sta
   }
   const db = {
     constructor: { name: 'AsyncTestDatabase' },
-    transaction: async (fn: (tx: unknown) => Promise<void>) => fn(db),
+    transaction: async () => {
+      throw new Error('failed_query_begin_params')
+    },
     insert: (table: unknown) => ({
       values: async (values: Record<string, unknown>) => {
         if (table === webhookEvents) throw new Error('UNIQUE constraint failed: webhook_events.source, event_id')
