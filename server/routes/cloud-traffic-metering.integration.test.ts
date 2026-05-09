@@ -213,6 +213,35 @@ describe('public redirect cloud traffic reporting', () => {
     ])
   })
 
+  it('refunds direct share traffic and downloads when Cloud blocks usage', async () => {
+    const { app, db } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(makeCloudResponse({ error: { code: 'overage_cap_exceeded' } }, 429)),
+    )
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, 'm-cloud-direct-blocked')
+    await setTrafficQuota(db, orgId)
+    const share = await createShare(db, { matterId: 'm-cloud-direct-blocked', orgId, creatorId, kind: 'direct' })
+
+    const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
+
+    expect(res.status).toBe(429)
+    await expect(res.json()).resolves.toEqual({ error: 'Cloud traffic overage cap exceeded' })
+    const rows = await db.all<{ downloads: number; trafficUsed: number }>(sql`
+      SELECT s.downloads, q.traffic_used AS trafficUsed
+      FROM shares s
+      INNER JOIN org_quotas q ON q.org_id = s.org_id
+      WHERE s.id = ${share.id}
+    `)
+    expect(rows[0]).toEqual({ downloads: 0, trafficUsed: 25 })
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'blocked' }])
+  })
+
   it('reports landing share downloads to Cloud', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
@@ -231,6 +260,36 @@ describe('public redirect cloud traffic reporting', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       { source: 'landing_share', sourceId: share.id, bytes: 100, status: 'reported' },
     ])
+  })
+
+  it('refunds landing share traffic and downloads when Cloud blocks usage', async () => {
+    const { app, db } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(makeCloudResponse({ error: { code: 'overage_cap_exceeded' } }, 429)),
+    )
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, 'm-cloud-landing-blocked')
+    await setTrafficQuota(db, orgId)
+    const share = await createShare(db, { matterId: 'm-cloud-landing-blocked', orgId, creatorId, kind: 'landing' })
+    const ref = encodeChildRef(share.token, 'm-cloud-landing-blocked')
+
+    const res = await app.request(`/api/shares/${share.token}/objects/${ref}?downloadUrl=1`, { redirect: 'manual' })
+
+    expect(res.status).toBe(429)
+    await expect(res.json()).resolves.toEqual({ error: 'Cloud traffic overage cap exceeded' })
+    const rows = await db.all<{ downloads: number; trafficUsed: number }>(sql`
+      SELECT s.downloads, q.traffic_used AS trafficUsed
+      FROM shares s
+      INNER JOIN org_quotas q ON q.org_id = s.org_id
+      WHERE s.id = ${share.id}
+    `)
+    expect(rows[0]).toEqual({ downloads: 0, trafficUsed: 25 })
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'blocked' }])
   })
 
   it('still returns landing share URLs when audit recording fails after Cloud report', async () => {

@@ -237,4 +237,25 @@ describe('cloud traffic metering', () => {
     expect(fetch).not.toHaveBeenCalled()
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'skipped_unbound' }])
   })
+
+  it('keeps unbound report replays local', async () => {
+    const { db, platform } = await createTestApp()
+    vi.stubGlobal('fetch', vi.fn())
+
+    const input = {
+      platform,
+      orgId: 'org_1',
+      bytes: 1024,
+      source: 'image_hosting' as const,
+      sourceId: 'image_1',
+      eventId: 'evt_unbound_dup',
+    }
+    const first = await reportTrafficEgress(input)
+    const second = await reportTrafficEgress(input)
+
+    expect(first.duplicate).toBe(false)
+    expect(second).toMatchObject({ status: 'skipped_unbound', eventId: 'evt_unbound_dup', duplicate: true })
+    expect(fetch).not.toHaveBeenCalled()
+    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(1)
+  })
 })
