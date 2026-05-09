@@ -1695,16 +1695,17 @@ describe('Quota Store API', () => {
     expect(JSON.parse(audit[0].metadata)).toMatchObject({ eventId: 'evt-1', storageBytes: 4096, trafficBytes: 0 })
   })
 
-  it('delivers monthly subscription storage and traffic entitlements without changing base quotas', async () => {
+  it('delivers initial subscription storage and traffic entitlements under a stable source id', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`UPDATE org_quotas SET quota = 8192, traffic_quota = 1024 WHERE org_id = ${orgId}`)
+    const subscriptionSourceId = `stripe_subscription:sub_metered_123:${orgId}`
     const payload = JSON.stringify({
-      eventId: 'evt-subscription-monthly-entitlement',
-      cloudOrderId: 'sub-item-2026-05',
+      eventId: 'evt-subscription-initial-entitlement',
+      cloudOrderId: subscriptionSourceId,
       targetOrgId: orgId,
       eventType: 'order.quota_changed',
       direction: 'increase',
@@ -1726,13 +1727,13 @@ describe('Quota Store API', () => {
     await expect(duplicate.json()).resolves.toMatchObject({
       success: true,
       duplicate: true,
-      eventId: 'evt-subscription-monthly-entitlement',
+      eventId: 'evt-subscription-initial-entitlement',
     })
 
     const entitlements = await db.all<{ resourceType: string; bytes: number; startsAt: number; metadata: string }>(sql`
       SELECT resource_type AS resourceType, bytes, starts_at AS startsAt, metadata
       FROM org_quota_entitlements
-      WHERE source_id = 'sub-item-2026-05'
+      WHERE source_id = ${subscriptionSourceId}
       ORDER BY resource_type
     `)
     expect(entitlements).toHaveLength(2)
@@ -1742,7 +1743,7 @@ describe('Quota Store API', () => {
     ])
     expect(new Date(entitlements[0].startsAt).toISOString()).toBe('2026-05-01T00:00:00.000Z')
     expect(JSON.parse(entitlements[0].metadata)).toMatchObject({
-      eventId: 'evt-subscription-monthly-entitlement',
+      eventId: 'evt-subscription-initial-entitlement',
       source: 'stripe_subscription',
       packageId: 'pkg-monthly-storage-traffic',
       terminalUserId: 'buyer-1',
