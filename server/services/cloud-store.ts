@@ -6,6 +6,7 @@ import { member, organization, user } from '../db/auth-schema'
 import { activityEvents, orgQuotaEntitlements, orgQuotas, systemOptions, webhookEvents } from '../db/schema'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
+import { type AtomicQuery, executeRows, executeWriteTransaction } from './db-transaction'
 
 const CLOUD_STORE_ENABLED_KEY = 'cloud_store_enabled'
 const CLOUD_STORE_CREATED_AT_KEY = 'cloud_store_created_at'
@@ -138,17 +139,9 @@ async function processQuotaChangeTransaction(
   event: CloudOrderQuotaChange,
 ): Promise<void> {
   const now = new Date(event.occurredAt ?? Date.now())
-  if (isSyncDatabase(db)) {
-    db.transaction((tx) => {
-      applyQuotaChangeSync(tx as Database, event, now)
-      recordQuotaChangeAuditSync(tx as Database, event)
-      markWebhookEventSync(tx as Database, webhookId, 'processed', null)
-    })
-    return
-  }
-
   await requireTargetQuota(db, event.targetOrgId)
-  await executeD1Transaction(db, [
+
+  await executeWriteTransaction(db, [
     ...quotaChangeQueries(db, event, now),
     db.insert(activityEvents).values(quotaChangeAuditValues(event)),
     db
@@ -158,35 +151,10 @@ async function processQuotaChangeTransaction(
   ])
 }
 
-function applyQuotaChangeSync(db: Database, event: CloudOrderQuotaChange, now: Date): void {
-  const rows = (
-    db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, event.targetOrgId)).limit(1) as {
-      all(): Array<{ id: string }>
-    }
-  ).all()
-
-  if (rows.length === 0) throw new Error('target_quota_missing')
-
-  if (event.direction === 'increase') {
-    insertQuotaEntitlementsSync(db, event, now)
-    return
-  }
-
-  revokeQuotaEntitlementsSync(db, event, now)
-}
-
-function quotaChangeQueries(db: Database, event: CloudOrderQuotaChange, now: Date): unknown[] {
+function quotaChangeQueries(db: Database, event: CloudOrderQuotaChange, now: Date): AtomicQuery[] {
   return event.direction === 'increase'
     ? insertQuotaEntitlementQueries(db, event, now)
     : revokeQuotaEntitlementQueries(db, event, now)
-}
-
-async function recordQuotaChangeAudit(db: Database, event: CloudOrderQuotaChange): Promise<void> {
-  await db.insert(activityEvents).values(quotaChangeAuditValues(event))
-}
-
-function recordQuotaChangeAuditSync(db: Database, event: CloudOrderQuotaChange): void {
-  ;(db.insert(activityEvents).values(quotaChangeAuditValues(event)) as { run(): void }).run()
 }
 
 function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEvents.$inferInsert {
@@ -212,11 +180,13 @@ function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEv
 }
 
 async function requireTargetQuota(db: Database, orgId: string): Promise<void> {
-  const rows = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, orgId)).limit(1)
+  const rows = await executeRows(
+    db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, orgId)).limit(1),
+  )
   if (rows.length === 0) throw new Error('target_quota_missing')
 }
 
-function insertQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): unknown[] {
+function insertQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): AtomicQuery[] {
   return quotaEntitlementValues(event, now).map((value) =>
     db
       .insert(orgQuotaEntitlements)
@@ -228,34 +198,12 @@ function insertQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChang
   )
 }
 
-function insertQuotaEntitlementsSync(db: Database, event: CloudOrderQuotaChange, now: Date): void {
-  const values = quotaEntitlementValues(event, now)
-  if (values.length === 0) return
-  for (const value of values) {
-    ;(
-      db
-        .insert(orgQuotaEntitlements)
-        .values(value)
-        .onConflictDoUpdate({
-          target: [orgQuotaEntitlements.source, orgQuotaEntitlements.sourceId, orgQuotaEntitlements.resourceType],
-          set: quotaEntitlementIncreaseValues(value, now),
-        }) as { run(): void }
-    ).run()
-  }
-}
-
-function revokeQuotaEntitlementsSync(db: Database, event: CloudOrderQuotaChange, now: Date): void {
-  const storageRevoked = revokeQuotaEntitlementSync(db, event, 'storage', event.storageBytes, now)
-  const trafficRevoked = revokeQuotaEntitlementSync(db, event, 'traffic', event.trafficBytes, now)
-  applyLegacyQuotaDecreaseSync(db, event, storageRevoked, trafficRevoked)
-}
-
-function revokeQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): unknown[] {
+function revokeQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): AtomicQuery[] {
   return [
     revokeQuotaEntitlementQuery(db, event, 'storage', event.storageBytes, now),
     revokeQuotaEntitlementQuery(db, event, 'traffic', event.trafficBytes, now),
     legacyQuotaDecreaseQuery(db, event),
-  ].filter((query): query is unknown => query !== null)
+  ].filter((query): query is AtomicQuery => query !== null)
 }
 
 function revokeQuotaEntitlementQuery(
@@ -264,7 +212,7 @@ function revokeQuotaEntitlementQuery(
   resourceType: 'storage' | 'traffic',
   bytes: number,
   now: Date,
-): unknown | null {
+): AtomicQuery | null {
   if (bytes === 0) return null
   return db
     .update(orgQuotaEntitlements)
@@ -272,76 +220,10 @@ function revokeQuotaEntitlementQuery(
     .where(quotaEntitlementMatch(event, resourceType))
 }
 
-function revokeQuotaEntitlementSync(
-  db: Database,
-  event: CloudOrderQuotaChange,
-  resourceType: 'storage' | 'traffic',
-  bytes: number,
-  now: Date,
-): boolean {
-  if (bytes === 0) return true
-  const rows = (
-    db
-      .update(orgQuotaEntitlements)
-      .set(quotaEntitlementDecreaseValues(bytes, now))
-      .where(quotaEntitlementMatch(event, resourceType)) as {
-      returning(fields: { id: typeof orgQuotaEntitlements.id }): { all(): Array<{ id: string }> }
-    }
-  )
-    .returning({ id: orgQuotaEntitlements.id })
-    .all()
-  if (rows.length > 0) return true
-
-  const existing = (
-    db
-      .select({ id: orgQuotaEntitlements.id })
-      .from(orgQuotaEntitlements)
-      .where(quotaEntitlementSourceMatch(event, resourceType))
-      .limit(1) as { all(): Array<{ id: string }> }
-  ).all()
-  return existing.length > 0
-}
-
-async function applyLegacyQuotaDecrease(
-  db: Database,
-  event: CloudOrderQuotaChange,
-  storageRevoked: boolean,
-  trafficRevoked: boolean,
-): Promise<void> {
-  const values = legacyQuotaDecreaseValues(event, storageRevoked, trafficRevoked)
-  if (!values) return
-  await db.update(orgQuotas).set(values).where(eq(orgQuotas.orgId, event.targetOrgId))
-}
-
-function applyLegacyQuotaDecreaseSync(
-  db: Database,
-  event: CloudOrderQuotaChange,
-  storageRevoked: boolean,
-  trafficRevoked: boolean,
-): void {
-  const values = legacyQuotaDecreaseValues(event, storageRevoked, trafficRevoked)
-  if (!values) return
-  ;(db.update(orgQuotas).set(values).where(eq(orgQuotas.orgId, event.targetOrgId)) as { run(): void }).run()
-}
-
-function legacyQuotaDecreaseQuery(db: Database, event: CloudOrderQuotaChange): unknown | null {
+function legacyQuotaDecreaseQuery(db: Database, event: CloudOrderQuotaChange): AtomicQuery | null {
   const values = legacyQuotaDecreaseBatchValues(event)
   if (!values) return null
   return db.update(orgQuotas).set(values).where(eq(orgQuotas.orgId, event.targetOrgId))
-}
-
-function legacyQuotaDecreaseValues(
-  event: CloudOrderQuotaChange,
-  storageRevoked: boolean,
-  trafficRevoked: boolean,
-): Partial<typeof orgQuotas.$inferInsert> | null {
-  const values: Partial<typeof orgQuotas.$inferInsert> = {}
-  if (!storageRevoked && event.storageBytes > 0)
-    values.quota = sql`MAX(0, ${orgQuotas.quota} - ${event.storageBytes})` as unknown as number
-  if (!trafficRevoked && event.trafficBytes > 0) {
-    values.trafficQuota = sql`MAX(0, ${orgQuotas.trafficQuota} - ${event.trafficBytes})` as unknown as number
-  }
-  return Object.keys(values).length === 0 ? null : values
 }
 
 function legacyQuotaDecreaseBatchValues(event: CloudOrderQuotaChange): Partial<typeof orgQuotas.$inferInsert> | null {
@@ -518,14 +400,6 @@ async function markWebhookEvent(db: Database, id: string, status: string, error:
   await db.update(webhookEvents).set({ status, error, processedAt: new Date() }).where(eq(webhookEvents.id, id))
 }
 
-function markWebhookEventSync(db: Database, id: string, status: string, error: string | null): void {
-  ;(
-    db.update(webhookEvents).set({ status, error, processedAt: new Date() }).where(eq(webhookEvents.id, id)) as {
-      run(): void
-    }
-  ).run()
-}
-
 function settingsDto(
   row: { id: string; enabled: boolean; createdAt: Date; updatedAt: Date },
   cloudReady = true,
@@ -548,14 +422,4 @@ function isUniqueConflict(error: unknown): boolean {
   if (!(error instanceof Error)) return false
   const message = error.message.toLowerCase()
   return message.includes('unique') || message.includes('constraint failed')
-}
-
-async function executeD1Transaction(db: Database, queries: unknown[]): Promise<void> {
-  const batch = (db as unknown as { batch?: (queries: unknown[]) => Promise<unknown[]> }).batch
-  if (!batch) throw new Error('d1_batch_unavailable')
-  await batch.call(db, queries)
-}
-
-function isSyncDatabase(db: Database): boolean {
-  return db.constructor.name === 'BetterSQLite3Database'
 }

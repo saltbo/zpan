@@ -182,17 +182,21 @@ function createSyncDb(
         set: (values: Record<string, unknown>) => ({
           where: () => {
             if (table === orgQuotaEntitlements) {
+              const apply = () => {
+                state.entitlementRevokes += 1
+              }
               return {
+                run: apply,
                 returning: () => ({
                   all: () => {
-                    state.entitlementRevokes += 1
+                    apply()
                     return entitlementRevokeRows
                   },
                 }),
               }
             }
-            if (table === orgQuotas) state.legacyQuotaUpdates += 1
-            state.webhookStatus = String(values.status)
+            if (table === orgQuotas && existingEntitlementRows.length === 0) state.legacyQuotaUpdates += 1
+            if (table === webhookEvents) state.webhookStatus = String(values.status)
             return { run: () => undefined }
           },
         }),
