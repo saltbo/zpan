@@ -47,6 +47,7 @@ import {
   s3,
   viewCookieName,
 } from './share-utils'
+import { reportTrafficForDownload } from './traffic-metering-utils'
 
 const ROLE_LEVELS: Record<string, number> = { owner: 3, editor: 2, viewer: 1, member: 1 }
 
@@ -289,6 +290,22 @@ export const publicShares = new Hono<Env>()
     let url: string
     try {
       url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
+    } catch (e) {
+      await refundTraffic(db, share.orgId, targetMatter.size ?? 0)
+      await decrementDownloads(db, share.id)
+      throw e
+    }
+
+    const trafficReportError = await reportTrafficForDownload(c, {
+      orgId: share.orgId,
+      bytes: targetMatter.size ?? 0,
+      source: 'landing_share',
+      sourceId: share.id,
+      onRejected: () => decrementDownloads(db, share.id),
+    })
+    if (trafficReportError) return trafficReportError
+
+    try {
       await recordActivity(db, {
         orgId: share.orgId,
         userId: actorId,
@@ -298,10 +315,8 @@ export const publicShares = new Hono<Env>()
         targetName: targetMatter.name,
         metadata: { anonymous: !viewerId },
       })
-    } catch (e) {
-      await refundTraffic(db, share.orgId, targetMatter.size ?? 0)
-      await decrementDownloads(db, share.id)
-      throw e
+    } catch (error) {
+      console.error('[shares] recordActivity failed:', error)
     }
 
     if (returnUrl) {

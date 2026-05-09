@@ -13,6 +13,7 @@ import {
 } from '../services/share'
 import { getStorage } from '../services/storage'
 import { PRESIGN_TTL_SECS, s3 } from './share-utils'
+import { reportTrafficForDownload } from './traffic-metering-utils'
 
 // Strip optional file extension from token (e.g. "ih_aB3xK9.png" → "ih_aB3xK9")
 function stripExtension(token: string): string {
@@ -69,6 +70,15 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
     throw e
   }
 
+  const trafficReportError = await reportTrafficForDownload(c, {
+    orgId: share.orgId,
+    bytes: matter.size ?? 0,
+    source: 'direct_share',
+    sourceId: share.id,
+    onRejected: () => decrementDownloads(db, share.id),
+  })
+  if (trafficReportError) return trafficReportError
+
   const res = c.redirect(url, 302)
   res.headers.set('Cache-Control', 'no-store')
   return res
@@ -98,12 +108,24 @@ async function handleImageHosting(c: Context<Env>, db: Database, token: string):
   let url: string
   try {
     url = await s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
-    await incrementAccessCount(db, image.id)
   } catch (e) {
     await refundTraffic(db, image.orgId, image.size)
     throw e
   }
 
+  const trafficReportError = await reportTrafficForDownload(c, {
+    orgId: image.orgId,
+    bytes: image.size,
+    source: 'image_hosting',
+    sourceId: image.id,
+  })
+  if (trafficReportError) return trafficReportError
+
+  try {
+    await incrementAccessCount(db, image.id)
+  } catch (error) {
+    console.error('[redirect] incrementAccessCount failed:', error)
+  }
   const res = c.redirect(url, 302)
   res.headers.set('Cache-Control', 'no-store')
   return res

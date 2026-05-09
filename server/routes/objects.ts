@@ -34,6 +34,7 @@ import { buildObjectKey } from '../services/path-template'
 import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
 import { getStorage, selectStorage } from '../services/storage'
+import { reportTrafficForDownload } from './traffic-metering-utils'
 
 const s3 = new S3Service()
 
@@ -205,6 +206,14 @@ const app = new Hono<Env>()
       await refundTraffic(db, orgId, matter.size ?? 0)
       throw e
     }
+
+    const trafficReportError = await reportTrafficForDownload(c, {
+      orgId,
+      bytes: matter.size ?? 0,
+      source: 'object_download',
+      sourceId: matter.id,
+    })
+    if (trafficReportError) return trafficReportError
 
     return c.json({ ...matter, downloadUrl })
   })
