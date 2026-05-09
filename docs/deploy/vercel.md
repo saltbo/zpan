@@ -106,6 +106,10 @@ ZPan refreshes its entitlement certificate every 6 hours. On Vercel there is no 
        {
          "path": "/api/licensing/refresh-cron?secret=<YOUR_SECRET>",
          "schedule": "0 */6 * * *"
+       },
+       {
+         "path": "/api/licensing/traffic-sync-runs?secret=<YOUR_SECRET>",
+         "schedule": "*/10 * * * *"
        }
      ]
    }

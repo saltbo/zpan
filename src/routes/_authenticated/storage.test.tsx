@@ -7,8 +7,8 @@ import {
   ApiError,
   cancelCloudOrder,
   continueCloudOrderPayment,
+  createCloudBillingPortalSession,
   createCloudCheckout,
-  createCloudSubscriptionPortal,
   getCloudWallet,
   getUserQuota,
   listCloudOrders,
@@ -76,7 +76,7 @@ vi.mock('@/lib/api', () => {
     cancelCloudOrder: vi.fn(),
     continueCloudOrderPayment: vi.fn(),
     createCloudCheckout: vi.fn(),
-    createCloudSubscriptionPortal: vi.fn(),
+    createCloudBillingPortalSession: vi.fn(),
     getUserQuota: vi.fn(),
     getCloudWallet: vi.fn(),
     redeemCloudGiftCard: vi.fn(),
@@ -398,7 +398,7 @@ describe('StoragePage', () => {
     })
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [subscriptionPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createCloudSubscriptionPortal).mockResolvedValue({
+    vi.mocked(createCloudBillingPortalSession).mockResolvedValue({
       url: 'https://billing.stripe.test/session',
       stripeSubscriptionId: 'sub_1',
     })
@@ -416,7 +416,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.managePlan' }))
 
-    await waitFor(() => expect(createCloudSubscriptionPortal).toHaveBeenCalled())
+    await waitFor(() => expect(createCloudBillingPortalSession).toHaveBeenCalled())
     expect(checkoutWindow.location.href).toBe('https://billing.stripe.test/session')
   })
 

@@ -28,7 +28,7 @@ name = "EMAIL"
 enabled = true
 
 [triggers]
-crons = ["0 */6 * * *"]
+crons = ["*/10 * * * *", "0 */6 * * *"]
 
 # ----------------------------------------------------------------------------
 # Staging environment — used by non-production branch builds.

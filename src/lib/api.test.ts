@@ -16,10 +16,10 @@ import {
   continueCloudOrderPayment,
   copyObject,
   createAnnouncement,
+  createCloudBillingPortalSession,
   createCloudCheckout,
   createCloudGiftCards,
   createCloudProduct,
-  createCloudSubscriptionPortal,
   createIhostApiKey,
   createIhostImagePresign,
   createObject,
@@ -424,7 +424,7 @@ describe('api', () => {
       await listCloudProducts()
       await listCloudStoreTargets()
       await createCloudCheckout('pkg-1', 'cny')
-      await createCloudSubscriptionPortal()
+      await createCloudBillingPortalSession()
       await listCloudOrders({ limit: 100, offset: 100 })
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
@@ -435,7 +435,7 @@ describe('api', () => {
         packageId: 'pkg-1',
         currency: 'cny',
       })
-      expect(calls[3][0]).toBe('/api/store/subscription/portal')
+      expect(calls[3][0]).toBe('/api/store/billing-portal-sessions')
       expect(calls[3][1].method).toBe('POST')
       expect(calls[4][0]).toBe('/api/store/orders?limit=100&offset=100')
     })

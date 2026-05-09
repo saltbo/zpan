@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cloudTrafficReports } from '../db/schema.js'
 import { createLicenseBinding } from '../licensing/license-state.js'
 import { createTestApp, seedProLicense } from '../test/setup.js'
 
@@ -166,5 +167,56 @@ describe('POST /api/licensing/refresh-cron', () => {
 
     // Should not return 401 due to missing auth session
     expect(res.status).toBe(200)
+  })
+
+  it('syncs pending traffic reports from the dedicated traffic cron endpoint', async () => {
+    const { app, db } = await createTestApp({
+      REFRESH_CRON_SECRET: 'traffic-secret',
+      ZPAN_CLOUD_URL: 'https://cloud.example',
+    })
+    await createLicenseBinding(db, {
+      cloudBindingId: 'bind-traffic',
+      cloudStoreId: 'store-traffic',
+      instanceId: 'inst-traffic',
+      cloudAccountId: 'acc-traffic',
+      refreshToken: 'traffic-refresh-token',
+      cachedCert: 'test-cert',
+      cachedExpiresAt: Math.floor(Date.now() / 1000) + 86400,
+      lastRefreshAt: Math.floor(Date.now() / 1000),
+    })
+    await db.insert(cloudTrafficReports).values({
+      id: 'report_traffic_cron',
+      orgId: 'org_traffic_cron',
+      period: '2026-05',
+      source: 'object_download',
+      sourceId: 'matter_traffic_cron',
+      eventId: 'evt_traffic_cron',
+      bytes: 1024,
+      status: 'pending',
+      error: null,
+      createdAt: new Date('2026-05-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-01T00:00:00.000Z'),
+    })
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeCloudResponse({ data: { accepted: true, duplicate: false, eventId: 'evt_traffic_cron' } }, 201),
+    )
+
+    const res = await app.request('/api/licensing/traffic-sync-runs?secret=traffic-secret', { method: 'POST' })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ ok: true, attempted: 1, reported: 1, blocked: 0, failed: 0 })
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://cloud.example/api/stores/store-traffic/usage-events')
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer traffic-refresh-token' })
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
+  })
+
+  it('requires the cron secret for the dedicated traffic cron endpoint', async () => {
+    const { app } = await createTestApp({ REFRESH_CRON_SECRET: 'traffic-secret' })
+
+    const res = await app.request('/api/licensing/traffic-sync-runs?secret=wrong-secret', { method: 'POST' })
+
+    expect(res.status).toBe(401)
+    await expect(res.json()).resolves.toEqual({ error: 'Unauthorized' })
   })
 })

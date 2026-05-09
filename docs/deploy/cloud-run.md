@@ -162,11 +162,20 @@ ZPan refreshes its entitlement certificate every 6 hours. On Cloud Run there is 
      --update-env-vars REFRESH_CRON_SECRET=<your-secret>
    ```
 
-3. **Schedule the call** using [Cloud Scheduler](https://cloud.google.com/scheduler). Create a job:
+3. **Schedule the calls** using [Cloud Scheduler](https://cloud.google.com/scheduler). Create the license refresh job:
    ```sh
    gcloud scheduler jobs create http zpan-license-refresh \
      --schedule="0 */6 * * *" \
      --uri="https://<your-cloud-run-url>/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>" \
+     --http-method=POST \
+     --location=<your-region>
+   ```
+
+   Create the traffic sync job:
+   ```sh
+   gcloud scheduler jobs create http zpan-traffic-sync \
+     --schedule="*/10 * * * *" \
+     --uri="https://<your-cloud-run-url>/api/licensing/traffic-sync-runs?secret=<REFRESH_CRON_SECRET>" \
      --http-method=POST \
      --location=<your-region>
    ```

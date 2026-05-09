@@ -1,7 +1,7 @@
-// CF Workers scheduled() handler — invoked by the cron trigger every 6 hours.
-// Delegates to the shared licensing refresh runner.
+// CF Workers scheduled() handler.
 
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
+import { syncPendingCloudTrafficReports } from '../server/services/cloud-traffic-metering'
 import { runLicensingRefresh } from '../server/services/licensing-refresh-runner'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 
@@ -13,8 +13,16 @@ export interface ScheduledEnv {
   [key: string]: unknown
 }
 
-export async function handleScheduled(env: ScheduledEnv): Promise<void> {
+const TRAFFIC_SYNC_CRON = '*/10 * * * *'
+type ScheduledTrigger = Pick<ScheduledEvent, 'cron'>
+
+export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv): Promise<void> {
   const platform = createCloudflarePlatform(env)
   const cloudBaseUrl = env.ZPAN_CLOUD_URL ?? ZPAN_CLOUD_URL_DEFAULT
+  if (event.cron === TRAFFIC_SYNC_CRON) {
+    await syncPendingCloudTrafficReports({ db: platform.db, cloudBaseUrl })
+    return
+  }
+
   await runLicensingRefresh(platform.db, cloudBaseUrl)
 }

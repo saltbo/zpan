@@ -144,9 +144,15 @@ ZPan refreshes its entitlement certificate every 6 hours. On Netlify there is no
    netlify env:set REFRESH_CRON_SECRET <your-secret> --context production
    ```
 
-3. **Schedule the call** using [Netlify Scheduled Functions](https://docs.netlify.com/functions/scheduled-functions/) or an external cron service (e.g. [cron-job.org](https://cron-job.org)). Make an HTTP POST request every 6 hours to:
+3. **Schedule the calls** using [Netlify Scheduled Functions](https://docs.netlify.com/functions/scheduled-functions/) or an external cron service (e.g. [cron-job.org](https://cron-job.org)):
    ```
    POST https://your-site.netlify.app/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
    ```
+   Run this every 6 hours.
+
+   ```
+   POST https://your-site.netlify.app/api/licensing/traffic-sync-runs?secret=<REFRESH_CRON_SECRET>
+   ```
+   Run this every 10 minutes.
 
 If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.

@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cloudTrafficReports } from '../db/schema.js'
+import { createLicenseBinding } from '../licensing/license-state.js'
 import {
   batchDelete,
   batchMove,
@@ -23,6 +25,10 @@ beforeEach(() => {
   vi.spyOn(S3Service.prototype, 'presignUpload').mockResolvedValue('https://presigned-upload.example.com')
   vi.spyOn(S3Service.prototype, 'presignDownload').mockResolvedValue('https://presigned-download.example.com')
   vi.spyOn(S3Service.prototype, 'copyObject').mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 const validStorage = {
@@ -691,6 +697,41 @@ describe('Objects API', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.downloadUrl).toBe('https://presigned-download.example.com')
+  })
+
+  it('GET /api/objects/:id queues Cloud traffic for bound instances without calling Cloud', async () => {
+    const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'm1', name: 'doc.txt' })
+    await createLicenseBinding(db, {
+      cloudBindingId: 'binding_1',
+      cloudStoreId: 'store_1',
+      instanceId: 'instance_1',
+      cloudAccountId: 'account_1',
+      refreshToken: 'refresh-token-1',
+      cachedCert: 'cert',
+      cachedExpiresAt: Math.floor(Date.now() / 1000) + 3600,
+      lastRefreshAt: Math.floor(Date.now() / 1000),
+    })
+    vi.stubGlobal('fetch', vi.fn())
+
+    const res = await app.request('/api/objects/m1', { headers })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.downloadUrl).toBe('https://presigned-download.example.com')
+    expect(fetch).not.toHaveBeenCalled()
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
+      {
+        orgId,
+        source: 'object_download',
+        sourceId: 'm1',
+        bytes: 100,
+        status: 'pending',
+      },
+    ])
   })
 
   it('PATCH /api/objects/batch (action: move) moves multiple items', async () => {

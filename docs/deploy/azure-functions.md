@@ -164,10 +164,18 @@ ZPan refreshes its entitlement certificate every 6 hours. On Azure Functions the
      --settings REFRESH_CRON_SECRET=<your-secret>
    ```
 
-3. **Schedule the call** using [Azure Logic Apps](https://learn.microsoft.com/en-us/azure/logic-apps/) or a Timer Trigger function that makes an HTTP POST to:
+3. **Schedule the calls** using [Azure Logic Apps](https://learn.microsoft.com/en-us/azure/logic-apps/) or Timer Trigger functions.
+
+   Make an HTTP POST to:
    ```
    POST https://<your-function-app>.azurewebsites.net/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
    ```
    Use a recurrence schedule of `0 */6 * * *` (every 6 hours).
+
+   Make another HTTP POST to:
+   ```
+   POST https://<your-function-app>.azurewebsites.net/api/licensing/traffic-sync-runs?secret=<REFRESH_CRON_SECRET>
+   ```
+   Use a recurrence schedule of `*/10 * * * *` (every 10 minutes).
 
 If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.

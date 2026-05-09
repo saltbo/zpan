@@ -47,7 +47,7 @@ async function applySubscriptionOverageCap(
   await requestBoundCloudJson(getCloudBaseUrl(c), '/api/accounts/me/overage-cap', refreshToken, {
     method: 'PUT',
     payload: {
-      endUserId: event.targetOrgId,
+      customerId: event.targetOrgId,
       capCents: event.direction === 'increase' ? (event.overageCapCents ?? 0) : 0,
     },
   })

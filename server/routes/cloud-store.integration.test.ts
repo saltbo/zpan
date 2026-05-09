@@ -1445,7 +1445,7 @@ describe('Quota Store API', () => {
       json: async () => ({ url: 'https://billing.stripe.test/1', stripeSubscriptionId: 'sub_1' }),
     } as Response)
 
-    const portal = await app.request('/api/store/subscription/portal', {
+    const portal = await app.request('/api/store/billing-portal-sessions', {
       method: 'POST',
       headers,
     })
@@ -1456,9 +1456,9 @@ describe('Quota Store API', () => {
       stripeSubscriptionId: 'sub_1',
     })
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/subscription-portal`)
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/billing-portal-sessions`)
     expect(init.method).toBe('POST')
-    expect(JSON.parse(String(init.body))).toEqual({ endUserId: orgId, returnUrl: 'http://localhost/storage' })
+    expect(JSON.parse(String(init.body))).toEqual({ customerId: orgId, returnUrl: 'http://localhost/storage' })
   })
 
   it('lists purchasable packages, targets, checkout, and orders', async () => {
@@ -2101,11 +2101,11 @@ describe('Quota Store API', () => {
       Authorization: `Bearer ${REFRESH_TOKEN}`,
       'Content-Type': 'application/json',
     })
-    expect(JSON.parse(String(init.body))).toEqual({ endUserId: orgId, capCents: 2500 })
+    expect(JSON.parse(String(init.body))).toEqual({ customerId: orgId, capCents: 2500 })
     const [, resetInit] = capCalls[1] as [URL, RequestInit]
-    expect(JSON.parse(String(resetInit.body))).toEqual({ endUserId: orgId, capCents: 0 })
+    expect(JSON.parse(String(resetInit.body))).toEqual({ customerId: orgId, capCents: 0 })
     const [, defaultInit] = capCalls[2] as [URL, RequestInit]
-    expect(JSON.parse(String(defaultInit.body))).toEqual({ endUserId: orgId, capCents: 0 })
+    expect(JSON.parse(String(defaultInit.body))).toEqual({ customerId: orgId, capCents: 0 })
   })
 
   it('renews subscription entitlements by replacing plan bytes and extending expiry', async () => {

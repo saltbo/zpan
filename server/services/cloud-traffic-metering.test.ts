@@ -3,7 +3,7 @@ import { cloudTrafficReports } from '../db/schema'
 import { createLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
 import { createTestApp } from '../test/setup'
-import { CloudTrafficBlockedError, reportTrafficEgress } from './cloud-traffic-metering'
+import { CloudTrafficBlockedError, reportTrafficEgress, syncPendingCloudTrafficReports } from './cloud-traffic-metering'
 
 function makeResponse(body: unknown, status = 200): Response {
   return {
@@ -32,14 +32,32 @@ describe('cloud traffic metering', () => {
     vi.unstubAllGlobals()
   })
 
-  it('reports traffic egress through the active license binding', async () => {
+  it('queues traffic egress locally without calling Cloud from the request path', async () => {
+    const { db, platform } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
+    await seedTrafficBinding(db)
+    vi.stubGlobal('fetch', vi.fn())
+
+    const result = await reportTrafficEgress({
+      platform,
+      orgId: 'org_1',
+      bytes: 1024,
+      source: 'object_download',
+      sourceId: 'matter_1',
+      eventId: 'evt_1',
+    })
+
+    expect(result).toMatchObject({ status: 'pending', eventId: 'evt_1', duplicate: false })
+    expect(fetch).not.toHaveBeenCalled()
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'pending' }])
+  })
+
+  it('syncs pending traffic reports to Cloud outside the request path', async () => {
     const { db, platform } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
     await seedTrafficBinding(db)
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(makeResponse({ data: { accepted: true, duplicate: false, eventId: 'evt_1' } })),
     )
-
     await reportTrafficEgress({
       platform,
       orgId: 'org_1',
@@ -49,16 +67,19 @@ describe('cloud traffic metering', () => {
       eventId: 'evt_1',
     })
 
+    const result = await syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })
+
+    expect(result).toEqual({ attempted: 1, reported: 1, blocked: 0, failed: 0 })
     expect(fetch).toHaveBeenCalledTimes(1)
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('https://cloud.example/api/usage-events')
+    expect(url).toBe('https://cloud.example/api/stores/store-test-binding/usage-events')
     expect(init.headers).toMatchObject({ Authorization: 'Bearer test-refresh-token' })
     expect(JSON.parse(init.body as string)).toMatchObject({
       resource: 'traffic_egress',
       bytes: 1024,
       eventId: 'evt_1',
       idempotencyKey: 'evt_1',
-      endUserId: 'org_1',
+      customerId: 'org_1',
     })
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
   })
@@ -80,7 +101,7 @@ describe('cloud traffic metering', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
   })
 
-  it('keeps idempotent reports local after the first successful report', async () => {
+  it('keeps idempotent reports local after the first queued report', async () => {
     const { db, platform } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal(
@@ -100,8 +121,8 @@ describe('cloud traffic metering', () => {
     const second = await reportTrafficEgress(input)
 
     expect(first.duplicate).toBe(false)
-    expect(second).toMatchObject({ duplicate: true, eventId: 'evt_dup', status: 'reported' })
-    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(second).toMatchObject({ duplicate: true, eventId: 'evt_dup', status: 'pending' })
+    expect(fetch).not.toHaveBeenCalled()
     await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(1)
   })
 
@@ -134,21 +155,26 @@ describe('cloud traffic metering', () => {
     ).rejects.toThrow('traffic_report_idempotency_conflict')
   })
 
-  it('surfaces Cloud cap rejection and records a blocked report', async () => {
+  it('records Cloud cap rejection during background sync', async () => {
     const { db, platform } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse({ error: { code: 'overage_cap_exceeded' } }, 429)))
 
-    await expect(
-      reportTrafficEgress({
-        platform,
-        orgId: 'org_1',
-        bytes: 1024,
-        source: 'landing_share',
-        sourceId: 'share_1',
-        eventId: 'evt_blocked',
-      }),
-    ).rejects.toThrow(CloudTrafficBlockedError)
+    await reportTrafficEgress({
+      platform,
+      orgId: 'org_1',
+      bytes: 1024,
+      source: 'landing_share',
+      sourceId: 'share_1',
+      eventId: 'evt_blocked',
+    })
+
+    await expect(syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })).resolves.toEqual({
+      attempted: 1,
+      reported: 0,
+      blocked: 1,
+      failed: 0,
+    })
 
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       { eventId: 'evt_blocked', status: 'blocked', error: 'overage_cap_exceeded' },
@@ -165,7 +191,7 @@ describe('cloud traffic metering', () => {
     ).rejects.toThrow(CloudTrafficBlockedError)
   })
 
-  it('retries failed report ids instead of treating them as completed duplicates', async () => {
+  it('retries failed report ids during later background syncs', async () => {
     const { db, platform } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal(
@@ -185,18 +211,28 @@ describe('cloud traffic metering', () => {
       eventId: 'evt_retry',
       now: new Date('2026-04-30T23:59:00.000Z'),
     }
-    await expect(reportTrafficEgress(input)).rejects.toThrow('offline')
+    await reportTrafficEgress(input)
+    await expect(syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })).resolves.toEqual({
+      attempted: 1,
+      reported: 0,
+      blocked: 0,
+      failed: 1,
+    })
 
-    const result = await reportTrafficEgress({ ...input, now: new Date('2026-05-01T00:01:00.000Z') })
+    const result = await syncPendingCloudTrafficReports({
+      db,
+      cloudBaseUrl: 'https://cloud.example',
+      now: new Date('2026-05-01T00:01:00.000Z'),
+    })
 
-    expect(result).toMatchObject({ status: 'reported', duplicate: false })
+    expect(result).toEqual({ attempted: 1, reported: 1, blocked: 0, failed: 0 })
     expect(fetch).toHaveBeenCalledTimes(2)
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       { status: 'reported', error: null, period: '2026-04' },
     ])
   })
 
-  it('fails when Cloud does not accept the same event id', async () => {
+  it('marks reports failed when Cloud does not accept the same event id', async () => {
     const { db, platform } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal(
@@ -204,16 +240,20 @@ describe('cloud traffic metering', () => {
       vi.fn().mockResolvedValue(makeResponse({ data: { accepted: true, duplicate: false, eventId: 'other_evt' } })),
     )
 
-    await expect(
-      reportTrafficEgress({
-        platform,
-        orgId: 'org_1',
-        bytes: 1024,
-        source: 'object_download',
-        sourceId: 'matter_1',
-        eventId: 'evt_mismatch',
-      }),
-    ).rejects.toThrow('cloud_usage_report_rejected')
+    await reportTrafficEgress({
+      platform,
+      orgId: 'org_1',
+      bytes: 1024,
+      source: 'object_download',
+      sourceId: 'matter_1',
+      eventId: 'evt_mismatch',
+    })
+    await expect(syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })).resolves.toEqual({
+      attempted: 1,
+      reported: 0,
+      blocked: 0,
+      failed: 1,
+    })
 
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       { eventId: 'evt_mismatch', status: 'failed', error: 'cloud_usage_report_rejected' },

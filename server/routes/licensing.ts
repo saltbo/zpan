@@ -1,10 +1,12 @@
 import { timingSafeEqual } from 'node:crypto'
+import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { BindingState } from '../../shared/types'
 import { loadBindingState } from '../licensing/has-feature'
 import { normalizeHost } from '../licensing/verify'
 import type { Env } from '../middleware/platform'
+import { syncPendingCloudTrafficReports } from '../services/cloud-traffic-metering'
 import { runLicensingRefresh } from '../services/licensing-refresh-runner'
 
 function secretsMatch(provided: string, expected: string): boolean {
@@ -29,9 +31,7 @@ const app = new Hono<Env>()
   // Set REFRESH_CRON_SECRET to a random string (e.g. openssl rand -hex 32)
   // and pass it as the `secret` query parameter.
   .post('/refresh-cron', async (c) => {
-    const expectedSecret = c.get('platform').getEnv('REFRESH_CRON_SECRET')
-    const provided = c.req.query('secret') ?? ''
-    if (!expectedSecret || !secretsMatch(provided, expectedSecret)) {
+    if (!isAuthorizedCronRequest(c)) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
@@ -42,4 +42,22 @@ const app = new Hono<Env>()
     return c.json({ ok: true })
   })
 
+  .post('/traffic-sync-runs', async (c) => {
+    if (!isAuthorizedCronRequest(c)) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+
+    const db = c.get('platform').db
+    const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
+    const result = await syncPendingCloudTrafficReports({ db, cloudBaseUrl })
+
+    return c.json({ ok: true, ...result })
+  })
+
 export default app
+
+function isAuthorizedCronRequest(c: Context<Env>) {
+  const expectedSecret = c.get('platform').getEnv('REFRESH_CRON_SECRET')
+  const provided = c.req.query('secret') ?? ''
+  return Boolean(expectedSecret && secretsMatch(provided, expectedSecret))
+}

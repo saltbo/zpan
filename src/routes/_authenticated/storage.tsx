@@ -20,8 +20,8 @@ import {
   ApiError,
   cancelCloudOrder,
   continueCloudOrderPayment,
+  createCloudBillingPortalSession,
   createCloudCheckout,
-  createCloudSubscriptionPortal,
   getCloudWallet,
   getUserQuota,
   listCloudOrders,
@@ -130,7 +130,7 @@ export function StoragePage() {
   })
 
   const managePlanMutation = useMutation({
-    mutationFn: (_variables: { checkoutWindow: Window | null }) => createCloudSubscriptionPortal(),
+    mutationFn: (_variables: { checkoutWindow: Window | null }) => createCloudBillingPortalSession(),
     onSuccess: (result, variables) => {
       if (variables.checkoutWindow) {
         variables.checkoutWindow.location.href = result.url

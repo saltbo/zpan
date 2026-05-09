@@ -15,7 +15,7 @@ type CloudPath = string | ((storeId: string) => string)
 export const cloudCheckoutResponseSchema = z
   .object({ orderId: z.string().min(1), url: z.string().url() })
   .or(z.object({ paymentId: z.string().min(1).optional(), orderId: z.string().min(1), url: z.string().url() }))
-export const cloudSubscriptionPortalResponseSchema = z.object({
+export const cloudBillingPortalSessionResponseSchema = z.object({
   url: z.string().url(),
   stripeSubscriptionId: z.string().min(1),
 })
@@ -292,8 +292,8 @@ export function ordersPath(options: { limit?: number; offset?: number; endUserId
   }
 }
 
-export function subscriptionPortalPath() {
-  return (storeId: string) => `/api/stores/${encodeURIComponent(storeId)}/orders/subscription-portal`
+export function billingPortalPath() {
+  return (storeId: string) => `/api/stores/${encodeURIComponent(storeId)}/billing-portal-sessions`
 }
 
 export function walletPath(endUserId: string) {

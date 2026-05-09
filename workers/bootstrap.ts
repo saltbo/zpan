@@ -49,8 +49,8 @@ export default {
     return createApp(platform, cachedAuth).fetch(request)
   },
 
-  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
-    await handleScheduled(env)
+  async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    await handleScheduled(event, env)
   },
 }
 

@@ -14,12 +14,13 @@ import { requireFeature } from '../../middleware/require-feature'
 import { canAccessTargetOrg, getAccessibleTargets, getUserTerminalLabel } from '../../services/cloud-store'
 import { getEffectiveQuota } from '../../services/effective-quota'
 import {
+  billingPortalPath,
+  cloudBillingPortalSessionResponseSchema,
   cloudCheckoutResponseSchema,
   cloudOrderResponseSchema,
   cloudPackageListResponseSchema,
   cloudPackageResponseSchema,
   cloudStoreOrdersQuerySchema,
-  cloudSubscriptionPortalResponseSchema,
   getCloud,
   getUserStoreSettings,
   ordersPath,
@@ -27,7 +28,6 @@ import {
   patchCloudWithBinding,
   postCloudWithBinding,
   redemptionPath,
-  subscriptionPortalPath,
   walletPath,
 } from '../cloud-store-helpers'
 import { getCloudOrders, getInstanceOrigin } from './shared'
@@ -133,7 +133,7 @@ export const cloudStore = new Hono<Env>()
     if ('error' in payment) return c.json(payment, 502)
     return c.json(payment)
   })
-  .post('/subscription/portal', async (c) => {
+  .post('/billing-portal-sessions', async (c) => {
     const db = c.get('platform').db
     const userId = c.get('userId')!
     const targetOrgId = c.get('orgId')
@@ -145,9 +145,9 @@ export const cloudStore = new Hono<Env>()
     const origin = getInstanceOrigin(c)
     const result = await postCloudWithBinding(
       c,
-      subscriptionPortalPath(),
-      { endUserId: targetOrgId, returnUrl: `${origin}/storage` },
-      cloudSubscriptionPortalResponseSchema,
+      billingPortalPath(),
+      { customerId: targetOrgId, returnUrl: `${origin}/storage` },
+      cloudBillingPortalSessionResponseSchema,
     )
     if ('error' in result) return c.json(result, 502)
     return c.json(result)

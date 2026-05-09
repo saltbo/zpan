@@ -1,10 +1,9 @@
-import { eq } from 'drizzle-orm'
+import { asc, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
-import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { cloudTrafficReports } from '../db/schema'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
-import type { Platform } from '../platform/interface'
+import type { Database, Platform } from '../platform/interface'
 import { currentTrafficPeriod } from './effective-quota'
 import { postBoundCloudJson } from './licensing-cloud'
 
@@ -29,6 +28,7 @@ const usageResponseSchema = z.object({
 })
 
 type ReportStatus = 'pending' | 'reported' | 'skipped_unbound' | 'blocked' | 'failed'
+type TrafficReport = typeof cloudTrafficReports.$inferSelect
 
 export async function reportTrafficEgress(params: {
   platform: Platform
@@ -47,7 +47,7 @@ export async function reportTrafficEgress(params: {
   const period = existing?.period ?? currentTrafficPeriod(now)
   if (existing) {
     assertSameReport(existing, { orgId, period, source, sourceId, bytes })
-    if (existing.status === 'reported' || existing.status === 'skipped_unbound') {
+    if (existing.status !== 'blocked') {
       return { status: existing.status as ReportStatus, eventId, duplicate: true }
     }
     if (existing.status === 'blocked') throw new CloudTrafficBlockedError()
@@ -57,45 +57,89 @@ export async function reportTrafficEgress(params: {
 
   const binding = await loadActiveLicenseBinding(platform.db)
   if (!binding?.refreshToken) {
-    await updateTrafficReport(platform, eventId, 'skipped_unbound', null, now)
+    await updateTrafficReport(platform.db, eventId, 'skipped_unbound', null, now)
     return { status: 'skipped_unbound', eventId, duplicate: false }
   }
 
+  return { status: 'pending', eventId, duplicate: false }
+}
+
+export async function syncPendingCloudTrafficReports(params: {
+  db: Database
+  cloudBaseUrl: string
+  limit?: number
+  now?: Date
+}): Promise<{ attempted: number; reported: number; blocked: number; failed: number }> {
+  const { db, cloudBaseUrl, limit = 100, now = new Date() } = params
+  const binding = await loadActiveLicenseBinding(db)
+  if (!binding?.refreshToken || !binding.cloudStoreId) return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
+
+  const reports = await db
+    .select()
+    .from(cloudTrafficReports)
+    .where(inArray(cloudTrafficReports.status, ['pending', 'failed']))
+    .orderBy(asc(cloudTrafficReports.createdAt))
+    .limit(limit)
+
+  const result = { attempted: reports.length, reported: 0, blocked: 0, failed: 0 }
+  for (const report of reports) {
+    const status = await syncTrafficReport({
+      db,
+      cloudBaseUrl,
+      refreshToken: binding.refreshToken,
+      storeId: binding.cloudStoreId,
+      report,
+      now,
+    })
+    result[status] += 1
+  }
+  return result
+}
+
+async function syncTrafficReport(params: {
+  db: Database
+  cloudBaseUrl: string
+  refreshToken: string
+  storeId: string
+  report: TrafficReport
+  now: Date
+}): Promise<'reported' | 'blocked' | 'failed'> {
+  const { db, cloudBaseUrl, refreshToken, storeId, report, now } = params
   try {
     const data = await postBoundCloudJson(
-      platform.getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT,
-      '/api/usage-events',
-      binding.refreshToken,
+      cloudBaseUrl,
+      `/api/stores/${encodeURIComponent(storeId)}/usage-events`,
+      refreshToken,
       {
         resource: 'traffic_egress',
-        bytes,
-        eventId,
-        idempotencyKey: eventId,
-        endUserId: orgId,
+        bytes: report.bytes,
+        eventId: report.eventId,
+        idempotencyKey: report.eventId,
+        customerId: report.orgId,
       },
     )
     const response = usageResponseSchema.parse(data)
-    if (!response.accepted || response.eventId !== eventId) throw new Error('cloud_usage_report_rejected')
-    await updateTrafficReport(platform, eventId, 'reported', null, now)
-    return { status: 'reported', eventId, duplicate: false }
+    if (!response.accepted || response.eventId !== report.eventId) throw new Error('cloud_usage_report_rejected')
+    await updateTrafficReport(db, report.eventId, 'reported', null, now)
+    return 'reported'
   } catch (error) {
     const message = error instanceof Error ? error.message : 'cloud_usage_report_failed'
     if (message === 'overage_cap_exceeded') {
-      await updateTrafficReport(platform, eventId, 'blocked', message, now)
-      throw new CloudTrafficBlockedError()
+      await updateTrafficReport(db, report.eventId, 'blocked', message, now)
+      return 'blocked'
     }
-    await updateTrafficReport(platform, eventId, 'failed', message, now)
-    throw error
+    await updateTrafficReport(db, report.eventId, 'failed', message, now)
+    return 'failed'
   }
 }
 
-async function loadTrafficReport(db: Platform['db'], eventId: string) {
+async function loadTrafficReport(db: Database, eventId: string) {
   const rows = await db.select().from(cloudTrafficReports).where(eq(cloudTrafficReports.eventId, eventId)).limit(1)
   return rows[0]
 }
 
 function assertSameReport(
-  report: typeof cloudTrafficReports.$inferSelect,
+  report: TrafficReport,
   params: { orgId: string; period: string; source: TrafficReportSource; sourceId: string; bytes: number },
 ) {
   if (
@@ -138,13 +182,13 @@ async function insertTrafficReport(
 }
 
 async function updateTrafficReport(
-  platform: Platform,
+  db: Database,
   eventId: string,
   status: ReportStatus,
   error: string | null,
   now: Date,
 ) {
-  await platform.db
+  await db
     .update(cloudTrafficReports)
     .set({ status, error, updatedAt: now })
     .where(eq(cloudTrafficReports.eventId, eventId))

@@ -102,7 +102,7 @@ async function setTrafficQuota(db: Database, orgId: string) {
 }
 
 describe('object download cloud traffic reporting', () => {
-  it('reports successful object downloads to Cloud after presigning', async () => {
+  it('queues successful object downloads for Cloud sync after presigning', async () => {
     const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
@@ -115,15 +115,13 @@ describe('object download cloud traffic reporting', () => {
     const res = await app.request('/api/objects/m-cloud-report-ok', { headers })
 
     expect(res.status).toBe(200)
-    expect(fetch).toHaveBeenCalledTimes(1)
-    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(init.body as string)).toMatchObject({ resource: 'traffic_egress', bytes: 100, endUserId: orgId })
+    expect(fetch).not.toHaveBeenCalled()
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { orgId, source: 'object_download', sourceId: 'm-cloud-report-ok', bytes: 100, status: 'reported' },
+      { orgId, source: 'object_download', sourceId: 'm-cloud-report-ok', bytes: 100, status: 'pending' },
     ])
   })
 
-  it('refunds local traffic and denies the download when Cloud blocks usage', async () => {
+  it('does not call Cloud or deny downloads when Cloud would block usage during sync', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal(
@@ -138,16 +136,16 @@ describe('object download cloud traffic reporting', () => {
 
     const res = await app.request('/api/objects/m-cloud-report-blocked', { headers })
 
-    expect(res.status).toBe(429)
-    await expect(res.json()).resolves.toEqual({ error: 'Cloud traffic overage cap exceeded' })
+    expect(res.status).toBe(200)
+    expect(fetch).not.toHaveBeenCalled()
     const rows = await db.all<{ trafficUsed: number }>(
       sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
     )
-    expect(rows[0].trafficUsed).toBe(25)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'blocked' }])
+    expect(rows[0].trafficUsed).toBe(125)
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'pending' }])
   })
 
-  it('refunds local traffic when Cloud returns a mismatched event id', async () => {
+  it('does not call Cloud or refund local traffic when Cloud would return a mismatched event id during sync', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal(
@@ -162,12 +160,13 @@ describe('object download cloud traffic reporting', () => {
 
     const res = await app.request('/api/objects/m-cloud-report-mismatch', { headers })
 
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(200)
+    expect(fetch).not.toHaveBeenCalled()
     const rows = await db.all<{ trafficUsed: number }>(
       sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
     )
-    expect(rows[0].trafficUsed).toBe(25)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'failed' }])
+    expect(rows[0].trafficUsed).toBe(125)
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'pending' }])
   })
 
   it('does not report usage when presign fails and local traffic is refunded', async () => {
@@ -194,7 +193,7 @@ describe('object download cloud traffic reporting', () => {
 })
 
 describe('public redirect cloud traffic reporting', () => {
-  it('reports direct share redirects to Cloud', async () => {
+  it('queues direct share redirects for Cloud sync', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
@@ -209,11 +208,11 @@ describe('public redirect cloud traffic reporting', () => {
 
     expect(res.status).toBe(302)
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { source: 'direct_share', sourceId: share.id, bytes: 100, status: 'reported' },
+      { source: 'direct_share', sourceId: share.id, bytes: 100, status: 'pending' },
     ])
   })
 
-  it('refunds direct share traffic and downloads when Cloud blocks usage', async () => {
+  it('does not call Cloud or deny direct share redirects when Cloud would block usage during sync', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal(
@@ -230,19 +229,19 @@ describe('public redirect cloud traffic reporting', () => {
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
 
-    expect(res.status).toBe(429)
-    await expect(res.json()).resolves.toEqual({ error: 'Cloud traffic overage cap exceeded' })
+    expect(res.status).toBe(302)
+    expect(fetch).not.toHaveBeenCalled()
     const rows = await db.all<{ downloads: number; trafficUsed: number }>(sql`
       SELECT s.downloads, q.traffic_used AS trafficUsed
       FROM shares s
       INNER JOIN org_quotas q ON q.org_id = s.org_id
       WHERE s.id = ${share.id}
     `)
-    expect(rows[0]).toEqual({ downloads: 0, trafficUsed: 25 })
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'blocked' }])
+    expect(rows[0]).toEqual({ downloads: 1, trafficUsed: 125 })
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'pending' }])
   })
 
-  it('reports landing share downloads to Cloud', async () => {
+  it('queues landing share downloads for Cloud sync', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
@@ -258,11 +257,11 @@ describe('public redirect cloud traffic reporting', () => {
 
     expect(res.status).toBe(200)
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { source: 'landing_share', sourceId: share.id, bytes: 100, status: 'reported' },
+      { source: 'landing_share', sourceId: share.id, bytes: 100, status: 'pending' },
     ])
   })
 
-  it('refunds landing share traffic and downloads when Cloud blocks usage', async () => {
+  it('does not call Cloud or deny landing share downloads when Cloud would block usage during sync', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal(
@@ -280,19 +279,19 @@ describe('public redirect cloud traffic reporting', () => {
 
     const res = await app.request(`/api/shares/${share.token}/objects/${ref}?downloadUrl=1`, { redirect: 'manual' })
 
-    expect(res.status).toBe(429)
-    await expect(res.json()).resolves.toEqual({ error: 'Cloud traffic overage cap exceeded' })
+    expect(res.status).toBe(200)
+    expect(fetch).not.toHaveBeenCalled()
     const rows = await db.all<{ downloads: number; trafficUsed: number }>(sql`
       SELECT s.downloads, q.traffic_used AS trafficUsed
       FROM shares s
       INNER JOIN org_quotas q ON q.org_id = s.org_id
       WHERE s.id = ${share.id}
     `)
-    expect(rows[0]).toEqual({ downloads: 0, trafficUsed: 25 })
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'blocked' }])
+    expect(rows[0]).toEqual({ downloads: 1, trafficUsed: 125 })
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'pending' }])
   })
 
-  it('still returns landing share URLs when audit recording fails after Cloud report', async () => {
+  it('still returns landing share URLs when audit recording fails after local traffic queue', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
@@ -312,7 +311,7 @@ describe('public redirect cloud traffic reporting', () => {
     expect(consoleError).toHaveBeenCalled()
   })
 
-  it('reports token image-hosting redirects to Cloud', async () => {
+  it('queues token image-hosting redirects for Cloud sync', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
@@ -326,11 +325,11 @@ describe('public redirect cloud traffic reporting', () => {
 
     expect(res.status).toBe(302)
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { source: 'image_hosting', sourceId: 'ih-cloud-token', bytes: 100, status: 'reported' },
+      { source: 'image_hosting', sourceId: 'ih-cloud-token', bytes: 100, status: 'pending' },
     ])
   })
 
-  it('still redirects token images when access-count recording fails after Cloud report', async () => {
+  it('still redirects token images when access-count recording fails after local traffic queue', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
@@ -366,7 +365,7 @@ describe('public redirect cloud traffic reporting', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
   })
 
-  it('reports custom-domain image-hosting redirects to Cloud', async () => {
+  it('queues custom-domain image-hosting redirects for Cloud sync', async () => {
     const { app, db } = await createTestApp({ PUBLIC_APP_HOST: 'zpan.example.com' })
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
@@ -383,11 +382,11 @@ describe('public redirect cloud traffic reporting', () => {
 
     expect(res.status).toBe(302)
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { source: 'custom_domain_image', sourceId: 'ih-cloud-domain', bytes: 100, status: 'reported' },
+      { source: 'custom_domain_image', sourceId: 'ih-cloud-domain', bytes: 100, status: 'pending' },
     ])
   })
 
-  it('still redirects custom-domain images when access-count recording fails after Cloud report', async () => {
+  it('still redirects custom-domain images when access-count recording fails after local traffic queue', async () => {
     const { app, db } = await createTestApp({ PUBLIC_APP_HOST: 'zpan.example.com' })
     await seedTrafficBinding(db)
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))

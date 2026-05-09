@@ -5,9 +5,11 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 import { createBootstrap } from './bootstrap'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
+import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
 import { runLicensingRefresh } from './services/licensing-refresh-runner'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
+const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 
 const platform = process.env.TURSO_DATABASE_URL
   ? await createLibsqlPlatform({
@@ -34,3 +36,8 @@ setInterval(() => {
   // runLicensingRefresh handles all errors internally and never rejects.
   void runLicensingRefresh(platform.db, cloudBaseUrl)
 }, REFRESH_INTERVAL_MS)
+
+console.log('traffic.sync.scheduler.started interval=10m')
+setInterval(() => {
+  void syncPendingCloudTrafficReports({ db: platform.db, cloudBaseUrl })
+}, TRAFFIC_SYNC_INTERVAL_MS)

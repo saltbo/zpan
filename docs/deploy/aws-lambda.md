@@ -105,11 +105,18 @@ ZPan refreshes its entitlement certificate every 6 hours. On Lambda there is no 
    |----------|-------|
    | `REFRESH_CRON_SECRET` | The random string from step 1 |
 
-3. **Schedule the call** using [Amazon EventBridge Scheduler](https://docs.aws.amazon.com/scheduler/latest/UserGuide/). Create a schedule with:
+3. **Schedule the calls** using [Amazon EventBridge Scheduler](https://docs.aws.amazon.com/scheduler/latest/UserGuide/). Create a license refresh schedule with:
    - **Rate**: `rate(6 hours)` or cron `0 */6 * * ? *`
    - **Target**: HTTPS `POST` to your Lambda Function URL:
      ```
      POST https://<your-lambda-url>/api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>
+     ```
+
+   Create a traffic sync schedule with:
+   - **Rate**: `rate(10 minutes)` or cron `*/10 * * * ? *`
+   - **Target**: HTTPS `POST` to your Lambda Function URL:
+     ```
+     POST https://<your-lambda-url>/api/licensing/traffic-sync-runs?secret=<REFRESH_CRON_SECRET>
      ```
 
 If `REFRESH_CRON_SECRET` is not set, the endpoint returns `401` for all requests.
