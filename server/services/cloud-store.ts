@@ -522,7 +522,9 @@ function parseOrgType(metadata: string | null): string {
 }
 
 function isUniqueConflict(error: unknown): boolean {
-  return error instanceof Error && error.message.toLowerCase().includes('unique')
+  if (!(error instanceof Error)) return false
+  const message = error.message.toLowerCase()
+  return message.includes('unique') || message.includes('constraint failed')
 }
 
 function isSyncDatabase(db: Database): boolean {
