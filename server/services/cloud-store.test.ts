@@ -10,6 +10,7 @@ function createAsyncDb(
 ) {
   const state = {
     audits: 0,
+    batches: 0,
     webhookStatus: '',
     entitlementInserts: 0,
     entitlementRevokes: 0,
@@ -19,6 +20,10 @@ function createAsyncDb(
     constructor: { name: 'AsyncTestDatabase' },
     transaction: async () => {
       throw new Error('failed_query_begin_params')
+    },
+    batch: async (queries: Array<Promise<unknown>>) => {
+      state.batches += 1
+      return Promise.all(queries)
     },
     insert: (table: unknown) => ({
       values: (values: Record<string, unknown>) => {
@@ -46,14 +51,10 @@ function createAsyncDb(
       set: (values: Record<string, unknown>) => ({
         where: () => {
           if (table === orgQuotaEntitlements) {
-            return {
-              returning: async () => {
-                state.entitlementRevokes += 1
-                return entitlementRevokeRows
-              },
-            }
+            state.entitlementRevokes += 1
+            return Promise.resolve(entitlementRevokeRows)
           }
-          if (table === orgQuotas) state.legacyQuotaUpdates += 1
+          if (table === orgQuotas && existingEntitlementRows.length === 0) state.legacyQuotaUpdates += 1
           if (table === webhookEvents) state.webhookStatus = String(values.status)
           return Promise.resolve()
         },
@@ -77,6 +78,7 @@ function createFailingBeginDb() {
 function createUniqueConflictDb(existing: { id: string; payloadHash: string; status: string } | null) {
   const state = {
     audits: 0,
+    batches: 0,
     webhookStatus: existing?.status ?? '',
     entitlementInserts: 0,
     entitlementRevokes: 0,
@@ -85,6 +87,10 @@ function createUniqueConflictDb(existing: { id: string; payloadHash: string; sta
     constructor: { name: 'AsyncTestDatabase' },
     transaction: async () => {
       throw new Error('failed_query_begin_params')
+    },
+    batch: async (queries: Array<Promise<unknown>>) => {
+      state.batches += 1
+      return Promise.all(queries)
     },
     insert: (table: unknown) => ({
       values: async (values: Record<string, unknown>) => {
@@ -109,12 +115,8 @@ function createUniqueConflictDb(existing: { id: string; payloadHash: string; sta
       set: (values: Record<string, unknown>) => ({
         where: () => {
           if (table === orgQuotaEntitlements) {
-            return {
-              returning: async () => {
-                state.entitlementRevokes += 1
-                return [{ id: 'entitlement-revoked' }]
-              },
-            }
+            state.entitlementRevokes += 1
+            return Promise.resolve([{ id: 'entitlement-revoked' }])
           }
           if (table === webhookEvents) state.webhookStatus = String(values.status)
           return Promise.resolve()
@@ -202,7 +204,7 @@ function createSyncDb(
 }
 
 describe('processCloudOrderQuotaChange', () => {
-  it('processes quota change with an async transaction database', async () => {
+  it('processes quota change with an async D1 batch transaction database', async () => {
     const { db, state } = createAsyncDb()
     const event = {
       eventId: 'evt-async',
@@ -218,7 +220,7 @@ describe('processCloudOrderQuotaChange', () => {
       duplicate: false,
       eventId: 'evt-async',
     })
-    expect(state).toMatchObject({ audits: 1, webhookStatus: 'processed', entitlementInserts: 1 })
+    expect(state).toMatchObject({ audits: 1, batches: 1, webhookStatus: 'processed', entitlementInserts: 1 })
   })
 
   it('processes quota change with a sync transaction database', async () => {

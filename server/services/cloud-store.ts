@@ -137,33 +137,28 @@ async function processQuotaChangeTransaction(
   webhookId: string,
   event: CloudOrderQuotaChange,
 ): Promise<void> {
+  const now = new Date(event.occurredAt ?? Date.now())
   if (isSyncDatabase(db)) {
     db.transaction((tx) => {
-      applyQuotaChangeSync(tx as Database, event)
+      applyQuotaChangeSync(tx as Database, event, now)
       recordQuotaChangeAuditSync(tx as Database, event)
       markWebhookEventSync(tx as Database, webhookId, 'processed', null)
     })
     return
   }
 
-  await applyQuotaChange(db, event)
-  await recordQuotaChangeAudit(db, event)
-  await markWebhookEvent(db, webhookId, 'processed', null)
-}
-
-async function applyQuotaChange(db: Database, event: CloudOrderQuotaChange): Promise<void> {
   await requireTargetQuota(db, event.targetOrgId)
-
-  const now = new Date(event.occurredAt ?? Date.now())
-  if (event.direction === 'increase') {
-    await insertQuotaEntitlements(db, event, now)
-    return
-  }
-
-  await revokeQuotaEntitlements(db, event, now)
+  await executeD1Transaction(db, [
+    ...quotaChangeQueries(db, event, now),
+    db.insert(activityEvents).values(quotaChangeAuditValues(event)),
+    db
+      .update(webhookEvents)
+      .set({ status: 'processed', error: null, processedAt: new Date() })
+      .where(eq(webhookEvents.id, webhookId)),
+  ])
 }
 
-function applyQuotaChangeSync(db: Database, event: CloudOrderQuotaChange): void {
+function applyQuotaChangeSync(db: Database, event: CloudOrderQuotaChange, now: Date): void {
   const rows = (
     db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, event.targetOrgId)).limit(1) as {
       all(): Array<{ id: string }>
@@ -172,13 +167,18 @@ function applyQuotaChangeSync(db: Database, event: CloudOrderQuotaChange): void 
 
   if (rows.length === 0) throw new Error('target_quota_missing')
 
-  const now = new Date(event.occurredAt ?? Date.now())
   if (event.direction === 'increase') {
     insertQuotaEntitlementsSync(db, event, now)
     return
   }
 
   revokeQuotaEntitlementsSync(db, event, now)
+}
+
+function quotaChangeQueries(db: Database, event: CloudOrderQuotaChange, now: Date): unknown[] {
+  return event.direction === 'increase'
+    ? insertQuotaEntitlementQueries(db, event, now)
+    : revokeQuotaEntitlementQueries(db, event, now)
 }
 
 async function recordQuotaChangeAudit(db: Database, event: CloudOrderQuotaChange): Promise<void> {
@@ -216,18 +216,16 @@ async function requireTargetQuota(db: Database, orgId: string): Promise<void> {
   if (rows.length === 0) throw new Error('target_quota_missing')
 }
 
-async function insertQuotaEntitlements(db: Database, event: CloudOrderQuotaChange, now: Date): Promise<void> {
-  const values = quotaEntitlementValues(event, now)
-  if (values.length === 0) return
-  for (const value of values) {
-    await db
+function insertQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): unknown[] {
+  return quotaEntitlementValues(event, now).map((value) =>
+    db
       .insert(orgQuotaEntitlements)
       .values(value)
       .onConflictDoUpdate({
         target: [orgQuotaEntitlements.source, orgQuotaEntitlements.sourceId, orgQuotaEntitlements.resourceType],
         set: quotaEntitlementIncreaseValues(value, now),
-      })
-  }
+      }),
+  )
 }
 
 function insertQuotaEntitlementsSync(db: Database, event: CloudOrderQuotaChange, now: Date): void {
@@ -246,39 +244,32 @@ function insertQuotaEntitlementsSync(db: Database, event: CloudOrderQuotaChange,
   }
 }
 
-async function revokeQuotaEntitlements(db: Database, event: CloudOrderQuotaChange, now: Date): Promise<void> {
-  const storageRevoked = await revokeQuotaEntitlement(db, event, 'storage', event.storageBytes, now)
-  const trafficRevoked = await revokeQuotaEntitlement(db, event, 'traffic', event.trafficBytes, now)
-  await applyLegacyQuotaDecrease(db, event, storageRevoked, trafficRevoked)
-}
-
 function revokeQuotaEntitlementsSync(db: Database, event: CloudOrderQuotaChange, now: Date): void {
   const storageRevoked = revokeQuotaEntitlementSync(db, event, 'storage', event.storageBytes, now)
   const trafficRevoked = revokeQuotaEntitlementSync(db, event, 'traffic', event.trafficBytes, now)
   applyLegacyQuotaDecreaseSync(db, event, storageRevoked, trafficRevoked)
 }
 
-async function revokeQuotaEntitlement(
+function revokeQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): unknown[] {
+  return [
+    revokeQuotaEntitlementQuery(db, event, 'storage', event.storageBytes, now),
+    revokeQuotaEntitlementQuery(db, event, 'traffic', event.trafficBytes, now),
+    legacyQuotaDecreaseQuery(db, event),
+  ].filter((query): query is unknown => query !== null)
+}
+
+function revokeQuotaEntitlementQuery(
   db: Database,
   event: CloudOrderQuotaChange,
   resourceType: 'storage' | 'traffic',
   bytes: number,
   now: Date,
-): Promise<boolean> {
-  if (bytes === 0) return true
-  const rows = await db
+): unknown | null {
+  if (bytes === 0) return null
+  return db
     .update(orgQuotaEntitlements)
     .set(quotaEntitlementDecreaseValues(bytes, now))
     .where(quotaEntitlementMatch(event, resourceType))
-    .returning({ id: orgQuotaEntitlements.id })
-  if (rows.length > 0) return true
-
-  const existing = await db
-    .select({ id: orgQuotaEntitlements.id })
-    .from(orgQuotaEntitlements)
-    .where(quotaEntitlementSourceMatch(event, resourceType))
-    .limit(1)
-  return existing.length > 0
 }
 
 function revokeQuotaEntitlementSync(
@@ -333,6 +324,12 @@ function applyLegacyQuotaDecreaseSync(
   ;(db.update(orgQuotas).set(values).where(eq(orgQuotas.orgId, event.targetOrgId)) as { run(): void }).run()
 }
 
+function legacyQuotaDecreaseQuery(db: Database, event: CloudOrderQuotaChange): unknown | null {
+  const values = legacyQuotaDecreaseBatchValues(event)
+  if (!values) return null
+  return db.update(orgQuotas).set(values).where(eq(orgQuotas.orgId, event.targetOrgId))
+}
+
 function legacyQuotaDecreaseValues(
   event: CloudOrderQuotaChange,
   storageRevoked: boolean,
@@ -345,6 +342,32 @@ function legacyQuotaDecreaseValues(
     values.trafficQuota = sql`MAX(0, ${orgQuotas.trafficQuota} - ${event.trafficBytes})` as unknown as number
   }
   return Object.keys(values).length === 0 ? null : values
+}
+
+function legacyQuotaDecreaseBatchValues(event: CloudOrderQuotaChange): Partial<typeof orgQuotas.$inferInsert> | null {
+  const values: Partial<typeof orgQuotas.$inferInsert> = {}
+  if (event.storageBytes > 0)
+    values.quota = sql`CASE
+      WHEN NOT EXISTS (${quotaEntitlementExistsSql(event, 'storage')})
+      THEN MAX(0, ${orgQuotas.quota} - ${event.storageBytes})
+      ELSE ${orgQuotas.quota}
+    END` as unknown as number
+  if (event.trafficBytes > 0)
+    values.trafficQuota = sql`CASE
+      WHEN NOT EXISTS (${quotaEntitlementExistsSql(event, 'traffic')})
+      THEN MAX(0, ${orgQuotas.trafficQuota} - ${event.trafficBytes})
+      ELSE ${orgQuotas.trafficQuota}
+    END` as unknown as number
+  return Object.keys(values).length === 0 ? null : values
+}
+
+function quotaEntitlementExistsSql(event: CloudOrderQuotaChange, resourceType: 'storage' | 'traffic') {
+  return sql`select 1 from ${orgQuotaEntitlements}
+    where ${orgQuotaEntitlements.orgId} = ${event.targetOrgId}
+      and ${orgQuotaEntitlements.resourceType} = ${resourceType}
+      and ${orgQuotaEntitlements.source} = 'cloud_order'
+      and ${orgQuotaEntitlements.sourceId} = ${event.cloudOrderId}
+    limit 1`
 }
 
 function quotaEntitlementValues(event: CloudOrderQuotaChange, now: Date): (typeof orgQuotaEntitlements.$inferInsert)[] {
@@ -525,6 +548,12 @@ function isUniqueConflict(error: unknown): boolean {
   if (!(error instanceof Error)) return false
   const message = error.message.toLowerCase()
   return message.includes('unique') || message.includes('constraint failed')
+}
+
+async function executeD1Transaction(db: Database, queries: unknown[]): Promise<void> {
+  const batch = (db as unknown as { batch?: (queries: unknown[]) => Promise<unknown[]> }).batch
+  if (!batch) throw new Error('d1_batch_unavailable')
+  await batch.call(db, queries)
 }
 
 function isSyncDatabase(db: Database): boolean {
