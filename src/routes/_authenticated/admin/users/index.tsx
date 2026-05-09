@@ -303,7 +303,7 @@ function UsersPage() {
                 name: quotaDialogUser.name || quotaDialogUser.username,
                 orgId: quotaDialogUser.orgId,
                 quotaUsed: quotaDialogUser.quotaUsed,
-                quotaTotal: quotaDialogUser.quotaTotal,
+                quotaDefault: quotaDialogUser.quotaDefault,
               }
             : null
         }
@@ -318,7 +318,7 @@ function UsersPage() {
                 name: t('admin.users.selectedUsers', { count: selectedCount }),
                 orgId: 'batch',
                 quotaUsed: 0,
-                quotaTotal: 0,
+                quotaDefault: 0,
               }
             : null
         }

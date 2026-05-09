@@ -36,95 +36,117 @@ export function StorageStatusMetrics({
   const trafficBlocked = quota ? quota.trafficQuota > 0 && quota.trafficUsed >= quota.trafficQuota : false
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-      <StatusMetric
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(240px,0.7fr)]">
+      <ResourceSummaryCard
+        icon={<HardDrive className="h-4 w-4" />}
         label={t('storage.effectiveStorageQuota')}
-        value={
-          <QuotaValue
-            value={quota ? formatSize(quota.quota) : '-'}
-            detail={
-              quota
-                ? t('storage.storageQuotaDetail', {
-                    used: formatSize(quota.used),
-                    base: formatSize(quota.baseQuota),
-                    cloud: formatSize(quota.entitlementQuota),
-                  })
-                : undefined
-            }
-            blocked={storageBlocked}
-          />
+        value={quota ? formatSize(quota.quota) : '-'}
+        detail={
+          quota
+            ? t('storage.storageQuotaDetail', {
+                used: formatSize(quota.used),
+                base: formatSize(quota.baseQuota),
+                cloud: formatSize(quota.entitlementQuota),
+              })
+            : undefined
         }
-        icon={<HardDrive className="h-4 w-4" />}
-      />
-      <StatusMetric
-        label={t('storage.baseStorageQuota')}
-        value={quota ? formatSize(quota.baseQuota) : '-'}
-        icon={<HardDrive className="h-4 w-4" />}
-      />
-      <StatusMetric
-        label={t('storage.cloudStorageEntitlement')}
-        value={quota ? formatSize(quota.entitlementQuota) : '-'}
-        icon={<PlusCircle className="h-4 w-4" />}
-      />
-      <StatusMetric
-        label={t('storage.includedTraffic')}
-        value={
-          <QuotaValue
-            value={quota ? formatSize(quota.trafficQuota) : '-'}
-            detail={
-              quota
-                ? t('storage.trafficQuotaDetail', {
-                    base: formatSize(quota.baseTrafficQuota),
-                    cloud: formatSize(quota.entitlementTrafficQuota),
-                  })
-                : undefined
-            }
-            blocked={false}
-          />
+        bar={
+          quota
+            ? {
+                used: quota.used,
+                base: quota.baseQuota,
+                cloud: quota.entitlementQuota,
+              }
+            : undefined
         }
-        icon={<Activity className="h-4 w-4" />}
+        blocked={storageBlocked}
+        rows={[
+          {
+            label: t('storage.baseStorageQuota'),
+            value: quota
+              ? formatQuotaPlanValue(quota.baseQuota, quota.storagePlanName ? [quota.storagePlanName] : [])
+              : '-',
+          },
+          {
+            label: t('storage.cloudStorageEntitlement'),
+            value: quota ? formatQuotaPlanValue(quota.entitlementQuota, quota.storageExtraNames) : '-',
+          },
+        ]}
       />
-      <StatusMetric
-        label={t('storage.currentPeriodTraffic')}
-        value={
-          <QuotaValue
-            value={quota ? formatSize(quota.trafficUsed) : '-'}
-            detail={quota ? t('storage.trafficPeriodDetail', { period: quota.trafficPeriod }) : undefined}
-            blocked={trafficBlocked}
-          />
-        }
+      <ResourceSummaryCard
         icon={trafficBlocked ? <ShieldAlert className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
-      />
-      <StatusMetric
-        label={t('storage.walletBalance')}
-        value={
-          <Dialog>
-            <DialogTrigger asChild>
-              <button
-                type="button"
-                className="cursor-pointer text-left text-sm font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                aria-label={t('storage.viewWalletTransactions')}
-              >
-                {wallet ? formatMoney(wallet.balance, wallet.currency, i18n.resolvedLanguage ?? 'en') : '-'}
-              </button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>{t('storage.walletTransactionsTitle')}</DialogTitle>
-                <DialogDescription>{t('storage.walletTransactionsDescription')}</DialogDescription>
-              </DialogHeader>
-              <WalletTransactions
-                entries={walletTransactions}
-                language={i18n.resolvedLanguage ?? 'en'}
-                loading={walletTransactionsLoading}
-              />
-            </DialogContent>
-          </Dialog>
+        label={t('storage.currentPeriodTraffic')}
+        value={quota ? formatSize(quota.trafficUsed) : '-'}
+        detail={
+          quota
+            ? t('storage.trafficQuotaDetail', {
+                base: formatSize(quota.baseTrafficQuota),
+                cloud: formatSize(quota.entitlementTrafficQuota),
+              })
+            : undefined
         }
-        icon={<Wallet className="h-4 w-4" />}
+        bar={
+          quota
+            ? {
+                used: quota.trafficUsed,
+                base: quota.baseTrafficQuota,
+                cloud: quota.entitlementTrafficQuota,
+              }
+            : undefined
+        }
+        blocked={trafficBlocked}
+        rows={[
+          {
+            label: t('storage.includedTraffic'),
+            value: quota
+              ? formatQuotaPlanValue(quota.baseTrafficQuota, quota.trafficPlanName ? [quota.trafficPlanName] : [])
+              : '-',
+          },
+          {
+            label: t('storage.cloudTrafficEntitlement'),
+            value: quota ? formatQuotaPlanValue(quota.entitlementTrafficQuota, quota.trafficExtraNames) : '-',
+          },
+        ]}
       />
+      <div className="rounded-lg border bg-card px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="text-xs font-medium text-muted-foreground">{t('storage.walletBalance')}</div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <button
+                  type="button"
+                  className="cursor-pointer text-left text-2xl font-semibold tracking-tight transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  aria-label={t('storage.viewWalletTransactions')}
+                >
+                  {wallet ? formatMoney(wallet.balance, wallet.currency, i18n.resolvedLanguage ?? 'en') : '-'}
+                </button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>{t('storage.walletTransactionsTitle')}</DialogTitle>
+                  <DialogDescription>{t('storage.walletTransactionsDescription')}</DialogDescription>
+                </DialogHeader>
+                <WalletTransactions
+                  entries={walletTransactions}
+                  language={i18n.resolvedLanguage ?? 'en'}
+                  loading={walletTransactionsLoading}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+          <Wallet className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </div>
     </div>
   )
+}
+
+function formatQuotaPlanValue(bytes: number, planNames: string[]) {
+  const size = formatSize(bytes)
+  if (bytes <= 0 || planNames.length === 0) return size
+  if (planNames.length === 1) return `${planNames[0]} · ${size}`
+  return `${planNames[0]} +${planNames.length - 1} · ${size}`
 }
 
 export function StoragePackages({
@@ -159,33 +181,133 @@ export function StoragePackages({
   )
 }
 
-function StatusMetric({ label, value, icon }: { label: string; value: React.ReactNode; icon: React.ReactNode }) {
+function ResourceSummaryCard({
+  icon,
+  label,
+  value,
+  detail,
+  bar,
+  blocked,
+  rows,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  detail?: string | string[]
+  bar?: { used: number; base: number; cloud: number }
+  blocked: boolean
+  rows: Array<{ label: string; value: string }>
+}) {
+  const { t } = useTranslation()
   return (
-    <div className="rounded-xl border bg-card/50 px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">{label}</div>
+    <div className="rounded-lg border bg-card px-4 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-muted-foreground">{label}</div>
+          <div
+            className={
+              blocked
+                ? 'mt-1 text-2xl font-semibold tracking-tight text-destructive tabular-nums'
+                : 'mt-1 text-2xl font-semibold tracking-tight tabular-nums'
+            }
+          >
+            {value}
+          </div>
+        </div>
         <div className="text-muted-foreground">{icon}</div>
       </div>
-      <div className="mt-2">{value}</div>
+      {detail && (
+        <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          {(Array.isArray(detail) ? detail : [detail]).map((line) => (
+            <div key={line}>{line}</div>
+          ))}
+        </div>
+      )}
+      {bar && <QuotaCompositionBar used={bar.used} base={bar.base} cloud={bar.cloud} />}
+      <div className="mt-4 grid grid-cols-2 gap-3 border-t pt-3">
+        {rows.map((row) => (
+          <div key={row.label} className="min-w-0">
+            <div className="truncate text-xs text-muted-foreground">{row.label}</div>
+            <div className="mt-0.5 truncate text-sm font-medium tabular-nums">{row.value}</div>
+          </div>
+        ))}
+      </div>
+      {blocked && (
+        <Badge variant="destructive" className="mt-3 text-[11px]">
+          {t('storage.overCap')}
+        </Badge>
+      )}
     </div>
   )
 }
 
-function QuotaValue({ value, detail, blocked }: { value: string; detail?: string; blocked: boolean }) {
+function QuotaCompositionBar({ used, base, cloud }: { used: number; base: number; cloud: number }) {
   const { t } = useTranslation()
+  const total = base + cloud
+  if (total <= 0) {
+    return <UnlimitedUsageBar used={used} label={t('storage.legendUsed')} />
+  }
+
+  const scale = Math.max(total, used)
+  const over = Math.max(0, used - total)
+  const usedWithinQuota = Math.min(used, total)
+  const planAvailable = Math.max(0, base - Math.min(usedWithinQuota, base))
+  const extraAvailable = Math.max(0, cloud - Math.max(0, usedWithinQuota - base))
+  const segments = [
+    { key: 'used', label: t('storage.legendUsed'), value: usedWithinQuota, className: 'bg-primary' },
+    { key: 'plan', label: t('storage.legendBaseAvailable'), value: planAvailable, className: 'bg-sky-500' },
+    { key: 'extra', label: t('storage.legendCloudAvailable'), value: extraAvailable, className: 'bg-emerald-500' },
+    { key: 'over', label: t('storage.overCap'), value: over, className: 'bg-destructive' },
+  ].filter((segment) => segment.value > 0)
+
+  if (scale <= 0) {
+    return <div className="mt-3 h-2 rounded-full bg-muted" />
+  }
+
   return (
-    <div className="space-y-1">
-      <div
-        className={blocked ? 'text-sm font-medium text-destructive tabular-nums' : 'text-sm font-medium tabular-nums'}
-      >
-        {value}
+    <div className="mt-3 space-y-2">
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+        {segments.map((segment) => (
+          <div
+            key={segment.key}
+            className={segment.className}
+            style={{ width: `${(segment.value / scale) * 100}%` }}
+            title={`${segment.label}: ${formatSize(segment.value)}`}
+          />
+        ))}
       </div>
-      {detail && <div className="text-xs text-muted-foreground">{detail}</div>}
-      {blocked && (
-        <Badge variant="destructive" className="text-[11px]">
-          {t('storage.overCap')}
-        </Badge>
-      )}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        {segments.map((segment) => (
+          <div key={segment.key} className="inline-flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${segment.className}`} />
+            <span>
+              {segment.label} {formatSize(segment.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function UnlimitedUsageBar({ used, label }: { used: number; label: string }) {
+  if (used <= 0) {
+    return <div className="mt-3 h-2 rounded-full bg-muted" />
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full w-full bg-primary/70" title={`${label}: ${formatSize(used)}`} />
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <div className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-primary/70" />
+          <span>
+            {label} {formatSize(used)}
+          </span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -336,7 +458,7 @@ function OrderRow({
           <span className="font-medium">{item?.name ?? order.id}</span>
           <Badge variant={order.paymentStatus === 'paid' ? 'default' : 'secondary'}>{order.paymentStatus}</Badge>
           <Badge variant={order.fulfillmentStatus === 'fulfilled' ? 'default' : 'outline'}>
-            {order.fulfillmentStatus === 'fulfilled' ? t('storage.activeEntitlement') : order.fulfillmentStatus}
+            {order.fulfillmentStatus}
           </Badge>
           <Badge variant="outline">#{order.id.slice(0, 8)}</Badge>
         </div>

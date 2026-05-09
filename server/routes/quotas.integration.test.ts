@@ -273,6 +273,44 @@ describe('Admin Quotas API', () => {
       trafficQuota: 3000,
     })
   })
+
+  it('GET /api/admin/quotas exposes active plan and extra quota labels', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const orgs = await db.all<{ id: string }>(
+      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
+    )
+    const orgId = orgs[0].id
+    const now = Date.now()
+    await db.run(sql`UPDATE org_quotas SET quota = 1000, traffic_quota = 2000 WHERE org_id = ${orgId}`)
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        ('ent-admin-plan-storage', ${orgId}, 'storage', 'test', ${`stripe_subscription:sub_storage:${orgId}`}, 3000, ${now}, NULL, 'active', '{"packageName":"Team Plan"}', ${now}, ${now}),
+        ('ent-admin-plan-storage-old', ${orgId}, 'storage', 'test', ${`stripe_subscription:sub_storage_old:${orgId}`}, 2500, ${now}, NULL, 'active', '{"packageName":"Old Team Plan"}', ${now}, ${now}),
+        ('ent-admin-extra-storage', ${orgId}, 'storage', 'test', 'storage-pack', 700, ${now}, NULL, 'active', '{"packageName":"Storage Pack"}', ${now}, ${now}),
+        ('ent-admin-plan-traffic', ${orgId}, 'traffic', 'test', ${`stripe_subscription:sub_traffic:${orgId}`}, 4000, ${now}, NULL, 'active', '{"packageName":"Team Plan"}', ${now}, ${now}),
+        ('ent-admin-extra-traffic', ${orgId}, 'traffic', 'test', 'traffic-pack', 900, ${now}, NULL, 'active', '{"packageName":"Traffic Boost"}', ${now}, ${now})
+    `)
+
+    const res = await app.request('/api/admin/quotas', { headers })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
+    expect(body.items[0]).toMatchObject({
+      baseQuota: 3000,
+      entitlementQuota: 700,
+      quota: 3700,
+      baseTrafficQuota: 4000,
+      entitlementTrafficQuota: 900,
+      trafficQuota: 4900,
+      storagePlanName: 'Team Plan',
+      storageExtraNames: ['Storage Pack'],
+      trafficPlanName: 'Team Plan',
+      trafficExtraNames: ['Traffic Boost'],
+    })
+  })
 })
 
 describe('User Quotas API — /api/quotas', () => {
@@ -340,7 +378,7 @@ describe('User Quotas API — /api/quotas', () => {
     expect(body.trafficUsed).toBe(0)
   })
 
-  it('GET /api/quotas/me returns base quota plus active entitlements', async () => {
+  it('GET /api/quotas/me returns base quota plus active entitlements and labels', async () => {
     const { app, db } = await createTestApp()
     const adminH = await adminHeaders(app)
     const orgs = await db.all<{ id: string }>(
@@ -353,8 +391,8 @@ describe('User Quotas API — /api/quotas', () => {
       INSERT INTO org_quota_entitlements
         (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
       VALUES
-        ('ent-user-storage', ${orgId}, 'storage', 'test', 'user-storage', 4000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
-        ('ent-user-traffic', ${orgId}, 'traffic', 'test', 'user-traffic', 6000, ${now}, NULL, 'active', NULL, ${now}, ${now})
+        ('ent-user-storage', ${orgId}, 'storage', 'test', 'user-storage', 4000, ${now}, NULL, 'active', '{"packageName":"Storage Pack"}', ${now}, ${now}),
+        ('ent-user-traffic', ${orgId}, 'traffic', 'test', 'user-traffic', 6000, ${now}, NULL, 'active', '{"packageName":"Traffic Boost"}', ${now}, ${now})
     `)
 
     const res = await app.request('/api/quotas/me', { headers: adminH })
@@ -368,6 +406,10 @@ describe('User Quotas API — /api/quotas', () => {
       baseTrafficQuota: 2000,
       entitlementTrafficQuota: 6000,
       trafficQuota: 8000,
+      storagePlanName: null,
+      storageExtraNames: ['Storage Pack'],
+      trafficPlanName: null,
+      trafficExtraNames: ['Traffic Boost'],
     })
   })
 

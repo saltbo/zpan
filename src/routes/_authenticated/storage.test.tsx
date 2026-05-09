@@ -162,6 +162,10 @@ describe('StoragePage', () => {
       trafficQuota: 0,
       trafficUsed: 0,
       trafficPeriod: '2026-05',
+      storagePlanName: null,
+      storageExtraNames: [],
+      trafficPlanName: null,
+      trafficExtraNames: [],
     })
     vi.mocked(getCloudWallet).mockResolvedValue({ balances: [] })
     vi.mocked(listCloudWalletTransactions).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
@@ -198,6 +202,10 @@ describe('StoragePage', () => {
       trafficQuota: 1536,
       trafficUsed: 1536,
       trafficPeriod: '2026-05',
+      storagePlanName: 'Team Plan',
+      storageExtraNames: ['Storage Pack'],
+      trafficPlanName: 'Team Plan',
+      trafficExtraNames: ['Traffic Boost'],
     })
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
@@ -217,8 +225,45 @@ describe('StoragePage', () => {
     expect(view.getByText('storage.currentPeriodTraffic')).toBeTruthy()
     await waitFor(() => expect(view.getByText('storage.storageQuotaDetail:1.5 KB/1.0 KB/512 B')).toBeTruthy())
     expect(view.getByText('storage.trafficQuotaDetail:1.0 KB/512 B')).toBeTruthy()
-    expect(view.getByText('storage.trafficPeriodDetail:2026-05')).toBeTruthy()
+    expect(view.getAllByText('Team Plan · 1.0 KB')).toHaveLength(2)
+    expect(view.getByText('Storage Pack · 512 B')).toBeTruthy()
+    expect(view.getByText('Traffic Boost · 512 B')).toBeTruthy()
+    expect(view.queryByText('storage.trafficPeriodDetail:2026-05')).toBeNull()
     await waitFor(() => expect(view.getAllByText('storage.overCap')).toHaveLength(2))
+  })
+
+  it('does not mark unlimited quota usage as over cap', async () => {
+    vi.mocked(getUserQuota).mockResolvedValue({
+      orgId: 'org-1',
+      baseQuota: 0,
+      entitlementQuota: 0,
+      quota: 0,
+      used: 1536,
+      baseTrafficQuota: 0,
+      entitlementTrafficQuota: 0,
+      trafficQuota: 0,
+      trafficUsed: 2048,
+      trafficPeriod: '2026-05',
+      storagePlanName: null,
+      storageExtraNames: [],
+      trafficPlanName: null,
+      trafficExtraNames: [],
+    })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByText('storage.storageQuotaDetail:1.5 KB/0 B/0 B')).toBeTruthy())
+    expect(view.queryByText('storage.overCap')).toBeNull()
+    expect(view.getByTitle('storage.legendUsed: 1.5 KB')).toBeTruthy()
+    expect(view.getByTitle('storage.legendUsed: 2.0 KB')).toBeTruthy()
   })
 
   it('hides self-service forms when storage purchases are disabled', async () => {

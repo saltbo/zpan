@@ -19,7 +19,7 @@ import { updateQuota } from '@/lib/api'
 interface UserQuotaDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  user: { name: string; orgId: string; quotaUsed: number; quotaTotal: number } | null
+  user: { name: string; orgId: string; quotaUsed: number; quotaDefault: number } | null
   onSave?: (quota: number) => Promise<unknown>
   showSuccessToast?: boolean
 }
@@ -41,7 +41,7 @@ export function UserQuotaDialog({ open, onOpenChange, user, onSave, showSuccessT
   useEffect(() => {
     if (open && user) {
       setQuotaUnit('GB')
-      setQuotaValue(user.quotaTotal > 0 ? formatQuotaValue(user.quotaTotal, 'GB') : '')
+      setQuotaValue(user.quotaDefault > 0 ? formatQuotaValue(user.quotaDefault, 'GB') : '')
     }
   }, [open, user])
 

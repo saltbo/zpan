@@ -1191,6 +1191,10 @@ describe('api', () => {
             trafficQuota: 2048,
             trafficUsed: 256,
             trafficPeriod: '2026-05',
+            storagePlanName: null,
+            storageExtraNames: [],
+            trafficPlanName: null,
+            trafficExtraNames: [],
           },
         ],
         total: 1,
@@ -1224,6 +1228,10 @@ describe('api', () => {
         trafficQuota: 4096,
         trafficUsed: 256,
         trafficPeriod: '2026-05',
+        storagePlanName: null,
+        storageExtraNames: [],
+        trafficPlanName: null,
+        trafficExtraNames: [],
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(updated))
 
@@ -1257,6 +1265,10 @@ describe('api', () => {
         trafficQuota: 2048,
         trafficUsed: 512,
         trafficPeriod: '2026-05',
+        storagePlanName: null,
+        storageExtraNames: [],
+        trafficPlanName: null,
+        trafficExtraNames: [],
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 

@@ -17,6 +17,7 @@ export interface UserWithOrg {
   orgId: string | null
   orgName: string | null
   quotaUsed: number
+  quotaDefault: number
   quotaTotal: number
 }
 
@@ -60,7 +61,8 @@ export async function listUsers(
       orgId: organization.id,
       orgName: organization.name,
       quotaUsed: orgQuotas.used,
-      quotaTotal: sql<number>`COALESCE(${orgQuotas.quota}, 0) + ${activeStorageEntitlementBytesSql(now)}`,
+      quotaDefault: orgQuotas.quota,
+      quotaTotal: sql<number>`${effectiveStoragePlanBytesSql(now)} + ${activeExtraStorageBytesSql(now)}`,
     })
     .from(user)
     .leftJoin(organization, eq(organization.slug, sql`'personal-' || ${user.id}`))
@@ -72,13 +74,35 @@ export async function listUsers(
     ...row,
     username: row.username ?? '',
     quotaUsed: row.quotaUsed ?? 0,
+    quotaDefault: row.quotaDefault ?? 0,
     quotaTotal: row.quotaTotal ?? 0,
   }))
 
   return { items, total }
 }
 
-function activeStorageEntitlementBytesSql(now: Date) {
+function effectiveStoragePlanBytesSql(now: Date) {
+  return sql`CASE
+    WHEN ${activePlanStorageBytesSql(now)} > 0 THEN ${activePlanStorageBytesSql(now)}
+    ELSE COALESCE(${orgQuotas.quota}, 0)
+  END`
+}
+
+function activePlanStorageBytesSql(now: Date) {
+  const timestamp = now.getTime()
+  return sql`(
+    SELECT COALESCE(MAX(${orgQuotaEntitlements.bytes}), 0)
+    FROM ${orgQuotaEntitlements}
+    WHERE ${orgQuotaEntitlements.orgId} = ${organization.id}
+      AND ${orgQuotaEntitlements.resourceType} = 'storage'
+      AND ${orgQuotaEntitlements.status} = 'active'
+      AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
+      AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
+      AND ${orgQuotaEntitlements.sourceId} LIKE 'stripe_subscription:%'
+  )`
+}
+
+function activeExtraStorageBytesSql(now: Date) {
   const timestamp = now.getTime()
   return sql`(
     SELECT COALESCE(SUM(${orgQuotaEntitlements.bytes}), 0)
@@ -88,6 +112,7 @@ function activeStorageEntitlementBytesSql(now: Date) {
       AND ${orgQuotaEntitlements.status} = 'active'
       AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
       AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
+      AND ${orgQuotaEntitlements.sourceId} NOT LIKE 'stripe_subscription:%'
   )`
 }
 

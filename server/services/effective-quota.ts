@@ -13,6 +13,10 @@ export interface EffectiveQuota {
   trafficQuota: number
   trafficUsed: number
   trafficPeriod: string
+  storagePlanName: string | null
+  storageExtraNames: string[]
+  trafficPlanName: string | null
+  trafficExtraNames: string[]
 }
 
 export function currentTrafficPeriod(now = new Date()): string {
@@ -41,12 +45,20 @@ export async function getEffectiveQuota(db: Database, orgId: string, now = new D
     .limit(1)
   const quotaRow = quotaRows[0]
 
-  const baseQuota = quotaRow?.baseQuota ?? 0
-  const entitlementQuota = await activeEntitlementBytes(db, orgId, 'storage', now)
-  const entitlementTrafficQuota = await activeEntitlementBytes(db, orgId, 'traffic', now)
+  const defaultQuota = quotaRow?.baseQuota ?? 0
+  const storagePlan = await activePlanEntitlement(db, orgId, 'storage', now)
+  const planQuota = storagePlan?.bytes ?? 0
+  const baseQuota = planQuota > 0 ? planQuota : defaultQuota
+  const entitlementQuota = await activeExtraEntitlementBytes(db, orgId, 'storage', now)
+  const storageExtraNames = await activeExtraEntitlementNames(db, orgId, 'storage', now)
+  const entitlementTrafficQuota = await activeExtraEntitlementBytes(db, orgId, 'traffic', now)
+  const trafficExtraNames = await activeExtraEntitlementNames(db, orgId, 'traffic', now)
   const trafficUsed = quotaRow && quotaRow.trafficPeriod === period ? quotaRow.trafficUsed : 0
   const trafficPeriod = quotaRow?.trafficPeriod === period ? quotaRow.trafficPeriod : period
-  const baseTrafficQuota = quotaRow?.trafficQuota ?? 0
+  const defaultTrafficQuota = quotaRow?.trafficQuota ?? 0
+  const trafficPlan = await activePlanEntitlement(db, orgId, 'traffic', now)
+  const planTrafficQuota = trafficPlan?.bytes ?? 0
+  const baseTrafficQuota = planTrafficQuota > 0 ? planTrafficQuota : defaultTrafficQuota
   return {
     orgId,
     baseQuota,
@@ -58,6 +70,10 @@ export async function getEffectiveQuota(db: Database, orgId: string, now = new D
     trafficQuota: baseTrafficQuota + entitlementTrafficQuota,
     trafficUsed,
     trafficPeriod,
+    storagePlanName: storagePlan?.name ?? null,
+    storageExtraNames,
+    trafficPlanName: trafficPlan?.name ?? null,
+    trafficExtraNames,
   }
 }
 
@@ -96,7 +112,9 @@ export async function consumeTrafficIfQuotaAllows(
   if (quotaRows.length === 0) return true
 
   if (quotaRows[0].trafficPeriod !== period) {
-    const entitlementBytes = activeEntitlementBytesSql(orgId, 'traffic', now)
+    const planBytes = activePlanEntitlementBytesSql(orgId, 'traffic', now)
+    const extraBytes = activeExtraEntitlementBytesSql(orgId, 'traffic', now)
+    const limitBytes = effectiveQuotaLimitSql(orgQuotas.trafficQuota, planBytes, extraBytes)
     const updated = await db
       .update(orgQuotas)
       .set({ trafficUsed: bytes, trafficPeriod: period })
@@ -104,15 +122,17 @@ export async function consumeTrafficIfQuotaAllows(
         sql`${orgQuotas.orgId} = ${orgId}
           AND ${orgQuotas.trafficPeriod} != ${period}
           AND (
-            (${orgQuotas.trafficQuota} = 0 AND ${entitlementBytes} = 0)
-            OR ${bytes} <= ${orgQuotas.trafficQuota} + ${entitlementBytes}
+            (${orgQuotas.trafficQuota} = 0 AND ${planBytes} = 0 AND ${extraBytes} = 0)
+            OR ${bytes} <= ${limitBytes}
           )`,
       )
       .returning({ id: orgQuotas.id })
     if (updated.length > 0) return true
   }
 
-  const entitlementBytes = activeEntitlementBytesSql(orgId, 'traffic', now)
+  const planBytes = activePlanEntitlementBytesSql(orgId, 'traffic', now)
+  const extraBytes = activeExtraEntitlementBytesSql(orgId, 'traffic', now)
+  const limitBytes = effectiveQuotaLimitSql(orgQuotas.trafficQuota, planBytes, extraBytes)
   const updated = await db
     .update(orgQuotas)
     .set({ trafficUsed: sql`${orgQuotas.trafficUsed} + ${bytes}` })
@@ -120,8 +140,8 @@ export async function consumeTrafficIfQuotaAllows(
       sql`${orgQuotas.orgId} = ${orgId}
         AND ${orgQuotas.trafficPeriod} = ${period}
         AND (
-          (${orgQuotas.trafficQuota} = 0 AND ${entitlementBytes} = 0)
-          OR ${orgQuotas.trafficUsed} + ${bytes} <= ${orgQuotas.trafficQuota} + ${entitlementBytes}
+          (${orgQuotas.trafficQuota} = 0 AND ${planBytes} = 0 AND ${extraBytes} = 0)
+          OR ${orgQuotas.trafficUsed} + ${bytes} <= ${limitBytes}
         )`,
     )
     .returning({ id: orgQuotas.id })
@@ -151,15 +171,17 @@ export async function incrementUsageIfEffectiveQuotaAllows(
   if (teamQuotaEnabled) {
     const rows = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, orgId)).limit(1)
     if (rows.length > 0) {
-      const entitlementBytes = activeEntitlementBytesSql(orgId, 'storage', now)
+      const planBytes = activePlanEntitlementBytesSql(orgId, 'storage', now)
+      const extraBytes = activeExtraEntitlementBytesSql(orgId, 'storage', now)
+      const limitBytes = effectiveQuotaLimitSql(orgQuotas.quota, planBytes, extraBytes)
       const updated = await db
         .update(orgQuotas)
         .set({ used: sql`${orgQuotas.used} + ${bytes}` })
         .where(
           sql`${orgQuotas.orgId} = ${orgId}
             AND (
-              (${orgQuotas.quota} = 0 AND ${entitlementBytes} = 0)
-              OR ${orgQuotas.used} + ${bytes} <= ${orgQuotas.quota} + ${entitlementBytes}
+              (${orgQuotas.quota} = 0 AND ${planBytes} = 0 AND ${extraBytes} = 0)
+              OR ${orgQuotas.used} + ${bytes} <= ${limitBytes}
             )`,
         )
         .returning({ id: orgQuotas.id })
@@ -176,7 +198,24 @@ export async function incrementUsageIfEffectiveQuotaAllows(
   return true
 }
 
-async function activeEntitlementBytes(
+async function activePlanEntitlement(
+  db: Database,
+  orgId: string,
+  resourceType: 'storage' | 'traffic',
+  now: Date,
+): Promise<{ bytes: number; name: string | null } | null> {
+  const rows = await db
+    .select({ bytes: orgQuotaEntitlements.bytes, metadata: orgQuotaEntitlements.metadata })
+    .from(orgQuotaEntitlements)
+    .where(activePlanEntitlementWhere(orgId, resourceType, now))
+    .orderBy(sql`${orgQuotaEntitlements.bytes} DESC, ${orgQuotaEntitlements.startsAt} DESC`)
+    .limit(1)
+
+  const row = rows[0]
+  return row ? { bytes: row.bytes, name: entitlementName(row.metadata) } : null
+}
+
+async function activeExtraEntitlementBytes(
   db: Database,
   orgId: string,
   resourceType: 'storage' | 'traffic',
@@ -185,12 +224,53 @@ async function activeEntitlementBytes(
   const rows = await db
     .select({ bytes: sql<number>`COALESCE(SUM(${orgQuotaEntitlements.bytes}), 0)` })
     .from(orgQuotaEntitlements)
-    .where(activeEntitlementWhere(orgId, resourceType, now))
+    .where(activeExtraEntitlementWhere(orgId, resourceType, now))
 
   return rows[0]?.bytes ?? 0
 }
 
-function activeEntitlementWhere(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
+async function activeExtraEntitlementNames(
+  db: Database,
+  orgId: string,
+  resourceType: 'storage' | 'traffic',
+  now: Date,
+): Promise<string[]> {
+  const rows = await db
+    .select({ metadata: orgQuotaEntitlements.metadata })
+    .from(orgQuotaEntitlements)
+    .where(activeExtraEntitlementWhere(orgId, resourceType, now))
+
+  const names = rows.flatMap((row) => {
+    const name = entitlementName(row.metadata)
+    return name ? [name] : []
+  })
+  return Array.from(new Set(names))
+}
+
+function activePlanEntitlementWhere(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
+  return activeEntitlementWhere(
+    orgId,
+    resourceType,
+    now,
+    sql`${orgQuotaEntitlements.sourceId} LIKE 'stripe_subscription:%'`,
+  )
+}
+
+function activeExtraEntitlementWhere(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
+  return activeEntitlementWhere(
+    orgId,
+    resourceType,
+    now,
+    sql`${orgQuotaEntitlements.sourceId} NOT LIKE 'stripe_subscription:%'`,
+  )
+}
+
+function activeEntitlementWhere(
+  orgId: string,
+  resourceType: 'storage' | 'traffic',
+  now: Date,
+  sourceCondition: ReturnType<typeof sql>,
+) {
   const timestamp = now.getTime()
   return and(
     eq(orgQuotaEntitlements.orgId, orgId),
@@ -198,18 +278,66 @@ function activeEntitlementWhere(orgId: string, resourceType: 'storage' | 'traffi
     eq(orgQuotaEntitlements.status, 'active'),
     sql`${orgQuotaEntitlements.startsAt} <= ${timestamp}`,
     or(sql`${orgQuotaEntitlements.expiresAt} IS NULL`, sql`${orgQuotaEntitlements.expiresAt} > ${timestamp}`),
+    sourceCondition,
   )
 }
 
-function activeEntitlementBytesSql(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
+function activePlanEntitlementBytesSql(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
+  return activeEntitlementBytesSql({
+    aggregate: sql`MAX(${orgQuotaEntitlements.bytes})`,
+    orgId,
+    resourceType,
+    now,
+    sourceCondition: sql`${orgQuotaEntitlements.sourceId} LIKE 'stripe_subscription:%'`,
+  })
+}
+
+function activeExtraEntitlementBytesSql(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
+  return activeEntitlementBytesSql({
+    aggregate: sql`SUM(${orgQuotaEntitlements.bytes})`,
+    orgId,
+    resourceType,
+    now,
+    sourceCondition: sql`${orgQuotaEntitlements.sourceId} NOT LIKE 'stripe_subscription:%'`,
+  })
+}
+
+function activeEntitlementBytesSql({
+  aggregate,
+  orgId,
+  resourceType,
+  now,
+  sourceCondition,
+}: {
+  aggregate: ReturnType<typeof sql>
+  orgId: string
+  resourceType: 'storage' | 'traffic'
+  now: Date
+  sourceCondition: ReturnType<typeof sql>
+}) {
   const timestamp = now.getTime()
   return sql`(
-    SELECT COALESCE(SUM(${orgQuotaEntitlements.bytes}), 0)
+    SELECT COALESCE(${aggregate}, 0)
     FROM ${orgQuotaEntitlements}
     WHERE ${orgQuotaEntitlements.orgId} = ${orgId}
       AND ${orgQuotaEntitlements.resourceType} = ${resourceType}
       AND ${orgQuotaEntitlements.status} = 'active'
       AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
       AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
+      AND ${sourceCondition}
   )`
+}
+
+function effectiveQuotaLimitSql(
+  defaultQuota: typeof orgQuotas.quota | typeof orgQuotas.trafficQuota,
+  planBytes: ReturnType<typeof sql>,
+  extraBytes: ReturnType<typeof sql>,
+) {
+  return sql`CASE WHEN ${planBytes} > 0 THEN ${planBytes} ELSE ${defaultQuota} END + ${extraBytes}`
+}
+
+function entitlementName(metadata: string | null) {
+  if (!metadata) return null
+  const parsed = JSON.parse(metadata) as { packageName?: unknown }
+  return typeof parsed.packageName === 'string' ? parsed.packageName : null
 }

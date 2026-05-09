@@ -1608,6 +1608,8 @@ describe('Quota Store API', () => {
       storageBytes: 4096,
       trafficBytes: 0,
       source: 'stripe',
+      packageName: 'Storage Pack',
+      expiresAt: '2026-06-01T00:00:00.000Z',
     })
 
     const res = await postWebhook(app, payload)
@@ -1631,6 +1633,8 @@ describe('Quota Store API', () => {
       storageBytes: 4096,
       trafficBytes: 0,
       source: 'stripe',
+      packageName: 'Storage Pack',
+      expiresAt: '2026-06-01T00:00:00.000Z',
     })
 
     const res = await app.request('/api/store/webhooks/cloud', {
@@ -1663,6 +1667,8 @@ describe('Quota Store API', () => {
       storageBytes: 4096,
       trafficBytes: 0,
       source: 'stripe',
+      packageName: 'Storage Pack',
+      expiresAt: '2026-06-01T00:00:00.000Z',
     })
 
     const first = await postWebhook(app, payload)
@@ -1682,17 +1688,24 @@ describe('Quota Store API', () => {
     expect(quota.baseQuota).toBe(before[0].quota)
     expect(quota.entitlementQuota).toBe(4096)
     expect(quota.quota).toBe(before[0].quota + 4096)
-    const entitlement = await db.all<{ bytes: number; status: string; sourceId: string }>(sql`
-      SELECT bytes, status, source_id AS sourceId
+    const entitlement = await db.all<{ bytes: number; status: string; sourceId: string; expiresAt: number }>(sql`
+      SELECT bytes, status, source_id AS sourceId, expires_at AS expiresAt
       FROM org_quota_entitlements
       WHERE org_id = ${orgId} AND resource_type = 'storage'
     `)
-    expect(entitlement).toEqual([{ bytes: 4096, status: 'active', sourceId: 'order-1' }])
+    expect(entitlement).toEqual([
+      { bytes: 4096, status: 'active', sourceId: 'order-1', expiresAt: Date.parse('2026-06-01T00:00:00.000Z') },
+    ])
     const audit = await db.all<{ action: string; metadata: string }>(
       sql`SELECT action, metadata FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 1`,
     )
     expect(audit[0].action).toBe('quota_order_increase')
-    expect(JSON.parse(audit[0].metadata)).toMatchObject({ eventId: 'evt-1', storageBytes: 4096, trafficBytes: 0 })
+    expect(JSON.parse(audit[0].metadata)).toMatchObject({
+      eventId: 'evt-1',
+      storageBytes: 4096,
+      trafficBytes: 0,
+      packageName: 'Storage Pack',
+    })
   })
 
   it('delivers initial subscription storage and traffic entitlements under a stable source id', async () => {
@@ -1713,7 +1726,9 @@ describe('Quota Store API', () => {
       trafficBytes: 2048,
       source: 'stripe_subscription',
       packageId: 'pkg-monthly-storage-traffic',
+      packageName: 'Team Plan',
       occurredAt: '2026-05-01T00:00:00.000Z',
+      expiresAt: '2026-06-01T00:00:00.000Z',
       terminalUserId: 'buyer-1',
       terminalUserEmail: 'buyer@example.com',
     })
@@ -1730,8 +1745,14 @@ describe('Quota Store API', () => {
       eventId: 'evt-subscription-initial-entitlement',
     })
 
-    const entitlements = await db.all<{ resourceType: string; bytes: number; startsAt: number; metadata: string }>(sql`
-      SELECT resource_type AS resourceType, bytes, starts_at AS startsAt, metadata
+    const entitlements = await db.all<{
+      resourceType: string
+      bytes: number
+      startsAt: number
+      expiresAt: number
+      metadata: string
+    }>(sql`
+      SELECT resource_type AS resourceType, bytes, starts_at AS startsAt, expires_at AS expiresAt, metadata
       FROM org_quota_entitlements
       WHERE source_id = ${subscriptionSourceId}
       ORDER BY resource_type
@@ -1742,10 +1763,13 @@ describe('Quota Store API', () => {
       { resourceType: 'traffic', bytes: 2048 },
     ])
     expect(new Date(entitlements[0].startsAt).toISOString()).toBe('2026-05-01T00:00:00.000Z')
+    expect(new Date(entitlements[0].expiresAt).toISOString()).toBe('2026-06-01T00:00:00.000Z')
     expect(JSON.parse(entitlements[0].metadata)).toMatchObject({
       eventId: 'evt-subscription-initial-entitlement',
       source: 'stripe_subscription',
       packageId: 'pkg-monthly-storage-traffic',
+      packageName: 'Team Plan',
+      expiresAt: '2026-06-01T00:00:00.000Z',
       terminalUserId: 'buyer-1',
       terminalUserEmail: 'buyer@example.com',
     })
@@ -1760,12 +1784,93 @@ describe('Quota Store API', () => {
       trafficQuota: number
     }
     expect(quota).toMatchObject({
+      baseQuota: 4096,
+      entitlementQuota: 0,
+      quota: 4096,
+      baseTrafficQuota: 2048,
+      entitlementTrafficQuota: 0,
+      trafficQuota: 2048,
+      storagePlanName: 'Team Plan',
+      storageExtraNames: [],
+      trafficPlanName: 'Team Plan',
+      trafficExtraNames: [],
+    })
+  })
+
+  it('renews subscription entitlements by replacing plan bytes and extending expiry', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    const subscriptionSourceId = `stripe_subscription:sub_renewal:${orgId}`
+
+    const first = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-subscription-period-1',
+        cloudOrderId: subscriptionSourceId,
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 4096,
+        trafficBytes: 2048,
+        source: 'stripe_subscription',
+        packageName: 'Team Plan',
+        occurredAt: '2026-05-01T00:00:00.000Z',
+        expiresAt: '2026-06-01T00:00:00.000Z',
+      }),
+    )
+    const renewal = await postWebhook(
+      app,
+      JSON.stringify({
+        eventId: 'evt-subscription-period-2',
+        cloudOrderId: subscriptionSourceId,
+        targetOrgId: orgId,
+        eventType: 'order.quota_changed',
+        direction: 'increase',
+        storageBytes: 8192,
+        trafficBytes: 4096,
+        source: 'stripe_subscription',
+        packageName: 'Team Plan Plus',
+        occurredAt: '2026-06-01T00:00:00.000Z',
+        expiresAt: '2026-07-01T00:00:00.000Z',
+      }),
+    )
+
+    expect(first.status).toBe(200)
+    expect(renewal.status).toBe(200)
+    const entitlements = await db.all<{ resourceType: string; bytes: number; expiresAt: number }>(sql`
+      SELECT resource_type AS resourceType, bytes, expires_at AS expiresAt
+      FROM org_quota_entitlements
+      WHERE source_id = ${subscriptionSourceId}
+      ORDER BY resource_type
+    `)
+    expect(entitlements).toEqual([
+      { resourceType: 'storage', bytes: 8192, expiresAt: Date.parse('2026-07-01T00:00:00.000Z') },
+      { resourceType: 'traffic', bytes: 4096, expiresAt: Date.parse('2026-07-01T00:00:00.000Z') },
+    ])
+
+    const quotaRes = await app.request('/api/quotas/me', { headers })
+    const quota = (await quotaRes.json()) as {
+      baseQuota: number
+      entitlementQuota: number
+      quota: number
+      baseTrafficQuota: number
+      entitlementTrafficQuota: number
+      trafficQuota: number
+    }
+    expect(quota).toMatchObject({
       baseQuota: 8192,
-      entitlementQuota: 4096,
-      quota: 12288,
-      baseTrafficQuota: 1024,
-      entitlementTrafficQuota: 2048,
-      trafficQuota: 3072,
+      entitlementQuota: 0,
+      quota: 8192,
+      baseTrafficQuota: 4096,
+      entitlementTrafficQuota: 0,
+      trafficQuota: 4096,
+      storagePlanName: 'Team Plan Plus',
+      storageExtraNames: [],
+      trafficPlanName: 'Team Plan Plus',
+      trafficExtraNames: [],
     })
   })
 

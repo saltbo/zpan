@@ -77,7 +77,9 @@ export const cloudOrderQuotaChangeSchema = z
     trafficBytes: z.number().int().min(0).default(0),
     source: z.string().min(1).optional(),
     packageId: z.string().min(1).optional(),
+    packageName: z.string().min(1).optional(),
     occurredAt: z.string().min(1).optional(),
+    expiresAt: z.string().datetime().optional(),
     terminalUserId: z.string().optional(),
     terminalUserEmail: z.string().email().optional(),
   })

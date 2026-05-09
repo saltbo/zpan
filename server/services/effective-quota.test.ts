@@ -8,6 +8,7 @@ import {
   getEffectiveQuota,
   hasQuotaForBytes,
   hasTrafficQuotaForBytes,
+  incrementUsageIfEffectiveQuotaAllows,
   refundTraffic,
 } from './effective-quota.js'
 
@@ -66,6 +67,151 @@ describe('effective quota', () => {
       baseTrafficQuota: 2000,
       entitlementTrafficQuota: 700,
       trafficQuota: 2700,
+    })
+  })
+
+  it('uses the largest active subscription quota as the current plan and keeps other entitlements as extra quota', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 2000,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 3000, 'active', now),
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage_legacy:${orgId}`, 2500, 'active', now),
+        entitlement(orgId, 'storage', 'order-storage-pack', 500, 'active', now),
+        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic:${orgId}`, 4000, 'active', now),
+        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic_legacy:${orgId}`, 3500, 'active', now),
+        entitlement(orgId, 'traffic', 'order-traffic-pack', 700, 'active', now),
+      ])
+
+    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+      baseQuota: 3000,
+      entitlementQuota: 500,
+      quota: 3500,
+      baseTrafficQuota: 4000,
+      entitlementTrafficQuota: 700,
+      trafficQuota: 4700,
+      storagePlanName: null,
+      storageExtraNames: [],
+      trafficPlanName: null,
+      trafficExtraNames: [],
+    })
+  })
+
+  it('uses a smaller active subscription plan instead of the larger default quota', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 5000,
+      used: 0,
+      trafficQuota: 6000,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 3000, 'active', now),
+        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic:${orgId}`, 4000, 'active', now),
+      ])
+
+    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+      baseQuota: 3000,
+      quota: 3000,
+      baseTrafficQuota: 4000,
+      trafficQuota: 4000,
+    })
+  })
+
+  it('returns active plan and extra package names from entitlement metadata', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 2000,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 3000, 'active', now, 'Team Plan'),
+        entitlement(orgId, 'storage', 'order-storage-pack-1', 500, 'active', now, 'Storage Pack'),
+        entitlement(orgId, 'storage', 'order-storage-pack-2', 300, 'active', now, 'Archive Pack'),
+        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic:${orgId}`, 4000, 'active', now, 'Team Plan'),
+        entitlement(orgId, 'traffic', 'order-traffic-pack-1', 700, 'active', now, 'Traffic Boost'),
+        entitlement(orgId, 'traffic', 'order-traffic-pack-2', 200, 'active', now, 'Burst Pack'),
+      ])
+
+    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+      entitlementQuota: 800,
+      quota: 3800,
+      entitlementTrafficQuota: 900,
+      trafficQuota: 4900,
+      storagePlanName: 'Team Plan',
+      storageExtraNames: ['Storage Pack', 'Archive Pack'],
+      trafficPlanName: 'Team Plan',
+      trafficExtraNames: ['Traffic Boost', 'Burst Pack'],
+    })
+  })
+
+  it('ignores expired subscription plans and expired extra entitlements', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    const expiredAt = new Date('2026-05-05T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 2000,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values([
+      {
+        ...entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 3000, 'active', now),
+        expiresAt: expiredAt,
+      },
+      {
+        ...entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic:${orgId}`, 4000, 'active', now),
+        expiresAt: expiredAt,
+      },
+      {
+        ...entitlement(orgId, 'storage', 'order-storage-pack', 500, 'active', now),
+        expiresAt: expiredAt,
+      },
+      {
+        ...entitlement(orgId, 'traffic', 'order-traffic-pack', 700, 'active', now),
+        expiresAt: expiredAt,
+      },
+    ])
+
+    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+      baseQuota: 1000,
+      entitlementQuota: 0,
+      quota: 1000,
+      baseTrafficQuota: 2000,
+      entitlementTrafficQuota: 0,
+      trafficQuota: 2000,
     })
   })
 
@@ -133,6 +279,31 @@ describe('effective quota', () => {
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(1300)
+  })
+
+  it('enforces traffic against subscription plan plus extra entitlements', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 1000,
+      trafficUsed: 900,
+      trafficPeriod: '2026-05',
+    })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic:${orgId}`, 2000, 'active', now),
+        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic_legacy:${orgId}`, 1500, 'active', now),
+        entitlement(orgId, 'traffic', 'traffic-pack', 500, 'active', now),
+      ])
+
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1600, now)).resolves.toBe(true)
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1, now)).resolves.toBe(false)
   })
 
   it('treats zero base traffic quota as limited when traffic entitlements exist', async () => {
@@ -274,6 +445,57 @@ describe('effective quota', () => {
     await expect(hasQuotaForBytes(db, orgId, 100)).resolves.toBe(true)
     await expect(hasQuotaForBytes(db, orgId, 101)).resolves.toBe(false)
   })
+
+  it('enforces storage against subscription plan plus extra entitlements', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2020-01-01T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 900,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 2000, 'active', now),
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage_legacy:${orgId}`, 1500, 'active', now),
+        entitlement(orgId, 'storage', 'storage-pack', 500, 'active', now),
+      ])
+
+    await expect(hasQuotaForBytes(db, orgId, 1600)).resolves.toBe(true)
+    await expect(hasQuotaForBytes(db, orgId, 1601)).resolves.toBe(false)
+  })
+
+  it('atomically enforces storage against the largest active subscription plan plus extra entitlements', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const storageId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 900,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 2000, 'active', now),
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage_legacy:${orgId}`, 1500, 'active', now),
+        entitlement(orgId, 'storage', 'storage-pack', 500, 'active', now),
+      ])
+
+    await expect(incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, 1600, true, now)).resolves.toBe(true)
+    await expect(incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, 1, true, now)).resolves.toBe(false)
+  })
 })
 
 function entitlement(
@@ -283,6 +505,7 @@ function entitlement(
   bytes: number,
   status: string,
   now: Date,
+  packageName?: string,
 ): typeof orgQuotaEntitlements.$inferInsert {
   return {
     id: nanoid(),
@@ -294,7 +517,7 @@ function entitlement(
     startsAt: now,
     expiresAt: null,
     status,
-    metadata: null,
+    metadata: packageName ? JSON.stringify({ packageName }) : null,
     createdAt: now,
     updatedAt: now,
   }

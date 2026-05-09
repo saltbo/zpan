@@ -86,7 +86,44 @@ describe('Admin Users API', () => {
       email: 'quota-list@example.com',
       orgId: personalOrgs[0].id,
       quotaUsed: 789,
+      quotaDefault: 123456,
       quotaTotal: 123456,
+    })
+  })
+
+  it('GET /api/admin/users computes quota total from active plan and extra storage entitlements', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'quota-plan@example.com')
+    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'quota-plan@example.com'`)
+    const userId = users[0].id
+    const personalOrgs = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`,
+    )
+    const orgId = personalOrgs[0].id
+    const now = Date.now()
+
+    await db.run(sql`UPDATE org_quotas SET quota = 10000, used = 900 WHERE org_id = ${orgId}`)
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        ('ent-user-plan-storage', ${orgId}, 'storage', 'test', ${`stripe_subscription:sub_storage:${orgId}`}, 5000, ${now}, NULL, 'active', '{"packageName":"Small Plan"}', ${now}, ${now}),
+        ('ent-user-plan-storage-old', ${orgId}, 'storage', 'test', ${`stripe_subscription:sub_storage_old:${orgId}`}, 4000, ${now}, NULL, 'active', '{"packageName":"Old Plan"}', ${now}, ${now}),
+        ('ent-user-extra-storage', ${orgId}, 'storage', 'test', 'storage-pack', 1000, ${now}, NULL, 'active', '{"packageName":"Storage Pack"}', ${now}, ${now}),
+        ('ent-user-expired-storage', ${orgId}, 'storage', 'test', 'expired-storage-pack', 9000, ${now}, ${now - 1}, 'active', '{"packageName":"Expired Pack"}', ${now}, ${now})
+    `)
+
+    const res = await app.request('/api/admin/users?search=quota-plan@example.com', { headers })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
+    expect(body.items[0]).toMatchObject({
+      email: 'quota-plan@example.com',
+      orgId,
+      quotaUsed: 900,
+      quotaDefault: 10000,
+      quotaTotal: 6000,
     })
   })
 

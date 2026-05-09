@@ -150,7 +150,7 @@ function UsersPage() {
                 name: quotaDialogUser.name,
                 orgId: quotaDialogUser.orgId,
                 quotaUsed: quotaDialogUser.quotaUsed,
-                quotaTotal: quotaDialogUser.quotaTotal,
+                quotaDefault: quotaDialogUser.quotaDefault,
               }
             : null
         }

@@ -77,7 +77,7 @@ const user = {
   name: 'Test User',
   orgId: 'org-1',
   quotaUsed: 512,
-  quotaTotal: 2 * 1024 * 1024 * 1024,
+  quotaDefault: 2 * 1024 * 1024 * 1024,
 }
 
 function renderDialog(props: Partial<React.ComponentProps<typeof UserQuotaDialog>> = {}) {
@@ -101,6 +101,17 @@ afterEach(() => {
 })
 
 describe('UserQuotaDialog', () => {
+  it('prefills the editable default quota instead of effective quota', () => {
+    const view = renderDialog({
+      user: {
+        ...user,
+        quotaDefault: 2 * 1024 * 1024 * 1024,
+      },
+    })
+
+    expect((view.getByLabelText('admin.users.quotaLabel') as HTMLInputElement).value).toBe('2')
+  })
+
   it('shows the generic success toast by default after saving', async () => {
     const onSave = vi.fn().mockResolvedValue({ orgId: user.orgId, quota: 3 })
     const onOpenChange = vi.fn()

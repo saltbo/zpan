@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { organization } from '../db/auth-schema'
-import { orgQuotaEntitlements, orgQuotas } from '../db/schema'
+import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
@@ -32,14 +32,6 @@ const adminQuotas = new Hono<Env>()
       .select({
         id: orgQuotas.id,
         orgId: orgQuotas.orgId,
-        baseQuota: orgQuotas.quota,
-        entitlementQuota: activeEntitlementBytesSql('storage', now),
-        used: orgQuotas.used,
-        baseTrafficQuota: orgQuotas.trafficQuota,
-        entitlementTrafficQuota: activeEntitlementBytesSql('traffic', now),
-        trafficQuota: orgQuotas.trafficQuota,
-        trafficUsed: orgQuotas.trafficUsed,
-        trafficPeriod: orgQuotas.trafficPeriod,
         orgName: organization.name,
         orgMetadata: organization.metadata,
       })
@@ -47,21 +39,14 @@ const adminQuotas = new Hono<Env>()
       .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
       .orderBy(organization.name)
 
-    const items = rows.map((r) => ({
-      id: r.id,
-      orgId: r.orgId,
-      baseQuota: r.baseQuota,
-      entitlementQuota: r.entitlementQuota,
-      quota: r.baseQuota + r.entitlementQuota,
-      used: r.used,
-      baseTrafficQuota: r.baseTrafficQuota,
-      entitlementTrafficQuota: r.entitlementTrafficQuota,
-      trafficQuota: r.trafficQuota + r.entitlementTrafficQuota,
-      trafficUsed: r.trafficUsed,
-      trafficPeriod: r.trafficPeriod,
-      orgName: r.orgName,
-      orgType: parseOrgType(r.orgMetadata),
-    }))
+    const items = await Promise.all(
+      rows.map(async (r) => ({
+        id: r.id,
+        ...(await getEffectiveQuota(db, r.orgId, now)),
+        orgName: r.orgName,
+        orgType: parseOrgType(r.orgMetadata),
+      })),
+    )
 
     return c.json({ items, total: items.length })
   })
@@ -126,17 +111,4 @@ function parseOrgType(metadata: string | null): string {
   } catch {
     return 'unknown'
   }
-}
-
-function activeEntitlementBytesSql(resourceType: 'storage' | 'traffic', now: Date) {
-  const timestamp = now.getTime()
-  return sql<number>`(
-    SELECT COALESCE(SUM(${orgQuotaEntitlements.bytes}), 0)
-    FROM ${orgQuotaEntitlements}
-    WHERE ${orgQuotaEntitlements.orgId} = ${orgQuotas.orgId}
-      AND ${orgQuotaEntitlements.resourceType} = ${resourceType}
-      AND ${orgQuotaEntitlements.status} = 'active'
-      AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
-      AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
-  )`
 }

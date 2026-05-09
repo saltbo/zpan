@@ -46,6 +46,10 @@ export interface OrgQuota {
   trafficQuota: number
   trafficUsed: number
   trafficPeriod: string
+  storagePlanName: string | null
+  storageExtraNames: string[]
+  trafficPlanName: string | null
+  trafficExtraNames: string[]
 }
 
 export type WebhookEventStatus = 'processed' | 'duplicate' | 'failed'

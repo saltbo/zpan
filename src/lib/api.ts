@@ -88,6 +88,10 @@ export type UserQuota = Pick<
   | 'trafficQuota'
   | 'trafficUsed'
   | 'trafficPeriod'
+  | 'storagePlanName'
+  | 'storageExtraNames'
+  | 'trafficPlanName'
+  | 'trafficExtraNames'
 >
 
 export interface ApiErrorBody {
@@ -253,6 +257,7 @@ export interface UserWithOrg {
   orgId: string | null
   orgName: string | null
   quotaUsed: number
+  quotaDefault: number
   quotaTotal: number
 }
 

@@ -207,6 +207,7 @@ function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEv
       storageBytes: event.storageBytes,
       trafficBytes: event.trafficBytes,
       cloudOrderId: event.cloudOrderId ?? null,
+      packageName: event.packageName ?? null,
     }),
     createdAt: new Date(),
   }
@@ -356,11 +357,14 @@ function quotaEntitlementValues(event: CloudOrderQuotaChange, now: Date): (typeo
 }
 
 function quotaEntitlementIncreaseValues(value: typeof orgQuotaEntitlements.$inferInsert, now: Date) {
+  const bytes = isSubscriptionSourceId(value.sourceId)
+    ? value.bytes
+    : (sql`CASE
+        WHEN ${orgQuotaEntitlements.status} = 'active' THEN ${orgQuotaEntitlements.bytes} + ${value.bytes}
+        ELSE ${value.bytes}
+      END` as unknown as number)
   return {
-    bytes: sql`CASE
-      WHEN ${orgQuotaEntitlements.status} = 'active' THEN ${orgQuotaEntitlements.bytes} + ${value.bytes}
-      ELSE ${value.bytes}
-    END`,
+    bytes,
     status: 'active',
     expiresAt: value.expiresAt,
     metadata: value.metadata,
@@ -392,7 +396,7 @@ function quotaEntitlementValue(
     sourceId: event.cloudOrderId,
     bytes,
     startsAt: now,
-    expiresAt: null,
+    expiresAt: event.expiresAt ? new Date(event.expiresAt) : null,
     status: 'active',
     metadata: JSON.stringify(quotaEntitlementMetadata(event)),
     createdAt: now,
@@ -419,9 +423,15 @@ function quotaEntitlementMetadata(event: CloudOrderQuotaChange) {
     eventType: event.eventType,
     source: event.source ?? null,
     packageId: event.packageId ?? null,
+    packageName: event.packageName ?? null,
+    expiresAt: event.expiresAt ?? null,
     terminalUserId: event.terminalUserId ?? null,
     terminalUserEmail: event.terminalUserEmail ?? null,
   }
+}
+
+function isSubscriptionSourceId(sourceId: string) {
+  return sourceId.startsWith('stripe_subscription:')
 }
 
 async function beginWebhookEvent(
