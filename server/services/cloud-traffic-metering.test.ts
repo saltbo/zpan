@@ -63,6 +63,23 @@ describe('cloud traffic metering', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
   })
 
+  it('ignores zero-byte reports without writing local state', async () => {
+    const { db, platform } = await createTestApp()
+    vi.stubGlobal('fetch', vi.fn())
+
+    const result = await reportTrafficEgress({
+      platform,
+      orgId: 'org_1',
+      bytes: 0,
+      source: 'object_download',
+      sourceId: 'matter_1',
+    })
+
+    expect(result).toMatchObject({ status: 'reported', eventId: '', duplicate: false })
+    expect(fetch).not.toHaveBeenCalled()
+    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
+  })
+
   it('keeps idempotent reports local after the first successful report', async () => {
     const { db, platform } = await createTestApp()
     await seedTrafficBinding(db)
@@ -107,6 +124,16 @@ describe('cloud traffic metering', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       { eventId: 'evt_blocked', status: 'blocked', error: 'overage_cap_exceeded' },
     ])
+    await expect(
+      reportTrafficEgress({
+        platform,
+        orgId: 'org_1',
+        bytes: 1024,
+        source: 'landing_share',
+        sourceId: 'share_1',
+        eventId: 'evt_blocked',
+      }),
+    ).rejects.toThrow(CloudTrafficBlockedError)
   })
 
   it('retries failed report ids instead of treating them as completed duplicates', async () => {

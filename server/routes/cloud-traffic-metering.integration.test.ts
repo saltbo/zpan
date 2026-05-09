@@ -147,6 +147,29 @@ describe('object download cloud traffic reporting', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'blocked' }])
   })
 
+  it('refunds local traffic when Cloud returns a mismatched event id', async () => {
+    const { app, db } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(makeCloudResponse({ data: { accepted: true, duplicate: false, eventId: 'wrong' } })),
+    )
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, 'm-cloud-report-mismatch')
+    await setTrafficQuota(db, orgId)
+
+    const res = await app.request('/api/objects/m-cloud-report-mismatch', { headers })
+
+    expect(res.status).toBe(500)
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
+    )
+    expect(rows[0].trafficUsed).toBe(25)
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'failed' }])
+  })
+
   it('does not report usage when presign fails and local traffic is refunded', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
@@ -210,6 +233,26 @@ describe('public redirect cloud traffic reporting', () => {
     ])
   })
 
+  it('still returns landing share URLs when audit recording fails after Cloud report', async () => {
+    const { app, db } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, 'm-cloud-landing-audit-fail')
+    const share = await createShare(db, { matterId: 'm-cloud-landing-audit-fail', orgId, creatorId, kind: 'landing' })
+    const ref = encodeChildRef(share.token, 'm-cloud-landing-audit-fail')
+    await db.run(sql`DROP TABLE activity_events`)
+
+    const res = await app.request(`/api/shares/${share.token}/objects/${ref}?downloadUrl=1`, { redirect: 'manual' })
+
+    expect(res.status).toBe(200)
+    expect(consoleError).toHaveBeenCalled()
+  })
+
   it('reports token image-hosting redirects to Cloud', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
@@ -226,6 +269,24 @@ describe('public redirect cloud traffic reporting', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       { source: 'image_hosting', sourceId: 'ih-cloud-token', bytes: 100, status: 'reported' },
     ])
+  })
+
+  it('still redirects token images when access-count recording fails after Cloud report', async () => {
+    const { app, db } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImage(db, orgId, 'ih-cloud-log-fail', 'ih_cloudlogfail')
+    await insertImageConfig(db, orgId)
+    vi.spyOn(db, 'run').mockRejectedValue(new Error('access failed'))
+
+    const res = await app.request('/r/ih_cloudlogfail', { redirect: 'manual' })
+
+    expect(res.status).toBe(302)
+    expect(consoleError).toHaveBeenCalled()
   })
 
   it('reports custom-domain image-hosting redirects to Cloud', async () => {
@@ -247,5 +308,26 @@ describe('public redirect cloud traffic reporting', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       { source: 'custom_domain_image', sourceId: 'ih-cloud-domain', bytes: 100, status: 'reported' },
     ])
+  })
+
+  it('still redirects custom-domain images when access-count recording fails after Cloud report', async () => {
+    const { app, db } = await createTestApp({ PUBLIC_APP_HOST: 'zpan.example.com' })
+    await seedTrafficBinding(db)
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImage(db, orgId, 'ih-cloud-domain-log-fail', 'ih_clouddomainlogfail', 'blog/domain-log-fail.png')
+    await insertImageConfig(db, orgId, 'img.example.com')
+    vi.spyOn(db, 'run').mockRejectedValue(new Error('access failed'))
+
+    const res = await app.request('https://img.example.com/blog/domain-log-fail.png', {
+      headers: { host: 'img.example.com' },
+      redirect: 'manual',
+    })
+
+    expect(res.status).toBe(302)
+    expect(consoleError).toHaveBeenCalled()
   })
 })
