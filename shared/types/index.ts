@@ -70,6 +70,7 @@ export interface CloudProduct {
   metadata: {
     storageBytes: number
     trafficBytes: number
+    validityDays?: number
   }
   prices: CloudProductPrice[]
   active: boolean
@@ -82,6 +83,10 @@ export interface CloudProductPrice {
   id?: string
   currency: string
   amount: number
+  recurring?: {
+    interval: 'day' | 'week' | 'month' | 'year'
+    intervalCount: number
+  } | null
 }
 
 export interface CloudOrderFulfillmentPayload {

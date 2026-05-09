@@ -340,11 +340,11 @@ function PackageCard({
               {t('storage.trafficQuota', { size: formatSize(pkg.metadata.trafficBytes) })}
             </p>
           )}
-          <p className="text-sm text-muted-foreground">{formatMoney(price.amount, price.currency, language)}</p>
+          <p className="text-sm text-muted-foreground">{formatPackagePrice(price, pkg, language, t)}</p>
         </div>
         <Button className="w-full" disabled={disabled} onClick={() => onCheckout(pkg.id, price.currency)}>
           <PlusCircle className="mr-2 h-4 w-4" />
-          {t('storage.checkoutPlan')} · {formatMoney(price.amount, price.currency, language)}
+          {t('storage.checkoutPlan')} · {formatPackagePrice(price, pkg, language, t)}
         </Button>
       </CardContent>
     </Card>
@@ -593,6 +593,20 @@ function selectPrice(prices: CloudProduct['prices'], language: string) {
 
 function formatMoney(amount: number, currency: string, language: string) {
   return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
+}
+
+function formatPackagePrice(
+  price: CloudProduct['prices'][number],
+  pkg: CloudProduct,
+  language: string,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  const amount = formatMoney(price.amount, price.currency, language)
+  if (price.recurring?.interval === 'month' && price.recurring.intervalCount === 1) {
+    return t('storage.priceMonthly', { amount })
+  }
+  if (pkg.metadata.validityDays) return t('storage.priceForDays', { amount, days: pkg.metadata.validityDays })
+  return amount
 }
 
 function isActionableOrder(order: CloudOrder) {

@@ -114,6 +114,16 @@ function paymentPayload() {
   return JSON.parse(String(call[1].body)) as Record<string, unknown>
 }
 
+function orderPayload() {
+  const call = vi
+    .mocked(fetch)
+    .mock.calls.find(([url, init]) => init?.method === 'POST' && String(url).endsWith('/orders')) as
+    | [URL, RequestInit]
+    | undefined
+  if (!call) throw new Error('order_request_missing')
+  return JSON.parse(String(call[1].body)) as Record<string, unknown>
+}
+
 beforeEach(() => {
   if (!PUBLIC_KEYS.includes(EVENT_PUBLIC)) PUBLIC_KEYS.unshift(EVENT_PUBLIC)
   let lastTargetOrgId = 'org-placeholder'
@@ -704,6 +714,110 @@ describe('Quota Store API', () => {
     expect(JSON.parse(init.body as string)).not.toHaveProperty('callbackUrl')
   })
 
+  it('proxies recurring plans and fixed-duration quota packages to Cloud deliverables', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const recurringPlan = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Team Monthly',
+        description: '',
+        metadata: { storageBytes: 4096, trafficBytes: 8192 },
+        prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } }],
+      }),
+    })
+    const fixedPackage = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Traffic Pack',
+        description: '',
+        metadata: { storageBytes: 0, trafficBytes: 8192, validityDays: 30 },
+        prices: [{ currency: 'usd', amount: 900 }],
+      }),
+    })
+
+    expect(recurringPlan.status).toBe(201)
+    expect(fixedPackage.status).toBe(201)
+    const recurringBody = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
+    const fixedBody = JSON.parse((vi.mocked(fetch).mock.calls[1][1] as RequestInit).body as string)
+    expect(recurringBody).toMatchObject({
+      type: 'store_item',
+      metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 8192 } },
+      prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } }],
+    })
+    expect(fixedBody).toMatchObject({
+      type: 'store_item',
+      metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192, validityDays: 30 } },
+      prices: [{ currency: 'usd', amount: 900 }],
+    })
+  })
+
+  it('rejects mixed package billing modes before proxying to Cloud', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const created = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Mixed Billing',
+        description: '',
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
+        prices: [
+          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+          { currency: 'cny', amount: 9000 },
+        ],
+      }),
+    })
+
+    expect(created.status).toBe(400)
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it('rejects partial package quota patches that cannot recompute the Cloud deliverable', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const updated = await app.request('/api/admin/store/packages/pkg-1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
+      }),
+    })
+
+    expect(updated.status).toBe(400)
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it('rejects name-only package patches because deliverable package names are embedded', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const updated = await app.request('/api/admin/store/packages/pkg-1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Renamed' }),
+    })
+
+    expect(updated.status).toBe(400)
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
   it('ignores spoofed forwarded origin for Cloud checkout return URLs', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
@@ -1216,14 +1330,65 @@ describe('Quota Store API', () => {
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
+    const packageId = await seedPackage(db)
 
     const res = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId: 'pkg-1' }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(res.status).toBe(200)
+  })
+
+  it('omits wallet credit when checking out recurring packages', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    const packageId = await seedPackage(db)
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () =>
+        cloudProduct({
+          id: packageId,
+          prices: [
+            {
+              id: 'price-monthly',
+              currency: 'usd',
+              amount: 500,
+              recurring: { interval: 'month', intervalCount: 1 },
+            },
+          ],
+        }),
+    } as Response)
+
+    const checkout = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, currency: 'usd' }),
+    })
+
+    expect(checkout.status).toBe(200)
+    expect(orderPayload()).not.toHaveProperty('walletCreditAmount')
+  })
+
+  it('uses wallet credit when checking out fixed-duration packages', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    const packageId = await seedPackage(db)
+
+    const checkout = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, currency: 'usd' }),
+    })
+
+    expect(checkout.status).toBe(200)
+    expect(orderPayload()).toMatchObject({ walletCreditAmount: 'max' })
   })
 
   it('lists purchasable packages, targets, checkout, and orders', async () => {

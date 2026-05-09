@@ -16,6 +16,7 @@ import {
   cloudCheckoutResponseSchema,
   cloudOrderResponseSchema,
   cloudPackageListResponseSchema,
+  cloudPackageResponseSchema,
   cloudStoreOrdersQuerySchema,
   getCloud,
   getUserStoreSettings,
@@ -91,18 +92,23 @@ export const cloudStore = new Hono<Env>()
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
+    const currency = body.currency ?? 'usd'
+    const product = await getCloud(c, packagesPath({ packageId: body.packageId }), cloudPackageResponseSchema)
+    if ('error' in product) return c.json(product, 502)
+    const price = product.prices.find((item) => item.currency === currency)
+    if (!price) return c.json({ error: 'package_price_missing' }, 400)
     const order = await postCloudWithBinding(
       c,
       ordersPath(),
       {
         items: [{ productId: body.packageId }],
-        currency: body.currency ?? 'usd',
+        currency,
         target: {
           orgId: targetOrgId,
           endUserId: targetOrgId,
           endUserLabel: await getUserTerminalLabel(db, userId),
         },
-        walletCreditAmount: 'max' as const,
+        ...(price.recurring ? {} : { walletCreditAmount: 'max' as const }),
       },
       z.object({ id: z.string().min(1) }),
     )

@@ -8,7 +8,29 @@ export const cloudStoreCurrencySchema = z.string().min(1)
 export const cloudProductPriceSchema = z.object({
   currency: cloudStoreCurrencySchema,
   amount: z.number().int().positive(),
+  recurring: z
+    .object({
+      interval: z.enum(['day', 'week', 'month', 'year']),
+      intervalCount: z.number().int().positive(),
+    })
+    .nullable()
+    .optional(),
 })
+
+function validateUniformPriceBilling(
+  prices: CloudProductPrice[],
+  ctx: z.RefinementCtx,
+  path: Array<string | number> = ['prices'],
+) {
+  const recurringCount = prices.filter((price) => price.recurring).length
+  if (recurringCount > 0 && recurringCount !== prices.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path,
+      message: 'All prices for a Cloud product must use the same billing mode',
+    })
+  }
+}
 
 export const cloudProductInputSchema = z
   .object({
@@ -18,12 +40,14 @@ export const cloudProductInputSchema = z
     metadata: z.object({
       storageBytes: z.number().int().min(0).default(0),
       trafficBytes: z.number().int().min(0).default(0),
+      validityDays: z.number().int().positive().optional(),
     }),
     prices: z.array(cloudProductPriceSchema).min(1),
     active: z.boolean().default(true),
     sortOrder: z.number().int().default(0),
   })
   .superRefine((data, ctx) => {
+    validateUniformPriceBilling(data.prices, ctx)
     if (data.metadata.storageBytes === 0 && data.metadata.trafficBytes === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -41,12 +65,24 @@ export const cloudProductPatchSchema = z
     metadata: z.object({
       storageBytes: z.number().int().min(0),
       trafficBytes: z.number().int().min(0),
+      validityDays: z.number().int().positive().optional(),
     }),
     prices: z.array(cloudProductPriceSchema).min(1),
     active: z.boolean(),
     sortOrder: z.number().int(),
   })
   .partial()
+  .superRefine((data, ctx) => {
+    if (data.prices) validateUniformPriceBilling(data.prices, ctx)
+    const touchesDeliverable = data.name !== undefined || data.metadata !== undefined || data.prices !== undefined
+    if (touchesDeliverable && (!data.name || !data.metadata || !data.prices)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['metadata'],
+        message: 'Package name, metadata, and prices are required when updating package quota or billing',
+      })
+    }
+  })
 
 export const checkoutInputSchema = z.object({
   packageId: z.string().min(1),

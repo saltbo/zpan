@@ -88,7 +88,7 @@ function quotaPackage(overrides: Partial<CloudProduct> = {}): CloudProduct {
     name: '100 GB',
     description: 'Extra storage',
     metadata: { storageBytes: 107374182400, trafficBytes: 0 },
-    prices: [{ currency: 'usd', amount: 999 }],
+    prices: [{ currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } }],
     active: true,
     sortOrder: 1,
     createdAt: '2026-05-05T00:00:00.000Z',
@@ -218,8 +218,8 @@ describe('AdminCloudStorePage', () => {
           trafficBytes: 0,
         },
         prices: [
-          { currency: 'usd', amount: 1999 },
-          { currency: 'cny', amount: 12900 },
+          { currency: 'usd', amount: 1999, recurring: { interval: 'month', intervalCount: 1 } },
+          { currency: 'cny', amount: 12900, recurring: { interval: 'month', intervalCount: 1 } },
         ],
         active: true,
         sortOrder: 0,
@@ -246,6 +246,9 @@ describe('AdminCloudStorePage', () => {
     fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.description'), {
       target: { value: 'Download traffic' },
     })
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'admin.cloudStore.billingMode' }))
+    fireEvent.click(await view.findByRole('option', { name: 'admin.cloudStore.billingOneTime' }))
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.validityDays'), { target: { value: '30' } })
     fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.trafficQuota'), { target: { value: '1' } })
     fireEvent.click(within(dialog).getByLabelText('admin.cloudStore.trafficQuota unit'))
     fireEvent.click(await view.findByRole('option', { name: 'TB' }))
@@ -261,6 +264,7 @@ describe('AdminCloudStorePage', () => {
         metadata: {
           storageBytes: 0,
           trafficBytes: 1099511627776,
+          validityDays: 30,
         },
         prices: [
           { currency: 'usd', amount: 4999 },
@@ -332,7 +336,7 @@ describe('AdminCloudStorePage', () => {
           storageBytes: 107374182400,
           trafficBytes: 0,
         },
-        prices: [{ currency: 'usd', amount: 999 }],
+        prices: [{ currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } }],
         sortOrder: 1,
       }),
     )

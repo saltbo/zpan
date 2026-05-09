@@ -23,6 +23,13 @@ const cloudPackagePriceSchema = z.object({
   id: z.string().min(1).optional(),
   currency: z.string().min(1),
   amount: cloudPackageAmountSchema,
+  recurring: z
+    .object({
+      interval: z.enum(['day', 'week', 'month', 'year']),
+      intervalCount: z.number().int().positive(),
+    })
+    .nullable()
+    .optional(),
 })
 
 const legacyCloudPackageSchema = z
@@ -34,6 +41,7 @@ const legacyCloudPackageSchema = z
     metadata: z.object({
       storageBytes: cloudPackageResourceSchema,
       trafficBytes: cloudPackageResourceSchema,
+      validityDays: z.number().int().positive().optional(),
     }),
     prices: z.array(cloudPackagePriceSchema).min(1),
     active: z.boolean(),
@@ -73,6 +81,8 @@ const storeItemPackageSchema = z
         typeof pkg.metadata.deliverable.storageBytes === 'number' ? pkg.metadata.deliverable.storageBytes : 0,
       trafficBytes:
         typeof pkg.metadata.deliverable.trafficBytes === 'number' ? pkg.metadata.deliverable.trafficBytes : 0,
+      validityDays:
+        typeof pkg.metadata.deliverable.validityDays === 'number' ? pkg.metadata.deliverable.validityDays : undefined,
     },
   }))
 export const cloudPackageResponseSchema = z.union([legacyCloudPackageSchema, storeItemPackageSchema])

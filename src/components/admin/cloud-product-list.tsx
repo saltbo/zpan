@@ -93,5 +93,10 @@ export function StoragePlanList({
 }
 
 function formatPrices(prices: CloudProduct['prices']) {
-  return prices.map((price) => `${(price.amount / 100).toFixed(2)} ${price.currency}`).join(' / ')
+  return prices.map(formatPrice).join(' / ')
+}
+
+function formatPrice(price: CloudProduct['prices'][number]) {
+  const cadence = price.recurring ? `/${price.recurring.interval}` : ''
+  return `${(price.amount / 100).toFixed(2)} ${price.currency}${cadence}`
 }

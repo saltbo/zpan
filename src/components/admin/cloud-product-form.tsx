@@ -11,10 +11,13 @@ import { Textarea } from '@/components/ui/textarea'
 
 const units = { MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 } as const
 type Unit = keyof typeof units
+type BillingMode = 'subscription' | 'one_time'
 
 export const emptyPackageForm = {
   name: '',
   description: '',
+  billingMode: 'subscription' as BillingMode,
+  validityDays: '',
   storageSize: '',
   storageUnit: 'GB' as Unit,
   trafficSize: '',
@@ -34,6 +37,7 @@ export function packageInputFromForm(form: PackageFormState): CloudProductInput 
     metadata: {
       storageBytes: form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0,
       trafficBytes: form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0,
+      ...(form.billingMode === 'one_time' ? { validityDays: Math.round(Number(form.validityDays)) } : {}),
     },
     prices: packagePricesFromForm(form),
     active: true,
@@ -47,6 +51,8 @@ export function packageFormFromPackage(pkg: CloudProduct): PackageFormState {
   return {
     name: pkg.name,
     description: pkg.description ?? '',
+    billingMode: pkg.prices.some((price) => price.recurring) ? 'subscription' : 'one_time',
+    validityDays: pkg.metadata.validityDays ? String(pkg.metadata.validityDays) : '',
     storageSize: storageDisplay ? String(storageDisplay.size) : '',
     storageUnit: storageDisplay?.unit ?? 'GB',
     trafficSize: trafficDisplay ? String(trafficDisplay.size) : '',
@@ -79,10 +85,12 @@ export function StoragePlanForm({
   const storageBytes = form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0
   const trafficBytes = form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0
   const quotaValid = storageBytes > 0 || trafficBytes > 0
+  const validityValid = form.billingMode === 'subscription' || Number(form.validityDays) > 0
 
   return (
     <div className="space-y-4">
       <PackageIdentityFields form={form} onFormChange={onFormChange} />
+      <PackageBillingFields form={form} onFormChange={onFormChange} />
       <PackageQuotaFields
         label={t('admin.cloudStore.storageQuota')}
         sizeId="packageStorageSize"
@@ -102,10 +110,13 @@ export function StoragePlanForm({
       {!quotaValid && (form.storageSize !== '' || form.trafficSize !== '') && (
         <p className="text-xs text-destructive">{t('admin.cloudStore.quotaRequired')}</p>
       )}
+      {!validityValid && form.validityDays !== '' && (
+        <p className="text-xs text-destructive">{t('admin.cloudStore.validityRequired')}</p>
+      )}
       <PackageAmountFields form={form} onFormChange={onFormChange} />
       <PackageFormActions
         editing={editing}
-        available={available && quotaValid}
+        available={available && quotaValid && validityValid}
         pending={pending}
         onCancel={onCancel}
         onSubmit={onSubmit}
@@ -115,10 +126,18 @@ export function StoragePlanForm({
 }
 
 function packagePricesFromForm(form: PackageFormState) {
-  return [
-    { currency: 'usd' as const, amount: convertCurrencyAmount(form.usdAmount) },
-    { currency: 'cny' as const, amount: convertCurrencyAmount(form.cnyAmount) },
-  ].filter((price) => Number.isFinite(price.amount) && price.amount > 0)
+  return [packagePriceFromAmount('usd', form), packagePriceFromAmount('cny', form)].filter(
+    (price) => Number.isFinite(price.amount) && price.amount > 0,
+  )
+}
+
+function packagePriceFromAmount(currency: 'usd' | 'cny', form: PackageFormState) {
+  const amount = currency === 'usd' ? form.usdAmount : form.cnyAmount
+  return {
+    currency,
+    amount: convertCurrencyAmount(amount),
+    ...(form.billingMode === 'subscription' ? { recurring: { interval: 'month' as const, intervalCount: 1 } } : {}),
+  }
 }
 
 function convertCurrencyAmount(amount: string): number {
@@ -160,6 +179,44 @@ function PackageIdentityFields({
         />
       </Field>
     </>
+  )
+}
+
+function PackageBillingFields({
+  form,
+  onFormChange,
+}: {
+  form: PackageFormState
+  onFormChange: (form: PackageFormState) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      <Field label={t('admin.cloudStore.billingMode')}>
+        <Select
+          value={form.billingMode}
+          onValueChange={(billingMode) => onFormChange({ ...form, billingMode: billingMode as BillingMode })}
+        >
+          <SelectTrigger aria-label={t('admin.cloudStore.billingMode')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="subscription">{t('admin.cloudStore.billingSubscription')}</SelectItem>
+            <SelectItem value="one_time">{t('admin.cloudStore.billingOneTime')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      {form.billingMode === 'one_time' && (
+        <NumberField
+          label={t('admin.cloudStore.validityDays')}
+          id="packageValidityDays"
+          min="1"
+          step="1"
+          value={form.validityDays}
+          onChange={(validityDays) => onFormChange({ ...form, validityDays })}
+        />
+      )}
+    </div>
   )
 }
 

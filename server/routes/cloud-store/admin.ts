@@ -28,36 +28,54 @@ import {
 } from '../cloud-store-helpers'
 import { getCloudOrders } from './shared'
 
+type CloudProductPatchInput = ReturnType<typeof cloudProductPatchSchema.parse>
+
+function hasRecurringPrice(input: { prices: Array<{ recurring?: unknown }> }) {
+  return input.prices.some((price) => price.recurring)
+}
+
+function cloudProductDeliverable(input: {
+  name?: string
+  metadata: { storageBytes: number; trafficBytes: number; validityDays?: number }
+  prices: Array<{ recurring?: unknown }>
+}) {
+  return {
+    type: hasRecurringPrice(input) ? 'zpan.plan' : 'zpan.extra',
+    packageName: input.name,
+    storageBytes: input.metadata.storageBytes,
+    trafficBytes: input.metadata.trafficBytes,
+    validityDays: input.metadata.validityDays,
+  }
+}
+
 function cloudProductPayload(input: ReturnType<typeof cloudProductInputSchema.parse>) {
   return {
     ...input,
     type: 'store_item',
     metadata: {
-      deliverable: {
-        type: 'zpan.extra',
-        packageName: input.name,
-        storageBytes: input.metadata.storageBytes,
-        trafficBytes: input.metadata.trafficBytes,
-      },
+      deliverable: cloudProductDeliverable(input),
     },
   }
 }
 
-function cloudProductPatchPayload(input: ReturnType<typeof cloudProductPatchSchema.parse>) {
+function cloudProductPatchPayload(input: CloudProductPatchInput) {
   if (!input.metadata && !input.name && input.type === undefined) return input
+  if (input.metadata) {
+    return {
+      ...input,
+      type: 'store_item',
+      metadata: {
+        deliverable: cloudProductDeliverable({
+          name: input.name,
+          metadata: input.metadata,
+          prices: input.prices!,
+        }),
+      },
+    }
+  }
   return {
     ...input,
     type: 'store_item',
-    metadata: input.metadata
-      ? {
-          deliverable: {
-            type: 'zpan.extra',
-            packageName: input.name,
-            storageBytes: input.metadata.storageBytes,
-            trafficBytes: input.metadata.trafficBytes,
-          },
-        }
-      : undefined,
   }
 }
 

@@ -206,5 +206,30 @@ describe('quota store helper paths', () => {
       createdAt: '2026-05-07T00:00:00.000Z',
       updatedAt: '2026-05-07T00:01:00.000Z',
     })
+    expect(
+      cloudPackageResponseSchema.parse({
+        id: 'pkg-2',
+        type: 'store_item',
+        name: 'Monthly Plan',
+        description: null,
+        metadata: { deliverable: { type: 'zpan.plan', storageBytes: 8192, trafficBytes: 4096, validityDays: 30 } },
+        prices: [
+          {
+            currency: 'usd',
+            amount: 1900,
+            recurring: { interval: 'month', intervalCount: 1 },
+          },
+        ],
+        active: true,
+        sortOrder: 5,
+        createdAt: '2026-05-07T00:00:00.000Z',
+        updatedAt: '2026-05-07T00:01:00.000Z',
+      }),
+    ).toMatchObject({
+      id: 'pkg-2',
+      type: 'zpan_quota',
+      metadata: { storageBytes: 8192, trafficBytes: 4096, validityDays: 30 },
+      prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } }],
+    })
   })
 })
