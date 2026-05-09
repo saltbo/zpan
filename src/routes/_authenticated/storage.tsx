@@ -1,13 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Gift, HardDrive, ShoppingCart } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { StorageActions, StorageOrderHistory, StorageStatusMetrics } from '@/components/store/storage-panels'
+import {
+  CurrentPlanCard,
+  FreeQuotaCard,
+  StorageOrderHistoryDialog,
+  StoragePackages,
+  StorageUnavailableState,
+  WalletBalanceButton,
+} from '@/components/store/storage-panels'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -73,7 +77,15 @@ export function StoragePage() {
   })
   const currentOrders = ordersQuery.data?.items ?? []
   const deliveredCheckoutCount = currentOrders.filter((order) => order.fulfillmentStatus === 'fulfilled').length
-  const hasActivePlan = Boolean(quotaQuery.data?.storagePlanName || quotaQuery.data?.trafficPlanName)
+  const hasActivePlan = Boolean(
+    quotaQuery.data?.currentPlan || quotaQuery.data?.storagePlanName || quotaQuery.data?.trafficPlanName,
+  )
+  const wallet = walletQuery.data
+    ? {
+        balance: walletQuery.data.balances[0]?.availableAmount ?? 0,
+        currency: walletQuery.data.balances[0]?.currency ?? 'usd',
+      }
+    : undefined
 
   useEffect(() => {
     if (deliveredCheckoutCount > 0) queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
@@ -219,16 +231,22 @@ export function StoragePage() {
           <h2 className="text-2xl font-semibold tracking-tight">{t('storage.title')}</h2>
           <p className="text-sm text-muted-foreground">{t('storage.subtitle')}</p>
         </div>
-        <StorageActions
-          packages={cloudStoreQuery.data?.items ?? []}
-          packagesDisabled={!targetOrgId || checkoutMutation.isPending}
-          onCheckout={startCheckout}
-          onManagePlan={managePlan}
-          onRedeem={(code) => redeemMutation.mutate(code)}
-          isRedeeming={redeemMutation.isPending}
-          hasActivePlan={hasActivePlan}
-          isManagingPlan={managePlanMutation.isPending}
-        />
+        <div className="flex flex-wrap justify-end gap-2">
+          <WalletBalanceButton
+            wallet={wallet}
+            transactions={walletTransactionsQuery.data?.items ?? []}
+            loading={walletTransactionsQuery.isLoading}
+            onRedeem={(code) => redeemMutation.mutate(code)}
+            isRedeeming={redeemMutation.isPending}
+          />
+          <StorageOrderHistoryDialog
+            orders={currentOrders}
+            onContinuePayment={continuePayment}
+            onCancelOrder={cancelOrder}
+            continuingOrderId={continuePaymentMutation.isPending ? continuePaymentMutation.variables?.orderId : null}
+            cancelingOrderId={cancelOrderMutation.isPending ? cancelOrderMutation.variables : null}
+          />
+        </div>
       </div>
 
       {checkoutRefreshActive && (
@@ -237,26 +255,22 @@ export function StoragePage() {
         </div>
       )}
 
-      <StorageStatusMetrics
-        quota={quotaQuery.data}
-        wallet={
-          walletQuery.data
-            ? {
-                balance: walletQuery.data.balances[0]?.availableAmount ?? 0,
-                currency: walletQuery.data.balances[0]?.currency ?? 'usd',
-              }
-            : undefined
-        }
-        walletTransactions={walletTransactionsQuery.data?.items ?? []}
-        walletTransactionsLoading={walletTransactionsQuery.isLoading}
-      />
-      <StorageOrderHistory
-        orders={currentOrders}
-        onContinuePayment={continuePayment}
-        onCancelOrder={cancelOrder}
-        continuingOrderId={continuePaymentMutation.isPending ? continuePaymentMutation.variables?.orderId : null}
-        cancelingOrderId={cancelOrderMutation.isPending ? cancelOrderMutation.variables : null}
-      />
+      {hasActivePlan && quotaQuery.data ? (
+        <CurrentPlanCard
+          quota={quotaQuery.data}
+          onManagePlan={managePlan}
+          isManagingPlan={managePlanMutation.isPending}
+        />
+      ) : (
+        <div className="space-y-6">
+          <FreeQuotaCard quota={quotaQuery.data} />
+          <StoragePackages
+            packages={cloudStoreQuery.data?.items ?? []}
+            disabled={!targetOrgId || checkoutMutation.isPending}
+            onCheckout={startCheckout}
+          />
+        </div>
+      )}
       <Dialog open={!!cancelOrderId} onOpenChange={(open) => !open && setCancelOrderId(null)}>
         <DialogContent>
           <DialogHeader>
@@ -279,53 +293,4 @@ export function StoragePage() {
 
 function isCloudStoreDisabledError(error: unknown) {
   return error instanceof ApiError && error.body.error === 'quota_store_disabled'
-}
-
-function StorageUnavailableState({ disabled }: { disabled: boolean }) {
-  const { t } = useTranslation()
-  return (
-    <div className="max-w-5xl space-y-6">
-      <div className="space-y-1">
-        <h2 className="text-2xl font-semibold tracking-tight">{t('storage.title')}</h2>
-        <p className="text-sm text-muted-foreground">
-          {disabled ? t('storage.disabledSubtitle') : t('storage.unavailable')}
-        </p>
-      </div>
-
-      <Card className="border-border/60">
-        <CardContent className="grid gap-6 p-6 md:grid-cols-[1fr_1.25fr] md:items-center">
-          <div className="space-y-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground">
-              <HardDrive className="h-6 w-6" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-medium">
-                {disabled ? t('storage.disabledTitle') : t('storage.unavailableTitle')}
-              </h3>
-              <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-                {disabled ? t('storage.disabledDescription') : t('storage.unavailableDescription')}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-3">
-            <UnavailablePoint icon={<ShoppingCart />} label={t('storage.disabledBuying')} />
-            <UnavailablePoint icon={<Gift />} label={t('storage.disabledRedeeming')} />
-            <UnavailablePoint icon={<HardDrive />} label={t('storage.disabledExistingStorage')} />
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-function UnavailablePoint({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-md border bg-background px-4 py-3 text-sm">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground [&_svg]:h-4 [&_svg]:w-4">
-        {icon}
-      </span>
-      <span>{label}</span>
-    </div>
-  )
 }

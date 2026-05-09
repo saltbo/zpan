@@ -50,6 +50,17 @@ export interface OrgQuota {
   storageExtraNames: string[]
   trafficPlanName: string | null
   trafficExtraNames: string[]
+  currentPlan?: CurrentStoragePlan | null
+}
+
+export interface CurrentStoragePlan {
+  sourceId: string
+  packageId: string | null
+  name: string
+  storageBytes: number
+  trafficBytes: number
+  expiresAt: string | null
+  subscription: boolean
 }
 
 export type WebhookEventStatus = 'processed' | 'duplicate' | 'failed'

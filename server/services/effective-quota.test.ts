@@ -169,6 +169,54 @@ describe('effective quota', () => {
       storageExtraNames: ['Storage Pack', 'Archive Pack'],
       trafficPlanName: 'Team Plan',
       trafficExtraNames: ['Traffic Boost', 'Burst Pack'],
+      currentPlan: {
+        sourceId: `stripe_subscription:sub_storage:${orgId}`,
+        packageId: null,
+        name: 'Team Plan',
+        storageBytes: 3000,
+        trafficBytes: 4000,
+        expiresAt: null,
+        subscription: true,
+      },
+    })
+  })
+
+  it('returns the active subscription plan DTO from quota entitlements', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    const expiresAt = new Date('2026-06-06T00:00:00Z')
+    const sourceId = `stripe_subscription:sub_plan:${orgId}`
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 100,
+      trafficQuota: 2000,
+      trafficUsed: 200,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values([
+      {
+        ...entitlement(orgId, 'storage', sourceId, 3000, 'active', now, 'Team Plan', 'pkg-team'),
+        expiresAt,
+      },
+      {
+        ...entitlement(orgId, 'traffic', sourceId, 4000, 'active', now, 'Team Plan', 'pkg-team'),
+        expiresAt,
+      },
+    ])
+
+    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+      currentPlan: {
+        sourceId,
+        packageId: 'pkg-team',
+        name: 'Team Plan',
+        storageBytes: 3000,
+        trafficBytes: 4000,
+        expiresAt: expiresAt.toISOString(),
+        subscription: true,
+      },
     })
   })
 
@@ -506,6 +554,7 @@ function entitlement(
   status: string,
   now: Date,
   packageName?: string,
+  packageId?: string,
 ): typeof orgQuotaEntitlements.$inferInsert {
   return {
     id: nanoid(),
@@ -517,7 +566,7 @@ function entitlement(
     startsAt: now,
     expiresAt: null,
     status,
-    metadata: packageName ? JSON.stringify({ packageName }) : null,
+    metadata: packageName ? JSON.stringify({ packageId: packageId ?? null, packageName }) : null,
     createdAt: now,
     updatedAt: now,
   }

@@ -92,6 +92,7 @@ export type UserQuota = Pick<
   | 'storageExtraNames'
   | 'trafficPlanName'
   | 'trafficExtraNames'
+  | 'currentPlan'
 >
 
 export interface ApiErrorBody {

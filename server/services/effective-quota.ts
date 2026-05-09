@@ -17,6 +17,17 @@ export interface EffectiveQuota {
   storageExtraNames: string[]
   trafficPlanName: string | null
   trafficExtraNames: string[]
+  currentPlan: CurrentStoragePlan | null
+}
+
+export interface CurrentStoragePlan {
+  sourceId: string
+  packageId: string | null
+  name: string
+  storageBytes: number
+  trafficBytes: number
+  expiresAt: string | null
+  subscription: boolean
 }
 
 export function currentTrafficPeriod(now = new Date()): string {
@@ -59,6 +70,7 @@ export async function getEffectiveQuota(db: Database, orgId: string, now = new D
   const trafficPlan = await activePlanEntitlement(db, orgId, 'traffic', now)
   const planTrafficQuota = trafficPlan?.bytes ?? 0
   const baseTrafficQuota = planTrafficQuota > 0 ? planTrafficQuota : defaultTrafficQuota
+  const currentPlan = buildCurrentPlan(storagePlan, trafficPlan)
   return {
     orgId,
     baseQuota,
@@ -74,6 +86,7 @@ export async function getEffectiveQuota(db: Database, orgId: string, now = new D
     storageExtraNames,
     trafficPlanName: trafficPlan?.name ?? null,
     trafficExtraNames,
+    currentPlan,
   }
 }
 
@@ -203,16 +216,30 @@ async function activePlanEntitlement(
   orgId: string,
   resourceType: 'storage' | 'traffic',
   now: Date,
-): Promise<{ bytes: number; name: string | null } | null> {
+): Promise<PlanEntitlement | null> {
   const rows = await db
-    .select({ bytes: orgQuotaEntitlements.bytes, metadata: orgQuotaEntitlements.metadata })
+    .select({
+      sourceId: orgQuotaEntitlements.sourceId,
+      bytes: orgQuotaEntitlements.bytes,
+      expiresAt: orgQuotaEntitlements.expiresAt,
+      metadata: orgQuotaEntitlements.metadata,
+    })
     .from(orgQuotaEntitlements)
     .where(activePlanEntitlementWhere(orgId, resourceType, now))
     .orderBy(sql`${orgQuotaEntitlements.bytes} DESC, ${orgQuotaEntitlements.startsAt} DESC`)
     .limit(1)
 
   const row = rows[0]
-  return row ? { bytes: row.bytes, name: entitlementName(row.metadata) } : null
+  if (!row) return null
+
+  const metadata = entitlementMetadata(row.metadata)
+  return {
+    sourceId: row.sourceId,
+    bytes: row.bytes,
+    name: metadata?.packageName ?? null,
+    packageId: metadata?.packageId ?? null,
+    expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
+  }
 }
 
 async function activeExtraEntitlementBytes(
@@ -336,8 +363,45 @@ function effectiveQuotaLimitSql(
   return sql`CASE WHEN ${planBytes} > 0 THEN ${planBytes} ELSE ${defaultQuota} END + ${extraBytes}`
 }
 
-function entitlementName(metadata: string | null) {
+interface PlanEntitlement {
+  sourceId: string
+  bytes: number
+  name: string | null
+  packageId: string | null
+  expiresAt: string | null
+}
+
+function buildCurrentPlan(
+  storagePlan: PlanEntitlement | null,
+  trafficPlan: PlanEntitlement | null,
+): CurrentStoragePlan | null {
+  const plan = storagePlan ?? trafficPlan
+  if (!plan) return null
+
+  return {
+    sourceId: plan.sourceId,
+    packageId: plan.packageId,
+    name: plan.name ?? trafficPlan?.name ?? plan.sourceId,
+    storageBytes: storagePlan?.bytes ?? 0,
+    trafficBytes: trafficPlan?.bytes ?? 0,
+    expiresAt: plan.expiresAt ?? trafficPlan?.expiresAt ?? null,
+    subscription: isSubscriptionSourceId(plan.sourceId),
+  }
+}
+
+function entitlementMetadata(metadata: string | null) {
   if (!metadata) return null
-  const parsed = JSON.parse(metadata) as { packageName?: unknown }
-  return typeof parsed.packageName === 'string' ? parsed.packageName : null
+  const parsed = JSON.parse(metadata) as { packageId?: unknown; packageName?: unknown }
+  return {
+    packageId: typeof parsed.packageId === 'string' ? parsed.packageId : null,
+    packageName: typeof parsed.packageName === 'string' ? parsed.packageName : null,
+  }
+}
+
+function entitlementName(metadata: string | null) {
+  return entitlementMetadata(metadata)?.packageName ?? null
+}
+
+function isSubscriptionSourceId(sourceId: string) {
+  return sourceId.startsWith('stripe_subscription:')
 }

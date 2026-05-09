@@ -21,6 +21,9 @@ import { StoragePage } from './storage'
 const activeOrganization = vi.hoisted(() => ({
   value: null as { id: string } | null,
 }))
+const i18nState = vi.hoisted(() => ({
+  language: 'en',
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -33,16 +36,21 @@ vi.mock('react-i18next', () => ({
         currency?: string
         days?: number
         period?: string
+        size?: string
+        total?: string
         used?: string
       },
     ) => {
       if (values?.amount) return `${key}:${values.amount}`
+      if (values?.size) return `${key}:${values.size}`
+      if (values?.total) return `${key}:${values.total}`
       if (values?.used && values?.base && values?.cloud) return `${key}:${values.used}/${values.base}/${values.cloud}`
       if (values?.base && values?.cloud) return `${key}:${values.base}/${values.cloud}`
       if (values?.period) return `${key}:${values.period}`
+      if (values?.days) return `${key}:${values.days}`
       return key
     },
-    i18n: { resolvedLanguage: 'en' },
+    i18n: { resolvedLanguage: i18nState.language },
   }),
 }))
 
@@ -142,7 +150,16 @@ function subscriptionPackage(): CloudProduct {
     ...quotaPackage(),
     id: 'pkg-subscription',
     name: 'Team Plan',
-    prices: [{ currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } }],
+    metadata: { storageBytes: 107374182400, trafficBytes: 21474836480 },
+    prices: [
+      { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
+      {
+        currency: 'usd',
+        amount: 25,
+        recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+        metadata: { usageResource: 'traffic_egress' },
+      },
+    ],
   }
 }
 
@@ -158,6 +175,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   activeOrganization.value = { id: 'org-1' }
+  i18nState.language = 'en'
 })
 
 describe('StoragePage', () => {
@@ -218,6 +236,15 @@ describe('StoragePage', () => {
       storageExtraNames: ['Storage Pack'],
       trafficPlanName: 'Team Plan',
       trafficExtraNames: ['Traffic Boost'],
+      currentPlan: {
+        sourceId: 'stripe_subscription:sub_1:org-1',
+        packageId: 'pkg-subscription',
+        name: 'Team Plan',
+        storageBytes: 1024,
+        trafficBytes: 1024,
+        expiresAt: null,
+        subscription: true,
+      },
     })
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
@@ -230,17 +257,19 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByText('storage.effectiveStorageQuota')).toBeTruthy())
+    await waitFor(() => expect(view.getByText('Team Plan')).toBeTruthy())
+    expect(view.getByText('storage.planActive')).toBeTruthy()
+    expect(view.getByText('storage.currentPlanDescription')).toBeTruthy()
+    expect(view.getByText('storage.effectiveStorageQuota')).toBeTruthy()
     expect(view.getByText('storage.baseStorageQuota')).toBeTruthy()
     expect(view.getByText('storage.cloudStorageEntitlement')).toBeTruthy()
     expect(view.getByText('storage.includedTraffic')).toBeTruthy()
-    expect(view.getByText('storage.currentPeriodTraffic')).toBeTruthy()
+    expect(view.getByText('storage.trafficUsage')).toBeTruthy()
     await waitFor(() => expect(view.getByText('storage.storageQuotaDetail:1.5 KB/1.0 KB/512 B')).toBeTruthy())
-    expect(view.getByText('storage.trafficQuotaDetail:1.0 KB/512 B')).toBeTruthy()
+    expect(view.getByText('storage.trafficPeriodDetail:2026-05')).toBeTruthy()
     expect(view.getAllByText('Team Plan · 1.0 KB')).toHaveLength(2)
     expect(view.getByText('Storage Pack · 512 B')).toBeTruthy()
     expect(view.getByText('Traffic Boost · 512 B')).toBeTruthy()
-    expect(view.queryByText('storage.trafficPeriodDetail:2026-05')).toBeNull()
     await waitFor(() => expect(view.getAllByText('storage.overCap')).toHaveLength(2))
   })
 
@@ -274,8 +303,7 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getByText('storage.storageQuotaDetail:1.5 KB/0 B/0 B')).toBeTruthy())
     expect(view.queryByText('storage.overCap')).toBeNull()
-    expect(view.getByTitle('storage.legendUsed: 1.5 KB')).toBeTruthy()
-    expect(view.getByTitle('storage.legendUsed: 2.0 KB')).toBeTruthy()
+    expect(view.getAllByText('storage.usageNoLimit')).toHaveLength(2)
   })
 
   it('hides self-service forms when storage purchases are disabled', async () => {
@@ -300,7 +328,7 @@ describe('StoragePage', () => {
     expect(listCloudOrders).not.toHaveBeenCalled()
   })
 
-  it('starts checkout from the packages dialog', async () => {
+  it('starts checkout from the plan catalog', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(createCloudCheckout).mockResolvedValue({ orderId: 'order-1', url: 'https://cloud.example.test/checkout' })
@@ -315,13 +343,51 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.plansTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.plansTitle' }))
-    await waitFor(() => expect(view.queryByLabelText('storage.giftCardCode')).toBeNull())
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPlan/ }))
 
     await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
     expect(toast.info).not.toHaveBeenCalled()
+  })
+
+  it('shows expanded pricing card details', async () => {
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [subscriptionPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByText('storage.planBilling')).toBeTruthy())
+    expect(view.getByText('storage.billingMonthly')).toBeTruthy()
+    expect(view.getByText('storage.trafficPolicy')).toBeTruthy()
+    expect(view.getByText('storage.trafficStopsAtQuota')).toBeTruthy()
+  })
+
+  it('uses an available product price when the locale currency is missing', async () => {
+    i18nState.language = 'zh-CN'
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(createCloudCheckout).mockResolvedValue({ orderId: 'order-1', url: 'https://cloud.example.test/checkout' })
+    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
+    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPlan/ }))
+
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
   })
 
   it('closes the checkout window when checkout fails', async () => {
@@ -339,8 +405,6 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.plansTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.plansTitle' }))
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPlan/ }))
 
@@ -368,8 +432,6 @@ describe('StoragePage', () => {
     const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.plansTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.plansTitle' }))
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPlan/ }))
 
@@ -420,7 +482,7 @@ describe('StoragePage', () => {
     expect(checkoutWindow.location.href).toBe('https://billing.stripe.test/session')
   })
 
-  it('blocks subscription checkout when the workspace already has an active plan', async () => {
+  it('shows only the active workspace plan when a subscription is active', async () => {
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
       baseQuota: 1024,
@@ -436,6 +498,15 @@ describe('StoragePage', () => {
       storageExtraNames: [],
       trafficPlanName: null,
       trafficExtraNames: [],
+      currentPlan: {
+        sourceId: 'stripe_subscription:sub_1:org-1',
+        packageId: 'pkg-subscription',
+        name: 'Team Plan',
+        storageBytes: 1024,
+        trafficBytes: 0,
+        expiresAt: null,
+        subscription: true,
+      },
     })
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [subscriptionPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
@@ -448,11 +519,10 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.plansTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.plansTitle' }))
-    const checkoutButton = await view.findByRole('button', { name: 'storage.planAlreadyActive' })
-
-    expect((checkoutButton as HTMLButtonElement).disabled).toBe(true)
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy())
+    expect(view.getByText('Team Plan')).toBeTruthy()
+    expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy()
+    expect(view.queryByRole('button', { name: /storage.checkoutPlan/ })).toBeNull()
     expect(createCloudCheckout).not.toHaveBeenCalled()
   })
 
@@ -478,9 +548,12 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.historyTitle' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'storage.historyTitle' }))
     await waitFor(() => expect(view.getByText('org-2')).toBeTruthy())
     expect(vi.mocked(listCloudOrders)).toHaveBeenCalledWith()
-    fireEvent.click(view.getByRole('button', { name: 'storage.plansTitle' }))
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(view.queryByText('org-2')).toBeNull())
     fireEvent.click(await view.findByRole('button', { name: /storage.checkoutPlan/ }))
 
     await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
@@ -499,8 +572,6 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.plansTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.plansTitle' }))
     await waitFor(() => expect(view.queryByLabelText('storage.giftCardCode')).toBeNull())
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
     const checkoutButton = view.getByRole('button', { name: /storage.checkoutPlan/ }) as HTMLButtonElement
@@ -511,7 +582,7 @@ describe('StoragePage', () => {
     expect(vi.mocked(createCloudCheckout)).not.toHaveBeenCalled()
   })
 
-  it('uses dedicated dialog layouts instead of nesting cards in dialogs', async () => {
+  it('shows plan cards on the page instead of inside a dialog', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
 
@@ -524,14 +595,12 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.plansTitle' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.plansTitle' }))
     await waitFor(() => expect(view.getByText('100 GB')).toBeTruthy())
-    expect(document.body.querySelector('[data-slot="dialog-content"] [data-slot="card"]')).toBeNull()
-    expect(await view.findByText('storage.redeemTitle')).toBeTruthy()
+    expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy()
+    expect(view.queryByRole('button', { name: 'storage.redeemTitle' })).toBeNull()
   })
 
-  it('displays wallet balance', async () => {
+  it('shows wallet balance inside the wallet dialog', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(getCloudWallet).mockResolvedValue({
@@ -558,8 +627,14 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
-    expect(view.getByText('storage.walletBalance')).toBeTruthy()
-    expect(view.getByText('storage.includedTraffic')).toBeTruthy()
+    const walletButton = view.getByLabelText('storage.viewWalletTransactions')
+    expect(walletButton).toBeTruthy()
+    expect(walletButton.textContent).toContain('storage.walletButton')
+    expect(walletButton.textContent).not.toContain('12.50')
+    expect(view.getByText('storage.trafficUsage')).toBeTruthy()
+    fireEvent.click(walletButton)
+    expect(await view.findByText('storage.walletBalance')).toBeTruthy()
+    expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy()
     await waitFor(() => expect(view.getByText(/12\.50/)).toBeTruthy())
   })
 
@@ -615,6 +690,7 @@ describe('StoragePage', () => {
     fireEvent.click(view.getByLabelText('storage.viewWalletTransactions'))
 
     expect(await view.findByText('storage.walletTransactionsTitle')).toBeTruthy()
+    expect(view.getByText(/12\.50/)).toBeTruthy()
     expect(view.getByText('storage.walletSourceGiftCard')).toBeTruthy()
   })
 
@@ -638,6 +714,8 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
+    fireEvent.click(view.getByLabelText('storage.viewWalletTransactions'))
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.redeemTitle' }))
     fireEvent.change(view.getByLabelText('storage.giftCardCode'), { target: { value: 'ZS-1234-5678' } })
     fireEvent.click(view.getByRole('button', { name: 'storage.redeemAction' }))
@@ -669,6 +747,8 @@ describe('StoragePage', () => {
     const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     const view = renderStoragePage(queryClient)
 
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.historyTitle' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'storage.historyTitle' }))
     await waitFor(() => expect(view.getByLabelText('storage.continuePayment')).toBeTruthy())
     fireEvent.click(view.getByLabelText('storage.continuePayment'))
 
@@ -696,6 +776,8 @@ describe('StoragePage', () => {
     const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     const view = renderStoragePage(queryClient)
 
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.historyTitle' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'storage.historyTitle' }))
     await waitFor(() => expect(view.getByLabelText('storage.cancelOrder')).toBeTruthy())
     fireEvent.click(view.getByLabelText('storage.cancelOrder'))
     expect(await view.findByText('storage.cancelConfirm')).toBeTruthy()
