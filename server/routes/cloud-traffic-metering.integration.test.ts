@@ -289,6 +289,24 @@ describe('public redirect cloud traffic reporting', () => {
     expect(consoleError).toHaveBeenCalled()
   })
 
+  it('does not report token image usage when inline presigning fails', async () => {
+    const { app, db } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
+    vi.mocked(S3Service.prototype.presignInline).mockRejectedValueOnce(new Error('inline sign failed'))
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImage(db, orgId, 'ih-cloud-presign-fail', 'ih_cloudpresignfail')
+    await insertImageConfig(db, orgId)
+
+    const res = await app.request('/r/ih_cloudpresignfail', { redirect: 'manual' })
+
+    expect(res.status).toBe(500)
+    expect(fetch).not.toHaveBeenCalled()
+    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
+  })
+
   it('reports custom-domain image-hosting redirects to Cloud', async () => {
     const { app, db } = await createTestApp({ PUBLIC_APP_HOST: 'zpan.example.com' })
     await seedTrafficBinding(db)

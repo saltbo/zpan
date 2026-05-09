@@ -105,6 +105,35 @@ describe('cloud traffic metering', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(1)
   })
 
+  it('rejects idempotency conflicts for reused event ids', async () => {
+    const { db, platform } = await createTestApp()
+    await seedTrafficBinding(db)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(makeResponse({ data: { accepted: true, duplicate: false, eventId: 'evt_conflict' } })),
+    )
+
+    await reportTrafficEgress({
+      platform,
+      orgId: 'org_1',
+      bytes: 1024,
+      source: 'direct_share',
+      sourceId: 'share_1',
+      eventId: 'evt_conflict',
+    })
+
+    await expect(
+      reportTrafficEgress({
+        platform,
+        orgId: 'org_1',
+        bytes: 2048,
+        source: 'direct_share',
+        sourceId: 'share_1',
+        eventId: 'evt_conflict',
+      }),
+    ).rejects.toThrow('traffic_report_idempotency_conflict')
+  })
+
   it('surfaces Cloud cap rejection and records a blocked report', async () => {
     const { db, platform } = await createTestApp()
     await seedTrafficBinding(db)
