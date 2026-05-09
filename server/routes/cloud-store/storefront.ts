@@ -98,7 +98,9 @@ export const cloudStore = new Hono<Env>()
     const currency = body.currency ?? 'usd'
     const product = await getCloud(c, packagesPath({ packageId: body.packageId }), cloudPackageResponseSchema)
     if ('error' in product) return c.json(product, 502)
-    const price = product.prices.find((item) => item.currency === currency)
+    const price =
+      product.prices.find((item) => item.id === body.priceId && item.currency === currency) ??
+      product.prices.find((item) => item.currency === currency && item.recurring?.usageType !== 'metered')
     if (!price) return c.json({ error: 'package_price_missing' }, 400)
     if (price.recurring) {
       const quota = await getEffectiveQuota(db, targetOrgId)
@@ -108,7 +110,7 @@ export const cloudStore = new Hono<Env>()
       c,
       ordersPath(),
       {
-        items: [{ productId: body.packageId }],
+        items: [{ productId: body.packageId, priceId: price.id }],
         currency,
         target: {
           orgId: targetOrgId,

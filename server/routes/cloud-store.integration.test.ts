@@ -727,8 +727,16 @@ describe('Quota Store API', () => {
         type: 'zpan_quota',
         name: 'Team Monthly',
         description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 8192, trafficOveragePriceCents: 2 },
-        prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } }],
+        metadata: { storageBytes: 4096, trafficBytes: 8192 },
+        prices: [
+          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+          {
+            currency: 'usd',
+            amount: 2,
+            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+        ],
       }),
     })
     const fixedPackage = await app.request('/api/admin/store/packages', {
@@ -750,10 +758,19 @@ describe('Quota Store API', () => {
     expect(recurringBody).toMatchObject({
       type: 'store_item',
       metadata: {
-        deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 8192, trafficOveragePriceCents: 2 },
+        deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 8192 },
       },
-      prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } }],
+      prices: [
+        { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+        {
+          currency: 'usd',
+          amount: 2,
+          recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+          metadata: { usageResource: 'traffic_egress' },
+        },
+      ],
     })
+    expect(recurringBody.metadata.deliverable).not.toHaveProperty('trafficOveragePriceCents')
     expect(fixedBody).toMatchObject({
       type: 'store_item',
       metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192, validityDays: 30 } },
@@ -783,6 +800,158 @@ describe('Quota Store API', () => {
     })
 
     expect(created.status).toBe(400)
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed metered traffic prices before proxying to Cloud', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const missingUsageResource = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Malformed Metered',
+        description: '',
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
+        prices: [
+          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+          { currency: 'usd', amount: 2, recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' } },
+        ],
+      }),
+    })
+    const missingUsageType = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Malformed Resource',
+        description: '',
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
+        prices: [
+          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+          {
+            currency: 'usd',
+            amount: 2,
+            recurring: { interval: 'month', intervalCount: 1 },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+        ],
+      }),
+    })
+
+    expect(missingUsageResource.status).toBe(400)
+    expect(missingUsageType.status).toBe(400)
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicate fixed or metered subscription prices before proxying to Cloud', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const duplicateFixed = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Duplicate Fixed',
+        description: '',
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
+        prices: [
+          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+          { currency: 'usd', amount: 2900, recurring: { interval: 'month', intervalCount: 1 } },
+          {
+            currency: 'usd',
+            amount: 2,
+            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+        ],
+      }),
+    })
+    const duplicateMetered = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Duplicate Metered',
+        description: '',
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
+        prices: [
+          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+          {
+            currency: 'usd',
+            amount: 2,
+            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+          {
+            currency: 'usd',
+            amount: 3,
+            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+        ],
+      }),
+    })
+
+    expect(duplicateFixed.status).toBe(400)
+    expect(duplicateMetered.status).toBe(400)
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-monthly subscription prices before proxying to Cloud', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const yearlyInterval = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Yearly Plan',
+        description: '',
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
+        prices: [
+          { currency: 'usd', amount: 1900, recurring: { interval: 'year', intervalCount: 1 } },
+          {
+            currency: 'usd',
+            amount: 2,
+            recurring: { interval: 'year', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+        ],
+      }),
+    })
+    const multiMonthInterval = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'zpan_quota',
+        name: 'Quarterly Plan',
+        description: '',
+        metadata: { storageBytes: 4096, trafficBytes: 0 },
+        prices: [
+          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 3 } },
+          {
+            currency: 'usd',
+            amount: 2,
+            recurring: { interval: 'month', intervalCount: 3, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+        ],
+      }),
+    })
+
+    expect(yearlyInterval.status).toBe(400)
+    expect(multiMonthInterval.status).toBe(400)
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
   })
 

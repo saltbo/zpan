@@ -217,7 +217,7 @@ function PackageOption({
 
 function selectPrice(prices: CloudProduct['prices'], language: string) {
   const currency = language.startsWith('zh') ? 'cny' : 'usd'
-  const price = prices.find((item) => item.currency === currency)
+  const price = prices.find((item) => item.currency === currency && item.recurring?.usageType !== 'metered')
   if (!price) throw new Error(`cloud_product_price_missing_${currency.toLowerCase()}`)
   return price
 }

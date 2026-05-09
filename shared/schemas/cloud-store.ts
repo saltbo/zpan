@@ -12,9 +12,11 @@ export const cloudProductPriceSchema = z.object({
     .object({
       interval: z.enum(['day', 'week', 'month', 'year']),
       intervalCount: z.number().int().positive(),
+      usageType: z.enum(['licensed', 'metered']).optional(),
     })
     .nullable()
     .optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
 })
 
 function validateUniformPriceBilling(
@@ -28,6 +30,68 @@ function validateUniformPriceBilling(
       code: z.ZodIssueCode.custom,
       path,
       message: 'All prices for a Cloud product must use the same billing mode',
+    })
+  }
+}
+
+function isMeteredTrafficPrice(price: CloudProductPrice) {
+  return price.recurring?.usageType === 'metered' && price.metadata?.usageResource === 'traffic_egress'
+}
+
+function validateSubscriptionMeteredPairs(
+  prices: CloudProductPrice[],
+  ctx: z.RefinementCtx,
+  path: Array<string | number> = ['prices'],
+) {
+  const recurringPrices = prices.filter((price) => price.recurring)
+  if (recurringPrices.length === 0) return
+
+  for (const [index, price] of prices.entries()) {
+    if (price.recurring && (price.recurring.interval !== 'month' || price.recurring.intervalCount !== 1)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, index, 'recurring'],
+        message: 'Subscription prices must bill monthly',
+      })
+    }
+    const usageType = price.recurring?.usageType
+    const usageResource = price.metadata?.usageResource
+    if (usageType === 'metered' && usageResource !== 'traffic_egress') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, index],
+        message: 'Metered traffic prices must set usageResource to traffic_egress',
+      })
+    }
+    if (usageResource === 'traffic_egress' && usageType !== 'metered') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, index],
+        message: 'Traffic overage prices must use metered billing',
+      })
+    }
+  }
+
+  const currencies = new Set(recurringPrices.map((price) => price.currency))
+  for (const currency of currencies) {
+    const monthlyCount = recurringPrices.filter(
+      (price) => price.currency === currency && !isMeteredTrafficPrice(price),
+    ).length
+    if (monthlyCount !== 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path,
+        message: `Subscription prices for ${currency} must have exactly one monthly price`,
+      })
+    }
+    const meteredCount = recurringPrices.filter(
+      (price) => price.currency === currency && isMeteredTrafficPrice(price),
+    ).length
+    if (meteredCount === 1) continue
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path,
+      message: `Subscription prices for ${currency} must have exactly one metered traffic price`,
     })
   }
 }
@@ -49,6 +113,7 @@ export const cloudProductInputSchema = z
   })
   .superRefine((data, ctx) => {
     validateUniformPriceBilling(data.prices, ctx)
+    validateSubscriptionMeteredPairs(data.prices, ctx)
     if (data.metadata.storageBytes === 0 && data.metadata.trafficBytes === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -75,7 +140,10 @@ export const cloudProductPatchSchema = z
   })
   .partial()
   .superRefine((data, ctx) => {
-    if (data.prices) validateUniformPriceBilling(data.prices, ctx)
+    if (data.prices) {
+      validateUniformPriceBilling(data.prices, ctx)
+      validateSubscriptionMeteredPairs(data.prices, ctx)
+    }
     const touchesDeliverable = data.name !== undefined || data.metadata !== undefined || data.prices !== undefined
     if (touchesDeliverable && (!data.name || !data.metadata || !data.prices)) {
       ctx.addIssue({
@@ -89,6 +157,7 @@ export const cloudProductPatchSchema = z
 export const checkoutInputSchema = z.object({
   packageId: z.string().min(1),
   currency: cloudStoreCurrencySchema.optional(),
+  priceId: z.string().min(1).optional(),
 })
 
 export const giftCardStatusSchema = z.enum(['created', 'active', 'disabled', 'exhausted', 'expired', 'revoked'])

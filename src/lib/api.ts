@@ -406,9 +406,9 @@ export function redeemCloudGiftCard(code: string) {
   return unwrap<RedeemGiftCardResponse>(cloudStoreApi['gift-cards'].redeem.$post({ json: { code } }))
 }
 
-export function createCloudCheckout(packageId: string, currency?: string) {
+export function createCloudCheckout(packageId: string, currency?: string, priceId?: string) {
   return unwrap<{ orderId: string; url: string; paymentId?: string }>(
-    cloudStoreApi.checkouts.$post({ json: { packageId, currency } }),
+    cloudStoreApi.checkouts.$post({ json: { packageId, currency, priceId } }),
   )
 }
 

@@ -88,7 +88,15 @@ function quotaPackage(overrides: Partial<CloudProduct> = {}): CloudProduct {
     name: '100 GB',
     description: 'Extra storage',
     metadata: { storageBytes: 107374182400, trafficBytes: 0 },
-    prices: [{ currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } }],
+    prices: [
+      { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
+      {
+        currency: 'usd',
+        amount: 2,
+        recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+        metadata: { usageResource: 'traffic_egress' },
+      },
+    ],
     active: true,
     sortOrder: 1,
     createdAt: '2026-05-05T00:00:00.000Z',
@@ -204,9 +212,10 @@ describe('AdminCloudStorePage', () => {
     fireEvent.change(view.getByLabelText('admin.cloudStore.planName'), { target: { value: '250 GB' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.description'), { target: { value: 'Team storage' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.storageQuota'), { target: { value: '250' } })
-    fireEvent.change(view.getByLabelText('admin.cloudStore.trafficOveragePrice'), { target: { value: '0.02' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.usdAmount'), { target: { value: '19.99' } })
+    fireEvent.change(view.getByLabelText('admin.cloudStore.usdTrafficOveragePrice'), { target: { value: '0.02' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.cnyAmount'), { target: { value: '129.00' } })
+    fireEvent.change(view.getByLabelText('admin.cloudStore.cnyTrafficOveragePrice'), { target: { value: '0.14' } })
     fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
@@ -217,11 +226,22 @@ describe('AdminCloudStorePage', () => {
         metadata: {
           storageBytes: 268435456000,
           trafficBytes: 0,
-          trafficOveragePriceCents: 2,
         },
         prices: [
           { currency: 'usd', amount: 1999, recurring: { interval: 'month', intervalCount: 1 } },
+          {
+            currency: 'usd',
+            amount: 2,
+            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
           { currency: 'cny', amount: 12900, recurring: { interval: 'month', intervalCount: 1 } },
+          {
+            currency: 'cny',
+            amount: 14,
+            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
         ],
         active: true,
         sortOrder: 0,
@@ -338,7 +358,15 @@ describe('AdminCloudStorePage', () => {
           storageBytes: 107374182400,
           trafficBytes: 0,
         },
-        prices: [{ currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } }],
+        prices: [
+          { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
+          {
+            currency: 'usd',
+            amount: 2,
+            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+        ],
         sortOrder: 1,
       }),
     )

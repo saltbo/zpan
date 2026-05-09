@@ -71,7 +71,6 @@ export interface CloudProduct {
     storageBytes: number
     trafficBytes: number
     validityDays?: number
-    trafficOveragePriceCents?: number
   }
   prices: CloudProductPrice[]
   active: boolean
@@ -87,7 +86,9 @@ export interface CloudProductPrice {
   recurring?: {
     interval: 'day' | 'week' | 'month' | 'year'
     intervalCount: number
+    usageType?: 'licensed' | 'metered'
   } | null
+  metadata?: Record<string, string>
 }
 
 export interface CloudOrderFulfillmentPayload {
