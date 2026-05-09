@@ -46,7 +46,7 @@ const legacyCloudPackageSchema = z
       storageBytes: cloudPackageResourceSchema,
       trafficBytes: cloudPackageResourceSchema,
       validityDays: z.number().int().positive().optional(),
-      overageCapCents: z.number().int().min(0).optional(),
+      trafficOveragePriceCents: z.number().int().min(0).optional(),
     }),
     prices: z.array(cloudPackagePriceSchema).min(1),
     active: z.boolean(),
@@ -88,9 +88,9 @@ const storeItemPackageSchema = z
         typeof pkg.metadata.deliverable.trafficBytes === 'number' ? pkg.metadata.deliverable.trafficBytes : 0,
       validityDays:
         typeof pkg.metadata.deliverable.validityDays === 'number' ? pkg.metadata.deliverable.validityDays : undefined,
-      overageCapCents:
-        typeof pkg.metadata.deliverable.overageCapCents === 'number'
-          ? pkg.metadata.deliverable.overageCapCents
+      trafficOveragePriceCents:
+        typeof pkg.metadata.deliverable.trafficOveragePriceCents === 'number'
+          ? pkg.metadata.deliverable.trafficOveragePriceCents
           : undefined,
     },
   }))

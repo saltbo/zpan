@@ -22,7 +22,7 @@ export const emptyPackageForm = {
   storageUnit: 'GB' as Unit,
   trafficSize: '',
   trafficUnit: 'GB' as Unit,
-  overageCapAmount: '',
+  trafficOverageAmount: '',
   usdAmount: '9.99',
   cnyAmount: '',
   sortOrder: '0',
@@ -39,8 +39,8 @@ export function packageInputFromForm(form: PackageFormState): CloudProductInput 
       storageBytes: form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0,
       trafficBytes: form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0,
       ...(form.billingMode === 'one_time' ? { validityDays: Math.round(Number(form.validityDays)) } : {}),
-      ...(form.billingMode === 'subscription' && form.overageCapAmount
-        ? { overageCapCents: Math.round(Number(form.overageCapAmount) * 100) }
+      ...(form.billingMode === 'subscription' && form.trafficOverageAmount
+        ? { trafficOveragePriceCents: Math.round(Number(form.trafficOverageAmount) * 100) }
         : {}),
     },
     prices: packagePricesFromForm(form),
@@ -61,7 +61,10 @@ export function packageFormFromPackage(pkg: CloudProduct): PackageFormState {
     storageUnit: storageDisplay?.unit ?? 'GB',
     trafficSize: trafficDisplay ? String(trafficDisplay.size) : '',
     trafficUnit: trafficDisplay?.unit ?? 'GB',
-    overageCapAmount: pkg.metadata.overageCapCents === undefined ? '' : (pkg.metadata.overageCapCents / 100).toString(),
+    trafficOverageAmount:
+      pkg.metadata.trafficOveragePriceCents === undefined
+        ? ''
+        : (pkg.metadata.trafficOveragePriceCents / 100).toString(),
     usdAmount: formatMinorAmount(pkg.prices.find((price) => price.currency === 'usd')?.amount),
     cnyAmount: formatMinorAmount(pkg.prices.find((price) => price.currency === 'cny')?.amount),
     sortOrder: String(pkg.sortOrder),
@@ -98,12 +101,12 @@ export function StoragePlanForm({
       <PackageBillingFields form={form} onFormChange={onFormChange} />
       {form.billingMode === 'subscription' && (
         <NumberField
-          label={t('admin.cloudStore.overageCapAmount')}
-          id="packageOverageCapAmount"
+          label={t('admin.cloudStore.trafficOveragePrice')}
+          id="packageTrafficOverageAmount"
           min="0"
           step="0.01"
-          value={form.overageCapAmount}
-          onChange={(overageCapAmount) => onFormChange({ ...form, overageCapAmount })}
+          value={form.trafficOverageAmount}
+          onChange={(trafficOverageAmount) => onFormChange({ ...form, trafficOverageAmount })}
         />
       )}
       <PackageQuotaFields

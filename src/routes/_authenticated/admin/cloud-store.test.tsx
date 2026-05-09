@@ -204,6 +204,7 @@ describe('AdminCloudStorePage', () => {
     fireEvent.change(view.getByLabelText('admin.cloudStore.planName'), { target: { value: '250 GB' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.description'), { target: { value: 'Team storage' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.storageQuota'), { target: { value: '250' } })
+    fireEvent.change(view.getByLabelText('admin.cloudStore.trafficOveragePrice'), { target: { value: '0.02' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.usdAmount'), { target: { value: '19.99' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.cnyAmount'), { target: { value: '129.00' } })
     fireEvent.click(view.getByRole('button', { name: 'common.save' }))
@@ -216,6 +217,7 @@ describe('AdminCloudStorePage', () => {
         metadata: {
           storageBytes: 268435456000,
           trafficBytes: 0,
+          trafficOveragePriceCents: 2,
         },
         prices: [
           { currency: 'usd', amount: 1999, recurring: { interval: 'month', intervalCount: 1 } },

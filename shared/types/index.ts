@@ -71,7 +71,7 @@ export interface CloudProduct {
     storageBytes: number
     trafficBytes: number
     validityDays?: number
-    overageCapCents?: number
+    trafficOveragePriceCents?: number
   }
   prices: CloudProductPrice[]
   active: boolean

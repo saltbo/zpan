@@ -727,7 +727,7 @@ describe('Quota Store API', () => {
         type: 'zpan_quota',
         name: 'Team Monthly',
         description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 8192 },
+        metadata: { storageBytes: 4096, trafficBytes: 8192, trafficOveragePriceCents: 2 },
         prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } }],
       }),
     })
@@ -749,7 +749,9 @@ describe('Quota Store API', () => {
     const fixedBody = JSON.parse((vi.mocked(fetch).mock.calls[1][1] as RequestInit).body as string)
     expect(recurringBody).toMatchObject({
       type: 'store_item',
-      metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 8192 } },
+      metadata: {
+        deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 8192, trafficOveragePriceCents: 2 },
+      },
       prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } }],
     })
     expect(fixedBody).toMatchObject({
@@ -2032,80 +2034,6 @@ describe('Quota Store API', () => {
       trafficPlanName: 'Team Plan',
       trafficExtraNames: [],
     })
-  })
-
-  it('applies subscription overage caps through Cloud before processing quota changes', async () => {
-    const { app, db } = await createTestApp()
-    await seedProLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
-    vi.mocked(fetch).mockClear()
-
-    const subscriptionSourceId = `stripe_subscription:sub_overage:${orgId}`
-    const payload = JSON.stringify({
-      eventId: 'evt-subscription-overage-cap',
-      cloudOrderId: subscriptionSourceId,
-      targetOrgId: orgId,
-      eventType: 'order.quota_changed',
-      direction: 'increase',
-      storageBytes: 4096,
-      trafficBytes: 2048,
-      overageCapCents: 2500,
-      source: 'stripe_subscription',
-      packageName: 'Team Plan',
-      expiresAt: '2026-06-01T00:00:00.000Z',
-    })
-
-    const res = await postWebhook(app, payload)
-    const canceled = await postWebhook(
-      app,
-      JSON.stringify({
-        eventId: 'evt-subscription-overage-cap-canceled',
-        cloudOrderId: subscriptionSourceId,
-        targetOrgId: orgId,
-        eventType: 'order.quota_changed',
-        direction: 'decrease',
-        storageBytes: 4096,
-        trafficBytes: 2048,
-        source: 'stripe_subscription',
-        packageName: 'Team Plan',
-      }),
-    )
-    const noCap = await postWebhook(
-      app,
-      JSON.stringify({
-        eventId: 'evt-subscription-overage-cap-default',
-        cloudOrderId: `stripe_subscription:sub_no_cap:${orgId}`,
-        targetOrgId: orgId,
-        eventType: 'order.quota_changed',
-        direction: 'increase',
-        storageBytes: 4096,
-        trafficBytes: 2048,
-        source: 'stripe_subscription',
-        packageName: 'No Cap Plan',
-      }),
-    )
-
-    expect(res.status).toBe(200)
-    expect(canceled.status).toBe(200)
-    expect(noCap.status).toBe(200)
-    const capCalls = vi
-      .mocked(fetch)
-      .mock.calls.filter(
-        ([url, init]) => init?.method === 'PUT' && String(url).endsWith('/api/accounts/me/overage-cap'),
-      )
-    expect(capCalls).toHaveLength(3)
-    const [, init] = capCalls[0] as [URL, RequestInit]
-    expect(init.headers).toMatchObject({
-      Authorization: `Bearer ${REFRESH_TOKEN}`,
-      'Content-Type': 'application/json',
-    })
-    expect(JSON.parse(String(init.body))).toEqual({ customerId: orgId, capCents: 2500 })
-    const [, resetInit] = capCalls[1] as [URL, RequestInit]
-    expect(JSON.parse(String(resetInit.body))).toEqual({ customerId: orgId, capCents: 0 })
-    const [, defaultInit] = capCalls[2] as [URL, RequestInit]
-    expect(JSON.parse(String(defaultInit.body))).toEqual({ customerId: orgId, capCents: 0 })
   })
 
   it('renews subscription entitlements by replacing plan bytes and extending expiry', async () => {

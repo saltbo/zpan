@@ -212,7 +212,15 @@ describe('quota store helper paths', () => {
         type: 'store_item',
         name: 'Monthly Plan',
         description: null,
-        metadata: { deliverable: { type: 'zpan.plan', storageBytes: 8192, trafficBytes: 4096, validityDays: 30 } },
+        metadata: {
+          deliverable: {
+            type: 'zpan.plan',
+            storageBytes: 8192,
+            trafficBytes: 4096,
+            validityDays: 30,
+            trafficOveragePriceCents: 2,
+          },
+        },
         prices: [
           {
             currency: 'usd',
@@ -228,7 +236,7 @@ describe('quota store helper paths', () => {
     ).toMatchObject({
       id: 'pkg-2',
       type: 'zpan_quota',
-      metadata: { storageBytes: 8192, trafficBytes: 4096, validityDays: 30 },
+      metadata: { storageBytes: 8192, trafficBytes: 4096, validityDays: 30, trafficOveragePriceCents: 2 },
       prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } }],
     })
   })

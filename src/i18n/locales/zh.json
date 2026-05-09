@@ -1072,7 +1072,7 @@
   "admin.cloudStore.unit": "单位",
   "admin.cloudStore.storageQuota": "存储配额",
   "admin.cloudStore.trafficQuota": "下载流量配额",
-  "admin.cloudStore.overageCapAmount": "每月超额上限（USD）",
+  "admin.cloudStore.trafficOveragePrice": "超额流量单价（USD/GB）",
   "admin.cloudStore.quotaOptionalHint": "留空则不包含",
   "admin.cloudStore.quotaRequired": "存储配额和下载流量配额至少填写一项。",
   "admin.cloudStore.validityRequired": "有效天数必须大于 0。",
