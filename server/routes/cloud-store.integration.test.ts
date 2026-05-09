@@ -1695,6 +1695,79 @@ describe('Quota Store API', () => {
     expect(JSON.parse(audit[0].metadata)).toMatchObject({ eventId: 'evt-1', storageBytes: 4096, trafficBytes: 0 })
   })
 
+  it('delivers monthly subscription storage and traffic entitlements without changing base quotas', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+    const orgId = await getFirstOrgId(db)
+    await db.run(sql`UPDATE org_quotas SET quota = 8192, traffic_quota = 1024 WHERE org_id = ${orgId}`)
+    const payload = JSON.stringify({
+      eventId: 'evt-subscription-monthly-entitlement',
+      cloudOrderId: 'sub-item-2026-05',
+      targetOrgId: orgId,
+      eventType: 'order.quota_changed',
+      direction: 'increase',
+      storageBytes: 4096,
+      trafficBytes: 2048,
+      source: 'stripe_subscription',
+      packageId: 'pkg-monthly-storage-traffic',
+      occurredAt: '2026-05-01T00:00:00.000Z',
+      terminalUserId: 'buyer-1',
+      terminalUserEmail: 'buyer@example.com',
+    })
+
+    const first = await postWebhook(app, payload)
+    const duplicate = await postWebhook(app, payload)
+
+    expect(first.status).toBe(200)
+    await expect(first.json()).resolves.toMatchObject({ success: true, duplicate: false })
+    expect(duplicate.status).toBe(200)
+    await expect(duplicate.json()).resolves.toMatchObject({
+      success: true,
+      duplicate: true,
+      eventId: 'evt-subscription-monthly-entitlement',
+    })
+
+    const entitlements = await db.all<{ resourceType: string; bytes: number; startsAt: number; metadata: string }>(sql`
+      SELECT resource_type AS resourceType, bytes, starts_at AS startsAt, metadata
+      FROM org_quota_entitlements
+      WHERE source_id = 'sub-item-2026-05'
+      ORDER BY resource_type
+    `)
+    expect(entitlements).toHaveLength(2)
+    expect(entitlements.map((row) => ({ resourceType: row.resourceType, bytes: row.bytes }))).toEqual([
+      { resourceType: 'storage', bytes: 4096 },
+      { resourceType: 'traffic', bytes: 2048 },
+    ])
+    expect(new Date(entitlements[0].startsAt).toISOString()).toBe('2026-05-01T00:00:00.000Z')
+    expect(JSON.parse(entitlements[0].metadata)).toMatchObject({
+      eventId: 'evt-subscription-monthly-entitlement',
+      source: 'stripe_subscription',
+      packageId: 'pkg-monthly-storage-traffic',
+      terminalUserId: 'buyer-1',
+      terminalUserEmail: 'buyer@example.com',
+    })
+
+    const quotaRes = await app.request('/api/quotas/me', { headers })
+    const quota = (await quotaRes.json()) as {
+      baseQuota: number
+      entitlementQuota: number
+      quota: number
+      baseTrafficQuota: number
+      entitlementTrafficQuota: number
+      trafficQuota: number
+    }
+    expect(quota).toMatchObject({
+      baseQuota: 8192,
+      entitlementQuota: 4096,
+      quota: 12288,
+      baseTrafficQuota: 1024,
+      entitlementTrafficQuota: 2048,
+      trafficQuota: 3072,
+    })
+  })
+
   it('accumulates repeated Cloud increases for the same order and resource', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
