@@ -21,7 +21,7 @@ export function StorageOrdersTable({ orders }: { orders: CloudOrder[] }) {
         <TableHeader>
           <TableRow>
             <TableHead>{t('admin.cloudStore.orders.source')}</TableHead>
-            <TableHead>{t('admin.cloudStore.orders.storage')}</TableHead>
+            <TableHead>{t('admin.cloudStore.orders.planQuota')}</TableHead>
             <TableHead>{t('admin.cloudStore.orders.target')}</TableHead>
             <TableHead>{t('admin.cloudStore.orders.terminalUser')}</TableHead>
             <TableHead>{t('admin.cloudStore.orders.reference')}</TableHead>
@@ -34,7 +34,7 @@ export function StorageOrdersTable({ orders }: { orders: CloudOrder[] }) {
               <TableCell>
                 <Badge variant="outline">{order.payments?.[0]?.provider ?? order.paymentStatus}</Badge>
               </TableCell>
-              <TableCell>{formatOrderQuota(order)}</TableCell>
+              <TableCell>{formatOrderQuota(order, t)}</TableCell>
               <TableCell className="font-mono text-xs">{order.target?.orgId ?? '-'}</TableCell>
               <TableCell>{order.target?.endUserLabel ?? order.target?.endUserId ?? '-'}</TableCell>
               <TableCell className="font-mono text-xs">{formatOrderReference(order)}</TableCell>
@@ -47,11 +47,14 @@ export function StorageOrdersTable({ orders }: { orders: CloudOrder[] }) {
   )
 }
 
-function formatOrderQuota(order: CloudOrder) {
+function formatOrderQuota(order: CloudOrder, t: ReturnType<typeof useTranslation>['t']) {
   const payload = order.items[0]?.fulfillmentPayload
   const storageBytes = payload?.storageBytes ?? 0
   const trafficBytes = payload?.trafficBytes ?? 0
-  return `${formatSize(storageBytes)}${trafficBytes > 0 ? ` / ${formatSize(trafficBytes)}` : ''}`
+  const parts = []
+  if (storageBytes > 0) parts.push(t('admin.cloudStore.orders.storageQuota', { size: formatSize(storageBytes) }))
+  if (trafficBytes > 0) parts.push(t('admin.cloudStore.orders.trafficQuota', { size: formatSize(trafficBytes) }))
+  return parts.length > 0 ? parts.join(' / ') : '-'
 }
 
 function formatOrderReference(order: CloudOrder) {

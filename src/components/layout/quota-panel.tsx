@@ -1,17 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { HardDrive } from 'lucide-react'
+import { Activity, HardDrive } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserQuota, listCloudOrders, listCloudProducts } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
-
-function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  const value = bytes / 1024 ** i
-  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`
-}
+import { formatSize } from '@/lib/format'
 
 export function QuotaPanel({ enabled }: { enabled: boolean }) {
   const { t } = useTranslation()
@@ -39,6 +32,13 @@ export function QuotaPanel({ enabled }: { enabled: boolean }) {
   const purchasedBytes = (orders?.items ?? [])
     .filter((order) => order.paymentStatus === 'paid')
     .reduce((sum, order) => sum + (order.items[0]?.fulfillmentPayload.storageBytes ?? 0), 0)
+  const purchasedTrafficBytes = (orders?.items ?? [])
+    .filter((order) => order.paymentStatus === 'paid')
+    .reduce((sum, order) => sum + (order.items[0]?.fulfillmentPayload.trafficBytes ?? 0), 0)
+  const storagePercent = quota.quota > 0 ? Math.round((quota.used / quota.quota) * 100) : null
+  const trafficPercent = quota.trafficQuota > 0 ? Math.round((quota.trafficUsed / quota.trafficQuota) * 100) : null
+  const trafficBlocked = quota.trafficQuota > 0 && quota.trafficUsed >= quota.trafficQuota
+
   return (
     <Link
       to="/storage"
@@ -48,10 +48,8 @@ export function QuotaPanel({ enabled }: { enabled: boolean }) {
       <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-sidebar-foreground">
         <HardDrive className="h-3.5 w-3.5" />
         <span>{t('quota.storage')}</span>
-        {quota.quota > 0 && (
-          <span className="ml-auto tabular-nums text-muted-foreground">
-            {Math.round((quota.used / quota.quota) * 100)}%
-          </span>
+        {storagePercent !== null && (
+          <span className="ml-auto tabular-nums text-muted-foreground">{storagePercent}%</span>
         )}
       </div>
       {quota.quota > 0 && (
@@ -67,9 +65,57 @@ export function QuotaPanel({ enabled }: { enabled: boolean }) {
           ? t('quota.usage', { used: formatSize(quota.used), total: formatSize(quota.quota) })
           : t('quota.usageNoLimit', { used: formatSize(quota.used) })}
       </p>
+      {quota.entitlementQuota > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+          {t('quota.cloudStorageEntitlement', { amount: formatSize(quota.entitlementQuota) })}
+        </p>
+      )}
+      <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-sidebar-foreground">
+        <Activity className="h-3.5 w-3.5" />
+        <span>{t('quota.traffic')}</span>
+        {trafficPercent !== null && (
+          <span
+            className={
+              trafficBlocked ? 'ml-auto tabular-nums text-destructive' : 'ml-auto tabular-nums text-muted-foreground'
+            }
+          >
+            {trafficPercent}%
+          </span>
+        )}
+      </div>
+      {quota.trafficQuota > 0 && (
+        <div className="mb-1.5 h-1.5 overflow-hidden rounded-full bg-border">
+          <div
+            className={
+              trafficBlocked
+                ? 'h-full rounded-full bg-destructive transition-all'
+                : 'h-full rounded-full bg-primary transition-all'
+            }
+            style={{ width: `${Math.min(100, (quota.trafficUsed / quota.trafficQuota) * 100)}%` }}
+          />
+        </div>
+      )}
+      <p
+        className={
+          trafficBlocked ? 'text-xs text-destructive tabular-nums' : 'text-xs text-muted-foreground tabular-nums'
+        }
+      >
+        {quota.trafficQuota > 0
+          ? t('quota.trafficUsage', {
+              used: formatSize(quota.trafficUsed),
+              total: formatSize(quota.trafficQuota),
+              period: quota.trafficPeriod,
+            })
+          : t('quota.trafficUsageNoLimit', { used: formatSize(quota.trafficUsed), period: quota.trafficPeriod })}
+      </p>
       {purchasedBytes > 0 && (
         <p className="mt-1 text-xs text-muted-foreground tabular-nums">
           {t('quota.purchased', { amount: formatSize(purchasedBytes) })}
+        </p>
+      )}
+      {purchasedTrafficBytes > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+          {t('quota.purchasedTraffic', { amount: formatSize(purchasedTrafficBytes) })}
         </p>
       )}
     </Link>

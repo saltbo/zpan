@@ -8,7 +8,13 @@ import { QuotaPanel } from './quota-panel'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: Record<string, string>) => (values?.amount ? `${key}:${values.amount}` : key),
+    t: (key: string, values?: Record<string, string>) => {
+      if (values?.amount) return `${key}:${values.amount}`
+      if (values?.used && values?.total && values?.period)
+        return `${key}:${values.used}/${values.total}/${values.period}`
+      if (values?.used && values?.total) return `${key}:${values.used}/${values.total}`
+      return key
+    },
   }),
 }))
 
@@ -170,6 +176,50 @@ describe('QuotaPanel', () => {
 
     await waitFor(() => expect(view.getByRole('link', { name: 'quota.storage' })).toBeTruthy())
     expect(listCloudOrders).toHaveBeenCalledWith()
-    await waitFor(() => expect(view.getByText('quota.purchased:100 GB')).toBeTruthy())
+    expect(view.getByText('quota.cloudStorageEntitlement:100 B')).toBeTruthy()
+    await waitFor(() => expect(view.getByText('quota.purchased:100.0 GB')).toBeTruthy())
+  })
+
+  it('shows current traffic usage and purchased traffic grants', async () => {
+    vi.mocked(getUserQuota).mockResolvedValue({
+      orgId: 'org-1',
+      baseQuota: 100,
+      entitlementQuota: 0,
+      quota: 100,
+      used: 25,
+      baseTrafficQuota: 100,
+      entitlementTrafficQuota: 100,
+      trafficQuota: 200,
+      trafficUsed: 200,
+      trafficPeriod: '2026-05',
+    })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({
+      items: [
+        order({
+          items: [
+            {
+              id: 'item-1',
+              orderId: 'order-1',
+              productId: 'pkg-1',
+              productType: 'zpan_quota',
+              name: 'Traffic',
+              description: null,
+              quantity: 1,
+              unitAmount: 999,
+              totalAmount: 999,
+              fulfillmentPayload: { storageBytes: 0, trafficBytes: 107374182400 },
+            },
+          ],
+        }),
+      ],
+      total: 1,
+    })
+
+    const view = renderQuotaPanel()
+
+    await waitFor(() => expect(view.getByText('quota.traffic')).toBeTruthy())
+    expect(view.getByText('quota.trafficUsage:200 B/200 B/2026-05')).toBeTruthy()
+    await waitFor(() => expect(view.getByText('quota.purchasedTraffic:100.0 GB')).toBeTruthy())
   })
 })

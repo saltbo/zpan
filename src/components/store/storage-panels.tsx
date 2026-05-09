@@ -1,6 +1,6 @@
 import type { CloudWalletTransaction } from '@shared/schemas'
 import type { CloudOrder, CloudProduct } from '@shared/types'
-import { Activity, CreditCard, HardDrive, PlusCircle, Wallet, X } from 'lucide-react'
+import { Activity, CreditCard, HardDrive, PlusCircle, ShieldAlert, Wallet, X } from 'lucide-react'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import type { UserQuota } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 
 export { StorageActions } from './storage-dialogs'
@@ -25,23 +26,74 @@ export function StorageStatusMetrics({
   walletTransactions,
   walletTransactionsLoading,
 }: {
-  quota?: { quota: number; trafficQuota: number }
+  quota?: UserQuota
   wallet?: { balance: number; currency: string }
   walletTransactions: CloudWalletTransaction[]
   walletTransactionsLoading: boolean
 }) {
   const { t, i18n } = useTranslation()
+  const storageBlocked = quota ? quota.quota > 0 && quota.used >= quota.quota : false
+  const trafficBlocked = quota ? quota.trafficQuota > 0 && quota.trafficUsed >= quota.trafficQuota : false
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
       <StatusMetric
-        label={t('storage.currentQuota')}
-        value={quota ? formatSize(quota.quota) : '-'}
+        label={t('storage.effectiveStorageQuota')}
+        value={
+          <QuotaValue
+            value={quota ? formatSize(quota.quota) : '-'}
+            detail={
+              quota
+                ? t('storage.storageQuotaDetail', {
+                    used: formatSize(quota.used),
+                    base: formatSize(quota.baseQuota),
+                    cloud: formatSize(quota.entitlementQuota),
+                  })
+                : undefined
+            }
+            blocked={storageBlocked}
+          />
+        }
         icon={<HardDrive className="h-4 w-4" />}
       />
       <StatusMetric
-        label={t('storage.currentTrafficQuota')}
-        value={quota ? formatSize(quota.trafficQuota) : '-'}
+        label={t('storage.baseStorageQuota')}
+        value={quota ? formatSize(quota.baseQuota) : '-'}
+        icon={<HardDrive className="h-4 w-4" />}
+      />
+      <StatusMetric
+        label={t('storage.cloudStorageEntitlement')}
+        value={quota ? formatSize(quota.entitlementQuota) : '-'}
+        icon={<PlusCircle className="h-4 w-4" />}
+      />
+      <StatusMetric
+        label={t('storage.includedTraffic')}
+        value={
+          <QuotaValue
+            value={quota ? formatSize(quota.trafficQuota) : '-'}
+            detail={
+              quota
+                ? t('storage.trafficQuotaDetail', {
+                    base: formatSize(quota.baseTrafficQuota),
+                    cloud: formatSize(quota.entitlementTrafficQuota),
+                  })
+                : undefined
+            }
+            blocked={false}
+          />
+        }
         icon={<Activity className="h-4 w-4" />}
+      />
+      <StatusMetric
+        label={t('storage.currentPeriodTraffic')}
+        value={
+          <QuotaValue
+            value={quota ? formatSize(quota.trafficUsed) : '-'}
+            detail={quota ? t('storage.trafficPeriodDetail', { period: quota.trafficPeriod }) : undefined}
+            blocked={trafficBlocked}
+          />
+        }
+        icon={trafficBlocked ? <ShieldAlert className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
       />
       <StatusMetric
         label={t('storage.walletBalance')}
@@ -119,6 +171,25 @@ function StatusMetric({ label, value, icon }: { label: string; value: React.Reac
   )
 }
 
+function QuotaValue({ value, detail, blocked }: { value: string; detail?: string; blocked: boolean }) {
+  const { t } = useTranslation()
+  return (
+    <div className="space-y-1">
+      <div
+        className={blocked ? 'text-sm font-medium text-destructive tabular-nums' : 'text-sm font-medium tabular-nums'}
+      >
+        {value}
+      </div>
+      {detail && <div className="text-xs text-muted-foreground">{detail}</div>}
+      {blocked && (
+        <Badge variant="destructive" className="text-[11px]">
+          {t('storage.overCap')}
+        </Badge>
+      )}
+    </div>
+  )
+}
+
 function PackageCard({
   pkg,
   disabled,
@@ -151,7 +222,7 @@ function PackageCard({
         </div>
         <Button className="w-full" disabled={disabled} onClick={() => onCheckout(pkg.id, price.currency)}>
           <PlusCircle className="mr-2 h-4 w-4" />
-          {t('storage.checkout')} · {formatMoney(price.amount, price.currency, language)}
+          {t('storage.checkoutPlan')} · {formatMoney(price.amount, price.currency, language)}
         </Button>
       </CardContent>
     </Card>
@@ -264,6 +335,9 @@ function OrderRow({
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{item?.name ?? order.id}</span>
           <Badge variant={order.paymentStatus === 'paid' ? 'default' : 'secondary'}>{order.paymentStatus}</Badge>
+          <Badge variant={order.fulfillmentStatus === 'fulfilled' ? 'default' : 'outline'}>
+            {order.fulfillmentStatus === 'fulfilled' ? t('storage.activeEntitlement') : order.fulfillmentStatus}
+          </Badge>
           <Badge variant="outline">#{order.id.slice(0, 8)}</Badge>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">

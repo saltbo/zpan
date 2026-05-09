@@ -148,7 +148,7 @@ function PackageIdentityFields({
   const { t } = useTranslation()
   return (
     <>
-      <Field label={t('admin.cloudStore.packageName')} htmlFor="packageName">
+      <Field label={t('admin.cloudStore.planName')} htmlFor="packageName">
         <Input id="packageName" value={form.name} onChange={(e) => onFormChange({ ...form, name: e.target.value })} />
       </Field>
       <Field label={t('admin.cloudStore.description')} htmlFor="packageDescription">
