@@ -7,7 +7,7 @@ const CLOUD_EVENT_TOKEN_MAX_TTL_SECONDS = 5 * 60
 
 const cloudEventTokenSchema = z.object({
   type: z.literal('zpan.cloud.event'),
-  purpose: z.enum(['quota_store.delivery', 'store.delivery']),
+  purpose: z.literal('store.delivery'),
   issuer: z.string().min(1),
   audience: z.string().min(1),
   boundLicenseId: z.string().min(1),

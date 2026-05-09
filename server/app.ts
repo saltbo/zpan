@@ -66,7 +66,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/licensing', licensing)
   app.route('/api/branding', publicBranding)
   app.route('/api/site-invitations', publicSiteInvitations)
-  app.route('/api/store/webhooks', cloudStoreWebhooks)
+  app.route('/api/store', cloudStoreWebhooks)
 
   app.use('/api/*', authMiddleware)
 

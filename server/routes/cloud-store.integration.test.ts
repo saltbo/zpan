@@ -1007,6 +1007,9 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(200)
+    expect(orderPayload()).toMatchObject({
+      deliveryCallbackUrl: 'http://localhost/api/store/webhook',
+    })
     expect(paymentPayload()).toMatchObject({
       successUrl: 'http://localhost/storage',
       cancelUrl: 'http://localhost/storage',
@@ -1060,6 +1063,9 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(200)
+    expect(orderPayload()).toMatchObject({
+      deliveryCallbackUrl: 'http://localhost/api/store/webhook',
+    })
     expect(paymentPayload()).toMatchObject({
       successUrl: 'http://localhost/storage',
       cancelUrl: 'http://localhost/storage',
@@ -1080,6 +1086,9 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(200)
+    expect(orderPayload()).toMatchObject({
+      deliveryCallbackUrl: 'https://files.example.com/api/store/webhook',
+    })
     expect(paymentPayload()).toMatchObject({
       successUrl: 'https://files.example.com/storage',
       cancelUrl: 'https://files.example.com/storage',
@@ -1100,6 +1109,9 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(200)
+    expect(orderPayload()).toMatchObject({
+      deliveryCallbackUrl: 'https://auth.example.com/api/store/webhook',
+    })
     expect(paymentPayload()).toMatchObject({
       successUrl: 'https://auth.example.com/storage',
       cancelUrl: 'https://auth.example.com/storage',
@@ -1120,6 +1132,9 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(200)
+    expect(orderPayload()).toMatchObject({
+      deliveryCallbackUrl: 'http://localhost/api/store/webhook',
+    })
     expect(paymentPayload()).toMatchObject({
       successUrl: 'http://localhost/storage',
       cancelUrl: 'http://localhost/storage',
@@ -1140,6 +1155,9 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(200)
+    expect(orderPayload()).toMatchObject({
+      deliveryCallbackUrl: 'http://localhost/api/store/webhook',
+    })
     expect(paymentPayload()).toMatchObject({
       successUrl: 'http://localhost/storage',
       cancelUrl: 'http://localhost/storage',
@@ -2044,7 +2062,7 @@ describe('Quota Store API', () => {
       expiresAt: '2026-06-01T00:00:00.000Z',
     })
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2885,7 +2903,7 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2903,7 +2921,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-bad-token' })
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2922,7 +2940,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-purpose' })
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2942,7 +2960,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({ eventId: 'evt-expired-token' })
     const now = Math.floor(Date.now() / 1000)
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2961,7 +2979,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-missing-issued-at' })
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2981,7 +2999,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({ eventId: 'evt-future-issued-at' })
     const issuedAt = Math.floor(Date.now() / 1000) + 60
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -3001,7 +3019,7 @@ describe('Quota Store API', () => {
     const payload = JSON.stringify({ eventId: 'evt-overlong-token' })
     const issuedAt = Math.floor(Date.now() / 1000)
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -3020,7 +3038,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-hash' })
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -3048,7 +3066,7 @@ describe('Quota Store API', () => {
       source: 'stripe',
     })
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -3067,7 +3085,7 @@ describe('Quota Store API', () => {
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-audience' })
 
-    const res = await app.request('/api/store/webhooks/cloud', {
+    const res = await app.request('/api/store/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -3141,7 +3159,7 @@ async function seedSettingsRow(db: Awaited<ReturnType<typeof createTestApp>>['db
 }
 
 async function postWebhook(app: Awaited<ReturnType<typeof createTestApp>>['app'], payload: string) {
-  return app.request('/api/store/webhooks/cloud', {
+  return app.request('/api/store/webhook', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -3156,7 +3174,7 @@ async function signedWebhookHeaders(payload: string, overrides: Record<string, u
   const issuedAt = Math.floor(Date.now() / 1000)
   const token = sign(EVENT_SECRET, {
     type: 'zpan.cloud.event',
-    purpose: 'quota_store.delivery',
+    purpose: 'store.delivery',
     issuer: ZPAN_CLOUD_URL_DEFAULT,
     audience: 'test-instance',
     boundLicenseId: 'test-binding',

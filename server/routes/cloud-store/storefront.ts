@@ -112,6 +112,7 @@ export const cloudStore = new Hono<Env>()
       {
         items: [{ productId: body.packageId, priceId: price.id }],
         currency,
+        deliveryCallbackUrl: `${getInstanceOrigin(c)}/api/store/webhook`,
         target: {
           orgId: targetOrgId,
           endUserId: targetOrgId,

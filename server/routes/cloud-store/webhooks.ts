@@ -6,7 +6,7 @@ import { requireFeature } from '../../middleware/require-feature'
 import { getCloudStoreBinding, getRequiredSettings, processCloudOrderQuotaChange } from '../../services/cloud-store'
 import { getCloudBaseUrl, parseJson, sha256Hex } from '../cloud-store-helpers'
 
-export const cloudStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).post('/cloud', async (c) => {
+export const cloudStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).post('/webhook', async (c) => {
   const db = c.get('platform').db
   await getRequiredSettings(db)
   const binding = await getCloudStoreBinding(db)
