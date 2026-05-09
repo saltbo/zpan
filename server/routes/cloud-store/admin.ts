@@ -28,6 +28,39 @@ import {
 } from '../cloud-store-helpers'
 import { getCloudOrders } from './shared'
 
+function cloudProductPayload(input: ReturnType<typeof cloudProductInputSchema.parse>) {
+  return {
+    ...input,
+    type: 'store_item',
+    metadata: {
+      deliverable: {
+        type: 'zpan.extra',
+        packageName: input.name,
+        storageBytes: input.metadata.storageBytes,
+        trafficBytes: input.metadata.trafficBytes,
+      },
+    },
+  }
+}
+
+function cloudProductPatchPayload(input: ReturnType<typeof cloudProductPatchSchema.parse>) {
+  if (!input.metadata && !input.name && input.type === undefined) return input
+  return {
+    ...input,
+    type: 'store_item',
+    metadata: input.metadata
+      ? {
+          deliverable: {
+            type: 'zpan.extra',
+            packageName: input.name,
+            storageBytes: input.metadata.storageBytes,
+            trafficBytes: input.metadata.trafficBytes,
+          },
+        }
+      : undefined,
+  }
+}
+
 export const adminCloudStore = new Hono<Env>()
   .use(requireAdmin)
   .use(requireFeature('quota_store'))
@@ -45,7 +78,12 @@ export const adminCloudStore = new Hono<Env>()
     return c.json(result)
   })
   .post('/packages', zValidator('json', cloudProductInputSchema), async (c) => {
-    const result = await postCloudWithBinding(c, packagesPath(), c.req.valid('json'), cloudPackageResponseSchema)
+    const result = await postCloudWithBinding(
+      c,
+      packagesPath(),
+      cloudProductPayload(c.req.valid('json')),
+      cloudPackageResponseSchema,
+    )
     if ('error' in result) return c.json(result, 502)
     return c.json(result, 201)
   })
@@ -58,7 +96,7 @@ export const adminCloudStore = new Hono<Env>()
     const result = await patchCloudWithBinding(
       c,
       packagesPath({ packageId: c.req.param('id') }),
-      c.req.valid('json'),
+      cloudProductPatchPayload(c.req.valid('json')),
       cloudPackageResponseSchema,
     )
     if ('error' in result) return c.json(result, 502)
@@ -68,7 +106,7 @@ export const adminCloudStore = new Hono<Env>()
     const result = await patchCloudWithBinding(
       c,
       packagesPath({ packageId: c.req.param('id') }),
-      c.req.valid('json'),
+      cloudProductPayload(c.req.valid('json')),
       cloudPackageResponseSchema,
     )
     if ('error' in result) return c.json(result, 502)

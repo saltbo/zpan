@@ -25,7 +25,7 @@ const cloudPackagePriceSchema = z.object({
   amount: cloudPackageAmountSchema,
 })
 
-const cloudPackageSchema = z
+const legacyCloudPackageSchema = z
   .object({
     id: z.string().min(1),
     type: z.literal('zpan_quota'),
@@ -50,9 +50,34 @@ const cloudPackageSchema = z
       })
     }
   })
-export const cloudPackageResponseSchema = cloudPackageSchema
+const storeItemPackageSchema = z
+  .object({
+    id: z.string().min(1),
+    type: z.literal('store_item'),
+    name: z.string().min(1),
+    description: z.string().nullable(),
+    metadata: z.object({
+      deliverable: z.record(z.string(), z.unknown()),
+    }),
+    prices: z.array(cloudPackagePriceSchema).min(1),
+    active: z.boolean(),
+    sortOrder: z.number().int(),
+    createdAt: z.string().min(1),
+    updatedAt: z.string().min(1),
+  })
+  .transform((pkg) => ({
+    ...pkg,
+    type: 'zpan_quota' as const,
+    metadata: {
+      storageBytes:
+        typeof pkg.metadata.deliverable.storageBytes === 'number' ? pkg.metadata.deliverable.storageBytes : 0,
+      trafficBytes:
+        typeof pkg.metadata.deliverable.trafficBytes === 'number' ? pkg.metadata.deliverable.trafficBytes : 0,
+    },
+  }))
+export const cloudPackageResponseSchema = z.union([legacyCloudPackageSchema, storeItemPackageSchema])
 export const cloudPackageListResponseSchema = z.object({
-  items: z.array(cloudPackageSchema),
+  items: z.array(cloudPackageResponseSchema),
   total: z.number().int().min(0),
 })
 const cloudOrderSchema = z.object({
@@ -230,7 +255,7 @@ export function packagesPath(options: { packageId?: string; status?: 'active' | 
   return (storeId: string) => {
     const path = `/api/stores/${encodeURIComponent(storeId)}/products`
     if (options.packageId) return `${path}/${encodeURIComponent(options.packageId)}`
-    const search = new URLSearchParams({ type: 'zpan_quota', limit: '100' })
+    const search = new URLSearchParams({ type: 'store_item', limit: '100' })
     if (options.status) search.set('status', options.status)
     return `${path}?${search.toString()}`
   }

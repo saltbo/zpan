@@ -14,9 +14,9 @@ describe('quota store helper paths', () => {
   it('builds gift card and order Cloud paths', () => {
     expect(giftCardsPath()('store-1')).toBe('/api/stores/store-1/gift-cards')
     expect(giftCardsPath('active')('store-1')).toBe('/api/stores/store-1/gift-cards?status=active')
-    expect(packagesPath()('store-1')).toBe('/api/stores/store-1/products?type=zpan_quota&limit=100')
+    expect(packagesPath()('store-1')).toBe('/api/stores/store-1/products?type=store_item&limit=100')
     expect(packagesPath({ status: 'active' })('store-1')).toBe(
-      '/api/stores/store-1/products?type=zpan_quota&limit=100&status=active',
+      '/api/stores/store-1/products?type=store_item&limit=100&status=active',
     )
     expect(ordersPath()('store-1')).toBe('/api/stores/store-1/orders')
     expect(ordersPath({ limit: 100 })('store-1')).toBe('/api/stores/store-1/orders?limit=100')

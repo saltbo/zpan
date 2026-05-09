@@ -7,12 +7,15 @@ const CLOUD_EVENT_TOKEN_MAX_TTL_SECONDS = 5 * 60
 
 const cloudEventTokenSchema = z.object({
   type: z.literal('zpan.cloud.event'),
-  purpose: z.literal('quota_store.delivery'),
+  purpose: z.enum(['quota_store.delivery', 'store.delivery']),
   issuer: z.string().min(1),
   audience: z.string().min(1),
   boundLicenseId: z.string().min(1),
   eventId: z.string().min(1),
-  payloadHash: z.string().regex(/^[0-9a-f]{64}$/i),
+  payloadHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i)
+    .optional(),
   issuedAt: z.number().int(),
   notBefore: z.number().int().optional(),
   expiresAt: z.number().int(),
@@ -48,9 +51,9 @@ function tryVerifyCloudEventToken(
     const event = parsed.data
     const now = Math.floor(Date.now() / 1000)
     if (event.issuer !== trustedIssuerFromCloudUrl(options.cloudBaseUrl)) return null
-    if (event.audience !== options.instanceId) return null
+    if (event.audience !== options.instanceId && event.audience !== options.boundLicenseId) return null
     if (event.boundLicenseId !== options.boundLicenseId) return null
-    if (event.payloadHash !== options.payloadHash) return null
+    if (event.payloadHash && event.payloadHash !== options.payloadHash) return null
     if (event.issuedAt > now) return null
     if (event.notBefore && event.notBefore > now) return null
     if (event.expiresAt <= now) return null

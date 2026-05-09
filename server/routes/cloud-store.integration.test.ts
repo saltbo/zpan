@@ -576,13 +576,13 @@ describe('Quota Store API', () => {
     await expect(created.json()).resolves.toMatchObject({ id: 'cloud-pkg-1', name: 'Small' })
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
     const body = String(init.body)
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/products?type=zpan_quota&limit=100`)
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/products?type=store_item&limit=100`)
     expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(JSON.parse(body)).toMatchObject({
       name: 'Small',
       description: 'starter',
-      metadata: { storageBytes: 4096, trafficBytes: 0 },
-      type: 'zpan_quota',
+      metadata: { deliverable: { type: 'zpan.extra', packageName: 'Small', storageBytes: 4096, trafficBytes: 0 } },
+      type: 'store_item',
       prices: [{ currency: 'usd', amount: 500 }],
     })
     expect(JSON.parse(body)).not.toHaveProperty('callbackUrl')
@@ -656,8 +656,10 @@ describe('Quota Store API', () => {
     expect(JSON.parse(updateInit.body as string)).toEqual({
       name: 'Updated',
       description: '',
-      type: 'zpan_quota',
-      metadata: { storageBytes: 0, trafficBytes: 8192 },
+      type: 'store_item',
+      metadata: {
+        deliverable: { type: 'zpan.extra', packageName: 'Updated', storageBytes: 0, trafficBytes: 8192 },
+      },
       prices: [{ currency: 'cny', amount: 900 }],
       active: true,
       sortOrder: 0,
@@ -2660,7 +2662,7 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(await signedWebhookHeaders(payload, { audience: 'test-binding' })),
+        ...(await signedWebhookHeaders(payload, { audience: 'wrong-audience' })),
       },
       body: payload,
     })
