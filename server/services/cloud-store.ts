@@ -146,11 +146,9 @@ async function processQuotaChangeTransaction(
     return
   }
 
-  await db.transaction(async (tx) => {
-    await applyQuotaChange(tx as Database, event)
-    await recordQuotaChangeAudit(tx as Database, event)
-    await markWebhookEvent(tx as Database, webhookId, 'processed', null)
-  })
+  await applyQuotaChange(db, event)
+  await recordQuotaChangeAudit(db, event)
+  await markWebhookEvent(db, webhookId, 'processed', null)
 }
 
 async function applyQuotaChange(db: Database, event: CloudOrderQuotaChange): Promise<void> {
