@@ -1,5 +1,5 @@
 import type { CloudProduct } from '@shared/types'
-import { HardDrive, PlusCircle } from 'lucide-react'
+import { HardDrive, Package, PlusCircle } from 'lucide-react'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -20,8 +20,8 @@ export function StoragePackages({
   return (
     <section className="space-y-4">
       <div>
-        <h3 className="text-lg font-semibold">{t('storage.availablePlansTitle')}</h3>
-        <p className="text-sm text-muted-foreground">{t('storage.availablePlansDescription')}</p>
+        <h3 className="text-lg font-semibold">{t('storage.availableProductsTitle')}</h3>
+        <p className="text-sm text-muted-foreground">{t('storage.availableProductsDescription')}</p>
       </div>
       <div className="grid grid-cols-[340px] gap-5 lg:grid-cols-[repeat(2,340px)] xl:grid-cols-[repeat(3,340px)]">
         {packages.map((pkg) => (
@@ -37,7 +37,7 @@ export function StoragePackages({
   )
 }
 
-function PlanCardShell({
+function ProductCardShell({
   active = false,
   title,
   description,
@@ -60,14 +60,16 @@ function PlanCardShell({
     <div
       className={
         active
-          ? 'flex h-[430px] w-[340px] flex-col overflow-hidden rounded-lg border border-primary/50 bg-card p-5 text-card-foreground shadow-sm'
-          : 'flex h-[430px] w-[340px] flex-col overflow-hidden rounded-lg border border-border/60 bg-card p-5 text-card-foreground shadow-sm transition-colors hover:border-primary/50'
+          ? 'flex h-[380px] w-[340px] flex-col overflow-hidden rounded-lg border border-primary/50 bg-card p-5 text-card-foreground shadow-sm'
+          : 'flex h-[380px] w-[340px] flex-col overflow-hidden rounded-lg border border-border/60 bg-card p-5 text-card-foreground shadow-sm transition-colors hover:border-primary/50'
       }
     >
-      <div className="flex h-[88px] items-start justify-between gap-3">
+      <div className="flex min-h-[58px] items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-lg font-semibold leading-6">{title}</div>
-          <div className="mt-2 line-clamp-3 text-sm leading-5 text-muted-foreground">{description}</div>
+          {description && (
+            <div className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{description}</div>
+          )}
         </div>
         {badge ? (
           <Badge variant="outline" className="shrink-0 border-primary/40 text-primary">
@@ -77,11 +79,11 @@ function PlanCardShell({
           <div className="shrink-0 text-muted-foreground">{icon}</div>
         )}
       </div>
-      <div className="mt-4 shrink-0 truncate text-3xl font-semibold" style={{ height: 42, lineHeight: '42px' }}>
+      <div className="mt-3 shrink-0 truncate text-3xl font-semibold" style={{ height: 42, lineHeight: '42px' }}>
         {price}
       </div>
-      <div className="mt-4 shrink-0 space-y-3 rounded-md border bg-muted/20 p-4">{children}</div>
-      <div className="mt-auto pt-5">{action}</div>
+      <div className="mt-3 shrink-0 space-y-3 rounded-md border bg-muted/20 p-4">{children}</div>
+      <div className="mt-4 shrink-0">{action}</div>
     </div>
   )
 }
@@ -100,24 +102,38 @@ function PackageCard({
   const { t } = useTranslation()
   const price = selectPrice(pkg.prices, language)
   const priceLabel = formatPackagePrice(price, pkg, language, t)
+  const plan = isPlanProduct(pkg)
   return (
-    <PlanCardShell
+    <ProductCardShell
       title={pkg.name}
       description={pkg.description ?? ''}
-      icon={<HardDrive className="h-4 w-4" />}
+      badge={plan ? t('storage.monthlyPlanBadge') : t('storage.resourcePackageBadge')}
+      icon={plan ? <HardDrive className="h-4 w-4" /> : <Package className="h-4 w-4" />}
       price={priceLabel}
       action={
         <Button className="h-9 w-full" disabled={disabled} onClick={() => onCheckout(pkg.id, price.currency)}>
           <PlusCircle className="h-3.5 w-3.5" />
-          {t('storage.checkoutPlan')}
+          {plan ? t('storage.checkoutPlan') : t('storage.checkoutPackage')}
         </Button>
       }
     >
-      <PlanDetailRow label={t('storage.baseStorageQuota')} value={formatSize(pkg.metadata.storageBytes)} />
-      <PlanDetailRow label={t('storage.includedTraffic')} value={formatSize(pkg.metadata.trafficBytes)} />
-      <PlanDetailRow label={t('storage.planBilling')} value={formatBilling(price, pkg, t)} />
-      <PlanDetailRow label={t('storage.trafficPolicy')} value={formatTrafficPolicy(pkg, price.currency, language, t)} />
-    </PlanCardShell>
+      {plan ? (
+        <>
+          <PlanDetailRow label={t('storage.baseStorageQuota')} value={formatSize(pkg.metadata.storageBytes)} />
+          <PlanDetailRow label={t('storage.includedTraffic')} value={formatSize(pkg.metadata.trafficBytes)} />
+          <PlanDetailRow
+            label={t('storage.trafficPolicy')}
+            value={formatTrafficPolicy(pkg, price.currency, language, t)}
+          />
+        </>
+      ) : (
+        <>
+          <PlanDetailRow label={t('storage.packageStorageQuota')} value={formatSize(pkg.metadata.storageBytes)} />
+          <PlanDetailRow label={t('storage.packageTrafficQuota')} value={formatSize(pkg.metadata.trafficBytes)} />
+          <PlanDetailRow label={t('storage.packageValidity')} value={formatValidity(pkg, t)} />
+        </>
+      )}
+    </ProductCardShell>
   )
 }
 
@@ -138,6 +154,10 @@ function selectPrice(prices: CloudProduct['prices'], language: string) {
   return price
 }
 
+function isPlanProduct(pkg: CloudProduct) {
+  return pkg.prices.some((price) => price.recurring && price.recurring.usageType !== 'metered')
+}
+
 function formatMoney(amount: number, currency: string, language: string) {
   return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
 }
@@ -155,14 +175,9 @@ function formatPackagePrice(
   return amount
 }
 
-function formatBilling(
-  price: CloudProduct['prices'][number],
-  pkg: CloudProduct,
-  t: ReturnType<typeof useTranslation>['t'],
-) {
-  if (price.recurring?.interval === 'month' && price.recurring.intervalCount === 1) return t('storage.billingMonthly')
+function formatValidity(pkg: CloudProduct, t: ReturnType<typeof useTranslation>['t']) {
   if (pkg.metadata.validityDays) return t('storage.billingFixedDays', { days: pkg.metadata.validityDays })
-  return t('storage.billingOneTime')
+  return t('storage.packageNoExpiry')
 }
 
 function selectMeteredTrafficPrice(prices: CloudProduct['prices'], currency: string) {

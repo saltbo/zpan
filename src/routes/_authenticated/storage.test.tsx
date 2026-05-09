@@ -329,7 +329,7 @@ describe('StoragePage', () => {
     expect(listCloudOrders).not.toHaveBeenCalled()
   })
 
-  it('starts checkout from the plan catalog', async () => {
+  it('starts checkout from the product catalog', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(createCloudCheckout).mockResolvedValue({ orderId: 'order-1', url: 'https://cloud.example.test/checkout' })
@@ -344,8 +344,8 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPlan/ }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
     await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
     expect(toast.info).not.toHaveBeenCalled()
@@ -363,8 +363,7 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByText('storage.planBilling')).toBeTruthy())
-    expect(view.getByText('storage.billingMonthly')).toBeTruthy()
+    await waitFor(() => expect(view.getByText('storage.monthlyPlanBadge')).toBeTruthy())
     expect(view.getByText('storage.trafficPolicy')).toBeTruthy()
     expect(view.getByText(/storage\.trafficOveragePerGb/)).toBeTruthy()
   })
@@ -385,8 +384,8 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPlan/ }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
     await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
   })
@@ -406,8 +405,8 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPlan/ }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
     await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
     expect(checkoutWindow.close).toHaveBeenCalled()
@@ -433,8 +432,8 @@ describe('StoragePage', () => {
     const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPlan/ }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
     await waitFor(() => expect(checkoutWindow.location.href).toBe('https://cloud.example.test/checkout'))
     expect(view.getByText('storage.checkoutPending')).toBeTruthy()
@@ -524,7 +523,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy())
     expect(view.getByText('Team Plan')).toBeTruthy()
     expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy()
-    expect(view.queryByRole('button', { name: /storage.checkoutPlan/ })).toBeNull()
+    expect(view.queryByRole('button', { name: /storage.checkoutPlan|storage.checkoutPackage/ })).toBeNull()
     expect(createCloudCheckout).not.toHaveBeenCalled()
   })
 
@@ -556,7 +555,7 @@ describe('StoragePage', () => {
     expect(vi.mocked(listCloudOrders)).toHaveBeenCalledWith()
     fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
     await waitFor(() => expect(view.queryByText('org-2')).toBeNull())
-    fireEvent.click(await view.findByRole('button', { name: /storage.checkoutPlan/ }))
+    fireEvent.click(await view.findByRole('button', { name: /storage.checkoutPackage/ }))
 
     await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
   })
@@ -575,8 +574,8 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.queryByLabelText('storage.giftCardCode')).toBeNull())
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy())
-    const checkoutButton = view.getByRole('button', { name: /storage.checkoutPlan/ }) as HTMLButtonElement
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
+    const checkoutButton = view.getByRole('button', { name: /storage.checkoutPackage/ }) as HTMLButtonElement
     expect(checkoutButton.disabled).toBe(true)
     fireEvent.click(checkoutButton)
 
@@ -584,7 +583,7 @@ describe('StoragePage', () => {
     expect(vi.mocked(createCloudCheckout)).not.toHaveBeenCalled()
   })
 
-  it('shows plan cards on the page instead of inside a dialog', async () => {
+  it('shows product cards on the page instead of inside a dialog', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
 
@@ -598,7 +597,9 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
     await waitFor(() => expect(view.getByText('100 GB')).toBeTruthy())
-    expect(view.getByRole('button', { name: /storage.checkoutPlan/ })).toBeTruthy()
+    expect(view.getByText('storage.availableProductsTitle')).toBeTruthy()
+    expect(view.getByText('storage.packageStorageQuota')).toBeTruthy()
+    expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy()
     expect(view.queryByRole('button', { name: 'storage.redeemTitle' })).toBeNull()
   })
 
