@@ -116,7 +116,7 @@ function PackageCard({
       <PlanDetailRow label={t('storage.baseStorageQuota')} value={formatSize(pkg.metadata.storageBytes)} />
       <PlanDetailRow label={t('storage.includedTraffic')} value={formatSize(pkg.metadata.trafficBytes)} />
       <PlanDetailRow label={t('storage.planBilling')} value={formatBilling(price, pkg, t)} />
-      <PlanDetailRow label={t('storage.trafficPolicy')} value={formatTrafficPolicy(pkg, t)} />
+      <PlanDetailRow label={t('storage.trafficPolicy')} value={formatTrafficPolicy(pkg, price.currency, language, t)} />
     </PlanCardShell>
   )
 }
@@ -165,6 +165,23 @@ function formatBilling(
   return t('storage.billingOneTime')
 }
 
-function formatTrafficPolicy(pkg: CloudProduct, t: ReturnType<typeof useTranslation>['t']) {
-  return pkg.metadata.trafficBytes > 0 ? t('storage.trafficStopsAtQuota') : t('storage.usageNoLimit')
+function selectMeteredTrafficPrice(prices: CloudProduct['prices'], currency: string) {
+  return prices.find(
+    (price) =>
+      price.currency === currency &&
+      price.recurring?.usageType === 'metered' &&
+      price.metadata?.usageResource === 'traffic_egress',
+  )
+}
+
+function formatTrafficPolicy(
+  pkg: CloudProduct,
+  currency: string,
+  language: string,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  if (pkg.metadata.trafficBytes <= 0) return t('storage.usageNoLimit')
+  const overagePrice = selectMeteredTrafficPrice(pkg.prices, currency)
+  if (!overagePrice) return t('storage.trafficStopsAtQuota')
+  return t('storage.trafficOveragePerGb', { amount: formatMoney(overagePrice.amount, currency, language) })
 }

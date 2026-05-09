@@ -1207,6 +1207,8 @@
   "storage.billingOneTime": "一次性套餐",
   "storage.trafficPolicy": "流量策略",
   "storage.trafficStopsAtQuota": "超出后停止访问",
+  "storage.trafficOverageEnabled": "超出后按量计费",
+  "storage.trafficOveragePerGb": "超出后 {{amount}} / GB",
   "storage.checkout": "结账",
   "storage.checkoutPlan": "购买计划",
   "storage.managePlan": "管理套餐",

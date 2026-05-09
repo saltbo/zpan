@@ -90,6 +90,10 @@ const storeItemPackageSchema = z
         typeof pkg.metadata.deliverable.trafficBytes === 'number' ? pkg.metadata.deliverable.trafficBytes : 0,
       validityDays:
         typeof pkg.metadata.deliverable.validityDays === 'number' ? pkg.metadata.deliverable.validityDays : undefined,
+      trafficOveragePriceCents:
+        typeof pkg.metadata.deliverable.trafficOveragePriceCents === 'number'
+          ? pkg.metadata.deliverable.trafficOveragePriceCents
+          : undefined,
     },
   }))
 export const cloudPackageResponseSchema = z.union([legacyCloudPackageSchema, storeItemPackageSchema])

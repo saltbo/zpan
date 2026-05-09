@@ -1207,6 +1207,8 @@
   "storage.billingOneTime": "One-time package",
   "storage.trafficPolicy": "Traffic policy",
   "storage.trafficStopsAtQuota": "Stops at quota",
+  "storage.trafficOverageEnabled": "Metered overage",
+  "storage.trafficOveragePerGb": "{{amount}} / GB overage",
   "storage.checkout": "Checkout",
   "storage.checkoutPlan": "Checkout plan",
   "storage.managePlan": "Manage plan",

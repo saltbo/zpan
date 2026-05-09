@@ -36,16 +36,27 @@ function hasRecurringPrice(input: { prices: Array<{ recurring?: unknown }> }) {
 
 function cloudProductDeliverable(input: {
   name?: string
-  metadata: { storageBytes: number; trafficBytes: number; validityDays?: number }
-  prices: Array<{ recurring?: unknown }>
+  metadata: { storageBytes: number; trafficBytes: number; validityDays?: number; trafficOveragePriceCents?: number }
+  prices: Array<{ amount?: number; recurring?: { usageType?: string } | null; metadata?: Record<string, string> }>
 }) {
+  const trafficOveragePriceCents = input.metadata.trafficOveragePriceCents ?? meteredTrafficPriceCents(input.prices)
   return {
     type: hasRecurringPrice(input) ? 'zpan.plan' : 'zpan.extra',
     packageName: input.name,
     storageBytes: input.metadata.storageBytes,
     trafficBytes: input.metadata.trafficBytes,
     validityDays: input.metadata.validityDays,
+    ...(trafficOveragePriceCents > 0 ? { trafficOveragePriceCents } : {}),
   }
+}
+
+function meteredTrafficPriceCents(
+  prices: Array<{ amount?: number; recurring?: { usageType?: string } | null; metadata?: Record<string, string> }>,
+) {
+  const price = prices.find(
+    (item) => item.recurring?.usageType === 'metered' && item.metadata?.usageResource === 'traffic_egress',
+  )
+  return price?.amount ?? 0
 }
 
 function cloudProductPayload(input: ReturnType<typeof cloudProductInputSchema.parse>) {

@@ -758,7 +758,7 @@ describe('Quota Store API', () => {
     expect(recurringBody).toMatchObject({
       type: 'store_item',
       metadata: {
-        deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 8192 },
+        deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 8192, trafficOveragePriceCents: 2 },
       },
       prices: [
         { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
@@ -770,7 +770,6 @@ describe('Quota Store API', () => {
         },
       ],
     })
-    expect(recurringBody.metadata.deliverable).not.toHaveProperty('trafficOveragePriceCents')
     expect(fixedBody).toMatchObject({
       type: 'store_item',
       metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192, validityDays: 30 } },
@@ -2132,6 +2131,7 @@ describe('Quota Store API', () => {
       direction: 'increase',
       storageBytes: 4096,
       trafficBytes: 2048,
+      trafficOveragePriceCents: 25,
       source: 'stripe_subscription',
       packageId: 'pkg-monthly-storage-traffic',
       packageName: 'Team Plan',
@@ -2177,6 +2177,7 @@ describe('Quota Store API', () => {
       source: 'stripe_subscription',
       packageId: 'pkg-monthly-storage-traffic',
       packageName: 'Team Plan',
+      trafficOveragePriceCents: 25,
       expiresAt: '2026-06-01T00:00:00.000Z',
       terminalUserId: 'buyer-1',
       terminalUserEmail: 'buyer@example.com',
@@ -2190,6 +2191,7 @@ describe('Quota Store API', () => {
       baseTrafficQuota: number
       entitlementTrafficQuota: number
       trafficQuota: number
+      currentPlan: { trafficOveragePriceCents: number | null }
     }
     expect(quota).toMatchObject({
       baseQuota: 4096,
@@ -2202,6 +2204,7 @@ describe('Quota Store API', () => {
       storageExtraNames: [],
       trafficPlanName: 'Team Plan',
       trafficExtraNames: [],
+      currentPlan: { trafficOveragePriceCents: 25 },
     })
   })
 

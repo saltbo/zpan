@@ -215,6 +215,13 @@ function PlanEntitlementSummary({ quota }: { quota: UserQuota }) {
       label: t('storage.cloudTrafficEntitlement'),
       value: formatExtraValue(quota.entitlementTrafficQuota, quota.trafficExtraNames),
     },
+    {
+      label: t('storage.trafficPolicy'),
+      value:
+        (plan?.trafficOveragePriceCents ?? 0) > 0
+          ? t('storage.trafficOverageEnabled')
+          : t('storage.trafficStopsAtQuota'),
+    },
   ]
   return (
     <div className="space-y-4 border-t pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">

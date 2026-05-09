@@ -354,6 +354,50 @@ describe('effective quota', () => {
     await expect(consumeTrafficIfQuotaAllows(db, orgId, 1, now)).resolves.toBe(false)
   })
 
+  it('allows subscription traffic overage when the active plan has an overage price', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 0,
+      trafficQuota: 1000,
+      trafficUsed: 900,
+      trafficPeriod: '2026-05',
+    })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(orgId, 'storage', `stripe_subscription:sub_plan:${orgId}`, 2000, 'active', now, 'Pro Plan'),
+        entitlement(
+          orgId,
+          'traffic',
+          `stripe_subscription:sub_plan:${orgId}`,
+          2000,
+          'active',
+          now,
+          'Pro Plan',
+          'pkg-pro',
+          25,
+        ),
+      ])
+
+    await expect(hasTrafficQuotaForBytes(db, orgId, 1600, now)).resolves.toBe(true)
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1600, now)).resolves.toBe(true)
+    await expect(consumeTrafficIfQuotaAllows(db, orgId, 100, now)).resolves.toBe(true)
+    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+      currentPlan: {
+        name: 'Pro Plan',
+        trafficBytes: 2000,
+        trafficOveragePriceCents: 25,
+      },
+      trafficUsed: 2600,
+      trafficQuota: 2000,
+    })
+  })
+
   it('treats zero base traffic quota as limited when traffic entitlements exist', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
@@ -555,7 +599,16 @@ function entitlement(
   now: Date,
   packageName?: string,
   packageId?: string,
+  trafficOveragePriceCents?: number,
 ): typeof orgQuotaEntitlements.$inferInsert {
+  const metadata =
+    packageName || trafficOveragePriceCents !== undefined
+      ? JSON.stringify({
+          packageId: packageId ?? null,
+          packageName: packageName ?? null,
+          trafficOveragePriceCents: trafficOveragePriceCents ?? null,
+        })
+      : null
   return {
     id: nanoid(),
     orgId,
@@ -566,7 +619,7 @@ function entitlement(
     startsAt: now,
     expiresAt: null,
     status,
-    metadata: packageName ? JSON.stringify({ packageId: packageId ?? null, packageName }) : null,
+    metadata,
     createdAt: now,
     updatedAt: now,
   }

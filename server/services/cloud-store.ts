@@ -424,6 +424,7 @@ function quotaEntitlementMetadata(event: CloudOrderQuotaChange) {
     source: event.source ?? null,
     packageId: event.packageId ?? null,
     packageName: event.packageName ?? null,
+    trafficOveragePriceCents: event.trafficOveragePriceCents ?? null,
     expiresAt: event.expiresAt ?? null,
     terminalUserId: event.terminalUserId ?? null,
     terminalUserEmail: event.terminalUserEmail ?? null,

@@ -45,6 +45,8 @@ const STORAGE_METERING_KEYS = [
   'storage.billingOneTime',
   'storage.trafficPolicy',
   'storage.trafficStopsAtQuota',
+  'storage.trafficOverageEnabled',
+  'storage.trafficOveragePerGb',
   'admin.cloudStore.planName',
   'admin.cloudStore.noPlans',
   'admin.cloudStore.orders.planQuota',

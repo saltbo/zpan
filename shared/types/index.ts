@@ -59,6 +59,7 @@ export interface CurrentStoragePlan {
   name: string
   storageBytes: number
   trafficBytes: number
+  trafficOveragePriceCents: number | null
   expiresAt: string | null
   subscription: boolean
 }
@@ -82,6 +83,7 @@ export interface CloudProduct {
     storageBytes: number
     trafficBytes: number
     validityDays?: number
+    trafficOveragePriceCents?: number
   }
   prices: CloudProductPrice[]
   active: boolean

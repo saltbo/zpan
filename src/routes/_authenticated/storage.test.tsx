@@ -242,6 +242,7 @@ describe('StoragePage', () => {
         name: 'Team Plan',
         storageBytes: 1024,
         trafficBytes: 1024,
+        trafficOveragePriceCents: null,
         expiresAt: null,
         subscription: true,
       },
@@ -365,7 +366,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByText('storage.planBilling')).toBeTruthy())
     expect(view.getByText('storage.billingMonthly')).toBeTruthy()
     expect(view.getByText('storage.trafficPolicy')).toBeTruthy()
-    expect(view.getByText('storage.trafficStopsAtQuota')).toBeTruthy()
+    expect(view.getByText(/storage\.trafficOveragePerGb/)).toBeTruthy()
   })
 
   it('uses an available product price when the locale currency is missing', async () => {
@@ -504,6 +505,7 @@ describe('StoragePage', () => {
         name: 'Team Plan',
         storageBytes: 1024,
         trafficBytes: 0,
+        trafficOveragePriceCents: null,
         expiresAt: null,
         subscription: true,
       },

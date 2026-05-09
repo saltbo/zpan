@@ -26,6 +26,7 @@ export interface CurrentStoragePlan {
   name: string
   storageBytes: number
   trafficBytes: number
+  trafficOveragePriceCents: number | null
   expiresAt: string | null
   subscription: boolean
 }
@@ -106,6 +107,7 @@ export async function hasTrafficQuotaForBytes(
   if (bytes <= 0) return true
   const quota = await getEffectiveQuota(db, orgId, now)
   if (quota.baseTrafficQuota === 0 && quota.entitlementTrafficQuota === 0) return true
+  if ((quota.currentPlan?.trafficOveragePriceCents ?? 0) > 0) return true
   return quota.trafficUsed + bytes <= quota.trafficQuota
 }
 
@@ -124,6 +126,9 @@ export async function consumeTrafficIfQuotaAllows(
     .limit(1)
   if (quotaRows.length === 0) return true
 
+  const trafficOverageAllowed = await hasActiveTrafficOverage(db, orgId, now)
+  const overageAllowedSql = trafficOverageAllowed ? sql`1 = 1` : sql`1 = 0`
+
   if (quotaRows[0].trafficPeriod !== period) {
     const planBytes = activePlanEntitlementBytesSql(orgId, 'traffic', now)
     const extraBytes = activeExtraEntitlementBytesSql(orgId, 'traffic', now)
@@ -136,6 +141,7 @@ export async function consumeTrafficIfQuotaAllows(
           AND ${orgQuotas.trafficPeriod} != ${period}
           AND (
             (${orgQuotas.trafficQuota} = 0 AND ${planBytes} = 0 AND ${extraBytes} = 0)
+            OR ${overageAllowedSql}
             OR ${bytes} <= ${limitBytes}
           )`,
       )
@@ -154,12 +160,18 @@ export async function consumeTrafficIfQuotaAllows(
         AND ${orgQuotas.trafficPeriod} = ${period}
         AND (
           (${orgQuotas.trafficQuota} = 0 AND ${planBytes} = 0 AND ${extraBytes} = 0)
+          OR ${overageAllowedSql}
           OR ${orgQuotas.trafficUsed} + ${bytes} <= ${limitBytes}
         )`,
     )
     .returning({ id: orgQuotas.id })
 
   return updated.length > 0
+}
+
+async function hasActiveTrafficOverage(db: Database, orgId: string, now: Date) {
+  const trafficPlan = await activePlanEntitlement(db, orgId, 'traffic', now)
+  return (trafficPlan?.trafficOveragePriceCents ?? 0) > 0
 }
 
 export async function refundTraffic(db: Database, orgId: string, bytes: number, now = new Date()): Promise<void> {
@@ -238,6 +250,7 @@ async function activePlanEntitlement(
     bytes: row.bytes,
     name: metadata?.packageName ?? null,
     packageId: metadata?.packageId ?? null,
+    trafficOveragePriceCents: metadata?.trafficOveragePriceCents ?? null,
     expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
   }
 }
@@ -368,6 +381,7 @@ interface PlanEntitlement {
   bytes: number
   name: string | null
   packageId: string | null
+  trafficOveragePriceCents: number | null
   expiresAt: string | null
 }
 
@@ -384,6 +398,7 @@ function buildCurrentPlan(
     name: plan.name ?? trafficPlan?.name ?? plan.sourceId,
     storageBytes: storagePlan?.bytes ?? 0,
     trafficBytes: trafficPlan?.bytes ?? 0,
+    trafficOveragePriceCents: trafficPlan?.trafficOveragePriceCents ?? null,
     expiresAt: plan.expiresAt ?? trafficPlan?.expiresAt ?? null,
     subscription: isSubscriptionSourceId(plan.sourceId),
   }
@@ -391,10 +406,18 @@ function buildCurrentPlan(
 
 function entitlementMetadata(metadata: string | null) {
   if (!metadata) return null
-  const parsed = JSON.parse(metadata) as { packageId?: unknown; packageName?: unknown }
+  const parsed = JSON.parse(metadata) as {
+    packageId?: unknown
+    packageName?: unknown
+    trafficOveragePriceCents?: unknown
+  }
   return {
     packageId: typeof parsed.packageId === 'string' ? parsed.packageId : null,
     packageName: typeof parsed.packageName === 'string' ? parsed.packageName : null,
+    trafficOveragePriceCents:
+      typeof parsed.trafficOveragePriceCents === 'number' && parsed.trafficOveragePriceCents > 0
+        ? parsed.trafficOveragePriceCents
+        : null,
   }
 }
 
