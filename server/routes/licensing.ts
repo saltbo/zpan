@@ -9,6 +9,16 @@ import type { Env } from '../middleware/platform'
 import { syncPendingCloudTrafficReports } from '../services/cloud-traffic-metering'
 import { runLicensingRefresh } from '../services/licensing-refresh-runner'
 
+function configuredPublicHost(c: Context<Env>): string | null {
+  const value = c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL')
+  if (!value) return null
+  try {
+    return new URL(value).host
+  } catch {
+    return null
+  }
+}
+
 function secretsMatch(provided: string, expected: string): boolean {
   if (provided.length !== expected.length) return false
   const enc = new TextEncoder()
@@ -20,7 +30,9 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
     const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
     const currentHost =
-      normalizeHost(c.req.header('x-forwarded-host') ?? c.req.header('host')) ?? new URL(c.req.url).host
+      configuredPublicHost(c) ??
+      normalizeHost(c.req.header('x-forwarded-host') ?? c.req.header('host')) ??
+      new URL(c.req.url).host
     const state = await loadBindingState(db, { currentHost, cloudBaseUrl })
     return c.json(state satisfies BindingState)
   })

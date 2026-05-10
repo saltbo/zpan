@@ -3,7 +3,7 @@
  * The webServer is already running when this executes.
  * Ensures an admin user and a storage backend exist.
  */
-import { test as setup } from '@playwright/test'
+import { request as playwrightRequest, test as setup } from '@playwright/test'
 import Database from 'better-sqlite3'
 import { hashPassword } from '../server/lib/password'
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from './helpers'
@@ -77,7 +77,7 @@ function prepareNodeDatabase() {
     .prepare(
       `
         UPDATE user
-        SET role = 'admin', updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
+        SET role = 'admin', email_verified = 1, updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
         WHERE email = ?
       `,
     )
@@ -89,7 +89,7 @@ function prepareNodeDatabase() {
         UPDATE account
         SET password = ?, updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
         WHERE provider_id = 'credential'
-          AND user_id = (SELECT id FROM user WHERE email = ?)
+          AND user_id IN (SELECT id FROM user WHERE email = ?)
       `,
     )
     .run(passwordHash, ADMIN_EMAIL)
@@ -97,56 +97,131 @@ function prepareNodeDatabase() {
   sqlite.close()
 }
 
-setup('seed admin and storage', async ({ request }) => {
+function ensureNodeStorage() {
+  if (process.env.E2E_RUNTIME === 'cf') return false
+
+  const dbPath = process.env.DATABASE_URL || './zpan.db'
+  const sqlite = new Database(dbPath)
+  const storage = sqlite
+    .prepare(
+      `
+        SELECT id, mode, capacity, used, status
+        FROM storages
+        ORDER BY created_at ASC
+        LIMIT 1
+      `,
+    )
+    .get() as StorageItem | undefined
+
+  if (storage) {
+    sqlite
+      .prepare(
+        `
+          UPDATE storages
+          SET title = ?, mode = ?, bucket = ?, endpoint = ?, region = ?, access_key = ?, secret_key = ?,
+              capacity = ?, status = ?, updated_at = CAST(unixepoch('subsecond') * 1000 AS INTEGER)
+          WHERE id = ?
+        `,
+      )
+      .run(
+        storageConfig.title,
+        storageConfig.mode,
+        storageConfig.bucket,
+        storageConfig.endpoint,
+        storageConfig.region,
+        storageConfig.accessKey,
+        storageConfig.secretKey,
+        storageConfig.capacity,
+        storageConfig.status,
+        storage.id,
+      )
+    sqlite.close()
+    return true
+  }
+
+  sqlite
+    .prepare(
+      `
+        INSERT INTO storages (
+          id, title, mode, bucket, endpoint, region, access_key, secret_key,
+          file_path, custom_host, capacity, used, status, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, 0, ?, CAST(unixepoch('subsecond') * 1000 AS INTEGER), CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+      `,
+    )
+    .run(
+      crypto.randomUUID(),
+      storageConfig.title,
+      storageConfig.mode,
+      storageConfig.bucket,
+      storageConfig.endpoint,
+      storageConfig.region,
+      storageConfig.accessKey,
+      storageConfig.secretKey,
+      storageConfig.capacity,
+      storageConfig.status,
+    )
+  sqlite.close()
+  return true
+}
+
+setup('seed admin and storage', async () => {
+  const request = await playwrightRequest.newContext({ baseURL: 'http://localhost:5173' })
   const headers = { Origin: 'http://localhost:5173' }
-  prepareNodeDatabase()
-
-  let authResp = await request.post('/api/auth/sign-in/email', {
-    headers,
-    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-  })
-
-  if (!authResp.ok()) {
-    await request.post('/api/auth/sign-up/email', {
-      headers,
-      data: { name: 'E2E Admin', email: ADMIN_EMAIL, username: 'e2eadmin', password: ADMIN_PASSWORD },
-    })
+  try {
     prepareNodeDatabase()
-    authResp = await request.post('/api/auth/sign-in/email', {
+
+    let authResp = await request.post('/api/auth/sign-in/email', {
       headers,
       data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
     })
+
     if (!authResp.ok()) {
-      console.warn('[setup] could not authenticate admin')
-      return
-    }
-  }
-
-  // E2E specs rely on self-service sign-up to create isolated users. Force the
-  // local test environment into OPEN mode so existing dev DB settings do not
-  // make the suite depend on invite codes.
-  // Check if storage already exists
-  const list = await request.get('/api/admin/storages', { headers })
-  if (list.ok()) {
-    const data = (await list.json()) as { items?: StorageItem[] }
-    const storages = data.items ?? []
-    if (storages.some(isAvailablePrivateStorage)) return
-
-    const existing = storages[0]
-    if (existing) {
-      const resp = await request.put(`/api/admin/storages/${existing.id}`, {
+      await request.post('/api/auth/sign-up/email', {
         headers,
-        data: storageConfig,
+        data: { name: 'E2E Admin', email: ADMIN_EMAIL, username: 'e2eadmin', password: ADMIN_PASSWORD },
       })
-      if (!resp.ok()) throw new Error(`could not update E2E storage: ${resp.status()}`)
-      return
+      prepareNodeDatabase()
+      authResp = await request.post('/api/auth/sign-in/email', {
+        headers,
+        data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+      })
+      if (!authResp.ok()) {
+        console.warn('[setup] could not authenticate admin')
+        return
+      }
     }
-  }
 
-  // Seed storage
-  const storageResp = await request.post('/api/admin/storages', {
-    headers,
-    data: storageConfig,
-  })
-  if (!storageResp.ok()) throw new Error(`could not create E2E storage: ${storageResp.status()}`)
+    if (ensureNodeStorage()) return
+
+    // E2E specs rely on self-service sign-up to create isolated users. Force the
+    // local test environment into OPEN mode so existing dev DB settings do not
+    // make the suite depend on invite codes.
+    // Check if storage already exists
+    const list = await request.get('/api/admin/storages', { headers })
+    if (list.ok()) {
+      const data = (await list.json()) as { items?: StorageItem[] }
+      const storages = data.items ?? []
+      if (storages.some(isAvailablePrivateStorage)) return
+
+      const existing = storages[0]
+      if (existing) {
+        const resp = await request.put(`/api/admin/storages/${existing.id}`, {
+          headers,
+          data: storageConfig,
+        })
+        if (!resp.ok()) throw new Error(`could not update E2E storage: ${resp.status()}`)
+        return
+      }
+    }
+
+    // Seed storage
+    const storageResp = await request.post('/api/admin/storages', {
+      headers,
+      data: storageConfig,
+    })
+    if (!storageResp.ok()) throw new Error(`could not create E2E storage: ${storageResp.status()}`)
+  } finally {
+    await request.dispose()
+  }
 })

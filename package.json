@@ -30,7 +30,9 @@
     "lint:fix": "biome check --write .",
     "prepare": "husky",
     "format": "biome format --write .",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:cloud": "node scripts/run-cloud-e2e.mjs",
+    "e2e:cloud:cf": "node scripts/run-cloud-e2e.mjs --runtime cf"
   },
   "engines": {
     "node": ">=24"

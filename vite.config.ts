@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 5173,
+    allowedHosts: process.env.E2E_BASE_URL ? true : undefined,
     ...(mode === 'node'
       ? {
           proxy: {

@@ -16,7 +16,22 @@ function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string 
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 }
 
-function getInstanceOrigin(c: { req: { url: string; header(name: string): string | undefined } }): string {
+function configuredPublicOrigin(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string | null {
+  const value = c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL')
+  if (!value) return null
+  try {
+    return new URL(value).origin
+  } catch {
+    return null
+  }
+}
+
+function getInstanceOrigin(c: {
+  get(key: 'platform'): { getEnv(k: string): string | undefined }
+  req: { url: string; header(name: string): string | undefined }
+}): string {
+  const configured = configuredPublicOrigin(c)
+  if (configured) return configured
   const requestUrl = new URL(c.req.url)
   const forwardedProto = c.req.header('x-forwarded-proto')
   const forwardedHost = c.req.header('x-forwarded-host') ?? c.req.header('host')
@@ -28,7 +43,12 @@ function getInstanceOrigin(c: { req: { url: string; header(name: string): string
   return requestUrl.origin
 }
 
-function getRequestHost(c: { req: { url: string; header(name: string): string | undefined } }): string {
+function getRequestHost(c: {
+  get(key: 'platform'): { getEnv(k: string): string | undefined }
+  req: { url: string; header(name: string): string | undefined }
+}): string {
+  const configured = configuredPublicOrigin(c)
+  if (configured) return new URL(configured).host
   const forwardedHost = c.req.header('x-forwarded-host') ?? c.req.header('host')
   return normalizeHost(forwardedHost) ?? new URL(c.req.url).host
 }

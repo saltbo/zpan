@@ -2,7 +2,7 @@
 /**
  * E2E Integration Test: zpan ↔ zpan-cloud licensing flow.
  *
- * This test exercises the REAL cloud API at cloud.zpan.space (or workers.dev)
+ * This test exercises the REAL staging cloud API
  * to verify the full licensing lifecycle:
  *   1. Pairing creation → cloud returns device code
  *   2. Pairing poll → pending status
@@ -29,7 +29,8 @@ import { getOrCreateInstanceId } from './instance-id'
 import { createLicenseBinding, loadLicenseState } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 
-const CLOUD_BASE_URL = process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud.saltbo.workers.dev'
+const CLOUD_BASE_URL = process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev'
+const CLOUD_BASE_ORIGIN = new URL(CLOUD_BASE_URL).origin
 const { secretKey: E2E_SECRET, publicKey: E2E_PUBLIC } = generateKeys('public')
 
 function nowSec(): number {
@@ -70,6 +71,7 @@ describe('E2E: zpan-cloud API contract', () => {
       pairingUrl: expect.stringContaining('/pair?code='),
       expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     })
+    expect(new URL(result.pairingUrl).origin).toBe(CLOUD_BASE_ORIGIN)
   })
 
   it('GET /api/pairings/:code returns pending for a fresh code', async () => {
