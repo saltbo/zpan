@@ -22,7 +22,13 @@
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SignupMode } from '../../shared/constants'
-import { CloudUnboundError, createPairing, pollPairing, refreshEntitlement } from '../services/licensing-cloud'
+import {
+  CloudUnboundError,
+  createPairing,
+  type PairingResponse,
+  pollPairing,
+  refreshEntitlement,
+} from '../services/licensing-cloud'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup'
 import { hasFeature, loadBindingState } from './has-feature'
 import { getOrCreateInstanceId } from './instance-id'
@@ -53,6 +59,54 @@ function signLicenseAssertion(overrides: Record<string, unknown> = {}): string {
     expiresAt: now + 86400,
     ...overrides,
   })
+}
+
+async function approvePairingInCloud(pairing: PairingResponse): Promise<void> {
+  const email = process.env.E2E_CLOUD_PRO_EMAIL
+  const password = process.env.E2E_CLOUD_PRO_PASSWORD
+  if (!email || !password) throw new Error('E2E_CLOUD_PRO_EMAIL and E2E_CLOUD_PRO_PASSWORD are required')
+
+  const cloudOrigin = new URL(pairing.pairingUrl).origin
+  const signIn = await fetch(`${cloudOrigin}/api/auth/sign-in/email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: cloudOrigin },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!signIn.ok) {
+    const text = await signIn.text().catch(() => '')
+    throw new Error(`Cloud test account sign-in failed: ${signIn.status} ${text}`)
+  }
+
+  const cookies = (signIn.headers as Headers & { getSetCookie(): string[] }).getSetCookie()
+  const cloudHeaders = { 'Content-Type': 'application/json', Origin: cloudOrigin, Cookie: cookies.join('; ') }
+  const licenses = await fetch(`${cloudOrigin}/api/licenses`, { headers: cloudHeaders })
+  if (!licenses.ok) {
+    const text = await licenses.text().catch(() => '')
+    throw new Error(`Cloud license list failed: ${licenses.status} ${text}`)
+  }
+
+  const licenseBody = (await licenses.json()) as { data?: Array<{ id: string }> } | Array<{ id: string }>
+  const activeLicenses = Array.isArray(licenseBody) ? licenseBody : (licenseBody.data ?? [])
+  for (const license of activeLicenses) {
+    const deleted = await fetch(`${cloudOrigin}/api/licenses/${encodeURIComponent(license.id)}`, {
+      method: 'DELETE',
+      headers: cloudHeaders,
+    })
+    if (!deleted.ok) {
+      const text = await deleted.text().catch(() => '')
+      throw new Error(`Cloud license cleanup failed: ${deleted.status} ${text}`)
+    }
+  }
+
+  const approve = await fetch(`${cloudOrigin}/api/pairings/${encodeURIComponent(pairing.code)}`, {
+    method: 'PATCH',
+    headers: cloudHeaders,
+    body: JSON.stringify({ action: 'approve' }),
+  })
+  if (!approve.ok) {
+    const text = await approve.text().catch(() => '')
+    throw new Error(`Cloud pairing approval failed: ${approve.status} ${text}`)
+  }
 }
 
 // ─── Phase 1: Live Cloud API contract verification ───────────────────────────
@@ -230,17 +284,25 @@ describe('E2E: Feature gates — expired certificate', () => {
 // ─── Phase 5: Unbind → features revoked ──────────────────────────────────────
 
 describe('E2E: Unbind flow', () => {
-  it('DELETE /api/licensing/binding removes binding and revokes features', async () => {
-    const { app, db } = await createTestApp()
-    await seedProLicense(db)
+  it('DELETE /api/licensing/binding unbinds a staging-approved binding and revokes features', async () => {
+    const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: CLOUD_BASE_URL })
     const headers = await adminHeaders(app)
 
-    // Verify features are active before unbind
-    let state = await loadBindingState(db)
+    const pairRes = await app.request('/api/licensing/pair', { method: 'POST', headers })
+    expect(pairRes.status).toBe(200)
+    const pairing = (await pairRes.json()) as PairingResponse
+    await approvePairingInCloud(pairing)
+
+    const pollRes = await app.request(`/api/licensing/pair/${pairing.code}/poll`, { headers })
+    expect(pollRes.status).toBe(200)
+    const pollBody = (await pollRes.json()) as { status: string; edition?: string }
+    expect(pollBody.status).toBe('approved')
+    expect(pollBody.edition).toBe('pro')
+
+    let state = await loadBindingState(db, { cloudBaseUrl: CLOUD_BASE_URL, currentHost: 'localhost' })
     expect(state.bound).toBe(true)
     expect(hasFeature('open_registration', state)).toBe(true)
 
-    // Unbind
     const res = await app.request('/api/licensing/binding', {
       method: 'DELETE',
       headers,
@@ -248,7 +310,7 @@ describe('E2E: Unbind flow', () => {
     expect(res.status).toBe(200)
 
     // Verify features are revoked after unbind
-    state = await loadBindingState(db)
+    state = await loadBindingState(db, { cloudBaseUrl: CLOUD_BASE_URL, currentHost: 'localhost' })
     expect(state.bound).toBe(false)
     expect(hasFeature('open_registration', state)).toBe(false)
   })
@@ -361,6 +423,8 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     expect(openRegRes.status).toBeLessThan(300) // 200 or 201
 
     // Step 7: Unbind — features revoked
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }))
+
     const unbindRes = await app.request('/api/licensing/binding', {
       method: 'DELETE',
       headers,

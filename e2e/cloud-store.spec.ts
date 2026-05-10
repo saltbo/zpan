@@ -1,8 +1,6 @@
 import { type Browser, expect, type Page, request as playwrightRequest, test } from '@playwright/test'
 import { signInAsAdmin, signUpAndGoToFiles } from './helpers'
 
-const CLOUD_PRO_EMAIL = process.env.E2E_CLOUD_PRO_EMAIL ?? 'zpan-e2e-pro@zpan.test'
-const CLOUD_PRO_PASSWORD = process.env.E2E_CLOUD_PRO_PASSWORD ?? 'ZPanStagingE2E!2026'
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 
 type BindingState = {
@@ -158,11 +156,15 @@ async function enableCloudStore(page: Page) {
 }
 
 async function approvePairingInCloud(pairing: PairingInfo) {
+  const email = process.env.E2E_CLOUD_PRO_EMAIL
+  const password = process.env.E2E_CLOUD_PRO_PASSWORD
+  if (!email || !password) throw new Error('E2E_CLOUD_PRO_EMAIL and E2E_CLOUD_PRO_PASSWORD are required')
+
   const cloudOrigin = new URL(pairing.pairingUrl).origin
   const cloudRequest = await playwrightRequest.newContext({ baseURL: cloudOrigin })
   try {
     const signIn = await cloudRequest.post('/api/auth/sign-in/email', {
-      data: { email: CLOUD_PRO_EMAIL, password: CLOUD_PRO_PASSWORD },
+      data: { email, password },
     })
     expect(signIn.status()).toBe(200)
 
