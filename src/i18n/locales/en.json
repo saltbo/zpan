@@ -1130,7 +1130,7 @@
   "admin.cloudStore.orders.storageQuota": "{{size}} storage",
   "admin.cloudStore.orders.trafficQuota": "{{size}} traffic",
   "admin.cloudStore.orders.target": "Target",
-  "admin.cloudStore.orders.consumer": "User",
+  "admin.cloudStore.orders.customer": "User",
   "admin.cloudStore.orders.reference": "Reference",
   "admin.cloudStore.orders.createdAt": "Created",
   "storage.title": "Storage",

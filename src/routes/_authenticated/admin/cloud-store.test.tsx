@@ -131,7 +131,7 @@ function storeOrder(overrides: Partial<CloudOrder> = {}): CloudOrder {
     id: 'order-1',
     storeId: 'store-1',
     buyerAccountId: 'buyer-1',
-    target: { orgId: 'org-1', consumerId: 'user-1', consumerLabel: 'user@example.com' },
+    target: { orgId: 'org-1', customerId: 'user-1', customerLabel: 'user@example.com' },
     status: 'paid',
     subtotalAmount: 999,
     discountAmount: 999,

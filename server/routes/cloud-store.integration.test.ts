@@ -141,7 +141,7 @@ beforeEach(() => {
                   {
                     id: 'ledger-1',
                     storeId: 'store-test-binding',
-                    consumerId: 'org-placeholder',
+                    customerId: 'org-placeholder',
                     currency: 'usd',
                     amount: 500,
                     direction: 'credit',
@@ -168,7 +168,7 @@ beforeEach(() => {
                 {
                   id: 'wallet-1',
                   storeId: 'store-test-binding',
-                  consumerId: 'org-placeholder',
+                  customerId: 'org-placeholder',
                   currency: 'usd',
                   availableAmount: 1250,
                   pendingAmount: 0,
@@ -324,7 +324,7 @@ beforeEach(() => {
             json: async () =>
               cloudOrder({
                 id: orderId,
-                target: { orgId: targetOrgId, consumerId: targetOrgId },
+                target: { orgId: targetOrgId, customerId: targetOrgId },
               }),
           } as Response
         }
@@ -1690,8 +1690,8 @@ describe('Quota Store API', () => {
       currency: 'cny',
       target: {
         orgId,
-        consumerId: orgId,
-        consumerLabel: 'buyer@example.com',
+        customerId: orgId,
+        customerLabel: 'buyer@example.com',
       },
       walletCreditAmount: 'max',
     })
@@ -1716,7 +1716,7 @@ describe('Quota Store API', () => {
     const parsedOrdersUrl = new URL(String(ordersUrl))
     expect(parsedOrdersUrl.pathname).toBe('/api/stores/store-test-binding/orders')
     expect(parsedOrdersUrl.searchParams.get('limit')).toBe('100')
-    expect(parsedOrdersUrl.searchParams.get('consumerId')).toBe(orgId)
+    expect(parsedOrdersUrl.searchParams.get('customerId')).toBe(orgId)
   })
 
   it('proxies wallet balance and gift card redemption through wallet endpoints', async () => {
@@ -1739,7 +1739,7 @@ describe('Quota Store API', () => {
         {
           id: 'wallet-1',
           storeId: 'store-test-binding',
-          consumerId: 'org-placeholder',
+          customerId: 'org-placeholder',
           currency: 'usd',
           availableAmount: 1250,
           pendingAmount: 0,
@@ -1781,7 +1781,7 @@ describe('Quota Store API', () => {
         {
           id: 'ledger-1',
           storeId: 'store-test-binding',
-          consumerId: 'org-placeholder',
+          customerId: 'org-placeholder',
           currency: 'usd',
           amount: 500,
           direction: 'credit',
@@ -1818,7 +1818,7 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, consumerId: orgId } }),
+      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, customerId: orgId } }),
     } as Response)
 
     const payment = await app.request('/api/store/orders/order-cloud-1/payments', {
@@ -1828,7 +1828,7 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, consumerId: orgId } }),
+      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, customerId: orgId } }),
     } as Response)
     const canceled = await app.request('/api/store/orders/order-cloud-1', {
       method: 'PATCH',
@@ -2151,8 +2151,8 @@ describe('Quota Store API', () => {
       packageName: 'Team Plan',
       occurredAt: '2026-05-01T00:00:00.000Z',
       expiresAt: '2026-06-01T00:00:00.000Z',
-      consumerId: 'buyer-1',
-      consumerEmail: 'buyer@example.com',
+      customerId: 'buyer-1',
+      customerEmail: 'buyer@example.com',
     })
 
     const first = await postWebhook(app, payload)
@@ -2193,8 +2193,8 @@ describe('Quota Store API', () => {
       packageName: 'Team Plan',
       trafficOveragePriceCents: 25,
       expiresAt: '2026-06-01T00:00:00.000Z',
-      consumerId: 'buyer-1',
-      consumerEmail: 'buyer@example.com',
+      customerId: 'buyer-1',
+      customerEmail: 'buyer@example.com',
     })
 
     const quotaRes = await app.request('/api/quotas/me', { headers })

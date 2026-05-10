@@ -188,8 +188,8 @@ const legacyCloudOrderQuotaChangeSchema = z
     packageName: z.string().min(1).optional(),
     occurredAt: z.string().min(1).optional(),
     expiresAt: z.string().datetime().optional(),
-    consumerId: z.string().optional(),
-    consumerEmail: z.string().email().optional(),
+    customerId: z.string().optional(),
+    customerEmail: z.string().email().optional(),
   })
   .strict()
   .superRefine((event, ctx) => {
@@ -285,8 +285,8 @@ export const cloudOrderQuotaChangeSchema = z.union([
       packageName: stringDeliverableValue(event.deliverable, 'packageName') ?? event.productName,
       occurredAt: event.occurredAt,
       expiresAt: expiresAt(event),
-      consumerId: typeof event.target?.consumerId === 'string' ? event.target.consumerId : undefined,
-      consumerEmail: typeof event.target?.consumerLabel === 'string' ? event.target.consumerLabel : undefined,
+      customerId: typeof event.target?.customerId === 'string' ? event.target.customerId : undefined,
+      customerEmail: typeof event.target?.customerLabel === 'string' ? event.target.customerLabel : undefined,
     }))
     .pipe(legacyCloudOrderQuotaChangeSchema),
 ])
@@ -305,7 +305,7 @@ export type CloudOrderQuotaChange = z.infer<typeof cloudOrderQuotaChangeSchema>
 export const cloudWalletBalanceSchema = z.object({
   id: z.string().min(1),
   storeId: z.string().min(1),
-  consumerId: z.string().nullable(),
+  customerId: z.string().nullable(),
   currency: z.string().min(1),
   availableAmount: z.number().int().min(0),
   pendingAmount: z.number().int().min(0),
@@ -322,7 +322,7 @@ export type CloudWalletResponse = z.infer<typeof cloudWalletResponseSchema>
 export const cloudWalletTransactionSchema = z.object({
   id: z.string().min(1),
   storeId: z.string().min(1),
-  consumerId: z.string().nullable(),
+  customerId: z.string().nullable(),
   currency: z.string().min(1),
   amount: z.number().int().min(0),
   direction: z.enum(['credit', 'debit']),
@@ -358,7 +358,7 @@ export const redeemGiftCardResponseSchema = z.object({
     z.object({
       id: z.string().min(1),
       storeId: z.string().min(1),
-      consumerId: z.string().nullable(),
+      customerId: z.string().nullable(),
       currency: z.string().min(1),
       amount: z.number().int().min(0),
       direction: z.enum(['credit', 'debit']),

@@ -11,7 +11,7 @@ import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { canAccessTargetOrg, getAccessibleTargets, getConsumerLabel } from '../../services/cloud-store'
+import { canAccessTargetOrg, getAccessibleTargets, getCustomerLabel } from '../../services/cloud-store'
 import { getEffectiveQuota } from '../../services/effective-quota'
 import {
   billingPortalPath,
@@ -115,8 +115,8 @@ export const cloudStore = new Hono<Env>()
         deliveryCallbackUrl: `${getInstanceOrigin(c)}/api/store/webhook`,
         target: {
           orgId: targetOrgId,
-          consumerId: targetOrgId,
-          consumerLabel: await getConsumerLabel(db, userId),
+          customerId: targetOrgId,
+          customerLabel: await getCustomerLabel(db, userId),
         },
         ...(price.recurring ? {} : { walletCreditAmount: 'max' as const }),
       },
@@ -165,7 +165,7 @@ export const cloudStore = new Hono<Env>()
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const query = c.req.valid('query')
     if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
-    const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, consumerId: targetOrgId })
+    const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, customerId: targetOrgId })
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })
@@ -218,5 +218,5 @@ function orderPath(orderId: string) {
 }
 
 function orderBelongsToTarget(target: Record<string, unknown> | null, targetOrgId: string): boolean {
-  return target?.orgId === targetOrgId || target?.consumerId === targetOrgId
+  return target?.orgId === targetOrgId || target?.customerId === targetOrgId
 }

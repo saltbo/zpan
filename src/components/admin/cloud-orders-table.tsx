@@ -23,7 +23,7 @@ export function StorageOrdersTable({ orders }: { orders: CloudOrder[] }) {
             <TableHead>{t('admin.cloudStore.orders.source')}</TableHead>
             <TableHead>{t('admin.cloudStore.orders.planQuota')}</TableHead>
             <TableHead>{t('admin.cloudStore.orders.target')}</TableHead>
-            <TableHead>{t('admin.cloudStore.orders.consumer')}</TableHead>
+            <TableHead>{t('admin.cloudStore.orders.customer')}</TableHead>
             <TableHead>{t('admin.cloudStore.orders.reference')}</TableHead>
             <TableHead>{t('admin.cloudStore.orders.createdAt')}</TableHead>
           </TableRow>
@@ -36,7 +36,7 @@ export function StorageOrdersTable({ orders }: { orders: CloudOrder[] }) {
               </TableCell>
               <TableCell>{formatOrderQuota(order, t)}</TableCell>
               <TableCell className="font-mono text-xs">{order.target?.orgId ?? '-'}</TableCell>
-              <TableCell>{order.target?.consumerLabel ?? order.target?.consumerId ?? '-'}</TableCell>
+              <TableCell>{order.target?.customerLabel ?? order.target?.customerId ?? '-'}</TableCell>
               <TableCell className="font-mono text-xs">{formatOrderReference(order)}</TableCell>
               <TableCell>{new Date(order.createdAt).toLocaleString()}</TableCell>
             </TableRow>

@@ -472,7 +472,7 @@ describe('api', () => {
               {
                 id: 'wallet-1',
                 storeId: 'store-1',
-                consumerId: 'org-1',
+                customerId: 'org-1',
                 currency: 'usd',
                 availableAmount: 500,
                 pendingAmount: 0,
@@ -488,7 +488,7 @@ describe('api', () => {
               {
                 id: 'ledger-1',
                 storeId: 'store-1',
-                consumerId: 'org-1',
+                customerId: 'org-1',
                 currency: 'usd',
                 amount: 500,
                 direction: 'credit',
@@ -528,7 +528,7 @@ describe('api', () => {
           {
             id: 'wallet-1',
             storeId: 'store-1',
-            consumerId: 'org-1',
+            customerId: 'org-1',
             currency: 'usd',
             availableAmount: 500,
             pendingAmount: 0,
@@ -542,7 +542,7 @@ describe('api', () => {
           {
             id: 'ledger-1',
             storeId: 'store-1',
-            consumerId: 'org-1',
+            customerId: 'org-1',
             currency: 'usd',
             amount: 500,
             direction: 'credit',

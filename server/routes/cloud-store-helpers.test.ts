@@ -22,8 +22,8 @@ describe('quota store helper paths', () => {
     expect(ordersPath()('store-1')).toBe('/api/stores/store-1/orders')
     expect(ordersPath({ limit: 100 })('store-1')).toBe('/api/stores/store-1/orders?limit=100')
     expect(ordersPath({ limit: 100, offset: 100 })('store-1')).toBe('/api/stores/store-1/orders?limit=100&offset=100')
-    expect(ordersPath({ limit: 100, consumerId: 'user-1' })('store-1')).toBe(
-      '/api/stores/store-1/orders?limit=100&consumerId=user-1',
+    expect(ordersPath({ limit: 100, customerId: 'user-1' })('store-1')).toBe(
+      '/api/stores/store-1/orders?limit=100&customerId=user-1',
     )
     expect(walletPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/balance')
     expect(redemptionPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/redemptions')
@@ -38,7 +38,7 @@ describe('quota store helper paths', () => {
             id: 'order-1',
             storeId: 'store-1',
             buyerAccountId: 'buyer-1',
-            target: { orgId: 'org-1', consumerId: 'user-1', consumerLabel: 'owner@example.com' },
+            target: { orgId: 'org-1', customerId: 'user-1', customerLabel: 'owner@example.com' },
             status: 'paid',
             paymentStatus: 'paid',
             fulfillmentStatus: 'fulfilled',
@@ -88,7 +88,7 @@ describe('quota store helper paths', () => {
           id: 'order-1',
           storeId: 'store-1',
           buyerAccountId: 'buyer-1',
-          target: { orgId: 'org-1', consumerId: 'user-1', consumerLabel: 'owner@example.com' },
+          target: { orgId: 'org-1', customerId: 'user-1', customerLabel: 'owner@example.com' },
           status: 'paid',
           paymentStatus: 'paid',
           fulfillmentStatus: 'fulfilled',

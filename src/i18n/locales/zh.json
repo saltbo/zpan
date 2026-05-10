@@ -1130,7 +1130,7 @@
   "admin.cloudStore.orders.storageQuota": "{{size}} 存储",
   "admin.cloudStore.orders.trafficQuota": "{{size}} 流量",
   "admin.cloudStore.orders.target": "目标",
-  "admin.cloudStore.orders.consumer": "用户",
+  "admin.cloudStore.orders.customer": "用户",
   "admin.cloudStore.orders.reference": "引用",
   "admin.cloudStore.orders.createdAt": "创建时间",
   "storage.title": "存储",

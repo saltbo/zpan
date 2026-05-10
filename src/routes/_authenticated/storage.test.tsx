@@ -611,7 +611,7 @@ describe('StoragePage', () => {
         {
           id: 'wallet-1',
           storeId: 'store-1',
-          consumerId: 'org-1',
+          customerId: 'org-1',
           currency: 'usd',
           availableAmount: 1250,
           pendingAmount: 0,
@@ -649,7 +649,7 @@ describe('StoragePage', () => {
         {
           id: 'wallet-1',
           storeId: 'store-1',
-          consumerId: 'org-1',
+          customerId: 'org-1',
           currency: 'usd',
           availableAmount: 1250,
           pendingAmount: 0,
@@ -663,7 +663,7 @@ describe('StoragePage', () => {
         {
           id: 'ledger-1',
           storeId: 'store-1',
-          consumerId: 'org-1',
+          customerId: 'org-1',
           currency: 'usd',
           amount: 500,
           direction: 'credit',
