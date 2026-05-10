@@ -115,7 +115,7 @@ export const cloudStore = new Hono<Env>()
         deliveryCallbackUrl: `${getInstanceOrigin(c)}/api/store/webhook`,
         target: {
           orgId: targetOrgId,
-          endUserId: targetOrgId,
+          consumerId: targetOrgId,
           endUserLabel: await getUserTerminalLabel(db, userId),
         },
         ...(price.recurring ? {} : { walletCreditAmount: 'max' as const }),
@@ -165,7 +165,7 @@ export const cloudStore = new Hono<Env>()
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const query = c.req.valid('query')
     if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
-    const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, endUserId: targetOrgId })
+    const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, consumerId: targetOrgId })
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })

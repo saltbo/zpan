@@ -1690,7 +1690,7 @@ describe('Quota Store API', () => {
       currency: 'cny',
       target: {
         orgId,
-        endUserId: orgId,
+        consumerId: orgId,
         endUserLabel: 'buyer@example.com',
       },
       walletCreditAmount: 'max',
@@ -1699,6 +1699,7 @@ describe('Quota Store API', () => {
     expect(orderBody).not.toHaveProperty('terminalUserLabel')
     expect(orderBody.target).not.toHaveProperty('terminalUserId')
     expect(orderBody.target).not.toHaveProperty('terminalUserLabel')
+    expect(orderBody.target).not.toHaveProperty('endUserId')
     const [paymentUrl, paymentInit] = calls.find(([url]) => String(url).includes('/payments'))!
     const paymentBody = JSON.parse(String(paymentInit.body))
     expect(String(paymentUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/order-cloud-1/payments`)
@@ -1720,7 +1721,7 @@ describe('Quota Store API', () => {
     const parsedOrdersUrl = new URL(String(ordersUrl))
     expect(parsedOrdersUrl.pathname).toBe('/api/stores/store-test-binding/orders')
     expect(parsedOrdersUrl.searchParams.get('limit')).toBe('100')
-    expect(parsedOrdersUrl.searchParams.get('endUserId')).toBe(orgId)
+    expect(parsedOrdersUrl.searchParams.get('consumerId')).toBe(orgId)
   })
 
   it('proxies wallet balance and gift card redemption through wallet endpoints', async () => {

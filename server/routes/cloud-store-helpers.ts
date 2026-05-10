@@ -282,13 +282,13 @@ export function packagesPath(options: { packageId?: string; status?: 'active' | 
   }
 }
 
-export function ordersPath(options: { limit?: number; offset?: number; endUserId?: string } = {}) {
+export function ordersPath(options: { limit?: number; offset?: number; consumerId?: string } = {}) {
   return (storeId: string) => {
     const path = `/api/stores/${encodeURIComponent(storeId)}/orders`
     const search = new URLSearchParams()
     if (options.limit !== undefined) search.set('limit', String(options.limit))
     if (options.offset !== undefined) search.set('offset', String(options.offset))
-    if (options.endUserId) search.set('endUserId', options.endUserId)
+    if (options.consumerId) search.set('consumerId', options.consumerId)
     const query = search.toString()
     return query ? `${path}?${query}` : path
   }
@@ -298,14 +298,14 @@ export function billingPortalPath() {
   return (storeId: string) => `/api/stores/${encodeURIComponent(storeId)}/billing/portal-sessions`
 }
 
-export function walletPath(endUserId: string) {
+export function walletPath(consumerId: string) {
   return (storeId: string) =>
-    `/api/stores/${encodeURIComponent(storeId)}/wallets/${encodeURIComponent(endUserId)}/balance`
+    `/api/stores/${encodeURIComponent(storeId)}/wallets/${encodeURIComponent(consumerId)}/balance`
 }
 
-export function redemptionPath(endUserId: string) {
+export function redemptionPath(consumerId: string) {
   return (storeId: string) =>
-    `/api/stores/${encodeURIComponent(storeId)}/wallets/${encodeURIComponent(endUserId)}/redemptions`
+    `/api/stores/${encodeURIComponent(storeId)}/wallets/${encodeURIComponent(consumerId)}/redemptions`
 }
 
 export function parseJson(payload: string): unknown | null {

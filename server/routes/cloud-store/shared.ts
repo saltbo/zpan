@@ -7,14 +7,14 @@ type CloudOrders = z.infer<typeof cloudOrdersResponseSchema>
 
 export async function getCloudOrders(
   c: RouteContext,
-  options: { limit?: number; offset?: number; endUserId?: string } = {},
+  options: { limit?: number; offset?: number; consumerId?: string } = {},
 ): Promise<CloudOrders | { error: string }> {
   return getCloud(
     c,
     ordersPath({
       limit: options.limit ?? CLOUD_ORDER_PAGE_SIZE,
       ...(options.offset !== undefined ? { offset: options.offset } : {}),
-      ...(options.endUserId ? { endUserId: options.endUserId } : {}),
+      ...(options.consumerId ? { consumerId: options.consumerId } : {}),
     }),
     cloudOrdersResponseSchema,
   )
