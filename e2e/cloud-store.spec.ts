@@ -1,4 +1,4 @@
-import { type Browser, expect, type Page, request as playwrightRequest, test } from '@playwright/test'
+import { type APIResponse, type Browser, expect, type Page, request as playwrightRequest, test } from '@playwright/test'
 import { signInAsAdmin, signUpAndGoToFiles } from './helpers'
 
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
@@ -28,6 +28,10 @@ type CloudOrder = {
   id: string
   paymentStatus: string
   fulfillmentStatus: string
+}
+
+type CloudLicense = {
+  id: string
 }
 
 test.describe
@@ -166,15 +170,33 @@ async function approvePairingInCloud(pairing: PairingInfo) {
     const signIn = await cloudRequest.post('/api/auth/sign-in/email', {
       data: { email, password },
     })
-    expect(signIn.status()).toBe(200)
+    await expectCloudOk(signIn, 'Cloud test account sign-in failed')
+    await deleteCloudLicenses(cloudRequest)
 
     const approve = await cloudRequest.patch(`/api/pairings/${encodeURIComponent(pairing.code)}`, {
       data: { action: 'approve' },
     })
-    expect(approve.status()).toBe(200)
+    await expectCloudOk(approve, 'Cloud pairing approval failed')
   } finally {
     await cloudRequest.dispose()
   }
+}
+
+async function deleteCloudLicenses(cloudRequest: Awaited<ReturnType<typeof playwrightRequest.newContext>>) {
+  const licenses = await cloudRequest.get('/api/licenses')
+  await expectCloudOk(licenses, 'Cloud license list failed')
+
+  const body = (await licenses.json()) as { data?: CloudLicense[] } | CloudLicense[]
+  const activeLicenses = Array.isArray(body) ? body : (body.data ?? [])
+  for (const license of activeLicenses) {
+    const deleted = await cloudRequest.delete(`/api/licenses/${encodeURIComponent(license.id)}`)
+    await expectCloudOk(deleted, 'Cloud license cleanup failed')
+  }
+}
+
+async function expectCloudOk(response: APIResponse, message: string) {
+  if (response.ok()) return
+  throw new Error(`${message}: ${response.status()} ${await response.text()}`)
 }
 
 async function createOneTimePackage(page: Page, name: string) {
