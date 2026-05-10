@@ -164,7 +164,7 @@ beforeEach(() => {
             ok: true,
             status: 200,
             json: async () => ({
-              balances: [
+              items: [
                 {
                   id: 'wallet-1',
                   storeId: 'store-test-binding',
@@ -176,6 +176,9 @@ beforeEach(() => {
                   updatedAt: '2026-05-06T00:00:00.000Z',
                 },
               ],
+              total: 1,
+              limit: 50,
+              offset: 0,
             }),
           } as Response
         }
@@ -1735,7 +1738,7 @@ describe('Quota Store API', () => {
 
     expect(wallet.status).toBe(200)
     await expect(wallet.json()).resolves.toEqual({
-      balances: [
+      items: [
         {
           id: 'wallet-1',
           storeId: 'store-test-binding',
@@ -1747,6 +1750,9 @@ describe('Quota Store API', () => {
           updatedAt: '2026-05-06T00:00:00.000Z',
         },
       ],
+      total: 1,
+      limit: 50,
+      offset: 0,
     })
     expect(redeem.status).toBe(200)
     await expect(redeem.json()).resolves.toEqual({
@@ -1757,9 +1763,9 @@ describe('Quota Store API', () => {
     })
 
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
-    const [walletUrl, walletInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/balance`))!
+    const [walletUrl, walletInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/balances`))!
     const [redeemUrl, redeemInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/redemptions`))!
-    expect(String(walletUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/balance`)
+    expect(String(walletUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/balances`)
     expect(walletInit.method).toBe('GET')
     expect(String(redeemUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/redemptions`)
     expect(redeemInit.method).toBe('POST')

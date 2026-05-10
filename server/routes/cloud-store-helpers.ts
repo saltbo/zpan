@@ -300,7 +300,7 @@ export function billingPortalPath() {
 
 export function walletPath(customerId: string) {
   return (storeId: string) =>
-    `/api/stores/${encodeURIComponent(storeId)}/wallets/${encodeURIComponent(customerId)}/balance`
+    `/api/stores/${encodeURIComponent(storeId)}/wallets/${encodeURIComponent(customerId)}/balances`
 }
 
 export function redemptionPath(customerId: string) {

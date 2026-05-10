@@ -25,7 +25,7 @@ describe('quota store helper paths', () => {
     expect(ordersPath({ limit: 100, customerId: 'user-1' })('store-1')).toBe(
       '/api/stores/store-1/orders?limit=100&customerId=user-1',
     )
-    expect(walletPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/balance')
+    expect(walletPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/balances')
     expect(redemptionPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/redemptions')
     expect(billingPortalPath()('store-1')).toBe('/api/stores/store-1/billing/portal-sessions')
   })

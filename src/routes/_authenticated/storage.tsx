@@ -82,8 +82,8 @@ export function StoragePage() {
   )
   const wallet = walletQuery.data
     ? {
-        balance: walletQuery.data.balances[0]?.availableAmount ?? 0,
-        currency: walletQuery.data.balances[0]?.currency ?? 'usd',
+        balance: walletQuery.data.items[0]?.availableAmount ?? 0,
+        currency: walletQuery.data.items[0]?.currency ?? 'usd',
       }
     : undefined
 

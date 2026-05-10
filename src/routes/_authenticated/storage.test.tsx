@@ -197,7 +197,7 @@ describe('StoragePage', () => {
       trafficPlanName: null,
       trafficExtraNames: [],
     })
-    vi.mocked(getCloudWallet).mockResolvedValue({ balances: [] })
+    vi.mocked(getCloudWallet).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
     vi.mocked(listCloudWalletTransactions).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
   })
 
@@ -607,7 +607,7 @@ describe('StoragePage', () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(getCloudWallet).mockResolvedValue({
-      balances: [
+      items: [
         {
           id: 'wallet-1',
           storeId: 'store-1',
@@ -619,6 +619,9 @@ describe('StoragePage', () => {
           updatedAt: '2026-05-08T00:00:00.000Z',
         },
       ],
+      total: 1,
+      limit: 50,
+      offset: 0,
     })
 
     const queryClient = new QueryClient({
@@ -645,7 +648,7 @@ describe('StoragePage', () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(getCloudWallet).mockResolvedValue({
-      balances: [
+      items: [
         {
           id: 'wallet-1',
           storeId: 'store-1',
@@ -657,6 +660,9 @@ describe('StoragePage', () => {
           updatedAt: '2026-05-08T00:00:00.000Z',
         },
       ],
+      total: 1,
+      limit: 50,
+      offset: 0,
     })
     vi.mocked(listCloudWalletTransactions).mockResolvedValue({
       items: [

@@ -314,7 +314,10 @@ export const cloudWalletBalanceSchema = z.object({
 })
 
 export const cloudWalletResponseSchema = z.object({
-  balances: z.array(cloudWalletBalanceSchema),
+  items: z.array(cloudWalletBalanceSchema),
+  total: z.number().int().min(0),
+  limit: z.number().int().min(0),
+  offset: z.number().int().min(0),
 })
 
 export type CloudWalletResponse = z.infer<typeof cloudWalletResponseSchema>

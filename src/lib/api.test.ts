@@ -468,7 +468,7 @@ describe('api', () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(
           makeResponse({
-            balances: [
+            items: [
               {
                 id: 'wallet-1',
                 storeId: 'store-1',
@@ -480,6 +480,9 @@ describe('api', () => {
                 updatedAt: '2026-05-08T00:00:00.000Z',
               },
             ],
+            total: 1,
+            limit: 50,
+            offset: 0,
           }),
         )
         .mockResolvedValueOnce(
@@ -524,7 +527,7 @@ describe('api', () => {
       const canceled = await cancelCloudOrder('order-1')
 
       expect(wallet).toEqual({
-        balances: [
+        items: [
           {
             id: 'wallet-1',
             storeId: 'store-1',
@@ -536,6 +539,9 @@ describe('api', () => {
             updatedAt: '2026-05-08T00:00:00.000Z',
           },
         ],
+        total: 1,
+        limit: 50,
+        offset: 0,
       })
       expect(transactions).toEqual({
         items: [
