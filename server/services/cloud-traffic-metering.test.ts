@@ -72,7 +72,7 @@ describe('cloud traffic metering', () => {
     expect(result).toEqual({ attempted: 1, reported: 1, blocked: 0, failed: 0 })
     expect(fetch).toHaveBeenCalledTimes(1)
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('https://cloud.example/api/stores/store-test-binding/usage-events')
+    expect(url).toBe('https://cloud.example/api/stores/store-test-binding/billing/usage-events')
     expect(init.headers).toMatchObject({ Authorization: 'Bearer test-refresh-token' })
     expect(JSON.parse(init.body as string)).toMatchObject({
       resource: 'traffic_egress',

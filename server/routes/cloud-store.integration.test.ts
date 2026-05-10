@@ -1644,7 +1644,7 @@ describe('Quota Store API', () => {
       stripeSubscriptionId: 'sub_1',
     })
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/billing-portal-sessions`)
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/billing/portal-sessions`)
     expect(init.method).toBe('POST')
     expect(JSON.parse(String(init.body))).toEqual({ customerId: orgId, returnUrl: 'http://localhost/storage' })
   })

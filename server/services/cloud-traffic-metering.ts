@@ -108,7 +108,7 @@ async function syncTrafficReport(params: {
   try {
     const data = await postBoundCloudJson(
       cloudBaseUrl,
-      `/api/stores/${encodeURIComponent(storeId)}/usage-events`,
+      `/api/stores/${encodeURIComponent(storeId)}/billing/usage-events`,
       refreshToken,
       {
         resource: 'traffic_egress',

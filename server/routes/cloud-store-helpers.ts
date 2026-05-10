@@ -295,7 +295,7 @@ export function ordersPath(options: { limit?: number; offset?: number; endUserId
 }
 
 export function billingPortalPath() {
-  return (storeId: string) => `/api/stores/${encodeURIComponent(storeId)}/billing-portal-sessions`
+  return (storeId: string) => `/api/stores/${encodeURIComponent(storeId)}/billing/portal-sessions`
 }
 
 export function walletPath(endUserId: string) {

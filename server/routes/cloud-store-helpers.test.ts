@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  billingPortalPath,
   cloudGiftCardsResponseSchema,
   cloudOrdersResponseSchema,
   cloudPackageResponseSchema,
@@ -26,6 +27,7 @@ describe('quota store helper paths', () => {
     )
     expect(walletPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/balance')
     expect(redemptionPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/redemptions')
+    expect(billingPortalPath()('store-1')).toBe('/api/stores/store-1/billing/portal-sessions')
   })
 
   it('parses Cloud commerce order responses', () => {

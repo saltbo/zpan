@@ -206,7 +206,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ ok: true, attempted: 1, reported: 1, blocked: 0, failed: 0 })
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('https://cloud.example/api/stores/store-traffic/usage-events')
+    expect(url).toBe('https://cloud.example/api/stores/store-traffic/billing/usage-events')
     expect(init.headers).toMatchObject({ Authorization: 'Bearer traffic-refresh-token' })
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
   })
