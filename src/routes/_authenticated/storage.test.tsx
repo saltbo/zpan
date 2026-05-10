@@ -62,7 +62,6 @@ vi.mock('sonner', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => options,
-  Outlet: () => <div data-testid="storage-checkout-outlet" />,
 }))
 
 vi.mock('@/lib/auth-client', () => ({
@@ -204,23 +203,6 @@ describe('StoragePage', () => {
     })
     vi.mocked(getCloudWallet).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
     vi.mocked(listCloudWalletTransactions).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
-  })
-
-  it('renders the checkout child route instead of the storage page', async () => {
-    window.history.replaceState(null, '', '/storage/checkout')
-    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
-    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    const view = renderStoragePage(queryClient)
-
-    expect(view.getByTestId('storage-checkout-outlet')).toBeTruthy()
-    expect(view.queryByText('storage.title')).toBeNull()
   })
 
   it('refreshes quota when a checkout order is delivered', async () => {
@@ -366,7 +348,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
     expect(toast.info).not.toHaveBeenCalled()
   })
 
@@ -403,7 +385,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
   })
 
   it('opens the checkout redirect page instead of creating a blank tab', async () => {
@@ -421,7 +403,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
   })
 
   it('refreshes quota and orders after checkout starts', async () => {
@@ -439,7 +421,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
     expect(view.getByText('storage.checkoutPending')).toBeTruthy()
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
@@ -475,7 +457,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.managePlan' }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=portal')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=portal')
   })
 
   it('shows only the active workspace plan when a subscription is active', async () => {
@@ -547,7 +529,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.queryByText('org-2')).toBeNull())
     fireEvent.click(await view.findByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
   })
 
   it('requires an active organization to checkout', async () => {
@@ -745,7 +727,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByLabelText('storage.continuePayment')).toBeTruthy())
     fireEvent.click(view.getByLabelText('storage.continuePayment'))
 
-    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=payment&orderId=order-unpaid')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=payment&orderId=order-unpaid')
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
   })
 

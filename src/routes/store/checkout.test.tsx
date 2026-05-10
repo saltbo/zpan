@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { continueCloudOrderPayment, createCloudBillingPortalSession, createCloudCheckout } from '@/lib/api'
 import { redirectExternal } from '@/lib/browser-navigation'
-import { StorageCheckoutRedirect } from './storage.checkout'
+import { StorageCheckoutRedirect } from './checkout'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -12,6 +12,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => options,
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
+  redirect: (options: unknown) => options,
 }))
 
 vi.mock('@/lib/browser-navigation', () => ({
@@ -22,6 +23,7 @@ vi.mock('@/lib/api', () => ({
   continueCloudOrderPayment: vi.fn(),
   createCloudBillingPortalSession: vi.fn(),
   createCloudCheckout: vi.fn(),
+  getSession: vi.fn(),
 }))
 
 afterEach(() => {

@@ -13,6 +13,7 @@ import { Route as SRouteRouteImport } from './routes/s/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as UUsernameRouteImport } from './routes/u/$username'
+import { Route as StoreCheckoutRouteImport } from './routes/store/checkout'
 import { Route as STokenRouteImport } from './routes/s/$token'
 import { Route as AuthenticatedStorageRouteImport } from './routes/_authenticated/storage'
 import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
@@ -29,7 +30,6 @@ import { Route as AuthenticatedImageHostIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
-import { Route as AuthenticatedStorageCheckoutRouteImport } from './routes/_authenticated/storage.checkout'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
 import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedSettingsIhostRouteImport } from './routes/_authenticated/settings/ihost'
@@ -66,6 +66,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const UUsernameRoute = UUsernameRouteImport.update({
   id: '/u/$username',
   path: '/u/$username',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StoreCheckoutRoute = StoreCheckoutRouteImport.update({
+  id: '/store/checkout',
+  path: '/store/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const STokenRoute = STokenRouteImport.update({
@@ -153,12 +158,6 @@ const AuthenticatedTeamsInviteRoute =
     id: '/teams/invite',
     path: '/teams/invite',
     getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedStorageCheckoutRoute =
-  AuthenticatedStorageCheckoutRouteImport.update({
-    id: '/checkout',
-    path: '/checkout',
-    getParentRoute: () => AuthenticatedStorageRoute,
   } as any)
 const AuthenticatedSettingsProfileRoute =
   AuthenticatedSettingsProfileRouteImport.update({
@@ -275,8 +274,9 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
-  '/storage': typeof AuthenticatedStorageRouteWithChildren
+  '/storage': typeof AuthenticatedStorageRoute
   '/s/$token': typeof STokenRoute
+  '/store/checkout': typeof StoreCheckoutRoute
   '/u/$username': typeof UUsernameRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
@@ -287,7 +287,6 @@ export interface FileRoutesByFullPath {
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
-  '/storage/checkout': typeof AuthenticatedStorageCheckoutRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/files/': typeof AuthenticatedFilesIndexRoute
@@ -312,8 +311,9 @@ export interface FileRoutesByTo {
   '/s': typeof SRouteRouteWithChildren
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
-  '/storage': typeof AuthenticatedStorageRouteWithChildren
+  '/storage': typeof AuthenticatedStorageRoute
   '/s/$token': typeof STokenRoute
+  '/store/checkout': typeof StoreCheckoutRoute
   '/u/$username': typeof UUsernameRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
@@ -324,7 +324,6 @@ export interface FileRoutesByTo {
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
-  '/storage/checkout': typeof AuthenticatedStorageCheckoutRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/files': typeof AuthenticatedFilesIndexRoute
@@ -353,8 +352,9 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/(auth)/sign-in': typeof authSignInRoute
   '/(auth)/sign-up': typeof authSignUpRoute
-  '/_authenticated/storage': typeof AuthenticatedStorageRouteWithChildren
+  '/_authenticated/storage': typeof AuthenticatedStorageRoute
   '/s/$token': typeof STokenRoute
+  '/store/checkout': typeof StoreCheckoutRoute
   '/u/$username': typeof UUsernameRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
@@ -366,7 +366,6 @@ export interface FileRoutesById {
   '/_authenticated/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
-  '/_authenticated/storage/checkout': typeof AuthenticatedStorageCheckoutRoute
   '/_authenticated/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/files/': typeof AuthenticatedFilesIndexRoute
@@ -398,6 +397,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/storage'
     | '/s/$token'
+    | '/store/checkout'
     | '/u/$username'
     | '/teams/$teamId'
     | '/admin/announcement'
@@ -408,7 +408,6 @@ export interface FileRouteTypes {
     | '/settings/ihost'
     | '/settings/password'
     | '/settings/profile'
-    | '/storage/checkout'
     | '/teams/invite'
     | '/admin/'
     | '/files/'
@@ -435,6 +434,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/storage'
     | '/s/$token'
+    | '/store/checkout'
     | '/u/$username'
     | '/'
     | '/admin/announcement'
@@ -445,7 +445,6 @@ export interface FileRouteTypes {
     | '/settings/ihost'
     | '/settings/password'
     | '/settings/profile'
-    | '/storage/checkout'
     | '/teams/invite'
     | '/admin'
     | '/files'
@@ -475,6 +474,7 @@ export interface FileRouteTypes {
     | '/(auth)/sign-up'
     | '/_authenticated/storage'
     | '/s/$token'
+    | '/store/checkout'
     | '/u/$username'
     | '/_authenticated/'
     | '/_authenticated/teams/$teamId'
@@ -486,7 +486,6 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/ihost'
     | '/_authenticated/settings/password'
     | '/_authenticated/settings/profile'
-    | '/_authenticated/storage/checkout'
     | '/_authenticated/teams/invite'
     | '/_authenticated/admin/'
     | '/_authenticated/files/'
@@ -513,6 +512,7 @@ export interface RootRouteChildren {
   SRouteRoute: typeof SRouteRouteWithChildren
   authSignInRoute: typeof authSignInRoute
   authSignUpRoute: typeof authSignUpRoute
+  StoreCheckoutRoute: typeof StoreCheckoutRoute
   UUsernameRoute: typeof UUsernameRoute
 }
 
@@ -544,6 +544,13 @@ declare module '@tanstack/react-router' {
       path: '/u/$username'
       fullPath: '/u/$username'
       preLoaderRoute: typeof UUsernameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/store/checkout': {
+      id: '/store/checkout'
+      path: '/store/checkout'
+      fullPath: '/store/checkout'
+      preLoaderRoute: typeof StoreCheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/s/$token': {
@@ -657,13 +664,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/teams/invite'
       preLoaderRoute: typeof AuthenticatedTeamsInviteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/storage/checkout': {
-      id: '/_authenticated/storage/checkout'
-      path: '/checkout'
-      fullPath: '/storage/checkout'
-      preLoaderRoute: typeof AuthenticatedStorageCheckoutRouteImport
-      parentRoute: typeof AuthenticatedStorageRoute
     }
     '/_authenticated/settings/profile': {
       id: '/_authenticated/settings/profile'
@@ -848,17 +848,6 @@ const AuthenticatedSettingsRouteRouteWithChildren =
     AuthenticatedSettingsRouteRouteChildren,
   )
 
-interface AuthenticatedStorageRouteChildren {
-  AuthenticatedStorageCheckoutRoute: typeof AuthenticatedStorageCheckoutRoute
-}
-
-const AuthenticatedStorageRouteChildren: AuthenticatedStorageRouteChildren = {
-  AuthenticatedStorageCheckoutRoute: AuthenticatedStorageCheckoutRoute,
-}
-
-const AuthenticatedStorageRouteWithChildren =
-  AuthenticatedStorageRoute._addFileChildren(AuthenticatedStorageRouteChildren)
-
 interface AuthenticatedTeamsTeamIdRouteRouteChildren {
   AuthenticatedTeamsTeamIdActivityRoute: typeof AuthenticatedTeamsTeamIdActivityRoute
   AuthenticatedTeamsTeamIdMembersRoute: typeof AuthenticatedTeamsTeamIdMembersRoute
@@ -884,7 +873,7 @@ const AuthenticatedTeamsTeamIdRouteRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
-  AuthenticatedStorageRoute: typeof AuthenticatedStorageRouteWithChildren
+  AuthenticatedStorageRoute: typeof AuthenticatedStorageRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedTeamsTeamIdRouteRoute: typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   AuthenticatedTeamsInviteRoute: typeof AuthenticatedTeamsInviteRoute
@@ -900,7 +889,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
-  AuthenticatedStorageRoute: AuthenticatedStorageRouteWithChildren,
+  AuthenticatedStorageRoute: AuthenticatedStorageRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedTeamsTeamIdRouteRoute:
     AuthenticatedTeamsTeamIdRouteRouteWithChildren,
@@ -933,6 +922,7 @@ const rootRouteChildren: RootRouteChildren = {
   SRouteRoute: SRouteRouteWithChildren,
   authSignInRoute: authSignInRoute,
   authSignUpRoute: authSignUpRoute,
+  StoreCheckoutRoute: StoreCheckoutRoute,
   UUsernameRoute: UUsernameRoute,
 }
 export const routeTree = rootRouteImport

@@ -1,9 +1,9 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { continueCloudOrderPayment, createCloudBillingPortalSession, createCloudCheckout } from '@/lib/api'
+import { continueCloudOrderPayment, createCloudBillingPortalSession, createCloudCheckout, getSession } from '@/lib/api'
 import { redirectExternal } from '@/lib/browser-navigation'
 
 type CheckoutSearch = {
@@ -13,8 +13,15 @@ type CheckoutSearch = {
   orderId?: string
 }
 
-export const Route = createFileRoute('/_authenticated/storage/checkout')({
+export const Route = createFileRoute('/store/checkout')({
   validateSearch: normalizeCheckoutSearch,
+  beforeLoad: async ({ location }) => {
+    const data = await getSession()
+    if (!data?.session) {
+      const redirectUrl = encodeURIComponent(`${location.pathname}${location.searchStr ?? ''}`)
+      throw redirect({ to: '/sign-in', search: { redirect: redirectUrl } as never })
+    }
+  },
   component: StorageCheckoutPage,
 })
 
@@ -36,7 +43,7 @@ export function StorageCheckoutRedirect({ search }: { search: CheckoutSearch }) 
   }, [search])
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-6">
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-6">
       <div className="w-full max-w-sm space-y-4 text-center">
         {error ? (
           <>
