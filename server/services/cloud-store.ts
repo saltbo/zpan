@@ -70,7 +70,7 @@ export async function getCloudStoreBinding(
   }
 }
 
-export async function getUserTerminalLabel(db: Database, userId: string): Promise<string | null> {
+export async function getConsumerLabel(db: Database, userId: string): Promise<string | null> {
   const rows = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1)
   return rows[0]?.email ?? null
 }
@@ -161,7 +161,7 @@ function quotaChangeAuditValues(event: CloudOrderQuotaChange): typeof activityEv
   return {
     id: nanoid(),
     orgId: event.targetOrgId,
-    userId: event.terminalUserId ?? 'cloud-store',
+    userId: event.consumerId ?? 'cloud-store',
     action: `quota_order_${event.direction}`,
     targetType: 'quota',
     targetId: event.targetOrgId,
@@ -329,8 +329,8 @@ function quotaEntitlementMetadata(event: CloudOrderQuotaChange) {
     packageName: event.packageName ?? null,
     trafficOveragePriceCents: event.trafficOveragePriceCents ?? null,
     expiresAt: event.expiresAt ?? null,
-    terminalUserId: event.terminalUserId ?? null,
-    terminalUserEmail: event.terminalUserEmail ?? null,
+    consumerId: event.consumerId ?? null,
+    consumerEmail: event.consumerEmail ?? null,
   }
 }
 

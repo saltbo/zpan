@@ -11,7 +11,7 @@ import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { canAccessTargetOrg, getAccessibleTargets, getUserTerminalLabel } from '../../services/cloud-store'
+import { canAccessTargetOrg, getAccessibleTargets, getConsumerLabel } from '../../services/cloud-store'
 import { getEffectiveQuota } from '../../services/effective-quota'
 import {
   billingPortalPath,
@@ -116,7 +116,7 @@ export const cloudStore = new Hono<Env>()
         target: {
           orgId: targetOrgId,
           consumerId: targetOrgId,
-          endUserLabel: await getUserTerminalLabel(db, userId),
+          consumerLabel: await getConsumerLabel(db, userId),
         },
         ...(price.recurring ? {} : { walletCreditAmount: 'max' as const }),
       },
@@ -218,5 +218,5 @@ function orderPath(orderId: string) {
 }
 
 function orderBelongsToTarget(target: Record<string, unknown> | null, targetOrgId: string): boolean {
-  return target?.orgId === targetOrgId || target?.endUserId === targetOrgId
+  return target?.orgId === targetOrgId || target?.consumerId === targetOrgId
 }

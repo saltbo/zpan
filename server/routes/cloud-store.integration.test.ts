@@ -141,7 +141,7 @@ beforeEach(() => {
                   {
                     id: 'ledger-1',
                     storeId: 'store-test-binding',
-                    endUserId: 'org-placeholder',
+                    consumerId: 'org-placeholder',
                     currency: 'usd',
                     amount: 500,
                     direction: 'credit',
@@ -168,7 +168,7 @@ beforeEach(() => {
                 {
                   id: 'wallet-1',
                   storeId: 'store-test-binding',
-                  endUserId: 'org-placeholder',
+                  consumerId: 'org-placeholder',
                   currency: 'usd',
                   availableAmount: 1250,
                   pendingAmount: 0,
@@ -324,7 +324,7 @@ beforeEach(() => {
             json: async () =>
               cloudOrder({
                 id: orderId,
-                target: { orgId: targetOrgId, endUserId: targetOrgId },
+                target: { orgId: targetOrgId, consumerId: targetOrgId },
               }),
           } as Response
         }
@@ -1691,15 +1691,10 @@ describe('Quota Store API', () => {
       target: {
         orgId,
         consumerId: orgId,
-        endUserLabel: 'buyer@example.com',
+        consumerLabel: 'buyer@example.com',
       },
       walletCreditAmount: 'max',
     })
-    expect(orderBody).not.toHaveProperty('terminalUserId')
-    expect(orderBody).not.toHaveProperty('terminalUserLabel')
-    expect(orderBody.target).not.toHaveProperty('terminalUserId')
-    expect(orderBody.target).not.toHaveProperty('terminalUserLabel')
-    expect(orderBody.target).not.toHaveProperty('endUserId')
     const [paymentUrl, paymentInit] = calls.find(([url]) => String(url).includes('/payments'))!
     const paymentBody = JSON.parse(String(paymentInit.body))
     expect(String(paymentUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/order-cloud-1/payments`)
@@ -1744,7 +1739,7 @@ describe('Quota Store API', () => {
         {
           id: 'wallet-1',
           storeId: 'store-test-binding',
-          endUserId: 'org-placeholder',
+          consumerId: 'org-placeholder',
           currency: 'usd',
           availableAmount: 1250,
           pendingAmount: 0,
@@ -1786,7 +1781,7 @@ describe('Quota Store API', () => {
         {
           id: 'ledger-1',
           storeId: 'store-test-binding',
-          endUserId: 'org-placeholder',
+          consumerId: 'org-placeholder',
           currency: 'usd',
           amount: 500,
           direction: 'credit',
@@ -1823,7 +1818,7 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, endUserId: orgId } }),
+      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, consumerId: orgId } }),
     } as Response)
 
     const payment = await app.request('/api/store/orders/order-cloud-1/payments', {
@@ -1833,7 +1828,7 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, endUserId: orgId } }),
+      json: async () => cloudOrder({ id: 'order-cloud-1', target: { orgId, consumerId: orgId } }),
     } as Response)
     const canceled = await app.request('/api/store/orders/order-cloud-1', {
       method: 'PATCH',
@@ -2156,8 +2151,8 @@ describe('Quota Store API', () => {
       packageName: 'Team Plan',
       occurredAt: '2026-05-01T00:00:00.000Z',
       expiresAt: '2026-06-01T00:00:00.000Z',
-      terminalUserId: 'buyer-1',
-      terminalUserEmail: 'buyer@example.com',
+      consumerId: 'buyer-1',
+      consumerEmail: 'buyer@example.com',
     })
 
     const first = await postWebhook(app, payload)
@@ -2198,8 +2193,8 @@ describe('Quota Store API', () => {
       packageName: 'Team Plan',
       trafficOveragePriceCents: 25,
       expiresAt: '2026-06-01T00:00:00.000Z',
-      terminalUserId: 'buyer-1',
-      terminalUserEmail: 'buyer@example.com',
+      consumerId: 'buyer-1',
+      consumerEmail: 'buyer@example.com',
     })
 
     const quotaRes = await app.request('/api/quotas/me', { headers })

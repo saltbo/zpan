@@ -125,8 +125,8 @@ export interface CloudOrderItem {
 
 export interface CloudOrderTarget {
   orgId?: string
-  endUserId?: string
-  endUserLabel?: string
+  consumerId?: string
+  consumerLabel?: string
 }
 
 export interface CloudOrderPayment {
