@@ -441,7 +441,7 @@ export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp
     instanceId: 'test-instance',
     storeId: 'store-test-binding',
     edition: 'pro',
-    authorizedHosts: ['localhost'],
+    authorizedHosts: ['localhost', 'zpan.example', 'auth.example.com'],
     licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
     issuedAt,
     notBefore: issuedAt,

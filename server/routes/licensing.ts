@@ -13,7 +13,9 @@ function configuredPublicHost(c: Context<Env>): string | null {
   const value = c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL')
   if (!value) return null
   try {
-    return new URL(value).host
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    return url.host
   } catch {
     return null
   }
