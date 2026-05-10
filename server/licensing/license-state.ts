@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { licenseBindings } from '../db/schema'
 import type { Database } from '../platform/interface'
+import { executeWriteTransaction } from '../services/db-transaction'
 
 export type LicenseBindingStatus = 'active' | 'disconnected' | 'revoked'
 
@@ -65,23 +66,35 @@ export async function createLicenseBinding(
   },
 ): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
-  await clearLicenseBinding(db)
-  await db.insert(licenseBindings).values({
-    id: nanoid(),
-    cloudBindingId: input.cloudBindingId,
-    cloudStoreId: input.cloudStoreId ?? null,
-    instanceId: input.instanceId,
-    cloudAccountId: input.cloudAccountId,
-    cloudAccountEmail: input.cloudAccountEmail ?? null,
-    status: 'active',
-    refreshToken: input.refreshToken,
-    cachedCertificate: input.cachedCert,
-    cachedCertificateExpiresAt: input.cachedExpiresAt,
-    boundAt: now,
-    lastRefreshAt: input.lastRefreshAt,
-    createdAt: now,
-    updatedAt: now,
-  })
+  await executeWriteTransaction(db, [
+    db
+      .update(licenseBindings)
+      .set({
+        status: 'disconnected',
+        refreshToken: null,
+        cachedCertificate: null,
+        cachedCertificateExpiresAt: null,
+        disconnectedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(licenseBindings.status, 'active')),
+    db.insert(licenseBindings).values({
+      id: nanoid(),
+      cloudBindingId: input.cloudBindingId,
+      cloudStoreId: input.cloudStoreId ?? null,
+      instanceId: input.instanceId,
+      cloudAccountId: input.cloudAccountId,
+      cloudAccountEmail: input.cloudAccountEmail ?? null,
+      status: 'active',
+      refreshToken: input.refreshToken,
+      cachedCertificate: input.cachedCert,
+      cachedCertificateExpiresAt: input.cachedExpiresAt,
+      boundAt: now,
+      lastRefreshAt: input.lastRefreshAt,
+      createdAt: now,
+      updatedAt: now,
+    }),
+  ])
 }
 
 export async function updateLicenseBindingAfterRefresh(

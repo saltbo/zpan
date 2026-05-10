@@ -18,6 +18,7 @@ import { orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
+import { executeWriteTransaction } from './services/db-transaction'
 import { currentTrafficPeriod } from './services/effective-quota'
 import { isEmailConfigured, sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
@@ -445,33 +446,34 @@ async function createPersonalOrg(
   const now = new Date()
   const displayName = user.name || user.username
   const orgName = displayName ? `${displayName}'s Space` : 'Personal Space'
+  const quotaValues = await createOrgQuotaValues(db, orgId, now)
 
-  await db.insert(authSchema.organization).values({
-    id: orgId,
-    name: orgName,
-    slug: `personal-${user.id}`,
-    metadata: JSON.stringify({ type: 'personal' }),
-    createdAt: now,
-  })
-
-  await db.insert(authSchema.member).values({
-    id: nanoid(),
-    organizationId: orgId,
-    userId: user.id,
-    role: 'owner',
-    createdAt: now,
-  })
-
-  await createOrgQuota(db, orgId, now)
+  await executeWriteTransaction(db, [
+    db.insert(authSchema.organization).values({
+      id: orgId,
+      name: orgName,
+      slug: `personal-${user.id}`,
+      metadata: JSON.stringify({ type: 'personal' }),
+      createdAt: now,
+    }),
+    db.insert(authSchema.member).values({
+      id: nanoid(),
+      organizationId: orgId,
+      userId: user.id,
+      role: 'owner',
+      createdAt: now,
+    }),
+    db.insert(orgQuotas).values(quotaValues),
+  ])
 
   return orgId
 }
 
-async function createOrgQuota(db: Database, orgId: string, now: Date): Promise<void> {
+async function createOrgQuotaValues(db: Database, orgId: string, now: Date): Promise<typeof orgQuotas.$inferInsert> {
   const defaultQuota = await getDefaultOrgQuota(db)
   const defaultTrafficQuota = await getDefaultOrgTrafficQuota(db)
 
-  await db.insert(orgQuotas).values({
+  return {
     id: nanoid(),
     orgId,
     quota: defaultQuota,
@@ -479,7 +481,11 @@ async function createOrgQuota(db: Database, orgId: string, now: Date): Promise<v
     trafficQuota: defaultTrafficQuota,
     trafficUsed: 0,
     trafficPeriod: currentTrafficPeriod(now),
-  })
+  }
+}
+
+async function createOrgQuota(db: Database, orgId: string, now: Date): Promise<void> {
+  await db.insert(orgQuotas).values(await createOrgQuotaValues(db, orgId, now))
 }
 
 async function getDefaultOrgQuota(db: Database): Promise<number> {

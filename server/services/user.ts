@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas } from '../db/schema'
 import type { Database } from '../platform/interface'
+import { type AtomicQuery, executeWriteTransaction } from './db-transaction'
 import { currentTrafficPeriod } from './effective-quota'
 
 export interface UserWithOrg {
@@ -192,26 +193,32 @@ export async function setUsersPersonalQuota(
     .where(inArray(orgQuotas.orgId, orgIds))
   const existingOrgIds = new Set(existingQuotaRows.map((row) => row.orgId))
   const nowMissing = orgIds.filter((orgId) => !existingOrgIds.has(orgId))
+  const queries: AtomicQuery[] = []
 
   if (existingOrgIds.size > 0) {
-    await db
-      .update(orgQuotas)
-      .set({ quota })
-      .where(inArray(orgQuotas.orgId, [...existingOrgIds]))
+    queries.push(
+      db
+        .update(orgQuotas)
+        .set({ quota })
+        .where(inArray(orgQuotas.orgId, [...existingOrgIds])),
+    )
   }
 
   for (const orgId of nowMissing) {
-    await db.insert(orgQuotas).values({
-      id: nanoid(),
-      orgId,
-      quota,
-      used: 0,
-      trafficQuota: 0,
-      trafficUsed: 0,
-      trafficPeriod: currentTrafficPeriod(),
-    })
+    queries.push(
+      db.insert(orgQuotas).values({
+        id: nanoid(),
+        orgId,
+        quota,
+        used: 0,
+        trafficQuota: 0,
+        trafficUsed: 0,
+        trafficPeriod: currentTrafficPeriod(),
+      }),
+    )
   }
 
+  await executeWriteTransaction(db, queries)
   return { updated: rows.length, userIds: existingIds, orgIds, quota }
 }
 

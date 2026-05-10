@@ -5,6 +5,7 @@ import type { CreateShareInput } from '../../shared/schemas/share'
 import { matters, shareRecipients, shares } from '../db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from '../lib/password'
 import type { Database } from '../platform/interface'
+import { type AtomicQuery, executeWriteTransaction } from './db-transaction'
 import type { Matter } from './matter'
 
 export type Share = typeof shares.$inferSelect
@@ -59,8 +60,7 @@ export async function createShare(db: Database, input: CreateShareInput): Promis
     createdAt: now,
   }
 
-  await db.insert(shares).values(share)
-
+  const queries: AtomicQuery[] = [db.insert(shares).values(share)]
   if (input.recipients && input.recipients.length > 0) {
     const recipientRows: ShareRecipient[] = input.recipients.map((r) => ({
       id: nanoid(),
@@ -69,9 +69,10 @@ export async function createShare(db: Database, input: CreateShareInput): Promis
       recipientEmail: r.recipientEmail ?? null,
       createdAt: now,
     }))
-    await db.insert(shareRecipients).values(recipientRows)
+    queries.push(db.insert(shareRecipients).values(recipientRows))
   }
 
+  await executeWriteTransaction(db, queries)
   return share
 }
 
@@ -168,8 +169,10 @@ export async function cascadeDeleteByMatter(db: Database, matterId: string): Pro
   if (shareRows.length === 0) return
 
   const shareIds = shareRows.map((r) => r.id)
-  await db.delete(shareRecipients).where(inArray(shareRecipients.shareId, shareIds))
-  await db.delete(shares).where(inArray(shares.id, shareIds))
+  await executeWriteTransaction(db, [
+    db.delete(shareRecipients).where(inArray(shareRecipients.shareId, shareIds)),
+    db.delete(shares).where(inArray(shares.id, shareIds)),
+  ])
 }
 
 export async function getShareCreatorByToken(db: Database, token: string): Promise<string | null> {
