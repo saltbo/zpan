@@ -105,7 +105,7 @@ function AnnouncementPage() {
       <AdminPageHeader
         title={t('admin.announcement.title')}
         description={t('admin.announcement.description')}
-        badge={!entitlementLoading && !announcementsEnabled && <ProBadge />}
+        badge={<ProBadge />}
         action={
           <Button size="sm" onClick={() => setFormOpen(true)} disabled={!announcementsEnabled}>
             <Plus className="mr-2 h-4 w-4" />

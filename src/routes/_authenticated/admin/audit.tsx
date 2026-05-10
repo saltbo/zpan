@@ -106,7 +106,7 @@ function AuditLogsPage() {
       <AdminPageHeader
         title={t('admin.audit.title')}
         description={t('admin.audit.description')}
-        badge={!entitlementLoading && !auditEnabled && <ProBadge tooltip={t('admin.audit.proTooltip')} />}
+        badge={<ProBadge tooltip={t('admin.audit.proTooltip')} />}
       />
 
       {entitlementLoading ? null : !auditEnabled ? (

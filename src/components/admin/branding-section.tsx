@@ -406,35 +406,35 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
             <ThemeColorInput
               id="theme-primary"
               label={t('admin.settings.branding.themePrimary')}
-              value={customTheme.primary_color}
+              value={previewTheme.primary_color}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(primary_color) => setCustomTheme({ ...customTheme, primary_color })}
             />
             <ThemeColorInput
               id="theme-primary-foreground"
               label={t('admin.settings.branding.themePrimaryForeground')}
-              value={customTheme.primary_foreground}
+              value={previewTheme.primary_foreground}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(primary_foreground) => setCustomTheme({ ...customTheme, primary_foreground })}
             />
             <ThemeColorInput
               id="theme-canvas"
               label={t('admin.settings.branding.themeCanvas')}
-              value={customTheme.canvas_color}
+              value={previewTheme.canvas_color}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(canvas_color) => setCustomTheme({ ...customTheme, canvas_color })}
             />
             <ThemeColorInput
               id="theme-sidebar-accent"
               label={t('admin.settings.branding.themeSidebarAccent')}
-              value={customTheme.sidebar_accent_color}
+              value={previewTheme.sidebar_accent_color}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(sidebar_accent_color) => setCustomTheme({ ...customTheme, sidebar_accent_color })}
             />
             <ThemeColorInput
               id="theme-ring"
               label={t('admin.settings.branding.themeRing')}
-              value={customTheme.ring_color}
+              value={previewTheme.ring_color}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(ring_color) => setCustomTheme({ ...customTheme, ring_color })}
             />
