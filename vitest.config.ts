@@ -46,7 +46,7 @@ export default defineConfig({
           name: 'unit',
           environment: 'jsdom',
           include: ['server/**/*.test.ts', 'shared/**/*.test.ts', 'src/**/*.test.ts', 'src/**/*.test.tsx'],
-          exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts'],
+          exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts', '**/e2e-*.test.ts'],
           coverage: {
             ...coverageConfig,
             thresholds: {
