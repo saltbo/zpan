@@ -117,6 +117,13 @@ export const FEATURE_REGISTRY = [
     gateKey: 'quota_store',
   },
   {
+    i18nKey: 'features.siteAnnouncements',
+    category: 'pro',
+    community: false,
+    pro: true,
+    gateKey: 'site_announcements',
+  },
+  {
     i18nKey: 'features.multiIdpSso',
     category: 'pro',
     community: false,

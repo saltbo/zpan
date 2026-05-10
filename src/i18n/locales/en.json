@@ -992,6 +992,7 @@
   "features.whiteLabel": "Custom Branding",
   "features.auditLog": "Audit Logs",
   "features.cloudStore": "Storage Plans",
+  "features.siteAnnouncements": "Site Announcements",
   "features.webhooks": "Event Webhooks",
   "features.analytics": "Analytics",
   "settings.billing.pairing.title": "Connect to ZPan Cloud",

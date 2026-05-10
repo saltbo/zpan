@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 const publishedAnnouncement = {
   title: 'Maintenance window',
@@ -8,9 +8,12 @@ const publishedAnnouncement = {
   priority: 10,
 }
 
-async function createPublishedAnnouncement(app: Awaited<ReturnType<typeof createTestApp>>['app']) {
-  const headers = await adminHeaders(app)
-  const res = await app.request('/api/admin/announcements', {
+type TestContext = Awaited<ReturnType<typeof createTestApp>>
+
+async function createPublishedAnnouncement(ctx: TestContext) {
+  const headers = await adminHeaders(ctx.app)
+  await seedProLicense(ctx.db)
+  const res = await ctx.app.request('/api/admin/announcements', {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(publishedAnnouncement),
@@ -34,9 +37,20 @@ describe('Admin Announcements API', () => {
     expect(res.status).toBe(403)
   })
 
-  it('creates, lists, updates, and deletes an announcement', async () => {
+  it('returns 402 when site announcements are not available', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/admin/announcements', { headers })
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as { feature: string }
+    expect(body.feature).toBe('site_announcements')
+  })
+
+  it('creates, lists, updates, and deletes an announcement', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
 
     const createRes = await app.request('/api/admin/announcements', {
       method: 'POST',
@@ -75,9 +89,21 @@ describe('User Announcements API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns active announcements', async () => {
+  it('returns 402 when site announcements are not available', async () => {
     const { app } = await createTestApp()
-    const created = await createPublishedAnnouncement(app)
+    await adminHeaders(app)
+    const headers = await authedHeaders(app, 'reader@example.com')
+
+    const res = await app.request('/api/announcements', { headers })
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as { feature: string }
+    expect(body.feature).toBe('site_announcements')
+  })
+
+  it('returns active announcements', async () => {
+    const ctx = await createTestApp()
+    const { app } = ctx
+    const created = await createPublishedAnnouncement(ctx)
     const headers = await authedHeaders(app, 'reader@example.com')
 
     const activeRes = await app.request('/api/announcements?scope=active', { headers })
@@ -88,8 +114,9 @@ describe('User Announcements API', () => {
   })
 
   it('keeps archived announcements in history but not active list', async () => {
-    const { app } = await createTestApp()
+    const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
+    await seedProLicense(db)
     const createRes = await app.request('/api/admin/announcements', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
@@ -116,8 +143,9 @@ describe('User Announcements API', () => {
   })
 
   it('does not include draft announcements in history', async () => {
-    const { app } = await createTestApp()
+    const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
+    await seedProLicense(db)
     await app.request('/api/admin/announcements', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
@@ -132,8 +160,9 @@ describe('User Announcements API', () => {
   })
 
   it('rejects invalid pagination query values', async () => {
-    const { app } = await createTestApp()
-    await createPublishedAnnouncement(app)
+    const ctx = await createTestApp()
+    const { app } = ctx
+    await createPublishedAnnouncement(ctx)
     const headers = await authedHeaders(app, 'reader@example.com')
 
     const res = await app.request('/api/announcements?page=abc&pageSize=xyz', { headers })

@@ -167,9 +167,14 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')!
     const baseUrl = getCloudBaseUrl(c)
     const state = await loadLicenseState(db)
+    let cloudUnbindError: string | null = null
 
     if (state.refreshToken) {
-      await unbindCloudLicense(baseUrl, state.cloudBindingId, state.refreshToken)
+      try {
+        await unbindCloudLicense(baseUrl, state.cloudBindingId, state.refreshToken)
+      } catch (error) {
+        cloudUnbindError = error instanceof Error ? error.message : 'Cloud unbind failed'
+      }
     }
 
     await clearLicenseBinding(db)
@@ -181,9 +186,10 @@ const app = new Hono<Env>()
       action: 'license_disconnect',
       targetType: 'license',
       targetName: 'license binding',
+      metadata: cloudUnbindError ? { cloudUnbindError } : undefined,
     })
 
-    return c.json({ deleted: true })
+    return c.json({ deleted: true, cloud_unbind_error: cloudUnbindError })
   })
 
 export default app

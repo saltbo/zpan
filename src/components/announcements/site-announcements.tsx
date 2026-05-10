@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import { listActiveAnnouncements } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { AnnouncementMarkdown } from './markdown-content'
@@ -23,10 +24,13 @@ export function SiteAnnouncements() {
   const [open, setOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [autoOpenKey, setAutoOpenKey] = useState<string | null>(null)
+  const { hasFeature } = useEntitlement()
+  const announcementsEnabled = hasFeature('site_announcements')
 
   const { data } = useQuery({
     queryKey: activeAnnouncementsQueryKey,
     queryFn: listActiveAnnouncements,
+    enabled: announcementsEnabled,
   })
 
   const announcements = data?.items ?? []

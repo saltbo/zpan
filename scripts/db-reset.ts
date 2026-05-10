@@ -17,7 +17,7 @@ const D1_STATE_DIR = '.wrangler/state/v3/d1'
 const D1_DB_NAME = 'zpan-db-staging'
 
 // ── required env vars ──
-const email = 'admin@zpan.dev'
+const email = 'admin@zpan.space'
 const password = requireEnv('DEV_ADMIN_PASSWORD')
 const name = 'Admin'
 

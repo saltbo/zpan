@@ -356,7 +356,7 @@ describe('DELETE /api/licensing/binding', () => {
     expect(state.refreshToken).toBeNull()
   })
 
-  it('keeps the local binding when Cloud unbind fails', async () => {
+  it('clears the local binding when Cloud unbind fails', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -365,10 +365,13 @@ describe('DELETE /api/licensing/binding', () => {
 
     const res = await app.request('/api/licensing/binding', { method: 'DELETE', headers })
 
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.deleted).toBe(true)
+    expect(body.cloud_unbind_error).toContain('Cloud unbind failed')
 
     const state = await loadLicenseState(db)
-    expect(state.refreshToken).toBe('old-token')
+    expect(state.refreshToken).toBeNull()
   })
 
   it('returns deleted: true even when no binding exists', async () => {

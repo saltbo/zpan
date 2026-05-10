@@ -7,6 +7,7 @@ import {
 } from '../../shared/schemas'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { requireFeature } from '../middleware/require-feature'
 import {
   createAnnouncement,
   deleteAnnouncement,
@@ -25,6 +26,7 @@ function pagination(query: { page?: string; pageSize?: string }) {
 
 export const announcements = new Hono<Env>()
   .use(requireAuth)
+  .use(requireFeature('site_announcements'))
   .get('/', zValidator('query', listAnnouncementsQuerySchema), async (c) => {
     const db = c.get('platform').db
     const query = c.req.valid('query')
@@ -37,6 +39,7 @@ export const announcements = new Hono<Env>()
 
 export const adminAnnouncements = new Hono<Env>()
   .use(requireAdmin)
+  .use(requireFeature('site_announcements'))
   .get('/', zValidator('query', listAdminAnnouncementsQuerySchema), async (c) => {
     const db = c.get('platform').db
     const query = c.req.valid('query')

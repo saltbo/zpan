@@ -1,9 +1,10 @@
 import type { AdminAuditEvent } from '@shared/types'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { ShieldCheck } from 'lucide-react'
+import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { ProBadge } from '@/components/ProBadge'
+import { UpgradeHint } from '@/components/UpgradeHint'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -80,26 +81,6 @@ function AuditRow({ event }: { event: AdminAuditEvent }) {
   )
 }
 
-function UpgradePrompt() {
-  const { t } = useTranslation()
-  return (
-    <Card className="border-dashed">
-      <div className="flex flex-col items-center gap-4 p-8 text-center">
-        <div className="rounded-2xl border border-border/60 bg-primary/10 p-3 text-primary">
-          <ShieldCheck className="h-6 w-6" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="font-semibold">{t('admin.audit.upgradeTitle')}</h3>
-          <p className="text-sm text-muted-foreground">{t('admin.audit.upgradeDescription')}</p>
-        </div>
-        <Button asChild style={{ backgroundColor: '#1A73E8' }}>
-          <Link to="/admin/licensing">{t('admin.audit.upgradeButton')}</Link>
-        </Button>
-      </div>
-    </Card>
-  )
-}
-
 const PAGE_SIZE = 20
 
 function AuditLogsPage() {
@@ -121,16 +102,20 @@ function AuditLogsPage() {
   const allItems = data?.pages.flatMap((p) => p.items) ?? []
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <h2 className="text-xl font-semibold">{t('admin.audit.title')}</h2>
-        {!entitlementLoading && !auditEnabled && <ProBadge tooltip={t('admin.audit.proTooltip')} />}
-      </div>
-
-      <p className="text-sm text-muted-foreground">{t('admin.audit.description')}</p>
+    <div className="space-y-4">
+      <AdminPageHeader
+        title={t('admin.audit.title')}
+        description={t('admin.audit.description')}
+        badge={!entitlementLoading && !auditEnabled && <ProBadge tooltip={t('admin.audit.proTooltip')} />}
+      />
 
       {entitlementLoading ? null : !auditEnabled ? (
-        <UpgradePrompt />
+        <UpgradeHint
+          feature="audit_log"
+          title={t('admin.audit.upgradeTitle')}
+          description={t('admin.audit.upgradeDescription')}
+          actionLabel={t('admin.audit.upgradeButton')}
+        />
       ) : isPending ? (
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (

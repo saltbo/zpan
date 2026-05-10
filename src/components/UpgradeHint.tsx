@@ -1,7 +1,5 @@
 import type { ProFeature } from '@shared/types'
-import { useEntitlement } from '@/hooks/useEntitlement'
-import { Button } from './ui/button'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card'
+import { ProUpgradePrompt } from './ProUpgradePrompt'
 
 const FEATURE_LABELS: Record<ProFeature, string> = {
   white_label: 'white-label branding',
@@ -10,32 +8,27 @@ const FEATURE_LABELS: Record<ProFeature, string> = {
   storages_unlimited: 'unlimited storages',
   audit_log: 'audit logs',
   quota_store: 'storage quota store',
+  site_announcements: 'site announcements',
 }
 
-interface UpgradeHintProps {
+export interface UpgradeHintProps {
   feature: ProFeature
+  title?: string
+  description?: string
+  actionLabel?: string
 }
 
-export function UpgradeHint({ feature }: UpgradeHintProps) {
-  const { bound } = useEntitlement()
+export function UpgradeHint({ feature, title, description, actionLabel }: UpgradeHintProps) {
   const featureLabel = FEATURE_LABELS[feature] ?? feature
+  const displayName = featureLabel.charAt(0).toUpperCase() + featureLabel.slice(1)
 
   return (
-    <Card data-slot="upgrade-hint">
-      <CardHeader>
-        <CardTitle>Unlock with ZPan Pro</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          {featureLabel.charAt(0).toUpperCase() + featureLabel.slice(1)} is a Pro feature. Upgrade your plan to access
-          it.
-        </p>
-      </CardContent>
-      <CardFooter>
-        <Button asChild>
-          <a href="/admin/billing">{bound ? 'Manage on Cloud' : 'Connect to Cloud'}</a>
-        </Button>
-      </CardFooter>
-    </Card>
+    <div data-slot="upgrade-hint">
+      <ProUpgradePrompt
+        title={title ?? 'Unlock with ZPan Pro'}
+        description={description ?? `${displayName} is a Pro feature. Upgrade your plan to access it.`}
+        actionLabel={actionLabel ?? 'Upgrade to Pro'}
+      />
+    </div>
   )
 }

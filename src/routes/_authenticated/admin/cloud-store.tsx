@@ -5,6 +5,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { CheckCircle2, CircleSlash2, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { StorageOrdersTable } from '@/components/admin/cloud-orders-table'
 import {
   GiftCardsTab,
@@ -19,7 +20,6 @@ import {
 } from '@/components/admin/cloud-store-admin-shell'
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
-import { Card, CardContent } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   ApiError,
@@ -85,7 +85,7 @@ type AdminCloudStoreReadyState = ReturnType<typeof useAdminCloudStoreState> & {
 function AdminCloudStoreContent({ state }: { state: AdminCloudStoreReadyState }) {
   const { data } = state
   return (
-    <div className="max-w-6xl space-y-5">
+    <div className="max-w-6xl space-y-4">
       <PageHeading settings={data.settings} />
       <UpgradeGate available={data.available} />
       <AdminTabs state={state} />
@@ -96,28 +96,18 @@ function AdminCloudStoreContent({ state }: { state: AdminCloudStoreReadyState })
 function PageHeading({ settings }: { settings: CloudStoreSettings | null }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-semibold tracking-tight">{t('admin.cloudStore.title')}</h2>
-          <ProBadge />
-        </div>
-        <p className="text-sm text-muted-foreground">{t('admin.cloudStore.subtitle')}</p>
-      </div>
-      <CloudStoreStatusSummary settings={settings} />
-    </div>
+    <AdminPageHeader
+      title={t('admin.cloudStore.title')}
+      description={t('admin.cloudStore.subtitle')}
+      badge={<ProBadge />}
+      action={<CloudStoreStatusSummary settings={settings} />}
+    />
   )
 }
 
 function UpgradeGate({ available }: { available: boolean }) {
   if (available) return null
-  return (
-    <Card className="border-border/60">
-      <CardContent className="pt-6">
-        <UpgradeHint feature="quota_store" />
-      </CardContent>
-    </Card>
-  )
+  return <UpgradeHint feature="quota_store" />
 }
 
 function CloudStoreStatusSummary({ settings }: { settings: CloudStoreSettings | null }) {
@@ -125,7 +115,7 @@ function CloudStoreStatusSummary({ settings }: { settings: CloudStoreSettings | 
   const open = settings?.enabled ?? false
   const connected = settings?.status === 'ready'
   return (
-    <div className="flex flex-wrap items-center gap-2 pt-1">
+    <div className="flex flex-wrap items-center gap-2">
       <StatusPill
         active={open}
         label={t('admin.cloudStore.storeStatus')}

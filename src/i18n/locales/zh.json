@@ -992,6 +992,7 @@
   "features.whiteLabel": "自定义品牌",
   "features.auditLog": "审计日志",
   "features.cloudStore": "存储套餐",
+  "features.siteAnnouncements": "站点公告",
   "features.webhooks": "事件 Webhooks",
   "features.analytics": "统计分析",
   "settings.billing.pairing.title": "连接 ZPan Cloud",
