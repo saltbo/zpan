@@ -1,5 +1,5 @@
 import { type APIResponse, type Browser, expect, type Page, request as playwrightRequest, test } from '@playwright/test'
-import { signInAsAdmin, signUpAndGoToFiles } from './helpers'
+import { ADMIN_EMAIL, ADMIN_PASSWORD, signInAsAdmin, signUpAndGoToFiles } from './helpers'
 
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 
@@ -30,12 +30,12 @@ type CloudOrder = {
   fulfillmentStatus: string
 }
 
-type CloudLicense = {
-  id: string
-}
-
 test.describe
   .serial('ZPan Cloud store integration', () => {
+    test.afterAll(async () => {
+      await unbindCurrentCloudBinding()
+    })
+
     test('@desktop covers pairing, admin store setup, gift-card wallet redemption, and wallet checkout', async ({
       page,
       baseURL,
@@ -171,7 +171,6 @@ async function approvePairingInCloud(pairing: PairingInfo) {
       data: { email, password },
     })
     await expectCloudOk(signIn, 'Cloud test account sign-in failed')
-    await deleteCloudLicenses(cloudRequest)
 
     const approve = await cloudRequest.patch(`/api/pairings/${encodeURIComponent(pairing.code)}`, {
       data: { action: 'approve' },
@@ -182,21 +181,27 @@ async function approvePairingInCloud(pairing: PairingInfo) {
   }
 }
 
-async function deleteCloudLicenses(cloudRequest: Awaited<ReturnType<typeof playwrightRequest.newContext>>) {
-  const licenses = await cloudRequest.get('/api/licenses')
-  await expectCloudOk(licenses, 'Cloud license list failed')
-
-  const body = (await licenses.json()) as { data?: CloudLicense[] } | CloudLicense[]
-  const activeLicenses = Array.isArray(body) ? body : (body.data ?? [])
-  for (const license of activeLicenses) {
-    const deleted = await cloudRequest.delete(`/api/licenses/${encodeURIComponent(license.id)}`)
-    await expectCloudOk(deleted, 'Cloud license cleanup failed')
-  }
-}
-
 async function expectCloudOk(response: APIResponse, message: string) {
   if (response.ok()) return
   throw new Error(`${message}: ${response.status()} ${await response.text()}`)
+}
+
+async function unbindCurrentCloudBinding() {
+  const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173'
+  const headers = { Origin: new URL(baseURL).origin }
+  const request = await playwrightRequest.newContext({ baseURL })
+  try {
+    const signIn = await request.post('/api/auth/sign-in/email', {
+      headers,
+      data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+    })
+    await expectCloudOk(signIn, 'E2E admin sign-in failed during Cloud binding cleanup')
+
+    const unbind = await request.delete('/api/licensing/binding', { headers })
+    await expectCloudOk(unbind, 'Cloud binding cleanup failed')
+  } finally {
+    await request.dispose()
+  }
 }
 
 async function createOneTimePackage(page: Page, name: string) {
@@ -306,11 +311,11 @@ async function redeemGiftCard(page: Page, code: string) {
 }
 
 async function getWalletBalance(page: Page) {
-  const wallet = await getJson<{ balances: Array<{ availableAmount: number; currency: string }> }>(
+  const wallet = await getJson<{ items: Array<{ availableAmount: number; currency: string }> }>(
     page,
     '/api/store/wallet',
   )
-  return wallet.balances.find((balance) => balance.currency === 'usd')?.availableAmount ?? 0
+  return wallet.items.find((balance) => balance.currency === 'usd')?.availableAmount ?? 0
 }
 
 async function expectStorefrontProductVisibleInApi(page: Page, packageName: string) {
@@ -391,10 +396,10 @@ async function putJson<T>(page: Page, url: string, data?: unknown): Promise<T> {
 }
 
 async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: string, data?: unknown): Promise<T> {
-  return page.evaluate(
-    async ({ method, url, data }) => {
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return (await page.evaluate(
+        async ({ method, url, data }) => {
           const response = await fetch(url, {
             method,
             headers: data === undefined ? undefined : { 'Content-Type': 'application/json' },
@@ -403,12 +408,18 @@ async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: s
           const text = await response.text()
           if (!response.ok) throw new Error(`${method} ${url} failed with ${response.status}: ${text}`)
           return text ? JSON.parse(text) : null
-        } catch (error) {
-          if (!(error instanceof TypeError) || attempt === 2) throw error
-          await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
-        }
-      }
-    },
-    { method, url, data },
-  ) as Promise<T>
+        },
+        { method, url, data },
+      )) as T
+    } catch (error) {
+      if (!isTransientBrowserJsonError(error) || attempt === 2) throw error
+      await page.waitForTimeout(500 * (attempt + 1))
+    }
+  }
+  throw new Error(`${method} ${url} failed`)
+}
+
+function isTransientBrowserJsonError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  return error.message.includes('Failed to fetch') || error.message.includes('Execution context was destroyed')
 }
