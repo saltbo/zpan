@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -85,6 +85,8 @@ export function StoragePage() {
       }
     : undefined
 
+  const checkoutRouteActive = window.location.pathname === '/storage/checkout'
+
   useEffect(() => {
     if (deliveredCheckoutCount > 0) queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
   }, [deliveredCheckoutCount, queryClient])
@@ -130,6 +132,8 @@ export function StoragePage() {
       toast.error(err.message)
     },
   })
+
+  if (checkoutRouteActive) return <Outlet />
 
   function startCheckout(packageId: string, currency: string) {
     openCheckoutTab({ action: 'checkout', packageId, currency })

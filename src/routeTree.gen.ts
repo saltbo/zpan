@@ -29,7 +29,7 @@ import { Route as AuthenticatedImageHostIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
-import { Route as AuthenticatedStorageCheckoutRouteImport } from './routes/_authenticated/storage/checkout'
+import { Route as AuthenticatedStorageCheckoutRouteImport } from './routes/_authenticated/storage.checkout'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
 import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedSettingsIhostRouteImport } from './routes/_authenticated/settings/ihost'

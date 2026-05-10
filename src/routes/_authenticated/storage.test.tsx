@@ -60,6 +60,11 @@ vi.mock('sonner', () => ({
   },
 }))
 
+vi.mock('@tanstack/react-router', () => ({
+  createFileRoute: () => (options: unknown) => options,
+  Outlet: () => <div data-testid="storage-checkout-outlet" />,
+}))
+
 vi.mock('@/lib/auth-client', () => ({
   useActiveOrganization: () => ({ data: activeOrganization.value }),
 }))
@@ -179,6 +184,7 @@ afterEach(() => {
 
 describe('StoragePage', () => {
   beforeEach(() => {
+    window.history.replaceState(null, '', '/storage')
     activeOrganization.value = { id: 'org-1' }
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
@@ -198,6 +204,23 @@ describe('StoragePage', () => {
     })
     vi.mocked(getCloudWallet).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
     vi.mocked(listCloudWalletTransactions).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
+  })
+
+  it('renders the checkout child route instead of the storage page', async () => {
+    window.history.replaceState(null, '', '/storage/checkout')
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    expect(view.getByTestId('storage-checkout-outlet')).toBeTruthy()
+    expect(view.queryByText('storage.title')).toBeNull()
   })
 
   it('refreshes quota when a checkout order is delivered', async () => {

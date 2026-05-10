@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { continueCloudOrderPayment, createCloudBillingPortalSession, createCloudCheckout } from '@/lib/api'
 import { redirectExternal } from '@/lib/browser-navigation'
-import { StorageCheckoutRedirect } from './checkout'
+import { StorageCheckoutRedirect } from './storage.checkout'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
