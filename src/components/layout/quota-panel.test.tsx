@@ -102,7 +102,7 @@ describe('QuotaPanel', () => {
     expect(view.getByText('quota.usage:25 B/100 B')).toBeTruthy()
   })
 
-  it('shows active plan and extra storage names from quota data', async () => {
+  it('shows total storage without plan or extra storage names', async () => {
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
       baseQuota: 100,
@@ -123,8 +123,9 @@ describe('QuotaPanel', () => {
     const view = renderQuotaPanel()
 
     await waitFor(() => expect(view.getByRole('link', { name: 'quota.storage' })).toBeTruthy())
-    expect(view.getByText('Team Plan · 100 B')).toBeTruthy()
-    expect(view.getByText('quota.cloudStorageEntitlement:Storage Pack · 100 B')).toBeTruthy()
+    expect(view.getByText('quota.usage:25 B/200 B')).toBeTruthy()
+    expect(view.queryByText('Team Plan · 100 B')).toBeNull()
+    expect(view.queryByText('quota.cloudStorageEntitlement:Storage Pack · 100 B')).toBeNull()
   })
 
   it('does not show traffic usage in the sidebar quota panel', async () => {

@@ -46,25 +46,6 @@ export function QuotaPanel({ enabled }: { enabled: boolean }) {
           ? t('quota.usage', { used: formatSize(quota.used), total: formatSize(quota.quota) })
           : t('quota.usageNoLimit', { used: formatSize(quota.used) })}
       </p>
-      {quota.entitlementQuota > 0 && (
-        <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-          {t('quota.cloudStorageEntitlement', {
-            amount: formatQuotaLabel(quota.entitlementQuota, quota.storageExtraNames),
-          })}
-        </p>
-      )}
-      {quota.storagePlanName && (
-        <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-          {formatQuotaLabel(quota.baseQuota, [quota.storagePlanName])}
-        </p>
-      )}
     </Link>
   )
-}
-
-function formatQuotaLabel(bytes: number, names: string[]) {
-  const size = formatSize(bytes)
-  if (names.length === 0) return size
-  if (names.length === 1) return `${names[0]} · ${size}`
-  return `${names[0]} +${names.length - 1} · ${size}`
 }
