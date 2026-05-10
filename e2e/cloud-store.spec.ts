@@ -393,14 +393,21 @@ async function putJson<T>(page: Page, url: string, data?: unknown): Promise<T> {
 async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: string, data?: unknown): Promise<T> {
   return page.evaluate(
     async ({ method, url, data }) => {
-      const response = await fetch(url, {
-        method,
-        headers: data === undefined ? undefined : { 'Content-Type': 'application/json' },
-        body: data === undefined ? undefined : JSON.stringify(data),
-      })
-      const text = await response.text()
-      if (!response.ok) throw new Error(`${method} ${url} failed with ${response.status}: ${text}`)
-      return text ? JSON.parse(text) : null
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const response = await fetch(url, {
+            method,
+            headers: data === undefined ? undefined : { 'Content-Type': 'application/json' },
+            body: data === undefined ? undefined : JSON.stringify(data),
+          })
+          const text = await response.text()
+          if (!response.ok) throw new Error(`${method} ${url} failed with ${response.status}: ${text}`)
+          return text ? JSON.parse(text) : null
+        } catch (error) {
+          if (!(error instanceof TypeError) || attempt === 2) throw error
+          await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+        }
+      }
     },
     { method, url, data },
   ) as Promise<T>

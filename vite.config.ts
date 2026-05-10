@@ -5,6 +5,9 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
 
+const appPort = Number(process.env.E2E_APP_PORT ?? 5173)
+const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
+
 export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
@@ -28,13 +31,13 @@ export default defineConfig(({ mode }) => ({
     },
   },
   server: {
-    port: 5173,
+    port: appPort,
     allowedHosts: process.env.E2E_BASE_URL ? true : undefined,
     ...(mode === 'node'
       ? {
           proxy: {
             '/api': {
-              target: 'http://localhost:8222',
+              target: `http://localhost:${apiPort}`,
               changeOrigin: true,
             },
           },

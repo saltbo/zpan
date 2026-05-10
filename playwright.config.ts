@@ -3,24 +3,26 @@ import { defineConfig, devices } from '@playwright/test'
 const isCF = process.env.E2E_RUNTIME === 'cf'
 const envFile = process.env.CI ? '' : '--env-file=.dev.vars'
 const chromeHostResolverRules = process.env.E2E_CHROME_HOST_RESOLVER_RULES
+const appPort = Number(process.env.E2E_APP_PORT ?? 5173)
+const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
 
 const nodeServers = [
   {
-    command: `node ${envFile} node_modules/.bin/tsx server/entry-node.ts`,
-    port: 8222,
+    command: `PORT=${apiPort} node ${envFile} node_modules/.bin/tsx server/entry-node.ts`,
+    port: apiPort,
     reuseExistingServer: !process.env.CI,
   },
   {
-    command: `node ${envFile} node_modules/.bin/vite --mode node --strictPort`,
-    port: 5173,
+    command: `node ${envFile} node_modules/.bin/vite --mode node --host 127.0.0.1 --port ${appPort} --strictPort`,
+    port: appPort,
     reuseExistingServer: !process.env.CI,
   },
 ]
 
 const cfServers = [
   {
-    command: 'vite dev',
-    port: 5173,
+    command: `vite dev --host 127.0.0.1 --port ${appPort} --strictPort`,
+    port: appPort,
     reuseExistingServer: !process.env.CI,
   },
 ]

@@ -8,6 +8,8 @@ import Database from 'better-sqlite3'
 import { hashPassword } from '../server/lib/password'
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from './helpers'
 
+const localBaseUrl = process.env.E2E_LOCAL_BASE_URL ?? 'http://localhost:5173'
+
 const storageConfig = {
   title: 'E2E Storage',
   mode: 'private',
@@ -166,8 +168,8 @@ function ensureNodeStorage() {
 }
 
 setup('seed admin and storage', async () => {
-  const request = await playwrightRequest.newContext({ baseURL: 'http://localhost:5173' })
-  const headers = { Origin: 'http://localhost:5173' }
+  const request = await playwrightRequest.newContext({ baseURL: localBaseUrl })
+  const headers = { Origin: localBaseUrl }
   try {
     prepareNodeDatabase()
 

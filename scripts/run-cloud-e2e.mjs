@@ -6,6 +6,10 @@ const args = process.argv.slice(2)
 const runtime = valueAfter('--runtime') ?? process.env.E2E_RUNTIME ?? 'node'
 const project = valueAfter('--project') ?? 'desktop'
 const cloudflared = process.env.CLOUDFLARED_BIN ?? 'cloudflared'
+const appPort = Number(process.env.E2E_APP_PORT ?? (runtime === 'cf' ? 6174 : 6173))
+const apiPort = Number(process.env.E2E_API_PORT ?? 9222)
+const localBaseUrl = `http://localhost:${appPort}`
+const pidFile = `.cloudflared.${runtime}.pid`
 const tunnelUrlPattern = /https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/
 const publicDns = new Resolver()
 publicDns.setServers(['1.1.1.1', '1.0.0.1'])
@@ -15,18 +19,22 @@ const cloudEnv = {
   VITE_ZPAN_CLOUD_URL: process.env.VITE_ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev',
 }
 
-const tunnel = await startTunnel('http://localhost:5173')
+const tunnel = await startTunnel(localBaseUrl)
 const tunnelHost = new URL(tunnel.url).hostname
 const tunnelIp = await waitForPublicTunnelIp(tunnelHost)
 const tunnelEnv = {
   E2E_BASE_URL: tunnel.url,
+  E2E_LOCAL_BASE_URL: localBaseUrl,
+  E2E_APP_PORT: String(appPort),
+  E2E_API_PORT: String(apiPort),
   BETTER_AUTH_URL: tunnel.url,
-  TRUSTED_ORIGINS: `${tunnel.url},http://localhost:5173`,
+  TRUSTED_ORIGINS: `${tunnel.url},${localBaseUrl}`,
   E2E_CHROME_HOST_RESOLVER_RULES: `MAP ${tunnelHost} ${tunnelIp}`,
 }
 const e2eEnv = {
   ...cloudEnv,
   ...tunnelEnv,
+  ...runtimeCloudCredentials(runtime),
   ...(runtime === 'cf' ? { E2E_RUNTIME: 'cf' } : {}),
 }
 
@@ -41,14 +49,14 @@ try {
   try {
     tunnel.process.kill()
   } catch {}
-  if (existsSync('.cloudflared.pid')) {
-    const pid = Number(readFileSync('.cloudflared.pid', 'utf8'))
+  if (existsSync(pidFile)) {
+    const pid = Number(readFileSync(pidFile, 'utf8'))
     if (Number.isInteger(pid)) {
       try {
         process.kill(pid)
       } catch {}
     }
-    rmSync('.cloudflared.pid', { force: true })
+    rmSync(pidFile, { force: true })
   }
 }
 
@@ -57,11 +65,23 @@ function valueAfter(flag) {
   return index === -1 ? null : args[index + 1]
 }
 
+function runtimeCloudCredentials(runtime) {
+  const suffix = runtime === 'cf' ? '_CF' : '_NODE'
+  const email = process.env[`E2E_CLOUD_PRO_EMAIL${suffix}`] ?? process.env.E2E_CLOUD_PRO_EMAIL
+  const password = process.env[`E2E_CLOUD_PRO_PASSWORD${suffix}`] ?? process.env.E2E_CLOUD_PRO_PASSWORD
+  return email && password
+    ? {
+        E2E_CLOUD_PRO_EMAIL: email,
+        E2E_CLOUD_PRO_PASSWORD: password,
+      }
+    : {}
+}
+
 function startTunnel(target) {
   const child = spawn(cloudflared, ['tunnel', '--url', target, '--no-autoupdate'], {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
-  writeFileSync('.cloudflared.pid', String(child.pid))
+  writeFileSync(pidFile, String(child.pid))
 
   return new Promise((resolve, reject) => {
     let tunnelUrl = null
@@ -92,15 +112,29 @@ function startTunnel(target) {
 }
 
 function writeDevVars(env) {
-  const lines = [
-    `BETTER_AUTH_SECRET=${process.env.BETTER_AUTH_SECRET ?? 'ci-test-secret-that-is-at-least-32-chars'}`,
-    `ZPAN_CLOUD_URL=${env.ZPAN_CLOUD_URL}`,
-    `VITE_ZPAN_CLOUD_URL=${env.VITE_ZPAN_CLOUD_URL}`,
-    `BETTER_AUTH_URL=${env.BETTER_AUTH_URL}`,
-    `TRUSTED_ORIGINS=${env.TRUSTED_ORIGINS}`,
-    '',
-  ]
-  writeFileSync('.dev.vars', lines.join('\n'))
+  const updates = {
+    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? 'ci-test-secret-that-is-at-least-32-chars',
+    ZPAN_CLOUD_URL: env.ZPAN_CLOUD_URL,
+    VITE_ZPAN_CLOUD_URL: env.VITE_ZPAN_CLOUD_URL,
+    BETTER_AUTH_URL: env.BETTER_AUTH_URL,
+    TRUSTED_ORIGINS: env.TRUSTED_ORIGINS,
+  }
+  const lines = existsSync('.dev.vars') ? readFileSync('.dev.vars', 'utf8').split(/\r?\n/) : []
+  const seen = new Set()
+  const next = lines
+    .filter((line) => line.trim() !== '')
+    .map((line) => {
+      const key = line.split('=')[0]
+      if (Object.hasOwn(updates, key)) {
+        seen.add(key)
+        return `${key}=${updates[key]}`
+      }
+      return line
+    })
+  for (const [key, value] of Object.entries(updates)) {
+    if (!seen.has(key)) next.push(`${key}=${value}`)
+  }
+  writeFileSync('.dev.vars', `${next.join('\n')}\n`)
 }
 
 async function waitForPublicTunnelIp(hostname) {
