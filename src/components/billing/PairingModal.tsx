@@ -24,10 +24,13 @@ interface PairingModalProps {
 }
 
 function useCountdown(expiresAt: string | null) {
-  const [remaining, setRemaining] = useState<number>(0)
+  const [remaining, setRemaining] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!expiresAt) return
+    if (!expiresAt) {
+      setRemaining(null)
+      return
+    }
     const target = new Date(expiresAt).getTime()
     function tick() {
       const diff = Math.max(0, Math.floor((target - Date.now()) / 1000))
@@ -38,8 +41,9 @@ function useCountdown(expiresAt: string | null) {
     return () => clearInterval(id)
   }, [expiresAt])
 
-  const minutes = Math.floor(remaining / 60)
-  const seconds = remaining % 60
+  const secondsRemaining = remaining ?? 0
+  const minutes = Math.floor(secondsRemaining / 60)
+  const seconds = secondsRemaining % 60
   return { remaining, display: `${minutes}:${String(seconds).padStart(2, '0')}` }
 }
 
