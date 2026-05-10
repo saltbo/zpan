@@ -1,11 +1,4 @@
-import {
-  type APIRequestContext,
-  type Browser,
-  expect,
-  type Page,
-  request as playwrightRequest,
-  test,
-} from '@playwright/test'
+import { type Browser, expect, type Page, request as playwrightRequest, test } from '@playwright/test'
 import { signInAsAdmin, signUpAndGoToFiles } from './helpers'
 
 const CLOUD_PRO_EMAIL = process.env.E2E_CLOUD_PRO_EMAIL ?? 'zpan-e2e-pro@zpan.test'
@@ -37,10 +30,6 @@ type CloudOrder = {
   id: string
   paymentStatus: string
   fulfillmentStatus: string
-}
-
-type CloudLicense = {
-  id: string
 }
 
 test.describe
@@ -177,24 +166,12 @@ async function approvePairingInCloud(pairing: PairingInfo) {
     })
     expect(signIn.status()).toBe(200)
 
-    await unbindCloudLicenses(cloudRequest)
-
     const approve = await cloudRequest.patch(`/api/pairings/${encodeURIComponent(pairing.code)}`, {
       data: { action: 'approve' },
     })
     expect(approve.status()).toBe(200)
   } finally {
     await cloudRequest.dispose()
-  }
-}
-
-async function unbindCloudLicenses(cloudRequest: APIRequestContext) {
-  const licenses = await cloudRequest.get('/api/accounts/me/licenses')
-  expect(licenses.status()).toBe(200)
-  const body = (await licenses.json()) as { data: CloudLicense[] }
-  for (const license of body.data) {
-    const response = await cloudRequest.delete(`/api/accounts/me/licenses/${encodeURIComponent(license.id)}`)
-    expect(response.status()).toBe(204)
   }
 }
 
