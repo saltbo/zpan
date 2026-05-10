@@ -7,7 +7,7 @@ import {
   type BrandingThemeValues,
 } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Brush, ImageUp, Palette, RotateCcw, Trash2, Upload } from 'lucide-react'
+import { Eye, ImageUp, Palette, RotateCcw, Upload } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -15,11 +15,20 @@ import { ThemeColorInput, ThemePreview } from '@/components/admin/branding-theme
 import { brandingQueryKey } from '@/components/branding/BrandingProvider'
 import { ProBadge } from '@/components/ProBadge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { getBranding, resetBrandingField, saveBranding } from '@/lib/api'
+import { cn } from '@/lib/utils'
 
 interface BrandingFormState {
   logoFile: File | null
@@ -135,56 +144,72 @@ function FileUploadField({
   onReset: () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const uploadLabel = previewUrl ? replaceLabel : emptyLabel
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-background p-4">
-      <div className="flex items-start gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-dashed border-border/70 bg-muted/30">
-          {previewUrl ? (
-            <img src={previewUrl} alt={label} className="h-10 w-10 rounded object-contain" />
-          ) : (
-            <ImageUp className="h-5 w-5 text-muted-foreground" />
-          )}
-        </div>
-        <input
-          ref={inputRef}
-          id={id}
-          type="file"
-          accept={accept}
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <input
+        ref={inputRef}
+        id={id}
+        type="file"
+        accept={accept}
+        disabled={disabled}
+        className="hidden"
+        onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+      />
+      <div
+        className={cn(
+          'flex h-9 items-center gap-2 rounded-md border border-input bg-background px-2 shadow-xs transition-colors hover:bg-accent/40',
+          disabled && 'opacity-60 hover:bg-background',
+        )}
+      >
+        <button
+          type="button"
           disabled={disabled}
-          className="hidden"
-          onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
-        />
-        <div className={`min-w-0 flex-1 space-y-3 ${disabled ? 'opacity-60' : ''}`}>
-          <div className="space-y-1">
-            <Label htmlFor={id}>{label}</Label>
-            <p className="text-xs leading-5 text-muted-foreground">{hint}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={disabled}
-              onClick={() => inputRef.current?.click()}
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {previewUrl ? replaceLabel : emptyLabel}
-            </Button>
-            {previewUrl && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={disabled}
-                onClick={onReset}
-                className="text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 className="mr-1 h-4 w-4" />
-                {resetLabel}
-              </Button>
-            )}
-          </div>
+          aria-label={uploadLabel}
+          title={uploadLabel}
+          onClick={() => inputRef.current?.click()}
+          className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-muted transition-colors hover:bg-background disabled:pointer-events-none"
+        >
+          {previewUrl ? (
+            <img src={previewUrl} alt="" className="size-5 rounded-sm object-contain" />
+          ) : (
+            <ImageUp className="size-3.5 text-muted-foreground" />
+          )}
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+          className="min-w-0 flex-1 truncate text-left text-sm text-muted-foreground disabled:pointer-events-none"
+        >
+          {hint}
+        </button>
+        <div className="flex shrink-0 items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            disabled={disabled}
+            aria-label={uploadLabel}
+            title={uploadLabel}
+            onClick={() => inputRef.current?.click()}
+          >
+            <Upload className="size-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            disabled={disabled || !previewUrl}
+            aria-label={resetLabel}
+            title={resetLabel}
+            onClick={onReset}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <RotateCcw className="size-3.5" />
+          </Button>
         </div>
       </div>
     </div>
@@ -242,6 +267,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
     savedCustomTheme?.ring_color,
   ])
   const previewTheme = themeMode === 'custom' ? customTheme : BRANDING_THEME_PRESETS[themePreset]
+  const themeSourceValue = themeMode === 'custom' ? 'custom' : themePreset
 
   useEffect(() => {
     setThemeMode(initial.theme.mode)
@@ -249,29 +275,21 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
     setCustomTheme(savedCustomValues)
   }, [initial.theme.mode, initial.theme.preset, savedCustomValues])
 
-  const saveAssetsMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: () =>
       saveBranding({
         logo: state.logoFile,
         favicon: state.faviconFile,
-      }),
-    onSuccess: (saved) => {
-      clearLogoPreview(saved.logo_url)
-      clearFaviconPreview(saved.favicon_url)
-      queryClient.invalidateQueries({ queryKey: brandingQueryKey })
-      toast.success(t('admin.settings.branding.saved'))
-    },
-    onError: (err) => toast.error(err.message),
-  })
-
-  const saveThemeMutation = useMutation({
-    mutationFn: () =>
-      saveBranding({
         theme_mode: themeMode,
         theme_preset: themePreset,
         theme_custom: customTheme,
       }),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      clearLogoPreview(saved.logo_url)
+      clearFaviconPreview(saved.favicon_url)
+      setThemeMode(saved.theme.mode)
+      setThemePreset(saved.theme.preset)
+      setCustomTheme(saved.theme.custom ?? BRANDING_THEME_PRESETS[saved.theme.preset])
       queryClient.invalidateQueries({ queryKey: brandingQueryKey })
       toast.success(t('admin.settings.branding.saved'))
     },
@@ -295,202 +313,149 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
   })
 
   return (
-    <div className="space-y-6">
-      <Card className="border-border/60">
-        <CardHeader className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-border/60 bg-primary/10 p-2 text-primary">
-              <Palette className="h-5 w-5" />
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <CardTitle>{t('admin.settings.branding.assetsTitle')}</CardTitle>
-                <ProBadge tooltip={t('admin.settings.proLockedWhiteLabel')} />
-              </div>
-              <CardDescription>{t('admin.settings.branding.assetsDescription')}</CardDescription>
-            </div>
+    <Card className="border-border/60">
+      <CardHeader className="gap-3">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg border border-border/60 bg-primary/10 p-2 text-primary">
+            <Palette className="size-5" />
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!disabled && (
-            <>
-              <FileUploadField
-                id="logo-upload"
-                label={t('admin.settings.branding.logo')}
-                hint={t('admin.settings.branding.logoHint')}
-                emptyLabel={t('admin.settings.branding.upload')}
-                replaceLabel={t('admin.settings.branding.replace')}
-                resetLabel={t('admin.settings.branding.reset')}
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                previewUrl={state.previewLogoUrl}
-                onFileChange={setLogoFile}
-                onReset={() => resetMutation.mutate('logo')}
-              />
-              <FileUploadField
-                id="favicon-upload"
-                label={t('admin.settings.branding.favicon')}
-                hint={t('admin.settings.branding.faviconHint')}
-                emptyLabel={t('admin.settings.branding.upload')}
-                replaceLabel={t('admin.settings.branding.replace')}
-                resetLabel={t('admin.settings.branding.reset')}
-                accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
-                previewUrl={state.faviconPreviewUrl}
-                onFileChange={setFaviconFile}
-                onReset={() => resetMutation.mutate('favicon')}
-              />
-            </>
-          )}
-          {disabled && (
-            <div className="space-y-4 rounded-2xl border border-dashed border-border/70 bg-muted/25 p-4 text-sm text-muted-foreground">
-              <FileUploadField
-                id="logo-upload-disabled"
-                label={t('admin.settings.branding.logo')}
-                hint={t('admin.settings.branding.logoHint')}
-                emptyLabel={t('admin.settings.branding.upload')}
-                replaceLabel={t('admin.settings.branding.replace')}
-                resetLabel={t('admin.settings.branding.reset')}
-                disabled
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                previewUrl={state.previewLogoUrl}
-                onFileChange={() => {}}
-                onReset={() => {}}
-              />
-              <FileUploadField
-                id="favicon-upload-disabled"
-                label={t('admin.settings.branding.favicon')}
-                hint={t('admin.settings.branding.faviconHint')}
-                emptyLabel={t('admin.settings.branding.upload')}
-                replaceLabel={t('admin.settings.branding.replace')}
-                resetLabel={t('admin.settings.branding.reset')}
-                disabled
-                accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
-                previewUrl={state.faviconPreviewUrl}
-                onFileChange={() => {}}
-                onReset={() => {}}
-              />
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <CardTitle>{t('admin.settings.branding.assetsTitle')}</CardTitle>
+              <ProBadge tooltip={t('admin.settings.proLockedWhiteLabel')} />
             </div>
-          )}
-          <div className="flex justify-end pt-2">
-            <Button onClick={() => saveAssetsMutation.mutate()} disabled={disabled || saveAssetsMutation.isPending}>
-              {saveAssetsMutation.isPending ? t('admin.settings.branding.saving') : t('admin.settings.branding.save')}
-            </Button>
+            <CardDescription>{t('admin.settings.branding.assetsDescription')}</CardDescription>
           </div>
-        </CardContent>
-      </Card>
-      <Card className="border-border/60">
-        <CardHeader className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-border/60 bg-primary/10 p-2 text-primary">
-              <Brush className="h-5 w-5" />
+        </div>
+        <CardAction>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button type="button" variant="outline" size="sm">
+                <Eye className="mr-2 size-4" />
+                {t('admin.settings.branding.preview')}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>{t('admin.settings.branding.preview')}</DialogTitle>
+                <DialogDescription>{t('admin.settings.branding.previewHint')}</DialogDescription>
+              </DialogHeader>
+              <ThemePreview values={previewTheme} logoUrl={state.previewLogoUrl} />
+            </DialogContent>
+          </Dialog>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <div className={cn('flex flex-col gap-5', disabled && 'opacity-60')}>
+          <div className="grid gap-2 xl:grid-cols-2">
+            <FileUploadField
+              id="logo-upload"
+              label={t('admin.settings.branding.logo')}
+              hint={t('admin.settings.branding.logoHint')}
+              emptyLabel={t('admin.settings.branding.upload')}
+              replaceLabel={t('admin.settings.branding.replace')}
+              resetLabel={t('admin.settings.branding.reset')}
+              disabled={disabled}
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              previewUrl={state.previewLogoUrl}
+              onFileChange={setLogoFile}
+              onReset={() => resetMutation.mutate('logo')}
+            />
+            <FileUploadField
+              id="favicon-upload"
+              label={t('admin.settings.branding.favicon')}
+              hint={t('admin.settings.branding.faviconHint')}
+              emptyLabel={t('admin.settings.branding.upload')}
+              replaceLabel={t('admin.settings.branding.replace')}
+              resetLabel={t('admin.settings.branding.reset')}
+              disabled={disabled}
+              accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
+              previewUrl={state.faviconPreviewUrl}
+              onFileChange={setFaviconFile}
+              onReset={() => resetMutation.mutate('favicon')}
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="theme-mode">{t('admin.settings.branding.themeMode')}</Label>
+              <Select
+                value={themeSourceValue}
+                disabled={disabled}
+                onValueChange={(value) => {
+                  if (value === 'custom') {
+                    setThemeMode('custom')
+                    return
+                  }
+                  setThemeMode('preset')
+                  setThemePreset(value as BrandingThemePresetId)
+                }}
+              >
+                <SelectTrigger id="theme-mode" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {THEME_PRESET_IDS.map((preset) => (
+                    <SelectItem key={preset} value={preset}>
+                      {t(`admin.settings.branding.themePresets.${preset}`)}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">{t('admin.settings.branding.themeModeCustom')}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <CardTitle>{t('admin.settings.branding.themeTitle')}</CardTitle>
-                <ProBadge tooltip={t('admin.settings.proLockedWhiteLabel')} />
-              </div>
-              <CardDescription>{t('admin.settings.branding.themeDescription')}</CardDescription>
-            </div>
+            <ThemeColorInput
+              id="theme-primary"
+              label={t('admin.settings.branding.themePrimary')}
+              value={customTheme.primary_color}
+              disabled={disabled || themeMode !== 'custom'}
+              onChange={(primary_color) => setCustomTheme({ ...customTheme, primary_color })}
+            />
+            <ThemeColorInput
+              id="theme-primary-foreground"
+              label={t('admin.settings.branding.themePrimaryForeground')}
+              value={customTheme.primary_foreground}
+              disabled={disabled || themeMode !== 'custom'}
+              onChange={(primary_foreground) => setCustomTheme({ ...customTheme, primary_foreground })}
+            />
+            <ThemeColorInput
+              id="theme-canvas"
+              label={t('admin.settings.branding.themeCanvas')}
+              value={customTheme.canvas_color}
+              disabled={disabled || themeMode !== 'custom'}
+              onChange={(canvas_color) => setCustomTheme({ ...customTheme, canvas_color })}
+            />
+            <ThemeColorInput
+              id="theme-sidebar-accent"
+              label={t('admin.settings.branding.themeSidebarAccent')}
+              value={customTheme.sidebar_accent_color}
+              disabled={disabled || themeMode !== 'custom'}
+              onChange={(sidebar_accent_color) => setCustomTheme({ ...customTheme, sidebar_accent_color })}
+            />
+            <ThemeColorInput
+              id="theme-ring"
+              label={t('admin.settings.branding.themeRing')}
+              value={customTheme.ring_color}
+              disabled={disabled || themeMode !== 'custom'}
+              onChange={(ring_color) => setCustomTheme({ ...customTheme, ring_color })}
+            />
           </div>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {disabled && <p className="text-sm text-muted-foreground">{t('admin.settings.branding.lockedMessage')}</p>}
-          <div className={`grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] ${disabled ? 'opacity-60' : ''}`}>
-            <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="theme-mode">{t('admin.settings.branding.themeMode')}</Label>
-                  <Select
-                    value={themeMode}
-                    disabled={disabled}
-                    onValueChange={(value) => setThemeMode(value as BrandingThemeMode)}
-                  >
-                    <SelectTrigger id="theme-mode" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="preset">{t('admin.settings.branding.themeModePreset')}</SelectItem>
-                      <SelectItem value="custom">{t('admin.settings.branding.themeModeCustom')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="theme-preset">{t('admin.settings.branding.themePreset')}</Label>
-                  <Select
-                    value={themePreset}
-                    disabled={disabled || themeMode === 'custom'}
-                    onValueChange={(value) => setThemePreset(value as BrandingThemePresetId)}
-                  >
-                    <SelectTrigger id="theme-preset" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {THEME_PRESET_IDS.map((preset) => (
-                        <SelectItem key={preset} value={preset}>
-                          {t(`admin.settings.branding.themePresets.${preset}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <ThemeColorInput
-                  id="theme-primary"
-                  label={t('admin.settings.branding.themePrimary')}
-                  value={customTheme.primary_color}
-                  disabled={disabled || themeMode !== 'custom'}
-                  onChange={(primary_color) => setCustomTheme({ ...customTheme, primary_color })}
-                />
-                <ThemeColorInput
-                  id="theme-primary-foreground"
-                  label={t('admin.settings.branding.themePrimaryForeground')}
-                  value={customTheme.primary_foreground}
-                  disabled={disabled || themeMode !== 'custom'}
-                  onChange={(primary_foreground) => setCustomTheme({ ...customTheme, primary_foreground })}
-                />
-                <ThemeColorInput
-                  id="theme-canvas"
-                  label={t('admin.settings.branding.themeCanvas')}
-                  value={customTheme.canvas_color}
-                  disabled={disabled || themeMode !== 'custom'}
-                  onChange={(canvas_color) => setCustomTheme({ ...customTheme, canvas_color })}
-                />
-                <ThemeColorInput
-                  id="theme-sidebar-accent"
-                  label={t('admin.settings.branding.themeSidebarAccent')}
-                  value={customTheme.sidebar_accent_color}
-                  disabled={disabled || themeMode !== 'custom'}
-                  onChange={(sidebar_accent_color) => setCustomTheme({ ...customTheme, sidebar_accent_color })}
-                />
-                <ThemeColorInput
-                  id="theme-ring"
-                  label={t('admin.settings.branding.themeRing')}
-                  value={customTheme.ring_color}
-                  disabled={disabled || themeMode !== 'custom'}
-                  onChange={(ring_color) => setCustomTheme({ ...customTheme, ring_color })}
-                />
-              </div>
-            </div>
-            <ThemePreview values={previewTheme} />
-          </div>
-          <div className="flex flex-wrap justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={disabled || resetMutation.isPending}
-              onClick={() => resetMutation.mutate('theme')}
-            >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              {t('admin.settings.branding.resetTheme')}
-            </Button>
-            <Button onClick={() => saveThemeMutation.mutate()} disabled={disabled || saveThemeMutation.isPending}>
-              {saveThemeMutation.isPending
-                ? t('admin.settings.branding.saving')
-                : t('admin.settings.branding.saveTheme')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+      <CardFooter className="flex-wrap justify-between gap-2 border-t">
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={disabled || resetMutation.isPending}
+          onClick={() => resetMutation.mutate('theme')}
+          className="text-muted-foreground"
+        >
+          <RotateCcw className="mr-2 size-4" />
+          {t('admin.settings.branding.resetTheme')}
+        </Button>
+        <Button onClick={() => saveMutation.mutate()} disabled={disabled || saveMutation.isPending}>
+          {saveMutation.isPending ? t('admin.settings.branding.saving') : t('admin.settings.branding.save')}
+        </Button>
+      </CardFooter>
+    </Card>
   )
 }
