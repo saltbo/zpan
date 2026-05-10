@@ -52,6 +52,8 @@ const LOCAL_PRO_FEATURES = FEATURE_REGISTRY.filter(
     'gateKey' in item && item.gateKey != null && !('comingSoon' in item && item.comingSoon),
 ).map((item) => item.gateKey)
 
+const cloudDashboardUrl = `${(import.meta.env.VITE_ZPAN_CLOUD_URL || 'https://cloud.zpan.space').replace(/\/$/, '')}/dashboard`
+
 interface BoundStatusCardProps {
   state: BindingState
 }
@@ -115,7 +117,7 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
               <Button asChild>
-                <a href="https://cloud.zpan.space/dashboard" target="_blank" rel="noopener noreferrer">
+                <a href={cloudDashboardUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-2 size-4" />
                   {t('settings.billing.bound.manageButton')}
                 </a>

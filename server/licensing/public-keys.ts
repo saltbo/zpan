@@ -8,6 +8,8 @@
 //
 // Keys are PASERK k4.public.* strings (Ed25519, 32 raw bytes, base64url-encoded).
 export const PUBLIC_KEYS: string[] = [
+  // zpan-cloud staging key — provisioned 2026-05-09
+  'k4.public.CCpUZ1yRWkFQy4fPZAblCYfzeJn4vDwPQrjtfiySwFc',
   // cloud.zpan.space production key — provisioned 2026-04-24
   'k4.public.N_r-lhhAfhR8sOk0pl8zlzU5dNRl2tvpUT94uODPZ1w',
 ]

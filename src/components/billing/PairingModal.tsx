@@ -150,7 +150,7 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
                   rel="noopener noreferrer"
                   className="font-medium underline underline-offset-4"
                 >
-                  cloud.zpan.space/pair
+                  {pairingInfo.pairingUrl}
                 </a>
               </li>
               <li className="text-muted-foreground">{t('settings.billing.pairing.step2')}</li>
