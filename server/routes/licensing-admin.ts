@@ -10,7 +10,7 @@ import { normalizeHost, verifyCertificate } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
-import { createPairing, pollPairing } from '../services/licensing-cloud'
+import { createPairing, pollPairing, unbindCloudLicense } from '../services/licensing-cloud'
 
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
@@ -165,6 +165,12 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
+    const baseUrl = getCloudBaseUrl(c)
+    const state = await loadLicenseState(db)
+
+    if (state.refreshToken) {
+      await unbindCloudLicense(baseUrl, state.cloudBindingId, state.refreshToken)
+    }
 
     await clearLicenseBinding(db)
     invalidateEntitlementCache()

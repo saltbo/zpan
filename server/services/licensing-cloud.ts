@@ -129,6 +129,18 @@ export async function refreshEntitlement(baseUrl: string, refreshToken: string):
   return data
 }
 
+export async function unbindCloudLicense(baseUrl: string, licenseId: string, refreshToken: string): Promise<void> {
+  const res = await cloudFetch(baseUrl, `/api/licenses/${encodeURIComponent(licenseId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${refreshToken}` },
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Cloud unbind failed: ${res.status} ${text}`)
+  }
+}
+
 export async function requestBoundCloudJson(
   baseUrl: string,
   path: string,

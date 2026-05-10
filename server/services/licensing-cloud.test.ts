@@ -7,6 +7,7 @@ import {
   pollPairing,
   refreshEntitlement,
   requestBoundCloudJson,
+  unbindCloudLicense,
 } from './licensing-cloud'
 
 const BASE_URL = 'https://cloud.zpan.space'
@@ -154,6 +155,26 @@ describe('licensing-cloud', () => {
       const result = refreshEntitlement(BASE_URL, 'old-rt')
       await expect(result).rejects.toThrow(CloudNetworkError)
       await expect(result).rejects.toThrow('Cloud network error')
+    })
+  })
+
+  describe('unbindCloudLicense', () => {
+    it('sends DELETE to the Cloud license route with Bearer token', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, 204))
+
+      await unbindCloudLicense(BASE_URL, 'binding_1', 'rt-bound')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('https://cloud.zpan.space/api/licenses/binding_1')
+      expect(init.method).toBe('DELETE')
+      expect(init.headers).toEqual({ Authorization: 'Bearer rt-bound' })
+      expect(init.body).toBeUndefined()
+    })
+
+    it('throws on non-OK response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unbound' }, 401))
+
+      await expect(unbindCloudLicense(BASE_URL, 'binding_1', 'rt-bound')).rejects.toThrow('Cloud unbind failed')
     })
   })
 

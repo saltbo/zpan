@@ -325,21 +325,50 @@ describe('POST /api/licensing/refresh', () => {
 })
 
 describe('DELETE /api/licensing/binding', () => {
-  it('deletes binding row and returns deleted: true', async () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('unbinds from Cloud, deletes binding row, and returns deleted: true', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
     await seedBinding(db)
+    vi.mocked(fetch).mockResolvedValueOnce(makeCloudResponse(null, 204))
 
     const res = await app.request('/api/licensing/binding', { method: 'DELETE', headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.deleted).toBe(true)
+    expect(fetch).toHaveBeenCalledWith('https://cloud.zpan.space/api/licenses/bind-1', {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer old-token' },
+      signal: expect.any(AbortSignal),
+    })
 
     // Confirm binding is gone
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBeNull()
+  })
+
+  it('keeps the local binding when Cloud unbind fails', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+
+    await seedBinding(db)
+    vi.mocked(fetch).mockResolvedValueOnce(makeCloudResponse({ error: 'unbound' }, 401))
+
+    const res = await app.request('/api/licensing/binding', { method: 'DELETE', headers })
+
+    expect(res.status).toBe(500)
+
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBe('old-token')
   })
 
   it('returns deleted: true even when no binding exists', async () => {
@@ -351,5 +380,6 @@ describe('DELETE /api/licensing/binding', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.deleted).toBe(true)
+    expect(fetch).not.toHaveBeenCalled()
   })
 })
