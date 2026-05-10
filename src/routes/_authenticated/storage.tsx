@@ -23,9 +23,6 @@ import {
 import {
   ApiError,
   cancelCloudOrder,
-  continueCloudOrderPayment,
-  createCloudBillingPortalSession,
-  createCloudCheckout,
   getCloudWallet,
   getUserQuota,
   listCloudOrders,
@@ -34,6 +31,7 @@ import {
   redeemCloudGiftCard,
 } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
+import { openNewTab } from '@/lib/browser-navigation'
 
 export const Route = createFileRoute('/_authenticated/storage')({
   component: StoragePage,
@@ -105,57 +103,6 @@ export function StoragePage() {
     }
   }, [checkoutRefreshActive, queryClient])
 
-  const checkoutMutation = useMutation({
-    mutationFn: ({ packageId, currency }: { packageId: string; currency: string; checkoutWindow: Window | null }) =>
-      createCloudCheckout(packageId, currency),
-    onSuccess: (result, variables) => {
-      if (variables.checkoutWindow) {
-        variables.checkoutWindow.location.href = result.url
-      } else {
-        window.location.assign(result.url)
-      }
-      setCheckoutRefreshActive(true)
-      queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
-      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
-    },
-    onError: (err, variables) => {
-      variables.checkoutWindow?.close()
-      toast.error(err.message)
-    },
-  })
-
-  const continuePaymentMutation = useMutation({
-    mutationFn: ({ orderId }: { orderId: string; checkoutWindow: Window | null }) => continueCloudOrderPayment(orderId),
-    onSuccess: (result, variables) => {
-      if (variables.checkoutWindow) {
-        variables.checkoutWindow.location.href = result.url
-      } else {
-        window.location.assign(result.url)
-      }
-      setCheckoutRefreshActive(true)
-      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
-    },
-    onError: (err, variables) => {
-      variables.checkoutWindow?.close()
-      toast.error(err.message)
-    },
-  })
-
-  const managePlanMutation = useMutation({
-    mutationFn: (_variables: { checkoutWindow: Window | null }) => createCloudBillingPortalSession(),
-    onSuccess: (result, variables) => {
-      if (variables.checkoutWindow) {
-        variables.checkoutWindow.location.href = result.url
-      } else {
-        window.location.assign(result.url)
-      }
-    },
-    onError: (err, variables) => {
-      variables.checkoutWindow?.close()
-      toast.error(err.message)
-    },
-  })
-
   const cancelOrderMutation = useMutation({
     mutationFn: (orderId: string) => cancelCloudOrder(orderId),
     onSuccess: () => {
@@ -185,21 +132,20 @@ export function StoragePage() {
   })
 
   function startCheckout(packageId: string, currency: string) {
-    const checkoutWindow = window.open('about:blank', '_blank')
-    if (checkoutWindow) checkoutWindow.opener = null
-    checkoutMutation.mutate({ packageId, currency, checkoutWindow })
+    openCheckoutTab({ action: 'checkout', packageId, currency })
+    setCheckoutRefreshActive(true)
+    queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
+    queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
   }
 
   function continuePayment(orderId: string) {
-    const checkoutWindow = window.open('about:blank', '_blank')
-    if (checkoutWindow) checkoutWindow.opener = null
-    continuePaymentMutation.mutate({ orderId, checkoutWindow })
+    openCheckoutTab({ action: 'payment', orderId })
+    setCheckoutRefreshActive(true)
+    queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
   }
 
   function managePlan() {
-    const checkoutWindow = window.open('about:blank', '_blank')
-    if (checkoutWindow) checkoutWindow.opener = null
-    managePlanMutation.mutate({ checkoutWindow })
+    openCheckoutTab({ action: 'portal' })
   }
 
   function cancelOrder(orderId: string) {
@@ -243,7 +189,7 @@ export function StoragePage() {
             orders={currentOrders}
             onContinuePayment={continuePayment}
             onCancelOrder={cancelOrder}
-            continuingOrderId={continuePaymentMutation.isPending ? continuePaymentMutation.variables?.orderId : null}
+            continuingOrderId={null}
             cancelingOrderId={cancelOrderMutation.isPending ? cancelOrderMutation.variables : null}
           />
         </div>
@@ -256,17 +202,13 @@ export function StoragePage() {
       )}
 
       {hasActivePlan && quotaQuery.data ? (
-        <CurrentPlanCard
-          quota={quotaQuery.data}
-          onManagePlan={managePlan}
-          isManagingPlan={managePlanMutation.isPending}
-        />
+        <CurrentPlanCard quota={quotaQuery.data} onManagePlan={managePlan} isManagingPlan={false} />
       ) : (
         <div className="space-y-6">
           <FreeQuotaCard quota={quotaQuery.data} />
           <StoragePackages
             packages={cloudStoreQuery.data?.items ?? []}
-            disabled={!targetOrgId || checkoutMutation.isPending}
+            disabled={!targetOrgId}
             onCheckout={startCheckout}
           />
         </div>
@@ -289,6 +231,21 @@ export function StoragePage() {
       </Dialog>
     </div>
   )
+}
+
+type CheckoutTabInput =
+  | { action: 'checkout'; packageId: string; currency: string }
+  | { action: 'payment'; orderId: string }
+  | { action: 'portal' }
+
+function openCheckoutTab(input: CheckoutTabInput) {
+  const search = new URLSearchParams({ action: input.action })
+  if (input.action === 'checkout') {
+    search.set('packageId', input.packageId)
+    search.set('currency', input.currency)
+  }
+  if (input.action === 'payment') search.set('orderId', input.orderId)
+  openNewTab(`/storage/checkout?${search.toString()}`)
 }
 
 function isCloudStoreDisabledError(error: unknown) {

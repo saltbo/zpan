@@ -6,9 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
   cancelCloudOrder,
-  continueCloudOrderPayment,
-  createCloudBillingPortalSession,
-  createCloudCheckout,
   getCloudWallet,
   getUserQuota,
   listCloudOrders,
@@ -16,6 +13,7 @@ import {
   listCloudWalletTransactions,
   redeemCloudGiftCard,
 } from '@/lib/api'
+import { openNewTab } from '@/lib/browser-navigation'
 import { StoragePage } from './storage'
 
 const activeOrganization = vi.hoisted(() => ({
@@ -66,6 +64,10 @@ vi.mock('@/lib/auth-client', () => ({
   useActiveOrganization: () => ({ data: activeOrganization.value }),
 }))
 
+vi.mock('@/lib/browser-navigation', () => ({
+  openNewTab: vi.fn(),
+}))
+
 vi.mock('@/lib/api', () => {
   class MockApiError extends Error {
     readonly status: number
@@ -82,9 +84,6 @@ vi.mock('@/lib/api', () => {
   return {
     ApiError: MockApiError,
     cancelCloudOrder: vi.fn(),
-    continueCloudOrderPayment: vi.fn(),
-    createCloudCheckout: vi.fn(),
-    createCloudBillingPortalSession: vi.fn(),
     getUserQuota: vi.fn(),
     getCloudWallet: vi.fn(),
     redeemCloudGiftCard: vi.fn(),
@@ -332,9 +331,6 @@ describe('StoragePage', () => {
   it('starts checkout from the product catalog', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createCloudCheckout).mockResolvedValue({ orderId: 'order-1', url: 'https://cloud.example.test/checkout' })
-    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
-    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -347,7 +343,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
+    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
     expect(toast.info).not.toHaveBeenCalled()
   })
 
@@ -372,9 +368,6 @@ describe('StoragePage', () => {
     i18nState.language = 'zh-CN'
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createCloudCheckout).mockResolvedValue({ orderId: 'order-1', url: 'https://cloud.example.test/checkout' })
-    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
-    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -387,15 +380,12 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
+    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
   })
 
-  it('closes the checkout window when checkout fails', async () => {
+  it('opens the checkout redirect page instead of creating a blank tab', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createCloudCheckout).mockRejectedValue(new Error('checkout failed'))
-    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
-    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -408,21 +398,12 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
-    expect(checkoutWindow.close).toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledWith('checkout failed')
+    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
   })
 
   it('refreshes quota and orders after checkout starts', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createCloudCheckout).mockResolvedValue({
-      orderId: 'order-1',
-      url: 'https://cloud.example.test/checkout',
-    })
-    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
-    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
-
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -435,7 +416,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    await waitFor(() => expect(checkoutWindow.location.href).toBe('https://cloud.example.test/checkout'))
+    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
     expect(view.getByText('storage.checkoutPending')).toBeTruthy()
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
@@ -460,13 +441,6 @@ describe('StoragePage', () => {
     })
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [subscriptionPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createCloudBillingPortalSession).mockResolvedValue({
-      url: 'https://billing.stripe.test/session',
-      stripeSubscriptionId: 'sub_1',
-    })
-    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
-    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
-
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -478,8 +452,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.managePlan' }))
 
-    await waitFor(() => expect(createCloudBillingPortalSession).toHaveBeenCalled())
-    expect(checkoutWindow.location.href).toBe('https://billing.stripe.test/session')
+    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=portal')
   })
 
   it('shows only the active workspace plan when a subscription is active', async () => {
@@ -524,7 +497,7 @@ describe('StoragePage', () => {
     expect(view.getByText('Team Plan')).toBeTruthy()
     expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy()
     expect(view.queryByRole('button', { name: /storage.checkoutPlan|storage.checkoutPackage/ })).toBeNull()
-    expect(createCloudCheckout).not.toHaveBeenCalled()
+    expect(openNewTab).not.toHaveBeenCalled()
   })
 
   it('uses the active workspace for orders and checkout', async () => {
@@ -534,12 +507,6 @@ describe('StoragePage', () => {
       items: [order({ id: 'order-2', target: { orgId: 'org-2' } })],
       total: 1,
     })
-    vi.mocked(createCloudCheckout).mockResolvedValue({
-      orderId: 'order-1',
-      url: 'https://cloud.example.test/checkout',
-    })
-    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
-    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -557,7 +524,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.queryByText('org-2')).toBeNull())
     fireEvent.click(await view.findByRole('button', { name: /storage.checkoutPackage/ }))
 
-    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
+    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=checkout&packageId=pkg-1&currency=usd')
   })
 
   it('requires an active organization to checkout', async () => {
@@ -580,7 +547,7 @@ describe('StoragePage', () => {
     fireEvent.click(checkoutButton)
 
     expect(listCloudOrders).not.toHaveBeenCalled()
-    expect(vi.mocked(createCloudCheckout)).not.toHaveBeenCalled()
+    expect(openNewTab).not.toHaveBeenCalled()
   })
 
   it('shows product cards on the page instead of inside a dialog', async () => {
@@ -740,12 +707,6 @@ describe('StoragePage', () => {
       items: [order({ id: 'order-unpaid', paymentStatus: 'unpaid', status: 'pending' })],
       total: 1,
     })
-    vi.mocked(continueCloudOrderPayment).mockResolvedValue({
-      orderId: 'order-unpaid',
-      url: 'https://cloud.example.test/pay',
-    })
-    const checkoutWindow = { close: vi.fn(), opener: null, location: { href: '' } }
-    vi.spyOn(window, 'open').mockReturnValue(checkoutWindow as unknown as Window)
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -761,8 +722,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByLabelText('storage.continuePayment')).toBeTruthy())
     fireEvent.click(view.getByLabelText('storage.continuePayment'))
 
-    await waitFor(() => expect(continueCloudOrderPayment).toHaveBeenCalledWith('order-unpaid'))
-    expect(checkoutWindow.location.href).toBe('https://cloud.example.test/pay')
+    expect(openNewTab).toHaveBeenCalledWith('/storage/checkout?action=payment&orderId=order-unpaid')
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
   })
 
