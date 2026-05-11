@@ -34,12 +34,12 @@ Each version ships 1–2 major features. Ship small, ship often.
 | [v2.4](docs/roadmap/v2.4.md) | **Image Hosting** | Upload API, PicGo / uPic / ShareX integration, custom domain |
 | [v2.5](docs/roadmap/v2.5.md) | **Multi-Platform Deployment** | 7 first-class targets via Turso (CF, Docker, AWS Lambda, Vercel, Netlify, Azure, GCP); avatar upload |
 | [v2.6](docs/roadmap/v2.6.md) | **Pro Launch** | Cloud binding, entitlement system, quota store, white-label, audit log, site announcements, retroactive Pro gates |
-| [v2.7](docs/roadmap/v2.7.md) | **WebDAV & File Processing** | WebDAV protocol access, small-file zip compression/extraction for Community, Pro Cloud Processing for remote download and large archive jobs |
+| [v2.7](docs/roadmap/v2.7.md) | **WebDAV & File Processing** | WebDAV protocol access, small-file zip compression/extraction, and Community remote-download orchestration through Aria2, qBittorrent, and future adapters |
 | [v2.8](docs/roadmap/v2.8.md) | **Pro Analytics & Identity** | Analytics dashboard, SSO enterprise (multi-IdP OIDC + SAML), LDAP / SCIM |
 | [v2.9](docs/roadmap/v2.9.md) | **Backup** | zpan-cli (Rust) one-way backup for NAS / desktop |
 | [v2.10](docs/roadmap/v2.10.md) | **Sync & Desktop** | Bidirectional sync + Tauri desktop tray app |
 
-Managed cloud services (remote download, large archive processing, content moderation, server-side media processing, managed custom domains) live in a separate closed-source repo and version independently. They are consumed by ZPan via HTTP, and do not affect self-hosted deployments that don't opt in.
+Managed cloud services (large archive processing, content moderation, server-side media processing, managed custom domains) live in a separate closed-source repo and version independently. They are consumed by ZPan via HTTP, and do not affect self-hosted deployments that don't opt in. Remote download is not a Cloud execution service; ZPan integrates with user-owned download engines instead.
 
 ## Deployment Options
 
@@ -70,6 +70,7 @@ Everything an individual, family, or small team needs to self-host:
 - WebDAV access for external file managers and sync tools
 - One personal workspace plus one extra team workspace, shared folders, and basic roles
 - Small-file zip compression and extraction within local runtime limits
+- Remote-download orchestration through user-configured Aria2, qBittorrent, and future compatible adapters
 - Backup CLI + desktop app + bidirectional sync
 - All 7 deployment targets
 
@@ -82,7 +83,6 @@ Operator-grade features for running ZPan as a service (internally at a company, 
 - Open registration (the public signup mode) + anti-abuse tooling (captcha, rate limit, email verification)
 - Audit logs + site announcements + webhook notifications + analytics dashboard
 - White-label (logo / favicon / wordmark / custom branding)
-- Remote download through ZPan Cloud Processing
 - Large archive processing and future server-side media/document processing
 - SSO enterprise (multi-IdP OIDC + SAML), LDAP / SCIM provisioning
 - Advanced RBAC / custom roles, retention policies
@@ -99,7 +99,7 @@ Pro is purchased or redeemed on ZPan Cloud, then mirrored to a bound ZPan instan
 
 ### Managed Cloud Services (separate repo)
 
-A small set of Pro features depend on backend infrastructure we host: remote download (`yt-dlp` and direct URL fetching), large archive processing, content moderation (third-party NSFW scanning), server-side media/document processing, and managed custom domains (SSL provisioning). Those services live in a separate closed-source repo (`zpan-cloud`) and version independently. Self-hosted Pro users call these services via HTTPS; usage included up to a monthly quota per plan, overage billed post-paid with a user-set hard cap.
+A small set of Pro features depend on backend infrastructure we host: large archive processing, content moderation (third-party NSFW scanning), server-side media/document processing, and managed custom domains (SSL provisioning). Those services live in a separate closed-source repo (`zpan-cloud`) and version independently. Self-hosted Pro users call these services via HTTPS; usage included up to a monthly quota per plan, overage billed post-paid with a user-set hard cap. Cloud does not run remote-download workers in the v2.7 plan.
 
 ### Pricing
 
