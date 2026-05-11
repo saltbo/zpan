@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cloudOrderItemStorageBytes, cloudOrderItemTrafficBytes } from '@/lib/cloud-order'
 import { formatSize } from '@/lib/format'
 
 export function StorageOrderHistoryDialog({
@@ -99,8 +100,8 @@ function OrderRow({
 }) {
   const { t, i18n } = useTranslation()
   const item = order.items[0]
-  const storageBytes = payloadNumber(item?.fulfillmentPayload, 'storageBytes')
-  const trafficBytes = payloadNumber(item?.fulfillmentPayload, 'trafficBytes')
+  const storageBytes = cloudOrderItemStorageBytes(item)
+  const trafficBytes = cloudOrderItemTrafficBytes(item)
   return (
     <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border bg-card/40 px-4 py-4">
       <div className="min-w-0 flex-1 space-y-2">
@@ -213,9 +214,4 @@ function isActionableOrder(order: CloudOrder) {
 function formatTargetValue(order: CloudOrder, key: string) {
   const value = order.target?.[key]
   return typeof value === 'string' ? value : '-'
-}
-
-function payloadNumber(payload: CloudOrder['items'][number]['fulfillmentPayload'] | undefined, key: string) {
-  const value = payload?.[key]
-  return typeof value === 'number' ? value : 0
 }

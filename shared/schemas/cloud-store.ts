@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import {
+  commerceOrderItemSchema,
+  commerceOrderSchema,
   createProductSchema,
+  orderListResponseSchema,
   productPriceSchema,
   updateProductSchema,
   walletBalanceListResponseSchema,
@@ -25,6 +28,19 @@ export const cloudProductDeliverableSchema = z.object({
   trafficBytes: z.number().int().min(0).default(0),
   validityDays: z.number().int().positive().optional(),
   trafficOveragePriceCents: z.number().int().min(0).optional(),
+})
+
+export const cloudOrderFulfillmentPayloadSchema = z.object({
+  deliverable: cloudProductDeliverableSchema,
+})
+export const cloudOrderItemSchema = commerceOrderItemSchema.extend({
+  fulfillmentPayload: cloudOrderFulfillmentPayloadSchema,
+})
+export const cloudOrderSchema = commerceOrderSchema.extend({
+  items: z.array(cloudOrderItemSchema),
+})
+export const cloudOrdersResponseSchema = orderListResponseSchema.extend({
+  items: z.array(cloudOrderSchema),
 })
 
 function validateUniformPriceBilling(
@@ -275,6 +291,9 @@ export type CloudProductPrice = z.infer<typeof cloudProductPriceSchema>
 export type CloudProductDeliverable = z.infer<typeof cloudProductDeliverableSchema>
 export type CloudProductInput = z.infer<typeof cloudProductInputSchema>
 export type CloudProductPatchInput = z.input<typeof cloudProductPatchSchema>
+export type CloudOrderFulfillmentPayload = z.infer<typeof cloudOrderFulfillmentPayloadSchema>
+export type CloudOrderItem = z.infer<typeof cloudOrderItemSchema>
+export type CloudOrder = z.infer<typeof cloudOrderSchema>
 export type CheckoutInput = z.infer<typeof checkoutInputSchema>
 export type GiftCardStatus = z.infer<typeof giftCardStatusSchema>
 export type CreateGiftCardInput = z.input<typeof createGiftCardInputSchema>

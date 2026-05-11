@@ -16,6 +16,9 @@ export type { ListAdminAuditQuery } from './audit'
 export { listAdminAuditQuerySchema } from './audit'
 export type {
   CheckoutInput,
+  CloudOrder,
+  CloudOrderFulfillmentPayload,
+  CloudOrderItem,
   CloudOrderQuotaChange,
   CloudProductInput,
   CloudProductPatchInput,
@@ -31,7 +34,11 @@ export type {
 } from './cloud-store'
 export {
   checkoutInputSchema,
+  cloudOrderFulfillmentPayloadSchema,
+  cloudOrderItemSchema,
   cloudOrderQuotaChangeSchema,
+  cloudOrderSchema,
+  cloudOrdersResponseSchema,
   cloudProductInputSchema,
   cloudProductPatchSchema,
   cloudStoreSettingsSchema,

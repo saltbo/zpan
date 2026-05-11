@@ -44,7 +44,7 @@ function cloudProduct(overrides: Record<string, unknown> = {}) {
     type: 'store_item',
     name: 'Small',
     description: 'starter',
-    metadata: { deliverable: { storageBytes: 4096, trafficBytes: 0 } },
+    metadata: { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 0 } },
     prices: [
       { id: 'price-usd', currency: 'usd', amount: 500 },
       { id: 'price-cny', currency: 'cny', amount: 3600 },
@@ -88,13 +88,13 @@ function cloudOrder(overrides: Record<string, unknown> = {}) {
         id: 'order-item-1',
         orderId: 'cloud-order-1',
         productId: 'cloud-pkg-1',
-        productType: 'zpan_quota',
+        productType: 'store_item',
         name: 'Small',
         description: 'starter',
         quantity: 1,
         unitAmount: 500,
         totalAmount: 500,
-        fulfillmentPayload: { storageBytes: 512, trafficBytes: 0 },
+        fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 512, trafficBytes: 0 } },
       },
     ],
     payments: [
@@ -269,7 +269,7 @@ beforeEach(() => {
               id: 'cloud-pkg-inactive',
               name: 'Retired',
               description: 'hidden from users',
-              metadata: { deliverable: { storageBytes: 0, trafficBytes: 8192 } },
+              metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192 } },
               prices: [{ currency: 'usd', amount: 900 }],
               active: false,
               sortOrder: 2,
@@ -299,7 +299,7 @@ beforeEach(() => {
                 ? new URL(String(url)).pathname.split('/').at(-1)
                 : 'cloud-pkg-1',
               ...body,
-              metadata: body.metadata ?? { deliverable: { storageBytes: 4096, trafficBytes: 0 } },
+              metadata: body.metadata ?? { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 0 } },
             }),
         } as Response
       }
@@ -396,7 +396,7 @@ describe('Quota Store API', () => {
         type: 'store_item',
         name: 'SDK Package',
         description: null,
-        metadata: { deliverable: { storageBytes: 4096, trafficBytes: 8192 } },
+        metadata: { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 8192 } },
         prices: [{ currency: 'usd', amount: 999 }],
         active: true,
         sortOrder: 2,
@@ -409,7 +409,7 @@ describe('Quota Store API', () => {
       type: 'store_item',
       name: 'SDK Package',
       description: null,
-      metadata: { deliverable: { storageBytes: 4096, trafficBytes: 8192 } },
+      metadata: { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 8192 } },
       prices: [{ currency: 'usd', amount: 999 }],
       active: true,
       sortOrder: 2,
@@ -612,8 +612,16 @@ describe('Quota Store API', () => {
     await expect(listed.json()).resolves.toMatchObject({
       total: 2,
       items: [
-        { id: 'cloud-pkg-1', metadata: { deliverable: { storageBytes: 4096, trafficBytes: 0 } }, active: true },
-        { id: 'cloud-pkg-inactive', metadata: { deliverable: { storageBytes: 0, trafficBytes: 8192 } }, active: false },
+        {
+          id: 'cloud-pkg-1',
+          metadata: { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 0 } },
+          active: true,
+        },
+        {
+          id: 'cloud-pkg-inactive',
+          metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192 } },
+          active: false,
+        },
       ],
     })
   })
@@ -632,7 +640,7 @@ describe('Quota Store API', () => {
             id: 'cloud-pkg-object',
             name: 'Object Shape',
             description: null,
-            metadata: { deliverable: { storageBytes: 0, trafficBytes: 4096 } },
+            metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 4096 } },
             prices: [
               { currency: 'usd', amount: 500 },
               { currency: 'cny', amount: 3600 },
@@ -666,7 +674,7 @@ describe('Quota Store API', () => {
         {
           id: 'cloud-pkg-object',
           description: null,
-          metadata: { deliverable: { storageBytes: 0, trafficBytes: 4096 } },
+          metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 4096 } },
           sortOrder: 3,
         },
       ],
@@ -1427,7 +1435,12 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-order-1', items: [{ fulfillmentPayload: { storageBytes: 512, trafficBytes: 0 } }] }],
+      items: [
+        {
+          id: 'cloud-order-1',
+          items: [{ fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 512, trafficBytes: 0 } } }],
+        },
+      ],
     })
     const [url] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
     expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=100`)
@@ -1736,7 +1749,13 @@ describe('Quota Store API', () => {
     expect(orders.status).toBe(200)
     await expect(orders.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-order-1', target: { orgId }, items: [{ fulfillmentPayload: { storageBytes: 512 } }] }],
+      items: [
+        {
+          id: 'cloud-order-1',
+          target: { orgId },
+          items: [{ fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 512 } } }],
+        },
+      ],
     })
     const [ordersUrl] = calls
       .filter(([url]) => {

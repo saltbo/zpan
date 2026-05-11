@@ -1,5 +1,10 @@
-import type { CommerceOrder, CommercePayment, CommerceProduct, ProductPrice, StoreGiftCard } from 'zpan-cloud-sdk'
+import type { CommercePayment, CommerceProduct, ProductPrice, StoreGiftCard } from 'zpan-cloud-sdk'
 import type { DirType, ObjectStatus, StorageMode, StorageStatus } from '../constants'
+import type {
+  CloudOrder as ZPanCloudOrder,
+  CloudOrderFulfillmentPayload as ZPanCloudOrderFulfillmentPayload,
+  CloudOrderItem as ZPanCloudOrderItem,
+} from '../schemas/cloud-store'
 
 export interface StorageObject {
   id: string
@@ -77,8 +82,8 @@ export interface CloudStoreSettings {
 
 export type CloudProduct = CommerceProduct
 export type CloudProductPrice = ProductPrice
-export type CloudOrderFulfillmentPayload = CommerceOrder['items'][number]['fulfillmentPayload']
-export type CloudOrderItem = CommerceOrder['items'][number]
+export type CloudOrderFulfillmentPayload = ZPanCloudOrderFulfillmentPayload
+export type CloudOrderItem = ZPanCloudOrderItem
 
 export interface CloudOrderTarget {
   orgId?: string
@@ -87,7 +92,7 @@ export interface CloudOrderTarget {
 }
 
 export type CloudOrderPayment = CommercePayment
-export type CloudOrder = CommerceOrder
+export type CloudOrder = ZPanCloudOrder
 export type CloudGiftCard = StoreGiftCard
 
 export interface CloudStoreTarget {

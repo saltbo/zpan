@@ -88,7 +88,7 @@ function quotaPackage(overrides: Partial<CloudProduct> = {}): CloudProduct {
     type: 'store_item',
     name: '100 GB',
     description: 'Extra storage',
-    metadata: { deliverable: { storageBytes: 107374182400, trafficBytes: 0 } },
+    metadata: { deliverable: { type: 'zpan.plan', storageBytes: 107374182400, trafficBytes: 0 } },
     prices: [
       { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
       {
@@ -142,13 +142,13 @@ function storeOrder(overrides: Partial<CloudOrder> = {}): CloudOrder {
         id: 'item-1',
         orderId: 'order-1',
         productId: 'pkg-1',
-        productType: 'zpan_quota',
+        productType: 'store_item',
         name: '100 GB',
         description: null,
         quantity: 1,
         unitAmount: 999,
         totalAmount: 999,
-        fulfillmentPayload: { storageBytes: 1024, trafficBytes: 0 },
+        fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0 } },
       },
     ],
     payments: [],
@@ -258,7 +258,10 @@ describe('AdminCloudStorePage', () => {
     vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
     vi.mocked(listAdminCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(createCloudProduct).mockResolvedValue(
-      quotaPackage({ id: 'pkg-traffic', metadata: { deliverable: { storageBytes: 0, trafficBytes: 1099511627776 } } }),
+      quotaPackage({
+        id: 'pkg-traffic',
+        metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 1099511627776 } },
+      }),
     )
 
     const view = renderAdminPage()
@@ -601,13 +604,13 @@ describe('AdminCloudStorePage', () => {
               id: 'item-1',
               orderId: 'order-1',
               productId: 'pkg-1',
-              productType: 'zpan_quota',
+              productType: 'store_item',
               name: '100 GB',
               description: null,
               quantity: 1,
               unitAmount: 999,
               totalAmount: 999,
-              fulfillmentPayload: { storageBytes: 1024, trafficBytes: 2048 },
+              fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 2048 } },
             },
           ],
         }),

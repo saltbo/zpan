@@ -6,6 +6,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  cloudOrderItemStorageBytes,
+  cloudOrderItemTrafficBytes,
+  cloudOrderStorageBytes,
+  cloudOrderTrafficBytes,
+} from '@/lib/cloud-order'
 import { formatMoney, formatSize } from '@/lib/format'
 
 export function StorageOrdersTable({ orders }: { orders: CloudOrder[] }) {
@@ -157,7 +163,7 @@ function OrderDetailsDrawer({ order }: { order: CloudOrder }) {
                     items={[
                       [t('admin.cloudStore.orders.quantity'), String(item.quantity)],
                       [t('admin.cloudStore.orders.unitAmount'), formatMoney(item.unitAmount, order.currency)],
-                      [t('admin.cloudStore.orders.planQuota'), formatItemQuota(item.fulfillmentPayload, t)],
+                      [t('admin.cloudStore.orders.planQuota'), formatItemQuota(item, t)],
                       [t('admin.cloudStore.orders.productType'), item.productType],
                     ]}
                   />
@@ -246,15 +252,14 @@ function DetailGrid({ items, className }: { items: [string, string][]; className
 }
 
 function formatOrderQuota(order: CloudOrder, t: ReturnType<typeof useTranslation>['t']) {
-  return formatItemQuota(order.items[0]?.fulfillmentPayload, t)
+  return formatQuotaParts(cloudOrderStorageBytes(order), cloudOrderTrafficBytes(order), t)
 }
 
-function formatItemQuota(
-  payload: CloudOrder['items'][number]['fulfillmentPayload'] | undefined,
-  t: ReturnType<typeof useTranslation>['t'],
-) {
-  const storageBytes = payloadNumber(payload, 'storageBytes')
-  const trafficBytes = payloadNumber(payload, 'trafficBytes')
+function formatItemQuota(item: CloudOrder['items'][number], t: ReturnType<typeof useTranslation>['t']) {
+  return formatQuotaParts(cloudOrderItemStorageBytes(item), cloudOrderItemTrafficBytes(item), t)
+}
+
+function formatQuotaParts(storageBytes: number, trafficBytes: number, t: ReturnType<typeof useTranslation>['t']) {
   const parts = []
   if (storageBytes > 0) parts.push(t('admin.cloudStore.orders.storageQuota', { size: formatSize(storageBytes) }))
   if (trafficBytes > 0) parts.push(t('admin.cloudStore.orders.trafficQuota', { size: formatSize(trafficBytes) }))
@@ -276,11 +281,6 @@ function formatCustomer(order: CloudOrder) {
 function formatTargetValue(order: CloudOrder, key: string) {
   const value = order.target?.[key]
   return typeof value === 'string' ? value : '-'
-}
-
-function payloadNumber(payload: CloudOrder['items'][number]['fulfillmentPayload'] | undefined, key: string) {
-  const value = payload?.[key]
-  return typeof value === 'number' ? value : 0
 }
 
 function formatDateTime(value: string) {

@@ -1,12 +1,14 @@
-import { giftCardStatusSchema } from '@shared/schemas'
+import {
+  cloudOrderSchema,
+  giftCardStatusSchema,
+  cloudOrdersResponseSchema as zpanCloudOrdersResponseSchema,
+} from '@shared/schemas'
 import { z } from 'zod'
 import {
   billingPortalSessionResponseSchema,
-  commerceOrderSchema,
   commerceProductSchema,
   createCloudClient,
   giftCardListResponseSchema,
-  orderListResponseSchema,
   paymentCreateResponseSchema,
   productListResponseSchema,
   storeGiftCardSchema,
@@ -24,8 +26,8 @@ export const cloudCheckoutResponseSchema = paymentCreateResponseSchema
 export const cloudBillingPortalSessionResponseSchema = billingPortalSessionResponseSchema
 export const cloudPackageResponseSchema = commerceProductSchema
 export const cloudPackageListResponseSchema = productListResponseSchema
-export const cloudOrdersResponseSchema = orderListResponseSchema
-export const cloudOrderResponseSchema = commerceOrderSchema
+export const cloudOrdersResponseSchema = zpanCloudOrdersResponseSchema
+export const cloudOrderResponseSchema = cloudOrderSchema
 export const cloudOrdersQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
