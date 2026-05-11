@@ -23,24 +23,35 @@ export function StoragePlanList({
 
   return (
     <div className="rounded-md border">
-      <Table>
+      <Table className="table-fixed">
+        <colgroup>
+          <col />
+          <col className="w-28" />
+          <col className="w-36" />
+          <col className="w-24" />
+          <col className="w-24" />
+          <col className="w-20" />
+          <col className="w-44" />
+        </colgroup>
         <TableHeader>
           <TableRow>
             <TableHead>{t('admin.cloudStore.planName')}</TableHead>
-            <TableHead>{t('admin.cloudStore.storageQuota')}</TableHead>
-            <TableHead>{t('admin.cloudStore.trafficQuota')}</TableHead>
-            <TableHead>{t('admin.cloudStore.prices')}</TableHead>
-            <TableHead>{t('admin.cloudStore.active')}</TableHead>
-            <TableHead>{t('admin.cloudStore.sortOrder')}</TableHead>
-            <TableHead className="w-56 text-right">{t('common.actions')}</TableHead>
+            <TableHead className="w-28">{t('admin.cloudStore.storageQuota')}</TableHead>
+            <TableHead className="w-36">{t('admin.cloudStore.trafficQuota')}</TableHead>
+            <TableHead className="w-24">{t('admin.cloudStore.prices')}</TableHead>
+            <TableHead className="w-24">{t('admin.cloudStore.active')}</TableHead>
+            <TableHead className="w-20">{t('admin.cloudStore.sortOrder')}</TableHead>
+            <TableHead className="w-44 text-right">{t('common.actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {packages.map((pkg) => (
             <TableRow key={pkg.id}>
-              <TableCell className="max-w-md">
-                <div className="font-medium">{pkg.name}</div>
-                <div className="mt-1 whitespace-normal text-xs text-muted-foreground">{pkg.description ?? ''}</div>
+              <TableCell className="min-w-0">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{pkg.name}</div>
+                  <div className="mt-1 truncate text-xs text-muted-foreground">{pkg.description ?? ''}</div>
+                </div>
               </TableCell>
               <TableCell className="tabular-nums">
                 {pkg.metadata.storageBytes > 0 ? formatSize(pkg.metadata.storageBytes) : '—'}
@@ -48,7 +59,7 @@ export function StoragePlanList({
               <TableCell className="tabular-nums">
                 {pkg.metadata.trafficBytes > 0 ? formatSize(pkg.metadata.trafficBytes) : '—'}
               </TableCell>
-              <TableCell className="tabular-nums">{formatPrices(pkg.prices)}</TableCell>
+              <TableCell className="tabular-nums">{formatUsdPrice(pkg.prices)}</TableCell>
               <TableCell>
                 <Badge variant={pkg.active ? 'default' : 'secondary'}>
                   {pkg.active ? t('common.active') : t('common.disabled')}
@@ -92,11 +103,11 @@ export function StoragePlanList({
   )
 }
 
-function formatPrices(prices: CloudProduct['prices']) {
-  return prices.map(formatPrice).join(' / ')
+function formatUsdPrice(prices: CloudProduct['prices']) {
+  const price = prices.find((item) => item.currency === 'usd' && !isMeteredTrafficPrice(item))
+  return price ? `${(price.amount / 100).toFixed(2)} USD` : '—'
 }
 
-function formatPrice(price: CloudProduct['prices'][number]) {
-  const cadence = price.recurring ? `/${price.recurring.interval}` : ''
-  return `${(price.amount / 100).toFixed(2)} ${price.currency}${cadence}`
+function isMeteredTrafficPrice(price: CloudProduct['prices'][number]) {
+  return price.recurring?.usageType === 'metered' && price.metadata?.usageResource === 'traffic_egress'
 }

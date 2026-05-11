@@ -300,13 +300,32 @@ describe('AdminCloudStorePage', () => {
 
   it('shows packages in a table and opens the package form in a dialog', async () => {
     vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
-    vi.mocked(listAdminCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listAdminCloudProducts).mockResolvedValue({
+      items: [
+        quotaPackage({
+          prices: [
+            { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
+            {
+              currency: 'usd',
+              amount: 2,
+              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+            { currency: 'cny', amount: 6900, recurring: { interval: 'month', intervalCount: 1 } },
+          ],
+        }),
+      ],
+      total: 1,
+    })
 
     const view = renderAdminPage()
 
     await waitFor(() => expect(view.getByRole('table')).toBeTruthy())
     expect(view.getByRole('columnheader', { name: 'admin.cloudStore.planName' })).toBeTruthy()
     expect(view.getByRole('columnheader', { name: 'admin.cloudStore.prices' })).toBeTruthy()
+    expect(view.getByText('9.99 USD')).toBeTruthy()
+    expect(view.queryByText('0.02 USD')).toBeNull()
+    expect(view.queryByText('69.00 CNY')).toBeNull()
     expect(view.queryByRole('button', { name: 'admin.cloudStore.sync' })).toBeNull()
     expect(view.queryByText('admin.cloudStore.lastSync')).toBeNull()
     expect(view.queryByText('admin.cloudStore.lastOrder')).toBeNull()
