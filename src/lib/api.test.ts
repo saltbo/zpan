@@ -414,7 +414,7 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
       await listCloudGiftCards('active')
-      await createCloudGiftCards({ amount: 1024, currency: 'usd', count: 3 })
+      const createdGiftCards = await createCloudGiftCards({ amount: 1024, currency: 'usd', count: 3 })
       await disableCloudGiftCard('ZS123')
       await deleteCloudGiftCard('ZS123')
       await listAdminCloudOrders({ limit: 100, offset: 100 })
@@ -429,6 +429,7 @@ describe('api', () => {
         currency: 'usd',
         count: 3,
       })
+      expect(createdGiftCards).toEqual({ items: [{ code: 'ZS123' }], total: 1 })
       expect(calls[2][0]).toBe('/api/admin/store/gift-cards/ZS123')
       expect(calls[2][1].method).toBe('PATCH')
       expect(JSON.parse(calls[2][1].body as string)).toEqual({ disabled: true })

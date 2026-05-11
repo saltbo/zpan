@@ -361,7 +361,7 @@ export function listCloudGiftCards(status?: GiftCardStatus) {
 }
 
 export function createCloudGiftCards(data: CreateGiftCardInput) {
-  return unwrap<CloudGiftCard[]>(adminCloudStoreApi['gift-cards'].$post({ json: data }))
+  return unwrap<{ items: CloudGiftCard[]; total: number }>(adminCloudStoreApi['gift-cards'].$post({ json: data }))
 }
 
 export function disableCloudGiftCard(code: string) {

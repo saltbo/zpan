@@ -223,13 +223,16 @@ beforeEach(() => {
           ok: true,
           status: 201,
           json: async () => ({
-            data: Array.from({ length: body.count ?? 1 }, (_, index) =>
-              cloudGiftCard({
-                code: `ZS-GEN-${index + 1}`,
-                amount: body.amount ?? 1024,
-                status: 'created',
-              }),
-            ),
+            data: {
+              items: Array.from({ length: body.count ?? 1 }, (_, index) =>
+                cloudGiftCard({
+                  code: `ZS-GEN-${index + 1}`,
+                  amount: body.amount ?? 1024,
+                  status: 'created',
+                }),
+              ),
+              total: body.count ?? 1,
+            },
           }),
         } as Response
       }
@@ -1301,10 +1304,13 @@ describe('Quota Store API', () => {
     const deleted = await app.request('/api/admin/store/gift-cards/ZS-GEN-1', { method: 'DELETE', headers })
 
     expect(generated.status).toBe(201)
-    await expect(generated.json()).resolves.toMatchObject([
-      { code: 'ZS-GEN-1', amount: 4096, status: 'created' },
-      { code: 'ZS-GEN-2', amount: 4096, status: 'created' },
-    ])
+    await expect(generated.json()).resolves.toMatchObject({
+      total: 2,
+      items: [
+        { code: 'ZS-GEN-1', amount: 4096, status: 'created' },
+        { code: 'ZS-GEN-2', amount: 4096, status: 'created' },
+      ],
+    })
     expect(listed.status).toBe(200)
     await expect(listed.json()).resolves.toMatchObject({
       total: 1,
@@ -1348,7 +1354,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ total: 9, items: [{ code: 'ZS-PAGED-1' }] })
   })
 
-  it('accepts paged admin gift card create responses from Cloud', async () => {
+  it('returns paged admin gift card create responses from Cloud', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1370,7 +1376,7 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject([{ code: 'ZS-PAGED-1' }])
+    await expect(res.json()).resolves.toMatchObject({ total: 1, items: [{ code: 'ZS-PAGED-1' }] })
   })
 
   it('disables admin gift cards through Cloud', async () => {

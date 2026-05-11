@@ -24,6 +24,11 @@ type CloudGiftCard = {
   code: string
 }
 
+type CloudGiftCardPage = {
+  items: CloudGiftCard[]
+  total: number
+}
+
 type CloudOrder = {
   id: string
   paymentStatus: string
@@ -221,13 +226,13 @@ async function createOneTimePackage(page: Page, name: string) {
 }
 
 async function createGiftCard(page: Page) {
-  const cards = await postJson<CloudGiftCard[]>(page, '/api/admin/store/gift-cards', {
+  const cards = await postJson<CloudGiftCardPage>(page, '/api/admin/store/gift-cards', {
     amount: 200,
     currency: 'usd',
     count: 1,
   })
-  expect(cards.length).toBe(1)
-  return cards[0]
+  expect(cards.items.length).toBe(1)
+  return cards.items[0]
 }
 
 async function createOneTimePackageThroughUi(page: Page, packageName: string) {
@@ -266,9 +271,9 @@ async function createGiftCardThroughUi(page: Page) {
   await dialog.getByRole('button', { name: 'Generate' }).click()
   const result = await response
   expect(result.status()).toBe(201)
-  const cards = (await result.json()) as CloudGiftCard[]
-  expect(cards.length).toBe(1)
-  return cards[0].code
+  const cards = (await result.json()) as CloudGiftCardPage
+  expect(cards.items.length).toBe(1)
+  return cards.items[0].code
 }
 
 async function expectAdminProductVisibleInApi(page: Page, packageName: string) {

@@ -496,7 +496,7 @@ describe('AdminCloudStorePage', () => {
       items: [giftCard()],
       total: 1,
     })
-    vi.mocked(createCloudGiftCards).mockResolvedValue([])
+    vi.mocked(createCloudGiftCards).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(disableCloudGiftCard).mockResolvedValue({ code: 'ZS-CODE-1', disabled: true })
 
     const view = renderAdminPage()
