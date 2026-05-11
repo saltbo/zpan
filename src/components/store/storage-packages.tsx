@@ -4,6 +4,7 @@ import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { cloudProductStorageBytes, cloudProductTrafficBytes, cloudProductValidityDays } from '@/lib/cloud-product'
 import { formatSize } from '@/lib/format'
 
 export function StoragePackages({
@@ -103,6 +104,8 @@ function PackageCard({
   const price = selectPrice(pkg.prices, language)
   const priceLabel = formatPackagePrice(price, pkg, language, t)
   const plan = isPlanProduct(pkg)
+  const storageBytes = cloudProductStorageBytes(pkg)
+  const trafficBytes = cloudProductTrafficBytes(pkg)
   return (
     <ProductCardShell
       title={pkg.name}
@@ -119,8 +122,8 @@ function PackageCard({
     >
       {plan ? (
         <>
-          <PlanDetailRow label={t('storage.baseStorageQuota')} value={formatSize(pkg.metadata.storageBytes)} />
-          <PlanDetailRow label={t('storage.includedTraffic')} value={formatSize(pkg.metadata.trafficBytes)} />
+          <PlanDetailRow label={t('storage.baseStorageQuota')} value={formatSize(storageBytes)} />
+          <PlanDetailRow label={t('storage.includedTraffic')} value={formatSize(trafficBytes)} />
           <PlanDetailRow
             label={t('storage.trafficPolicy')}
             value={formatTrafficPolicy(pkg, price.currency, language, t)}
@@ -128,8 +131,8 @@ function PackageCard({
         </>
       ) : (
         <>
-          <PlanDetailRow label={t('storage.packageStorageQuota')} value={formatSize(pkg.metadata.storageBytes)} />
-          <PlanDetailRow label={t('storage.packageTrafficQuota')} value={formatSize(pkg.metadata.trafficBytes)} />
+          <PlanDetailRow label={t('storage.packageStorageQuota')} value={formatSize(storageBytes)} />
+          <PlanDetailRow label={t('storage.packageTrafficQuota')} value={formatSize(trafficBytes)} />
           <PlanDetailRow label={t('storage.packageValidity')} value={formatValidity(pkg, t)} />
         </>
       )}
@@ -171,12 +174,14 @@ function formatPackagePrice(
   const amount = formatMoney(price.amount, price.currency, language)
   if (price.recurring?.interval === 'month' && price.recurring.intervalCount === 1)
     return t('storage.priceMonthly', { amount })
-  if (pkg.metadata.validityDays) return t('storage.priceForDays', { amount, days: pkg.metadata.validityDays })
+  const validityDays = cloudProductValidityDays(pkg)
+  if (validityDays) return t('storage.priceForDays', { amount, days: validityDays })
   return amount
 }
 
 function formatValidity(pkg: CloudProduct, t: ReturnType<typeof useTranslation>['t']) {
-  if (pkg.metadata.validityDays) return t('storage.billingFixedDays', { days: pkg.metadata.validityDays })
+  const validityDays = cloudProductValidityDays(pkg)
+  if (validityDays) return t('storage.billingFixedDays', { days: validityDays })
   return t('storage.packageNoExpiry')
 }
 
@@ -195,7 +200,7 @@ function formatTrafficPolicy(
   language: string,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
-  if (pkg.metadata.trafficBytes <= 0) return t('storage.usageNoLimit')
+  if (cloudProductTrafficBytes(pkg) <= 0) return t('storage.usageNoLimit')
   const overagePrice = selectMeteredTrafficPrice(pkg.prices, currency)
   if (!overagePrice) return t('storage.trafficStopsAtQuota')
   return t('storage.trafficOveragePerGb', { amount: formatMoney(overagePrice.amount, currency, language) })

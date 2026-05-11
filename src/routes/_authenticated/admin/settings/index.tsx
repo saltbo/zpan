@@ -35,7 +35,7 @@ function bytesToDisplay(bytes: number): { value: number; unit: StorageQuotaUnit 
 const settingsSchema = z.object({
   siteName: z.string().min(1),
   siteDescription: z.string(),
-  quotaValue: z.coerce.number().positive('Quota must be a positive number'),
+  quotaValue: z.coerce.number<number>().positive('Quota must be a positive number'),
   quotaUnit: z.enum(['MB', 'GB']),
   cloudStoreEnabled: z.boolean(),
   registrationsEnabled: z.boolean(),

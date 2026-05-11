@@ -84,10 +84,11 @@ function settings(overrides: Partial<CloudStoreSettings> = {}): CloudStoreSettin
 function quotaPackage(overrides: Partial<CloudProduct> = {}): CloudProduct {
   return {
     id: 'pkg-1',
-    type: 'zpan_quota',
+    storeId: 'store-1',
+    type: 'store_item',
     name: '100 GB',
     description: 'Extra storage',
-    metadata: { storageBytes: 107374182400, trafficBytes: 0 },
+    metadata: { deliverable: { storageBytes: 107374182400, trafficBytes: 0 } },
     prices: [
       { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
       {
@@ -147,7 +148,7 @@ function storeOrder(overrides: Partial<CloudOrder> = {}): CloudOrder {
         quantity: 1,
         unitAmount: 999,
         totalAmount: 999,
-        deliverable: { storageBytes: 1024, trafficBytes: 0 },
+        fulfillmentPayload: { storageBytes: 1024, trafficBytes: 0 },
       },
     ],
     payments: [],
@@ -219,12 +220,16 @@ describe('AdminCloudStorePage', () => {
 
     await waitFor(() =>
       expect(createCloudProduct).toHaveBeenCalledWith({
-        type: 'zpan_quota',
+        type: 'store_item',
         name: '250 GB',
         description: 'Team storage',
         metadata: {
-          storageBytes: 268435456000,
-          trafficBytes: 0,
+          deliverable: {
+            type: 'zpan.plan',
+            storageBytes: 268435456000,
+            trafficBytes: 0,
+            trafficOveragePriceCents: 2,
+          },
         },
         prices: [
           { currency: 'usd', amount: 1999, recurring: { interval: 'month', intervalCount: 1 } },
@@ -253,7 +258,7 @@ describe('AdminCloudStorePage', () => {
     vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
     vi.mocked(listAdminCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(createCloudProduct).mockResolvedValue(
-      quotaPackage({ id: 'pkg-traffic', metadata: { storageBytes: 0, trafficBytes: 1099511627776 } }),
+      quotaPackage({ id: 'pkg-traffic', metadata: { deliverable: { storageBytes: 0, trafficBytes: 1099511627776 } } }),
     )
 
     const view = renderAdminPage()
@@ -279,13 +284,16 @@ describe('AdminCloudStorePage', () => {
 
     await waitFor(() =>
       expect(createCloudProduct).toHaveBeenCalledWith({
-        type: 'zpan_quota',
+        type: 'store_item',
         name: '1 TB traffic',
         description: 'Download traffic',
         metadata: {
-          storageBytes: 0,
-          trafficBytes: 1099511627776,
-          validityDays: 30,
+          deliverable: {
+            type: 'zpan.extra',
+            storageBytes: 0,
+            trafficBytes: 1099511627776,
+            validityDays: 30,
+          },
         },
         prices: [
           { currency: 'usd', amount: 4999 },
@@ -369,12 +377,16 @@ describe('AdminCloudStorePage', () => {
 
     await waitFor(() =>
       expect(updateCloudProduct).toHaveBeenCalledWith('pkg-1', {
-        type: 'zpan_quota',
+        type: 'store_item',
         name: '200 GB',
         description: 'Extra storage',
         metadata: {
-          storageBytes: 107374182400,
-          trafficBytes: 0,
+          deliverable: {
+            type: 'zpan.plan',
+            storageBytes: 107374182400,
+            trafficBytes: 0,
+            trafficOveragePriceCents: 2,
+          },
         },
         prices: [
           { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
@@ -595,7 +607,7 @@ describe('AdminCloudStorePage', () => {
               quantity: 1,
               unitAmount: 999,
               totalAmount: 999,
-              deliverable: { storageBytes: 1024, trafficBytes: 2048 },
+              fulfillmentPayload: { storageBytes: 1024, trafficBytes: 2048 },
             },
           ],
         }),

@@ -381,8 +381,8 @@ export function deleteCloudGiftCard(code: string) {
 
 export function listAdminCloudOrders(options: { limit?: number; offset?: number } = {}) {
   const query = {
-    ...(options.limit !== undefined ? { limit: options.limit } : {}),
-    ...(options.offset !== undefined ? { offset: options.offset } : {}),
+    ...(options.limit !== undefined ? { limit: String(options.limit) } : {}),
+    ...(options.offset !== undefined ? { offset: String(options.offset) } : {}),
   }
   return unwrap<{ items: CloudOrder[]; total: number }>(adminCloudStoreApi.orders.$get({ query }))
 }
@@ -431,8 +431,8 @@ export function cancelCloudOrder(orderId: string) {
 
 export function listCloudOrders(options: { limit?: number; offset?: number } = {}) {
   const query = {
-    ...(options.limit !== undefined ? { limit: options.limit } : {}),
-    ...(options.offset !== undefined ? { offset: options.offset } : {}),
+    ...(options.limit !== undefined ? { limit: String(options.limit) } : {}),
+    ...(options.offset !== undefined ? { offset: String(options.offset) } : {}),
   }
   return unwrap<{ items: CloudOrder[]; total: number }>(cloudStoreApi.orders.$get({ query }))
 }
@@ -494,7 +494,9 @@ export interface InviteCode {
 }
 
 export function listInviteCodes(page = 1, pageSize = 20) {
-  return unwrap<{ items: InviteCode[]; total: number }>(inviteCodes.index.$get({ query: { page, pageSize } }))
+  return unwrap<{ items: InviteCode[]; total: number }>(
+    inviteCodes.index.$get({ query: { page: String(page), pageSize: String(pageSize) } }),
+  )
 }
 
 export function generateInviteCodes(count: number, expiresInDays?: number) {
@@ -511,7 +513,7 @@ export function deleteInviteCode(id: string) {
 
 export function listSiteInvitations(page = 1, pageSize = 20) {
   return unwrap<{ items: SiteInvitation[]; total: number }>(
-    adminSiteInvitations.index.$get({ query: { page, pageSize } }),
+    adminSiteInvitations.index.$get({ query: { page: String(page), pageSize: String(pageSize) } }),
   )
 }
 

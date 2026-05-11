@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { cloudProductStorageBytes, cloudProductTrafficBytes, cloudProductValidityDays } from '@/lib/cloud-product'
 
 const units = { MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 } as const
 type Unit = keyof typeof units
@@ -35,29 +36,37 @@ export const emptyPackageForm = {
 export type PackageFormState = typeof emptyPackageForm
 
 export function packageInputFromForm(form: PackageFormState): CloudProductInput {
+  const prices = packagePricesFromForm(form)
   return {
-    type: 'zpan_quota',
+    type: 'store_item',
     name: form.name,
     description: form.description,
     metadata: {
-      storageBytes: form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0,
-      trafficBytes: form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0,
-      ...(form.billingMode === 'one_time' ? { validityDays: Math.round(Number(form.validityDays)) } : {}),
+      deliverable: {
+        type: form.billingMode === 'subscription' ? 'zpan.plan' : 'zpan.extra',
+        storageBytes: form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0,
+        trafficBytes: form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0,
+        ...(form.billingMode === 'one_time' ? { validityDays: Math.round(Number(form.validityDays)) } : {}),
+        ...trafficOveragePrice(prices),
+      },
     },
-    prices: packagePricesFromForm(form),
+    prices,
     active: true,
     sortOrder: Math.round(Number(form.sortOrder)),
   }
 }
 
 export function packageFormFromPackage(pkg: CloudProduct): PackageFormState {
-  const storageDisplay = pkg.metadata.storageBytes > 0 ? bytesToDisplay(pkg.metadata.storageBytes) : null
-  const trafficDisplay = pkg.metadata.trafficBytes > 0 ? bytesToDisplay(pkg.metadata.trafficBytes) : null
+  const storageBytes = cloudProductStorageBytes(pkg)
+  const trafficBytes = cloudProductTrafficBytes(pkg)
+  const validityDays = cloudProductValidityDays(pkg)
+  const storageDisplay = storageBytes > 0 ? bytesToDisplay(storageBytes) : null
+  const trafficDisplay = trafficBytes > 0 ? bytesToDisplay(trafficBytes) : null
   return {
     name: pkg.name,
     description: pkg.description ?? '',
     billingMode: pkg.prices.some((price) => price.recurring) ? 'subscription' : 'one_time',
-    validityDays: pkg.metadata.validityDays ? String(pkg.metadata.validityDays) : '',
+    validityDays: validityDays ? String(validityDays) : '',
     storageSize: storageDisplay ? String(storageDisplay.size) : '',
     storageUnit: storageDisplay?.unit ?? 'GB',
     trafficSize: trafficDisplay ? String(trafficDisplay.size) : '',
@@ -137,6 +146,17 @@ function packagePricesFromForm(form: PackageFormState) {
   return packageCurrencies
     .flatMap((currency) => packagePricesForCurrency(currency, form))
     .filter((price) => Number.isFinite(price.amount) && price.amount > 0)
+}
+
+function trafficOveragePrice(prices: ReturnType<typeof packagePricesFromForm>) {
+  const price = prices.find(isFormMeteredTrafficPrice)
+  return price ? { trafficOveragePriceCents: price.amount } : {}
+}
+
+function isFormMeteredTrafficPrice(price: ReturnType<typeof packagePricesFromForm>[number]) {
+  return (
+    'metadata' in price && price.recurring.usageType === 'metered' && price.metadata.usageResource === 'traffic_egress'
+  )
 }
 
 function packagePriceInputsValid(form: PackageFormState) {

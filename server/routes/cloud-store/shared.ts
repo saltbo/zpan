@@ -1,5 +1,10 @@
 import type { z } from 'zod'
-import { cloudOrdersResponseSchema, getCloud, ordersPath, type RouteContext } from '../cloud-store-helpers'
+import {
+  cloudOrdersResponseSchema,
+  getBoundCloudClient,
+  type RouteContext,
+  unwrapCloudResponse,
+} from '../cloud-store-helpers'
 
 const CLOUD_ORDER_PAGE_SIZE = 100
 
@@ -9,15 +14,22 @@ export async function getCloudOrders(
   c: RouteContext,
   options: { limit?: number; offset?: number; customerId?: string } = {},
 ): Promise<CloudOrders | { error: string }> {
-  return getCloud(
-    c,
-    ordersPath({
-      limit: options.limit ?? CLOUD_ORDER_PAGE_SIZE,
-      ...(options.offset !== undefined ? { offset: options.offset } : {}),
-      ...(options.customerId ? { customerId: options.customerId } : {}),
-    }),
-    cloudOrdersResponseSchema,
-  )
+  try {
+    const { client, storeId } = await getBoundCloudClient(c)
+    return await unwrapCloudResponse(
+      await client.stores[':storeId'].orders.$get({
+        param: { storeId },
+        query: {
+          limit: String(options.limit ?? CLOUD_ORDER_PAGE_SIZE),
+          ...(options.offset !== undefined ? { offset: String(options.offset) } : {}),
+          ...(options.customerId ? { customerId: options.customerId } : {}),
+        },
+      }),
+      cloudOrdersResponseSchema,
+    )
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
 }
 
 export function getInstanceOrigin(c: RouteContext): string {

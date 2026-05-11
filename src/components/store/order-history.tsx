@@ -99,8 +99,8 @@ function OrderRow({
 }) {
   const { t, i18n } = useTranslation()
   const item = order.items[0]
-  const storageBytes = item?.deliverable.storageBytes ?? 0
-  const trafficBytes = item?.deliverable.trafficBytes ?? 0
+  const storageBytes = payloadNumber(item?.fulfillmentPayload, 'storageBytes')
+  const trafficBytes = payloadNumber(item?.fulfillmentPayload, 'trafficBytes')
   return (
     <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border bg-card/40 px-4 py-4">
       <div className="min-w-0 flex-1 space-y-2">
@@ -121,7 +121,7 @@ function OrderRow({
           )}
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>{order.target?.orgId ?? '-'}</span>
+          <span>{formatTargetValue(order, 'orgId')}</span>
           <span>{new Date(order.createdAt).toLocaleString()}</span>
         </div>
       </div>
@@ -208,4 +208,14 @@ function formatMoney(amount: number, currency: string, language: string) {
 function isActionableOrder(order: CloudOrder) {
   if (order.status !== 'pending') return false
   return order.paymentStatus !== 'paid' && order.paymentStatus !== 'canceled'
+}
+
+function formatTargetValue(order: CloudOrder, key: string) {
+  const value = order.target?.[key]
+  return typeof value === 'string' ? value : '-'
+}
+
+function payloadNumber(payload: CloudOrder['items'][number]['fulfillmentPayload'] | undefined, key: string) {
+  const value = payload?.[key]
+  return typeof value === 'number' ? value : 0
 }

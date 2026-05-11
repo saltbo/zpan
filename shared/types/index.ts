@@ -1,3 +1,4 @@
+import type { CommerceOrder, CommercePayment, CommerceProduct, ProductPrice, StoreGiftCard } from 'zpan-cloud-sdk'
 import type { DirType, ObjectStatus, StorageMode, StorageStatus } from '../constants'
 
 export interface StorageObject {
@@ -74,54 +75,10 @@ export interface CloudStoreSettings {
   updatedAt: string
 }
 
-export interface CloudProduct {
-  id: string
-  type: 'zpan_quota'
-  name: string
-  description: string | null
-  metadata: {
-    storageBytes: number
-    trafficBytes: number
-    validityDays?: number
-    trafficOveragePriceCents?: number
-  }
-  prices: CloudProductPrice[]
-  active: boolean
-  sortOrder: number
-  createdAt: string
-  updatedAt: string
-}
-
-export interface CloudProductPrice {
-  id?: string
-  currency: string
-  amount: number
-  recurring?: {
-    interval: 'day' | 'week' | 'month' | 'year'
-    intervalCount: number
-    usageType?: 'licensed' | 'metered'
-  } | null
-  metadata?: Record<string, string>
-}
-
-export interface CloudOrderDeliverable {
-  storageBytes?: number
-  trafficBytes?: number
-  [key: string]: unknown
-}
-
-export interface CloudOrderItem {
-  id: string
-  orderId: string
-  productId: string
-  productType: string
-  name: string
-  description: string | null
-  quantity: number
-  unitAmount: number
-  totalAmount: number
-  deliverable: CloudOrderDeliverable
-}
+export type CloudProduct = CommerceProduct
+export type CloudProductPrice = ProductPrice
+export type CloudOrderFulfillmentPayload = CommerceOrder['items'][number]['fulfillmentPayload']
+export type CloudOrderItem = CommerceOrder['items'][number]
 
 export interface CloudOrderTarget {
   orgId?: string
@@ -129,55 +86,9 @@ export interface CloudOrderTarget {
   customerLabel?: string
 }
 
-export interface CloudOrderPayment {
-  id: string
-  orderId: string
-  provider: string
-  amount: number
-  currency: string
-  status: 'pending' | 'paid' | 'failed' | 'refunded' | 'canceled'
-  providerSessionId: string | null
-  providerPaymentIntentId: string | null
-  createdAt: string
-  paidAt: string | null
-}
-
-export interface CloudOrder {
-  id: string
-  storeId: string
-  buyerAccountId: string | null
-  target: CloudOrderTarget | null
-  status: 'pending' | 'paid' | 'fulfilled' | 'failed' | 'canceled' | 'refunded'
-  paymentStatus: 'unpaid' | 'pending' | 'paid' | 'failed' | 'refunded' | 'canceled'
-  fulfillmentStatus: 'pending' | 'fulfilled' | 'failed' | 'canceled'
-  currency: string
-  subtotalAmount: number
-  discountAmount: number
-  totalAmount: number
-  items: CloudOrderItem[]
-  payments?: CloudOrderPayment[]
-  createdAt: string
-  paidAt: string | null
-  fulfilledAt: string | null
-  canceledAt: string | null
-}
-
-export interface CloudGiftCard {
-  id: string
-  storeId: string
-  campaignId: string | null
-  code: string | null
-  codeLast4: string
-  amount: number
-  currency: string
-  status: 'active' | 'redeemed' | 'disabled' | 'expired' | 'revoked'
-  expiresAt: string | null
-  disabledAt: string | null
-  revokedAt: string | null
-  createdAt: string
-  updatedAt: string
-  createdByAdmin: string
-}
+export type CloudOrderPayment = CommercePayment
+export type CloudOrder = CommerceOrder
+export type CloudGiftCard = StoreGiftCard
 
 export interface CloudStoreTarget {
   orgId: string

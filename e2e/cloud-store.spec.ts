@@ -207,13 +207,16 @@ async function unbindCurrentCloudBinding() {
 
 async function createOneTimePackage(page: Page, name: string) {
   return postJson<CloudProduct>(page, '/api/admin/store/packages', {
-    type: 'zpan_quota',
+    type: 'store_item',
     name,
     description: 'Playwright staging Cloud store package',
     metadata: {
-      storageBytes: 1024 * 1024,
-      trafficBytes: 1024 * 1024,
-      validityDays: 7,
+      deliverable: {
+        type: 'zpan.extra',
+        storageBytes: 1024 * 1024,
+        trafficBytes: 1024 * 1024,
+        validityDays: 7,
+      },
     },
     prices: [{ currency: 'usd', amount: 100 }],
     active: true,

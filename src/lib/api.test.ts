@@ -305,10 +305,12 @@ describe('api', () => {
 
     it('creates packages with typed RPC paths', async () => {
       const payload: Parameters<typeof createCloudProduct>[0] = {
-        type: 'zpan_quota',
+        type: 'store_item',
         name: 'Small',
         description: '',
-        metadata: { storageBytes: 1024, trafficBytes: 0 },
+        metadata: {
+          deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0, trafficOveragePriceCents: 2 },
+        },
         prices: [
           { currency: 'usd', amount: 500, recurring: { interval: 'month', intervalCount: 1 } },
           {
@@ -336,10 +338,12 @@ describe('api', () => {
       expect(createUrl).toBe('/api/admin/store/packages')
       expect(createInit.method).toBe('POST')
       expect(JSON.parse(createInit.body as string)).toEqual({
-        type: 'zpan_quota',
+        type: 'store_item',
         name: 'Small',
         description: '',
-        metadata: { storageBytes: 1024, trafficBytes: 0 },
+        metadata: {
+          deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0, trafficOveragePriceCents: 2 },
+        },
         prices: [
           { currency: 'usd', amount: 500, recurring: { interval: 'month', intervalCount: 1 } },
           {
@@ -379,10 +383,10 @@ describe('api', () => {
 
       await expect(
         createCloudProduct({
-          type: 'zpan_quota',
+          type: 'store_item',
           name: 'Small',
           description: '',
-          metadata: { storageBytes: 1024, trafficBytes: 0 },
+          metadata: { deliverable: { type: 'zpan.extra', storageBytes: 1024, trafficBytes: 0 } },
           prices: [{ currency: 'usd', amount: 500 }],
           active: true,
           sortOrder: 0,
@@ -597,10 +601,10 @@ describe('api', () => {
         'createCloudProduct',
         () =>
           createCloudProduct({
-            type: 'zpan_quota',
+            type: 'store_item',
             name: 'Small',
             description: '',
-            metadata: { storageBytes: 1024, trafficBytes: 0 },
+            metadata: { deliverable: { type: 'zpan.extra', storageBytes: 1024, trafficBytes: 0 } },
             prices: [{ currency: 'usd', amount: 500 }],
             active: true,
             sortOrder: 0,
@@ -610,10 +614,10 @@ describe('api', () => {
         'updateCloudProduct',
         () =>
           updateCloudProduct('pkg-1', {
-            type: 'zpan_quota',
+            type: 'store_item',
             name: 'Small',
             description: '',
-            metadata: { storageBytes: 1024, trafficBytes: 0 },
+            metadata: { deliverable: { type: 'zpan.extra', storageBytes: 1024, trafficBytes: 0 } },
             prices: [{ currency: 'usd', amount: 500 }],
             sortOrder: 0,
           }),

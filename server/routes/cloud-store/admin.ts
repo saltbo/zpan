@@ -7,7 +7,6 @@ import {
   disableGiftCardSchema,
 } from '@shared/schemas'
 import { Hono } from 'hono'
-import { z } from 'zod'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
@@ -18,77 +17,12 @@ import {
   cloudOrdersQuerySchema,
   cloudPackageListResponseSchema,
   cloudPackageResponseSchema,
-  deleteCloud,
-  getCloud,
+  getBoundCloudClient,
   giftCardListQuerySchema,
-  giftCardsPath,
-  packagesPath,
-  patchCloudWithBinding,
-  postCloudWithBinding,
+  type RouteContext,
+  unwrapCloudResponse,
 } from '../cloud-store-helpers'
 import { getCloudOrders } from './shared'
-
-type CloudProductPatchInput = ReturnType<typeof cloudProductPatchSchema.parse>
-
-function hasRecurringPrice(input: { prices: Array<{ recurring?: unknown }> }) {
-  return input.prices.some((price) => price.recurring)
-}
-
-function cloudProductDeliverable(input: {
-  name?: string
-  metadata: { storageBytes: number; trafficBytes: number; validityDays?: number; trafficOveragePriceCents?: number }
-  prices: Array<{ amount?: number; recurring?: { usageType?: string } | null; metadata?: Record<string, string> }>
-}) {
-  const trafficOveragePriceCents = input.metadata.trafficOveragePriceCents ?? meteredTrafficPriceCents(input.prices)
-  return {
-    type: hasRecurringPrice(input) ? 'zpan.plan' : 'zpan.extra',
-    packageName: input.name,
-    storageBytes: input.metadata.storageBytes,
-    trafficBytes: input.metadata.trafficBytes,
-    validityDays: input.metadata.validityDays,
-    ...(trafficOveragePriceCents > 0 ? { trafficOveragePriceCents } : {}),
-  }
-}
-
-function meteredTrafficPriceCents(
-  prices: Array<{ amount?: number; recurring?: { usageType?: string } | null; metadata?: Record<string, string> }>,
-) {
-  const price = prices.find(
-    (item) => item.recurring?.usageType === 'metered' && item.metadata?.usageResource === 'traffic_egress',
-  )
-  return price?.amount ?? 0
-}
-
-function cloudProductPayload(input: ReturnType<typeof cloudProductInputSchema.parse>) {
-  return {
-    ...input,
-    type: 'store_item',
-    metadata: {
-      deliverable: cloudProductDeliverable(input),
-    },
-  }
-}
-
-function cloudProductPatchPayload(input: CloudProductPatchInput) {
-  if (!input.metadata && !input.name && input.type === undefined) return input
-  if (input.metadata) {
-    return {
-      ...input,
-      type: 'store_item',
-      metadata: {
-        deliverable: cloudProductDeliverable({
-          name: input.name,
-          metadata: input.metadata,
-          prices: input.prices!,
-        }),
-      },
-    }
-  }
-  return {
-    ...input,
-    type: 'store_item',
-  }
-}
 
 export const adminCloudStore = new Hono<Env>()
   .use(requireAdmin)
@@ -102,76 +36,123 @@ export const adminCloudStore = new Hono<Env>()
     return c.json(settings)
   })
   .get('/packages', async (c) => {
-    const result = await getCloud(c, packagesPath(), cloudPackageListResponseSchema)
-    if ('error' in result) return c.json(result, 502)
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products.$get({
+          param: { storeId },
+          query: { type: 'store_item', limit: '100' },
+        }),
+        cloudPackageListResponseSchema,
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .post('/packages', zValidator('json', cloudProductInputSchema), async (c) => {
-    const result = await postCloudWithBinding(
-      c,
-      packagesPath(),
-      cloudProductPayload(c.req.valid('json')),
-      cloudPackageResponseSchema,
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products.$post({
+          param: { storeId },
+          json: c.req.valid('json'),
+        }),
+        cloudPackageResponseSchema,
+      ),
     )
-    if ('error' in result) return c.json(result, 502)
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result, 201)
   })
   .get('/packages/:id', async (c) => {
-    const result = await getCloud(c, packagesPath({ packageId: c.req.param('id') }), cloudPackageResponseSchema)
-    if ('error' in result) return c.json(result, 502)
+    const productId = c.req.param('id')
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products[':productId'].$get({ param: { storeId, productId } }),
+        cloudPackageResponseSchema,
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .patch('/packages/:id', zValidator('json', cloudProductPatchSchema), async (c) => {
-    const result = await patchCloudWithBinding(
-      c,
-      packagesPath({ packageId: c.req.param('id') }),
-      cloudProductPatchPayload(c.req.valid('json')),
-      cloudPackageResponseSchema,
+    const productId = c.req.param('id')
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products[':productId'].$patch({
+          param: { storeId, productId },
+          json: c.req.valid('json'),
+        }),
+        cloudPackageResponseSchema,
+      ),
     )
-    if ('error' in result) return c.json(result, 502)
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .put('/packages/:id', zValidator('json', cloudProductInputSchema), async (c) => {
-    const result = await patchCloudWithBinding(
-      c,
-      packagesPath({ packageId: c.req.param('id') }),
-      cloudProductPayload(c.req.valid('json')),
-      cloudPackageResponseSchema,
+    const productId = c.req.param('id')
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products[':productId'].$patch({
+          param: { storeId, productId },
+          json: c.req.valid('json'),
+        }),
+        cloudPackageResponseSchema,
+      ),
     )
-    if ('error' in result) return c.json(result, 502)
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .delete('/packages/:id', async (c) => {
-    const id = c.req.param('id')
-    const result = await deleteCloud(c, packagesPath({ packageId: id }))
-    if (result?.error) return c.json(result, 502)
-    return c.json({ id, deleted: true })
+    const productId = c.req.param('id')
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products[':productId'].$delete({ param: { storeId, productId } }),
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
+    return c.json({ id: productId, deleted: true })
   })
   .get('/gift-cards', zValidator('query', giftCardListQuerySchema), async (c) => {
-    const result = await getCloud(c, giftCardsPath(c.req.valid('query').status), cloudGiftCardsResponseSchema)
-    if ('error' in result) return c.json(result, 502)
+    const query = c.req.valid('query')
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId']['gift-cards'].$get({
+          param: { storeId },
+          query: query.status ? { status: query.status } : {},
+        }),
+        cloudGiftCardsResponseSchema,
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .post('/gift-cards', zValidator('json', createGiftCardInputSchema), async (c) => {
-    const result = await postCloudWithBinding(c, giftCardsPath(), c.req.valid('json'), cloudGiftCardListSchema)
-    if ('error' in result) return c.json(result, 502)
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId']['gift-cards'].$post({ param: { storeId }, json: c.req.valid('json') }),
+        cloudGiftCardListSchema,
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result, 201)
   })
   .patch('/gift-cards/:code', zValidator('json', disableGiftCardSchema), async (c) => {
     const code = c.req.param('code')
-    const result = await patchCloudWithBinding(
-      c,
-      (storeId) => `${giftCardsPath()(storeId)}/${encodeURIComponent(code)}`,
-      c.req.valid('json'),
-      z.null(),
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId']['gift-cards'][':code'].$patch({
+          param: { storeId, code },
+          json: c.req.valid('json'),
+        }),
+      ),
     )
-    if (result && 'error' in result) return c.json(result, 502)
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json({ code, disabled: true })
   })
   .delete('/gift-cards/:code', async (c) => {
     const code = c.req.param('code')
-    const result = await deleteCloud(c, (storeId) => `${giftCardsPath()(storeId)}/${encodeURIComponent(code)}`)
-    if (result?.error) return c.json(result, 502)
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(await client.stores[':storeId']['gift-cards'][':code'].$delete({ param: { storeId, code } })),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json({ code, deleted: true })
   })
   .get('/orders', zValidator('query', cloudOrdersQuerySchema), async (c) => {
@@ -179,3 +160,18 @@ export const adminCloudStore = new Hono<Env>()
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })
+
+async function cloudRequest<T>(
+  c: RouteContext,
+  request: (context: Awaited<ReturnType<typeof getBoundCloudClient>>) => Promise<T>,
+): Promise<T | { error: string }> {
+  try {
+    return await request(await getBoundCloudClient(c))
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
+}
+
+function isCloudError(result: unknown): result is { error: string } {
+  return Boolean(result && typeof result === 'object' && 'error' in result)
+}

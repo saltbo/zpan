@@ -60,8 +60,11 @@ export function StorageOrdersTable({ orders }: { orders: CloudOrder[] }) {
                 <div className="truncate" title={formatCustomer(order)}>
                   {formatCustomer(order)}
                 </div>
-                <div className="truncate font-mono text-xs text-muted-foreground" title={order.target?.orgId ?? '-'}>
-                  {order.target?.orgId ?? '-'}
+                <div
+                  className="truncate font-mono text-xs text-muted-foreground"
+                  title={formatTargetValue(order, 'orgId')}
+                >
+                  {formatTargetValue(order, 'orgId')}
                 </div>
               </TableCell>
               <TableCell className="truncate" title={formatOrderQuota(order, t)}>
@@ -122,7 +125,7 @@ function OrderDetailsDrawer({ order }: { order: CloudOrder }) {
             <DetailGrid
               items={[
                 [t('admin.cloudStore.orders.customer'), formatCustomer(order)],
-                [t('admin.cloudStore.orders.target'), order.target?.orgId ?? '-'],
+                [t('admin.cloudStore.orders.target'), formatTargetValue(order, 'orgId')],
                 [t('admin.cloudStore.orders.buyerAccount'), order.buyerAccountId ?? '-'],
                 [t('admin.cloudStore.orders.store'), order.storeId],
               ]}
@@ -154,7 +157,7 @@ function OrderDetailsDrawer({ order }: { order: CloudOrder }) {
                     items={[
                       [t('admin.cloudStore.orders.quantity'), String(item.quantity)],
                       [t('admin.cloudStore.orders.unitAmount'), formatMoney(item.unitAmount, order.currency)],
-                      [t('admin.cloudStore.orders.planQuota'), formatItemQuota(item.deliverable, t)],
+                      [t('admin.cloudStore.orders.planQuota'), formatItemQuota(item.fulfillmentPayload, t)],
                       [t('admin.cloudStore.orders.productType'), item.productType],
                     ]}
                   />
@@ -243,15 +246,15 @@ function DetailGrid({ items, className }: { items: [string, string][]; className
 }
 
 function formatOrderQuota(order: CloudOrder, t: ReturnType<typeof useTranslation>['t']) {
-  return formatItemQuota(order.items[0]?.deliverable, t)
+  return formatItemQuota(order.items[0]?.fulfillmentPayload, t)
 }
 
 function formatItemQuota(
-  payload: CloudOrder['items'][number]['deliverable'] | undefined,
+  payload: CloudOrder['items'][number]['fulfillmentPayload'] | undefined,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
-  const storageBytes = payload?.storageBytes ?? 0
-  const trafficBytes = payload?.trafficBytes ?? 0
+  const storageBytes = payloadNumber(payload, 'storageBytes')
+  const trafficBytes = payloadNumber(payload, 'trafficBytes')
   const parts = []
   if (storageBytes > 0) parts.push(t('admin.cloudStore.orders.storageQuota', { size: formatSize(storageBytes) }))
   if (trafficBytes > 0) parts.push(t('admin.cloudStore.orders.trafficQuota', { size: formatSize(trafficBytes) }))
@@ -265,7 +268,19 @@ function formatOrderItems(order: CloudOrder) {
 }
 
 function formatCustomer(order: CloudOrder) {
-  return order.target?.customerLabel ?? order.target?.customerId ?? '-'
+  return formatTargetValue(order, 'customerLabel') !== '-'
+    ? formatTargetValue(order, 'customerLabel')
+    : formatTargetValue(order, 'customerId')
+}
+
+function formatTargetValue(order: CloudOrder, key: string) {
+  const value = order.target?.[key]
+  return typeof value === 'string' ? value : '-'
+}
+
+function payloadNumber(payload: CloudOrder['items'][number]['fulfillmentPayload'] | undefined, key: string) {
+  const value = payload?.[key]
+  return typeof value === 'number' ? value : 0
 }
 
 function formatDateTime(value: string) {

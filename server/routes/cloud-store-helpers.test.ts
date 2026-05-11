@@ -1,35 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  billingPortalPath,
   cloudGiftCardsResponseSchema,
   cloudOrdersResponseSchema,
   cloudPackageResponseSchema,
-  giftCardsPath,
-  ordersPath,
-  packagesPath,
-  redemptionPath,
-  walletPath,
 } from './cloud-store-helpers'
 
-describe('quota store helper paths', () => {
-  it('builds gift card and order Cloud paths', () => {
-    expect(giftCardsPath()('store-1')).toBe('/api/stores/store-1/gift-cards')
-    expect(giftCardsPath('active')('store-1')).toBe('/api/stores/store-1/gift-cards?status=active')
-    expect(packagesPath()('store-1')).toBe('/api/stores/store-1/products?type=store_item&limit=100')
-    expect(packagesPath({ status: 'active' })('store-1')).toBe(
-      '/api/stores/store-1/products?type=store_item&limit=100&status=active',
-    )
-    expect(ordersPath()('store-1')).toBe('/api/stores/store-1/orders')
-    expect(ordersPath({ limit: 100 })('store-1')).toBe('/api/stores/store-1/orders?limit=100')
-    expect(ordersPath({ limit: 100, offset: 100 })('store-1')).toBe('/api/stores/store-1/orders?limit=100&offset=100')
-    expect(ordersPath({ limit: 100, customerId: 'user-1' })('store-1')).toBe(
-      '/api/stores/store-1/orders?limit=100&customerId=user-1',
-    )
-    expect(walletPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/balances')
-    expect(redemptionPath('org-1')('store-1')).toBe('/api/stores/store-1/wallets/org-1/redemptions')
-    expect(billingPortalPath()('store-1')).toBe('/api/stores/store-1/billing/portal-sessions')
-  })
-
+describe('quota store helper schemas', () => {
   it('parses Cloud commerce order responses', () => {
     expect(
       cloudOrdersResponseSchema.parse({
@@ -57,7 +33,7 @@ describe('quota store helper paths', () => {
                 quantity: 1,
                 unitAmount: 999,
                 totalAmount: 999,
-                deliverable: { storageBytes: 1024, trafficBytes: 2048 },
+                fulfillmentPayload: { storageBytes: 1024, trafficBytes: 2048 },
               },
             ],
             payments: [
@@ -81,6 +57,8 @@ describe('quota store helper paths', () => {
           },
         ],
         total: 1,
+        limit: 100,
+        offset: 0,
       }),
     ).toEqual({
       items: [
@@ -107,7 +85,7 @@ describe('quota store helper paths', () => {
               quantity: 1,
               unitAmount: 999,
               totalAmount: 999,
-              deliverable: { storageBytes: 1024, trafficBytes: 2048 },
+              fulfillmentPayload: { storageBytes: 1024, trafficBytes: 2048 },
             },
           ],
           payments: [
@@ -131,6 +109,8 @@ describe('quota store helper paths', () => {
         },
       ],
       total: 1,
+      limit: 100,
+      offset: 0,
     })
   })
 
@@ -156,6 +136,8 @@ describe('quota store helper paths', () => {
           },
         ],
         total: 7,
+        limit: 50,
+        offset: 0,
       }),
     ).toEqual({
       items: [
@@ -177,6 +159,8 @@ describe('quota store helper paths', () => {
         },
       ],
       total: 7,
+      limit: 50,
+      offset: 0,
     })
   })
 
@@ -184,10 +168,11 @@ describe('quota store helper paths', () => {
     expect(
       cloudPackageResponseSchema.parse({
         id: 'pkg-1',
-        type: 'zpan_quota',
+        storeId: 'store-1',
+        type: 'store_item',
         name: 'Storage Package',
         description: null,
-        metadata: { storageBytes: 2048, trafficBytes: 4096 },
+        metadata: { deliverable: { storageBytes: 2048, trafficBytes: 4096 } },
         prices: [{ currency: 'usd', amount: 1200 }],
         active: true,
         sortOrder: 4,
@@ -196,52 +181,57 @@ describe('quota store helper paths', () => {
       }),
     ).toEqual({
       id: 'pkg-1',
-      type: 'zpan_quota',
+      storeId: 'store-1',
+      type: 'store_item',
       name: 'Storage Package',
       description: null,
-      metadata: { storageBytes: 2048, trafficBytes: 4096 },
+      metadata: { deliverable: { storageBytes: 2048, trafficBytes: 4096 } },
       prices: [{ currency: 'usd', amount: 1200 }],
       active: true,
       sortOrder: 4,
       createdAt: '2026-05-07T00:00:00.000Z',
       updatedAt: '2026-05-07T00:01:00.000Z',
     })
-    const parsedStoreItem = cloudPackageResponseSchema.parse({
+    expect(
+      cloudPackageResponseSchema.parse({
+        id: 'pkg-2',
+        storeId: 'store-1',
+        type: 'store_item',
+        name: 'Monthly Plan',
+        description: null,
+        metadata: {
+          deliverable: {
+            type: 'zpan.plan',
+            storageBytes: 8192,
+            trafficBytes: 4096,
+            validityDays: 30,
+            trafficOveragePriceCents: 2,
+          },
+        },
+        prices: [
+          {
+            currency: 'usd',
+            amount: 1900,
+            recurring: { interval: 'month', intervalCount: 1 },
+          },
+          {
+            currency: 'usd',
+            amount: 2,
+            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+        ],
+        active: true,
+        sortOrder: 5,
+        createdAt: '2026-05-07T00:00:00.000Z',
+        updatedAt: '2026-05-07T00:01:00.000Z',
+      }),
+    ).toMatchObject({
       id: 'pkg-2',
       type: 'store_item',
-      name: 'Monthly Plan',
-      description: null,
       metadata: {
-        deliverable: {
-          type: 'zpan.plan',
-          storageBytes: 8192,
-          trafficBytes: 4096,
-          validityDays: 30,
-          trafficOveragePriceCents: 2,
-        },
+        deliverable: { storageBytes: 8192, trafficBytes: 4096, validityDays: 30, trafficOveragePriceCents: 2 },
       },
-      prices: [
-        {
-          currency: 'usd',
-          amount: 1900,
-          recurring: { interval: 'month', intervalCount: 1 },
-        },
-        {
-          currency: 'usd',
-          amount: 2,
-          recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-          metadata: { usageResource: 'traffic_egress' },
-        },
-      ],
-      active: true,
-      sortOrder: 5,
-      createdAt: '2026-05-07T00:00:00.000Z',
-      updatedAt: '2026-05-07T00:01:00.000Z',
-    })
-    expect(parsedStoreItem).toMatchObject({
-      id: 'pkg-2',
-      type: 'zpan_quota',
-      metadata: { storageBytes: 8192, trafficBytes: 4096, validityDays: 30, trafficOveragePriceCents: 2 },
       prices: [
         { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
         {

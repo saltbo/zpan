@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { cloudProductStorageBytes, cloudProductTrafficBytes } from '@/lib/cloud-product'
 import { formatSize } from '@/lib/format'
 
 export function StoragePlanList({
@@ -54,10 +55,10 @@ export function StoragePlanList({
                 </div>
               </TableCell>
               <TableCell className="tabular-nums">
-                {pkg.metadata.storageBytes > 0 ? formatSize(pkg.metadata.storageBytes) : '—'}
+                {cloudProductStorageBytes(pkg) > 0 ? formatSize(cloudProductStorageBytes(pkg)) : '—'}
               </TableCell>
               <TableCell className="tabular-nums">
-                {pkg.metadata.trafficBytes > 0 ? formatSize(pkg.metadata.trafficBytes) : '—'}
+                {cloudProductTrafficBytes(pkg) > 0 ? formatSize(cloudProductTrafficBytes(pkg)) : '—'}
               </TableCell>
               <TableCell className="tabular-nums">{formatUsdPrice(pkg.prices)}</TableCell>
               <TableCell>

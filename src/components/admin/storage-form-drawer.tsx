@@ -35,7 +35,7 @@ const storageFormSchema = z.object({
   accessKey: z.string().min(1),
   secretKey: z.string().min(1),
   customHost: z.string().optional(),
-  capacityValue: z.coerce.number().min(0),
+  capacityValue: z.coerce.number<number>().min(0),
   capacityUnit: z.enum(['MB', 'GB', 'TB']),
 })
 

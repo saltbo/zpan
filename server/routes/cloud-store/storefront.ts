@@ -1,11 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
-import {
-  checkoutInputSchema,
-  cloudWalletResponseSchema,
-  cloudWalletTransactionsResponseSchema,
-  redeemGiftCardInputSchema,
-  redeemGiftCardResponseSchema,
-} from '@shared/schemas'
+import { checkoutInputSchema, redeemGiftCardInputSchema } from '@shared/schemas'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth'
@@ -14,21 +8,16 @@ import { requireFeature } from '../../middleware/require-feature'
 import { canAccessTargetOrg, getAccessibleTargets, getCustomerLabel } from '../../services/cloud-store'
 import { getEffectiveQuota } from '../../services/effective-quota'
 import {
-  billingPortalPath,
   cloudBillingPortalSessionResponseSchema,
   cloudCheckoutResponseSchema,
   cloudOrderResponseSchema,
   cloudPackageListResponseSchema,
   cloudPackageResponseSchema,
   cloudStoreOrdersQuerySchema,
-  getCloud,
+  getBoundCloudClient,
   getUserStoreSettings,
-  ordersPath,
-  packagesPath,
-  patchCloudWithBinding,
-  postCloudWithBinding,
-  redemptionPath,
-  walletPath,
+  type RouteContext,
+  unwrapCloudResponse,
 } from '../cloud-store-helpers'
 import { getCloudOrders, getInstanceOrigin } from './shared'
 
@@ -38,8 +27,16 @@ export const cloudStore = new Hono<Env>()
   .get('/packages', async (c) => {
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await getCloud(c, packagesPath({ status: 'active' }), cloudPackageListResponseSchema)
-    if ('error' in result) return c.json(result, 502)
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products.$get({
+          param: { storeId },
+          query: { type: 'store_item', limit: '100', status: 'active' },
+        }),
+        cloudPackageListResponseSchema,
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .get('/targets', async (c) => {
@@ -54,8 +51,15 @@ export const cloudStore = new Hono<Env>()
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await getCloud(c, walletPath(targetOrgId), cloudWalletResponseSchema)
-    if ('error' in result) return c.json(result, 502)
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].wallets[':customerId'].balances.$get({
+          param: { storeId, customerId: targetOrgId },
+          query: {},
+        }),
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .get('/wallet/transactions', async (c) => {
@@ -63,12 +67,15 @@ export const cloudStore = new Hono<Env>()
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await getCloud(
-      c,
-      (storeId) => `/api/stores/${encodeURIComponent(storeId)}/wallets/${encodeURIComponent(targetOrgId)}/transactions`,
-      cloudWalletTransactionsResponseSchema,
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].wallets[':customerId'].transactions.$get({
+          param: { storeId, customerId: targetOrgId },
+          query: {},
+        }),
+      ),
     )
-    if ('error' in result) return c.json(result, 502)
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .post('/gift-cards/redeem', zValidator('json', redeemGiftCardInputSchema), async (c) => {
@@ -76,13 +83,15 @@ export const cloudStore = new Hono<Env>()
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await postCloudWithBinding(
-      c,
-      redemptionPath(targetOrgId),
-      { codes: [c.req.valid('json').code] },
-      redeemGiftCardResponseSchema,
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].wallets[':customerId'].redemptions.$post({
+          param: { storeId, customerId: targetOrgId },
+          json: { codes: [c.req.valid('json').code] },
+        }),
+      ),
     )
-    if ('error' in result) return c.json(result, 502)
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .post('/checkouts', zValidator('json', checkoutInputSchema), async (c) => {
@@ -96,8 +105,15 @@ export const cloudStore = new Hono<Env>()
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const currency = body.currency ?? 'usd'
-    const product = await getCloud(c, packagesPath({ packageId: body.packageId }), cloudPackageResponseSchema)
-    if ('error' in product) return c.json(product, 502)
+    const product = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products[':productId'].$get({
+          param: { storeId, productId: body.packageId },
+        }),
+        cloudPackageResponseSchema,
+      ),
+    )
+    if (isCloudError(product)) return c.json(product, 502)
     const price =
       product.prices.find((item) => item.id === body.priceId && item.currency === currency) ??
       product.prices.find((item) => item.currency === currency && item.recurring?.usageType !== 'metered')
@@ -106,34 +122,39 @@ export const cloudStore = new Hono<Env>()
       const quota = await getEffectiveQuota(db, targetOrgId)
       if (quota.storagePlanName || quota.trafficPlanName) return c.json({ error: 'workspace_plan_exists' }, 409)
     }
-    const order = await postCloudWithBinding(
-      c,
-      ordersPath(),
-      {
-        items: [{ productId: body.packageId, priceId: price.id }],
-        currency,
-        deliveryCallbackUrl: `${getInstanceOrigin(c)}/api/store/webhook`,
-        target: {
-          orgId: targetOrgId,
-          customerId: targetOrgId,
-          customerLabel: await getCustomerLabel(db, userId),
-        },
-        ...(price.recurring ? {} : { walletCreditAmount: 'max' as const }),
-      },
-      z.object({ id: z.string().min(1) }),
+    const order = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].orders.$post({
+          param: { storeId },
+          json: {
+            items: [{ productId: body.packageId, priceId: price.id, quantity: 1 }],
+            currency,
+            deliveryCallbackUrl: `${getInstanceOrigin(c)}/api/store/webhook`,
+            target: {
+              orgId: targetOrgId,
+              customerId: targetOrgId,
+              customerLabel: await getCustomerLabel(db, userId),
+            },
+          },
+        }),
+        cloudOrderResponseSchema,
+      ),
     )
-    if ('error' in order) return c.json(order, 502)
+    if (isCloudError(order)) return c.json(order, 502)
     const origin = getInstanceOrigin(c)
-    const payment = await postCloudWithBinding(
-      c,
-      (storeId) => `${ordersPath()(storeId)}/${encodeURIComponent(order.id)}/payments`,
-      {
-        successUrl: `${origin}/storage`,
-        cancelUrl: `${origin}/storage`,
-      },
-      cloudCheckoutResponseSchema,
+    const payment = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].orders[':orderId'].payments.$post({
+          param: { storeId, orderId: order.id },
+          json: {
+            successUrl: `${origin}/storage`,
+            cancelUrl: `${origin}/storage`,
+          },
+        }),
+        cloudCheckoutResponseSchema,
+      ),
     )
-    if ('error' in payment) return c.json(payment, 502)
+    if (isCloudError(payment)) return c.json(payment, 502)
     return c.json(payment)
   })
   .post('/billing-portal-sessions', async (c) => {
@@ -146,13 +167,16 @@ export const cloudStore = new Hono<Env>()
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const origin = getInstanceOrigin(c)
-    const result = await postCloudWithBinding(
-      c,
-      billingPortalPath(),
-      { customerId: targetOrgId, returnUrl: `${origin}/storage` },
-      cloudBillingPortalSessionResponseSchema,
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].billing['portal-sessions'].$post({
+          param: { storeId },
+          json: { customerId: targetOrgId, returnUrl: `${origin}/storage` },
+        }),
+        cloudBillingPortalSessionResponseSchema,
+      ),
     )
-    if ('error' in result) return c.json(result, 502)
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .get('/orders', zValidator('query', cloudStoreOrdersQuerySchema), async (c) => {
@@ -179,20 +203,23 @@ export const cloudStore = new Hono<Env>()
     if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
     const orderId = c.req.param('orderId')
     if (!orderId) return c.json({ error: 'not_found' }, 404)
-    const order = await getCloud(c, orderPath(orderId), cloudOrderResponseSchema)
-    if ('error' in order) return c.json(order, 502)
+    const order = await getOrder(c, orderId)
+    if (isCloudError(order)) return c.json(order, 502)
     if (!orderBelongsToTarget(order.target, targetOrgId)) return c.json({ error: 'Forbidden' }, 403)
     const origin = getInstanceOrigin(c)
-    const result = await postCloudWithBinding(
-      c,
-      (storeId) => `${orderPath(orderId)(storeId)}/payments`,
-      {
-        successUrl: `${origin}/storage`,
-        cancelUrl: `${origin}/storage`,
-      },
-      cloudCheckoutResponseSchema,
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].orders[':orderId'].payments.$post({
+          param: { storeId, orderId },
+          json: {
+            successUrl: `${origin}/storage`,
+            cancelUrl: `${origin}/storage`,
+          },
+        }),
+        cloudCheckoutResponseSchema,
+      ),
     )
-    if ('error' in result) return c.json(result, 502)
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
   .patch('/orders/:orderId', zValidator('json', z.object({ status: z.literal('canceled') })), async (c) => {
@@ -205,18 +232,46 @@ export const cloudStore = new Hono<Env>()
     if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
     const orderId = c.req.param('orderId')
     if (!orderId) return c.json({ error: 'not_found' }, 404)
-    const order = await getCloud(c, orderPath(orderId), cloudOrderResponseSchema)
-    if ('error' in order) return c.json(order, 502)
+    const order = await getOrder(c, orderId)
+    if (isCloudError(order)) return c.json(order, 502)
     if (!orderBelongsToTarget(order.target, targetOrgId)) return c.json({ error: 'Forbidden' }, 403)
-    const result = await patchCloudWithBinding(c, orderPath(orderId), c.req.valid('json'), cloudOrderResponseSchema)
-    if ('error' in result) return c.json(result, 502)
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].orders[':orderId'].$patch({
+          param: { storeId, orderId },
+          json: c.req.valid('json'),
+        }),
+        cloudOrderResponseSchema,
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
 
-function orderPath(orderId: string) {
-  return (storeId: string) => `${ordersPath()(storeId)}/${encodeURIComponent(orderId)}`
+function getOrder(c: RouteContext, orderId: string) {
+  return cloudRequest(c, async ({ client, storeId }) =>
+    unwrapCloudResponse(
+      await client.stores[':storeId'].orders[':orderId'].$get({ param: { storeId, orderId } }),
+      cloudOrderResponseSchema,
+    ),
+  )
 }
 
 function orderBelongsToTarget(target: Record<string, unknown> | null, targetOrgId: string): boolean {
   return target?.orgId === targetOrgId || target?.customerId === targetOrgId
+}
+
+async function cloudRequest<T>(
+  c: RouteContext,
+  request: (context: Awaited<ReturnType<typeof getBoundCloudClient>>) => Promise<T>,
+): Promise<T | { error: string }> {
+  try {
+    return await request(await getBoundCloudClient(c))
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
+}
+
+function isCloudError(result: unknown): result is { error: string } {
+  return Boolean(result && typeof result === 'object' && 'error' in result)
 }

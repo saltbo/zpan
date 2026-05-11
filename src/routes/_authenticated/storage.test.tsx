@@ -119,7 +119,7 @@ function order(overrides: Partial<CloudOrder> = {}): CloudOrder {
         quantity: 1,
         unitAmount: 999,
         totalAmount: 999,
-        deliverable: { storageBytes: 1024, trafficBytes: 0 },
+        fulfillmentPayload: { storageBytes: 1024, trafficBytes: 0 },
       },
     ],
     payments: [],
@@ -136,10 +136,11 @@ function order(overrides: Partial<CloudOrder> = {}): CloudOrder {
 function quotaPackage(): CloudProduct {
   return {
     id: 'pkg-1',
-    type: 'zpan_quota',
+    storeId: 'store-1',
+    type: 'store_item',
     name: '100 GB',
     description: 'Extra storage',
-    metadata: { storageBytes: 107374182400, trafficBytes: 0 },
+    metadata: { deliverable: { storageBytes: 107374182400, trafficBytes: 0 } },
     prices: [{ currency: 'usd', amount: 999 }],
     active: true,
     sortOrder: 1,
@@ -153,7 +154,7 @@ function subscriptionPackage(): CloudProduct {
     ...quotaPackage(),
     id: 'pkg-subscription',
     name: 'Team Plan',
-    metadata: { storageBytes: 107374182400, trafficBytes: 21474836480 },
+    metadata: { deliverable: { storageBytes: 107374182400, trafficBytes: 21474836480 } },
     prices: [
       { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
       {
@@ -582,6 +583,7 @@ describe('StoragePage', () => {
       items: [
         {
           id: 'wallet-1',
+          walletId: null,
           storeId: 'store-1',
           customerId: 'org-1',
           currency: 'usd',
@@ -623,6 +625,7 @@ describe('StoragePage', () => {
       items: [
         {
           id: 'wallet-1',
+          walletId: null,
           storeId: 'store-1',
           customerId: 'org-1',
           currency: 'usd',
@@ -640,6 +643,7 @@ describe('StoragePage', () => {
       items: [
         {
           id: 'ledger-1',
+          walletId: null,
           storeId: 'store-1',
           customerId: 'org-1',
           currency: 'usd',

@@ -40,10 +40,11 @@ function cloudGiftCard(overrides: Partial<typeof zpanCloudGiftCardResponseFixtur
 function cloudProduct(overrides: Record<string, unknown> = {}) {
   return {
     id: 'cloud-pkg-1',
-    type: 'zpan_quota',
+    storeId: 'store-test-binding',
+    type: 'store_item',
     name: 'Small',
     description: 'starter',
-    metadata: { storageBytes: 4096, trafficBytes: 0 },
+    metadata: { deliverable: { storageBytes: 4096, trafficBytes: 0 } },
     prices: [
       { id: 'price-usd', currency: 'usd', amount: 500 },
       { id: 'price-cny', currency: 'cny', amount: 3600 },
@@ -52,6 +53,19 @@ function cloudProduct(overrides: Record<string, unknown> = {}) {
     sortOrder: 1,
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function cloudProductRequest(overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'store_item',
+    name: 'Small',
+    description: '',
+    metadata: { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 0 } },
+    prices: [{ currency: 'usd', amount: 500 }],
+    active: true,
+    sortOrder: 0,
     ...overrides,
   }
 }
@@ -80,7 +94,7 @@ function cloudOrder(overrides: Record<string, unknown> = {}) {
         quantity: 1,
         unitAmount: 500,
         totalAmount: 500,
-        deliverable: { storageBytes: 512, trafficBytes: 0 },
+        fulfillmentPayload: { storageBytes: 512, trafficBytes: 0 },
       },
     ],
     payments: [
@@ -121,6 +135,10 @@ function orderPayload() {
     | undefined
   if (!call) throw new Error('order_request_missing')
   return JSON.parse(String(call[1].body)) as Record<string, unknown>
+}
+
+function requestHeader(init: RequestInit, name: string) {
+  return new Headers(init.headers).get(name)
 }
 
 beforeEach(() => {
@@ -251,7 +269,7 @@ beforeEach(() => {
               id: 'cloud-pkg-inactive',
               name: 'Retired',
               description: 'hidden from users',
-              metadata: { storageBytes: 0, trafficBytes: 8192 },
+              metadata: { deliverable: { storageBytes: 0, trafficBytes: 8192 } },
               prices: [{ currency: 'usd', amount: 900 }],
               active: false,
               sortOrder: 2,
@@ -263,6 +281,8 @@ beforeEach(() => {
             json: async () => ({
               items,
               total: items.length,
+              limit: 100,
+              offset: 0,
             }),
           } as Response
         }
@@ -279,7 +299,7 @@ beforeEach(() => {
                 ? new URL(String(url)).pathname.split('/').at(-1)
                 : 'cloud-pkg-1',
               ...body,
-              metadata: body.metadata ?? { storageBytes: 4096, trafficBytes: 0 },
+              metadata: body.metadata ?? { deliverable: { storageBytes: 4096, trafficBytes: 0 } },
             }),
         } as Response
       }
@@ -291,7 +311,12 @@ beforeEach(() => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ orderId: 'order-cloud-1', url: 'https://cloud.example/checkout', status: 'pending' }),
+          json: async () => ({
+            status: 'pending',
+            paymentId: 'payment-cloud-1',
+            orderId: 'order-cloud-1',
+            url: 'https://cloud.example/checkout',
+          }),
         } as Response
       }
       if (String(url).includes('/api/stores/') && String(url).includes('/orders')) {
@@ -337,13 +362,20 @@ beforeEach(() => {
           json: async () => ({
             items: [cloudOrder({ target: { orgId: lastTargetOrgId } })],
             total: 1,
+            limit: 100,
+            offset: 0,
           }),
         } as Response
       }
       return {
         ok: true,
         status: 200,
-        json: async () => ({ orderId: 'order-cloud-1', url: 'https://cloud.example/checkout', ok: true }),
+        json: async () => ({
+          status: 'pending',
+          paymentId: 'payment-cloud-1',
+          orderId: 'order-cloud-1',
+          url: 'https://cloud.example/checkout',
+        }),
       } as Response
     }),
   )
@@ -359,11 +391,12 @@ describe('Quota Store API', () => {
   it('parses Cloud package and gift-card response shapes', () => {
     expect(
       cloudPackageResponseSchema.parse({
-        id: 'pkg-snake-new',
-        type: 'zpan_quota',
-        name: 'Snake New',
+        id: 'pkg-sdk',
+        storeId: 'store-test-binding',
+        type: 'store_item',
+        name: 'SDK Package',
         description: null,
-        metadata: { storageBytes: 4096, trafficBytes: 8192 },
+        metadata: { deliverable: { storageBytes: 4096, trafficBytes: 8192 } },
         prices: [{ currency: 'usd', amount: 999 }],
         active: true,
         sortOrder: 2,
@@ -371,41 +404,15 @@ describe('Quota Store API', () => {
         updatedAt: '2026-05-06T00:00:00.000Z',
       }),
     ).toEqual({
-      id: 'pkg-snake-new',
-      type: 'zpan_quota',
-      name: 'Snake New',
+      id: 'pkg-sdk',
+      storeId: 'store-test-binding',
+      type: 'store_item',
+      name: 'SDK Package',
       description: null,
-      metadata: { storageBytes: 4096, trafficBytes: 8192 },
+      metadata: { deliverable: { storageBytes: 4096, trafficBytes: 8192 } },
       prices: [{ currency: 'usd', amount: 999 }],
       active: true,
       sortOrder: 2,
-      createdAt: '2026-05-06T00:00:00.000Z',
-      updatedAt: '2026-05-06T00:00:00.000Z',
-    })
-
-    // new camelCase: storageBytes/trafficBytes
-    expect(
-      cloudPackageResponseSchema.parse({
-        id: 'pkg-camel-new',
-        type: 'zpan_quota',
-        name: 'Camel New',
-        description: null,
-        metadata: { storageBytes: 2048, trafficBytes: 0 },
-        prices: [{ currency: 'eur', amount: 799 }],
-        active: false,
-        sortOrder: 5,
-        createdAt: '2026-05-06T00:00:00.000Z',
-        updatedAt: '2026-05-06T00:00:00.000Z',
-      }),
-    ).toEqual({
-      id: 'pkg-camel-new',
-      type: 'zpan_quota',
-      name: 'Camel New',
-      description: null,
-      metadata: { storageBytes: 2048, trafficBytes: 0 },
-      prices: [{ currency: 'eur', amount: 799 }],
-      active: false,
-      sortOrder: 5,
       createdAt: '2026-05-06T00:00:00.000Z',
       updatedAt: '2026-05-06T00:00:00.000Z',
     })
@@ -421,6 +428,8 @@ describe('Quota Store API', () => {
           }),
         ],
         total: 1,
+        limit: 50,
+        offset: 0,
       }),
     ).toEqual({
       items: [
@@ -442,6 +451,8 @@ describe('Quota Store API', () => {
         },
       ],
       total: 1,
+      limit: 50,
+      offset: 0,
     })
   })
 
@@ -497,13 +508,13 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Bad',
-        description: '',
-        metadata: { storageBytes: 0, trafficBytes: 0 },
-        prices: [],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Bad',
+          metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 0 } },
+          prices: [],
+        }),
+      ),
     })
 
     expect(res.status).toBe(400)
@@ -574,13 +585,12 @@ describe('Quota Store API', () => {
     const created = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Small',
-        description: 'starter',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [{ currency: 'usd', amount: 500 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Small',
+          description: 'starter',
+        }),
+      ),
     })
     const listed = await app.request('/api/admin/store/packages', { headers })
 
@@ -588,12 +598,12 @@ describe('Quota Store API', () => {
     await expect(created.json()).resolves.toMatchObject({ id: 'cloud-pkg-1', name: 'Small' })
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
     const body = String(init.body)
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/products?type=store_item&limit=100`)
-    expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${REFRESH_TOKEN}`)
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/products`)
+    expect(requestHeader(init, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(JSON.parse(body)).toMatchObject({
       name: 'Small',
       description: 'starter',
-      metadata: { deliverable: { type: 'zpan.extra', packageName: 'Small', storageBytes: 4096, trafficBytes: 0 } },
+      metadata: { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 0 } },
       type: 'store_item',
       prices: [{ currency: 'usd', amount: 500 }],
     })
@@ -602,8 +612,8 @@ describe('Quota Store API', () => {
     await expect(listed.json()).resolves.toMatchObject({
       total: 2,
       items: [
-        { id: 'cloud-pkg-1', metadata: { storageBytes: 4096, trafficBytes: 0 }, active: true },
-        { id: 'cloud-pkg-inactive', metadata: { storageBytes: 0, trafficBytes: 8192 }, active: false },
+        { id: 'cloud-pkg-1', metadata: { deliverable: { storageBytes: 4096, trafficBytes: 0 } }, active: true },
+        { id: 'cloud-pkg-inactive', metadata: { deliverable: { storageBytes: 0, trafficBytes: 8192 } }, active: false },
       ],
     })
   })
@@ -620,10 +630,9 @@ describe('Quota Store API', () => {
         items: [
           cloudProduct({
             id: 'cloud-pkg-object',
-            type: 'zpan_quota',
             name: 'Object Shape',
             description: null,
-            metadata: { storageBytes: 0, trafficBytes: 4096 },
+            metadata: { deliverable: { storageBytes: 0, trafficBytes: 4096 } },
             prices: [
               { currency: 'usd', amount: 500 },
               { currency: 'cny', amount: 3600 },
@@ -632,6 +641,8 @@ describe('Quota Store API', () => {
           }),
         ],
         total: 1,
+        limit: 100,
+        offset: 0,
       }),
     } as Response)
 
@@ -639,13 +650,13 @@ describe('Quota Store API', () => {
     const updated = await app.request('/api/admin/store/packages/cloud-pkg-object', {
       method: 'PUT',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Updated',
-        description: '',
-        metadata: { storageBytes: 0, trafficBytes: 8192 },
-        prices: [{ currency: 'cny', amount: 900 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Updated',
+          metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192 } },
+          prices: [{ currency: 'cny', amount: 900 }],
+        }),
+      ),
     })
 
     expect(listed.status).toBe(200)
@@ -655,7 +666,7 @@ describe('Quota Store API', () => {
         {
           id: 'cloud-pkg-object',
           description: null,
-          metadata: { storageBytes: 0, trafficBytes: 4096 },
+          metadata: { deliverable: { storageBytes: 0, trafficBytes: 4096 } },
           sortOrder: 3,
         },
       ],
@@ -670,7 +681,7 @@ describe('Quota Store API', () => {
       description: '',
       type: 'store_item',
       metadata: {
-        deliverable: { type: 'zpan.extra', packageName: 'Updated', storageBytes: 0, trafficBytes: 8192 },
+        deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192 },
       },
       prices: [{ currency: 'cny', amount: 900 }],
       active: true,
@@ -702,13 +713,11 @@ describe('Quota Store API', () => {
     const created = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Configured',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [{ currency: 'usd', amount: 500 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Configured',
+        }),
+      ),
     })
 
     expect(created.status).toBe(201)
@@ -725,32 +734,34 @@ describe('Quota Store API', () => {
     const recurringPlan = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Team Monthly',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 8192 },
-        prices: [
-          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-          {
-            currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Team Monthly',
+          metadata: {
+            deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 8192, trafficOveragePriceCents: 2 },
           },
-        ],
-      }),
+          prices: [
+            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+            {
+              currency: 'usd',
+              amount: 2,
+              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+          ],
+        }),
+      ),
     })
     const fixedPackage = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Traffic Pack',
-        description: '',
-        metadata: { storageBytes: 0, trafficBytes: 8192, validityDays: 30 },
-        prices: [{ currency: 'usd', amount: 900 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Traffic Pack',
+          metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192, validityDays: 30 } },
+          prices: [{ currency: 'usd', amount: 900 }],
+        }),
+      ),
     })
 
     expect(recurringPlan.status).toBe(201)
@@ -788,16 +799,16 @@ describe('Quota Store API', () => {
     const created = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Mixed Billing',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [
-          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-          { currency: 'cny', amount: 9000 },
-        ],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Mixed Billing',
+          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 0 } },
+          prices: [
+            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+            { currency: 'cny', amount: 9000 },
+          ],
+        }),
+      ),
     })
 
     expect(created.status).toBe(400)
@@ -813,35 +824,35 @@ describe('Quota Store API', () => {
     const missingUsageResource = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Malformed Metered',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [
-          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-          { currency: 'usd', amount: 2, recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' } },
-        ],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Malformed Metered',
+          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 0 } },
+          prices: [
+            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+            { currency: 'usd', amount: 2, recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' } },
+          ],
+        }),
+      ),
     })
     const missingUsageType = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Malformed Resource',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [
-          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-          {
-            currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'month', intervalCount: 1 },
-            metadata: { usageResource: 'traffic_egress' },
-          },
-        ],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Malformed Resource',
+          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 0 } },
+          prices: [
+            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+            {
+              currency: 'usd',
+              amount: 2,
+              recurring: { interval: 'month', intervalCount: 1 },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+          ],
+        }),
+      ),
     })
 
     expect(missingUsageResource.status).toBe(400)
@@ -858,47 +869,47 @@ describe('Quota Store API', () => {
     const duplicateFixed = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Duplicate Fixed',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [
-          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-          { currency: 'usd', amount: 2900, recurring: { interval: 'month', intervalCount: 1 } },
-          {
-            currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
-          },
-        ],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Duplicate Fixed',
+          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 0 } },
+          prices: [
+            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+            { currency: 'usd', amount: 2900, recurring: { interval: 'month', intervalCount: 1 } },
+            {
+              currency: 'usd',
+              amount: 2,
+              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+          ],
+        }),
+      ),
     })
     const duplicateMetered = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Duplicate Metered',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [
-          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-          {
-            currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
-          },
-          {
-            currency: 'usd',
-            amount: 3,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
-          },
-        ],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Duplicate Metered',
+          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 0 } },
+          prices: [
+            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
+            {
+              currency: 'usd',
+              amount: 2,
+              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+            {
+              currency: 'usd',
+              amount: 3,
+              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+          ],
+        }),
+      ),
     })
 
     expect(duplicateFixed.status).toBe(400)
@@ -915,40 +926,40 @@ describe('Quota Store API', () => {
     const yearlyInterval = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Yearly Plan',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [
-          { currency: 'usd', amount: 1900, recurring: { interval: 'year', intervalCount: 1 } },
-          {
-            currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'year', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
-          },
-        ],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Yearly Plan',
+          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 0 } },
+          prices: [
+            { currency: 'usd', amount: 1900, recurring: { interval: 'year', intervalCount: 1 } },
+            {
+              currency: 'usd',
+              amount: 2,
+              recurring: { interval: 'year', intervalCount: 1, usageType: 'metered' },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+          ],
+        }),
+      ),
     })
     const multiMonthInterval = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Quarterly Plan',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [
-          { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 3 } },
-          {
-            currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'month', intervalCount: 3, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
-          },
-        ],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Quarterly Plan',
+          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 0 } },
+          prices: [
+            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 3 } },
+            {
+              currency: 'usd',
+              amount: 2,
+              recurring: { interval: 'month', intervalCount: 3, usageType: 'metered' },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+          ],
+        }),
+      ),
     })
 
     expect(yearlyInterval.status).toBe(400)
@@ -956,7 +967,7 @@ describe('Quota Store API', () => {
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
   })
 
-  it('rejects partial package quota patches that cannot recompute the Cloud deliverable', async () => {
+  it('updates package quota deliverables directly through Cloud', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -966,15 +977,18 @@ describe('Quota Store API', () => {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
+        metadata: { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 0 } },
       }),
     })
 
-    expect(updated.status).toBe(400)
-    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+    expect(updated.status).toBe(200)
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
+    expect(JSON.parse(String(init.body))).toEqual({
+      metadata: { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 0 } },
+    })
   })
 
-  it('rejects name-only package patches because deliverable package names are embedded', async () => {
+  it('updates package names without touching deliverables', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -986,8 +1000,9 @@ describe('Quota Store API', () => {
       body: JSON.stringify({ name: 'Renamed' }),
     })
 
-    expect(updated.status).toBe(400)
-    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+    expect(updated.status).toBe(200)
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
+    expect(JSON.parse(String(init.body))).toEqual({ name: 'Renamed' })
   })
 
   it('ignores spoofed forwarded origin for Cloud checkout return URLs', async () => {
@@ -1032,13 +1047,11 @@ describe('Quota Store API', () => {
         'x-forwarded-proto': 'http',
         'x-forwarded-host': 'localhost',
       },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Bad Proto',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [{ currency: 'usd', amount: 500 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Bad Proto',
+        }),
+      ),
     })
 
     expect(created.status).toBe(201)
@@ -1176,13 +1189,11 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Small',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [{ currency: 'usd', amount: 500 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Small',
+        }),
+      ),
     })
 
     expect(res.status).toBe(502)
@@ -1199,13 +1210,11 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Small',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [{ currency: 'usd', amount: 500 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Small',
+        }),
+      ),
     })
 
     expect(res.status).toBe(502)
@@ -1220,13 +1229,12 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Bad Currency',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [{ currency: '', amount: 500 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Bad Currency',
+          prices: [{ currency: '', amount: 500 }],
+        }),
+      ),
     })
 
     expect(res.status).toBe(400)
@@ -1248,13 +1256,11 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/store/packages', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Small',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [{ currency: 'usd', amount: 500 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Small',
+        }),
+      ),
     })
 
     expect(res.status).toBe(502)
@@ -1317,7 +1323,7 @@ describe('Quota Store API', () => {
     const [listUrl, listInit] = calls[1]
     const [deleteUrl, deleteInit] = calls[2]
     expect(String(generateUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
-    expect(generateInit.headers).toMatchObject({ Authorization: `Bearer ${REFRESH_TOKEN}` })
+    expect(requestHeader(generateInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(JSON.parse(generateInit.body as string)).toEqual({
       amount: 4096,
       currency: 'usd',
@@ -1325,7 +1331,7 @@ describe('Quota Store API', () => {
       count: 2,
     })
     expect(String(listUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards?status=active`)
-    expect(listInit.headers).toMatchObject({ Authorization: `Bearer ${REFRESH_TOKEN}` })
+    expect(requestHeader(listInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(String(deleteUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards/ZS-GEN-1`)
     expect(deleteInit.method).toBe('DELETE')
   })
@@ -1338,7 +1344,7 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ items: [cloudGiftCard({ code: 'ZS-PAGED-1' })], total: 9 }),
+      json: async () => ({ items: [cloudGiftCard({ code: 'ZS-PAGED-1' })], total: 9, limit: 50, offset: 0 }),
     } as Response)
 
     const res = await app.request('/api/admin/store/gift-cards?status=active', { headers })
@@ -1421,7 +1427,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-order-1', items: [{ deliverable: { storageBytes: 512, trafficBytes: 0 } }] }],
+      items: [{ id: 'cloud-order-1', items: [{ fulfillmentPayload: { storageBytes: 512, trafficBytes: 0 } }] }],
     })
     const [url] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
     expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=100`)
@@ -1435,7 +1441,7 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ items: [cloudOrder({ id: 'cloud-order-2' })], total: 2 }),
+      json: async () => ({ items: [cloudOrder({ id: 'cloud-order-2' })], total: 2, limit: 1, offset: 1 }),
     } as Response)
 
     const res = await app.request('/api/admin/store/orders?limit=1&offset=1', { headers })
@@ -1458,13 +1464,11 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Small',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [{ currency: 'usd', amount: 500 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Small',
+        }),
+      ),
     })
 
     expect(res.status).toBe(200)
@@ -1507,13 +1511,11 @@ describe('Quota Store API', () => {
     const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'zpan_quota',
-        name: 'Small',
-        description: '',
-        metadata: { storageBytes: 4096, trafficBytes: 0 },
-        prices: [{ currency: 'usd', amount: 500 }],
-      }),
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'Small',
+        }),
+      ),
     })
 
     expect(res.status).toBe(502)
@@ -1645,7 +1647,7 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(200)
-    expect(orderPayload()).toMatchObject({ walletCreditAmount: 'max' })
+    expect(orderPayload()).not.toHaveProperty('walletCreditAmount')
   })
 
   it('creates a subscription portal for the active workspace plan', async () => {
@@ -1701,17 +1703,19 @@ describe('Quota Store API', () => {
     expect(targets.status).toBe(200)
     await expect(targets.json()).resolves.toMatchObject({ total: 1, items: [{ orgId, type: 'personal' }] })
     expect(checkout.status).toBe(200)
-    await expect(checkout.json()).resolves.toEqual({ orderId: 'order-cloud-1', url: 'https://cloud.example/checkout' })
+    await expect(checkout.json()).resolves.toEqual({
+      status: 'pending',
+      paymentId: 'payment-cloud-1',
+      orderId: 'order-cloud-1',
+      url: 'https://cloud.example/checkout',
+    })
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     const [orderUrl, orderInit] = calls.find(
       ([url, init]) => init.method === 'POST' && String(url).endsWith('/orders'),
     )!
     const orderBody = JSON.parse(String(orderInit.body))
     expect(String(orderUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders`)
-    expect(orderInit.headers).toEqual({
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${REFRESH_TOKEN}`,
-    })
+    expect(requestHeader(orderInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(orderBody).toMatchObject({
       items: [{ productId: packageId }],
       currency: 'cny',
@@ -1720,8 +1724,8 @@ describe('Quota Store API', () => {
         customerId: orgId,
         customerLabel: 'buyer@example.com',
       },
-      walletCreditAmount: 'max',
     })
+    expect(orderBody).not.toHaveProperty('walletCreditAmount')
     const [paymentUrl, paymentInit] = calls.find(([url]) => String(url).includes('/payments'))!
     const paymentBody = JSON.parse(String(paymentInit.body))
     expect(String(paymentUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/order-cloud-1/payments`)
@@ -1732,7 +1736,7 @@ describe('Quota Store API', () => {
     expect(orders.status).toBe(200)
     await expect(orders.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-order-1', target: { orgId }, items: [{ deliverable: { storageBytes: 512 } }] }],
+      items: [{ id: 'cloud-order-1', target: { orgId }, items: [{ fulfillmentPayload: { storageBytes: 512 } }] }],
     })
     const [ordersUrl] = calls
       .filter(([url]) => {
@@ -1868,6 +1872,8 @@ describe('Quota Store API', () => {
 
     expect(payment.status).toBe(200)
     await expect(payment.json()).resolves.toEqual({
+      status: 'pending',
+      paymentId: 'payment-cloud-1',
       orderId: 'order-cloud-1',
       url: 'https://cloud.example/checkout',
     })
