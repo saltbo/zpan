@@ -607,13 +607,21 @@ describe('AdminCloudStorePage', () => {
 
     await waitFor(() => expect(view.getByRole('tab', { name: 'admin.cloudStore.tabs.orders' })).toBeTruthy())
     fireEvent.click(view.getByRole('tab', { name: 'admin.cloudStore.tabs.orders' }))
-    await waitFor(() =>
-      expect(view.getByRole('columnheader', { name: 'admin.cloudStore.orders.planQuota' })).toBeTruthy(),
-    )
+    await waitFor(() => expect(view.getByRole('columnheader', { name: 'admin.cloudStore.orders.order' })).toBeTruthy())
+    expect(view.getByRole('columnheader', { name: 'admin.cloudStore.orders.status' })).toBeTruthy()
+    expect(view.getByRole('columnheader', { name: 'admin.cloudStore.orders.planQuota' })).toBeTruthy()
     expect(
       view.getByText('admin.cloudStore.orders.storageQuota:1.0 KB / admin.cloudStore.orders.trafficQuota:2.0 KB'),
     ).toBeTruthy()
     await waitFor(() => expect(view.getByText('user@example.com')).toBeTruthy())
+
+    fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.orders.viewDetails' }))
+
+    const drawer = await view.findByRole('dialog')
+    expect(within(drawer).getByText('admin.cloudStore.orders.detailTitle')).toBeTruthy()
+    expect(within(drawer).getByText('order-1')).toBeTruthy()
+    expect(within(drawer).getByText('admin.cloudStore.orders.summary')).toBeTruthy()
+    expect(within(drawer).getByText('admin.cloudStore.orders.noPayments')).toBeTruthy()
   })
 
   it('shows a disabled store status before settings are created', async () => {
