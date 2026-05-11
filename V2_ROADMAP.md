@@ -33,13 +33,13 @@ Each version ships 1–2 major features. Ship small, ship often.
 | [v2.3](docs/roadmap/v2.3.md) | **Sharing** | Share links, direct links, password / expiration / limits |
 | [v2.4](docs/roadmap/v2.4.md) | **Image Hosting** | Upload API, PicGo / uPic / ShareX integration, custom domain |
 | [v2.5](docs/roadmap/v2.5.md) | **Multi-Platform Deployment** | 7 first-class targets via Turso (CF, Docker, AWS Lambda, Vercel, Netlify, Azure, GCP); avatar upload |
-| [v2.6](docs/roadmap/v2.6.md) | **Pro Launch** | License system, Stripe self-service purchase, redemption codes, white-label, retroactive Pro gates on operator-grade v2.x features |
-| [v2.7](docs/roadmap/v2.7.md) | **Pro Operator** | Audit log, webhooks, anti-abuse stack for open registration |
+| [v2.6](docs/roadmap/v2.6.md) | **Pro Launch** | Cloud binding, entitlement system, quota store, white-label, audit log, site announcements, retroactive Pro gates |
+| [v2.7](docs/roadmap/v2.7.md) | **WebDAV & File Processing** | WebDAV protocol access, small-file zip compression/extraction for Community, Pro Cloud Processing for remote download and large archive jobs |
 | [v2.8](docs/roadmap/v2.8.md) | **Pro Analytics & Identity** | Analytics dashboard, SSO enterprise (multi-IdP OIDC + SAML), LDAP / SCIM |
 | [v2.9](docs/roadmap/v2.9.md) | **Backup** | zpan-cli (Rust) one-way backup for NAS / desktop |
 | [v2.10](docs/roadmap/v2.10.md) | **Sync & Desktop** | Bidirectional sync + Tauri desktop tray app |
 
-Managed cloud services (content moderation, server-side processing, managed custom domains) live in a separate closed-source repo and version independently. They are consumed by ZPan via HTTP, and do not affect self-hosted deployments that don't opt in.
+Managed cloud services (remote download, large archive processing, content moderation, server-side media processing, managed custom domains) live in a separate closed-source repo and version independently. They are consumed by ZPan via HTTP, and do not affect self-hosted deployments that don't opt in.
 
 ## Deployment Options
 
@@ -57,7 +57,7 @@ Same codebase, same features, seven runtimes. Turso provides the database for ev
 
 ## Community vs Pro
 
-ZPan is split into two editions. Both run the same open-source codebase — Pro features are unlocked by a license token, Managed is Pro operated by us.
+ZPan is split into two editions. Both run the same open-source codebase — Pro features are unlocked through ZPan Cloud account binding, Managed is Pro operated by us.
 
 ### ZPan Community (free, open source)
 
@@ -67,19 +67,23 @@ Everything an individual, family, or small team needs to self-host:
 - Personal account + social login + basic OIDC (single IdP)
 - Share links + password + expiration + download limits
 - Image hosting API + PicGo / uPic / ShareX + custom domain
-- Up to 3 team workspaces + shared folders + basic roles
+- WebDAV access for external file managers and sync tools
+- One personal workspace plus one extra team workspace, shared folders, and basic roles
+- Small-file zip compression and extraction within local runtime limits
 - Backup CLI + desktop app + bidirectional sync
 - All 7 deployment targets
 
-No artificial limits, no functionality gated behind paywalls. If you are the administrator of your own instance, Community covers you.
+No basic personal file workflows are gated behind paywalls. Operator controls and hosted compute-heavy workflows are Pro because they carry operational cost or platform-abuse risk.
 
 ### ZPan Pro (paid license)
 
 Operator-grade features for running ZPan as a service (internally at a company, publicly as a product, or commercially for customers). The rule of thumb: **features that help you *use* ZPan are free; features that help you *operate* ZPan for others are Pro.**
 
 - Open registration (the public signup mode) + anti-abuse tooling (captcha, rate limit, email verification)
-- Audit logs + webhook notifications + analytics dashboard
+- Audit logs + site announcements + webhook notifications + analytics dashboard
 - White-label (logo / favicon / wordmark / custom branding)
+- Remote download through ZPan Cloud Processing
+- Large archive processing and future server-side media/document processing
 - SSO enterprise (multi-IdP OIDC + SAML), LDAP / SCIM provisioning
 - Advanced RBAC / custom roles, retention policies
 - Admin impersonation, per-user quotas, multi-tenant isolation
@@ -89,13 +93,13 @@ Pro is one product with two delivery modes:
 - **Self-hosted Pro** — buy a license, run ZPan yourself. The instance binds to ZPan Cloud for Pro entitlement and verifies the issued certificate locally.
 - **Managed Pro** — same features, we operate the ZPan instance and storage. You stop caring about ops.
 
-Licenses can be purchased self-service via Stripe or redeemed from codes issued by the ZPan team. See [v2.6](docs/roadmap/v2.6.md) for the launch plan.
+Pro is purchased or redeemed on ZPan Cloud, then mirrored to a bound ZPan instance by signed entitlement certificates. See [v2.6](docs/roadmap/v2.6.md) for the launch plan.
 
-**Retroactive gates.** A small number of features shipped in v2.0–v2.5 are operator-grade and become Pro-only starting in v2.6: `open` registration mode (from v2.1), a cap of 3 team workspaces (from v2.2), and admin-set per-team storage quotas (from v2.2). Closed / invite-only registration, single-IdP OIDC, all sharing and image-hosting features, and all deployment targets remain Community. See [v2.6](docs/roadmap/v2.6.md) for the complete list.
+**Retroactive gates.** A small number of features shipped in v2.0–v2.5 are operator-grade and become Pro-only starting in v2.6: `open` registration mode (from v2.1), teams beyond the included extra team (from v2.2), and storage backends beyond the free limit. Closed / invite-only registration, single-IdP OIDC, all sharing and image-hosting features, all small-file archive processing, and all deployment targets remain Community. See [v2.6](docs/roadmap/v2.6.md) for the complete list.
 
 ### Managed Cloud Services (separate repo)
 
-A small set of Pro features depend on backend infrastructure we host: content moderation (third-party NSFW scanning), server-side processing (thumbnails, transcoding, archive extraction), and managed custom domains (SSL provisioning). Those services live in a separate closed-source repo (`zpan-cloud`) and version independently. Self-hosted Pro users call these services via HTTPS; usage included up to a monthly quota per plan, overage billed post-paid with a user-set hard cap.
+A small set of Pro features depend on backend infrastructure we host: remote download (`yt-dlp` and direct URL fetching), large archive processing, content moderation (third-party NSFW scanning), server-side media/document processing, and managed custom domains (SSL provisioning). Those services live in a separate closed-source repo (`zpan-cloud`) and version independently. Self-hosted Pro users call these services via HTTPS; usage included up to a monthly quota per plan, overage billed post-paid with a user-set hard cap.
 
 ### Pricing
 
