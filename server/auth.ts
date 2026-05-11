@@ -27,6 +27,9 @@ import { getEffectiveSignupMode } from './services/signup-mode-guard'
 import { acceptSiteInvitation, validateSiteInvitation } from './services/site-invitations'
 import { checkTeamLimit } from './services/team-count-guard'
 
+export const IMAGE_HOSTING_API_KEY_PERMISSIONS = { 'image-hosting': ['upload'] }
+export const WEBDAV_API_KEY_PERMISSIONS = { webdav: ['read', 'write'] }
+
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
 // which blows past Cloudflare Workers' CPU budget and triggers error 1102.
 // We use node:crypto.scryptSync via server/lib/password.ts (native OpenSSL,
@@ -269,9 +272,10 @@ export async function createAuth(
           timeWindow: 60_000, // 60 seconds
           maxRequests: 60, // 60 requests per window ≈ 1 req/s sustained
         },
-        // Declare the image-hosting:upload permission so upload routes can require it
+        // Existing image-hosting keys rely on default upload permission.
+        // WebDAV keys must be created with explicit webdav:read/write permissions.
         permissions: {
-          defaultPermissions: { 'image-hosting': ['upload'] },
+          defaultPermissions: IMAGE_HOSTING_API_KEY_PERMISSIONS,
         },
       }),
     ],

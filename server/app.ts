@@ -31,6 +31,7 @@ import system from './routes/system'
 import { publicTeams, teams } from './routes/teams'
 import trash from './routes/trash'
 import users from './routes/users'
+import webdav from './routes/webdav'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
@@ -53,6 +54,8 @@ export function createApp(platform: Platform, auth: Auth) {
     const a = c.get('auth')
     return a.handler(c.req.raw)
   })
+
+  app.route('/dav', webdav)
 
   // Public routes — no auth required; mount before authMiddleware.
   // /api/shares/:token endpoints are covered by run_worker_first=["/api/*"] in wrangler.toml.
