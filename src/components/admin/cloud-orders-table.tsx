@@ -154,7 +154,7 @@ function OrderDetailsDrawer({ order }: { order: CloudOrder }) {
                     items={[
                       [t('admin.cloudStore.orders.quantity'), String(item.quantity)],
                       [t('admin.cloudStore.orders.unitAmount'), formatMoney(item.unitAmount, order.currency)],
-                      [t('admin.cloudStore.orders.planQuota'), formatItemQuota(item.fulfillmentPayload, t)],
+                      [t('admin.cloudStore.orders.planQuota'), formatItemQuota(item.deliverable, t)],
                       [t('admin.cloudStore.orders.productType'), item.productType],
                     ]}
                   />
@@ -243,11 +243,11 @@ function DetailGrid({ items, className }: { items: [string, string][]; className
 }
 
 function formatOrderQuota(order: CloudOrder, t: ReturnType<typeof useTranslation>['t']) {
-  return formatItemQuota(order.items[0]?.fulfillmentPayload, t)
+  return formatItemQuota(order.items[0]?.deliverable, t)
 }
 
 function formatItemQuota(
-  payload: CloudOrder['items'][number]['fulfillmentPayload'] | undefined,
+  payload: CloudOrder['items'][number]['deliverable'] | undefined,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
   const storageBytes = payload?.storageBytes ?? 0

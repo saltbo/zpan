@@ -80,7 +80,7 @@ function cloudOrder(overrides: Record<string, unknown> = {}) {
         quantity: 1,
         unitAmount: 500,
         totalAmount: 500,
-        fulfillmentPayload: { storageBytes: 512, trafficBytes: 0 },
+        deliverable: { storageBytes: 512, trafficBytes: 0 },
       },
     ],
     payments: [
@@ -1421,7 +1421,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-order-1', items: [{ fulfillmentPayload: { storageBytes: 512, trafficBytes: 0 } }] }],
+      items: [{ id: 'cloud-order-1', items: [{ deliverable: { storageBytes: 512, trafficBytes: 0 } }] }],
     })
     const [url] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
     expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=100`)
@@ -1732,7 +1732,7 @@ describe('Quota Store API', () => {
     expect(orders.status).toBe(200)
     await expect(orders.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ id: 'cloud-order-1', target: { orgId }, items: [{ fulfillmentPayload: { storageBytes: 512 } }] }],
+      items: [{ id: 'cloud-order-1', target: { orgId }, items: [{ deliverable: { storageBytes: 512 } }] }],
     })
     const [ordersUrl] = calls
       .filter(([url]) => {

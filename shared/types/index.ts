@@ -104,7 +104,7 @@ export interface CloudProductPrice {
   metadata?: Record<string, string>
 }
 
-export interface CloudOrderFulfillmentPayload {
+export interface CloudOrderDeliverable {
   storageBytes?: number
   trafficBytes?: number
   [key: string]: unknown
@@ -120,7 +120,7 @@ export interface CloudOrderItem {
   quantity: number
   unitAmount: number
   totalAmount: number
-  fulfillmentPayload: CloudOrderFulfillmentPayload
+  deliverable: CloudOrderDeliverable
 }
 
 export interface CloudOrderTarget {

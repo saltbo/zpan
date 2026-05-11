@@ -57,7 +57,7 @@ describe('quota store helper paths', () => {
                 quantity: 1,
                 unitAmount: 999,
                 totalAmount: 999,
-                fulfillmentPayload: { storageBytes: 1024, trafficBytes: 2048 },
+                deliverable: { storageBytes: 1024, trafficBytes: 2048 },
               },
             ],
             payments: [
@@ -107,7 +107,7 @@ describe('quota store helper paths', () => {
               quantity: 1,
               unitAmount: 999,
               totalAmount: 999,
-              fulfillmentPayload: { storageBytes: 1024, trafficBytes: 2048 },
+              deliverable: { storageBytes: 1024, trafficBytes: 2048 },
             },
           ],
           payments: [

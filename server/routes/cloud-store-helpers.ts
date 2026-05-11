@@ -125,7 +125,7 @@ const cloudOrderSchema = z.object({
         quantity: z.number().int().positive(),
         unitAmount: z.number().int().min(0),
         totalAmount: z.number().int().min(0),
-        fulfillmentPayload: z
+        deliverable: z
           .object({
             storageBytes: z.number().int().min(0).optional(),
             trafficBytes: z.number().int().min(0).optional(),

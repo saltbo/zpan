@@ -99,8 +99,8 @@ function OrderRow({
 }) {
   const { t, i18n } = useTranslation()
   const item = order.items[0]
-  const storageBytes = item?.fulfillmentPayload.storageBytes ?? 0
-  const trafficBytes = item?.fulfillmentPayload.trafficBytes ?? 0
+  const storageBytes = item?.deliverable.storageBytes ?? 0
+  const trafficBytes = item?.deliverable.trafficBytes ?? 0
   return (
     <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border bg-card/40 px-4 py-4">
       <div className="min-w-0 flex-1 space-y-2">

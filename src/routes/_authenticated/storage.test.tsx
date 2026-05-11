@@ -119,7 +119,7 @@ function order(overrides: Partial<CloudOrder> = {}): CloudOrder {
         quantity: 1,
         unitAmount: 999,
         totalAmount: 999,
-        fulfillmentPayload: { storageBytes: 1024, trafficBytes: 0 },
+        deliverable: { storageBytes: 1024, trafficBytes: 0 },
       },
     ],
     payments: [],
