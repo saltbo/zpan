@@ -502,7 +502,7 @@ describe('AdminCloudStorePage', () => {
 
     await waitFor(() => expect(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' })).toBeTruthy())
     fireEvent.click(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' }))
-    await waitFor(() => expect(view.getByText('ODE1')).toBeTruthy())
+    await waitFor(() => expect(view.getByText('****-****-****-ODE1')).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.codes.generateTitle' }))
     const dialog = await view.findByRole('dialog')
     fireEvent.change(view.getByLabelText('admin.cloudStore.codes.amount'), { target: { value: '50' } })
@@ -541,7 +541,7 @@ describe('AdminCloudStorePage', () => {
 
     await waitFor(() => expect(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' })).toBeTruthy())
     fireEvent.click(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' }))
-    await waitFor(() => expect(view.getByText('ODE1')).toBeTruthy())
+    await waitFor(() => expect(view.getByText('****-****-****-ODE1')).toBeTruthy())
 
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.codes.delete' }))
     expect(deleteCloudGiftCard).not.toHaveBeenCalled()
@@ -566,7 +566,7 @@ describe('AdminCloudStorePage', () => {
     await waitFor(() => expect(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' })).toBeTruthy())
     fireEvent.click(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' }))
 
-    await waitFor(() => expect(view.getByText('ODE2')).toBeTruthy())
+    await waitFor(() => expect(view.getByText('****-****-****-ODE2')).toBeTruthy())
     expect(view.getByRole('table')).toBeTruthy()
     expect(view.getByRole('columnheader', { name: 'admin.cloudStore.codes.code' })).toBeTruthy()
     expect(view.queryByLabelText('admin.cloudStore.codes.count')).toBeNull()

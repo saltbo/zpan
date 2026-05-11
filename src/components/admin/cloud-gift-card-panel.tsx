@@ -209,13 +209,21 @@ function CodeStatusSelect({ status, onStatusChange }: Pick<CodeListProps, 'statu
 function CodeTable(props: CodeListProps) {
   const { t } = useTranslation()
   return (
-    <div className="rounded-md border">
-      <Table>
+    <div className="overflow-hidden rounded-md border">
+      <Table className="table-fixed">
+        <colgroup>
+          <col />
+          <col className="w-28" />
+          <col className="w-40" />
+          <col className="w-28" />
+          <col className="w-24" />
+        </colgroup>
         <TableHeader>
           <TableRow>
-            {['code', 'storage', 'expires', 'statusLabel'].map((key) => (
-              <TableHead key={key}>{t(`admin.cloudStore.codes.${key}`)}</TableHead>
-            ))}
+            <TableHead>{t('admin.cloudStore.codes.code')}</TableHead>
+            <TableHead>{t('admin.cloudStore.codes.storage')}</TableHead>
+            <TableHead>{t('admin.cloudStore.codes.expires')}</TableHead>
+            <TableHead>{t('admin.cloudStore.codes.statusLabel')}</TableHead>
             <TableHead className="text-right">{t('common.actions')}</TableHead>
           </TableRow>
         </TableHeader>
@@ -241,15 +249,19 @@ function CodeRow({
   const [disableConfirmOpen, setRevokeConfirmOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const actionTarget = code.code ?? code.id
-  const codeLabel = code.code ?? code.codeLast4
+  const codeLabel = code.code ?? maskedGiftCardCode(code.codeLast4)
   const canDisable = code.status === 'active'
   const canDelete = code.status === 'active'
   return (
     <TableRow>
-      <TableCell className="font-mono text-xs">{codeLabel}</TableCell>
-      <TableCell>{formatMoney(code.amount, code.currency)}</TableCell>
-      <TableCell>{code.expiresAt ? new Date(code.expiresAt).toLocaleString() : '-'}</TableCell>
-      <TableCell>
+      <TableCell className="truncate font-mono text-xs" title={codeLabel}>
+        {codeLabel}
+      </TableCell>
+      <TableCell className="whitespace-nowrap">{formatMoney(code.amount, code.currency)}</TableCell>
+      <TableCell className="truncate" title={code.expiresAt ? new Date(code.expiresAt).toLocaleString() : '-'}>
+        {code.expiresAt ? new Date(code.expiresAt).toLocaleString() : '-'}
+      </TableCell>
+      <TableCell className="whitespace-nowrap">
         <CodeStatusBadge code={code} />
       </TableCell>
       <TableCell className="text-right">
@@ -257,20 +269,24 @@ function CodeRow({
           <Button
             variant="outline"
             size="sm"
+            className="h-8 w-8 p-0"
             disabled={!available || !canDisable || disablingGiftCard === actionTarget}
             onClick={() => setRevokeConfirmOpen(true)}
+            title={t('admin.cloudStore.codes.disable')}
           >
-            <Ban className="mr-2 h-4 w-4" />
-            {t('admin.cloudStore.codes.disable')}
+            <Ban className="h-4 w-4" />
+            <span className="sr-only">{t('admin.cloudStore.codes.disable')}</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
+            className="h-8 w-8 p-0"
             disabled={!available || !canDelete || deletingGiftCard === actionTarget}
             onClick={() => setDeleteConfirmOpen(true)}
+            title={t('admin.cloudStore.codes.delete')}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {t('admin.cloudStore.codes.delete')}
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">{t('admin.cloudStore.codes.delete')}</span>
           </Button>
         </div>
         <Dialog open={disableConfirmOpen} onOpenChange={setRevokeConfirmOpen}>
@@ -340,6 +356,10 @@ function CodeStatusBadge({ code }: { code: CloudGiftCard }) {
       {t(`admin.cloudStore.codes.status.${status}`)}
     </Badge>
   )
+}
+
+function maskedGiftCardCode(last4: string) {
+  return `****-****-****-${last4}`
 }
 
 function getCodeStatus(code: CloudGiftCard) {
