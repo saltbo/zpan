@@ -38,18 +38,20 @@ export function StorageOrderHistoryDialog({
           {t('storage.historyTitle')}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="flex max-h-[min(720px,calc(100vh-2rem))] flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t('storage.historyTitle')}</DialogTitle>
           <DialogDescription>{t('storage.historyDescription')}</DialogDescription>
         </DialogHeader>
-        <StorageOrderHistoryContent
-          orders={orders}
-          onContinuePayment={onContinuePayment}
-          onCancelOrder={onCancelOrder}
-          continuingOrderId={continuingOrderId}
-          cancelingOrderId={cancelingOrderId}
-        />
+        <div className="min-h-0 overflow-y-auto pr-1">
+          <StorageOrderHistoryContent
+            orders={orders}
+            onContinuePayment={onContinuePayment}
+            onCancelOrder={onCancelOrder}
+            continuingOrderId={continuingOrderId}
+            cancelingOrderId={cancelingOrderId}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   )
