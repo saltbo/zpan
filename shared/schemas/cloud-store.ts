@@ -160,7 +160,7 @@ export const checkoutInputSchema = z.object({
   priceId: z.string().min(1).optional(),
 })
 
-export const giftCardStatusSchema = z.enum(['created', 'active', 'disabled', 'exhausted', 'expired', 'revoked'])
+export const giftCardStatusSchema = z.enum(['active', 'redeemed', 'disabled', 'expired', 'revoked'])
 
 export const createGiftCardInputSchema = z.object({
   amount: z.number().int().positive(),

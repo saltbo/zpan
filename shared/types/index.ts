@@ -164,16 +164,14 @@ export interface CloudOrder {
 
 export interface CloudGiftCard {
   id: string
-  storeId?: string | null
-  boundLicenseId: string | null
-  code: string
+  storeId: string
+  campaignId: string | null
+  code: string | null
+  codeLast4: string
   amount: number
   currency: string
-  status: 'created' | 'active' | 'disabled' | 'exhausted' | 'expired' | 'revoked'
+  status: 'active' | 'redeemed' | 'disabled' | 'expired' | 'revoked'
   expiresAt: string | null
-  firstRedeemedAt: string | null
-  lastRedeemedAt: string | null
-  redemptionCount: number
   disabledAt: string | null
   revokedAt: string | null
   createdAt: string

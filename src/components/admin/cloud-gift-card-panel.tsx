@@ -196,7 +196,7 @@ function CodeStatusSelect({ status, onStatusChange }: Pick<CodeListProps, 'statu
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {(['all', 'created', 'active', 'disabled', 'exhausted', 'expired', 'revoked'] as const).map((value) => (
+        {(['all', 'active', 'redeemed', 'disabled', 'expired', 'revoked'] as const).map((value) => (
           <SelectItem key={value} value={value}>
             {t(`admin.cloudStore.codes.status.${value}`)}
           </SelectItem>
@@ -213,7 +213,7 @@ function CodeTable(props: CodeListProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            {['code', 'storage', 'uses', 'expires', 'statusLabel'].map((key) => (
+            {['code', 'storage', 'expires', 'statusLabel'].map((key) => (
               <TableHead key={key}>{t(`admin.cloudStore.codes.${key}`)}</TableHead>
             ))}
             <TableHead className="text-right">{t('common.actions')}</TableHead>
@@ -221,7 +221,7 @@ function CodeTable(props: CodeListProps) {
         </TableHeader>
         <TableBody>
           {props.codes.map((code) => (
-            <CodeRow key={code.code} code={code} {...props} />
+            <CodeRow key={code.id} code={code} {...props} />
           ))}
         </TableBody>
       </Table>
@@ -240,13 +240,14 @@ function CodeRow({
   const { t } = useTranslation()
   const [disableConfirmOpen, setRevokeConfirmOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const canDisable = code.status === 'created' || code.status === 'active'
-  const canDelete = code.status === 'created'
+  const actionTarget = code.code ?? code.id
+  const codeLabel = code.code ?? code.codeLast4
+  const canDisable = code.status === 'active'
+  const canDelete = code.status === 'active'
   return (
     <TableRow>
-      <TableCell className="font-mono text-xs">{code.code}</TableCell>
+      <TableCell className="font-mono text-xs">{codeLabel}</TableCell>
       <TableCell>{formatMoney(code.amount, code.currency)}</TableCell>
-      <TableCell>{code.redemptionCount}</TableCell>
       <TableCell>{code.expiresAt ? new Date(code.expiresAt).toLocaleString() : '-'}</TableCell>
       <TableCell>
         <CodeStatusBadge code={code} />
@@ -256,7 +257,7 @@ function CodeRow({
           <Button
             variant="outline"
             size="sm"
-            disabled={!available || !canDisable || disablingGiftCard === code.code}
+            disabled={!available || !canDisable || disablingGiftCard === actionTarget}
             onClick={() => setRevokeConfirmOpen(true)}
           >
             <Ban className="mr-2 h-4 w-4" />
@@ -265,7 +266,7 @@ function CodeRow({
           <Button
             variant="outline"
             size="sm"
-            disabled={!available || !canDelete || deletingGiftCard === code.code}
+            disabled={!available || !canDelete || deletingGiftCard === actionTarget}
             onClick={() => setDeleteConfirmOpen(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
@@ -276,21 +277,21 @@ function CodeRow({
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t('admin.cloudStore.codes.disableTitle')}</DialogTitle>
-              <DialogDescription>{t('admin.cloudStore.codes.disableConfirm', { code: code.code })}</DialogDescription>
+              <DialogDescription>{t('admin.cloudStore.codes.disableConfirm', { code: codeLabel })}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button
                 variant="outline"
-                disabled={disablingGiftCard === code.code}
+                disabled={disablingGiftCard === actionTarget}
                 onClick={() => setRevokeConfirmOpen(false)}
               >
                 {t('common.cancel')}
               </Button>
               <Button
                 variant="destructive"
-                disabled={disablingGiftCard === code.code}
+                disabled={disablingGiftCard === actionTarget}
                 onClick={() => {
-                  onRevoke(code.code)
+                  onRevoke(actionTarget)
                   setRevokeConfirmOpen(false)
                 }}
               >
@@ -303,21 +304,21 @@ function CodeRow({
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t('admin.cloudStore.codes.deleteTitle')}</DialogTitle>
-              <DialogDescription>{t('admin.cloudStore.codes.deleteConfirm', { code: code.code })}</DialogDescription>
+              <DialogDescription>{t('admin.cloudStore.codes.deleteConfirm', { code: codeLabel })}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button
                 variant="outline"
-                disabled={deletingGiftCard === code.code}
+                disabled={deletingGiftCard === actionTarget}
                 onClick={() => setDeleteConfirmOpen(false)}
               >
                 {t('common.cancel')}
               </Button>
               <Button
                 variant="destructive"
-                disabled={deletingGiftCard === code.code}
+                disabled={deletingGiftCard === actionTarget}
                 onClick={() => {
-                  onDelete(code.code)
+                  onDelete(actionTarget)
                   setDeleteConfirmOpen(false)
                 }}
               >

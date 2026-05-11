@@ -169,16 +169,14 @@ export const cloudStoreOrdersQuerySchema = cloudOrdersQuerySchema
 
 export const cloudGiftCardSchema = z.object({
   id: z.string().min(1),
-  storeId: z.string().min(1).nullable().optional(),
-  boundLicenseId: z.string().min(1).nullable(),
-  code: z.string().min(1),
+  storeId: z.string().min(1),
+  campaignId: z.string().min(1).nullable(),
+  code: z.string().min(1).nullable(),
+  codeLast4: z.string().min(1),
   amount: z.number().int().min(0),
   currency: z.string().min(1),
-  status: z.enum(['created', 'active', 'disabled', 'exhausted', 'expired', 'revoked']),
+  status: z.enum(['active', 'redeemed', 'disabled', 'expired', 'revoked']),
   expiresAt: z.string().nullable(),
-  firstRedeemedAt: z.string().nullable(),
-  lastRedeemedAt: z.string().nullable(),
-  redemptionCount: z.number().int().min(0),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
   disabledAt: z.string().nullable(),
@@ -190,6 +188,7 @@ export const cloudGiftCardsResponseSchema = z.object({
   items: z.array(cloudGiftCardSchema),
   total: z.number().int().min(0),
 })
+export const cloudGiftCardListSchema = z.array(cloudGiftCardSchema)
 export const giftCardListQuerySchema = z.object({ status: giftCardStatusSchema.optional() })
 
 export async function getUserStoreSettings(db: Parameters<typeof getRequiredSettings>[0]) {

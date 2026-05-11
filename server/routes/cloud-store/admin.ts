@@ -13,6 +13,7 @@ import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { getCloudStoreSettings, upsertCloudStoreSettings } from '../../services/cloud-store'
 import {
+  cloudGiftCardListSchema,
   cloudGiftCardsResponseSchema,
   cloudOrdersQuerySchema,
   cloudPackageListResponseSchema,
@@ -152,7 +153,7 @@ export const adminCloudStore = new Hono<Env>()
     return c.json(result)
   })
   .post('/gift-cards', zValidator('json', createGiftCardInputSchema), async (c) => {
-    const result = await postCloudWithBinding(c, giftCardsPath(), c.req.valid('json'), cloudGiftCardsResponseSchema)
+    const result = await postCloudWithBinding(c, giftCardsPath(), c.req.valid('json'), cloudGiftCardListSchema)
     if ('error' in result) return c.json(result, 502)
     return c.json(result, 201)
   })

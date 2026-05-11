@@ -108,15 +108,14 @@ function quotaPackage(overrides: Partial<CloudProduct> = {}): CloudProduct {
 function giftCard(overrides: Partial<CloudGiftCard> = {}): CloudGiftCard {
   return {
     id: 'gift-card-1',
-    boundLicenseId: null,
-    code: 'ZS-CODE-1',
+    storeId: 'store-1',
+    campaignId: null,
+    code: null,
+    codeLast4: 'ODE1',
     amount: 10_000,
     currency: 'usd',
-    status: 'created',
+    status: 'active',
     expiresAt: null,
-    firstRedeemedAt: null,
-    lastRedeemedAt: null,
-    redemptionCount: 0,
     disabledAt: null,
     revokedAt: null,
     createdAt: '2026-05-05T00:00:00.000Z',
@@ -496,14 +495,14 @@ describe('AdminCloudStorePage', () => {
       items: [giftCard()],
       total: 1,
     })
-    vi.mocked(createCloudGiftCards).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(disableCloudGiftCard).mockResolvedValue({ code: 'ZS-CODE-1', disabled: true })
+    vi.mocked(createCloudGiftCards).mockResolvedValue([])
+    vi.mocked(disableCloudGiftCard).mockResolvedValue({ code: 'gift-card-1', disabled: true })
 
     const view = renderAdminPage()
 
     await waitFor(() => expect(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' })).toBeTruthy())
     fireEvent.click(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' }))
-    await waitFor(() => expect(view.getByText('ZS-CODE-1')).toBeTruthy())
+    await waitFor(() => expect(view.getByText('ODE1')).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.codes.generateTitle' }))
     const dialog = await view.findByRole('dialog')
     fireEvent.change(view.getByLabelText('admin.cloudStore.codes.amount'), { target: { value: '50' } })
@@ -526,7 +525,7 @@ describe('AdminCloudStorePage', () => {
     expect(within(disableDialog).getByText('admin.cloudStore.codes.disableTitle')).toBeTruthy()
     fireEvent.click(within(disableDialog).getByRole('button', { name: 'admin.cloudStore.codes.disable' }))
 
-    await waitFor(() => expect(vi.mocked(disableCloudGiftCard).mock.calls[0][0]).toBe('ZS-CODE-1'))
+    await waitFor(() => expect(vi.mocked(disableCloudGiftCard).mock.calls[0][0]).toBe('gift-card-1'))
   })
 
   it('deletes an eligible gift card from the codes tab', async () => {
@@ -536,13 +535,13 @@ describe('AdminCloudStorePage', () => {
       items: [giftCard()],
       total: 1,
     })
-    vi.mocked(deleteCloudGiftCard).mockResolvedValue({ code: 'ZS-CODE-1', deleted: true })
+    vi.mocked(deleteCloudGiftCard).mockResolvedValue({ code: 'gift-card-1', deleted: true })
 
     const view = renderAdminPage()
 
     await waitFor(() => expect(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' })).toBeTruthy())
     fireEvent.click(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' }))
-    await waitFor(() => expect(view.getByText('ZS-CODE-1')).toBeTruthy())
+    await waitFor(() => expect(view.getByText('ODE1')).toBeTruthy())
 
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.codes.delete' }))
     expect(deleteCloudGiftCard).not.toHaveBeenCalled()
@@ -551,14 +550,14 @@ describe('AdminCloudStorePage', () => {
     expect(within(deleteDialog).getByText('admin.cloudStore.codes.deleteTitle')).toBeTruthy()
     fireEvent.click(within(deleteDialog).getByRole('button', { name: 'admin.cloudStore.codes.delete' }))
 
-    await waitFor(() => expect(vi.mocked(deleteCloudGiftCard).mock.calls[0][0]).toBe('ZS-CODE-1'))
+    await waitFor(() => expect(vi.mocked(deleteCloudGiftCard).mock.calls[0][0]).toBe('gift-card-1'))
   })
 
   it('shows gift cards in a table and opens generation fields in a dialog', async () => {
     vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
     vi.mocked(listAdminCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudGiftCards).mockResolvedValue({
-      items: [giftCard({ id: 'gift-card-2', code: 'ZS-CODE-2', amount: 5000, redemptionCount: 2, status: 'active' })],
+      items: [giftCard({ id: 'gift-card-2', code: null, codeLast4: 'ODE2', amount: 5000, status: 'active' })],
       total: 1,
     })
 
@@ -567,7 +566,7 @@ describe('AdminCloudStorePage', () => {
     await waitFor(() => expect(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' })).toBeTruthy())
     fireEvent.click(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' }))
 
-    await waitFor(() => expect(view.getByText('ZS-CODE-2')).toBeTruthy())
+    await waitFor(() => expect(view.getByText('ODE2')).toBeTruthy())
     expect(view.getByRole('table')).toBeTruthy()
     expect(view.getByRole('columnheader', { name: 'admin.cloudStore.codes.code' })).toBeTruthy()
     expect(view.queryByLabelText('admin.cloudStore.codes.count')).toBeNull()

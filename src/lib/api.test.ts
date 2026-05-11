@@ -408,7 +408,7 @@ describe('api', () => {
     it('calls admin gift card and order endpoints', async () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
-        .mockResolvedValueOnce(makeResponse({ items: [{ code: 'ZS123' }], total: 1 }))
+        .mockResolvedValueOnce(makeResponse([{ code: 'ZS123' }]))
         .mockResolvedValueOnce(makeResponse({ code: 'ZS123', disabled: true }))
         .mockResolvedValueOnce(makeResponse({ code: 'ZS123', deleted: true }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
@@ -429,7 +429,7 @@ describe('api', () => {
         currency: 'usd',
         count: 3,
       })
-      expect(createdGiftCards).toEqual({ items: [{ code: 'ZS123' }], total: 1 })
+      expect(createdGiftCards).toEqual([{ code: 'ZS123' }])
       expect(calls[2][0]).toBe('/api/admin/store/gift-cards/ZS123')
       expect(calls[2][1].method).toBe('PATCH')
       expect(JSON.parse(calls[2][1].body as string)).toEqual({ disabled: true })

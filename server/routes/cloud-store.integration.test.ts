@@ -18,15 +18,14 @@ const { secretKey: EVENT_SECRET, publicKey: EVENT_PUBLIC } = generateKeys('publi
 
 const zpanCloudGiftCardResponseFixture: CloudGiftCard = {
   id: 'gift-card-1',
-  boundLicenseId: null,
-  code: 'ZS11-ACTV-0000-0001',
+  storeId: 'store-test-binding',
+  campaignId: null,
+  code: null,
+  codeLast4: '0001',
   amount: 1000,
   currency: 'usd',
   status: 'active',
   expiresAt: null,
-  firstRedeemedAt: null,
-  lastRedeemedAt: null,
-  redemptionCount: 0,
   createdAt: '2026-05-06T00:00:00.000Z',
   updatedAt: '2026-05-06T00:00:00.000Z',
   disabledAt: null,
@@ -205,12 +204,12 @@ beforeEach(() => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [cloudGiftCard({ code: 'ZS-LIST-1', amount: 1024, redemptionCount: 1 })],
+              items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', amount: 1024 })],
               total: 1,
               limit: 50,
               offset: 0,
               data: {
-                items: [cloudGiftCard({ code: 'ZS-LIST-1', amount: 1024, redemptionCount: 1 })],
+                items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', amount: 1024 })],
                 total: 1,
                 limit: 50,
                 offset: 0,
@@ -223,16 +222,14 @@ beforeEach(() => {
           ok: true,
           status: 201,
           json: async () => ({
-            data: {
-              items: Array.from({ length: body.count ?? 1 }, (_, index) =>
-                cloudGiftCard({
-                  code: `ZS-GEN-${index + 1}`,
-                  amount: body.amount ?? 1024,
-                  status: 'created',
-                }),
-              ),
-              total: body.count ?? 1,
-            },
+            data: Array.from({ length: body.count ?? 1 }, (_, index) =>
+              cloudGiftCard({
+                code: `ZS-GEN-${index + 1}`,
+                codeLast4: `GEN${index + 1}`,
+                amount: body.amount ?? 1024,
+                status: 'active',
+              }),
+            ),
           }),
         } as Response
       }
@@ -418,8 +415,8 @@ describe('Quota Store API', () => {
         items: [
           cloudGiftCard({
             code: 'ZS11-ACTV-0000-0001',
+            codeLast4: '0001',
             amount: 2048,
-            redemptionCount: 1,
             currency: 'usd',
           }),
         ],
@@ -429,15 +426,14 @@ describe('Quota Store API', () => {
       items: [
         {
           id: 'gift-card-1',
-          boundLicenseId: null,
+          storeId: 'store-test-binding',
+          campaignId: null,
           code: 'ZS11-ACTV-0000-0001',
+          codeLast4: '0001',
           amount: 2048,
           currency: 'usd',
           status: 'active',
           expiresAt: null,
-          firstRedeemedAt: null,
-          lastRedeemedAt: null,
-          redemptionCount: 1,
           createdAt: '2026-05-06T00:00:00.000Z',
           updatedAt: '2026-05-06T00:00:00.000Z',
           disabledAt: null,
@@ -1304,17 +1300,14 @@ describe('Quota Store API', () => {
     const deleted = await app.request('/api/admin/store/gift-cards/ZS-GEN-1', { method: 'DELETE', headers })
 
     expect(generated.status).toBe(201)
-    await expect(generated.json()).resolves.toMatchObject({
-      total: 2,
-      items: [
-        { code: 'ZS-GEN-1', amount: 4096, status: 'created' },
-        { code: 'ZS-GEN-2', amount: 4096, status: 'created' },
-      ],
-    })
+    await expect(generated.json()).resolves.toMatchObject([
+      { code: 'ZS-GEN-1', amount: 4096, status: 'active' },
+      { code: 'ZS-GEN-2', amount: 4096, status: 'active' },
+    ])
     expect(listed.status).toBe(200)
     await expect(listed.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ code: 'ZS-LIST-1', amount: 1024, redemptionCount: 1 }],
+      items: [{ code: 'ZS-LIST-1', amount: 1024 }],
     })
     expect(deleted.status).toBe(200)
     await expect(deleted.json()).resolves.toEqual({ code: 'ZS-GEN-1', deleted: true })
@@ -1354,7 +1347,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ total: 9, items: [{ code: 'ZS-PAGED-1' }] })
   })
 
-  it('returns paged admin gift card create responses from Cloud', async () => {
+  it('returns admin gift card create responses from Cloud', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1362,7 +1355,7 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 201,
-      json: async () => ({ items: [cloudGiftCard({ code: 'ZS-PAGED-1' })], total: 1 }),
+      json: async () => [cloudGiftCard({ code: 'ZS-CREATED-1', codeLast4: 'TED1' })],
     } as Response)
 
     const res = await app.request('/api/admin/store/gift-cards', {
@@ -1376,7 +1369,7 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject({ total: 1, items: [{ code: 'ZS-PAGED-1' }] })
+    await expect(res.json()).resolves.toMatchObject([{ code: 'ZS-CREATED-1' }])
   })
 
   it('disables admin gift cards through Cloud', async () => {
