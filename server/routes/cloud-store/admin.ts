@@ -12,7 +12,7 @@ import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { getCloudStoreSettings, upsertCloudStoreSettings } from '../../services/cloud-store'
 import {
-  cloudGiftCardListSchema,
+  cloudGiftCardCreateResponseSchema,
   cloudGiftCardsResponseSchema,
   cloudOrdersQuerySchema,
   cloudPackageListResponseSchema,
@@ -128,7 +128,7 @@ export const adminCloudStore = new Hono<Env>()
     const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
         await client.stores[':storeId']['gift-cards'].$post({ param: { storeId }, json: c.req.valid('json') }),
-        cloudGiftCardListSchema,
+        cloudGiftCardCreateResponseSchema,
       ),
     )
     if (isCloudError(result)) return c.json(result, 502)

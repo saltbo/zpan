@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cloudGiftCardCreateResponseSchema,
   cloudGiftCardsResponseSchema,
   cloudOrdersResponseSchema,
   cloudPackageResponseSchema,
@@ -162,6 +163,28 @@ describe('quota store helper schemas', () => {
       limit: 50,
       offset: 0,
     })
+  })
+
+  it('normalizes Cloud gift card create responses to generated cards', () => {
+    const card = {
+      id: 'gift-created',
+      storeId: 'store-1',
+      campaignId: null,
+      code: 'ZS-CREATED-1',
+      codeLast4: 'TED1',
+      amount: 500,
+      currency: 'usd',
+      status: 'active',
+      expiresAt: null,
+      createdAt: '2026-05-07T00:00:00.000Z',
+      updatedAt: '2026-05-07T00:00:00.000Z',
+      disabledAt: null,
+      revokedAt: null,
+      createdByAdmin: 'admin',
+    }
+
+    expect(cloudGiftCardCreateResponseSchema.parse([card])).toEqual([card])
+    expect(cloudGiftCardCreateResponseSchema.parse({ items: [card], total: 1, limit: 50, offset: 0 })).toEqual([card])
   })
 
   it('parses Cloud package responses', () => {

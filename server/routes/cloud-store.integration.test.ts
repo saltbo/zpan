@@ -1361,7 +1361,7 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ total: 9, items: [{ code: 'ZS-PAGED-1' }] })
   })
 
-  it('returns admin gift card create responses from Cloud', async () => {
+  it('accepts paged admin gift card create responses from Cloud', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -1369,7 +1369,12 @@ describe('Quota Store API', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 201,
-      json: async () => [cloudGiftCard({ code: 'ZS-CREATED-1', codeLast4: 'TED1' })],
+      json: async () => ({
+        items: [cloudGiftCard({ code: 'ZS-PAGED-CREATE-1', codeLast4: 'TE-1' })],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      }),
     } as Response)
 
     const res = await app.request('/api/admin/store/gift-cards', {
@@ -1383,7 +1388,7 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject([{ code: 'ZS-CREATED-1' }])
+    await expect(res.json()).resolves.toMatchObject([{ code: 'ZS-PAGED-CREATE-1' }])
   })
 
   it('disables admin gift cards through Cloud', async () => {

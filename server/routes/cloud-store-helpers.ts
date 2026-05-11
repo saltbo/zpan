@@ -37,6 +37,9 @@ export const cloudStoreOrdersQuerySchema = cloudOrdersQuerySchema
 export const cloudGiftCardSchema = storeGiftCardSchema
 export const cloudGiftCardsResponseSchema = giftCardListResponseSchema
 export const cloudGiftCardListSchema = z.array(storeGiftCardSchema)
+export const cloudGiftCardCreateResponseSchema = z
+  .union([cloudGiftCardListSchema, cloudGiftCardsResponseSchema])
+  .transform((response) => (Array.isArray(response) ? response : response.items))
 export const giftCardListQuerySchema = z.object({ status: giftCardStatusSchema.optional() })
 
 export async function getUserStoreSettings(db: Parameters<typeof getRequiredSettings>[0]) {
