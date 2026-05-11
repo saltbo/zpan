@@ -81,6 +81,13 @@ export class S3Service {
     }
   }
 
+  async getObjectBytes(storage: Storage, key: string): Promise<Uint8Array> {
+    const client = this.createClient(storage)
+    const result = await client.send(new GetObjectCommand({ Bucket: storage.bucket, Key: key }))
+    if (!result.Body) throw new Error('Empty body from object')
+    return bodyToBytes(result.Body)
+  }
+
   async copyObject(srcStorage: Storage, srcKey: string, dstStorage: Storage, dstKey: string): Promise<void> {
     const client = this.createClient(dstStorage)
     await client.send(
@@ -150,4 +157,18 @@ export class S3Service {
     // Cloudflare Workers doesn't have DOMParser, so we delete one-by-one.
     await Promise.all(keys.map((key) => this.deleteObject(storage, key)))
   }
+}
+
+async function bodyToBytes(body: unknown): Promise<Uint8Array> {
+  if (body instanceof Uint8Array) return body
+  if (body instanceof ReadableStream) return new Uint8Array(await new Response(body).arrayBuffer())
+
+  const streamBody = body as {
+    transformToByteArray?: () => Promise<Uint8Array>
+    arrayBuffer?: () => Promise<ArrayBuffer>
+  }
+  if (streamBody.transformToByteArray) return streamBody.transformToByteArray()
+  if (streamBody.arrayBuffer) return new Uint8Array(await streamBody.arrayBuffer())
+
+  throw new Error('Unsupported object body')
 }

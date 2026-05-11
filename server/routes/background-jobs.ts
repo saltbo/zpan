@@ -2,9 +2,10 @@ import { zValidator } from '@hono/zod-validator'
 import type { BackgroundJob } from '@shared/types'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
-import { listBackgroundJobsQuerySchema } from '../../shared/schemas'
+import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { createArchiveJob } from '../services/archive-processing'
 import {
   BackgroundJobError,
   cancelBackgroundJob,
@@ -24,6 +25,22 @@ const backgroundJobs = new Hono<Env>()
     const result = await listBackgroundJobs(db, orgId, query)
     return c.json({ ...result, page: query.page, pageSize: query.pageSize })
   })
+  .post('/', zValidator('json', createBackgroundJobRequestSchema), async (c) =>
+    backgroundJobResponse(
+      c,
+      async () => {
+        const orgId = requireOrg(c)
+        const userId = c.get('userId')
+        if (!userId) throw new BackgroundJobError('not_found')
+        return createArchiveJob(c.get('platform').db, {
+          orgId,
+          userId,
+          request: c.req.valid('json'),
+        })
+      },
+      201,
+    ),
+  )
   .get('/:id', async (c) =>
     backgroundJobResponse(c, async () => {
       const orgId = requireOrg(c)

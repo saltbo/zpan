@@ -14,8 +14,22 @@ export {
 } from './announcement'
 export type { ListAdminAuditQuery } from './audit'
 export { listAdminAuditQuerySchema } from './audit'
-export type { BackgroundJobStatusInput, BackgroundJobTypeInput, ListBackgroundJobsQuery } from './background-jobs'
-export { backgroundJobStatusSchema, backgroundJobTypeSchema, listBackgroundJobsQuerySchema } from './background-jobs'
+export type {
+  ArchiveCompressJobRequest,
+  ArchiveExtractJobRequest,
+  BackgroundJobStatusInput,
+  BackgroundJobTypeInput,
+  CreateBackgroundJobRequest,
+  ListBackgroundJobsQuery,
+} from './background-jobs'
+export {
+  archiveCompressJobRequestSchema,
+  archiveExtractJobRequestSchema,
+  backgroundJobStatusSchema,
+  backgroundJobTypeSchema,
+  createBackgroundJobRequestSchema,
+  listBackgroundJobsQuerySchema,
+} from './background-jobs'
 export type {
   CheckoutInput,
   CloudOrder,

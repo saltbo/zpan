@@ -201,6 +201,61 @@ describe('S3Service', () => {
     })
   })
 
+  describe('getObjectBytes', () => {
+    it('returns bytes from Uint8Array bodies', async () => {
+      const bytes = new Uint8Array([1, 2, 3])
+      mockSend.mockResolvedValueOnce({ Body: bytes })
+
+      await expect(service.getObjectBytes(storage, 'test.bin')).resolves.toEqual(bytes)
+    })
+
+    it('returns bytes from ReadableStream bodies', async () => {
+      const bytes = new Uint8Array([4, 5, 6])
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(bytes)
+          controller.close()
+        },
+      })
+      mockSend.mockResolvedValueOnce({ Body: stream })
+
+      await expect(service.getObjectBytes(storage, 'test.bin')).resolves.toEqual(bytes)
+    })
+
+    it('returns bytes from transformToByteArray bodies', async () => {
+      const bytes = new Uint8Array([1, 2, 3])
+      mockSend.mockResolvedValueOnce({
+        Body: { transformToByteArray: async () => bytes },
+      })
+
+      await expect(service.getObjectBytes(storage, 'test.bin')).resolves.toEqual(bytes)
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'test.bin' } }),
+      )
+    })
+
+    it('returns bytes from arrayBuffer bodies', async () => {
+      const bytes = new Uint8Array([7, 8, 9])
+      mockSend.mockResolvedValueOnce({
+        Body: { arrayBuffer: async () => bytes.buffer },
+      })
+
+      await expect(service.getObjectBytes(storage, 'test.bin')).resolves.toEqual(bytes)
+    })
+
+    it('rejects empty object bodies', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await expect(service.getObjectBytes(storage, 'missing.bin')).rejects.toThrow('Empty body from object')
+    })
+
+    it('rejects unsupported object bodies', async () => {
+      mockSend.mockResolvedValueOnce({ Body: {} })
+
+      await expect(service.getObjectBytes(storage, 'test.bin')).rejects.toThrow('Unsupported object body')
+    })
+  })
+
   describe('copyObject', () => {
     it('sends CopyObjectCommand with correct CopySource', async () => {
       mockSend.mockResolvedValueOnce({ $metadata: {} })
