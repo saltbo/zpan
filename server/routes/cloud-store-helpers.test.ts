@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   billingPortalPath,
+  cloudGiftCardCreateResponseSchema,
   cloudGiftCardsResponseSchema,
   cloudOrdersResponseSchema,
   cloudPackageResponseSchema,
@@ -132,6 +133,51 @@ describe('quota store helper paths', () => {
       ],
       total: 1,
     })
+  })
+
+  it('normalizes paged Cloud gift card create responses to a list', () => {
+    expect(
+      cloudGiftCardCreateResponseSchema.parse({
+        items: [
+          {
+            id: 'gift-1',
+            boundLicenseId: null,
+            code: 'ZS-PAGED-1',
+            amount: 2500,
+            currency: 'usd',
+            status: 'created',
+            expiresAt: null,
+            firstRedeemedAt: null,
+            lastRedeemedAt: null,
+            redemptionCount: 0,
+            createdAt: '2026-05-07T00:00:00.000Z',
+            updatedAt: '2026-05-07T00:00:00.000Z',
+            disabledAt: null,
+            revokedAt: null,
+            createdByAdmin: 'admin',
+          },
+        ],
+        total: 1,
+      }),
+    ).toEqual([
+      {
+        id: 'gift-1',
+        boundLicenseId: null,
+        code: 'ZS-PAGED-1',
+        amount: 2500,
+        currency: 'usd',
+        status: 'created',
+        expiresAt: null,
+        firstRedeemedAt: null,
+        lastRedeemedAt: null,
+        redemptionCount: 0,
+        createdAt: '2026-05-07T00:00:00.000Z',
+        updatedAt: '2026-05-07T00:00:00.000Z',
+        disabledAt: null,
+        revokedAt: null,
+        createdByAdmin: 'admin',
+      },
+    ])
   })
 
   it('parses paged Cloud gift card responses', () => {
