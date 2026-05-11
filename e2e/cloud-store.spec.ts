@@ -21,7 +21,8 @@ type CloudProduct = {
 }
 
 type CloudGiftCard = {
-  code: string
+  code: string | null
+  codeLast4: string
 }
 
 type CloudOrder = {
@@ -227,7 +228,9 @@ async function createGiftCard(page: Page) {
     count: 1,
   })
   expect(cards.length).toBe(1)
-  return cards[0]
+  const card = cards[0]
+  if (card.code === null) throw new Error('Cloud gift card create response did not include code')
+  return { ...card, code: card.code }
 }
 
 async function createOneTimePackageThroughUi(page: Page, packageName: string) {
@@ -268,7 +271,9 @@ async function createGiftCardThroughUi(page: Page) {
   expect(result.status()).toBe(201)
   const cards = (await result.json()) as CloudGiftCard[]
   expect(cards.length).toBe(1)
-  return cards[0].code
+  const card = cards[0]
+  if (card.code === null) throw new Error('Cloud gift card create response did not include code')
+  return card.code
 }
 
 async function expectAdminProductVisibleInApi(page: Page, packageName: string) {
@@ -288,11 +293,11 @@ async function expectAdminGiftCardVisibleInApi(page: Page, code: string) {
     .poll(
       async () => {
         const giftCards = await getJson<{ items: CloudGiftCard[] }>(page, '/api/admin/store/gift-cards')
-        return giftCards.items.map((item) => item.code)
+        return giftCards.items.map((item) => item.codeLast4)
       },
       { timeout: 60_000 },
     )
-    .toContain(code)
+    .toContain(code.slice(-4))
 }
 
 async function redeemGiftCard(page: Page, code: string) {
