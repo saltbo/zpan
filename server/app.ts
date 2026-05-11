@@ -10,6 +10,7 @@ import type { Platform } from './platform/interface'
 import { adminAnnouncements, announcements } from './routes/announcements'
 import { adminAudit } from './routes/audit'
 import { adminAuthProviders, publicAuthProviders } from './routes/auth-providers'
+import backgroundJobs from './routes/background-jobs'
 import { brandingAdmin, publicBranding } from './routes/branding'
 import { adminCloudStore, cloudStore, cloudStoreWebhooks } from './routes/cloud-store'
 import emailConfig from './routes/email-config'
@@ -92,6 +93,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/system', system)
   app.route('/api/admin/auth-providers', adminAuthProviders)
   app.route('/api/notifications', notifications)
+  app.route('/api/background-jobs', backgroundJobs)
   app.route('/api/ihost', ihost)
   app.route('/api/ihost/config', ihostConfig)
   app.route('/api/licensing', licensingAdmin)
@@ -130,6 +132,7 @@ export type AdminCloudStoreRoute = typeof adminCloudStore
 export type TeamsRoute = typeof teams
 export type PublicTeamsRoute = typeof publicTeams
 export type NotificationsRoute = typeof notifications
+export type BackgroundJobsRoute = typeof backgroundJobs
 export type IhostRoute = typeof ihost
 export type IhostConfigRoute = typeof ihostConfig
 export type MeRoute = typeof me

@@ -169,6 +169,39 @@ export interface PaginatedResponse<T> {
   pageSize: number
 }
 
+export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled'
+export type KnownBackgroundJobType = 'archive_compress' | 'archive_extract'
+export type BackgroundJobType = KnownBackgroundJobType | (string & {})
+
+export interface BackgroundJobProgress {
+  inputBytes: number
+  outputBytes: number
+  processedBytes: number
+  fileCount: number
+  currentFilename: string | null
+}
+
+export interface BackgroundJob {
+  id: string
+  orgId: string
+  userId: string
+  type: BackgroundJobType
+  status: BackgroundJobStatus
+  targetFolder: string | null
+  targetPath: string | null
+  metadata: Record<string, unknown> | null
+  progress: BackgroundJobProgress
+  errorMessage: string | null
+  resultMetadata: Record<string, unknown> | null
+  retryable: boolean
+  cancelable: boolean
+  retriedFromJobId: string | null
+  createdAt: string
+  updatedAt: string
+  startedAt: string | null
+  finishedAt: string | null
+}
+
 import type { ShareKind as _ShareKind } from '../schemas/share'
 
 export type { ShareKind } from '../schemas/share'

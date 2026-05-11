@@ -305,6 +305,33 @@ const APP_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS notifications_user_created_idx ON notifications(user_id, created_at);
   CREATE INDEX IF NOT EXISTS notifications_user_read_idx ON notifications(user_id, read_at);
+  CREATE TABLE IF NOT EXISTS background_jobs (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    target_folder TEXT,
+    target_path TEXT,
+    metadata TEXT,
+    input_bytes INTEGER NOT NULL DEFAULT 0,
+    output_bytes INTEGER NOT NULL DEFAULT 0,
+    processed_bytes INTEGER NOT NULL DEFAULT 0,
+    file_count INTEGER NOT NULL DEFAULT 0,
+    current_filename TEXT,
+    error_message TEXT,
+    result_metadata TEXT,
+    retryable INTEGER NOT NULL DEFAULT 0,
+    cancelable INTEGER NOT NULL DEFAULT 1,
+    retried_from_job_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    started_at INTEGER,
+    finished_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS background_jobs_org_created_idx ON background_jobs(org_id, created_at);
+  CREATE INDEX IF NOT EXISTS background_jobs_org_status_idx ON background_jobs(org_id, status);
+  CREATE INDEX IF NOT EXISTS background_jobs_org_type_idx ON background_jobs(org_id, type);
   CREATE TABLE IF NOT EXISTS announcements (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,

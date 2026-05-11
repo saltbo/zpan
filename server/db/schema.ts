@@ -207,6 +207,39 @@ export const notifications = sqliteTable(
   ],
 )
 
+export const backgroundJobs = sqliteTable(
+  'background_jobs',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    userId: text('user_id').notNull(),
+    type: text('type').notNull(),
+    status: text('status').notNull(),
+    targetFolder: text('target_folder'),
+    targetPath: text('target_path'),
+    metadata: text('metadata'),
+    inputBytes: integer('input_bytes').notNull().default(0),
+    outputBytes: integer('output_bytes').notNull().default(0),
+    processedBytes: integer('processed_bytes').notNull().default(0),
+    fileCount: integer('file_count').notNull().default(0),
+    currentFilename: text('current_filename'),
+    errorMessage: text('error_message'),
+    resultMetadata: text('result_metadata'),
+    retryable: integer('retryable', { mode: 'boolean' }).notNull().default(false),
+    cancelable: integer('cancelable', { mode: 'boolean' }).notNull().default(true),
+    retriedFromJobId: text('retried_from_job_id'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    startedAt: integer('started_at', { mode: 'timestamp_ms' }),
+    finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [
+    index('background_jobs_org_created_idx').on(t.orgId, t.createdAt),
+    index('background_jobs_org_status_idx').on(t.orgId, t.status),
+    index('background_jobs_org_type_idx').on(t.orgId, t.type),
+  ],
+)
+
 export const announcements = sqliteTable(
   'announcements',
   {
