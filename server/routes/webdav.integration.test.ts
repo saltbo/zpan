@@ -817,6 +817,16 @@ describe('WebDAV API', () => {
       }),
     })
     expect(badDepth.status).toBe(400)
+
+    await folder(db, workspace.id, { id: 'existing-copy-root', name: 'ExistingCopy' })
+    const replacedCollection = await app.request(`/dav/${workspace.slug}/Source`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/ExistingCopy`,
+        Depth: '0',
+      }),
+    })
+    expect(replacedCollection.status).toBe(201)
   })
 
   it('COPY enforces destination locks and rolls back collection copy quota on storage failure', async () => {
@@ -895,6 +905,77 @@ describe('WebDAV API', () => {
       }),
     })
     expect(descendant.status).toBe(403)
+  })
+
+  it('write methods enforce WebDAV If and lock preconditions before mutations', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    await file(db, workspace.id, { id: 'guarded-file', name: 'guarded.txt' })
+    await file(db, workspace.id, { id: 'move-guarded-file', name: 'move-guarded.txt' })
+    await file(db, workspace.id, { id: 'copy-guarded-file', name: 'copy-guarded.txt' })
+    await file(db, workspace.id, { id: 'delete-guarded-file', name: 'delete-guarded.txt' })
+
+    const proppatchIfFailed = await app.request(`/dav/${workspace.slug}/guarded.txt`, {
+      method: 'PROPPATCH',
+      headers: basicHeaders(account.email, key, { If: '(["stale"])', 'Content-Type': 'application/xml' }),
+      body: '<propertyupdate xmlns="DAV:" xmlns:Z="urn:zpan:test"><set><prop><Z:color>blue</Z:color></prop></set></propertyupdate>',
+    })
+    expect(proppatchIfFailed.status).toBe(412)
+
+    const mkcolIfFailed = await app.request(`/dav/${workspace.slug}/BlockedByIf`, {
+      method: 'MKCOL',
+      headers: basicHeaders(account.email, key, { If: '(["stale"])' }),
+    })
+    expect(mkcolIfFailed.status).toBe(412)
+
+    const deleteIfFailed = await app.request(`/dav/${workspace.slug}/delete-guarded.txt`, {
+      method: 'DELETE',
+      headers: basicHeaders(account.email, key, { If: '(["stale"])' }),
+    })
+    expect(deleteIfFailed.status).toBe(412)
+
+    const moveIfFailed = await app.request(`/dav/${workspace.slug}/move-guarded.txt`, {
+      method: 'MOVE',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/moved-guarded.txt`,
+        If: '(["stale"])',
+      }),
+    })
+    expect(moveIfFailed.status).toBe(412)
+
+    const moveToSelf = await app.request(`/dav/${workspace.slug}/move-guarded.txt`, {
+      method: 'MOVE',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/move-guarded.txt`,
+      }),
+    })
+    expect(moveToSelf.status).toBe(204)
+
+    const copyIfFailed = await app.request(`/dav/${workspace.slug}/copy-guarded.txt`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/copied-guarded.txt`,
+        If: '(["stale"])',
+      }),
+    })
+    expect(copyIfFailed.status).toBe(412)
+
+    const lock = await app.request(`/dav/${workspace.slug}/guarded.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype></lockinfo>',
+    })
+    expect(lock.status).toBe(200)
+
+    const deleteLocked = await app.request(`/dav/${workspace.slug}/guarded.txt`, {
+      method: 'DELETE',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(deleteLocked.status).toBe(423)
   })
 
   it('DELETE on collections removes descendants from WebDAV listings', async () => {
@@ -1082,6 +1163,23 @@ describe('WebDAV API', () => {
     })
     expect(tokenTaggedResource.status).toBe(412)
 
+    const emptyStateList = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { If: '()', 'Content-Type': 'text/plain' }),
+      body: 'missed',
+    })
+    expect(emptyStateList.status).toBe(412)
+
+    const malformedTaggedUrl = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, {
+        If: '<http://[::1> (["stale"])',
+        'Content-Type': 'text/plain',
+      }),
+      body: 'missed',
+    })
+    expect(malformedTaggedUrl.status).toBe(412)
+
     const invalidSyntax = await app.request(`/dav/${workspace.slug}/if.txt`, {
       method: 'PUT',
       headers: basicHeaders(account.email, key, { If: 'Not a state list', 'Content-Type': 'text/plain' }),
@@ -1189,11 +1287,24 @@ describe('WebDAV API', () => {
     })
     expect(malformedLock.status).toBe(422)
 
+    const missingLockTarget = await app.request(`/dav/${workspace.slug}/missing-lock-target.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype></lockinfo>',
+    })
+    expect(missingLockTarget.status).toBe(404)
+
     const missingUnlockToken = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'UNLOCK',
       headers: basicHeaders(account.email, key),
     })
     expect(missingUnlockToken.status).toBe(400)
+
+    const missingUnlockTarget = await app.request(`/dav/${workspace.slug}/missing-lock-target.txt`, {
+      method: 'UNLOCK',
+      headers: basicHeaders(account.email, key, { 'Lock-Token': token }),
+    })
+    expect(missingUnlockTarget.status).toBe(404)
 
     const invalidUnlock = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'UNLOCK',
