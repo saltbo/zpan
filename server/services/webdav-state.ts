@@ -300,9 +300,13 @@ export async function removeLock(db: Database, orgId: string, resourcePath: stri
     .where(
       and(
         eq(webdavLocks.orgId, orgId),
-        eq(webdavLocks.resourcePath, resourcePath),
         eq(webdavLocks.token, token),
         sql`${webdavLocks.expiresAt} > ${Date.now()}`,
+        or(
+          eq(webdavLocks.resourcePath, resourcePath),
+          sql`${webdavLocks.resourcePath} = '' AND ${webdavLocks.depth} = 'infinity'`,
+          sql`${resourcePath} LIKE ${webdavLocks.resourcePath} || '/%' AND ${webdavLocks.depth} = 'infinity'`,
+        ),
       ),
     )
     .returning({ id: webdavLocks.id })

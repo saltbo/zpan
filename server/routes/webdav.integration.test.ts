@@ -1253,6 +1253,23 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key, { If: `(${token})`, Timeout: 'Second-1200' }),
     })
     expect(refreshed.status).toBe(200)
+    expect(refreshed.headers.get('Lock-Token')).toBeNull()
+
+    const refreshWithBody = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { If: `(${token})`, 'Content-Type': 'application/xml' }),
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype></lockinfo>',
+    })
+    expect(refreshWithBody.status).toBe(400)
+
+    const refreshWithMultipleTokens = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, {
+        If: `(${token})(<opaquelocktoken:extra>)`,
+        Timeout: 'Second-1200',
+      }),
+    })
+    expect(refreshWithMultipleTokens.status).toBe(400)
 
     const conflictingLock = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'LOCK',
@@ -1286,6 +1303,13 @@ describe('WebDAV API', () => {
       body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope></lockinfo>',
     })
     expect(malformedLock.status).toBe(422)
+
+    const unsupportedDepth = await app.request(`/dav/${workspace.slug}/other-locked.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { Depth: '1', 'Content-Type': 'application/xml' }),
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype></lockinfo>',
+    })
+    expect(unsupportedDepth.status).toBe(400)
 
     const missingLockTarget = await app.request(`/dav/${workspace.slug}/missing-lock-target.txt`, {
       method: 'LOCK',
@@ -1379,6 +1403,7 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key, { If: `(${token})`, Timeout: 'Second-1200' }),
     })
     expect(descendantRefresh.status).toBe(200)
+    expect(descendantRefresh.headers.get('Lock-Token')).toBeNull()
     expect(await descendantRefresh.text()).toContain(token.slice(1, -1))
 
     const outsideRefresh = await app.request(`/dav/${workspace.slug}/outside.txt`, {
@@ -1392,6 +1417,25 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key, { If: `(${token})`, Timeout: 'Second-1200' }),
     })
     expect(otherWorkspaceRefresh.status).toBe(412)
+
+    const outsideUnlock = await app.request(`/dav/${workspace.slug}/outside.txt`, {
+      method: 'UNLOCK',
+      headers: basicHeaders(account.email, key, { 'Lock-Token': token }),
+    })
+    expect(outsideUnlock.status).toBe(409)
+
+    const descendantUnlock = await app.request(`/dav/${workspace.slug}/RefreshScope/child.txt`, {
+      method: 'UNLOCK',
+      headers: basicHeaders(account.email, key, { 'Lock-Token': token }),
+    })
+    expect(descendantUnlock.status).toBe(204)
+
+    const afterDescendantUnlock = await app.request(`/dav/${workspace.slug}/RefreshScope/child.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
+      body: 'after unlock',
+    })
+    expect(afterDescendantUnlock.status).toBe(204)
   })
 
   it('PROPFIND lockdiscovery includes inherited depth-infinity locks', async () => {

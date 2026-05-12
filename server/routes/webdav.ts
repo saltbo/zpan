@@ -295,6 +295,17 @@ function submittedLockTokens(c: DavContext): Set<string> {
   return tokens
 }
 
+function lockRefreshToken(c: DavContext): string | Response | null {
+  const ifHeader = c.req.header('If')
+  if (!ifHeader) return null
+  const tokens = [...ifHeader.matchAll(/<([^>]+)>/g)]
+    .map((match) => match[1])
+    .filter((token) => token.startsWith('opaquelocktoken:'))
+  if (tokens.length === 0) return null
+  if (tokens.length !== 1) return xmlResponse(errorXml('lock-token-submitted'), 400)
+  return tokens[0]
+}
+
 async function lockPrecondition(c: DavContext, target: WebDavTarget): Promise<Response | null> {
   const workspace = requireWorkspace(target)
   const locks = await activeLocks(c.get('platform').db, workspace.id, resourcePath(target))
@@ -910,8 +921,11 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   try {
     const target = await resolveWebDavPath(db, auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
-    const existingToken = c.req.header('If')?.match(/<([^>]+)>/)?.[1]
-    if (existingToken?.startsWith('opaquelocktoken:')) {
+    const body = await c.req.text()
+    const existingToken = lockRefreshToken(c)
+    if (existingToken instanceof Response) return existingToken
+    if (existingToken) {
+      if (body.length > 0) return xmlResponse(errorXml('lock-token-submitted'), 400)
       const refreshed = await refreshLock(
         db,
         workspace.id,
@@ -920,13 +934,14 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
         parseTimeout(c.req.header('Timeout')),
       )
       if (!refreshed) return xmlResponse(errorXml('lock-token-submitted'), 412)
-      return xmlResponse(lockDiscoveryXml(refreshed), 200, { 'Lock-Token': `<${refreshed.token}>` })
+      return xmlResponse(lockDiscoveryXml(refreshed), 200)
     }
 
+    const depth = c.req.header('Depth') ?? 'infinity'
+    if (depth !== '0' && depth !== 'infinity') return xmlResponse(errorXml('bad-depth'), 400)
     const path = resourcePath(target)
     const conflicts = await conflictingLocks(db, workspace.id, path)
     if (conflicts.length > 0) return xmlResponse(errorXml('no-conflicting-lock'), 423)
-    const body = await c.req.text()
     let lockInfo: { owner: string }
     try {
       lockInfo = parseLockInfoXml(body)
@@ -956,7 +971,7 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       orgId: workspace.id,
       resourcePath: path,
       owner: lockInfo.owner,
-      depth: c.req.header('Depth') === '0' ? '0' : 'infinity',
+      depth,
       timeoutSeconds: parseTimeout(c.req.header('Timeout')),
     })
     return xmlResponse(lockDiscoveryXml(lock), created ? 201 : 200, { 'Lock-Token': `<${lock.token}>` })
