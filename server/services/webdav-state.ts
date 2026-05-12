@@ -275,8 +275,8 @@ export async function refreshLock(
   const now = new Date()
   const expiresAt = new Date(now.getTime() + timeoutSeconds * 1000)
   const rows = await db
-    .update(webdavLocks)
-    .set({ expiresAt, updatedAt: now })
+    .select()
+    .from(webdavLocks)
     .where(
       and(
         eq(webdavLocks.orgId, orgId),
@@ -289,14 +289,18 @@ export async function refreshLock(
         ),
       ),
     )
-    .returning()
-  return rows[0] ?? null
+    .limit(1)
+  const lock = rows[0]
+  if (!lock) return null
+  await db.update(webdavLocks).set({ expiresAt, updatedAt: now }).where(eq(webdavLocks.id, lock.id))
+  return { ...lock, expiresAt, updatedAt: now }
 }
 
 export async function removeLock(db: Database, orgId: string, resourcePath: string, token: string): Promise<boolean> {
   await purgeExpiredLocks(db)
   const rows = await db
-    .delete(webdavLocks)
+    .select({ id: webdavLocks.id })
+    .from(webdavLocks)
     .where(
       and(
         eq(webdavLocks.orgId, orgId),
@@ -309,8 +313,11 @@ export async function removeLock(db: Database, orgId: string, resourcePath: stri
         ),
       ),
     )
-    .returning({ id: webdavLocks.id })
-  return rows.length > 0
+    .limit(1)
+  const lock = rows[0]
+  if (!lock) return false
+  await db.delete(webdavLocks).where(eq(webdavLocks.id, lock.id))
+  return true
 }
 
 async function purgeExpiredLocks(db: Database): Promise<void> {
