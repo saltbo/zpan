@@ -9,6 +9,7 @@ import type {
   AnnouncementsRoute,
   AuthedSharesRoute,
   AuthProvidersRoute,
+  BackgroundJobsRoute,
   BrandingAdminRoute,
   CloudStoreRoute,
   EmailConfigRoute,
@@ -54,6 +55,7 @@ export const meApi = hc<MeRoute>('/api/me', opts)
 export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
 export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)
+export const backgroundJobsApi = hc<BackgroundJobsRoute>('/api/background-jobs', opts)
 export const announcementsApi = hc<AnnouncementsRoute>('/api/announcements', opts)
 export const adminAnnouncementsApi = hc<AdminAnnouncementsRoute>('/api/admin/announcements', opts)
 

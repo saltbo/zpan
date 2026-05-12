@@ -1,4 +1,4 @@
-import { Copy, Download, FolderInput, LayoutGrid, List, Share2, Trash2, X } from 'lucide-react'
+import { Archive, Copy, Download, FolderInput, LayoutGrid, List, Share2, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -12,6 +12,7 @@ interface FilesToolbarProps {
   onBatchTrash?: () => void
   onBatchMove?: () => void
   onBatchCopy?: () => void
+  onBatchCompress?: () => void
   onBatchDownload?: () => void
   onClearSelection?: () => void
   onShare?: () => void
@@ -25,6 +26,7 @@ export function FilesToolbar({
   onBatchTrash,
   onBatchMove,
   onBatchCopy,
+  onBatchCompress,
   onBatchDownload,
   onClearSelection,
   onShare,
@@ -45,6 +47,11 @@ export function FilesToolbar({
         {onBatchCopy && (
           <Button variant="outline" size="icon-sm" onClick={onBatchCopy} title={t('files.copy')}>
             <Copy />
+          </Button>
+        )}
+        {onBatchCompress && (
+          <Button variant="outline" size="icon-sm" onClick={onBatchCompress} title={t('files.compress')}>
+            <Archive />
           </Button>
         )}
         {onBatchDownload && (

@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   getCoreRowModel,
@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
-import { getObject, listObjectsByPath } from '@/lib/api'
+import { createBackgroundJob, getObject, listObjectsByPath } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { getColumns } from './columns'
 import { NameConflictDialog } from './dialogs/name-conflict-dialog'
@@ -127,6 +127,7 @@ interface FileManagerProps {
     trash?: boolean
     share?: boolean
     copyUrl?: boolean
+    archive?: boolean
     delete?: boolean
   }
   emptyStateLabel?: string
@@ -173,6 +174,7 @@ export function FileManager({
       trash: capabilities?.trash ?? !dataSource,
       share: capabilities?.share ?? !dataSource,
       copyUrl: capabilities?.copyUrl ?? false,
+      archive: capabilities?.archive ?? !dataSource,
       delete: capabilities?.delete ?? false,
     }),
     [capabilities, dataSource],
@@ -215,6 +217,14 @@ export function FileManager({
       }),
   })
   const mutations = useFileMutations(currentPath)
+  const archiveMutation = useMutation({
+    mutationFn: createBackgroundJob,
+    onSuccess: () => {
+      toast.success(t('files.archiveJobCreated'))
+      navigate({ to: '/tasks' })
+    },
+    onError: (err) => toast.error(err.message),
+  })
   const conflict = useConflictResolver()
   const items = query.data?.items ?? []
 
@@ -307,6 +317,13 @@ export function FileManager({
       onDownload: handleDownload,
       onShare: resolvedCapabilities.share ? (item) => setShareTarget(item) : undefined,
       onCopyUrl: resolvedCapabilities.copyUrl && onCopyUrl ? onCopyUrl : undefined,
+      onCompress: resolvedCapabilities.archive
+        ? (item) =>
+            archiveMutation.mutate({ type: 'archive_compress', matterIds: [item.id], targetFolder: currentPath })
+        : undefined,
+      onExtract: resolvedCapabilities.archive
+        ? (item) => archiveMutation.mutate({ type: 'archive_extract', matterId: item.id, targetFolder: currentPath })
+        : undefined,
     }),
     [
       handleOpen,
@@ -314,6 +331,8 @@ export function FileManager({
       resolvedCapabilities,
       onDeleteItems,
       onCopyUrl,
+      archiveMutation,
+      currentPath,
       mutations.copyMutation,
       conflict.prompt,
       conflict.reset,
@@ -421,6 +440,16 @@ export function FileManager({
           totalItems={items.length}
           onBatchTrash={resolvedCapabilities.trash ? () => setDeleteTargetIds(selectedIds) : undefined}
           onBatchMove={resolvedCapabilities.move ? () => setMoveTargetIds(selectedIds) : undefined}
+          onBatchCompress={
+            resolvedCapabilities.archive && selectedIds.length > 0
+              ? () =>
+                  archiveMutation.mutate({
+                    type: 'archive_compress',
+                    matterIds: selectedIds,
+                    targetFolder: currentPath,
+                  })
+              : undefined
+          }
           onClearSelection={resolvedCapabilities.selection ? () => setRowSelection({}) : undefined}
           onShare={resolvedCapabilities.share ? handleToolbarShare : undefined}
         />
