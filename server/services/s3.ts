@@ -81,9 +81,10 @@ export class S3Service {
     }
   }
 
-  async getObjectBytes(storage: Storage, key: string): Promise<Uint8Array> {
+  async getObjectBytes(storage: Storage, key: string, range?: string): Promise<Uint8Array> {
     const client = this.createClient(storage)
-    const result = await client.send(new GetObjectCommand({ Bucket: storage.bucket, Key: key }))
+    const input = range ? { Bucket: storage.bucket, Key: key, Range: range } : { Bucket: storage.bucket, Key: key }
+    const result = await client.send(new GetObjectCommand(input))
     if (!result.Body) throw new Error('Empty body from object')
     return bodyToBytes(result.Body)
   }

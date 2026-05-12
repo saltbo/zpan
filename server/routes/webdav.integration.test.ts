@@ -19,6 +19,7 @@ const storage = {
 beforeEach(() => {
   vi.restoreAllMocks()
   vi.spyOn(S3Service.prototype, 'presignDownload').mockResolvedValue('https://download.example.com/file.txt')
+  vi.spyOn(S3Service.prototype, 'getObjectBytes').mockResolvedValue(new TextEncoder().encode('hello webdav'))
   vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(undefined)
   vi.spyOn(S3Service.prototype, 'copyObject').mockResolvedValue(undefined)
 })
@@ -169,6 +170,19 @@ describe('WebDAV API', () => {
     const xml = await docs.text()
     expect(xml).toContain(`/dav/${workspace.slug}/Docs/`)
     expect(xml).toContain(`/dav/${workspace.slug}/Docs/readme.txt`)
+    for (const property of [
+      'displayname',
+      'creationdate',
+      'getetag',
+      'getcontentlength',
+      'getcontenttype',
+      'getlastmodified',
+      'resourcetype',
+      'supportedlock',
+      'lockdiscovery',
+    ]) {
+      expect(xml).toContain(`<D:${property}`)
+    }
 
     const byId = await app.request(`/dav/${workspace.id}/`, {
       method: 'PROPFIND',
@@ -200,7 +214,7 @@ describe('WebDAV API', () => {
     expect(hiddenRes.status).toBe(404)
   })
 
-  it('GET redirects to storage and HEAD returns file headers', async () => {
+  it('GET returns file bytes directly and HEAD returns coherent file headers', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -216,13 +230,122 @@ describe('WebDAV API', () => {
     expect(head.status).toBe(200)
     expect(head.headers.get('Content-Type')).toBe('text/plain')
     expect(head.headers.get('Content-Length')).toBe('12')
+    expect(head.headers.get('ETag')).toMatch(/^"readme-12-\d+"$/)
+    expect(head.headers.get('Last-Modified')).toBeTruthy()
 
     const get = await app.request(`/dav/${workspace.slug}/readme.txt`, {
       method: 'GET',
       headers: basicHeaders(account.email, key),
     })
-    expect(get.status).toBe(302)
-    expect(get.headers.get('Location')).toBe('https://download.example.com/file.txt')
+    expect(get.status).toBe(200)
+    expect(get.headers.get('Content-Type')).toBe('text/plain')
+    expect(get.headers.get('Content-Length')).toBe('12')
+    expect(get.headers.get('ETag')).toBe(head.headers.get('ETag'))
+    expect(get.headers.get('Last-Modified')).toBe(head.headers.get('Last-Modified'))
+    expect(get.headers.get('Location')).toBeNull()
+    expect(await get.text()).toBe('hello webdav')
+    expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
+    expect(S3Service.prototype.getObjectBytes).toHaveBeenCalledWith(
+      expect.objectContaining({ id: storage.id }),
+      'objects/readme.txt',
+    )
+  })
+
+  it('GET supports valid byte ranges and rejects invalid ranges', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    await file(db, workspace.id, { id: 'range', name: 'range.txt', size: 12 })
+    vi.mocked(S3Service.prototype.getObjectBytes).mockResolvedValueOnce(new TextEncoder().encode('hello'))
+
+    const partial = await app.request(`/dav/${workspace.slug}/range.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'bytes=0-4' }),
+    })
+    expect(partial.status).toBe(206)
+    expect(partial.headers.get('Content-Range')).toBe('bytes 0-4/12')
+    expect(partial.headers.get('Content-Length')).toBe('5')
+    expect(await partial.text()).toBe('hello')
+    expect(S3Service.prototype.getObjectBytes).toHaveBeenCalledWith(
+      expect.objectContaining({ id: storage.id }),
+      'objects/range.txt',
+      'bytes=0-4',
+    )
+
+    const invalid = await app.request(`/dav/${workspace.slug}/range.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'bytes=99-100' }),
+    })
+    expect(invalid.status).toBe(416)
+    expect(invalid.headers.get('Content-Range')).toBe('bytes */12')
+
+    vi.mocked(S3Service.prototype.getObjectBytes).mockResolvedValueOnce(new TextEncoder().encode('dav'))
+    const suffix = await app.request(`/dav/${workspace.slug}/range.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'bytes=-3' }),
+    })
+    expect(suffix.status).toBe(206)
+    expect(suffix.headers.get('Content-Range')).toBe('bytes 9-11/12')
+    expect(await suffix.text()).toBe('dav')
+  })
+
+  it('honors ETag preconditions and changes ETag after overwrite', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    await file(db, workspace.id, { id: 'precondition', name: 'precondition.txt', size: 12 })
+
+    const head = await app.request(`/dav/${workspace.slug}/precondition.txt`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key),
+    })
+    const etag = head.headers.get('ETag')
+    expect(etag).toBeTruthy()
+
+    const matched = await app.request(`/dav/${workspace.slug}/precondition.txt`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key, { 'If-Match': etag ?? '' }),
+    })
+    expect(matched.status).toBe(200)
+
+    const notModified = await app.request(`/dav/${workspace.slug}/precondition.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { 'If-None-Match': etag ?? '' }),
+    })
+    expect(notModified.status).toBe(304)
+
+    const rejected = await app.request(`/dav/${workspace.slug}/precondition.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { 'If-Match': '"stale"', 'Content-Type': 'text/plain' }),
+      body: 'new bytes',
+    })
+    expect(rejected.status).toBe(412)
+
+    const noneMatchRejected = await app.request(`/dav/${workspace.slug}/precondition.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { 'If-None-Match': etag ?? '', 'Content-Type': 'text/plain' }),
+      body: 'new bytes',
+    })
+    expect(noneMatchRejected.status).toBe(412)
+
+    const overwrite = await app.request(`/dav/${workspace.slug}/precondition.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { 'If-Match': etag ?? '', 'Content-Type': 'text/plain' }),
+      body: 'new bytes',
+    })
+    expect(overwrite.status).toBe(204)
+
+    const updated = await app.request(`/dav/${workspace.slug}/precondition.txt`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(updated.headers.get('ETag')).not.toBe(etag)
   })
 
   it('OPTIONS advertises DAV methods', async () => {
@@ -461,9 +584,107 @@ describe('WebDAV API', () => {
 
     const existing = await app.request(`/dav/${workspace.slug}/source.txt`, {
       method: 'COPY',
-      headers: basicHeaders(account.email, key, { Destination: `http://localhost/dav/${workspace.slug}/target.txt` }),
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/target.txt`,
+        Overwrite: 'F',
+      }),
     })
     expect(existing.status).toBe(412)
+  })
+
+  it('returns WebDAV path errors for missing GET and DELETE targets', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+
+    const missingGet = await app.request(`/dav/${workspace.slug}/missing.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(missingGet.status).toBe(404)
+
+    const missingDelete = await app.request(`/dav/${workspace.slug}/missing.txt`, {
+      method: 'DELETE',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(missingDelete.status).toBe(404)
+  })
+
+  it('MOVE honors Overwrite header for existing destinations', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    await file(db, workspace.id, { id: 'move-source', name: 'move-source.txt' })
+    await file(db, workspace.id, { id: 'move-target', name: 'move-target.txt' })
+
+    const blocked = await app.request(`/dav/${workspace.slug}/move-source.txt`, {
+      method: 'MOVE',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/move-target.txt`,
+        Overwrite: 'F',
+      }),
+    })
+    expect(blocked.status).toBe(412)
+
+    const replaced = await app.request(`/dav/${workspace.slug}/move-source.txt`, {
+      method: 'MOVE',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/move-target.txt`,
+      }),
+    })
+    expect(replaced.status).toBe(201)
+    const rows = await db.all<{ id: string; name: string; status: string }>(
+      sql`SELECT id, name, status FROM matters WHERE id IN ('move-source', 'move-target') ORDER BY id`,
+    )
+    expect(rows).toEqual([
+      { id: 'move-source', name: 'move-target.txt', status: 'active' },
+      { id: 'move-target', name: 'move-target.txt', status: 'trashed' },
+    ])
+  })
+
+  it('COPY honors Overwrite header for existing destinations and rejects collection copy explicitly', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    await file(db, workspace.id, { id: 'copy-source', name: 'copy-source.txt', size: 12 })
+    await file(db, workspace.id, { id: 'copy-target', name: 'copy-target.txt' })
+    await folder(db, workspace.id, { id: 'copy-folder', name: 'Copy Folder' })
+
+    const blocked = await app.request(`/dav/${workspace.slug}/copy-source.txt`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/copy-target.txt`,
+        Overwrite: 'F',
+      }),
+    })
+    expect(blocked.status).toBe(412)
+
+    const replaced = await app.request(`/dav/${workspace.slug}/copy-source.txt`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/copy-target.txt`,
+      }),
+    })
+    expect(replaced.status).toBe(201)
+    const rows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = 'copy-target'`)
+    expect(rows[0]?.status).toBe('trashed')
+
+    const collection = await app.request(`/dav/${workspace.slug}/Copy%20Folder`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/Copied%20Folder`,
+      }),
+    })
+    expect(collection.status).toBe(403)
+    expect(await collection.text()).toContain('Collection COPY is not supported')
   })
 
   it('COPY rolls back quota reservation when storage copy fails', async () => {
