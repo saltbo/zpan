@@ -298,6 +298,20 @@ describe('WebDAV API', () => {
     })
     expect(invalid.status).toBe(403)
 
+    const badInstruction = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
+      method: 'PROPPATCH',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<D:propertyupdate xmlns:D="DAV:"><D:bad/></D:propertyupdate>',
+    })
+    expect(badInstruction.status).toBe(403)
+
+    const missingProp = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
+      method: 'PROPPATCH',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<D:propertyupdate xmlns:D="DAV:"><D:set/></D:propertyupdate>',
+    })
+    expect(missingProp.status).toBe(403)
+
     const remove = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
       method: 'PROPPATCH',
       headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
@@ -596,6 +610,13 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key),
     })
     expect(fileParent.status).toBe(405)
+
+    const unsupportedBody = await app.request(`/dav/${workspace.slug}/BodyCollection`, {
+      method: 'MKCOL',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<D:mkcol xmlns:D="DAV:"/>',
+    })
+    expect(unsupportedBody.status).toBe(415)
   })
 
   it('MOVE, COPY, and DELETE stay within org scope; DELETE trashes instead of purging', async () => {
@@ -690,6 +711,12 @@ describe('WebDAV API', () => {
       }),
     })
     expect(existing.status).toBe(412)
+
+    const root = await app.request(`/dav/${workspace.slug}/source.txt`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, { Destination: `http://localhost/dav/${workspace.slug}/` }),
+    })
+    expect(root.status).toBe(405)
   })
 
   it('COPY recursively copies collections and rejects copying into own descendant', async () => {
@@ -724,6 +751,46 @@ describe('WebDAV API', () => {
       }),
     })
     expect(descendant.status).toBe(403)
+  })
+
+  it('COPY enforces destination locks and rolls back collection copy quota on storage failure', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    await folder(db, workspace.id, { id: 'locked-target', name: 'LockedTarget' })
+    await file(db, workspace.id, { id: 'copy-locked-source', name: 'locked-source.txt', size: 12 })
+
+    const locked = await app.request(`/dav/${workspace.slug}/LockedTarget`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(locked.status).toBe(200)
+
+    const blocked = await app.request(`/dav/${workspace.slug}/locked-source.txt`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/LockedTarget/locked-source.txt`,
+      }),
+    })
+    expect(blocked.status).toBe(423)
+
+    await folder(db, workspace.id, { id: 'rollback-source', name: 'RollbackSource' })
+    await file(db, workspace.id, { id: 'rollback-file', name: 'data.bin', parent: 'RollbackSource', size: 12 })
+    vi.mocked(S3Service.prototype.copyObject).mockRejectedValueOnce(new Error('copy failed'))
+
+    const failed = await app.request(`/dav/${workspace.slug}/RollbackSource`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/RollbackCopy`,
+        Depth: 'infinity',
+      }),
+    })
+    expect(failed.status).toBe(500)
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storage.id}`)
+    expect(storageRows[0]?.used).toBe(0)
   })
 
   it('MOVE keeps collection descendant paths consistent and rejects descendant moves', async () => {
@@ -873,6 +940,12 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key, { If: `(${token})`, Timeout: 'Second-1200' }),
     })
     expect(refreshed.status).toBe(200)
+
+    const badRefresh = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { If: '(<opaquelocktoken:missing>)' }),
+    })
+    expect(badRefresh.status).toBe(412)
 
     const invalidUnlock = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'UNLOCK',
