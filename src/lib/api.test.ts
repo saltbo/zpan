@@ -28,6 +28,7 @@ import {
   createShare,
   createSiteInvitation,
   createStorage,
+  createWebDavAppPassword,
   deleteAnnouncement,
   deleteAvatar,
   deleteCloudGiftCard,
@@ -84,6 +85,7 @@ import {
   listStorages,
   listSystemOptions,
   listUsers,
+  listWebDavAppPasswords,
   markAllNotificationsRead,
   markNotificationRead,
   pollPairing,
@@ -95,6 +97,7 @@ import {
   retryBackgroundJob,
   revokeIhostApiKey,
   revokeSiteInvitation,
+  revokeWebDavAppPassword,
   saveBranding,
   saveEmailConfig,
   saveShareToDrive,
@@ -2497,6 +2500,66 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Key not found' }, false, 404))
 
       await expect(revokeIhostApiKey('key-1')).rejects.toThrow('Key not found')
+    })
+  })
+
+  describe('WebDAV app passwords', () => {
+    const samplePassword = {
+      id: 'webdav-key-1',
+      name: 'Finder',
+      start: 'zpan',
+      prefix: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      lastRequest: null,
+      permissions: { webdav: ['read', 'write'] },
+      referenceId: 'user-1',
+      enabled: true,
+    }
+
+    it('lists only webdav app passwords', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({
+          apiKeys: [samplePassword, { ...samplePassword, id: 'other', permissions: { other: ['read'] } }],
+        }),
+      )
+
+      const result = await listWebDavAppPasswords()
+
+      expect(result).toEqual([samplePassword])
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/api-key/list?configId=webdav')
+      expect(init.method).toBe('GET')
+    })
+
+    it('creates a webdav app password with configId', async () => {
+      const created = { ...samplePassword, key: 'webdav-secret' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(created))
+
+      const result = await createWebDavAppPassword('Finder')
+
+      expect(result).toEqual(created)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/api-key/create')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ configId: 'webdav', name: 'Finder' })
+    })
+
+    it('revokes a webdav app password with configId', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+
+      const result = await revokeWebDavAppPassword('webdav-key-1')
+
+      expect(result).toEqual({ success: true })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/api-key/delete')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ configId: 'webdav', keyId: 'webdav-key-1' })
+    })
+
+    it('throws ApiError on webdav app password failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
+
+      await expect(listWebDavAppPasswords()).rejects.toThrow('Unauthorized')
     })
   })
 

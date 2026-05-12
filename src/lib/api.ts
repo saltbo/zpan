@@ -873,6 +873,39 @@ export function revokeIhostApiKey(keyId: string) {
   })
 }
 
+// WebDAV App Passwords (via better-auth apiKey plugin)
+
+export type WebDavAppPassword = IhostApiKey
+
+export interface CreateWebDavAppPasswordResult extends WebDavAppPassword {
+  key: string
+}
+
+export function listWebDavAppPasswords() {
+  return apiKeyFetch<{ apiKeys: WebDavAppPassword[] }>('/api-key/list?configId=webdav', {
+    method: 'GET',
+  }).then((res) => res.apiKeys.filter((k) => k.permissions?.webdav?.includes('read')))
+}
+
+export function createWebDavAppPassword(name: string) {
+  return apiKeyFetch<CreateWebDavAppPasswordResult>('/api-key/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      configId: 'webdav',
+      name,
+    }),
+  })
+}
+
+export function revokeWebDavAppPassword(keyId: string) {
+  return apiKeyFetch<{ success: boolean }>('/api-key/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ configId: 'webdav', keyId }),
+  })
+}
+
 // Licensing API
 
 export type { BindingState }
