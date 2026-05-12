@@ -17,9 +17,11 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
+  Archive: () => null,
   Copy: () => null,
   Download: () => null,
   EllipsisVertical: () => null,
+  FileArchive: () => null,
   FolderInput: () => null,
   Link: () => null,
   Pencil: () => null,
@@ -181,5 +183,30 @@ describe('FileRowActions — component rendering', () => {
     expect(downloadItem).toBeDefined()
     fireEvent.click(downloadItem!)
     expect(onDownload).toHaveBeenCalledWith(item)
+  })
+
+  it('renders extract only for zip files', () => {
+    const onExtract = vi.fn()
+    const zip = { ...makeObject(DirType.FILE), name: 'backup.zip' }
+    const text = { ...makeObject(DirType.FILE), name: 'notes.txt' }
+    const handlers = { onOpen: vi.fn(), onExtract } as unknown as FileActionHandlers
+
+    const zipView = render(<FileRowActions item={zip} handlers={handlers} />)
+    expect(zipView.getAllByRole('menuitem').some((el) => el.textContent === 'files.extract')).toBe(true)
+    cleanup()
+
+    const textView = render(<FileRowActions item={text} handlers={handlers} />)
+    expect(textView.queryAllByRole('menuitem').some((el) => el.textContent === 'files.extract')).toBe(false)
+  })
+
+  it('calls onCompress when compress item clicked', () => {
+    const onCompress = vi.fn()
+    const item = makeObject(DirType.USER_FOLDER)
+    const handlers = { onOpen: vi.fn(), onCompress } as unknown as FileActionHandlers
+    const { getAllByRole } = render(<FileRowActions item={item} handlers={handlers} />)
+    const compressItem = getAllByRole('menuitem').find((el: HTMLElement) => el.textContent === 'files.compress')
+    expect(compressItem).toBeDefined()
+    fireEvent.click(compressItem!)
+    expect(onCompress).toHaveBeenCalledWith(item)
   })
 })

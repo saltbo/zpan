@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   getCoreRowModel,
@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
-import { getObject, listObjectsByPath } from '@/lib/api'
+import { createBackgroundJob, getObject, listObjectsByPath } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { getColumns } from './columns'
 import { NameConflictDialog } from './dialogs/name-conflict-dialog'
@@ -128,6 +128,7 @@ interface FileManagerProps {
     share?: boolean
     copyUrl?: boolean
     delete?: boolean
+    archive?: boolean
   }
   emptyStateLabel?: string
   getThumbnailUrl?: (item: StorageObject) => string | null
@@ -157,6 +158,7 @@ export function FileManager({
 }: FileManagerProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const dropzoneRef = useRef<UploadDropzoneHandle>(null)
 
   const currentPath = initialPath ?? ''
@@ -174,6 +176,7 @@ export function FileManager({
       share: capabilities?.share ?? !dataSource,
       copyUrl: capabilities?.copyUrl ?? false,
       delete: capabilities?.delete ?? false,
+      archive: capabilities?.archive ?? !dataSource,
     }),
     [capabilities, dataSource],
   )
@@ -217,6 +220,24 @@ export function FileManager({
   const mutations = useFileMutations(currentPath)
   const conflict = useConflictResolver()
   const items = query.data?.items ?? []
+  const archiveMutation = useMutation({
+    mutationFn: (
+      input: { type: 'archive_compress'; matterIds: string[] } | { type: 'archive_extract'; matterId: string },
+    ) => createBackgroundJob(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['objects'] })
+      queryClient.invalidateQueries({ queryKey: ['background-jobs'] })
+      toast.success(t('tasks.created'), {
+        action: {
+          label: t('tasks.viewTasks'),
+          onClick: () => navigate({ to: '/tasks' }),
+        },
+      })
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
+  })
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: clear selection when path changes
   useEffect(() => {
@@ -307,6 +328,12 @@ export function FileManager({
       onDownload: handleDownload,
       onShare: resolvedCapabilities.share ? (item) => setShareTarget(item) : undefined,
       onCopyUrl: resolvedCapabilities.copyUrl && onCopyUrl ? onCopyUrl : undefined,
+      onCompress: resolvedCapabilities.archive
+        ? (item) => archiveMutation.mutate({ type: 'archive_compress', matterIds: [item.id] })
+        : undefined,
+      onExtract: resolvedCapabilities.archive
+        ? (item) => archiveMutation.mutate({ type: 'archive_extract', matterId: item.id })
+        : undefined,
     }),
     [
       handleOpen,
@@ -314,6 +341,7 @@ export function FileManager({
       resolvedCapabilities,
       onDeleteItems,
       onCopyUrl,
+      archiveMutation,
       mutations.copyMutation,
       conflict.prompt,
       conflict.reset,
@@ -347,6 +375,10 @@ export function FileManager({
     const item = items.find((i) => i.id === id) ?? null
     setShareTarget(item)
   }, [selectedIds, items])
+
+  const handleBatchCompress = useCallback(() => {
+    archiveMutation.mutate({ type: 'archive_compress', matterIds: selectedIds })
+  }, [archiveMutation, selectedIds])
 
   function handleDndDrop(fileIds: string[], targetFolderId: string) {
     conflict.reset()
@@ -421,6 +453,7 @@ export function FileManager({
           totalItems={items.length}
           onBatchTrash={resolvedCapabilities.trash ? () => setDeleteTargetIds(selectedIds) : undefined}
           onBatchMove={resolvedCapabilities.move ? () => setMoveTargetIds(selectedIds) : undefined}
+          onBatchCompress={resolvedCapabilities.archive ? handleBatchCompress : undefined}
           onClearSelection={resolvedCapabilities.selection ? () => setRowSelection({}) : undefined}
           onShare={resolvedCapabilities.share ? handleToolbarShare : undefined}
         />

@@ -1,6 +1,17 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
-import { Copy, Download, EllipsisVertical, FolderInput, Link, Pencil, Share2, Trash2 } from 'lucide-react'
+import {
+  Archive,
+  Copy,
+  Download,
+  EllipsisVertical,
+  FileArchive,
+  FolderInput,
+  Link,
+  Pencil,
+  Share2,
+  Trash2,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,6 +35,8 @@ export function computeHasActions(item: StorageObject, handlers: Partial<FileAct
   const isFile = item.dirtype === DirType.FILE
   return !!(
     (isFile && handlers.onDownload) ||
+    handlers.onCompress ||
+    (isZipFile(item) && handlers.onExtract) ||
     handlers.onRename ||
     handlers.onCopy ||
     handlers.onMove ||
@@ -41,8 +54,14 @@ export function computeHasWriteActions(item: StorageObject, handlers: Partial<Fi
     handlers.onCopy ||
     handlers.onMove ||
     handlers.onShare ||
+    handlers.onCompress ||
+    (isZipFile(item) && handlers.onExtract) ||
     (isFile && handlers.onDownload)
   )
+}
+
+export function isZipFile(item: StorageObject): boolean {
+  return item.dirtype === DirType.FILE && item.name.toLowerCase().endsWith('.zip')
 }
 
 export function FileRowActions({ item, handlers }: FileRowActionsProps) {
@@ -112,6 +131,18 @@ export function FileRowActions({ item, handlers }: FileRowActionsProps) {
           <DropdownMenuItem onClick={() => handlers.onShare?.(item)}>
             <Share2 className="mr-2 h-4 w-4" />
             {t('share.menuItem')}
+          </DropdownMenuItem>
+        )}
+        {handlers.onCompress && (
+          <DropdownMenuItem onClick={() => handlers.onCompress?.(item)}>
+            <Archive className="mr-2 h-4 w-4" />
+            {t('files.compress')}
+          </DropdownMenuItem>
+        )}
+        {isZipFile(item) && handlers.onExtract && (
+          <DropdownMenuItem onClick={() => handlers.onExtract?.(item)}>
+            <FileArchive className="mr-2 h-4 w-4" />
+            {t('files.extract')}
           </DropdownMenuItem>
         )}
         {handlers.onTrash && (

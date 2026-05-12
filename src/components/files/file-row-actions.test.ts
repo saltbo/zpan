@@ -3,7 +3,7 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
 import { describe, expect, it, vi } from 'vitest'
-import { computeHasActions, computeHasWriteActions } from './file-row-actions'
+import { computeHasActions, computeHasWriteActions, isZipFile } from './file-row-actions'
 import type { FileActionHandlers } from './types'
 
 // ---------------------------------------------------------------------------
@@ -102,6 +102,22 @@ describe('FileRowActions — hasActions logic', () => {
 
     expect(computeHasActions(item, handlers)).toBe(true)
   })
+
+  it('returns true when onCompress handler is provided', () => {
+    const item = makeObject(DirType.USER_FOLDER)
+    const handlers: Partial<FileActionHandlers> = { onCompress: vi.fn() }
+
+    expect(computeHasActions(item, handlers)).toBe(true)
+  })
+
+  it('returns true for extract only when item is a zip file', () => {
+    const zip = { ...makeObject(DirType.FILE), name: 'archive.zip' }
+    const text = { ...makeObject(DirType.FILE), name: 'archive.txt' }
+    const handlers: Partial<FileActionHandlers> = { onExtract: vi.fn() }
+
+    expect(computeHasActions(zip, handlers)).toBe(true)
+    expect(computeHasActions(text, handlers)).toBe(false)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -170,6 +186,14 @@ describe('FileRowActions — hasWriteActions logic', () => {
     const handlers: Partial<FileActionHandlers> = { onShare: vi.fn() }
 
     expect(computeHasWriteActions(item, handlers)).toBe(true)
+  })
+})
+
+describe('FileRowActions — archive visibility logic', () => {
+  it('identifies zip files by filename extension', () => {
+    expect(isZipFile({ ...makeObject(DirType.FILE), name: 'BACKUP.ZIP' })).toBe(true)
+    expect(isZipFile({ ...makeObject(DirType.FILE), name: 'backup.zip.txt' })).toBe(false)
+    expect(isZipFile({ ...makeObject(DirType.USER_FOLDER), name: 'folder.zip' })).toBe(false)
   })
 })
 
