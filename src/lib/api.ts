@@ -7,6 +7,7 @@ import type {
   CloudWalletResponse,
   CloudWalletTransactionsResponse,
   ConflictStrategy,
+  CreateBackgroundJobRequest,
   CreateGiftCardInput,
   CreateShareRequest,
   CreateStorageInput,
@@ -19,6 +20,8 @@ import type {
   AdminAuditEvent,
   Announcement,
   AuthProvider,
+  BackgroundJob,
+  BackgroundJobStatus,
   BindingState,
   BrandingConfig,
   BrandingField,
@@ -51,6 +54,7 @@ import {
   announcementsApi,
   authedSharesApi,
   authProviders,
+  backgroundJobsApi,
   brandingAdminApi,
   cloudStoreApi,
   emailConfig,
@@ -220,6 +224,42 @@ export function batchDeleteObjects(ids: string[]) {
 
 export function emptyTrash() {
   return unwrap<{ purged: number }>(trash.index.$delete())
+}
+
+// Background Jobs API
+
+export interface ListBackgroundJobsOptions {
+  status?: BackgroundJobStatus
+  type?: string
+  page?: number
+  pageSize?: number
+}
+
+export function listBackgroundJobs(opts: ListBackgroundJobsOptions = {}) {
+  const query: Record<string, string> = {
+    page: String(opts.page ?? 1),
+    pageSize: String(opts.pageSize ?? 20),
+  }
+  if (opts.status) query.status = opts.status
+  if (opts.type) query.type = opts.type
+
+  return unwrap<PaginatedResponse<BackgroundJob>>(backgroundJobsApi.index.$get({ query }))
+}
+
+export function createBackgroundJob(data: CreateBackgroundJobRequest) {
+  return unwrap<BackgroundJob>(backgroundJobsApi.index.$post({ json: data }))
+}
+
+export function getBackgroundJob(id: string) {
+  return unwrap<BackgroundJob>(backgroundJobsApi[':id'].$get({ param: { id } }))
+}
+
+export function cancelBackgroundJob(id: string) {
+  return unwrap<BackgroundJob>(backgroundJobsApi[':id'].cancel.$post({ param: { id } }))
+}
+
+export function retryBackgroundJob(id: string) {
+  return unwrap<BackgroundJob>(backgroundJobsApi[':id'].retry.$post({ param: { id } }))
 }
 
 // Admin Storages API

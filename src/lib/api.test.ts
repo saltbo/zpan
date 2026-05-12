@@ -8,6 +8,7 @@ import {
   batchUpdateUserQuota,
   batchUpdateUserStatus,
   buildShareObjectUrl,
+  cancelBackgroundJob,
   cancelCloudOrder,
   cancelUpload,
   confirmIhostImage,
@@ -16,6 +17,7 @@ import {
   continueCloudOrderPayment,
   copyObject,
   createAnnouncement,
+  createBackgroundJob,
   createCloudBillingPortalSession,
   createCloudCheckout,
   createCloudGiftCards,
@@ -42,6 +44,7 @@ import {
   emptyTrash,
   enableIhostFeature,
   getAnnouncement,
+  getBackgroundJob,
   getBranding,
   getCloudStoreSettings,
   getCloudWallet,
@@ -64,6 +67,7 @@ import {
   listAdminCloudProducts,
   listAnnouncements,
   listAuthProviders,
+  listBackgroundJobs,
   listCloudGiftCards,
   listCloudOrders,
   listCloudProducts,
@@ -88,6 +92,7 @@ import {
   resendSiteInvitation,
   resetBrandingField,
   restoreObject,
+  retryBackgroundJob,
   revokeIhostApiKey,
   revokeSiteInvitation,
   saveBranding,
@@ -937,6 +942,111 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'server error' }, false, 500))
 
       await expect(emptyTrash()).rejects.toThrow('server error')
+    })
+  })
+
+  describe('background jobs api', () => {
+    const job = {
+      id: 'job-1',
+      orgId: 'org-1',
+      userId: 'user-1',
+      type: 'archive_compress',
+      status: 'completed',
+      targetFolder: null,
+      targetPath: null,
+      metadata: null,
+      progress: {
+        inputBytes: 10,
+        outputBytes: 20,
+        processedBytes: 10,
+        fileCount: 1,
+        currentFilename: null,
+      },
+      errorMessage: null,
+      resultMetadata: { outputName: 'files.zip' },
+      retryable: false,
+      cancelable: false,
+      retriedFromJobId: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      startedAt: '2026-01-01T00:00:01.000Z',
+      finishedAt: '2026-01-01T00:00:02.000Z',
+    }
+
+    it('lists jobs with status, type, and pagination query', async () => {
+      const payload = { items: [job], total: 1, page: 2, pageSize: 10 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listBackgroundJobs({
+        status: 'failed',
+        type: 'archive_extract',
+        page: 2,
+        pageSize: 10,
+      })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/background-jobs?')
+      expect(url).toContain('status=failed')
+      expect(url).toContain('type=archive_extract')
+      expect(url).toContain('page=2')
+      expect(url).toContain('pageSize=10')
+      expect(init.method).toBe('GET')
+    })
+
+    it('creates a background job with JSON payload', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(job, true, 201))
+
+      const result = await createBackgroundJob({ type: 'archive_compress', matterIds: ['file-1', 'folder-1'] })
+
+      expect(result).toEqual(job)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/background-jobs')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ type: 'archive_compress', matterIds: ['file-1', 'folder-1'] }))
+    })
+
+    it('gets a background job by id', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(job))
+
+      const result = await getBackgroundJob('job-1')
+
+      expect(result).toEqual(job)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/background-jobs/job-1')
+      expect(init.method).toBe('GET')
+    })
+
+    it('cancels a background job', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ ...job, status: 'canceled' }))
+
+      const result = await cancelBackgroundJob('job-1')
+
+      expect(result.status).toBe('canceled')
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/background-jobs/job-1/cancel')
+      expect(init.method).toBe('POST')
+    })
+
+    it('retries a failed background job', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ ...job, id: 'job-2' }, true, 201))
+
+      const result = await retryBackgroundJob('job-1')
+
+      expect(result.id).toBe('job-2')
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/background-jobs/job-1/retry')
+      expect(init.method).toBe('POST')
+    })
+
+    it('throws ApiError for background job failures', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Background job cannot be retried' }, false, 409))
+
+      await expect(retryBackgroundJob('job-1')).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 409,
+        body: { error: 'Background job cannot be retried' },
+      })
     })
   })
 

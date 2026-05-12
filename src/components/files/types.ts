@@ -10,6 +10,8 @@ export interface FileActionHandlers {
   onDownload?: (item: StorageObject) => void
   onShare?: (item: StorageObject) => void
   onCopyUrl?: (item: StorageObject, format?: 'raw' | 'markdown' | 'html' | 'bbcode') => void
+  onCompress?: (item: StorageObject) => void
+  onExtract?: (item: StorageObject) => void
 }
 
 export interface BreadcrumbItem {

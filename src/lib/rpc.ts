@@ -9,6 +9,7 @@ import type {
   AnnouncementsRoute,
   AuthedSharesRoute,
   AuthProvidersRoute,
+  BackgroundJobsRoute,
   BrandingAdminRoute,
   CloudStoreRoute,
   EmailConfigRoute,
@@ -56,6 +57,7 @@ export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)
 export const announcementsApi = hc<AnnouncementsRoute>('/api/announcements', opts)
 export const adminAnnouncementsApi = hc<AdminAnnouncementsRoute>('/api/admin/announcements', opts)
+export const backgroundJobsApi = hc<BackgroundJobsRoute>('/api/background-jobs', opts)
 
 // Shares are a single resource; separate clients only because Hono RPC types
 // are split across two sub-apps (public vs. authed) mounted at the same path.
