@@ -111,6 +111,32 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS webdav_dead_properties (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    resource_path TEXT NOT NULL,
+    namespace TEXT NOT NULL,
+    name TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS webdav_dead_properties_resource_prop_uniq
+    ON webdav_dead_properties(org_id, resource_path, namespace, name);
+  CREATE INDEX IF NOT EXISTS webdav_dead_properties_resource_idx
+    ON webdav_dead_properties(org_id, resource_path);
+  CREATE TABLE IF NOT EXISTS webdav_locks (
+    id TEXT PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    org_id TEXT NOT NULL,
+    resource_path TEXT NOT NULL,
+    owner TEXT NOT NULL DEFAULT '',
+    depth TEXT NOT NULL DEFAULT 'infinity',
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS webdav_locks_resource_idx ON webdav_locks(org_id, resource_path);
+  CREATE INDEX IF NOT EXISTS webdav_locks_expires_idx ON webdav_locks(expires_at);
   CREATE TABLE IF NOT EXISTS storages (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,

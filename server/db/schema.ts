@@ -19,6 +19,42 @@ export const matters = sqliteTable('matters', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
 
+export const webdavDeadProperties = sqliteTable(
+  'webdav_dead_properties',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    resourcePath: text('resource_path').notNull(),
+    namespace: text('namespace').notNull(),
+    name: text('name').notNull(),
+    value: text('value').notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('webdav_dead_properties_resource_prop_uniq').on(t.orgId, t.resourcePath, t.namespace, t.name),
+    index('webdav_dead_properties_resource_idx').on(t.orgId, t.resourcePath),
+  ],
+)
+
+export const webdavLocks = sqliteTable(
+  'webdav_locks',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    orgId: text('org_id').notNull(),
+    resourcePath: text('resource_path').notNull(),
+    owner: text('owner').notNull().default(''),
+    depth: text('depth').notNull().default('infinity'),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('webdav_locks_resource_idx').on(t.orgId, t.resourcePath),
+    index('webdav_locks_expires_idx').on(t.expiresAt),
+  ],
+)
+
 export const storages = sqliteTable('storages', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
