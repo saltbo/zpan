@@ -214,6 +214,105 @@ describe('WebDAV API', () => {
     expect(hiddenRes.status).toBe(404)
   })
 
+  it('PROPFIND supports prop, propname, allprop include, explicit depths, and rejects infinity', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    await folder(db, workspace.id, { id: 'docs', name: 'Docs' })
+    await file(db, workspace.id, { id: 'readme', name: 'readme.txt', parent: 'Docs' })
+
+    const prop = await app.request(`/dav/${workspace.slug}/Docs`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '0', 'Content-Type': 'application/xml' }),
+      body: `<?xml version="1.0"?>
+        <D:propfind xmlns:D="DAV:">
+          <D:prop><D:displayname/><D:quota-used-bytes/></D:prop>
+        </D:propfind>`,
+    })
+    expect(prop.status).toBe(207)
+    const propXml = await prop.text()
+    expect(propXml).toContain('<D:displayname>Docs</D:displayname>')
+    expect(propXml).toContain('HTTP/1.1 404 Not Found')
+    expect(propXml).not.toContain('readme.txt')
+
+    const propname = await app.request(`/dav/${workspace.slug}/Docs`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '1', 'Content-Type': 'application/xml' }),
+      body: '<D:propfind xmlns:D="DAV:"><D:propname/></D:propfind>',
+    })
+    expect(propname.status).toBe(207)
+    const propnameXml = await propname.text()
+    expect(propnameXml).toContain('<D:displayname/>')
+    expect(propnameXml).toContain(`/dav/${workspace.slug}/Docs/readme.txt`)
+
+    const allprop = await app.request(`/dav/${workspace.slug}/Docs`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<D:propfind xmlns:D="DAV:"><D:allprop/><D:include><D:quota-used-bytes/></D:include></D:propfind>',
+    })
+    expect(allprop.status).toBe(207)
+    expect(await allprop.text()).toContain('HTTP/1.1 404 Not Found')
+
+    const infinity = await app.request(`/dav/${workspace.slug}/Docs`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: 'infinity' }),
+    })
+    expect(infinity.status).toBe(403)
+    expect(await infinity.text()).toContain('propfind-finite-depth')
+  })
+
+  it('PROPPATCH stores and removes dead properties visible to later PROPFIND', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    await file(db, workspace.id, { id: 'dead-props', name: 'dead-props.txt' })
+
+    const set = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
+      method: 'PROPPATCH',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: `<D:propertyupdate xmlns:D="DAV:" xmlns:Z="urn:zpan:test">
+        <D:set><D:prop><Z:color>blue</Z:color></D:prop></D:set>
+      </D:propertyupdate>`,
+    })
+    expect(set.status).toBe(207)
+    expect(await set.text()).toContain('HTTP/1.1 200 OK')
+
+    const find = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '0', 'Content-Type': 'application/xml' }),
+      body: '<D:propfind xmlns:D="DAV:" xmlns:Z="urn:zpan:test"><D:prop><Z:color/></D:prop></D:propfind>',
+    })
+    expect(find.status).toBe(207)
+    expect(await find.text()).toContain('blue</Z:color>')
+
+    const invalid = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
+      method: 'PROPPATCH',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<D:propertyupdate xmlns:D="DAV:"><D:set><D:prop><D:getetag>bad</D:getetag></D:prop></D:set></D:propertyupdate>',
+    })
+    expect(invalid.status).toBe(403)
+
+    const remove = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
+      method: 'PROPPATCH',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<D:propertyupdate xmlns:D="DAV:" xmlns:Z="urn:zpan:test"><D:remove><D:prop><Z:color/></D:prop></D:remove></D:propertyupdate>',
+    })
+    expect(remove.status).toBe(207)
+
+    const removed = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '0', 'Content-Type': 'application/xml' }),
+      body: '<D:propfind xmlns:D="DAV:" xmlns:Z="urn:zpan:test"><D:prop><Z:color/></D:prop></D:propfind>',
+    })
+    expect(await removed.text()).toContain('HTTP/1.1 404 Not Found')
+  })
+
   it('GET returns file bytes directly and HEAD returns coherent file headers', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
@@ -356,8 +455,9 @@ describe('WebDAV API', () => {
 
     const res = await app.request('/dav/', { method: 'OPTIONS', headers: basicHeaders(account.email, key) })
     expect(res.status).toBe(204)
-    expect(res.headers.get('DAV')).toBe('1')
+    expect(res.headers.get('DAV')).toBe('1, 2')
     expect(res.headers.get('Allow')).toContain('PROPFIND')
+    expect(res.headers.get('Allow')).toContain('LOCK')
   })
 
   it('rejects API keys when verification throws', async () => {
@@ -592,6 +692,208 @@ describe('WebDAV API', () => {
     expect(existing.status).toBe(412)
   })
 
+  it('COPY recursively copies collections and rejects copying into own descendant', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    await folder(db, workspace.id, { id: 'src-folder', name: 'Source' })
+    await folder(db, workspace.id, { id: 'nested-folder', name: 'Nested', parent: 'Source' })
+    await file(db, workspace.id, { id: 'nested-file', name: 'note.txt', parent: 'Source/Nested', size: 12 })
+
+    const copied = await app.request(`/dav/${workspace.slug}/Source`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/Copied`,
+        Depth: 'infinity',
+      }),
+    })
+    expect(copied.status).toBe(201)
+    const rows = await db.all<{ name: string; parent: string }>(
+      sql`SELECT name, parent FROM matters WHERE org_id = ${workspace.id} AND status = 'active' AND parent LIKE 'Copied%' ORDER BY parent, name`,
+    )
+    expect(rows).toContainEqual({ name: 'Nested', parent: 'Copied' })
+    expect(rows).toContainEqual({ name: 'note.txt', parent: 'Copied/Nested' })
+
+    const descendant = await app.request(`/dav/${workspace.slug}/Source`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/Source/Child`,
+      }),
+    })
+    expect(descendant.status).toBe(403)
+  })
+
+  it('MOVE keeps collection descendant paths consistent and rejects descendant moves', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    await folder(db, workspace.id, { id: 'move-folder', name: 'MoveMe' })
+    await folder(db, workspace.id, { id: 'move-child', name: 'Child', parent: 'MoveMe' })
+    await file(db, workspace.id, { id: 'move-file', name: 'note.txt', parent: 'MoveMe/Child' })
+
+    const moved = await app.request(`/dav/${workspace.slug}/MoveMe`, {
+      method: 'MOVE',
+      headers: basicHeaders(account.email, key, { Destination: `http://localhost/dav/${workspace.slug}/Moved` }),
+    })
+    expect(moved.status).toBe(201)
+    const rows = await db.all<{ id: string; parent: string }>(
+      sql`SELECT id, parent FROM matters WHERE id IN ('move-child', 'move-file') ORDER BY id`,
+    )
+    expect(rows).toEqual([
+      { id: 'move-child', parent: 'Moved' },
+      { id: 'move-file', parent: 'Moved/Child' },
+    ])
+
+    const descendant = await app.request(`/dav/${workspace.slug}/Moved`, {
+      method: 'MOVE',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/Moved/Child/Sub`,
+      }),
+    })
+    expect(descendant.status).toBe(403)
+  })
+
+  it('DELETE on collections removes descendants from WebDAV listings', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    await folder(db, workspace.id, { id: 'delete-folder', name: 'DeleteMe' })
+    await file(db, workspace.id, { id: 'delete-file', name: 'gone.txt', parent: 'DeleteMe' })
+
+    const del = await app.request(`/dav/${workspace.slug}/DeleteMe`, {
+      method: 'DELETE',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(del.status).toBe(204)
+
+    const listing = await app.request(`/dav/${workspace.slug}/DeleteMe`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(listing.status).toBe(404)
+    const rows = await db.all<{ status: string }>(
+      sql`SELECT status FROM matters WHERE id IN ('delete-folder', 'delete-file') ORDER BY id`,
+    )
+    expect(rows).toEqual([{ status: 'trashed' }, { status: 'trashed' }])
+  })
+
+  it('If header evaluates ETag matches, misses, and Not conditions', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    await file(db, workspace.id, { id: 'if-file', name: 'if.txt', size: 12 })
+
+    const head = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key),
+    })
+    const etag = head.headers.get('ETag') ?? ''
+
+    const matched = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { If: `([${etag}])`, 'Content-Type': 'text/plain' }),
+      body: 'matched',
+    })
+    expect(matched.status).toBe(204)
+
+    const missed = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { If: '(["stale"])', 'Content-Type': 'text/plain' }),
+      body: 'missed',
+    })
+    expect(missed.status).toBe(412)
+
+    const notMatched = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { If: '(Not ["stale"])', 'Content-Type': 'text/plain' }),
+      body: 'not matched',
+    })
+    expect(notMatched.status).toBe(204)
+  })
+
+  it('LOCK and UNLOCK expose Class 2 state and enforce write tokens', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    await file(db, workspace.id, { id: 'lock-file', name: 'locked.txt', size: 12 })
+
+    const locked = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, {
+        Depth: '0',
+        Timeout: 'Second-600',
+        'Content-Type': 'application/xml',
+      }),
+      body: '<D:lockinfo xmlns:D="DAV:"><D:lockscope><D:exclusive/></D:lockscope><D:locktype><D:write/></D:locktype><D:owner>tester</D:owner></D:lockinfo>',
+    })
+    expect(locked.status).toBe(200)
+    const token = locked.headers.get('Lock-Token') ?? ''
+    expect(token).toMatch(/^<opaquelocktoken:/)
+    expect(await locked.text()).toContain('lockdiscovery')
+
+    const discovery = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '0' }),
+    })
+    const discoveryXml = await discovery.text()
+    expect(discoveryXml).toContain('supportedlock')
+    expect(discoveryXml).toContain(token.slice(1, -1))
+
+    const rejected = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
+      body: 'blocked',
+    })
+    expect(rejected.status).toBe(423)
+
+    const accepted = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { 'Lock-Token': token, 'Content-Type': 'text/plain' }),
+      body: 'allowed',
+    })
+    expect(accepted.status).toBe(204)
+
+    const refreshed = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { If: `(${token})`, Timeout: 'Second-1200' }),
+    })
+    expect(refreshed.status).toBe(200)
+
+    const invalidUnlock = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'UNLOCK',
+      headers: basicHeaders(account.email, key, { 'Lock-Token': '<opaquelocktoken:bad>' }),
+    })
+    expect(invalidUnlock.status).toBe(409)
+
+    const unlocked = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'UNLOCK',
+      headers: basicHeaders(account.email, key, { 'Lock-Token': token }),
+    })
+    expect(unlocked.status).toBe(204)
+
+    const afterUnlock = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
+      body: 'after',
+    })
+    expect(afterUnlock.status).toBe(204)
+  })
+
   it('returns WebDAV path errors for missing GET and DELETE targets', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
@@ -647,7 +949,7 @@ describe('WebDAV API', () => {
     ])
   })
 
-  it('COPY honors Overwrite header for existing destinations and rejects collection copy explicitly', async () => {
+  it('COPY honors Overwrite header for existing destinations and copies collection roots', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -681,10 +983,14 @@ describe('WebDAV API', () => {
       method: 'COPY',
       headers: basicHeaders(account.email, key, {
         Destination: `http://localhost/dav/${workspace.slug}/Copied%20Folder`,
+        Depth: '0',
       }),
     })
-    expect(collection.status).toBe(403)
-    expect(await collection.text()).toContain('Collection COPY is not supported')
+    expect(collection.status).toBe(201)
+    const folders = await db.all<{ name: string; parent: string }>(
+      sql`SELECT name, parent FROM matters WHERE org_id = ${workspace.id} AND name = 'Copied Folder'`,
+    )
+    expect(folders[0]).toEqual({ name: 'Copied Folder', parent: '' })
   })
 
   it('COPY rolls back quota reservation when storage copy fails', async () => {
