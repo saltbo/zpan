@@ -2,6 +2,7 @@ import { and, eq, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { webdavDeadProperties, webdavLocks } from '../db/schema'
 import type { Database } from '../platform/interface'
+import { type AtomicQuery, executeWriteTransaction } from './db-transaction'
 
 export interface DavPropertyName {
   namespace: string
@@ -47,25 +48,161 @@ export async function applyDeadPropertyUpdate(
   operations: Array<{ action: 'set'; property: DavDeadProperty } | { action: 'remove'; property: DavPropertyName }>,
 ): Promise<void> {
   const now = new Date()
+  const queries: AtomicQuery[] = []
   for (const operation of operations) {
     if (operation.action === 'remove') {
-      await db
-        .delete(webdavDeadProperties)
-        .where(
-          and(
-            eq(webdavDeadProperties.orgId, orgId),
-            eq(webdavDeadProperties.resourcePath, resourcePath),
-            eq(webdavDeadProperties.namespace, operation.property.namespace),
-            eq(webdavDeadProperties.name, operation.property.name),
+      queries.push(
+        db
+          .delete(webdavDeadProperties)
+          .where(
+            and(
+              eq(webdavDeadProperties.orgId, orgId),
+              eq(webdavDeadProperties.resourcePath, resourcePath),
+              eq(webdavDeadProperties.namespace, operation.property.namespace),
+              eq(webdavDeadProperties.name, operation.property.name),
+            ),
           ),
-        )
+      )
       continue
     }
 
     const property = operation.property
-    await db
-      .insert(webdavDeadProperties)
-      .values({
+    queries.push(
+      db
+        .insert(webdavDeadProperties)
+        .values({
+          id: nanoid(),
+          orgId,
+          resourcePath,
+          namespace: property.namespace,
+          name: property.name,
+          value: property.value,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [
+            webdavDeadProperties.orgId,
+            webdavDeadProperties.resourcePath,
+            webdavDeadProperties.namespace,
+            webdavDeadProperties.name,
+          ],
+          set: { value: property.value, updatedAt: now },
+        }),
+    )
+  }
+  await executeWriteTransaction(db, queries)
+}
+
+export async function deleteWebDavState(db: Database, orgId: string, resourcePath: string): Promise<void> {
+  await executeWriteTransaction(db, [
+    db
+      .delete(webdavDeadProperties)
+      .where(
+        and(
+          eq(webdavDeadProperties.orgId, orgId),
+          or(
+            eq(webdavDeadProperties.resourcePath, resourcePath),
+            sql`${webdavDeadProperties.resourcePath} LIKE ${`${resourcePath}/%`}`,
+          ),
+        ),
+      ),
+    db
+      .delete(webdavLocks)
+      .where(
+        and(
+          eq(webdavLocks.orgId, orgId),
+          or(eq(webdavLocks.resourcePath, resourcePath), sql`${webdavLocks.resourcePath} LIKE ${`${resourcePath}/%`}`),
+        ),
+      ),
+  ])
+}
+
+export async function moveWebDavState(db: Database, orgId: string, oldPath: string, newPath: string): Promise<void> {
+  const now = new Date()
+  await executeWriteTransaction(db, [
+    db
+      .update(webdavDeadProperties)
+      .set({
+        resourcePath: sql`CASE WHEN ${webdavDeadProperties.resourcePath} = ${oldPath} THEN ${newPath} ELSE ${newPath} || SUBSTR(${webdavDeadProperties.resourcePath}, ${oldPath.length + 1}) END`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(webdavDeadProperties.orgId, orgId),
+          or(
+            eq(webdavDeadProperties.resourcePath, oldPath),
+            sql`${webdavDeadProperties.resourcePath} LIKE ${`${oldPath}/%`}`,
+          ),
+        ),
+      ),
+    db
+      .update(webdavLocks)
+      .set({
+        resourcePath: sql`CASE WHEN ${webdavLocks.resourcePath} = ${oldPath} THEN ${newPath} ELSE ${newPath} || SUBSTR(${webdavLocks.resourcePath}, ${oldPath.length + 1}) END`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(webdavLocks.orgId, orgId),
+          or(eq(webdavLocks.resourcePath, oldPath), sql`${webdavLocks.resourcePath} LIKE ${`${oldPath}/%`}`),
+        ),
+      ),
+  ])
+}
+
+export async function copyDeadProperties(
+  db: Database,
+  orgId: string,
+  sourcePath: string,
+  targetPath: string,
+): Promise<void> {
+  const rows = await db
+    .select()
+    .from(webdavDeadProperties)
+    .where(and(eq(webdavDeadProperties.orgId, orgId), eq(webdavDeadProperties.resourcePath, sourcePath)))
+  if (rows.length === 0) return
+
+  const now = new Date()
+  await executeWriteTransaction(
+    db,
+    rows.map((row) =>
+      db
+        .insert(webdavDeadProperties)
+        .values({
+          id: nanoid(),
+          orgId,
+          resourcePath: targetPath,
+          namespace: row.namespace,
+          name: row.name,
+          value: row.value,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [
+            webdavDeadProperties.orgId,
+            webdavDeadProperties.resourcePath,
+            webdavDeadProperties.namespace,
+            webdavDeadProperties.name,
+          ],
+          set: { value: row.value, updatedAt: now },
+        }),
+    ),
+  )
+}
+
+export async function replaceDeadProperties(
+  db: Database,
+  orgId: string,
+  resourcePath: string,
+  properties: DavDeadProperty[],
+): Promise<void> {
+  const now = new Date()
+  await executeWriteTransaction(db, [
+    db
+      .delete(webdavDeadProperties)
+      .where(and(eq(webdavDeadProperties.orgId, orgId), eq(webdavDeadProperties.resourcePath, resourcePath))),
+    ...properties.map((property) =>
+      db.insert(webdavDeadProperties).values({
         id: nanoid(),
         orgId,
         resourcePath,
@@ -73,17 +210,9 @@ export async function applyDeadPropertyUpdate(
         name: property.name,
         value: property.value,
         updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [
-          webdavDeadProperties.orgId,
-          webdavDeadProperties.resourcePath,
-          webdavDeadProperties.namespace,
-          webdavDeadProperties.name,
-        ],
-        set: { value: property.value, updatedAt: now },
-      })
-  }
+      }),
+    ),
+  ])
 }
 
 export async function activeLocks(db: Database, orgId: string, resourcePath: string): Promise<DavLock[]> {
@@ -141,14 +270,27 @@ export async function createLock(
   return lock
 }
 
-export async function refreshLock(db: Database, token: string, timeoutSeconds: number): Promise<DavLock | null> {
+export async function refreshLock(
+  db: Database,
+  orgId: string,
+  resourcePath: string,
+  token: string,
+  timeoutSeconds: number,
+): Promise<DavLock | null> {
   await purgeExpiredLocks(db)
   const now = new Date()
   const expiresAt = new Date(now.getTime() + timeoutSeconds * 1000)
   const rows = await db
     .update(webdavLocks)
     .set({ expiresAt, updatedAt: now })
-    .where(and(eq(webdavLocks.token, token), sql`${webdavLocks.expiresAt} > ${now.getTime()}`))
+    .where(
+      and(
+        eq(webdavLocks.orgId, orgId),
+        eq(webdavLocks.resourcePath, resourcePath),
+        eq(webdavLocks.token, token),
+        sql`${webdavLocks.expiresAt} > ${now.getTime()}`,
+      ),
+    )
     .returning()
   return rows[0] ?? null
 }

@@ -29,6 +29,10 @@ export type ProppatchOperation =
   | { action: 'set'; property: DavDeadProperty }
   | { action: 'remove'; property: DavPropertyName }
 
+export interface LockInfoRequest {
+  owner: string
+}
+
 export function workspaceEntry(
   workspace: WebDavWorkspace,
   deadProperties: DavDeadProperty[],
@@ -152,7 +156,10 @@ export function parseProppatchXml(body: string): ProppatchOperation[] {
     for (const property of elementChildren(prop)) {
       if (property.namespace === DAV_NAMESPACE) throw new Error('Protected DAV properties cannot be patched')
       if (isElement(instruction, DAV_NAMESPACE, 'set')) {
-        operations.push({ action: 'set', property: { ...toPropertyName(property), value: property.raw } })
+        operations.push({
+          action: 'set',
+          property: { ...toPropertyName(property), value: propertyXmlWithNamespace(property) },
+        })
       } else {
         operations.push({ action: 'remove', property: toPropertyName(property) })
       }
@@ -160,6 +167,20 @@ export function parseProppatchXml(body: string): ProppatchOperation[] {
   }
   if (operations.length === 0) throw new Error('PROPPATCH must change at least one property')
   return operations
+}
+
+export function parseLockInfoXml(body: string): LockInfoRequest {
+  const root = parseXmlElement(body)
+  requireElement(root, DAV_NAMESPACE, 'lockinfo')
+  const lockscope = elementChildren(root).find((child) => isElement(child, DAV_NAMESPACE, 'lockscope'))
+  const locktype = elementChildren(root).find((child) => isElement(child, DAV_NAMESPACE, 'locktype'))
+  if (!lockscope || !locktype) throw new Error('LOCK request missing lockscope or locktype')
+  const exclusive = elementChildren(lockscope).some((child) => isElement(child, DAV_NAMESPACE, 'exclusive'))
+  const shared = elementChildren(lockscope).some((child) => isElement(child, DAV_NAMESPACE, 'shared'))
+  const write = elementChildren(locktype).some((child) => isElement(child, DAV_NAMESPACE, 'write'))
+  if (!exclusive || shared || !write) throw new Error('Only exclusive write locks are supported')
+  const owner = elementChildren(root).find((child) => isElement(child, DAV_NAMESPACE, 'owner'))?.innerXml ?? ''
+  return { owner }
 }
 
 export function davEtag(id: string, size: number, updatedAt: Date): string {
@@ -286,63 +307,68 @@ function sameProperty(a: DavPropertyName, b: DavPropertyName): boolean {
 interface XmlElement {
   namespace: string
   name: string
+  prefix: string
   raw: string
+  innerXml: string
   children: XmlElement[]
 }
 
-function parseXmlElement(xml: string, inheritedAttrs = ''): XmlElement {
+function parseXmlElement(xml: string): XmlElement {
   const source = xml.replace(/<\?xml[^>]*>/i, '').trim()
-  const match = /^<([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)([^>]*)>([\s\S]*)<\/\1?\2>\s*$/.exec(source)
-  const selfClosing = /^<([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)([^>]*)\/>\s*$/.exec(source)
-  const parsed = match ?? selfClosing
-  if (!parsed) throw new Error('Invalid XML')
-
-  const prefix = parsed[1]?.slice(0, -1) ?? ''
-  const name = parsed[2]
-  const attrs = `${inheritedAttrs} ${parsed[3] ?? ''}`
-  const namespace =
-    namespaceFor(prefix, attrs) ?? (prefix === 'D' || !prefix ? (namespaceFor('', attrs) ?? DAV_NAMESPACE) : '')
-  const body = match ? match[4] : ''
-  return { namespace, name, raw: source, children: parseChildElements(body, attrs) }
-}
-
-function parseChildElements(body: string, parentAttrs: string): XmlElement[] {
-  const children: XmlElement[] = []
-  const tag = /<([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)([^>]*)\/>|<([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)([^>]*)>/g
-  let match = tag.exec(body)
+  const root: XmlElement = { namespace: '', name: '', prefix: '', raw: '', innerXml: '', children: [] }
+  const stack: Array<XmlElement & { start: number; bodyStart: number; namespaces: Map<string, string> }> = [
+    { ...root, start: 0, bodyStart: 0, namespaces: new Map([['D', DAV_NAMESPACE]]) },
+  ]
+  const tag =
+    /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<\/\s*([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)\s*>|<\s*([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)([^>]*?)>/g
+  let match = tag.exec(source)
   while (match) {
-    if (match[1] !== undefined || match[4] === undefined) {
-      const prefix = match[1]?.slice(0, -1) ?? ''
-      const attrs = `${parentAttrs} ${match[3] ?? ''}`
-      children.push({
-        namespace: namespaceFor(prefix, attrs) ?? DAV_NAMESPACE,
-        name: match[2],
-        raw: match[0],
-        children: [],
-      })
-      match = tag.exec(body)
+    if (match[0].startsWith('<!--') || match[0].startsWith('<?')) {
+      match = tag.exec(source)
       continue
     }
 
-    const prefix = match[4] ?? ''
-    const name = match[5]
-    const attrs = `${parentAttrs} ${match[6] ?? ''}`
-    const close = new RegExp(`<\\/${prefix}${name}>`, 'g')
-    close.lastIndex = tag.lastIndex
-    const end = close.exec(body)
-    if (!end) throw new Error('Invalid XML')
-    const raw = body.slice(match.index, end.index + end[0].length)
-    children.push(parseXmlElement(raw, attrs))
-    tag.lastIndex = end.index + end[0].length
-    match = tag.exec(body)
-  }
-  return children
-}
+    if (match[2]) {
+      const current = stack.pop()
+      if (!current || stack.length === 0) throw new Error('Invalid XML')
+      const closePrefix = match[1]?.slice(0, -1) ?? ''
+      if (current.prefix !== closePrefix || current.name !== match[2]) throw new Error('Invalid XML')
+      current.raw = source.slice(current.start, match.index + match[0].length)
+      current.innerXml = source.slice(current.bodyStart, match.index)
+      stack.at(-1)?.children.push(current)
+      match = tag.exec(source)
+      continue
+    }
 
-function namespaceFor(prefix: string, attrs: string): string | null {
-  const escaped = prefix ? `xmlns:${prefix}` : 'xmlns'
-  const match = new RegExp(`${escaped}=["']([^"']+)["']`).exec(attrs)
-  return match?.[1] ?? null
+    const prefix = match[3]?.slice(0, -1) ?? ''
+    const name = match[4]
+    const rawAttributes = match[5] ?? ''
+    const selfClosing = /\/\s*$/.test(rawAttributes)
+    const namespaces = new Map(stack.at(-1)?.namespaces)
+    for (const ns of rawAttributes.matchAll(/\s+xmlns(?::([A-Za-z_][\w.-]*))?=["']([^"']+)["']/g)) {
+      namespaces.set(ns[1] ?? '', ns[2])
+    }
+    const namespace = namespaces.get(prefix) ?? (prefix || namespaces.has('') ? '' : DAV_NAMESPACE)
+    const element = {
+      namespace,
+      name,
+      prefix,
+      raw: selfClosing ? match[0] : '',
+      innerXml: '',
+      children: [],
+      start: match.index,
+      bodyStart: match.index + match[0].length,
+      namespaces,
+    }
+    if (selfClosing) {
+      stack.at(-1)?.children.push(element)
+    } else {
+      stack.push(element)
+    }
+    match = tag.exec(source)
+  }
+  if (stack.length !== 1 || stack[0].children.length !== 1) throw new Error('Invalid XML')
+  return stack[0].children[0]
 }
 
 function requireElement(element: XmlElement, namespace: string, name: string): void {
@@ -363,6 +389,19 @@ function propertyNames(element: XmlElement): DavPropertyName[] {
 
 function toPropertyName(element: XmlElement): DavPropertyName {
   return { namespace: element.namespace, name: element.name }
+}
+
+function propertyXmlWithNamespace(element: XmlElement): string {
+  if (element.namespace === DAV_NAMESPACE) return element.raw
+  const insertion = element.prefix
+    ? ` xmlns:${element.prefix}="${escapeXml(element.namespace)}"`
+    : ` xmlns="${escapeXml(element.namespace)}"`
+  if (element.prefix) {
+    if (element.raw.includes(`xmlns:${element.prefix}=`)) return element.raw
+    return element.raw.replace(/(<[^\s>/]+)(\s|>|\/>)/, `$1${insertion}$2`)
+  }
+  if (element.raw.includes('xmlns=')) return element.raw
+  return element.raw.replace(/(<[^\s>/]+)(\s|>|\/>)/, `$1${insertion}$2`)
 }
 
 function xmlDocument(body: string): string {

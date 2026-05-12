@@ -1,4 +1,4 @@
-import { and, eq, like } from 'drizzle-orm'
+import { and, eq, like, or } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { DirType, ObjectStatus } from '../../shared/constants'
@@ -31,9 +31,12 @@ import {
 import {
   activeLocks,
   applyDeadPropertyUpdate,
+  copyDeadProperties,
   createLock,
+  deleteWebDavState,
   directLocks,
   listDeadProperties,
+  moveWebDavState,
   refreshLock,
   removeLock,
 } from '../services/webdav-state'
@@ -45,6 +48,7 @@ import {
   matterEntry,
   mountRootEntry,
   multistatus,
+  parseLockInfoXml,
   parsePropfindXml,
   parseProppatchXml,
   proppatchMultistatus,
@@ -300,27 +304,54 @@ async function lockPrecondition(c: DavContext, target: WebDavTarget): Promise<Re
   return xmlResponse(errorXml('lock-token-submitted', 'A matching lock token is required.'), 423)
 }
 
-function ifHeaderPrecondition(c: DavContext, target: WebDavTarget): Response | null {
+async function ifHeaderPrecondition(c: DavContext, auth: DavAuth, target: WebDavTarget): Promise<Response | null> {
   const header = c.req.header('If')
   if (!header) return null
-  const etag = target.matter ? matterEtag(target.matter) : null
-  if (evaluateIfHeader(header, etag, submittedLockTokens(c))) return null
+  if (await evaluateIfHeader(c, auth, header, target)) return null
   return xmlResponse(errorXml('condition-failed', 'If header conditions did not match.'), 412)
 }
 
-function evaluateIfHeader(header: string, etag: string | null, tokens: Set<string>): boolean {
-  const lists = header.match(/\([^)]*\)/g)
-  if (!lists) return true
-  return lists.some((list) => {
+async function evaluateIfHeader(
+  c: DavContext,
+  auth: DavAuth,
+  header: string,
+  fallback: WebDavTarget,
+): Promise<boolean> {
+  const clauses = [...header.matchAll(/(?:<([^>]+)>\s*)?(\([^)]*\))/g)]
+  if (clauses.length === 0) return false
+  for (const clause of clauses) {
+    const target = clause[1] ? await ifTaggedTarget(c, auth, clause[1]) : fallback
+    if (!target) continue
+    const workspace = target.workspace
+    const etag = target.matter ? matterEtag(target.matter) : null
+    const locks = workspace ? await activeLocks(c.get('platform').db, workspace.id, resourcePath(target)) : []
+    const lockTokens = new Set(locks.map((lock) => lock.token))
+    const list = clause[2]
     const conditions = [...list.matchAll(/(Not\s+)?(?:\[([^\]]+)\]|<([^>]+)>)/gi)]
-    if (conditions.length === 0) return false
-    return conditions.every((condition) => {
-      const negated = Boolean(condition[1])
-      const value = condition[2] ?? condition[3]
-      const matched = value.startsWith('opaquelocktoken:') ? tokens.has(value) : etag === value
-      return negated ? !matched : matched
-    })
-  })
+    if (conditions.length === 0) continue
+    if (
+      conditions.every((condition) => {
+        const negated = Boolean(condition[1])
+        const value = condition[2] ?? condition[3]
+        const matched = value.startsWith('opaquelocktoken:') ? lockTokens.has(value) : etag === value
+        return negated ? !matched : matched
+      })
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+async function ifTaggedTarget(c: DavContext, auth: DavAuth, tag: string): Promise<WebDavTarget | null> {
+  if (tag.startsWith('opaquelocktoken:')) return null
+  try {
+    const url = new URL(tag, c.req.url)
+    if (url.origin !== new URL(c.req.url).origin) return null
+    return await resolveWebDavPath(c.get('platform').db, auth.userId, url.pathname)
+  } catch {
+    return null
+  }
 }
 
 async function davEntry(c: DavContext, target: WebDavTarget): Promise<DavEntry> {
@@ -344,6 +375,19 @@ async function listDescendants(db: Env['Variables']['platform']['db'], orgId: st
     .where(
       and(eq(matters.orgId, orgId), eq(matters.status, ObjectStatus.ACTIVE), like(matters.parent, `${rootPath}/%`)),
     )
+}
+
+async function restoreActiveMatterRows(
+  db: Env['Variables']['platform']['db'],
+  rows: NonNullable<WebDavTarget['matter']>[],
+): Promise<void> {
+  const now = new Date()
+  for (const row of rows) {
+    await db
+      .update(matters)
+      .set({ status: ObjectStatus.ACTIVE, trashedAt: null, updatedAt: now })
+      .where(and(eq(matters.id, row.id), eq(matters.orgId, row.orgId)))
+  }
 }
 
 const app = new Hono<Env>().on(
@@ -446,7 +490,7 @@ async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
     const workspace = requireWorkspace(target)
     const locked = await lockPrecondition(c, target)
     if (locked) return locked
-    const ifFailed = ifHeaderPrecondition(c, target)
+    const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
     const operations = parseProppatchXml(await c.req.text())
     await applyDeadPropertyUpdate(db, workspace.id, resourcePath(target), operations)
@@ -512,7 +556,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       return c.text('Cannot replace collection with file', 409)
     const locked = await lockPrecondition(c, target)
     if (locked) return locked
-    const ifFailed = ifHeaderPrecondition(c, target)
+    const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
     const precondition = target.matter ? preconditionResponse(c, target.matter) : missingPreconditionResponse(c)
     if (precondition) return precondition
@@ -585,7 +629,7 @@ async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
     }
     const locked = await lockPrecondition(c, target)
     if (locked) return locked
-    const ifFailed = ifHeaderPrecondition(c, target)
+    const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
     await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
     const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
@@ -616,8 +660,9 @@ async function deleteMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     if (!matter) throw new WebDavPathError('Not found', 404)
     const locked = await lockPrecondition(c, target)
     if (locked) return locked
-    const ifFailed = ifHeaderPrecondition(c, target)
+    const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
+    await deleteWebDavState(db, workspace.id, resourcePath(target))
     await trashMatter(db, workspace.id, matter.id, auth.userId)
     return new Response(null, { status: 204 })
   } catch (e) {
@@ -633,7 +678,7 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     if (!source.matter) throw new WebDavPathError('Not found', 404)
     const locked = await lockPrecondition(c, source)
     if (locked) return locked
-    const ifFailed = ifHeaderPrecondition(c, source)
+    const ifFailed = await ifHeaderPrecondition(c, auth, source)
     if (ifFailed) return ifFailed
     const precondition = preconditionResponse(c, source.matter)
     if (precondition) return precondition
@@ -657,7 +702,12 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       if (!overwriteAllowed(c)) return c.text('Already exists', 412)
     }
     await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
-    if (target.matter) await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+    const oldPath = resourcePath(source)
+    const newPath = joinMatterPath(target.parent, target.name)
+    if (target.matter) {
+      await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
+      await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+    }
     await updateMatter(
       db,
       source.matter.id,
@@ -665,6 +715,7 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       { name: target.name, parent: target.parent },
       auth.userId,
     )
+    await moveWebDavState(db, sourceWorkspace.id, oldPath, newPath)
     return new Response(null, { status: 201 })
   } catch (e) {
     return davError(c, e)
@@ -677,7 +728,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
     const source = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
     const sourceWorkspace = requireWorkspace(source)
     if (!source.matter) throw new WebDavPathError('Not found', 404)
-    const ifFailed = ifHeaderPrecondition(c, source)
+    const ifFailed = await ifHeaderPrecondition(c, auth, source)
     if (ifFailed) return ifFailed
     const precondition = preconditionResponse(c, source.matter)
     if (precondition) return precondition
@@ -717,11 +768,15 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
         await s3.copyObject(storage, source.matter.object, storage, newObject)
       }
 
-      if (target.matter) await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+      if (target.matter) {
+        await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
+        await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+      }
       const copy = await copyMatter(db, { ...source.matter, name: target.name }, target.parent, newObject, {
         onConflict: 'fail',
         userId: auth.userId,
       })
+      await copyDeadProperties(db, sourceWorkspace.id, resourcePath(source), joinMatterPath(copy.parent, copy.name))
       c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(copy.parent, copy.name)))
       return c.body(null, 201)
     } catch (e) {
@@ -753,26 +808,27 @@ async function copyCollection(
 
   const depth = c.req.header('Depth') ?? 'infinity'
   if (depth !== '0' && depth !== 'infinity') return xmlResponse(errorXml('bad-depth'), 400)
-  if (target.matter) await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
-
-  const rootCopy = await copyMatter(db, { ...source.matter, name: target.name }, target.parent, '', {
-    onConflict: 'fail',
-    userId: auth.userId,
-  })
-  if (depth === '0') {
-    c.header(
-      'Location',
-      matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(rootCopy.parent, rootCopy.name)),
-    )
-    return c.body(null, 201)
-  }
 
   const sourceRoot = joinMatterPath(source.matter.parent, source.matter.name)
-  const targetRoot = joinMatterPath(rootCopy.parent, rootCopy.name)
+  const targetRoot = joinMatterPath(target.parent, target.name)
   const children = await listChildren(db, sourceWorkspace.id, sourceRoot)
   const descendants = await listDescendants(db, sourceWorkspace.id, sourceRoot)
-  const ordered = [...children, ...descendants].sort((a, b) => a.parent.length - b.parent.length)
+  const ordered =
+    depth === 'infinity' ? [...children, ...descendants].sort((a, b) => a.parent.length - b.parent.length) : []
   const reservedUsage: Array<{ storageId: string; bytes: number }> = []
+  const copiedObjects: Array<{ storage: S3Storage; key: string }> = []
+  const preparedCopies: Array<{ item: (typeof ordered)[number]; targetParent: string; objectKey: string }> = []
+  const createdIds: string[] = []
+  const targetRows =
+    target.matter && target.matter.dirtype !== DirType.FILE
+      ? [
+          target.matter,
+          ...(await listChildren(db, targetWorkspace.id, resourcePath(target))),
+          ...(await listDescendants(db, targetWorkspace.id, resourcePath(target))),
+        ]
+      : target.matter
+        ? [target.matter]
+        : []
 
   try {
     for (const item of ordered) {
@@ -790,10 +846,52 @@ async function copyCollection(
         }
         objectKey = buildObjectKey({ uid: auth.userId, orgId: targetWorkspace.id, rawExt: fileExt(item.name) })
         await s3.copyObject(storage, item.object, storage, objectKey)
+        copiedObjects.push({ storage, key: objectKey })
       }
-      await copyMatter(db, item, targetParent, objectKey, { onConflict: 'fail', userId: auth.userId })
+      preparedCopies.push({ item, targetParent, objectKey })
     }
+
+    if (target.matter) {
+      await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
+      await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+    }
+
+    const rootCopy = await copyMatter(db, { ...source.matter, name: target.name }, target.parent, '', {
+      onConflict: 'fail',
+      userId: auth.userId,
+    })
+    createdIds.push(rootCopy.id)
+    await copyDeadProperties(db, sourceWorkspace.id, sourceRoot, joinMatterPath(rootCopy.parent, rootCopy.name))
+
+    for (const prepared of preparedCopies) {
+      const copy = await copyMatter(db, prepared.item, prepared.targetParent, prepared.objectKey, {
+        onConflict: 'fail',
+        userId: auth.userId,
+      })
+      createdIds.push(copy.id)
+      await copyDeadProperties(
+        db,
+        sourceWorkspace.id,
+        joinMatterPath(prepared.item.parent, prepared.item.name),
+        joinMatterPath(copy.parent, copy.name),
+      )
+    }
+
+    c.header(
+      'Location',
+      matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(rootCopy.parent, rootCopy.name)),
+    )
+    return c.body(null, 201)
   } catch (e) {
+    if (createdIds.length > 0) {
+      await db
+        .update(matters)
+        .set({ status: ObjectStatus.TRASHED, trashedAt: Date.now(), updatedAt: new Date() })
+        .where(and(eq(matters.orgId, targetWorkspace.id), or(...createdIds.map((id) => eq(matters.id, id)))))
+      await deleteWebDavState(db, targetWorkspace.id, targetRoot)
+    }
+    if (targetRows.length > 0) await restoreActiveMatterRows(db, targetRows)
+    await Promise.all(copiedObjects.map((object) => s3.deleteObject(object.storage, object.key)))
     const byStorage = new Map<string, number>()
     let total = 0
     for (const item of reservedUsage) {
@@ -803,9 +901,6 @@ async function copyCollection(
     if (total > 0) await decrementUsage(db, targetWorkspace.id, byStorage, total)
     throw e
   }
-
-  c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(rootCopy.parent, rootCopy.name)))
-  return c.body(null, 201)
 }
 
 async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
@@ -815,7 +910,13 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     const workspace = requireWorkspace(target)
     const existingToken = c.req.header('If')?.match(/<([^>]+)>/)?.[1]
     if (existingToken?.startsWith('opaquelocktoken:')) {
-      const refreshed = await refreshLock(db, existingToken, parseTimeout(c.req.header('Timeout')))
+      const refreshed = await refreshLock(
+        db,
+        workspace.id,
+        resourcePath(target),
+        existingToken,
+        parseTimeout(c.req.header('Timeout')),
+      )
       if (!refreshed) return xmlResponse(errorXml('lock-token-submitted'), 412)
       return xmlResponse(lockDiscoveryXml(refreshed), 200, { 'Lock-Token': `<${refreshed.token}>` })
     }
@@ -823,11 +924,16 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     const conflicts = await activeLocks(db, workspace.id, resourcePath(target))
     if (conflicts.length > 0) return xmlResponse(errorXml('no-conflicting-lock'), 423)
     const body = await c.req.text()
-    const owner = body.match(/<D:owner[^>]*>([\s\S]*?)<\/D:owner>|<owner[^>]*>([\s\S]*?)<\/owner>/)?.[1] ?? ''
+    let lockInfo: { owner: string }
+    try {
+      lockInfo = parseLockInfoXml(body)
+    } catch (e) {
+      return xmlResponse(errorXml('supported-lock', e instanceof Error ? e.message : 'Unsupported lock request.'), 422)
+    }
     const lock = await createLock(db, {
       orgId: workspace.id,
       resourcePath: resourcePath(target),
-      owner,
+      owner: lockInfo.owner,
       depth: c.req.header('Depth') === '0' ? '0' : 'infinity',
       timeoutSeconds: parseTimeout(c.req.header('Timeout')),
     })
