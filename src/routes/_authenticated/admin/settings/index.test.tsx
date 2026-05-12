@@ -1,3 +1,4 @@
+import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '@shared/captcha'
 import { SignupMode } from '@shared/constants'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
@@ -34,6 +35,9 @@ vi.mock('@/hooks/use-site-options', () => ({
     siteDescription: 'File hosting',
     defaultOrgQuota: 1073741824,
     authSignupMode: SignupMode.OPEN,
+    captchaEnabled: false,
+    captchaSiteKey: '',
+    captchaSecretKey: '',
     isLoading: false,
     isError: false,
   }),
@@ -111,6 +115,30 @@ describe('SettingsPage', () => {
 
     await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('default_org_quota', '1073741824', false))
     await waitFor(() => expect(updateCloudStoreSettings).toHaveBeenCalledWith({ enabled: true }))
+    expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
+  })
+
+  it('saves captcha settings from the authentication protection section', async () => {
+    vi.mocked(getCloudStoreSettings).mockResolvedValue(null)
+
+    const view = renderSettingsPage()
+    const storagePlansSwitch = await view.findByRole('switch', { name: 'admin.settings.cloudStoreEnabled' })
+    await waitFor(() => expect(storagePlansSwitch.hasAttribute('disabled')).toBe(false))
+
+    fireEvent.change(await view.findByLabelText('admin.settings.captchaSiteKey'), {
+      target: { value: 'site-key' },
+    })
+    fireEvent.change(view.getByLabelText('admin.settings.captchaSecretKey'), {
+      target: { value: 'secret-key' },
+    })
+    fireEvent.click(view.getByRole('switch', { name: 'admin.settings.captchaEnabled' }))
+
+    const saveButtons = view.getAllByRole('button', { name: 'common.save' })
+    fireEvent.click(saveButtons[1])
+
+    await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_SITE_KEY_KEY, 'site-key', true))
+    expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_SECRET_OPTION_KEY, 'secret-key', false)
+    expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_ENABLED_KEY, 'true', true)
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
   })
 })

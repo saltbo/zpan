@@ -33,6 +33,7 @@ import { publicTeams, teams } from './routes/teams'
 import trash from './routes/trash'
 import users from './routes/users'
 import webdav from './routes/webdav'
+import { verifyCaptchaToken } from './services/captcha'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
@@ -52,6 +53,15 @@ export function createApp(platform: Platform, auth: Auth) {
   )
 
   app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
+    const captchaAuthPaths = ['/api/auth/sign-in/email', '/api/auth/sign-in/username', '/api/auth/sign-up/email']
+    if (c.req.method === 'POST' && captchaAuthPaths.includes(c.req.path)) {
+      const body = (await c.req.raw
+        .clone()
+        .json()
+        .catch(() => ({}))) as { captchaToken?: string }
+      const valid = await verifyCaptchaToken(c.get('platform').db, body.captchaToken, c.req.header('CF-Connecting-IP'))
+      if (!valid) return c.json({ error: 'Invalid captcha token' }, 400)
+    }
     const a = c.get('auth')
     return a.handler(c.req.raw)
   })
