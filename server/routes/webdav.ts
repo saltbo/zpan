@@ -31,10 +31,10 @@ import {
 import {
   activeLocks,
   applyDeadPropertyUpdate,
+  conflictingLocks,
   copyDeadProperties,
   createLock,
   deleteWebDavState,
-  directLocks,
   listDeadProperties,
   moveWebDavState,
   refreshLock,
@@ -361,7 +361,7 @@ async function davEntry(c: DavContext, target: WebDavTarget): Promise<DavEntry> 
   const path = resourcePath(target)
   const [deadProperties, locks] = await Promise.all([
     listDeadProperties(db, workspace.id, path),
-    directLocks(db, workspace.id, path),
+    activeLocks(db, workspace.id, path),
   ])
   return target.matter
     ? matterEntry(workspace, target.matter, deadProperties, locks)
@@ -908,7 +908,7 @@ async function copyCollection(
 async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
     const existingToken = c.req.header('If')?.match(/<([^>]+)>/)?.[1]
     if (existingToken?.startsWith('opaquelocktoken:')) {
@@ -923,7 +923,8 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       return xmlResponse(lockDiscoveryXml(refreshed), 200, { 'Lock-Token': `<${refreshed.token}>` })
     }
 
-    const conflicts = await activeLocks(db, workspace.id, resourcePath(target))
+    const path = resourcePath(target)
+    const conflicts = await conflictingLocks(db, workspace.id, path)
     if (conflicts.length > 0) return xmlResponse(errorXml('no-conflicting-lock'), 423)
     const body = await c.req.text()
     let lockInfo: { owner: string }
@@ -932,14 +933,33 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     } catch (e) {
       return xmlResponse(errorXml('supported-lock', e instanceof Error ? e.message : 'Unsupported lock request.'), 422)
     }
+    const created = !target.matter && Boolean(target.name)
+    if (created) {
+      await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
+      const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+      const objectKey = buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
+      await s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
+      target.matter = await createMatter(db, {
+        orgId: workspace.id,
+        userId: auth.userId,
+        name: target.name,
+        type: 'application/octet-stream',
+        size: 0,
+        dirtype: DirType.FILE,
+        parent: target.parent,
+        object: objectKey,
+        storageId: storage.id,
+        status: ObjectStatus.ACTIVE,
+      })
+    }
     const lock = await createLock(db, {
       orgId: workspace.id,
-      resourcePath: resourcePath(target),
+      resourcePath: path,
       owner: lockInfo.owner,
       depth: c.req.header('Depth') === '0' ? '0' : 'infinity',
       timeoutSeconds: parseTimeout(c.req.header('Timeout')),
     })
-    return xmlResponse(lockDiscoveryXml(lock), 200, { 'Lock-Token': `<${lock.token}>` })
+    return xmlResponse(lockDiscoveryXml(lock), created ? 201 : 200, { 'Lock-Token': `<${lock.token}>` })
   } catch (e) {
     return davError(c, e)
   }

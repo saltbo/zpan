@@ -1292,7 +1292,24 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
       body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype></lockinfo>',
     })
-    expect(missingLockTarget.status).toBe(404)
+    expect(missingLockTarget.status).toBe(201)
+    const createdToken = missingLockTarget.headers.get('Lock-Token') ?? ''
+    expect(createdToken).toMatch(/^<opaquelocktoken:/)
+    expect(await missingLockTarget.text()).toContain('lockdiscovery')
+
+    const createdHead = await app.request(`/dav/${workspace.slug}/missing-lock-target.txt`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(createdHead.status).toBe(200)
+    expect(createdHead.headers.get('Content-Length')).toBe('0')
+
+    const missingLockParent = await app.request(`/dav/${workspace.slug}/Missing/missing-lock-target.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype></lockinfo>',
+    })
+    expect(missingLockParent.status).toBe(409)
 
     const missingUnlockToken = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'UNLOCK',
@@ -1300,7 +1317,7 @@ describe('WebDAV API', () => {
     })
     expect(missingUnlockToken.status).toBe(400)
 
-    const missingUnlockTarget = await app.request(`/dav/${workspace.slug}/missing-lock-target.txt`, {
+    const missingUnlockTarget = await app.request(`/dav/${workspace.slug}/absent-unlock-target.txt`, {
       method: 'UNLOCK',
       headers: basicHeaders(account.email, key, { 'Lock-Token': token }),
     })
@@ -1324,6 +1341,86 @@ describe('WebDAV API', () => {
       body: 'after',
     })
     expect(afterUnlock.status).toBe(204)
+  })
+
+  it('LOCK refresh accepts descendant URLs inside a depth-infinity lock scope only', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const secondWorkspace = await teamWorkspace(db, {
+      id: 'refresh-other-workspace',
+      slug: 'refresh-other-workspace',
+      userId: account.id,
+      name: 'Refresh Other Workspace',
+    })
+    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+    await folder(db, workspace.id, { id: 'refresh-folder', name: 'RefreshScope' })
+    await file(db, workspace.id, { id: 'refresh-child', name: 'child.txt', parent: 'RefreshScope' })
+    await file(db, workspace.id, { id: 'refresh-outside', name: 'outside.txt' })
+    await folder(db, secondWorkspace.id, { id: 'refresh-other-folder', name: 'RefreshScope' })
+    await file(db, secondWorkspace.id, {
+      id: 'refresh-other-child',
+      name: 'child.txt',
+      parent: 'RefreshScope',
+    })
+
+    const locked = await app.request(`/dav/${workspace.slug}/RefreshScope`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype><owner>tester</owner></lockinfo>',
+    })
+    expect(locked.status).toBe(200)
+    const token = locked.headers.get('Lock-Token') ?? ''
+
+    const descendantRefresh = await app.request(`/dav/${workspace.slug}/RefreshScope/child.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { If: `(${token})`, Timeout: 'Second-1200' }),
+    })
+    expect(descendantRefresh.status).toBe(200)
+    expect(await descendantRefresh.text()).toContain(token.slice(1, -1))
+
+    const outsideRefresh = await app.request(`/dav/${workspace.slug}/outside.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { If: `(${token})`, Timeout: 'Second-1200' }),
+    })
+    expect(outsideRefresh.status).toBe(412)
+
+    const otherWorkspaceRefresh = await app.request(`/dav/${secondWorkspace.slug}/RefreshScope/child.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { If: `(${token})`, Timeout: 'Second-1200' }),
+    })
+    expect(otherWorkspaceRefresh.status).toBe(412)
+  })
+
+  it('PROPFIND lockdiscovery includes inherited depth-infinity locks', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    await folder(db, workspace.id, { id: 'discovery-folder', name: 'DiscoveryScope' })
+    await file(db, workspace.id, { id: 'discovery-child', name: 'child.txt', parent: 'DiscoveryScope' })
+
+    const locked = await app.request(`/dav/${workspace.slug}/DiscoveryScope`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype><owner>tester</owner></lockinfo>',
+    })
+    expect(locked.status).toBe(200)
+    const token = locked.headers.get('Lock-Token') ?? ''
+
+    const childProps = await app.request(`/dav/${workspace.slug}/DiscoveryScope/child.txt`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '0', 'Content-Type': 'application/xml' }),
+      body: '<propfind xmlns="DAV:"><prop><lockdiscovery/></prop></propfind>',
+    })
+    expect(childProps.status).toBe(207)
+    const xml = await childProps.text()
+    expect(xml).toContain(token.slice(1, -1))
+    expect(xml).toContain('<D:depth>infinity</D:depth>')
   })
 
   it('returns WebDAV path errors for missing GET and DELETE targets', async () => {

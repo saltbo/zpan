@@ -204,6 +204,25 @@ export async function activeLocks(db: Database, orgId: string, resourcePath: str
           eq(webdavLocks.resourcePath, resourcePath),
           sql`${webdavLocks.resourcePath} = '' AND ${webdavLocks.depth} = 'infinity'`,
           sql`${resourcePath} LIKE ${webdavLocks.resourcePath} || '/%' AND ${webdavLocks.depth} = 'infinity'`,
+        ),
+      ),
+    )
+}
+
+export async function conflictingLocks(db: Database, orgId: string, resourcePath: string): Promise<DavLock[]> {
+  await purgeExpiredLocks(db)
+  const now = Date.now()
+  return db
+    .select()
+    .from(webdavLocks)
+    .where(
+      and(
+        eq(webdavLocks.orgId, orgId),
+        sql`${webdavLocks.expiresAt} > ${now}`,
+        or(
+          eq(webdavLocks.resourcePath, resourcePath),
+          sql`${webdavLocks.resourcePath} = '' AND ${webdavLocks.depth} = 'infinity'`,
+          sql`${resourcePath} LIKE ${webdavLocks.resourcePath} || '/%' AND ${webdavLocks.depth} = 'infinity'`,
           sql`${webdavLocks.resourcePath} LIKE ${resourcePath} || '/%'`,
         ),
       ),
@@ -261,9 +280,13 @@ export async function refreshLock(
     .where(
       and(
         eq(webdavLocks.orgId, orgId),
-        eq(webdavLocks.resourcePath, resourcePath),
         eq(webdavLocks.token, token),
         sql`${webdavLocks.expiresAt} > ${now.getTime()}`,
+        or(
+          eq(webdavLocks.resourcePath, resourcePath),
+          sql`${webdavLocks.resourcePath} = '' AND ${webdavLocks.depth} = 'infinity'`,
+          sql`${resourcePath} LIKE ${webdavLocks.resourcePath} || '/%' AND ${webdavLocks.depth} = 'infinity'`,
+        ),
       ),
     )
     .returning()
