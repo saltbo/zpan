@@ -1,11 +1,12 @@
 import { sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   cancelBackgroundJob,
   createBackgroundJob,
   getBackgroundJob,
   updateBackgroundJob,
 } from '../services/background-jobs'
+import { S3Service } from '../services/s3'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -28,6 +29,105 @@ async function getUserOrg(db: TestDb, email: string): Promise<UserOrg> {
 }
 
 describe('background jobs API', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('creates archive jobs through POST and returns the final job state', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app, 'jobs-create@example.com')
+    const { orgId } = await getUserOrg(db, 'jobs-create@example.com')
+    await seedStorage(db)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES ('route-zip', ${orgId}, 'route-zip-alias', 'route.zip', 'application/zip', 200, 0, '', 'route/source.zip', 'route-storage', 'active', ${now}, ${now})
+    `)
+
+    const objectStore = new Map<string, Uint8Array>([['route/source.zip', createZip({ 'route.txt': bytes('ok') })]])
+    const putKeys: string[] = []
+    vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_storage, key) => {
+      const bytes = objectStore.get(key)
+      if (!bytes) throw new Error(`missing ${key}`)
+      return bytes
+    })
+    vi.spyOn(S3Service.prototype, 'putObject').mockImplementation(async (_storage, key, body) => {
+      objectStore.set(key, body instanceof Uint8Array ? body : new Uint8Array(await new Response(body).arrayBuffer()))
+      putKeys.push(key)
+    })
+
+    const res = await app.request('/api/background-jobs', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'archive_extract', matterId: 'route-zip' }),
+    })
+
+    expect(res.status).toBe(201)
+    await expect(res.json()).resolves.toMatchObject({
+      orgId,
+      type: 'archive_extract',
+      status: 'completed',
+      progress: { outputBytes: 2, fileCount: 1 },
+    })
+    expect(putKeys).toHaveLength(1)
+  })
+
+  it('returns a failed archive job for a missing explicit target folder', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app, 'jobs-missing-target@example.com')
+    const { orgId } = await getUserOrg(db, 'jobs-missing-target@example.com')
+    await seedStorage(db)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES ('route-file', ${orgId}, 'route-file-alias', 'file.txt', 'text/plain', 5, 0, '', 'route/file.txt', 'route-storage', 'active', ${now}, ${now})
+    `)
+
+    const res = await app.request('/api/background-jobs', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'archive_compress', matterIds: ['route-file'], targetFolder: 'missing' }),
+    })
+
+    expect(res.status).toBe(201)
+    await expect(res.json()).resolves.toMatchObject({
+      orgId,
+      type: 'archive_compress',
+      status: 'failed',
+      errorMessage: 'Target folder not found',
+    })
+  })
+
+  it('returns a failed archive job when explicit target folder points to a file', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app, 'jobs-file-target@example.com')
+    const { orgId } = await getUserOrg(db, 'jobs-file-target@example.com')
+    await seedStorage(db)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES ('route-zip-target', ${orgId}, 'route-zip-target-alias', 'route.zip', 'application/zip', 200, 0, '', 'route/source.zip', 'route-storage', 'active', ${now}, ${now})
+    `)
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES ('route-file-target', ${orgId}, 'route-file-target-alias', 'target.txt', 'text/plain', 1, 0, '', 'route/target.txt', 'route-storage', 'active', ${now}, ${now})
+    `)
+
+    const res = await app.request('/api/background-jobs', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'archive_extract', matterId: 'route-zip-target', targetFolder: 'target.txt' }),
+    })
+
+    expect(res.status).toBe(201)
+    await expect(res.json()).resolves.toMatchObject({
+      orgId,
+      type: 'archive_extract',
+      status: 'failed',
+      errorMessage: 'Target folder must be a folder',
+    })
+  })
+
   it('lists current org jobs with status/type filters and pagination', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-list@example.com')
@@ -124,3 +224,89 @@ describe('background jobs API', () => {
     expect(res.status).toBe(500)
   })
 })
+
+async function seedStorage(db: TestDb): Promise<void> {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+    VALUES ('route-storage', 'Route Storage', 'private', 'bucket', 'https://s3.example.com', 'auto', 'ak', 'sk', '', '', 0, 0, 'active', ${now}, ${now})
+  `)
+}
+
+function createZip(files: Record<string, Uint8Array>): Uint8Array {
+  const encoder = new TextEncoder()
+  const localParts: Uint8Array[] = []
+  const centralParts: Uint8Array[] = []
+  let offset = 0
+
+  for (const [name, data] of Object.entries(files)) {
+    const filename = encoder.encode(name)
+    const crc = crc32(data)
+    const local = new Uint8Array(30 + filename.length + data.length)
+    write32(local, 0, 0x04034b50)
+    write16(local, 6, 0x0800)
+    write32(local, 14, crc)
+    write32(local, 18, data.length)
+    write32(local, 22, data.length)
+    write16(local, 26, filename.length)
+    local.set(filename, 30)
+    local.set(data, 30 + filename.length)
+    localParts.push(local)
+
+    const central = new Uint8Array(46 + filename.length)
+    write32(central, 0, 0x02014b50)
+    write16(central, 8, 0x0800)
+    write32(central, 16, crc)
+    write32(central, 20, data.length)
+    write32(central, 24, data.length)
+    write16(central, 28, filename.length)
+    write32(central, 42, offset)
+    central.set(filename, 46)
+    centralParts.push(central)
+    offset += local.length
+  }
+
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0)
+  const eocd = new Uint8Array(22)
+  write32(eocd, 0, 0x06054b50)
+  write16(eocd, 8, centralParts.length)
+  write16(eocd, 10, centralParts.length)
+  write32(eocd, 12, centralSize)
+  write32(eocd, 16, offset)
+  return concat([...localParts, ...centralParts, eocd])
+}
+
+function bytes(value: string): Uint8Array {
+  return new TextEncoder().encode(value)
+}
+
+function concat(parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0))
+  let offset = 0
+  for (const part of parts) {
+    out.set(part, offset)
+    offset += part.length
+  }
+  return out
+}
+
+function write16(bytes: Uint8Array, offset: number, value: number): void {
+  bytes[offset] = value & 0xff
+  bytes[offset + 1] = (value >>> 8) & 0xff
+}
+
+function write32(bytes: Uint8Array, offset: number, value: number): void {
+  bytes[offset] = value & 0xff
+  bytes[offset + 1] = (value >>> 8) & 0xff
+  bytes[offset + 2] = (value >>> 16) & 0xff
+  bytes[offset + 3] = (value >>> 24) & 0xff
+}
+
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff
+  for (const byte of data) {
+    crc ^= byte
+    for (let i = 0; i < 8; i += 1) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
