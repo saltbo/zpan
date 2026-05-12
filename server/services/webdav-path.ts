@@ -1,6 +1,6 @@
 import { and, asc, desc, eq } from 'drizzle-orm'
 import { DirType, ObjectStatus } from '../../shared/constants'
-import { organization } from '../db/auth-schema'
+import { member, organization } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import type { Matter } from './matter'
@@ -13,7 +13,7 @@ export interface WebDavWorkspace {
 }
 
 export interface WebDavTarget {
-  workspace: WebDavWorkspace
+  workspace: WebDavWorkspace | null
   mountRoot: boolean
   parent: string
   name: string
@@ -42,13 +42,28 @@ export function workspaceHref(workspace: WebDavWorkspace): string {
   return `/dav/${encodeURIComponent(workspace.slug)}/`
 }
 
-export async function getWorkspace(db: Database, orgId: string): Promise<WebDavWorkspace | null> {
+export async function listUserWorkspaces(db: Database, userId: string): Promise<WebDavWorkspace[]> {
   const rows = await db
     .select({ id: organization.id, name: organization.name, slug: organization.slug })
-    .from(organization)
-    .where(eq(organization.id, orgId))
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(member.userId, userId))
+    .orderBy(asc(organization.name), asc(organization.slug))
+  return rows.map((row) => ({ ...row, href: `/dav/${encodeURIComponent(row.slug)}/` }))
+}
+
+export async function getUserWorkspace(
+  db: Database,
+  userId: string,
+  slugOrId: string,
+): Promise<WebDavWorkspace | null> {
+  const rows = await db
+    .select({ id: organization.id, name: organization.name, slug: organization.slug })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, userId), eq(organization.slug, slugOrId)))
     .limit(1)
-  const row = rows[0]
+  const row = rows[0] ?? (await getUserWorkspaceById(db, userId, slugOrId))
   return row ? { ...row, href: `/dav/${encodeURIComponent(row.slug)}/` } : null
 }
 
@@ -60,24 +75,23 @@ export async function listChildren(db: Database, orgId: string, parent: string):
     .orderBy(desc(matters.dirtype), asc(matters.name))
 }
 
-export async function resolveWebDavPath(db: Database, orgId: string, rawPath: string): Promise<WebDavTarget> {
-  const workspace = await getWorkspace(db, orgId)
-  if (!workspace) throw new WebDavPathError('Workspace not found', 404)
-
+export async function resolveWebDavPath(db: Database, userId: string, rawPath: string): Promise<WebDavTarget> {
   const parts = decodeDavPath(rawPath)
-  if (parts.length === 0) return { workspace, mountRoot: true, parent: '', name: '', matter: null }
-  if (parts[0] !== workspace.slug) throw new WebDavPathError('Workspace not found', 404)
+  if (parts.length === 0) return { workspace: null, mountRoot: true, parent: '', name: '', matter: null }
+
+  const workspace = await getUserWorkspace(db, userId, parts[0])
+  if (!workspace) throw new WebDavPathError('Workspace not found', 404)
   if (parts.length === 1) return { workspace, mountRoot: false, parent: '', name: '', matter: null }
 
   const matterParts = parts.slice(1)
   const name = matterParts.at(-1) ?? ''
   const parent = matterParts.slice(0, -1).join('/')
-  const matter = await findMatterByPath(db, orgId, parent, name)
+  const matter = await findMatterByPath(db, workspace.id, parent, name)
   return { workspace, mountRoot: false, parent, name, matter }
 }
 
-export async function resolveExistingWebDavPath(db: Database, orgId: string, rawPath: string): Promise<WebDavTarget> {
-  const target = await resolveWebDavPath(db, orgId, rawPath)
+export async function resolveExistingWebDavPath(db: Database, userId: string, rawPath: string): Promise<WebDavTarget> {
+  const target = await resolveWebDavPath(db, userId, rawPath)
   if (!target.matter) throw new WebDavPathError('Not found', 404)
   return target
 }
@@ -122,6 +136,16 @@ async function findMatterByPath(db: Database, orgId: string, parent: string, nam
         eq(matters.status, ObjectStatus.ACTIVE),
       ),
     )
+    .limit(1)
+  return rows[0] ?? null
+}
+
+async function getUserWorkspaceById(db: Database, userId: string, orgId: string) {
+  const rows = await db
+    .select({ id: organization.id, name: organization.name, slug: organization.slug })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, userId), eq(organization.id, orgId)))
     .limit(1)
   return rows[0] ?? null
 }

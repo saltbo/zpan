@@ -31,6 +31,7 @@ import { Route as AuthenticatedImageHostIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
+import { Route as AuthenticatedSettingsWebdavRouteImport } from './routes/_authenticated/settings/webdav'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
 import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedSettingsIhostRouteImport } from './routes/_authenticated/settings/ihost'
@@ -165,6 +166,12 @@ const AuthenticatedTeamsInviteRoute =
     path: '/teams/invite',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSettingsWebdavRoute =
+  AuthenticatedSettingsWebdavRouteImport.update({
+    id: '/webdav',
+    path: '/webdav',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
 const AuthenticatedSettingsProfileRoute =
   AuthenticatedSettingsProfileRouteImport.update({
     id: '/profile',
@@ -293,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/files/': typeof AuthenticatedFilesIndexRoute
@@ -331,6 +339,7 @@ export interface FileRoutesByTo {
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/files': typeof AuthenticatedFilesIndexRoute
@@ -374,6 +383,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/_authenticated/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
   '/_authenticated/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/files/': typeof AuthenticatedFilesIndexRoute
@@ -417,6 +427,7 @@ export interface FileRouteTypes {
     | '/settings/ihost'
     | '/settings/password'
     | '/settings/profile'
+    | '/settings/webdav'
     | '/teams/invite'
     | '/admin/'
     | '/files/'
@@ -455,6 +466,7 @@ export interface FileRouteTypes {
     | '/settings/ihost'
     | '/settings/password'
     | '/settings/profile'
+    | '/settings/webdav'
     | '/teams/invite'
     | '/admin'
     | '/files'
@@ -497,6 +509,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/ihost'
     | '/_authenticated/settings/password'
     | '/_authenticated/settings/profile'
+    | '/_authenticated/settings/webdav'
     | '/_authenticated/teams/invite'
     | '/_authenticated/admin/'
     | '/_authenticated/files/'
@@ -684,6 +697,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamsInviteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings/webdav': {
+      id: '/_authenticated/settings/webdav'
+      path: '/webdav'
+      fullPath: '/settings/webdav'
+      preLoaderRoute: typeof AuthenticatedSettingsWebdavRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
     '/_authenticated/settings/profile': {
       id: '/_authenticated/settings/profile'
       path: '/profile'
@@ -850,6 +870,7 @@ interface AuthenticatedSettingsRouteRouteChildren {
   AuthenticatedSettingsIhostRoute: typeof AuthenticatedSettingsIhostRoute
   AuthenticatedSettingsPasswordRoute: typeof AuthenticatedSettingsPasswordRoute
   AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
+  AuthenticatedSettingsWebdavRoute: typeof AuthenticatedSettingsWebdavRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
 }
 
@@ -859,6 +880,7 @@ const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteCh
     AuthenticatedSettingsIhostRoute: AuthenticatedSettingsIhostRoute,
     AuthenticatedSettingsPasswordRoute: AuthenticatedSettingsPasswordRoute,
     AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
+    AuthenticatedSettingsWebdavRoute: AuthenticatedSettingsWebdavRoute,
     AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   }
 

@@ -15,6 +15,7 @@ function SettingsLayout() {
     { to: '/settings/profile', label: t('settings.tabProfile') },
     { to: '/settings/password', label: t('settings.tabPassword') },
     { to: '/settings/appearance', label: t('settings.tabAppearance') },
+    { to: '/settings/webdav', label: t('settings.tabWebDav') },
     { to: '/settings/ihost', label: t('settings.tabImageHosting') },
   ]
 

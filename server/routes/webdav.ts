@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { DirType, ObjectStatus } from '../../shared/constants'
 import type { Storage as S3Storage } from '../../shared/types'
+import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import type { Env } from '../middleware/platform'
 import {
@@ -21,9 +22,11 @@ import {
   ensureFolder,
   joinMatterPath,
   listChildren,
+  listUserWorkspaces,
   resolveExistingWebDavPath,
   resolveWebDavPath,
   WebDavPathError,
+  type WebDavTarget,
 } from '../services/webdav-path'
 import { matterEntry, mountRootEntry, multistatus, workspaceEntry } from '../services/webdav-xml'
 
@@ -31,35 +34,76 @@ const s3 = new S3Service()
 const READ_METHODS = new Set(['OPTIONS', 'PROPFIND', 'GET', 'HEAD'])
 const WRITE_METHODS = new Set(['PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY'])
 const WEBDAV_RESOURCE = 'webdav'
+const WEBDAV_CONFIG_ID = 'webdav'
+const WEBDAV_REALM = 'Basic realm="ZPan WebDAV"'
 
 type DavContext = Context<Env>
-type DavAuth = { orgId: string; userId?: string }
+type DavAuth = { userId: string }
 
 async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
   const method = c.req.method.toUpperCase()
   const action = READ_METHODS.has(method) ? 'read' : WRITE_METHODS.has(method) ? 'write' : null
   if (!action) return c.text('Method Not Allowed', 405)
 
-  const authHeader = c.req.raw.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) return c.text('Unauthorized', 401)
-
-  const key = authHeader.slice('Bearer '.length).trim()
-  if (!key) return c.text('Unauthorized', 401)
+  const credentials = parseBasicAuth(c.req.raw.headers.get('Authorization'))
+  if (!credentials) return unauthorized()
 
   try {
     // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
     const result = (await (c.get('auth').api as any).verifyApiKey({
-      body: { key, permissions: { [WEBDAV_RESOURCE]: [action] } },
+      body: { configId: WEBDAV_CONFIG_ID, key: credentials.password, permissions: { [WEBDAV_RESOURCE]: [action] } },
     })) as {
       valid: boolean
-      key: { referenceId: string; userId?: string } | null
+      key: { referenceId: string } | null
       error: { message?: string } | null
     }
-    if (!result?.valid || !result.key?.referenceId) return c.text(result?.error?.message ?? 'Unauthorized', 401)
-    return { orgId: result.key.referenceId, userId: result.key.userId }
+    if (!result?.valid || !result.key?.referenceId) return unauthorized()
+    if (!(await usernameMatches(c.get('platform').db, result.key.referenceId, credentials.username)))
+      return unauthorized()
+    return { userId: result.key.referenceId }
   } catch {
-    return c.text('Invalid API key', 401)
+    return unauthorized()
   }
+}
+
+function unauthorized(): Response {
+  return new Response('Unauthorized', { status: 401, headers: { 'WWW-Authenticate': WEBDAV_REALM } })
+}
+
+function parseBasicAuth(header: string | null): { username: string; password: string } | null {
+  if (!header) return null
+  const match = /^Basic\s+(.+)$/i.exec(header)
+  if (!match) return null
+
+  let decoded: string
+  try {
+    const bytes = Uint8Array.from(atob(match[1]), (ch) => ch.charCodeAt(0))
+    decoded = new TextDecoder().decode(bytes)
+  } catch {
+    return null
+  }
+
+  const separator = decoded.indexOf(':')
+  if (separator <= 0) return null
+  const username = decoded.slice(0, separator)
+  const password = decoded.slice(separator + 1)
+  if (!password) return null
+  return { username, password }
+}
+
+async function usernameMatches(
+  db: Env['Variables']['platform']['db'],
+  userId: string,
+  username: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ email: user.email, username: user.username })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  const account = rows[0]
+  if (!account) return false
+  return account.email.toLowerCase() === username.toLowerCase() || account.username === username
 }
 
 function davPath(c: DavContext): string {
@@ -87,13 +131,18 @@ function destinationPath(c: DavContext): string | Response {
 
 async function ensureParentCollection(
   db: Env['Variables']['platform']['db'],
-  orgId: string,
+  userId: string,
   workspaceSlug: string,
   parent: string,
 ): Promise<void> {
   if (!parent) return
-  const target = await resolveWebDavPath(db, orgId, `/dav/${workspaceSlug}/${parent}`)
+  const target = await resolveWebDavPath(db, userId, `/dav/${workspaceSlug}/${parent}`)
   ensureFolder(target)
+}
+
+function requireWorkspace(target: WebDavTarget) {
+  if (!target.workspace) throw new WebDavPathError('Workspace not found', 404)
+  return target.workspace
 }
 
 const app = new Hono<Env>().on(
@@ -133,22 +182,24 @@ const app = new Hono<Env>().on(
 async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveWebDavPath(db, auth.orgId, davPath(c))
+    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
     const depth = c.req.header('Depth') ?? '1'
     const entries = []
 
     if (target.mountRoot) {
       entries.push(mountRootEntry())
-      if (depth !== '0') entries.push(workspaceEntry(target.workspace))
+      if (depth !== '0') entries.push(...(await listUserWorkspaces(db, auth.userId)).map(workspaceEntry))
     } else if (!target.matter) {
-      entries.push(workspaceEntry(target.workspace))
+      const workspace = requireWorkspace(target)
+      entries.push(workspaceEntry(workspace))
       if (depth !== '0')
-        entries.push(...(await listChildren(db, auth.orgId, '')).map((m) => matterEntry(target.workspace, m)))
+        entries.push(...(await listChildren(db, workspace.id, '')).map((m) => matterEntry(workspace, m)))
     } else {
-      entries.push(matterEntry(target.workspace, target.matter))
+      const workspace = requireWorkspace(target)
+      entries.push(matterEntry(workspace, target.matter))
       if (depth !== '0' && target.matter.dirtype !== DirType.FILE) {
         const parent = joinMatterPath(target.matter.parent, target.matter.name)
-        entries.push(...(await listChildren(db, auth.orgId, parent)).map((m) => matterEntry(target.workspace, m)))
+        entries.push(...(await listChildren(db, workspace.id, parent)).map((m) => matterEntry(workspace, m)))
       }
     }
 
@@ -161,7 +212,7 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
 async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const { matter } = await resolveExistingWebDavPath(db, auth.orgId, davPath(c))
+    const { matter } = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
     if (!matter) throw new WebDavPathError('Not found', 404)
     if (matter.dirtype !== DirType.FILE) return c.text('Cannot read collection as file', 405)
     const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage | null
@@ -183,11 +234,12 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
 async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveWebDavPath(db, auth.orgId, davPath(c))
+    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
+    const workspace = requireWorkspace(target)
     if (!target.name) return c.text('Cannot PUT a collection root', 405)
     if (target.matter && target.matter.dirtype !== DirType.FILE)
       return c.text('Cannot replace collection with file', 409)
-    await ensureParentCollection(db, auth.orgId, target.workspace.slug, target.parent)
+    await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
 
     const bytes = new Uint8Array(await c.req.arrayBuffer())
     const storage = target.matter
@@ -196,24 +248,24 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (!storage) return c.text('Storage not found', 404)
     const objectKey = target.matter?.object
       ? target.matter.object
-      : buildObjectKey({ uid: auth.userId ?? 'webdav', orgId: auth.orgId, rawExt: fileExt(target.name) })
+      : buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
     const contentType = c.req.header('Content-Type') ?? 'application/octet-stream'
 
     const sizeDelta = target.matter ? bytes.byteLength - (target.matter.size ?? 0) : bytes.byteLength
     if (sizeDelta > 0) {
-      const allowed = await incrementUsageIfAllowed(db, auth.orgId, storage.id, sizeDelta)
+      const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, sizeDelta)
       if (!allowed) return c.text('Quota exceeded', 422)
     }
 
     try {
       await s3.putObject(storage, objectKey, bytes, contentType)
     } catch (e) {
-      if (sizeDelta > 0) await decrementUsage(db, auth.orgId, new Map([[storage.id, sizeDelta]]), sizeDelta)
+      if (sizeDelta > 0) await decrementUsage(db, workspace.id, new Map([[storage.id, sizeDelta]]), sizeDelta)
       throw e
     }
 
     if (sizeDelta < 0) {
-      await decrementUsage(db, auth.orgId, new Map([[storage.id, Math.abs(sizeDelta)]]), Math.abs(sizeDelta))
+      await decrementUsage(db, workspace.id, new Map([[storage.id, Math.abs(sizeDelta)]]), Math.abs(sizeDelta))
     }
 
     if (target.matter) {
@@ -221,12 +273,12 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       await db
         .update(matters)
         .set({ type: contentType, size: bytes.byteLength, updatedAt: now })
-        .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, auth.orgId)))
+        .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, workspace.id)))
       return new Response(null, { status: 204 })
     }
 
     await createMatter(db, {
-      orgId: auth.orgId,
+      orgId: workspace.id,
       userId: auth.userId,
       name: target.name,
       type: contentType,
@@ -246,13 +298,14 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
 async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveWebDavPath(db, auth.orgId, davPath(c))
+    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
+    const workspace = requireWorkspace(target)
     if (!target.name) return c.text('Cannot create collection root', 405)
     if (target.matter) return c.text('Already exists', 405)
-    await ensureParentCollection(db, auth.orgId, target.workspace.slug, target.parent)
+    await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
     const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
     await createMatter(db, {
-      orgId: auth.orgId,
+      orgId: workspace.id,
       userId: auth.userId,
       name: target.name,
       type: 'folder',
@@ -272,9 +325,11 @@ async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
 async function deleteMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const { matter } = await resolveExistingWebDavPath(db, auth.orgId, davPath(c))
+    const target = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const workspace = requireWorkspace(target)
+    const matter = target.matter
     if (!matter) throw new WebDavPathError('Not found', 404)
-    await trashMatter(db, auth.orgId, matter.id, auth.userId)
+    await trashMatter(db, workspace.id, matter.id, auth.userId)
     return new Response(null, { status: 204 })
   } catch (e) {
     return davError(c, e)
@@ -284,15 +339,24 @@ async function deleteMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const source = await resolveExistingWebDavPath(db, auth.orgId, davPath(c))
+    const source = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const sourceWorkspace = requireWorkspace(source)
     if (!source.matter) throw new WebDavPathError('Not found', 404)
     const destination = destinationPath(c)
     if (destination instanceof Response) return destination
-    const target = await resolveWebDavPath(db, auth.orgId, destination)
+    const target = await resolveWebDavPath(db, auth.userId, destination)
+    const targetWorkspace = requireWorkspace(target)
+    if (sourceWorkspace.id !== targetWorkspace.id) return c.text('Cross-workspace MOVE is not supported', 403)
     if (!target.name) return c.text('Cannot move to collection root', 405)
     if (target.matter) return c.text('Already exists', 412)
-    await ensureParentCollection(db, auth.orgId, target.workspace.slug, target.parent)
-    await updateMatter(db, source.matter.id, auth.orgId, { name: target.name, parent: target.parent }, auth.userId)
+    await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
+    await updateMatter(
+      db,
+      source.matter.id,
+      sourceWorkspace.id,
+      { name: target.name, parent: target.parent },
+      auth.userId,
+    )
     return new Response(null, { status: 201 })
   } catch (e) {
     return davError(c, e)
@@ -302,14 +366,17 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const source = await resolveExistingWebDavPath(db, auth.orgId, davPath(c))
+    const source = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const sourceWorkspace = requireWorkspace(source)
     if (!source.matter) throw new WebDavPathError('Not found', 404)
     const destination = destinationPath(c)
     if (destination instanceof Response) return destination
-    const target = await resolveWebDavPath(db, auth.orgId, destination)
+    const target = await resolveWebDavPath(db, auth.userId, destination)
+    const targetWorkspace = requireWorkspace(target)
+    if (sourceWorkspace.id !== targetWorkspace.id) return c.text('Cross-workspace COPY is not supported', 403)
     if (!target.name) return c.text('Cannot copy to collection root', 405)
     if (target.matter) return c.text('Already exists', 412)
-    await ensureParentCollection(db, auth.orgId, target.workspace.slug, target.parent)
+    await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
 
     let newObject = ''
     let reservedUsage: { storageId: string; bytes: number } | null = null
@@ -319,11 +386,11 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
         if (!storage) return c.text('Storage not found', 404)
         const bytes = source.matter.size ?? 0
         if (bytes > 0) {
-          const allowed = await incrementUsageIfAllowed(db, auth.orgId, storage.id, bytes)
+          const allowed = await incrementUsageIfAllowed(db, sourceWorkspace.id, storage.id, bytes)
           if (!allowed) return c.text('Quota exceeded', 422)
           reservedUsage = { storageId: storage.id, bytes }
         }
-        newObject = buildObjectKey({ uid: auth.userId ?? 'webdav', orgId: auth.orgId, rawExt: fileExt(target.name) })
+        newObject = buildObjectKey({ uid: auth.userId, orgId: sourceWorkspace.id, rawExt: fileExt(target.name) })
         await s3.copyObject(storage, source.matter.object, storage, newObject)
       }
 
@@ -331,13 +398,13 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
         onConflict: 'fail',
         userId: auth.userId,
       })
-      c.header('Location', matterLocation(c.req.url, target.workspace.slug, joinMatterPath(copy.parent, copy.name)))
+      c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(copy.parent, copy.name)))
       return c.body(null, 201)
     } catch (e) {
       if (reservedUsage) {
         await decrementUsage(
           db,
-          auth.orgId,
+          sourceWorkspace.id,
           new Map([[reservedUsage.storageId, reservedUsage.bytes]]),
           reservedUsage.bytes,
         )

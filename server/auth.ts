@@ -263,21 +263,32 @@ export async function createAuth(
           scopes: c.scopes,
         })),
       }),
-      apiKey({
-        // Keys belong to the organization, not the individual user
-        references: 'organization',
-        // Rate limiting and lastRequest tracking are on by default
-        rateLimit: {
-          enabled: true,
-          timeWindow: 60_000, // 60 seconds
-          maxRequests: 60, // 60 requests per window ≈ 1 req/s sustained
+      apiKey([
+        {
+          configId: 'default',
+          references: 'organization',
+          rateLimit: {
+            enabled: true,
+            timeWindow: 60_000,
+            maxRequests: 60,
+          },
+          permissions: {
+            defaultPermissions: IMAGE_HOSTING_API_KEY_PERMISSIONS,
+          },
         },
-        // Existing image-hosting keys rely on default upload permission.
-        // WebDAV keys must be created with explicit webdav:read/write permissions.
-        permissions: {
-          defaultPermissions: IMAGE_HOSTING_API_KEY_PERMISSIONS,
+        {
+          configId: 'webdav',
+          references: 'user',
+          rateLimit: {
+            enabled: true,
+            timeWindow: 60_000,
+            maxRequests: 120,
+          },
+          permissions: {
+            defaultPermissions: WEBDAV_API_KEY_PERMISSIONS,
+          },
         },
-      }),
+      ]),
     ],
     databaseHooks: {
       user: {
