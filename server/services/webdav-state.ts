@@ -190,31 +190,6 @@ export async function copyDeadProperties(
   )
 }
 
-export async function replaceDeadProperties(
-  db: Database,
-  orgId: string,
-  resourcePath: string,
-  properties: DavDeadProperty[],
-): Promise<void> {
-  const now = new Date()
-  await executeWriteTransaction(db, [
-    db
-      .delete(webdavDeadProperties)
-      .where(and(eq(webdavDeadProperties.orgId, orgId), eq(webdavDeadProperties.resourcePath, resourcePath))),
-    ...properties.map((property) =>
-      db.insert(webdavDeadProperties).values({
-        id: nanoid(),
-        orgId,
-        resourcePath,
-        namespace: property.namespace,
-        name: property.name,
-        value: property.value,
-        updatedAt: now,
-      }),
-    ),
-  ])
-}
-
 export async function activeLocks(db: Database, orgId: string, resourcePath: string): Promise<DavLock[]> {
   await purgeExpiredLocks(db)
   const now = Date.now()

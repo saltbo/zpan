@@ -478,7 +478,9 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
 
     return xmlResponse(multistatus(entries, request), 207)
   } catch (e) {
-    if (e instanceof Error && e.message.includes('XML')) return xmlResponse(errorXml('valid-xml'), 400)
+    if (e instanceof Error && (e.message.includes('XML') || e.message.includes('PROPFIND'))) {
+      return xmlResponse(errorXml('valid-xml', e.message), 400)
+    }
     return davError(c, e)
   }
 }

@@ -251,7 +251,11 @@ describe('WebDAV API', () => {
     const defaultNamespace = await app.request(`/dav/${workspace.slug}/Docs`, {
       method: 'PROPFIND',
       headers: basicHeaders(account.email, key, { Depth: '0', 'Content-Type': 'application/xml' }),
-      body: '<propfind xmlns="DAV:"><prop><displayname/></prop></propfind>',
+      body: `<?xml version="1.0"?>
+        <propfind xmlns="DAV:">
+          <!-- default namespace property names are valid RFC 4918 XML -->
+          <prop><displayname/></prop>
+        </propfind>`,
     })
     expect(defaultNamespace.status).toBe(207)
     expect(await defaultNamespace.text()).toContain('<D:displayname>Docs</D:displayname>')
@@ -259,10 +263,17 @@ describe('WebDAV API', () => {
     const allprop = await app.request(`/dav/${workspace.slug}/Docs`, {
       method: 'PROPFIND',
       headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
-      body: '<D:propfind xmlns:D="DAV:"><D:allprop/><D:include><D:quota-used-bytes/></D:include></D:propfind>',
+      body: '<D:propfind xmlns:D="DAV:"><D:allprop/><D:include><D:displayname/><D:quota-used-bytes/></D:include></D:propfind>',
     })
     expect(allprop.status).toBe(207)
     expect(await allprop.text()).toContain('HTTP/1.1 404 Not Found')
+
+    const invalidRequestType = await app.request(`/dav/${workspace.slug}/Docs`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<propfind xmlns="DAV:"><prop/><allprop/></propfind>',
+    })
+    expect(invalidRequestType.status).toBe(400)
 
     const infinity = await app.request(`/dav/${workspace.slug}/Docs`, {
       method: 'PROPFIND',
@@ -298,6 +309,27 @@ describe('WebDAV API', () => {
     })
     expect(find.status).toBe(207)
     expect(await find.text()).toContain('blue</Z:color>')
+
+    const defaultDeadPropertyNamespace = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
+      method: 'PROPPATCH',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: `<D:propertyupdate xmlns:D="DAV:" xmlns:Z="urn:zpan:test">
+        <D:set><D:prop><Z:finish xmlns:Z="urn:zpan:test">matte</Z:finish></D:prop></D:set>
+        <D:set><D:prop><color xmlns="urn:zpan:test">red</color></D:prop></D:set>
+        <D:set><D:prop xmlns="urn:zpan:test"><pattern>striped</pattern></D:prop></D:set>
+      </D:propertyupdate>`,
+    })
+    expect(defaultDeadPropertyNamespace.status).toBe(207)
+
+    const defaultDeadPropertyFind = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '0', 'Content-Type': 'application/xml' }),
+      body: '<D:propfind xmlns:D="DAV:" xmlns="urn:zpan:test" xmlns:Z="urn:zpan:test"><D:prop><Z:finish/><color/><pattern/></D:prop></D:propfind>',
+    })
+    const defaultDeadPropertyXml = await defaultDeadPropertyFind.text()
+    expect(defaultDeadPropertyXml).toContain('<Z:finish xmlns:Z="urn:zpan:test">matte</Z:finish>')
+    expect(defaultDeadPropertyXml).toContain('<color xmlns="urn:zpan:test">red</color>')
+    expect(defaultDeadPropertyXml).toContain('<pattern xmlns="urn:zpan:test">striped</pattern>')
 
     const invalid = await app.request(`/dav/${workspace.slug}/dead-props.txt`, {
       method: 'PROPPATCH',
@@ -776,6 +808,15 @@ describe('WebDAV API', () => {
       }),
     })
     expect(descendant.status).toBe(403)
+
+    const badDepth = await app.request(`/dav/${workspace.slug}/Source`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/BadDepth`,
+        Depth: '1',
+      }),
+    })
+    expect(badDepth.status).toBe(400)
   })
 
   it('COPY enforces destination locks and rolls back collection copy quota on storage failure', async () => {
@@ -979,7 +1020,23 @@ describe('WebDAV API', () => {
       method: 'HEAD',
       headers: basicHeaders(account.email, key),
     })
-    const etag = head.headers.get('ETag') ?? ''
+    const firstEtag = head.headers.get('ETag') ?? ''
+
+    const taggedMatch = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, {
+        If: `<http://localhost/dav/${workspace.slug}/if.txt> ([${firstEtag}])`,
+        'Content-Type': 'text/plain',
+      }),
+      body: 'tagged',
+    })
+    expect(taggedMatch.status).toBe(204)
+
+    const updatedHead = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key),
+    })
+    const etag = updatedHead.headers.get('ETag') ?? ''
 
     const matched = await app.request(`/dav/${workspace.slug}/if.txt`, {
       method: 'PUT',
@@ -1004,6 +1061,33 @@ describe('WebDAV API', () => {
       body: 'missed',
     })
     expect(randomLockToken.status).toBe(412)
+
+    const taggedExternalResource = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, {
+        If: '<https://example.com/dav/elsewhere> (<opaquelocktoken:random>)',
+        'Content-Type': 'text/plain',
+      }),
+      body: 'missed',
+    })
+    expect(taggedExternalResource.status).toBe(412)
+
+    const tokenTaggedResource = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, {
+        If: '<opaquelocktoken:random> (["stale"])',
+        'Content-Type': 'text/plain',
+      }),
+      body: 'missed',
+    })
+    expect(tokenTaggedResource.status).toBe(412)
+
+    const invalidSyntax = await app.request(`/dav/${workspace.slug}/if.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { If: 'Not a state list', 'Content-Type': 'text/plain' }),
+      body: 'missed',
+    })
+    expect(invalidSyntax.status).toBe(412)
 
     const notMatched = await app.request(`/dav/${workspace.slug}/if.txt`, {
       method: 'PUT',
@@ -1059,11 +1143,25 @@ describe('WebDAV API', () => {
     })
     expect(accepted.status).toBe(204)
 
+    const acceptedWithIfToken = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { If: `(${token})`, 'Content-Type': 'text/plain' }),
+      body: 'allowed by if',
+    })
+    expect(acceptedWithIfToken.status).toBe(204)
+
     const refreshed = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'LOCK',
       headers: basicHeaders(account.email, key, { If: `(${token})`, Timeout: 'Second-1200' }),
     })
     expect(refreshed.status).toBe(200)
+
+    const conflictingLock = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype></lockinfo>',
+    })
+    expect(conflictingLock.status).toBe(423)
 
     const wrongResourceRefresh = await app.request(`/dav/${workspace.slug}/other-locked.txt`, {
       method: 'LOCK',
@@ -1083,6 +1181,19 @@ describe('WebDAV API', () => {
       body: '<lockinfo xmlns="DAV:"><lockscope><shared/></lockscope><locktype><write/></locktype></lockinfo>',
     })
     expect(shared.status).toBe(422)
+
+    const malformedLock = await app.request(`/dav/${workspace.slug}/other-locked.txt`, {
+      method: 'LOCK',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope></lockinfo>',
+    })
+    expect(malformedLock.status).toBe(422)
+
+    const missingUnlockToken = await app.request(`/dav/${workspace.slug}/locked.txt`, {
+      method: 'UNLOCK',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(missingUnlockToken.status).toBe(400)
 
     const invalidUnlock = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'UNLOCK',
