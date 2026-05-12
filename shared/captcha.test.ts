@@ -12,6 +12,8 @@ describe('captcha constants', () => {
     expect(CAPTCHA_ENABLED_KEY).toBe('captcha_enabled')
     expect(CAPTCHA_SITE_KEY_KEY).toBe('captcha_turnstile_site_key')
     expect(CAPTCHA_SECRET_OPTION_KEY).toBe('captcha_turnstile_secret_key')
+    expect(CAPTCHA_SECRET_OPTION_KEY).not.toBe('captch..._key')
+    expect(CAPTCHA_SECRET_OPTION_KEY).not.toContain('...')
   })
 
   it('keeps only public captcha settings in public options', () => {
