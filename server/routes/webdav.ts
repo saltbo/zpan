@@ -1,9 +1,10 @@
+import { defaultKeyHasher } from '@better-auth/api-key'
 import { and, eq, like, or } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { DirType, ObjectStatus } from '../../shared/constants'
 import type { Storage as S3Storage } from '../../shared/types'
-import { user } from '../db/auth-schema'
+import { apikey, user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import type { Env } from '../middleware/platform'
 import {
@@ -75,18 +76,28 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
   if (!credentials) return unauthorized()
 
   try {
-    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
-    const result = (await (c.get('auth').api as any).verifyApiKey({
-      body: { configId: WEBDAV_CONFIG_ID, key: credentials.password, permissions: { [WEBDAV_RESOURCE]: [action] } },
-    })) as {
-      valid: boolean
-      key: { referenceId: string } | null
-      error: { message?: string } | null
-    }
-    if (!result?.valid || !result.key?.referenceId) return unauthorized()
-    if (!(await usernameMatches(c.get('platform').db, result.key.referenceId, credentials.username)))
+    const db = c.get('platform').db
+    const hashedKey = await defaultKeyHasher(credentials.password)
+    const rows = await db
+      .select({
+        id: apikey.id,
+        referenceId: apikey.referenceId,
+        permissions: apikey.permissions,
+        enabled: apikey.enabled,
+        expiresAt: apikey.expiresAt,
+      })
+      .from(apikey)
+      .where(and(eq(apikey.configId, WEBDAV_CONFIG_ID), eq(apikey.key, hashedKey)))
+      .limit(1)
+    const key = rows[0]
+    if (
+      !key?.enabled ||
+      (key.expiresAt && key.expiresAt.getTime() <= Date.now()) ||
+      !hasWebDavPermission(key.permissions, action)
+    )
       return unauthorized()
-    return { userId: result.key.referenceId }
+    if (!(await usernameMatches(db, key.referenceId, credentials.username))) return unauthorized()
+    return { userId: key.referenceId }
   } catch {
     return unauthorized()
   }
@@ -115,6 +126,12 @@ function parseBasicAuth(header: string | null): { username: string; password: st
   const password = decoded.slice(separator + 1)
   if (!password) return null
   return { username, password }
+}
+
+function hasWebDavPermission(permissions: string | null, action: 'read' | 'write'): boolean {
+  if (!permissions) return false
+  const parsed = JSON.parse(permissions) as Partial<Record<string, string[]>>
+  return parsed[WEBDAV_RESOURCE]?.includes(action) ?? false
 }
 
 async function usernameMatches(
