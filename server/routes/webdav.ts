@@ -28,7 +28,7 @@ import {
   WebDavPathError,
   type WebDavTarget,
 } from '../services/webdav-path'
-import { matterEntry, mountRootEntry, multistatus, workspaceEntry } from '../services/webdav-xml'
+import { davEtag, matterEntry, mountRootEntry, multistatus, workspaceEntry } from '../services/webdav-xml'
 
 const s3 = new S3Service()
 const READ_METHODS = new Set(['OPTIONS', 'PROPFIND', 'GET', 'HEAD'])
@@ -145,6 +145,87 @@ function requireWorkspace(target: WebDavTarget) {
   return target.workspace
 }
 
+function matterEtag(matter: NonNullable<WebDavTarget['matter']>): string {
+  return davEtag(matter.id, matter.size ?? 0, matter.updatedAt)
+}
+
+function fileHeaders(matter: NonNullable<WebDavTarget['matter']>): Headers {
+  return new Headers({
+    'Content-Type': matter.type,
+    'Content-Length': String(matter.size ?? 0),
+    ETag: matterEtag(matter),
+    'Last-Modified': matter.updatedAt.toUTCString(),
+    'Accept-Ranges': 'bytes',
+  })
+}
+
+function validatorHeaders(matter: NonNullable<WebDavTarget['matter']>): Headers {
+  return new Headers({ ETag: matterEtag(matter), 'Last-Modified': matter.updatedAt.toUTCString() })
+}
+
+function etagMatches(header: string, etag: string): boolean {
+  return header
+    .split(',')
+    .map((value) => value.trim())
+    .some((value) => value === '*' || value === etag)
+}
+
+function preconditionResponse(c: DavContext, matter: NonNullable<WebDavTarget['matter']>): Response | null {
+  const etag = matterEtag(matter)
+  const ifMatch = c.req.header('If-Match')
+  if (ifMatch && !etagMatches(ifMatch, etag)) return new Response(null, { status: 412 })
+
+  const ifNoneMatch = c.req.header('If-None-Match')
+  if (!ifNoneMatch || !etagMatches(ifNoneMatch, etag)) return null
+
+  if (c.req.method.toUpperCase() === 'GET' || c.req.method.toUpperCase() === 'HEAD') {
+    return new Response(null, { status: 304, headers: validatorHeaders(matter) })
+  }
+  return new Response(null, { status: 412 })
+}
+
+function missingPreconditionResponse(c: DavContext): Response | null {
+  if (c.req.header('If-Match')) return new Response(null, { status: 412 })
+  return null
+}
+
+interface ByteRange {
+  start: number
+  end: number
+}
+
+function parseByteRange(header: string | undefined, size: number): ByteRange | null {
+  if (!header) return { start: 0, end: size - 1 }
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header)
+  if (!match || size <= 0) return null
+
+  const [, rawStart, rawEnd] = match
+  if (!rawStart && !rawEnd) return null
+
+  if (!rawStart) {
+    const suffix = Number(rawEnd)
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) return null
+    return { start: Math.max(size - suffix, 0), end: size - 1 }
+  }
+
+  const start = Number(rawStart)
+  const end = rawEnd ? Number(rawEnd) : size - 1
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= size) return null
+  return { start, end: Math.min(end, size - 1) }
+}
+
+function rangeNotSatisfiable(size: number): Response {
+  return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
+}
+
+function overwriteAllowed(c: DavContext): boolean {
+  return (c.req.header('Overwrite') ?? 'T').toUpperCase() !== 'F'
+}
+
+function bytesBody(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+}
+
 const app = new Hono<Env>().on(
   ['OPTIONS', 'PROPFIND', 'GET', 'HEAD', 'PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY'],
   '/*',
@@ -215,17 +296,30 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     const { matter } = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
     if (!matter) throw new WebDavPathError('Not found', 404)
     if (matter.dirtype !== DirType.FILE) return c.text('Cannot read collection as file', 405)
+    const precondition = preconditionResponse(c, matter)
+    if (precondition) return precondition
+
     const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage | null
     if (!storage) return c.text('Storage not found', 404)
+    const headers = fileHeaders(matter)
 
     if (c.req.method.toUpperCase() === 'HEAD') {
-      return new Response(null, {
-        headers: { 'Content-Type': matter.type, 'Content-Length': String(matter.size ?? 0), ETag: matter.id },
-      })
+      return new Response(null, { headers })
     }
 
-    const url = await s3.presignDownload(storage, matter.object, matter.name)
-    return c.redirect(url, 302)
+    const size = matter.size ?? 0
+    const rangeHeader = c.req.header('Range')
+    if (!rangeHeader) {
+      const bytes = await s3.getObjectBytes(storage, matter.object)
+      return new Response(bytesBody(bytes), { headers })
+    }
+
+    const range = parseByteRange(rangeHeader, size)
+    if (!range) return rangeNotSatisfiable(size)
+    const bytes = await s3.getObjectBytes(storage, matter.object, `bytes=${range.start}-${range.end}`)
+    headers.set('Content-Length', String(range.end - range.start + 1))
+    headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
+    return new Response(bytesBody(bytes), { status: 206, headers })
   } catch (e) {
     return davError(c, e)
   }
@@ -239,6 +333,8 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (!target.name) return c.text('Cannot PUT a collection root', 405)
     if (target.matter && target.matter.dirtype !== DirType.FILE)
       return c.text('Cannot replace collection with file', 409)
+    const precondition = target.matter ? preconditionResponse(c, target.matter) : missingPreconditionResponse(c)
+    if (precondition) return precondition
     await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
 
     const bytes = new Uint8Array(await c.req.arrayBuffer())
@@ -342,14 +438,20 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     const source = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
     const sourceWorkspace = requireWorkspace(source)
     if (!source.matter) throw new WebDavPathError('Not found', 404)
+    const precondition = preconditionResponse(c, source.matter)
+    if (precondition) return precondition
     const destination = destinationPath(c)
     if (destination instanceof Response) return destination
     const target = await resolveWebDavPath(db, auth.userId, destination)
     const targetWorkspace = requireWorkspace(target)
     if (sourceWorkspace.id !== targetWorkspace.id) return c.text('Cross-workspace MOVE is not supported', 403)
     if (!target.name) return c.text('Cannot move to collection root', 405)
-    if (target.matter) return c.text('Already exists', 412)
+    if (target.matter) {
+      if (target.matter.id === source.matter.id) return new Response(null, { status: 204 })
+      if (!overwriteAllowed(c)) return c.text('Already exists', 412)
+    }
     await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
+    if (target.matter) await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
     await updateMatter(
       db,
       source.matter.id,
@@ -369,13 +471,16 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
     const source = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
     const sourceWorkspace = requireWorkspace(source)
     if (!source.matter) throw new WebDavPathError('Not found', 404)
+    const precondition = preconditionResponse(c, source.matter)
+    if (precondition) return precondition
+    if (source.matter.dirtype !== DirType.FILE) return c.text('Collection COPY is not supported', 403)
     const destination = destinationPath(c)
     if (destination instanceof Response) return destination
     const target = await resolveWebDavPath(db, auth.userId, destination)
     const targetWorkspace = requireWorkspace(target)
     if (sourceWorkspace.id !== targetWorkspace.id) return c.text('Cross-workspace COPY is not supported', 403)
     if (!target.name) return c.text('Cannot copy to collection root', 405)
-    if (target.matter) return c.text('Already exists', 412)
+    if (target.matter && !overwriteAllowed(c)) return c.text('Already exists', 412)
     await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
 
     let newObject = ''
@@ -394,6 +499,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
         await s3.copyObject(storage, source.matter.object, storage, newObject)
       }
 
+      if (target.matter) await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
       const copy = await copyMatter(db, { ...source.matter, name: target.name }, target.parent, newObject, {
         onConflict: 'fail',
         userId: auth.userId,
