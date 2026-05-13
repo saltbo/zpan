@@ -1,4 +1,10 @@
-import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '@shared/captcha'
+import {
+  CAPTCHA_ENABLED_KEY,
+  CAPTCHA_MIN_SCORE_KEY,
+  CAPTCHA_PROVIDER_KEY,
+  CAPTCHA_SECRET_OPTION_KEY,
+  CAPTCHA_SITE_KEY_KEY,
+} from '@shared/captcha'
 import { SignupMode } from '@shared/constants'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
@@ -14,8 +20,10 @@ const siteOptionsState = vi.hoisted(() => ({
     defaultOrgQuota: 1073741824,
     authSignupMode: 'open',
     captchaEnabled: false,
+    captchaProvider: 'cloudflare-turnstile',
     captchaSiteKey: '',
     captchaSecretKey: '',
+    captchaMinScore: '',
     isLoading: false,
     isError: false,
   },
@@ -94,8 +102,10 @@ afterEach(() => {
     defaultOrgQuota: 1073741824,
     authSignupMode: SignupMode.OPEN,
     captchaEnabled: false,
+    captchaProvider: 'cloudflare-turnstile',
     captchaSiteKey: '',
     captchaSecretKey: '',
+    captchaMinScore: '',
     isLoading: false,
     isError: false,
   }
@@ -186,8 +196,12 @@ describe('SettingsPage', () => {
     const saveButtons = view.getAllByRole('button', { name: 'common.save' })
     fireEvent.click(saveButtons[1])
 
-    await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_SITE_KEY_KEY, 'site-key', true))
+    await waitFor(() =>
+      expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_PROVIDER_KEY, 'cloudflare-turnstile', true),
+    )
+    expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_SITE_KEY_KEY, 'site-key', true)
     expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_SECRET_OPTION_KEY, 'secret-key', false)
+    expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_MIN_SCORE_KEY, '', false)
     expect(setSystemOption).toHaveBeenCalledWith(CAPTCHA_ENABLED_KEY, 'true', true)
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
   })

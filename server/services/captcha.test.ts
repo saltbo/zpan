@@ -1,64 +1,93 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY } from '../../shared/captcha.js'
-import { systemOptions } from '../db/schema.js'
-import { createTestApp } from '../test/setup.js'
-import { isCaptchaEnabled, verifyCaptchaToken } from './captcha.js'
+import { describe, expect, it } from 'vitest'
+import {
+  CAPTCHA_ENABLED_KEY,
+  CAPTCHA_MIN_SCORE_KEY,
+  CAPTCHA_PROVIDER_KEY,
+  CAPTCHA_SECRET_OPTION_KEY,
+  CAPTCHA_SITE_KEY_KEY,
+} from '../../shared/captcha.js'
+import { CAPTCHA_AUTH_ENDPOINTS, type CaptchaConfig, readCaptchaConfig, toBetterAuthCaptchaOptions } from './captcha.js'
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
+const COMPLETE_CONFIG = {
+  [CAPTCHA_ENABLED_KEY]: 'true',
+  [CAPTCHA_SITE_KEY_KEY]: 'site-key',
+  [CAPTCHA_SECRET_OPTION_KEY]: 'secret-key',
+}
 
 describe('captcha service', () => {
-  it('treats absent settings as disabled', async () => {
-    const { db } = await createTestApp()
-
-    expect(await isCaptchaEnabled(db)).toBe(false)
-    expect(await verifyCaptchaToken(db, undefined)).toBe(true)
+  it('treats absent settings as disabled', () => {
+    expect(readCaptchaConfig({})).toBeNull()
   })
 
-  it('rejects missing tokens when captcha is enabled', async () => {
-    const { db } = await createTestApp()
-    await db.insert(systemOptions).values({ key: CAPTCHA_ENABLED_KEY, value: 'true', public: true })
-
-    expect(await verifyCaptchaToken(db, undefined)).toBe(false)
-  })
-
-  it('requires a secret key when captcha is enabled', async () => {
-    const { db } = await createTestApp()
-    await db.insert(systemOptions).values({ key: CAPTCHA_ENABLED_KEY, value: 'true', public: true })
-
-    await expect(verifyCaptchaToken(db, 'token')).rejects.toThrow(
-      'Captcha is enabled but the Turnstile secret key is missing',
+  it('requires provider config before enabling captcha', () => {
+    expect(() => readCaptchaConfig({ [CAPTCHA_ENABLED_KEY]: 'true' })).toThrow(
+      'Captcha site key is required before enabling captcha',
     )
+    expect(() =>
+      readCaptchaConfig({
+        [CAPTCHA_ENABLED_KEY]: 'true',
+        [CAPTCHA_SITE_KEY_KEY]: 'site-key',
+      }),
+    ).toThrow('Captcha secret key is required before enabling captcha')
+    expect(() =>
+      readCaptchaConfig({
+        ...COMPLETE_CONFIG,
+        [CAPTCHA_PROVIDER_KEY]: 'unknown',
+      }),
+    ).toThrow('Captcha provider is invalid')
   })
 
-  it('verifies tokens against Turnstile with the stored secret key', async () => {
-    const { db } = await createTestApp()
-    await db.insert(systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
-    ])
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }))))
+  it('parses every supported provider shape', () => {
+    const providers = ['google-recaptcha', 'cloudflare-turnstile', 'hcaptcha', 'captchafox'] as const
 
-    expect(await verifyCaptchaToken(db, 'token', '203.0.113.1')).toBe(true)
+    for (const provider of providers) {
+      const config = readCaptchaConfig({
+        ...COMPLETE_CONFIG,
+        [CAPTCHA_PROVIDER_KEY]: provider,
+      })
 
-    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('https://challenges.cloudflare.com/turnstile/v0/siteverify')
-    expect(init.method).toBe('POST')
-    const body = init.body as FormData
-    expect(body.get('secret')).toBe('secret-key')
-    expect(body.get('response')).toBe('token')
-    expect(body.get('remoteip')).toBe('203.0.113.1')
+      expect(config).toMatchObject({ enabled: true, provider, siteKey: 'site-key', secretKey: 'secret-key' })
+    }
   })
 
-  it('surfaces Turnstile HTTP errors', async () => {
-    const { db } = await createTestApp()
-    await db.insert(systemOptions).values([
-      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
-      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
-    ])
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
+  it('validates optional reCAPTCHA minimum score', () => {
+    expect(
+      readCaptchaConfig({
+        ...COMPLETE_CONFIG,
+        [CAPTCHA_PROVIDER_KEY]: 'google-recaptcha',
+        [CAPTCHA_MIN_SCORE_KEY]: '0.7',
+      }),
+    ).toMatchObject({ minScore: 0.7 })
 
-    await expect(verifyCaptchaToken(db, 'token')).rejects.toThrow('Captcha verification failed with HTTP 500')
+    expect(() =>
+      readCaptchaConfig({
+        ...COMPLETE_CONFIG,
+        [CAPTCHA_PROVIDER_KEY]: 'google-recaptcha',
+        [CAPTCHA_MIN_SCORE_KEY]: '1.5',
+      }),
+    ).toThrow('Captcha minimum score must be between 0 and 1')
+  })
+
+  it('maps provider settings to Better Auth captcha options', () => {
+    const baseConfig: CaptchaConfig = {
+      enabled: true,
+      provider: 'hcaptcha',
+      siteKey: 'site-key',
+      secretKey: 'secret-key',
+    }
+
+    expect(toBetterAuthCaptchaOptions(baseConfig)).toEqual({
+      provider: 'hcaptcha',
+      siteKey: 'site-key',
+      secretKey: 'secret-key',
+      endpoints: [...CAPTCHA_AUTH_ENDPOINTS],
+    })
+
+    expect(toBetterAuthCaptchaOptions({ ...baseConfig, provider: 'google-recaptcha', minScore: 0.8 })).toEqual({
+      provider: 'google-recaptcha',
+      secretKey: 'secret-key',
+      minScore: 0.8,
+      endpoints: [...CAPTCHA_AUTH_ENDPOINTS],
+    })
   })
 })

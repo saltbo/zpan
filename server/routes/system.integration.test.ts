@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '../../shared/captcha.js'
+import {
+  CAPTCHA_ENABLED_KEY,
+  CAPTCHA_PROVIDER_KEY,
+  CAPTCHA_SECRET_OPTION_KEY,
+  CAPTCHA_SITE_KEY_KEY,
+} from '../../shared/captcha.js'
 import { adminHeaders, createTestApp } from '../test/setup.js'
 
 async function putOption(
@@ -121,6 +126,7 @@ describe('System API — options CRUD', () => {
     expect(missingKeys.status).toBe(400)
 
     await putOption(app, admin, CAPTCHA_SITE_KEY_KEY, { value: 'site-key', public: false })
+    await putOption(app, admin, CAPTCHA_PROVIDER_KEY, { value: 'cloudflare-turnstile', public: false })
     await putOption(app, admin, CAPTCHA_SECRET_OPTION_KEY, { value: 'secret-key', public: true })
     const enabled = await putOption(app, admin, CAPTCHA_ENABLED_KEY, { value: 'true', public: false })
     expect(enabled.status).toBe(201)
@@ -129,6 +135,7 @@ describe('System API — options CRUD', () => {
     const anonList = await app.request('/api/system/options')
     const anonBody = (await anonList.json()) as { items: { key: string }[] }
     expect(anonBody.items.map((item) => item.key)).toContain(CAPTCHA_SITE_KEY_KEY)
+    expect(anonBody.items.map((item) => item.key)).toContain(CAPTCHA_PROVIDER_KEY)
     expect(anonBody.items.map((item) => item.key)).not.toContain(CAPTCHA_SECRET_OPTION_KEY)
 
     const adminSecret = await app.request(`/api/system/options/${CAPTCHA_SECRET_OPTION_KEY}`, { headers: admin })

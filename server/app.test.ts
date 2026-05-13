@@ -7,8 +7,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('auth captcha guard', () => {
-  it('rejects email auth before Better Auth when captcha token is missing', async () => {
+describe('auth captcha integration', () => {
+  it('rejects protected auth endpoints through the Better Auth captcha plugin', async () => {
     const { app, db } = await createTestApp()
     await db.insert(systemOptions).values([
       { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
@@ -23,10 +23,10 @@ describe('auth captcha guard', () => {
     })
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toEqual({ error: 'Invalid captcha token' })
+    await expect(res.json()).resolves.toMatchObject({ message: 'Missing CAPTCHA response' })
   })
 
-  it('passes verified captcha tokens through to Better Auth', async () => {
+  it('passes verified captcha headers through to Better Auth', async () => {
     const { app, db } = await createTestApp()
     await db.insert(systemOptions).values([
       { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
@@ -37,12 +37,11 @@ describe('auth captcha guard', () => {
 
     const res = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-captcha-response': 'token' },
       body: JSON.stringify({
         name: 'Test',
         email: 'guard-valid@example.com',
         password: 'password123456',
-        captchaToken: 'token',
       }),
     })
 
@@ -50,7 +49,7 @@ describe('auth captcha guard', () => {
     expect(fetch).toHaveBeenCalledOnce()
   })
 
-  it('rejects social auth when captcha is enabled', async () => {
+  it('leaves social auth with Better Auth when captcha is enabled', async () => {
     const { app, db } = await createTestApp()
     await db.insert(systemOptions).values([
       { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
@@ -64,8 +63,7 @@ describe('auth captcha guard', () => {
       body: JSON.stringify({ provider: 'github', callbackURL: '/files' }),
     })
 
-    expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toEqual({ error: 'Captcha is required for social authentication' })
+    expect(await res.text()).not.toContain('Captcha')
   })
 
   it('leaves social auth with Better Auth when captcha is disabled', async () => {
@@ -80,7 +78,7 @@ describe('auth captcha guard', () => {
     expect(await res.text()).not.toContain('Captcha is required for social authentication')
   })
 
-  it('rejects malformed captcha auth payloads when captcha is enabled', async () => {
+  it('does not apply captcha to social auth requests with malformed bodies', async () => {
     const { app, db } = await createTestApp()
     await db.insert(systemOptions).values([
       { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
@@ -88,13 +86,12 @@ describe('auth captcha guard', () => {
       { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
     ])
 
-    const res = await app.request('/api/auth/sign-in/email', {
+    const res = await app.request('/api/auth/sign-in/social', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{',
     })
 
-    expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toEqual({ error: 'Invalid captcha token' })
+    expect(await res.text()).not.toContain('Invalid captcha token')
   })
 })

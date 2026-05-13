@@ -1,4 +1,12 @@
-import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '@shared/captcha'
+import {
+  CAPTCHA_ENABLED_KEY,
+  CAPTCHA_MIN_SCORE_KEY,
+  CAPTCHA_PROVIDER_KEY,
+  CAPTCHA_SECRET_OPTION_KEY,
+  CAPTCHA_SITE_KEY_KEY,
+  type CaptchaProvider,
+  DEFAULT_CAPTCHA_PROVIDER,
+} from '@shared/captcha'
 import { DEFAULT_ORG_QUOTA, DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME, SignupMode } from '@shared/constants'
 import { useQuery } from '@tanstack/react-query'
 import { listSystemOptions, type SiteOption } from '@/lib/api'
@@ -28,8 +36,10 @@ export function useSiteOptions() {
     defaultOrgQuota: resolveDefaultOrgQuotaValue(optionMap.get('default_org_quota')),
     authSignupMode: (optionMap.get('auth_signup_mode') as SignupMode) ?? SignupMode.OPEN,
     captchaEnabled: optionMap.get(CAPTCHA_ENABLED_KEY) === 'true',
+    captchaProvider: (optionMap.get(CAPTCHA_PROVIDER_KEY) as CaptchaProvider | undefined) ?? DEFAULT_CAPTCHA_PROVIDER,
     captchaSiteKey: optionMap.get(CAPTCHA_SITE_KEY_KEY) ?? '',
     captchaSecretKey: optionMap.get(CAPTCHA_SECRET_OPTION_KEY) ?? '',
+    captchaMinScore: optionMap.get(CAPTCHA_MIN_SCORE_KEY) ?? '',
     isLoading,
     isError,
   }
