@@ -15,6 +15,7 @@ import type { Storage } from '../../shared/types'
 
 const DEFAULT_EXPIRES_IN = 3600
 const MULTIPART_PART_SIZE = 5 * 1024 * 1024
+const SMALL_STREAM_PUT_BUFFER_SIZE = 256 * 1024
 
 export class S3Service {
   createClient(storage: Storage): S3Client {
@@ -141,6 +142,11 @@ export class S3Service {
   ): Promise<number> {
     if (body instanceof ReadableStream) {
       if (contentLength === undefined) return this.putObjectMultipartStream(storage, key, body, contentType)
+      if (contentLength <= SMALL_STREAM_PUT_BUFFER_SIZE) {
+        const bytes = await streamToBytes(body)
+        if (bytes.byteLength !== contentLength) throw new Error('Request body length does not match Content-Length')
+        return this.putObject(storage, key, bytes, contentType)
+      }
       await this.putObjectStream(storage, key, body, contentType, contentLength)
       return contentLength
     }
@@ -279,7 +285,7 @@ export class S3Service {
 
 async function bodyToBytes(body: unknown): Promise<Uint8Array> {
   if (body instanceof Uint8Array) return body
-  if (body instanceof ReadableStream) return new Uint8Array(await new Response(body).arrayBuffer())
+  if (body instanceof ReadableStream) return streamToBytes(body)
 
   const streamBody = body as {
     transformToByteArray?: () => Promise<Uint8Array>
@@ -289,6 +295,10 @@ async function bodyToBytes(body: unknown): Promise<Uint8Array> {
   if (streamBody.arrayBuffer) return new Uint8Array(await streamBody.arrayBuffer())
 
   throw new Error('Unsupported object body')
+}
+
+async function streamToBytes(body: ReadableStream): Promise<Uint8Array> {
+  return new Uint8Array(await new Response(body).arrayBuffer())
 }
 
 function bodyToResponseBody(body: unknown): BodyInit {
