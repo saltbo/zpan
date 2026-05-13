@@ -95,20 +95,20 @@ describe('SignIn — OAuth and form callback URL', () => {
   })
 })
 
-function visibleOAuthProviderCount(captchaEnabled: boolean, providerCount: number): number {
-  return captchaEnabled ? 0 : providerCount
+function visibleOAuthProviderCount(_captchaEnabled: boolean, providerCount: number): number {
+  return providerCount
 }
 
 describe('SignIn — OAuth visibility with captcha', () => {
-  it('hides OAuth providers when captcha is enabled', () => {
-    expect(visibleOAuthProviderCount(true, 2)).toBe(0)
+  it('keeps OAuth providers visible when captcha is enabled', () => {
+    expect(visibleOAuthProviderCount(true, 2)).toBe(2)
   })
 
   it('keeps OAuth providers visible when captcha is disabled', () => {
     expect(visibleOAuthProviderCount(false, 2)).toBe(2)
   })
 
-  it('hides the OAuth divider when captcha removes visible providers', () => {
-    expect(visibleOAuthProviderCount(true, 2) > 0).toBe(false)
+  it('keeps the OAuth divider when captcha is enabled and providers exist', () => {
+    expect(visibleOAuthProviderCount(true, 2) > 0).toBe(true)
   })
 })

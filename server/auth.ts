@@ -1,7 +1,7 @@
 import { apiKey } from '@better-auth/api-key'
-import { APIError, betterAuth } from 'better-auth'
+import { APIError, type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { admin, organization, username } from 'better-auth/plugins'
+import { admin, captcha, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
@@ -18,6 +18,7 @@ import { orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
+import { loadCaptchaConfig, toBetterAuthCaptchaOptions } from './services/captcha'
 import { executeWriteTransaction } from './services/db-transaction'
 import { currentTrafficPeriod } from './services/effective-quota'
 import { isEmailConfigured, sendEmail } from './services/email'
@@ -82,6 +83,18 @@ function buildDynamicSocialProviders(db: Database) {
     }
   }
   return providers
+}
+
+function dynamicCaptcha(db: Database): BetterAuthPlugin {
+  return {
+    id: 'dynamic-captcha',
+    onRequest: async (request, ctx) => {
+      const config = await loadCaptchaConfig(db)
+      if (!config) return
+      const plugin = captcha(toBetterAuthCaptchaOptions(config))
+      return plugin.onRequest?.(request, ctx)
+    },
+  }
 }
 
 const _INVITE_CODE_ERRORS: Record<string, string> = {
@@ -254,6 +267,7 @@ export async function createAuth(
         },
       }),
       username(),
+      dynamicCaptcha(db),
       genericOAuth({
         config: oidcConfigs.map((c) => ({
           providerId: c.providerId,

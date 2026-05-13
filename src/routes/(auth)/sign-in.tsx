@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Turnstile } from '@/components/captcha/turnstile'
+import { ProviderCaptcha } from '@/components/captcha/provider-captcha'
 import { OAuthButtons, useOAuthProviders } from '@/components/oauth-buttons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,9 +30,9 @@ function SignIn() {
       return null
     }
   })()
-  const { authSignupMode, captchaEnabled, captchaSiteKey, siteName } = useSiteOptions()
+  const { authSignupMode, captchaEnabled, captchaProvider, captchaSiteKey, siteName } = useSiteOptions()
   const { providers } = useOAuthProviders()
-  const authProviders = captchaEnabled ? [] : providers
+  const authProviders = providers
   const [identity, setIdentity] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -46,9 +46,10 @@ function SignIn() {
     setLoading(true)
     try {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)
+      const fetchOptions = captchaEnabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined
       const result = isEmail
-        ? await signIn.email({ email: identity, password, callbackURL: '/files' }, { body: { captchaToken } })
-        : await signIn.username({ username: identity, password, callbackURL: '/files' }, { body: { captchaToken } })
+        ? await signIn.email({ email: identity, password, callbackURL: '/files', fetchOptions })
+        : await signIn.username({ username: identity, password, callbackURL: '/files', fetchOptions })
 
       if (result.error) {
         setError(result.error.message ?? t('auth.signInFailed'))
@@ -73,7 +74,7 @@ function SignIn() {
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signInSubtitle')}</p>
         </div>
-        {!captchaEnabled && <OAuthButtons />}
+        <OAuthButtons />
         {showDivider && (
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />
@@ -112,7 +113,9 @@ function SignIn() {
                 required
               />
             </div>
-            {captchaEnabled && captchaSiteKey && <Turnstile siteKey={captchaSiteKey} onToken={setCaptchaToken} />}
+            {captchaEnabled && captchaSiteKey && (
+              <ProviderCaptcha provider={captchaProvider} siteKey={captchaSiteKey} onToken={setCaptchaToken} />
+            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken)}>
               {loading ? t('auth.signingIn') : t('auth.signIn')}

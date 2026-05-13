@@ -4,7 +4,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Turnstile } from '@/components/captcha/turnstile'
+import { ProviderCaptcha } from '@/components/captcha/provider-captcha'
 import { OAuthButtons, useOAuthProviders } from '@/components/oauth-buttons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,9 +25,16 @@ function SignUp() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { invite } = Route.useSearch()
-  const { authSignupMode, captchaEnabled, captchaSiteKey, isLoading: optionsLoading, siteName } = useSiteOptions()
+  const {
+    authSignupMode,
+    captchaEnabled,
+    captchaProvider,
+    captchaSiteKey,
+    isLoading: optionsLoading,
+    siteName,
+  } = useSiteOptions()
   const { providers } = useOAuthProviders()
-  const authProviders = captchaEnabled ? [] : providers
+  const authProviders = providers
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -126,18 +133,16 @@ function SignUp() {
     setError('')
     setLoading(true)
     try {
-      const result = await signUp.email(
-        {
-          username,
-          name: '',
-          email,
-          password,
-          callbackURL: '/files',
-          ...(authSignupMode === SignupMode.INVITE_ONLY ? { inviteCode } : {}),
-          ...(hasValidInvite && invite ? { siteInvitationToken: invite } : {}),
-        },
-        { body: { captchaToken } },
-      )
+      const result = await signUp.email({
+        username,
+        name: '',
+        email,
+        password,
+        callbackURL: '/files',
+        fetchOptions: captchaEnabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined,
+        ...(authSignupMode === SignupMode.INVITE_ONLY ? { inviteCode } : {}),
+        ...(hasValidInvite && invite ? { siteInvitationToken: invite } : {}),
+      })
       if (result.error) {
         setError(result.error.message ?? t('auth.signUpFailed'))
         return
@@ -157,7 +162,7 @@ function SignUp() {
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signUpSubtitle')}</p>
         </div>
-        {!captchaEnabled && <OAuthButtons />}
+        <OAuthButtons />
         {showDivider && (
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />
@@ -219,7 +224,9 @@ function SignUp() {
                 <Input id="inviteCode" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required />
               </div>
             )}
-            {captchaEnabled && captchaSiteKey && <Turnstile siteKey={captchaSiteKey} onToken={setCaptchaToken} />}
+            {captchaEnabled && captchaSiteKey && (
+              <ProviderCaptcha provider={captchaProvider} siteKey={captchaSiteKey} onToken={setCaptchaToken} />
+            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button
               type="submit"

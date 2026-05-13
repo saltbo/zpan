@@ -60,7 +60,7 @@ describe('Auth API', () => {
     })
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: 'Invalid captcha token' })
+    await expect(res.json()).resolves.toMatchObject({ message: 'Missing CAPTCHA response' })
   })
 
   it('POST /api/auth/sign-up/email rejects missing captcha token when captcha is enabled', async () => {
@@ -78,7 +78,7 @@ describe('Auth API', () => {
     })
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: 'Invalid captcha token' })
+    await expect(res.json()).resolves.toMatchObject({ message: 'Missing CAPTCHA response' })
   })
 
   it('POST /api/auth/sign-in/email accepts valid captcha token when captcha is enabled', async () => {
@@ -97,11 +97,10 @@ describe('Auth API', () => {
 
     const res = await app.request('/api/auth/sign-in/email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-captcha-response': 'valid-token' },
       body: JSON.stringify({
         email: 'captcha-valid@example.com',
         password: 'password123456',
-        captchaToken: 'valid-token',
       }),
     })
 
@@ -120,12 +119,11 @@ describe('Auth API', () => {
 
     const res = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-captcha-response': 'valid-token' },
       body: JSON.stringify({
         name: 'Test',
         email: 'captcha-signup-valid@example.com',
         password: 'password123456',
-        captchaToken: 'valid-token',
       }),
     })
 

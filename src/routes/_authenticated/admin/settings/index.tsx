@@ -1,5 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '@shared/captcha'
+import {
+  CAPTCHA_ENABLED_KEY,
+  CAPTCHA_MIN_SCORE_KEY,
+  CAPTCHA_PROVIDER_KEY,
+  CAPTCHA_PROVIDERS,
+  CAPTCHA_SECRET_OPTION_KEY,
+  CAPTCHA_SITE_KEY_KEY,
+  type CaptchaProvider,
+} from '@shared/captcha'
 import { SignupMode } from '@shared/constants'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
@@ -16,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { siteOptionsQueryKey, useSiteOptions } from '@/hooks/use-site-options'
@@ -41,8 +50,10 @@ const settingsSchema = z.object({
   cloudStoreEnabled: z.boolean(),
   registrationsEnabled: z.boolean(),
   captchaEnabled: z.boolean(),
+  captchaProvider: z.enum(CAPTCHA_PROVIDERS),
   captchaSiteKey: z.string(),
   captchaSecretKey: z.string(),
+  captchaMinScore: z.string(),
 })
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
@@ -68,8 +79,10 @@ export function SettingsPage() {
     defaultOrgQuota: quotaBytes,
     authSignupMode,
     captchaEnabled,
+    captchaProvider,
     captchaSiteKey,
     captchaSecretKey,
+    captchaMinScore,
     isLoading,
   } = useSiteOptions()
   const { hasFeature } = useEntitlement()
@@ -93,8 +106,10 @@ export function SettingsPage() {
       cloudStoreEnabled: false,
       registrationsEnabled: false,
       captchaEnabled: false,
+      captchaProvider: 'cloudflare-turnstile',
       captchaSiteKey: '',
       captchaSecretKey: '',
+      captchaMinScore: '',
     },
   })
 
@@ -109,8 +124,10 @@ export function SettingsPage() {
       cloudStoreEnabled: cloudStoreQuery.data?.enabled ?? false,
       registrationsEnabled: authSignupMode === SignupMode.OPEN,
       captchaEnabled,
+      captchaProvider,
       captchaSiteKey,
       captchaSecretKey,
+      captchaMinScore,
     })
   }, [
     isLoading,
@@ -120,8 +137,10 @@ export function SettingsPage() {
     cloudStoreQuery.data,
     authSignupMode,
     captchaEnabled,
+    captchaProvider,
     captchaSiteKey,
     captchaSecretKey,
+    captchaMinScore,
     form,
   ])
 
@@ -181,8 +200,10 @@ export function SettingsPage() {
       const valid = await form.trigger(['captchaEnabled', 'captchaSiteKey', 'captchaSecretKey'])
       if (!valid) throw new Error(t('admin.settings.captchaInvalid'))
       const values = form.getValues()
+      await setSystemOption(CAPTCHA_PROVIDER_KEY, values.captchaProvider, true)
       await setSystemOption(CAPTCHA_SITE_KEY_KEY, values.captchaSiteKey.trim(), true)
       await setSystemOption(CAPTCHA_SECRET_OPTION_KEY, values.captchaSecretKey.trim(), false)
+      await setSystemOption(CAPTCHA_MIN_SCORE_KEY, values.captchaMinScore.trim(), false)
       await setSystemOption(CAPTCHA_ENABLED_KEY, String(values.captchaEnabled), true)
     },
     onSuccess: () => {
@@ -199,6 +220,7 @@ export function SettingsPage() {
   const cloudStoreEnabled = form.watch('cloudStoreEnabled')
   const registrationsEnabled = form.watch('registrationsEnabled')
   const captchaProtectionEnabled = form.watch('captchaEnabled')
+  const selectedCaptchaProvider = form.watch('captchaProvider')
 
   if (isLoading) {
     return (
@@ -332,6 +354,27 @@ export function SettingsPage() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="captchaProvider">{t('admin.settings.captchaProvider')}</Label>
+              <Select
+                value={selectedCaptchaProvider}
+                onValueChange={(provider: CaptchaProvider) =>
+                  form.setValue('captchaProvider', provider, { shouldDirty: true })
+                }
+              >
+                <SelectTrigger id="captchaProvider" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cloudflare-turnstile">{t('admin.settings.captchaProviderTurnstile')}</SelectItem>
+                  <SelectItem value="google-recaptcha">{t('admin.settings.captchaProviderRecaptcha')}</SelectItem>
+                  <SelectItem value="hcaptcha">{t('admin.settings.captchaProviderHcaptcha')}</SelectItem>
+                  <SelectItem value="captchafox">{t('admin.settings.captchaProviderCaptchafox')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{t('admin.settings.captchaProviderHint')}</p>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="captchaSiteKey">{t('admin.settings.captchaSiteKey')}</Label>
@@ -353,6 +396,19 @@ export function SettingsPage() {
                 <p className="text-xs text-muted-foreground">{t('admin.settings.captchaSecretKeyHint')}</p>
               </div>
             </div>
+
+            {selectedCaptchaProvider === 'google-recaptcha' && (
+              <div className="space-y-2">
+                <Label htmlFor="captchaMinScore">{t('admin.settings.captchaMinScore')}</Label>
+                <Input
+                  id="captchaMinScore"
+                  inputMode="decimal"
+                  placeholder={t('admin.settings.captchaMinScorePlaceholder')}
+                  {...form.register('captchaMinScore')}
+                />
+                <p className="text-xs text-muted-foreground">{t('admin.settings.captchaMinScoreHint')}</p>
+              </div>
+            )}
 
             <div className="flex justify-end">
               <Button type="button" disabled={captchaMutation.isPending} onClick={() => captchaMutation.mutate()}>

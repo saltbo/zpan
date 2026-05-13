@@ -4,10 +4,10 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import {
   CAPTCHA_ENABLED_KEY,
+  CAPTCHA_MIN_SCORE_KEY,
   CAPTCHA_PRIVATE_KEYS,
+  CAPTCHA_PROVIDER_KEY,
   CAPTCHA_PUBLIC_KEYS,
-  CAPTCHA_SECRET_OPTION_KEY,
-  CAPTCHA_SITE_KEY_KEY,
 } from '../../shared/captcha'
 import { SignupMode } from '../../shared/constants'
 import { systemOptions } from '../db/schema'
@@ -15,6 +15,7 @@ import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
+import { loadCaptchaOptionValues, readCaptchaConfig } from '../services/captcha'
 
 const setOptionSchema = z.object({
   value: z.string(),
@@ -61,25 +62,24 @@ const app = new Hono<Env>()
       }
     }
 
-    if (key === CAPTCHA_ENABLED_KEY && body.value === 'true') {
-      const rows = await db
-        .select({ key: systemOptions.key, value: systemOptions.value })
-        .from(systemOptions)
-        .where(eq(systemOptions.key, CAPTCHA_SECRET_OPTION_KEY))
-      const [siteKey] = await db
-        .select({ value: systemOptions.value })
-        .from(systemOptions)
-        .where(eq(systemOptions.key, CAPTCHA_SITE_KEY_KEY))
-      if (!siteKey?.value) return c.json({ error: 'Captcha site key is required before enabling captcha' }, 400)
-      if (!rows[0]?.value) return c.json({ error: 'Captcha secret key is required before enabling captcha' }, 400)
-    }
-
     if ((CAPTCHA_PUBLIC_KEYS as readonly string[]).includes(key)) {
       isPublic = true
     }
 
     if ((CAPTCHA_PRIVATE_KEYS as readonly string[]).includes(key)) {
       isPublic = false
+    }
+
+    if (key === CAPTCHA_PROVIDER_KEY || key === CAPTCHA_MIN_SCORE_KEY || key.startsWith('captcha_')) {
+      const captchaValues = await loadCaptchaOptionValues(db)
+      captchaValues[key] = value
+      try {
+        readCaptchaConfig(captchaValues)
+      } catch (err) {
+        if (captchaValues[CAPTCHA_ENABLED_KEY] === 'true') {
+          return c.json({ error: err instanceof Error ? err.message : 'Captcha configuration is invalid' }, 400)
+        }
+      }
     }
 
     if (key === 'default_org_quota') {
