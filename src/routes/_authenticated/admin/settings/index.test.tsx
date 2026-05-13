@@ -3,9 +3,23 @@ import { SignupMode } from '@shared/constants'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { toast } from 'sonner'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getCloudStoreSettings, setSystemOption, updateCloudStoreSettings } from '@/lib/api'
 import { SettingsPage } from './index'
+
+const siteOptionsState = vi.hoisted(() => ({
+  current: {
+    siteName: 'ZPan',
+    siteDescription: 'File hosting',
+    defaultOrgQuota: 1073741824,
+    authSignupMode: 'open',
+    captchaEnabled: false,
+    captchaSiteKey: '',
+    captchaSecretKey: '',
+    isLoading: false,
+    isError: false,
+  },
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -30,17 +44,7 @@ vi.mock('@/components/admin/branding-section', () => ({
 
 vi.mock('@/hooks/use-site-options', () => ({
   siteOptionsQueryKey: ['system', 'options'],
-  useSiteOptions: () => ({
-    siteName: 'ZPan',
-    siteDescription: 'File hosting',
-    defaultOrgQuota: 1073741824,
-    authSignupMode: SignupMode.OPEN,
-    captchaEnabled: false,
-    captchaSiteKey: '',
-    captchaSecretKey: '',
-    isLoading: false,
-    isError: false,
-  }),
+  useSiteOptions: () => siteOptionsState.current,
 }))
 
 vi.mock('@/hooks/useEntitlement', () => ({
@@ -70,21 +74,67 @@ function renderSettingsPage() {
   )
 }
 
+beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
+})
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  siteOptionsState.current = {
+    siteName: 'ZPan',
+    siteDescription: 'File hosting',
+    defaultOrgQuota: 1073741824,
+    authSignupMode: SignupMode.OPEN,
+    captchaEnabled: false,
+    captchaSiteKey: '',
+    captchaSecretKey: '',
+    isLoading: false,
+    isError: false,
+  }
 })
 
 describe('SettingsPage', () => {
+  it('saves identity settings from the identity section', async () => {
+    vi.mocked(getCloudStoreSettings).mockResolvedValue(null)
+
+    const view = renderSettingsPage()
+    await view.findByLabelText('admin.settings.siteName')
+
+    fireEvent.change(view.getByLabelText('admin.settings.siteName'), {
+      target: { value: 'New ZPan' },
+    })
+    fireEvent.change(view.getByLabelText('admin.settings.siteDescription'), {
+      target: { value: 'Updated file hosting' },
+    })
+
+    fireEvent.click(view.getAllByRole('button', { name: 'common.save' })[0])
+
+    await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('site_name', 'New ZPan', true))
+    expect(setSystemOption).toHaveBeenCalledWith('site_description', 'Updated file hosting', true)
+    expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
+  })
+
+  it('saves closed registration mode from the registration switch', async () => {
+    vi.mocked(getCloudStoreSettings).mockResolvedValue(null)
+
+    const view = renderSettingsPage()
+    const registrationSwitch = await view.findByRole('switch', { name: 'admin.settings.registrationLabel' })
+
+    fireEvent.click(registrationSwitch)
+
+    await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('auth_signup_mode', SignupMode.CLOSED, true))
+    expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
+  })
+
   it('updates storage plans from the storage settings section', async () => {
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      },
-    )
     vi.mocked(getCloudStoreSettings).mockResolvedValue({
       id: 'settings-1',
       enabled: false,
