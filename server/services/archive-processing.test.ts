@@ -22,10 +22,11 @@ class MemoryS3 {
     return bytes
   }
 
-  async putObject(_storage: unknown, key: string, body: Uint8Array | ReadableStream): Promise<void> {
+  async putObject(_storage: unknown, key: string, body: Uint8Array | ReadableStream): Promise<number> {
     const bytes = body instanceof Uint8Array ? body : new Uint8Array(await new Response(body).arrayBuffer())
     this.objects.set(key, bytes)
     this.putKeys.push(key)
+    return bytes.byteLength
   }
 
   async deleteObject(_storage: unknown, key: string): Promise<void> {
@@ -38,7 +39,7 @@ class MemoryS3 {
 }
 
 class FailingPutS3 extends MemoryS3 {
-  async putObject(): Promise<void> {
+  async putObject(): Promise<number> {
     throw new Error('S3 put failed')
   }
 }
@@ -50,10 +51,10 @@ class FailAfterPutS3 extends MemoryS3 {
     super()
   }
 
-  override async putObject(storage: unknown, key: string, body: Uint8Array | ReadableStream): Promise<void> {
+  override async putObject(storage: unknown, key: string, body: Uint8Array | ReadableStream): Promise<number> {
     this.attempts += 1
     if (this.attempts === this.failAt) throw new Error('S3 put failed')
-    await super.putObject(storage, key, body)
+    return super.putObject(storage, key, body)
   }
 }
 

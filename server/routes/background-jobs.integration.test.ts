@@ -52,8 +52,10 @@ describe('background jobs API', () => {
       return bytes
     })
     vi.spyOn(S3Service.prototype, 'putObject').mockImplementation(async (_storage, key, body) => {
-      objectStore.set(key, body instanceof Uint8Array ? body : new Uint8Array(await new Response(body).arrayBuffer()))
+      const bytes = body instanceof Uint8Array ? body : new Uint8Array(await new Response(body).arrayBuffer())
+      objectStore.set(key, bytes)
       putKeys.push(key)
+      return bytes.byteLength
     })
 
     const res = await app.request('/api/background-jobs', {

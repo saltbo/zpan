@@ -110,7 +110,7 @@ describe('GET /api/branding', () => {
 
 describe('PUT /api/admin/branding', () => {
   beforeEach(() => {
-    vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(undefined)
+    vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(16)
     vi.spyOn(S3Service.prototype, 'getPublicUrl').mockReturnValue('https://cdn.example.com/logo.png')
   })
 

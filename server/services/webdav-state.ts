@@ -193,40 +193,21 @@ export async function copyDeadProperties(
 export async function activeLocks(db: Database, orgId: string, resourcePath: string): Promise<DavLock[]> {
   await purgeExpiredLocks(db)
   const now = Date.now()
-  return db
+  const rows = await db
     .select()
     .from(webdavLocks)
-    .where(
-      and(
-        eq(webdavLocks.orgId, orgId),
-        sql`${webdavLocks.expiresAt} > ${now}`,
-        or(
-          eq(webdavLocks.resourcePath, resourcePath),
-          sql`${webdavLocks.resourcePath} = '' AND ${webdavLocks.depth} = 'infinity'`,
-          sql`${resourcePath} LIKE ${webdavLocks.resourcePath} || '/%' AND ${webdavLocks.depth} = 'infinity'`,
-        ),
-      ),
-    )
+    .where(and(eq(webdavLocks.orgId, orgId), sql`${webdavLocks.expiresAt} > ${now}`))
+  return rows.filter((lock) => lockAppliesToResource(lock, resourcePath))
 }
 
 export async function conflictingLocks(db: Database, orgId: string, resourcePath: string): Promise<DavLock[]> {
   await purgeExpiredLocks(db)
   const now = Date.now()
-  return db
+  const rows = await db
     .select()
     .from(webdavLocks)
-    .where(
-      and(
-        eq(webdavLocks.orgId, orgId),
-        sql`${webdavLocks.expiresAt} > ${now}`,
-        or(
-          eq(webdavLocks.resourcePath, resourcePath),
-          sql`${webdavLocks.resourcePath} = '' AND ${webdavLocks.depth} = 'infinity'`,
-          sql`${resourcePath} LIKE ${webdavLocks.resourcePath} || '/%' AND ${webdavLocks.depth} = 'infinity'`,
-          sql`${webdavLocks.resourcePath} LIKE ${resourcePath} || '/%'`,
-        ),
-      ),
-    )
+    .where(and(eq(webdavLocks.orgId, orgId), sql`${webdavLocks.expiresAt} > ${now}`))
+  return rows.filter((lock) => lockConflictsWithResource(lock, resourcePath))
 }
 
 export async function directLocks(db: Database, orgId: string, resourcePath: string): Promise<DavLock[]> {
@@ -275,44 +256,44 @@ export async function refreshLock(
   const now = new Date()
   const expiresAt = new Date(now.getTime() + timeoutSeconds * 1000)
   const rows = await db
-    .update(webdavLocks)
-    .set({ expiresAt, updatedAt: now })
+    .select()
+    .from(webdavLocks)
     .where(
-      and(
-        eq(webdavLocks.orgId, orgId),
-        eq(webdavLocks.token, token),
-        sql`${webdavLocks.expiresAt} > ${now.getTime()}`,
-        or(
-          eq(webdavLocks.resourcePath, resourcePath),
-          sql`${webdavLocks.resourcePath} = '' AND ${webdavLocks.depth} = 'infinity'`,
-          sql`${resourcePath} LIKE ${webdavLocks.resourcePath} || '/%' AND ${webdavLocks.depth} = 'infinity'`,
-        ),
-      ),
+      and(eq(webdavLocks.orgId, orgId), eq(webdavLocks.token, token), sql`${webdavLocks.expiresAt} > ${now.getTime()}`),
     )
-    .returning()
-  return rows[0] ?? null
+  const lock = rows.find((row) => lockAppliesToResource(row, resourcePath))
+  if (!lock) return null
+  await db.update(webdavLocks).set({ expiresAt, updatedAt: now }).where(eq(webdavLocks.id, lock.id))
+  return { ...lock, expiresAt, updatedAt: now }
 }
 
 export async function removeLock(db: Database, orgId: string, resourcePath: string, token: string): Promise<boolean> {
   await purgeExpiredLocks(db)
   const rows = await db
-    .delete(webdavLocks)
+    .select()
+    .from(webdavLocks)
     .where(
-      and(
-        eq(webdavLocks.orgId, orgId),
-        eq(webdavLocks.token, token),
-        sql`${webdavLocks.expiresAt} > ${Date.now()}`,
-        or(
-          eq(webdavLocks.resourcePath, resourcePath),
-          sql`${webdavLocks.resourcePath} = '' AND ${webdavLocks.depth} = 'infinity'`,
-          sql`${resourcePath} LIKE ${webdavLocks.resourcePath} || '/%' AND ${webdavLocks.depth} = 'infinity'`,
-        ),
-      ),
+      and(eq(webdavLocks.orgId, orgId), eq(webdavLocks.token, token), sql`${webdavLocks.expiresAt} > ${Date.now()}`),
     )
-    .returning({ id: webdavLocks.id })
-  return rows.length > 0
+  const lock = rows.find((row) => lockAppliesToResource(row, resourcePath))
+  if (!lock) return false
+  await db.delete(webdavLocks).where(eq(webdavLocks.id, lock.id))
+  return true
 }
 
 async function purgeExpiredLocks(db: Database): Promise<void> {
   await db.delete(webdavLocks).where(sql`${webdavLocks.expiresAt} <= ${Date.now()}`)
+}
+
+function lockAppliesToResource(lock: DavLock, resourcePath: string): boolean {
+  if (lock.resourcePath === resourcePath) return true
+  if (lock.depth !== 'infinity') return false
+  if (lock.resourcePath === '') return true
+  return resourcePath.startsWith(`${lock.resourcePath}/`)
+}
+
+function lockConflictsWithResource(lock: DavLock, resourcePath: string): boolean {
+  if (lockAppliesToResource(lock, resourcePath)) return true
+  if (resourcePath === '') return lock.resourcePath !== ''
+  return lock.resourcePath.startsWith(`${resourcePath}/`)
 }

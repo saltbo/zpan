@@ -18,6 +18,30 @@ vi.mock('@aws-sdk/client-s3', () => {
       this.input = input
     }
   }
+  class MockCreateMultipartUploadCommand {
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
+  }
+  class MockUploadPartCommand {
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
+  }
+  class MockCompleteMultipartUploadCommand {
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
+  }
+  class MockAbortMultipartUploadCommand {
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
+  }
   class MockGetObjectCommand {
     input: unknown
     constructor(input: unknown) {
@@ -51,6 +75,10 @@ vi.mock('@aws-sdk/client-s3', () => {
   return {
     S3Client: MockS3Client,
     PutObjectCommand: MockPutObjectCommand,
+    CreateMultipartUploadCommand: MockCreateMultipartUploadCommand,
+    UploadPartCommand: MockUploadPartCommand,
+    CompleteMultipartUploadCommand: MockCompleteMultipartUploadCommand,
+    AbortMultipartUploadCommand: MockAbortMultipartUploadCommand,
     GetObjectCommand: MockGetObjectCommand,
     HeadObjectCommand: MockHeadObjectCommand,
     CopyObjectCommand: MockCopyObjectCommand,
@@ -94,6 +122,7 @@ describe('S3Service', () => {
       expect(client.config).toMatchObject({
         region: 'us-east-1',
         endpoint: 'https://s3.example.com',
+        requestChecksumCalculation: 'WHEN_REQUIRED',
         forcePathStyle: true,
       })
     })
@@ -256,6 +285,53 @@ describe('S3Service', () => {
     })
   })
 
+  describe('getObjectBody', () => {
+    it('returns ReadableStream bodies without buffering', async () => {
+      const stream = new ReadableStream()
+      mockSend.mockResolvedValueOnce({ Body: stream })
+
+      await expect(service.getObjectBody(storage, 'test.bin')).resolves.toBe(stream)
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'test.bin' } }),
+      )
+    })
+
+    it('returns Uint8Array bodies as a response body', async () => {
+      const bytes = new Uint8Array([1, 2, 3])
+      mockSend.mockResolvedValueOnce({ Body: bytes })
+
+      const body = await service.getObjectBody(storage, 'test.bin')
+      await expect(new Response(body).arrayBuffer()).resolves.toEqual(bytes.buffer)
+    })
+
+    it('uses transformToWebStream bodies without converting to bytes', async () => {
+      const stream = new ReadableStream()
+      const body = {
+        transformToByteArray: vi.fn(),
+        transformToWebStream: vi.fn(() => stream),
+      }
+      mockSend.mockResolvedValueOnce({ Body: body })
+
+      await expect(service.getObjectBody(storage, 'test.bin', 'bytes=0-4')).resolves.toBe(stream)
+      expect(body.transformToByteArray).not.toHaveBeenCalled()
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'test.bin', Range: 'bytes=0-4' } }),
+      )
+    })
+
+    it('rejects empty object bodies', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await expect(service.getObjectBody(storage, 'missing.bin')).rejects.toThrow('Empty body from object')
+    })
+
+    it('rejects unsupported object bodies', async () => {
+      mockSend.mockResolvedValueOnce({ Body: {} })
+
+      await expect(service.getObjectBody(storage, 'test.bin')).rejects.toThrow('Unsupported object body')
+    })
+  })
+
   describe('copyObject', () => {
     it('sends CopyObjectCommand with correct CopySource', async () => {
       mockSend.mockResolvedValueOnce({ $metadata: {} })
@@ -302,7 +378,7 @@ describe('S3Service', () => {
     it('sends PutObjectCommand with correct params for Uint8Array body', async () => {
       mockSend.mockResolvedValueOnce({ $metadata: {} })
       const body = new Uint8Array([1, 2, 3])
-      await service.putObject(storage, 'images/test.png', body, 'image/png')
+      await expect(service.putObject(storage, 'images/test.png', body, 'image/png')).resolves.toBe(3)
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           input: {
@@ -310,8 +386,146 @@ describe('S3Service', () => {
             Key: 'images/test.png',
             Body: body,
             ContentType: 'image/png',
+            ContentLength: 3,
           },
         }),
+      )
+    })
+
+    it('uploads small fixed-length ReadableStream bodies directly', async () => {
+      mockSend.mockResolvedValueOnce({ $metadata: {} })
+      const body = bytesStream(new Uint8Array([1, 2, 3]))
+
+      await expect(service.putObject(storage, 'notes/test.txt', body, 'text/plain', 3)).resolves.toBe(3)
+
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: {
+            Bucket: 'my-bucket',
+            Key: 'notes/test.txt',
+            Body: new Uint8Array([1, 2, 3]),
+            ContentType: 'text/plain',
+            ContentLength: 3,
+          },
+        }),
+      )
+    })
+
+    it('rejects small fixed-length streams that do not match Content-Length', async () => {
+      const body = bytesStream(new Uint8Array([1, 2, 3]))
+
+      await expect(service.putObject(storage, 'notes/test.txt', body, 'text/plain', 4)).rejects.toThrow(
+        'Request body length does not match Content-Length',
+      )
+    })
+
+    it('uploads large ReadableStream bodies through a presigned PUT without buffering', async () => {
+      mockSend.mockClear()
+      const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const body = new ReadableStream()
+      await expect(service.putObject(storage, 'videos/test.mp4', body, 'video/mp4', 1024 * 1024)).resolves.toBe(
+        1024 * 1024,
+      )
+      expect(fetchMock).toHaveBeenCalledWith('https://signed-url.example.com', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'video/mp4',
+          'Content-Length': '1048576',
+        },
+        body,
+      })
+      expect(mockSend).not.toHaveBeenCalled()
+      vi.unstubAllGlobals()
+    })
+
+    it('fails when presigned stream upload is rejected', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(null, { status: 403 })))
+      await expect(
+        service.putObject(storage, 'videos/test.mp4', new ReadableStream(), 'video/mp4', 1024 * 1024),
+      ).rejects.toThrow('S3 stream upload failed: 403')
+      vi.unstubAllGlobals()
+    })
+
+    it('uploads ReadableStream bodies without content length through multipart upload', async () => {
+      mockSend.mockClear()
+      mockSend
+        .mockResolvedValueOnce({ UploadId: 'upload-1' })
+        .mockResolvedValueOnce({ ETag: '"part-1"' })
+        .mockResolvedValueOnce({ $metadata: {} })
+      const body = bytesStream(new Uint8Array([1, 2, 3]))
+
+      await expect(service.putObject(storage, 'videos/test.mp4', body, 'video/mp4')).resolves.toBe(3)
+
+      expect(mockSend).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          input: { Bucket: 'my-bucket', Key: 'videos/test.mp4', ContentType: 'video/mp4' },
+        }),
+      )
+      expect(mockSend).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          input: {
+            Bucket: 'my-bucket',
+            Key: 'videos/test.mp4',
+            UploadId: 'upload-1',
+            PartNumber: 1,
+            Body: new Uint8Array([1, 2, 3]),
+            ContentLength: 3,
+          },
+        }),
+      )
+      expect(mockSend).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({
+          input: {
+            Bucket: 'my-bucket',
+            Key: 'videos/test.mp4',
+            UploadId: 'upload-1',
+            MultipartUpload: { Parts: [{ ETag: '"part-1"', PartNumber: 1 }] },
+          },
+        }),
+      )
+    })
+
+    it('writes empty unknown-length streams as empty objects', async () => {
+      mockSend.mockClear()
+      mockSend.mockResolvedValueOnce({ UploadId: 'upload-1' }).mockResolvedValueOnce({}).mockResolvedValueOnce({})
+
+      await expect(service.putObject(storage, 'empty.bin', bytesStream(), 'application/octet-stream')).resolves.toBe(0)
+
+      expect(mockSend).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'empty.bin', UploadId: 'upload-1' } }),
+      )
+      expect(mockSend).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({
+          input: {
+            Bucket: 'my-bucket',
+            Key: 'empty.bin',
+            Body: new Uint8Array(),
+            ContentType: 'application/octet-stream',
+            ContentLength: 0,
+          },
+        }),
+      )
+    })
+
+    it('aborts multipart upload when a part upload fails', async () => {
+      mockSend.mockClear()
+      mockSend
+        .mockResolvedValueOnce({ UploadId: 'upload-1' })
+        .mockRejectedValueOnce(new Error('part failed'))
+        .mockResolvedValueOnce({})
+
+      await expect(
+        service.putObject(storage, 'fail.mp4', bytesStream(new Uint8Array([1])), 'video/mp4'),
+      ).rejects.toThrow('part failed')
+
+      expect(mockSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'fail.mp4', UploadId: 'upload-1' } }),
       )
     })
 
@@ -323,3 +537,12 @@ describe('S3Service', () => {
     })
   })
 })
+
+function bytesStream(...chunks: Uint8Array[]): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(chunk)
+      controller.close()
+    },
+  })
+}

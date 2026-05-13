@@ -1,9 +1,10 @@
+import { defaultKeyHasher } from '@better-auth/api-key'
 import { and, eq, like, or } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { DirType, ObjectStatus } from '../../shared/constants'
 import type { Storage as S3Storage } from '../../shared/types'
-import { user } from '../db/auth-schema'
+import { apikey, user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import type { Env } from '../middleware/platform'
 import {
@@ -75,18 +76,29 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
   if (!credentials) return unauthorized()
 
   try {
-    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
-    const result = (await (c.get('auth').api as any).verifyApiKey({
-      body: { configId: WEBDAV_CONFIG_ID, key: credentials.password, permissions: { [WEBDAV_RESOURCE]: [action] } },
-    })) as {
-      valid: boolean
-      key: { referenceId: string } | null
-      error: { message?: string } | null
-    }
-    if (!result?.valid || !result.key?.referenceId) return unauthorized()
-    if (!(await usernameMatches(c.get('platform').db, result.key.referenceId, credentials.username)))
+    const db = c.get('platform').db
+    const hashedKey = await defaultKeyHasher(credentials.password)
+    const rows = await db
+      .select({
+        id: apikey.id,
+        referenceId: apikey.referenceId,
+        permissions: apikey.permissions,
+        enabled: apikey.enabled,
+        expiresAt: apikey.expiresAt,
+      })
+      .from(apikey)
+      .where(and(eq(apikey.configId, WEBDAV_CONFIG_ID), eq(apikey.key, hashedKey)))
+      .limit(1)
+    const key = rows[0]
+    if (
+      !key?.enabled ||
+      (key.expiresAt && key.expiresAt.getTime() <= Date.now()) ||
+      !hasWebDavPermission(key.permissions, action)
+    )
       return unauthorized()
-    return { userId: result.key.referenceId }
+    if (!(await usernameMatches(db, key.referenceId, credentials.username))) return unauthorized()
+    c.set('userId', key.referenceId)
+    return { userId: key.referenceId }
   } catch {
     return unauthorized()
   }
@@ -117,6 +129,12 @@ function parseBasicAuth(header: string | null): { username: string; password: st
   return { username, password }
 }
 
+function hasWebDavPermission(permissions: string | null, action: 'read' | 'write'): boolean {
+  if (!permissions) return false
+  const parsed = JSON.parse(permissions) as Partial<Record<string, string[]>>
+  return parsed[WEBDAV_RESOURCE]?.includes(action) ?? false
+}
+
 async function usernameMatches(
   db: Env['Variables']['platform']['db'],
   userId: string,
@@ -133,7 +151,11 @@ async function usernameMatches(
 }
 
 function davPath(c: DavContext): string {
-  return new URL(c.req.url).pathname
+  return normalizeDavMountPath(new URL(c.req.url).pathname)
+}
+
+function normalizeDavMountPath(pathname: string): string {
+  return pathname.replace(/^\/dav\/+/, '/dav/')
 }
 
 function davError(c: DavContext, error: unknown): Response {
@@ -152,7 +174,7 @@ function destinationPath(c: DavContext): string | Response {
   if (!header) return c.text('Destination header required', 400)
   const url = new URL(header, c.req.url)
   if (url.origin !== new URL(c.req.url).origin) return c.text('Cross-origin DAV destination rejected', 400)
-  return url.pathname
+  return normalizeDavMountPath(url.pathname)
 }
 
 async function ensureParentCollection(
@@ -189,6 +211,11 @@ function validatorHeaders(matter: NonNullable<WebDavTarget['matter']>): Headers 
   return new Headers({ ETag: matterEtag(matter), 'Last-Modified': matter.updatedAt.toUTCString() })
 }
 
+function isMountedWebDavRead(c: DavContext): boolean {
+  const method = c.req.method.toUpperCase()
+  return (method === 'GET' || method === 'HEAD') && Boolean(c.req.header('User-Agent')?.startsWith('WebDAVFS/'))
+}
+
 function etagMatches(header: string, etag: string): boolean {
   return header
     .split(',')
@@ -198,20 +225,45 @@ function etagMatches(header: string, etag: string): boolean {
 
 function preconditionResponse(c: DavContext, matter: NonNullable<WebDavTarget['matter']>): Response | null {
   const etag = matterEtag(matter)
+  const method = c.req.method.toUpperCase()
+  const isWebDavFsRead = isMountedWebDavRead(c)
   const ifMatch = c.req.header('If-Match')
   if (ifMatch && !etagMatches(ifMatch, etag)) return new Response(null, { status: 412 })
 
-  const ifNoneMatch = c.req.header('If-None-Match')
-  if (!ifNoneMatch || !etagMatches(ifNoneMatch, etag)) return null
+  const ifUnmodifiedSince = ifMatch ? null : parseHttpDate(c.req.header('If-Unmodified-Since'))
+  if (ifUnmodifiedSince && matter.updatedAt.getTime() > ifUnmodifiedSince.getTime()) {
+    return new Response(null, { status: 412 })
+  }
 
-  if (c.req.method.toUpperCase() === 'GET' || c.req.method.toUpperCase() === 'HEAD') {
+  const ifNoneMatch = c.req.header('If-None-Match')
+  if (ifNoneMatch) {
+    if (!etagMatches(ifNoneMatch, etag)) return null
+    if (isWebDavFsRead) return null
+    if (method === 'GET' || method === 'HEAD') {
+      return new Response(null, { status: 304, headers: validatorHeaders(matter) })
+    }
+    return new Response(null, { status: 412 })
+  }
+
+  const ifModifiedSince =
+    method === 'GET' || method === 'HEAD' ? parseHttpDate(c.req.header('If-Modified-Since')) : null
+  if (ifModifiedSince && matter.updatedAt.getTime() <= ifModifiedSince.getTime()) {
+    if (isWebDavFsRead) return null
     return new Response(null, { status: 304, headers: validatorHeaders(matter) })
   }
-  return new Response(null, { status: 412 })
+
+  return null
+}
+
+function parseHttpDate(header: string | undefined): Date | null {
+  if (!header) return null
+  const timestamp = Date.parse(header)
+  if (!Number.isFinite(timestamp)) return null
+  return new Date(timestamp)
 }
 
 function missingPreconditionResponse(c: DavContext): Response | null {
-  if (c.req.header('If-Match')) return new Response(null, { status: 412 })
+  if (c.req.header('If-Match') || c.req.header('If-Unmodified-Since')) return new Response(null, { status: 412 })
   return null
 }
 
@@ -220,23 +272,48 @@ interface ByteRange {
   end: number
 }
 
-function parseByteRange(header: string | undefined, size: number): ByteRange | null {
-  if (!header) return { start: 0, end: size - 1 }
-  const match = /^bytes=(\d*)-(\d*)$/.exec(header)
-  if (!match || size <= 0) return null
+type RangeRequest = { action: 'none' | 'ignore' } | { action: 'serve'; ranges: ByteRange[] } | { action: 'reject' }
+
+function parseRangeRequest(header: string | undefined, size: number): RangeRequest {
+  if (!header) return { action: 'none' }
+  const separator = header.indexOf('=')
+  if (separator <= 0) return { action: 'ignore' }
+
+  const unit = header.slice(0, separator).trim().toLowerCase()
+  const specs = header
+    .slice(separator + 1)
+    .split(',')
+    .map((spec) => spec.trim())
+  if (unit !== 'bytes') return { action: 'ignore' }
+  if (size <= 0) return { action: 'reject' }
+
+  const ranges: ByteRange[] = []
+  for (const spec of specs) {
+    const range = parseByteRangeSpec(spec, size)
+    if (range === 'invalid') return { action: 'reject' }
+    if (range) ranges.push(range)
+  }
+  if (ranges.length === 0) return { action: 'reject' }
+  return { action: 'serve', ranges }
+}
+
+function parseByteRangeSpec(spec: string, size: number): ByteRange | null | 'invalid' {
+  const match = /^(\d*)-(\d*)$/.exec(spec)
+  if (!match) return 'invalid'
 
   const [, rawStart, rawEnd] = match
-  if (!rawStart && !rawEnd) return null
+  if (!rawStart && !rawEnd) return 'invalid'
 
   if (!rawStart) {
     const suffix = Number(rawEnd)
-    if (!Number.isSafeInteger(suffix) || suffix <= 0) return null
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) return 'invalid'
     return { start: Math.max(size - suffix, 0), end: size - 1 }
   }
 
   const start = Number(rawStart)
   const end = rawEnd ? Number(rawEnd) : size - 1
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= size) return null
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end) return 'invalid'
+  if (start >= size) return null
   return { start, end: Math.min(end, size - 1) }
 }
 
@@ -244,12 +321,146 @@ function rangeNotSatisfiable(size: number): Response {
   return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
 }
 
-function overwriteAllowed(c: DavContext): boolean {
-  return (c.req.header('Overwrite') ?? 'T').toUpperCase() !== 'F'
+function multipartRangeContentLength(boundary: string, contentType: string, ranges: ByteRange[], size: number): number {
+  let contentLength = finalMultipartBoundary(boundary).byteLength
+  for (const range of ranges) {
+    contentLength += multipartRangeHeader(boundary, contentType, range, size).byteLength
+    contentLength += range.end - range.start + 1
+    contentLength += 2
+  }
+  return contentLength
 }
 
-function bytesBody(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+function multipartRangeHeader(boundary: string, contentType: string, range: ByteRange, size: number): Uint8Array {
+  return new TextEncoder().encode(
+    `--${boundary}\r\nContent-Type: ${contentType}\r\nContent-Range: bytes ${range.start}-${range.end}/${size}\r\n\r\n`,
+  )
+}
+
+function finalMultipartBoundary(boundary: string): Uint8Array {
+  return new TextEncoder().encode(`--${boundary}--\r\n`)
+}
+
+function multipartRangeBody(
+  storage: S3Storage,
+  matter: NonNullable<WebDavTarget['matter']>,
+  boundary: string,
+  ranges: ByteRange[],
+  size: number,
+): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for (const range of ranges) {
+          controller.enqueue(multipartRangeHeader(boundary, matter.type, range, size))
+          await enqueueObjectRange(controller, storage, matter.object, range)
+          controller.enqueue(new Uint8Array([13, 10]))
+        }
+        controller.enqueue(finalMultipartBoundary(boundary))
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    },
+  })
+}
+
+async function enqueueObjectRange(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  storage: S3Storage,
+  object: string,
+  range: ByteRange,
+): Promise<void> {
+  const body = await s3.getObjectBody(storage, object, `bytes=${range.start}-${range.end}`)
+  if (!isReadableBodyStream(body)) throw new Error('Unsupported range body stream')
+  const reader = body.getReader()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      controller.enqueue(value)
+    }
+  } finally {
+    releaseStreamLock(reader)
+  }
+}
+
+function ifRangeMatches(header: string | undefined, matter: NonNullable<WebDavTarget['matter']>): boolean {
+  if (!header) return true
+  const value = header.trim()
+  if (value.startsWith('W/')) return false
+  if (value.startsWith('"')) return value === matterEtag(matter)
+  return value === matter.updatedAt.toUTCString()
+}
+
+function parseContentLength(header: string | undefined): number | null | Response {
+  if (!header) return null
+  const size = Number(header)
+  if (!Number.isSafeInteger(size) || size < 0) return new Response('Invalid Content-Length', { status: 400 })
+  return size
+}
+
+function fixedLengthResponseBody(body: BodyInit, contentLength: number): BodyInit {
+  const ctor = (
+    globalThis as typeof globalThis & {
+      FixedLengthStream?: new (
+        expectedLength: number,
+      ) => {
+        readable: ReadableStream<Uint8Array>
+        writable: WritableStream<ArrayBuffer | ArrayBufferView>
+      }
+    }
+  ).FixedLengthStream
+  if (!ctor || !isReadableBodyStream(body)) return body
+
+  const { readable, writable } = new ctor(contentLength)
+  void bridgeFixedLengthStream(body, writable)
+  return readable
+}
+
+function isReadableBodyStream(body: BodyInit): body is ReadableStream<Uint8Array> {
+  return typeof (body as ReadableStream<Uint8Array>).getReader === 'function'
+}
+
+async function bridgeFixedLengthStream(
+  body: ReadableStream<Uint8Array>,
+  writable: WritableStream<ArrayBuffer | ArrayBufferView>,
+): Promise<void> {
+  const reader = body.getReader()
+  const writer = writable.getWriter()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      await writer.write(value)
+    }
+    await writer.close()
+  } catch (error) {
+    await Promise.allSettled([cancelStreamReader(reader, error), writer.abort(error)])
+  } finally {
+    releaseStreamLock(reader)
+    releaseStreamLock(writer)
+  }
+}
+
+async function cancelStreamReader(reader: ReadableStreamDefaultReader<Uint8Array>, reason: unknown): Promise<void> {
+  try {
+    await reader.cancel(reason)
+  } catch {
+    return
+  }
+}
+
+function releaseStreamLock(stream: { releaseLock: () => void }): void {
+  try {
+    stream.releaseLock()
+  } catch {
+    return
+  }
+}
+
+function overwriteAllowed(c: DavContext): boolean {
+  return (c.req.header('Overwrite') ?? 'T').toUpperCase() !== 'F'
 }
 
 function resourcePath(target: WebDavTarget): string {
@@ -359,7 +570,7 @@ async function ifTaggedTarget(c: DavContext, auth: DavAuth, tag: string): Promis
   try {
     const url = new URL(tag, c.req.url)
     if (url.origin !== new URL(c.req.url).origin) return null
-    return await resolveWebDavPath(c.get('platform').db, auth.userId, url.pathname)
+    return await resolveWebDavPath(c.get('platform').db, auth.userId, normalizeDavMountPath(url.pathname))
   } catch {
     return null
   }
@@ -403,7 +614,7 @@ async function restoreActiveMatterRows(
 
 const app = new Hono<Env>().on(
   ['OPTIONS', 'PROPFIND', 'PROPPATCH', 'GET', 'HEAD', 'PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY', 'LOCK', 'UNLOCK'],
-  '/*',
+  ['/', '/*'],
   async (c) => {
     const auth = await requireWebDavApiKey(c)
     if (auth instanceof Response) return auth
@@ -499,7 +710,8 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
 async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
+    if (target.name && !target.matter) throw new WebDavPathError('Not found', 404)
     const workspace = requireWorkspace(target)
     const locked = await lockPrecondition(c, target)
     if (locked) return locked
@@ -507,10 +719,12 @@ async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
     if (ifFailed) return ifFailed
     const operations = parseProppatchXml(await c.req.text())
     await applyDeadPropertyUpdate(db, workspace.id, resourcePath(target), operations)
-    await db
-      .update(matters)
-      .set({ updatedAt: new Date() })
-      .where(and(eq(matters.id, target.matter!.id), eq(matters.orgId, workspace.id)))
+    if (target.matter) {
+      await db
+        .update(matters)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, workspace.id)))
+    }
     const properties = operations.map((operation) => operation.property)
     return xmlResponse(proppatchMultistatus(targetHref(target), properties), 207)
   } catch (e) {
@@ -536,6 +750,11 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage | null
     if (!storage) return c.text('Storage not found', 404)
     const headers = fileHeaders(matter)
+    if (isMountedWebDavRead(c)) {
+      headers.delete('ETag')
+      headers.delete('Last-Modified')
+      headers.set('Cache-Control', 'no-store')
+    }
 
     if (c.req.method.toUpperCase() === 'HEAD') {
       return new Response(null, { headers })
@@ -543,17 +762,33 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
     const size = matter.size ?? 0
     const rangeHeader = c.req.header('Range')
-    if (!rangeHeader) {
-      const bytes = await s3.getObjectBytes(storage, matter.object)
-      return new Response(bytesBody(bytes), { headers })
+    const rangeRequest: RangeRequest = ifRangeMatches(c.req.header('If-Range'), matter)
+      ? parseRangeRequest(rangeHeader, size)
+      : { action: 'ignore' }
+
+    if (rangeRequest.action === 'none' || rangeRequest.action === 'ignore') {
+      const body = await s3.getObjectBody(storage, matter.object)
+      return new Response(fixedLengthResponseBody(body, size), { headers })
     }
 
-    const range = parseByteRange(rangeHeader, size)
-    if (!range) return rangeNotSatisfiable(size)
-    const bytes = await s3.getObjectBytes(storage, matter.object, `bytes=${range.start}-${range.end}`)
-    headers.set('Content-Length', String(range.end - range.start + 1))
+    if (rangeRequest.action === 'reject') return rangeNotSatisfiable(size)
+    if (rangeRequest.action !== 'serve') throw new Error('Unexpected range request action')
+    if (rangeRequest.ranges.length > 1) {
+      const boundary = `zpan-webdav-${matter.id}`
+      const contentLength = multipartRangeContentLength(boundary, matter.type, rangeRequest.ranges, size)
+      const body = multipartRangeBody(storage, matter, boundary, rangeRequest.ranges, size)
+      headers.set('Content-Type', `multipart/byteranges; boundary=${boundary}`)
+      headers.set('Content-Length', String(contentLength))
+      headers.delete('Content-Range')
+      return new Response(fixedLengthResponseBody(body, contentLength), { status: 206, headers })
+    }
+
+    const [range] = rangeRequest.ranges
+    const contentLength = range.end - range.start + 1
+    const body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
+    headers.set('Content-Length', String(contentLength))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
-    return new Response(bytesBody(bytes), { status: 206, headers })
+    return new Response(fixedLengthResponseBody(body, contentLength), { status: 206, headers })
   } catch (e) {
     return davError(c, e)
   }
@@ -575,27 +810,43 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (precondition) return precondition
     await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
 
-    const bytes = new Uint8Array(await c.req.arrayBuffer())
+    const contentLength = parseContentLength(c.req.header('Content-Length'))
+    if (contentLength instanceof Response) return contentLength
+    const body = contentLength === 0 ? new Uint8Array() : c.req.raw.body
+    if (!body) return c.text('Request body required', 400)
     const storage = target.matter
       ? ((await getStorage(db, target.matter.storageId)) as unknown as S3Storage | null)
       : ((await selectStorage(db, 'private')) as unknown as S3Storage)
     if (!storage) return c.text('Storage not found', 404)
-    const objectKey = target.matter?.object
-      ? target.matter.object
-      : buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
+    const objectKey =
+      target.matter?.object && contentLength !== null
+        ? target.matter.object
+        : buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
     const contentType = c.req.header('Content-Type') ?? 'application/octet-stream'
 
-    const sizeDelta = target.matter ? bytes.byteLength - (target.matter.size ?? 0) : bytes.byteLength
-    if (sizeDelta > 0) {
-      const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, sizeDelta)
+    const knownSizeDelta =
+      contentLength === null ? 0 : target.matter ? contentLength - (target.matter.size ?? 0) : contentLength
+    if (knownSizeDelta > 0) {
+      const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, knownSizeDelta)
       if (!allowed) return c.text('Quota exceeded', 422)
     }
 
+    let uploadedSize = 0
     try {
-      await s3.putObject(storage, objectKey, bytes, contentType)
+      uploadedSize = await s3.putObject(storage, objectKey, body, contentType, contentLength ?? undefined)
     } catch (e) {
-      if (sizeDelta > 0) await decrementUsage(db, workspace.id, new Map([[storage.id, sizeDelta]]), sizeDelta)
+      if (knownSizeDelta > 0)
+        await decrementUsage(db, workspace.id, new Map([[storage.id, knownSizeDelta]]), knownSizeDelta)
       throw e
+    }
+
+    const sizeDelta = target.matter ? uploadedSize - (target.matter.size ?? 0) : uploadedSize
+    if (contentLength === null && sizeDelta > 0) {
+      const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, sizeDelta)
+      if (!allowed) {
+        await s3.deleteObject(storage, objectKey)
+        return c.text('Quota exceeded', 422)
+      }
     }
 
     if (sizeDelta < 0) {
@@ -606,8 +857,9 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       const now = new Date()
       await db
         .update(matters)
-        .set({ type: contentType, size: bytes.byteLength, updatedAt: now })
+        .set({ type: contentType, size: uploadedSize, object: objectKey, updatedAt: now })
         .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, workspace.id)))
+      if (objectKey !== target.matter.object) await s3.deleteObject(storage, target.matter.object)
       return new Response(null, { status: 204 })
     }
 
@@ -616,7 +868,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       userId: auth.userId,
       name: target.name,
       type: contentType,
-      size: bytes.byteLength,
+      size: uploadedSize,
       dirtype: DirType.FILE,
       parent: target.parent,
       object: objectKey,
@@ -710,6 +962,7 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     }
     const targetLocked = await lockPrecondition(c, target)
     if (targetLocked) return targetLocked
+    const replacingTarget = Boolean(target.matter)
     if (target.matter) {
       if (target.matter.id === source.matter.id) return new Response(null, { status: 204 })
       if (!overwriteAllowed(c)) return c.text('Already exists', 412)
@@ -729,7 +982,7 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       auth.userId,
     )
     await moveWebDavState(db, sourceWorkspace.id, oldPath, newPath)
-    return new Response(null, { status: 201 })
+    return new Response(null, { status: replacingTarget ? 204 : 201 })
   } catch (e) {
     return davError(c, e)
   }
@@ -759,10 +1012,11 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
     const targetLocked = await lockPrecondition(c, target)
     if (targetLocked) return targetLocked
     if (target.matter && !overwriteAllowed(c)) return c.text('Already exists', 412)
+    const replacingTarget = Boolean(target.matter)
     await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
 
     if (source.matter.dirtype !== DirType.FILE) {
-      return copyCollection(c, auth, source, target)
+      return copyCollection(c, auth, source, target, replacingTarget)
     }
 
     let newObject = ''
@@ -791,7 +1045,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
       })
       await copyDeadProperties(db, sourceWorkspace.id, resourcePath(source), joinMatterPath(copy.parent, copy.name))
       c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(copy.parent, copy.name)))
-      return c.body(null, 201)
+      return c.body(null, replacingTarget ? 204 : 201)
     } catch (e) {
       if (reservedUsage) {
         await decrementUsage(
@@ -813,6 +1067,7 @@ async function copyCollection(
   auth: DavAuth,
   source: WebDavTarget,
   target: WebDavTarget,
+  replacingTarget: boolean,
 ): Promise<Response> {
   const db = c.get('platform').db
   const sourceWorkspace = requireWorkspace(source)
@@ -894,7 +1149,7 @@ async function copyCollection(
       'Location',
       matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(rootCopy.parent, rootCopy.name)),
     )
-    return c.body(null, 201)
+    return c.body(null, replacingTarget ? 204 : 201)
   } catch (e) {
     if (createdIds.length > 0) {
       await db
