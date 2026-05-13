@@ -151,7 +151,11 @@ async function usernameMatches(
 }
 
 function davPath(c: DavContext): string {
-  return new URL(c.req.url).pathname
+  return normalizeDavMountPath(new URL(c.req.url).pathname)
+}
+
+function normalizeDavMountPath(pathname: string): string {
+  return pathname.replace(/^\/dav\/+/, '/dav/')
 }
 
 function davError(c: DavContext, error: unknown): Response {
@@ -170,7 +174,7 @@ function destinationPath(c: DavContext): string | Response {
   if (!header) return c.text('Destination header required', 400)
   const url = new URL(header, c.req.url)
   if (url.origin !== new URL(c.req.url).origin) return c.text('Cross-origin DAV destination rejected', 400)
-  return url.pathname
+  return normalizeDavMountPath(url.pathname)
 }
 
 async function ensureParentCollection(
@@ -453,7 +457,7 @@ async function ifTaggedTarget(c: DavContext, auth: DavAuth, tag: string): Promis
   try {
     const url = new URL(tag, c.req.url)
     if (url.origin !== new URL(c.req.url).origin) return null
-    return await resolveWebDavPath(c.get('platform').db, auth.userId, url.pathname)
+    return await resolveWebDavPath(c.get('platform').db, auth.userId, normalizeDavMountPath(url.pathname))
   } catch {
     return null
   }
@@ -497,7 +501,7 @@ async function restoreActiveMatterRows(
 
 const app = new Hono<Env>().on(
   ['OPTIONS', 'PROPFIND', 'PROPPATCH', 'GET', 'HEAD', 'PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY', 'LOCK', 'UNLOCK'],
-  '/*',
+  ['/', '/*'],
   async (c) => {
     const auth = await requireWebDavApiKey(c)
     if (auth instanceof Response) return auth

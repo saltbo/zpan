@@ -177,6 +177,12 @@ describe('WebDAV API', () => {
     expect(root.status).toBe(207)
     expect(await root.text()).toContain(`/dav/${workspace.slug}/`)
 
+    const rootWithoutSlash = await app.request('/dav', {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(rootWithoutSlash.status).toBe(207)
+
     const docs = await app.request(`/dav/${workspace.slug}/Docs`, {
       method: 'PROPFIND',
       headers: basicHeaders(account.username ?? account.email, key),
@@ -185,6 +191,12 @@ describe('WebDAV API', () => {
     const xml = await docs.text()
     expect(xml).toContain(`/dav/${workspace.slug}/Docs/`)
     expect(xml).toContain(`/dav/${workspace.slug}/Docs/readme.txt`)
+
+    const doubledMountSlash = await app.request(`/dav//${workspace.slug}/Docs`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(doubledMountSlash.status).toBe(207)
     for (const property of [
       'displayname',
       'creationdate',
