@@ -16,6 +16,7 @@ export class S3Service {
     return new S3Client({
       region: storage.region,
       endpoint: storage.endpoint,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
       credentials: {
         accessKeyId: storage.accessKey,
         secretAccessKey: storage.secretKey,
@@ -133,21 +134,41 @@ export class S3Service {
     contentType: string,
     contentLength?: number,
   ): Promise<void> {
-    const client = this.createClient(storage)
-    if (body instanceof ReadableStream && contentLength === undefined)
-      throw new Error('Content-Length required for streaming object uploads')
-    const resolvedContentLength = body instanceof Uint8Array ? body.byteLength : contentLength
+    if (body instanceof ReadableStream) {
+      if (contentLength === undefined) throw new Error('Content-Length required for streaming object uploads')
+      await this.putObjectStream(storage, key, body, contentType, contentLength)
+      return
+    }
 
+    const client = this.createClient(storage)
     await client.send(
       new PutObjectCommand({
         Bucket: storage.bucket,
         Key: key,
-        // biome-ignore lint/suspicious/noExplicitAny: AWS SDK stream body type differs across runtimes
-        Body: body as any,
+        Body: body,
         ContentType: contentType,
-        ContentLength: resolvedContentLength,
+        ContentLength: body.byteLength,
       }),
     )
+  }
+
+  private async putObjectStream(
+    storage: Storage,
+    key: string,
+    body: ReadableStream,
+    contentType: string,
+    contentLength: number,
+  ): Promise<void> {
+    const url = await this.presignUpload(storage, key, contentType)
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': String(contentLength),
+      },
+      body,
+    })
+    if (!response.ok) throw new Error(`S3 stream upload failed: ${response.status}`)
   }
 
   async deleteObject(storage: Storage, key: string): Promise<void> {

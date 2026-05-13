@@ -94,6 +94,7 @@ describe('S3Service', () => {
       expect(client.config).toMatchObject({
         region: 'us-east-1',
         endpoint: 'https://s3.example.com',
+        requestChecksumCalculation: 'WHEN_REQUIRED',
         forcePathStyle: true,
       })
     })
@@ -363,21 +364,30 @@ describe('S3Service', () => {
       )
     })
 
-    it('sends ReadableStream bodies without buffering when content length is known', async () => {
-      mockSend.mockResolvedValueOnce({ $metadata: {} })
+    it('uploads ReadableStream bodies through a presigned PUT without buffering', async () => {
+      mockSend.mockClear()
+      const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
       const body = new ReadableStream()
       await service.putObject(storage, 'videos/test.mp4', body, 'video/mp4', 1024)
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          input: {
-            Bucket: 'my-bucket',
-            Key: 'videos/test.mp4',
-            Body: body,
-            ContentType: 'video/mp4',
-            ContentLength: 1024,
-          },
-        }),
-      )
+      expect(fetchMock).toHaveBeenCalledWith('https://signed-url.example.com', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'video/mp4',
+          'Content-Length': '1024',
+        },
+        body,
+      })
+      expect(mockSend).not.toHaveBeenCalled()
+      vi.unstubAllGlobals()
+    })
+
+    it('fails when presigned stream upload is rejected', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(null, { status: 403 })))
+      await expect(
+        service.putObject(storage, 'videos/test.mp4', new ReadableStream(), 'video/mp4', 1024),
+      ).rejects.toThrow('S3 stream upload failed: 403')
+      vi.unstubAllGlobals()
     })
 
     it('rejects streaming bodies without content length', async () => {
