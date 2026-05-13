@@ -335,15 +335,36 @@ function fixedLengthResponseBody(body: BodyInit, contentLength: number): BodyIni
       }
     }
   ).FixedLengthStream
-  if (!ctor || !isPipeableStream(body)) return body
+  if (!ctor || !isReadableBodyStream(body)) return body
 
   const { readable, writable } = new ctor(contentLength)
-  void body.pipeTo(writable)
+  void bridgeFixedLengthStream(body, writable)
   return readable
 }
 
-function isPipeableStream(body: BodyInit): body is ReadableStream<Uint8Array> {
-  return typeof (body as ReadableStream<Uint8Array>).pipeTo === 'function'
+function isReadableBodyStream(body: BodyInit): body is ReadableStream<Uint8Array> {
+  return typeof (body as ReadableStream<Uint8Array>).getReader === 'function'
+}
+
+async function bridgeFixedLengthStream(
+  body: ReadableStream<Uint8Array>,
+  writable: WritableStream<ArrayBuffer | ArrayBufferView>,
+): Promise<void> {
+  const reader = body.getReader()
+  const writer = writable.getWriter()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      await writer.write(value)
+    }
+    await writer.close()
+  } catch (error) {
+    await Promise.allSettled([reader.cancel(error), writer.abort(error)])
+  } finally {
+    reader.releaseLock()
+    writer.releaseLock()
+  }
 }
 
 function overwriteAllowed(c: DavContext): boolean {
