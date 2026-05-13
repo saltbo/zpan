@@ -536,7 +536,7 @@ describe('WebDAV API', () => {
     )
   })
 
-  it('GET ignores unsupported ranges and honors If-Range validators', async () => {
+  it('GET supports multi-range requests and honors If-Range validators', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -577,12 +577,27 @@ describe('WebDAV API', () => {
       'objects/if-range.txt',
     )
 
+    vi.mocked(S3Service.prototype.getObjectBody)
+      .mockResolvedValueOnce(streamBody('he'))
+      .mockResolvedValueOnce(streamBody('o '))
     const multi = await app.request(`/dav/${workspace.slug}/video.mp4`, {
       method: 'GET',
       headers: basicHeaders(account.email, key, { Range: 'bytes=0-1,4-5' }),
     })
-    expect(multi.status).toBe(200)
+    expect(multi.status).toBe(206)
     expect(multi.headers.get('Content-Range')).toBeNull()
+    expect(multi.headers.get('Content-Type')).toBe('multipart/byteranges; boundary=zpan-webdav-if-range')
+    expect(multi.headers.get('Content-Length')).toBeTruthy()
+    expect(await multi.text()).toBe(
+      '--zpan-webdav-if-range\r\nContent-Type: text/plain\r\nContent-Range: bytes 0-1/12\r\n\r\nhe\r\n' +
+        '--zpan-webdav-if-range\r\nContent-Type: text/plain\r\nContent-Range: bytes 4-5/12\r\n\r\no \r\n' +
+        '--zpan-webdav-if-range--\r\n',
+    )
+    expect(S3Service.prototype.getObjectBody).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: storage.id }),
+      'objects/if-range.txt',
+      'bytes=4-5',
+    )
 
     const unknownUnit = await app.request(`/dav/${workspace.slug}/video.mp4`, {
       method: 'GET',

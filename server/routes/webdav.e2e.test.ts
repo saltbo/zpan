@@ -129,6 +129,11 @@ describe('WebDAV HTTP e2e', () => {
     expect(range.headers.get('Content-Range')).toBe(`bytes 10-15/${smallBody.byteLength}`)
     expect(await range.text()).toBe('abcdef')
 
+    const multiRange = await dav('GET', ws('/song.mp3'), { headers: { Range: 'bytes=0-1,10-11' } })
+    expect(multiRange.status).toBe(206)
+    expect(multiRange.headers.get('Content-Type')).toMatch(/^multipart\/byteranges; boundary=zpan-webdav-/)
+    expect(await multiRange.text()).toContain('Content-Range: bytes 10-11/36\r\n\r\nab')
+
     const largeTail = await dav('GET', ws('/Albums/large.bin'), { headers: { Range: `bytes=${largeSize - 4}-` } })
     expect(largeTail.status).toBe(206)
     expect(new Uint8Array(await largeTail.arrayBuffer())).toEqual(patternedBytes(largeSize - 4, 4))

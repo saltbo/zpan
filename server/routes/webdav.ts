@@ -272,7 +272,7 @@ interface ByteRange {
   end: number
 }
 
-type RangeRequest = { action: 'none' | 'ignore' } | { action: 'serve'; range: ByteRange } | { action: 'reject' }
+type RangeRequest = { action: 'none' | 'ignore' } | { action: 'serve'; ranges: ByteRange[] } | { action: 'reject' }
 
 function parseRangeRequest(header: string | undefined, size: number): RangeRequest {
   if (!header) return { action: 'none' }
@@ -280,33 +280,109 @@ function parseRangeRequest(header: string | undefined, size: number): RangeReque
   if (separator <= 0) return { action: 'ignore' }
 
   const unit = header.slice(0, separator).trim().toLowerCase()
-  const spec = header.slice(separator + 1).trim()
+  const specs = header
+    .slice(separator + 1)
+    .split(',')
+    .map((spec) => spec.trim())
   if (unit !== 'bytes') return { action: 'ignore' }
-  if (spec.includes(',')) return { action: 'ignore' }
   if (size <= 0) return { action: 'reject' }
 
+  const ranges: ByteRange[] = []
+  for (const spec of specs) {
+    const range = parseByteRangeSpec(spec, size)
+    if (range === 'invalid') return { action: 'reject' }
+    if (range) ranges.push(range)
+  }
+  if (ranges.length === 0) return { action: 'reject' }
+  return { action: 'serve', ranges }
+}
+
+function parseByteRangeSpec(spec: string, size: number): ByteRange | null | 'invalid' {
   const match = /^(\d*)-(\d*)$/.exec(spec)
-  if (!match) return { action: 'reject' }
+  if (!match) return 'invalid'
 
   const [, rawStart, rawEnd] = match
-  if (!rawStart && !rawEnd) return { action: 'reject' }
+  if (!rawStart && !rawEnd) return 'invalid'
 
   if (!rawStart) {
     const suffix = Number(rawEnd)
-    if (!Number.isSafeInteger(suffix) || suffix <= 0) return { action: 'reject' }
-    return { action: 'serve', range: { start: Math.max(size - suffix, 0), end: size - 1 } }
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) return 'invalid'
+    return { start: Math.max(size - suffix, 0), end: size - 1 }
   }
 
   const start = Number(rawStart)
   const end = rawEnd ? Number(rawEnd) : size - 1
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= size) {
-    return { action: 'reject' }
-  }
-  return { action: 'serve', range: { start, end: Math.min(end, size - 1) } }
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end) return 'invalid'
+  if (start >= size) return null
+  return { start, end: Math.min(end, size - 1) }
 }
 
 function rangeNotSatisfiable(size: number): Response {
   return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
+}
+
+function multipartRangeContentLength(boundary: string, contentType: string, ranges: ByteRange[], size: number): number {
+  let contentLength = finalMultipartBoundary(boundary).byteLength
+  for (const range of ranges) {
+    contentLength += multipartRangeHeader(boundary, contentType, range, size).byteLength
+    contentLength += range.end - range.start + 1
+    contentLength += 2
+  }
+  return contentLength
+}
+
+function multipartRangeHeader(boundary: string, contentType: string, range: ByteRange, size: number): Uint8Array {
+  return new TextEncoder().encode(
+    `--${boundary}\r\nContent-Type: ${contentType}\r\nContent-Range: bytes ${range.start}-${range.end}/${size}\r\n\r\n`,
+  )
+}
+
+function finalMultipartBoundary(boundary: string): Uint8Array {
+  return new TextEncoder().encode(`--${boundary}--\r\n`)
+}
+
+function multipartRangeBody(
+  storage: S3Storage,
+  matter: NonNullable<WebDavTarget['matter']>,
+  boundary: string,
+  ranges: ByteRange[],
+  size: number,
+): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for (const range of ranges) {
+          controller.enqueue(multipartRangeHeader(boundary, matter.type, range, size))
+          await enqueueObjectRange(controller, storage, matter.object, range)
+          controller.enqueue(new Uint8Array([13, 10]))
+        }
+        controller.enqueue(finalMultipartBoundary(boundary))
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    },
+  })
+}
+
+async function enqueueObjectRange(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  storage: S3Storage,
+  object: string,
+  range: ByteRange,
+): Promise<void> {
+  const body = await s3.getObjectBody(storage, object, `bytes=${range.start}-${range.end}`)
+  if (!isReadableBodyStream(body)) throw new Error('Unsupported range body stream')
+  const reader = body.getReader()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      controller.enqueue(value)
+    }
+  } finally {
+    releaseStreamLock(reader)
+  }
 }
 
 function ifRangeMatches(header: string | undefined, matter: NonNullable<WebDavTarget['matter']>): boolean {
@@ -697,7 +773,17 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
     if (rangeRequest.action === 'reject') return rangeNotSatisfiable(size)
     if (rangeRequest.action !== 'serve') throw new Error('Unexpected range request action')
-    const range = rangeRequest.range
+    if (rangeRequest.ranges.length > 1) {
+      const boundary = `zpan-webdav-${matter.id}`
+      const contentLength = multipartRangeContentLength(boundary, matter.type, rangeRequest.ranges, size)
+      const body = multipartRangeBody(storage, matter, boundary, rangeRequest.ranges, size)
+      headers.set('Content-Type', `multipart/byteranges; boundary=${boundary}`)
+      headers.set('Content-Length', String(contentLength))
+      headers.delete('Content-Range')
+      return new Response(fixedLengthResponseBody(body, contentLength), { status: 206, headers })
+    }
+
+    const [range] = rangeRequest.ranges
     const contentLength = range.end - range.start + 1
     const body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
     headers.set('Content-Length', String(contentLength))
