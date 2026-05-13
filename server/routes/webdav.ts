@@ -237,28 +237,49 @@ interface ByteRange {
   end: number
 }
 
-function parseByteRange(header: string | undefined, size: number): ByteRange | null {
-  if (!header) return { start: 0, end: size - 1 }
-  const match = /^bytes=(\d*)-(\d*)$/.exec(header)
-  if (!match || size <= 0) return null
+type RangeRequest = { action: 'none' | 'ignore' } | { action: 'serve'; range: ByteRange } | { action: 'reject' }
+
+function parseRangeRequest(header: string | undefined, size: number): RangeRequest {
+  if (!header) return { action: 'none' }
+  const separator = header.indexOf('=')
+  if (separator <= 0) return { action: 'ignore' }
+
+  const unit = header.slice(0, separator).trim().toLowerCase()
+  const spec = header.slice(separator + 1).trim()
+  if (unit !== 'bytes') return { action: 'ignore' }
+  if (spec.includes(',')) return { action: 'ignore' }
+  if (size <= 0) return { action: 'reject' }
+
+  const match = /^(\d*)-(\d*)$/.exec(spec)
+  if (!match) return { action: 'reject' }
 
   const [, rawStart, rawEnd] = match
-  if (!rawStart && !rawEnd) return null
+  if (!rawStart && !rawEnd) return { action: 'reject' }
 
   if (!rawStart) {
     const suffix = Number(rawEnd)
-    if (!Number.isSafeInteger(suffix) || suffix <= 0) return null
-    return { start: Math.max(size - suffix, 0), end: size - 1 }
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) return { action: 'reject' }
+    return { action: 'serve', range: { start: Math.max(size - suffix, 0), end: size - 1 } }
   }
 
   const start = Number(rawStart)
   const end = rawEnd ? Number(rawEnd) : size - 1
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= size) return null
-  return { start, end: Math.min(end, size - 1) }
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= size) {
+    return { action: 'reject' }
+  }
+  return { action: 'serve', range: { start, end: Math.min(end, size - 1) } }
 }
 
 function rangeNotSatisfiable(size: number): Response {
   return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
+}
+
+function ifRangeMatches(header: string | undefined, matter: NonNullable<WebDavTarget['matter']>): boolean {
+  if (!header) return true
+  const value = header.trim()
+  if (value.startsWith('W/')) return false
+  if (value.startsWith('"')) return value === matterEtag(matter)
+  return value === matter.updatedAt.toUTCString()
 }
 
 function parseContentLength(header: string | undefined): number | Response {
@@ -519,7 +540,8 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
 async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
+    if (target.name && !target.matter) throw new WebDavPathError('Not found', 404)
     const workspace = requireWorkspace(target)
     const locked = await lockPrecondition(c, target)
     if (locked) return locked
@@ -527,10 +549,12 @@ async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
     if (ifFailed) return ifFailed
     const operations = parseProppatchXml(await c.req.text())
     await applyDeadPropertyUpdate(db, workspace.id, resourcePath(target), operations)
-    await db
-      .update(matters)
-      .set({ updatedAt: new Date() })
-      .where(and(eq(matters.id, target.matter!.id), eq(matters.orgId, workspace.id)))
+    if (target.matter) {
+      await db
+        .update(matters)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, workspace.id)))
+    }
     const properties = operations.map((operation) => operation.property)
     return xmlResponse(proppatchMultistatus(targetHref(target), properties), 207)
   } catch (e) {
@@ -563,13 +587,18 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
     const size = matter.size ?? 0
     const rangeHeader = c.req.header('Range')
-    if (!rangeHeader) {
+    const rangeRequest: RangeRequest = ifRangeMatches(c.req.header('If-Range'), matter)
+      ? parseRangeRequest(rangeHeader, size)
+      : { action: 'ignore' }
+
+    if (rangeRequest.action === 'none' || rangeRequest.action === 'ignore') {
       const body = await s3.getObjectBody(storage, matter.object)
       return new Response(body, { headers })
     }
 
-    const range = parseByteRange(rangeHeader, size)
-    if (!range) return rangeNotSatisfiable(size)
+    if (rangeRequest.action === 'reject') return rangeNotSatisfiable(size)
+    if (rangeRequest.action !== 'serve') throw new Error('Unexpected range request action')
+    const range = rangeRequest.range
     const body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
     headers.set('Content-Length', String(range.end - range.start + 1))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)

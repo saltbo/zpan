@@ -393,6 +393,20 @@ describe('WebDAV API', () => {
       body: '<D:propfind xmlns:D="DAV:" xmlns:Z="urn:zpan:test"><D:prop><Z:color/></D:prop></D:propfind>',
     })
     expect(await removed.text()).toContain('HTTP/1.1 404 Not Found')
+
+    const rootSet = await app.request(`/dav/${workspace.slug}/`, {
+      method: 'PROPPATCH',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
+      body: '<D:propertyupdate xmlns:D="DAV:" xmlns:Z="urn:zpan:test"><D:set><D:prop><Z:root>yes</Z:root></D:prop></D:set></D:propertyupdate>',
+    })
+    expect(rootSet.status).toBe(207)
+
+    const rootFind = await app.request(`/dav/${workspace.slug}/`, {
+      method: 'PROPFIND',
+      headers: basicHeaders(account.email, key, { Depth: '0', 'Content-Type': 'application/xml' }),
+      body: '<D:propfind xmlns:D="DAV:" xmlns:Z="urn:zpan:test"><D:prop><Z:root/></D:prop></D:propfind>',
+    })
+    expect(await rootFind.text()).toContain('yes</Z:root>')
   })
 
   it('GET returns file bytes directly and HEAD returns coherent file headers', async () => {
@@ -473,6 +487,62 @@ describe('WebDAV API', () => {
     expect(suffix.headers.get('Content-Range')).toBe('bytes 9-11/12')
     expect(await suffix.text()).toBe('dav')
     expect(S3Service.prototype.getObjectBytes).not.toHaveBeenCalled()
+  })
+
+  it('GET ignores unsupported ranges and honors If-Range validators', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    await file(db, workspace.id, { id: 'if-range', name: 'video.mp4', size: 12 })
+
+    const head = await app.request(`/dav/${workspace.slug}/video.mp4`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key),
+    })
+    const etag = head.headers.get('ETag') ?? ''
+
+    vi.mocked(S3Service.prototype.getObjectBody).mockResolvedValueOnce(streamBody('hello'))
+    const matched = await app.request(`/dav/${workspace.slug}/video.mp4`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'bytes=0-4', 'If-Range': etag }),
+    })
+    expect(matched.status).toBe(206)
+    expect(matched.headers.get('Content-Range')).toBe('bytes 0-4/12')
+    expect(await matched.text()).toBe('hello')
+    expect(S3Service.prototype.getObjectBody).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: storage.id }),
+      'objects/if-range.txt',
+      'bytes=0-4',
+    )
+
+    const stale = await app.request(`/dav/${workspace.slug}/video.mp4`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'bytes=0-4', 'If-Range': '"stale"' }),
+    })
+    expect(stale.status).toBe(200)
+    expect(stale.headers.get('Content-Range')).toBeNull()
+    expect(await stale.text()).toBe('hello webdav')
+    expect(S3Service.prototype.getObjectBody).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: storage.id }),
+      'objects/if-range.txt',
+    )
+
+    const multi = await app.request(`/dav/${workspace.slug}/video.mp4`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'bytes=0-1,4-5' }),
+    })
+    expect(multi.status).toBe(200)
+    expect(multi.headers.get('Content-Range')).toBeNull()
+
+    const unknownUnit = await app.request(`/dav/${workspace.slug}/video.mp4`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'items=0-1' }),
+    })
+    expect(unknownUnit.status).toBe(200)
+    expect(unknownUnit.headers.get('Content-Range')).toBeNull()
   })
 
   it('honors ETag preconditions and changes ETag after overwrite', async () => {
