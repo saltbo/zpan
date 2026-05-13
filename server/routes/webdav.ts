@@ -316,8 +316,8 @@ function ifRangeMatches(header: string | undefined, matter: NonNullable<WebDavTa
   return value === matter.updatedAt.toUTCString()
 }
 
-function parseContentLength(header: string | undefined): number | Response {
-  if (!header) return new Response('Content-Length required', { status: 411 })
+function parseContentLength(header: string | undefined): number | null | Response {
+  if (!header) return null
   const size = Number(header)
   if (!Number.isSafeInteger(size) || size < 0) return new Response('Invalid Content-Length', { status: 400 })
   return size
@@ -666,22 +666,35 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       ? ((await getStorage(db, target.matter.storageId)) as unknown as S3Storage | null)
       : ((await selectStorage(db, 'private')) as unknown as S3Storage)
     if (!storage) return c.text('Storage not found', 404)
-    const objectKey = target.matter?.object
-      ? target.matter.object
-      : buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
+    const objectKey =
+      target.matter?.object && contentLength !== null
+        ? target.matter.object
+        : buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
     const contentType = c.req.header('Content-Type') ?? 'application/octet-stream'
 
-    const sizeDelta = target.matter ? contentLength - (target.matter.size ?? 0) : contentLength
-    if (sizeDelta > 0) {
-      const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, sizeDelta)
+    const knownSizeDelta =
+      contentLength === null ? 0 : target.matter ? contentLength - (target.matter.size ?? 0) : contentLength
+    if (knownSizeDelta > 0) {
+      const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, knownSizeDelta)
       if (!allowed) return c.text('Quota exceeded', 422)
     }
 
+    let uploadedSize = 0
     try {
-      await s3.putObject(storage, objectKey, body, contentType, contentLength)
+      uploadedSize = await s3.putObject(storage, objectKey, body, contentType, contentLength ?? undefined)
     } catch (e) {
-      if (sizeDelta > 0) await decrementUsage(db, workspace.id, new Map([[storage.id, sizeDelta]]), sizeDelta)
+      if (knownSizeDelta > 0)
+        await decrementUsage(db, workspace.id, new Map([[storage.id, knownSizeDelta]]), knownSizeDelta)
       throw e
+    }
+
+    const sizeDelta = target.matter ? uploadedSize - (target.matter.size ?? 0) : uploadedSize
+    if (contentLength === null && sizeDelta > 0) {
+      const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, sizeDelta)
+      if (!allowed) {
+        await s3.deleteObject(storage, objectKey)
+        return c.text('Quota exceeded', 422)
+      }
     }
 
     if (sizeDelta < 0) {
@@ -692,8 +705,9 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       const now = new Date()
       await db
         .update(matters)
-        .set({ type: contentType, size: contentLength, updatedAt: now })
+        .set({ type: contentType, size: uploadedSize, object: objectKey, updatedAt: now })
         .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, workspace.id)))
+      if (objectKey !== target.matter.object) await s3.deleteObject(storage, target.matter.object)
       return new Response(null, { status: 204 })
     }
 
@@ -702,7 +716,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       userId: auth.userId,
       name: target.name,
       type: contentType,
-      size: contentLength,
+      size: uploadedSize,
       dirtype: DirType.FILE,
       parent: target.parent,
       object: objectKey,

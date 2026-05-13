@@ -20,7 +20,7 @@ function makeFile(type: string, bytes = 16): File {
 describe('PUT /api/me/avatar', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(undefined)
+    vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(16)
   })
 
   it('returns 401 without auth', async () => {

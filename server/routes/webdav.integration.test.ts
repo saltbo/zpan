@@ -21,7 +21,11 @@ beforeEach(() => {
   vi.spyOn(S3Service.prototype, 'presignDownload').mockResolvedValue('https://download.example.com/file.txt')
   vi.spyOn(S3Service.prototype, 'getObjectBytes').mockResolvedValue(new TextEncoder().encode('hello webdav'))
   vi.spyOn(S3Service.prototype, 'getObjectBody').mockImplementation(async () => streamBody('hello webdav'))
-  vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(undefined)
+  vi.spyOn(S3Service.prototype, 'putObject').mockImplementation(
+    async (_storage, _key, body, _contentType, contentLength) =>
+      contentLength ??
+      (body instanceof Uint8Array ? body.byteLength : (await new Response(body).arrayBuffer()).byteLength),
+  )
   vi.spyOn(S3Service.prototype, 'copyObject').mockResolvedValue(undefined)
 })
 
@@ -768,7 +772,7 @@ describe('WebDAV API', () => {
     expect(rows[0]).toEqual({ name: 'upload.txt', size: 9, status: 'active' })
   })
 
-  it('PUT requires Content-Length before streaming request body to storage', async () => {
+  it('PUT accepts requests without Content-Length and stores the measured size', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -781,8 +785,18 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
       body: 'hello dav',
     })
-    expect(res.status).toBe(411)
-    expect(S3Service.prototype.putObject).not.toHaveBeenCalled()
+    expect(res.status).toBe(201)
+    expect(S3Service.prototype.putObject).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      expect.any(ReadableStream),
+      'text/plain',
+      undefined,
+    )
+    const rows = await db.all<{ name: string; size: number }>(
+      sql`SELECT name, size FROM matters WHERE org_id = ${workspace.id} AND name = 'upload.txt'`,
+    )
+    expect(rows[0]).toEqual({ name: 'upload.txt', size: 9 })
   })
 
   it('PUT updates an existing file matter and rejects collection writes', async () => {

@@ -1,15 +1,20 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
   CopyObjectCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { Storage } from '../../shared/types'
 
 const DEFAULT_EXPIRES_IN = 3600
+const MULTIPART_PART_SIZE = 5 * 1024 * 1024
 
 export class S3Service {
   createClient(storage: Storage): S3Client {
@@ -133,11 +138,11 @@ export class S3Service {
     body: ReadableStream | Uint8Array,
     contentType: string,
     contentLength?: number,
-  ): Promise<void> {
+  ): Promise<number> {
     if (body instanceof ReadableStream) {
-      if (contentLength === undefined) throw new Error('Content-Length required for streaming object uploads')
+      if (contentLength === undefined) return this.putObjectMultipartStream(storage, key, body, contentType)
       await this.putObjectStream(storage, key, body, contentType, contentLength)
-      return
+      return contentLength
     }
 
     const client = this.createClient(storage)
@@ -150,6 +155,7 @@ export class S3Service {
         ContentLength: body.byteLength,
       }),
     )
+    return body.byteLength
   }
 
   private async putObjectStream(
@@ -169,6 +175,93 @@ export class S3Service {
       body,
     })
     if (!response.ok) throw new Error(`S3 stream upload failed: ${response.status}`)
+  }
+
+  private async putObjectMultipartStream(
+    storage: Storage,
+    key: string,
+    body: ReadableStream,
+    contentType: string,
+  ): Promise<number> {
+    const client = this.createClient(storage)
+    const created = await client.send(
+      new CreateMultipartUploadCommand({ Bucket: storage.bucket, Key: key, ContentType: contentType }),
+    )
+    const uploadId = created.UploadId
+    if (!uploadId) throw new Error('S3 multipart upload did not return an upload id')
+
+    const reader = body.getReader()
+    const parts: Array<{ ETag: string; PartNumber: number }> = []
+    let pending = new Uint8Array() as Uint8Array<ArrayBufferLike>
+    let total = 0
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        pending = concatBytes(pending, value)
+        while (pending.byteLength >= MULTIPART_PART_SIZE) {
+          const part = pending.slice(0, MULTIPART_PART_SIZE)
+          pending = pending.slice(MULTIPART_PART_SIZE)
+          parts.push(await this.uploadPart(client, storage.bucket, key, uploadId, parts.length + 1, part))
+          total += part.byteLength
+        }
+      }
+
+      if (pending.byteLength > 0) {
+        parts.push(await this.uploadPart(client, storage.bucket, key, uploadId, parts.length + 1, pending))
+        total += pending.byteLength
+      }
+
+      if (parts.length === 0) {
+        await client.send(new AbortMultipartUploadCommand({ Bucket: storage.bucket, Key: key, UploadId: uploadId }))
+        await client.send(
+          new PutObjectCommand({
+            Bucket: storage.bucket,
+            Key: key,
+            Body: new Uint8Array(),
+            ContentType: contentType,
+            ContentLength: 0,
+          }),
+        )
+        return 0
+      }
+
+      await client.send(
+        new CompleteMultipartUploadCommand({
+          Bucket: storage.bucket,
+          Key: key,
+          UploadId: uploadId,
+          MultipartUpload: { Parts: parts },
+        }),
+      )
+      return total
+    } catch (e) {
+      await client.send(new AbortMultipartUploadCommand({ Bucket: storage.bucket, Key: key, UploadId: uploadId }))
+      throw e
+    }
+  }
+
+  private async uploadPart(
+    client: S3Client,
+    bucket: string,
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    body: Uint8Array<ArrayBufferLike>,
+  ): Promise<{ ETag: string; PartNumber: number }> {
+    const result = await client.send(
+      new UploadPartCommand({
+        Bucket: bucket,
+        Key: key,
+        UploadId: uploadId,
+        PartNumber: partNumber,
+        Body: body,
+        ContentLength: body.byteLength,
+      }),
+    )
+    if (!result.ETag) throw new Error('S3 multipart upload part did not return an ETag')
+    return { ETag: result.ETag, PartNumber: partNumber }
   }
 
   async deleteObject(storage: Storage, key: string): Promise<void> {
@@ -209,4 +302,15 @@ function bodyToResponseBody(body: unknown): BodyInit {
   if (streamBody.transformToWebStream) return streamBody.transformToWebStream()
 
   throw new Error('Unsupported object body')
+}
+
+function concatBytes(
+  left: Uint8Array<ArrayBufferLike>,
+  right: Uint8Array<ArrayBufferLike>,
+): Uint8Array<ArrayBufferLike> {
+  if (left.byteLength === 0) return right
+  const merged = new Uint8Array(left.byteLength + right.byteLength)
+  merged.set(left)
+  merged.set(right, left.byteLength)
+  return merged
 }

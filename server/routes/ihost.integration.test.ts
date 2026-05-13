@@ -8,7 +8,7 @@ import { authedHeaders, createTestApp } from '../test/setup.js'
 beforeEach(() => {
   vi.restoreAllMocks()
   vi.spyOn(S3Service.prototype, 'presignUpload').mockResolvedValue('https://presigned-upload.example.com')
-  vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(undefined)
+  vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(0)
   vi.spyOn(S3Service.prototype, 'deleteObject').mockResolvedValue(undefined)
 })
 
