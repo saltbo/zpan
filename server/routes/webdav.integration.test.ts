@@ -181,7 +181,8 @@ describe('WebDAV API', () => {
       method: 'PROPFIND',
       headers: basicHeaders(account.email, key),
     })
-    expect(rootWithoutSlash.status).toBe(207)
+    expect(rootWithoutSlash.status).toBe(308)
+    expect(rootWithoutSlash.headers.get('Location')).toBe('/dav/')
 
     const docs = await app.request(`/dav/${workspace.slug}/Docs`, {
       method: 'PROPFIND',

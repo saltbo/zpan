@@ -40,6 +40,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.use('/*', platformMiddleware(platform, auth))
   app.use('/*', imageHostingDomain)
   app.use('/api/*', accessLog)
+  app.use('/dav', accessLog)
   app.use('/dav/*', accessLog)
 
   app.use(
@@ -57,6 +58,7 @@ export function createApp(platform: Platform, auth: Auth) {
     return a.handler(c.req.raw)
   })
 
+  app.all('/dav', (c) => c.redirect('/dav/', 308))
   app.route('/dav', webdav)
 
   // Public routes — no auth required; mount before authMiddleware.
