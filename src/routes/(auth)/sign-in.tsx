@@ -32,6 +32,7 @@ function SignIn() {
   })()
   const { authSignupMode, captchaEnabled, captchaSiteKey, siteName } = useSiteOptions()
   const { providers } = useOAuthProviders()
+  const authProviders = captchaEnabled ? [] : providers
   const [identity, setIdentity] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -63,7 +64,7 @@ function SignIn() {
     }
   }
 
-  const showDivider = providers.length > 0
+  const showDivider = authProviders.length > 0
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -72,7 +73,7 @@ function SignIn() {
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signInSubtitle')}</p>
         </div>
-        <OAuthButtons />
+        {!captchaEnabled && <OAuthButtons />}
         {showDivider && (
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />
@@ -80,7 +81,7 @@ function SignIn() {
             <Separator className="flex-1" />
           </div>
         )}
-        {providers.length > 3 && !formExpanded ? (
+        {authProviders.length > 3 && !formExpanded ? (
           <button
             type="button"
             onClick={() => setFormExpanded(true)}

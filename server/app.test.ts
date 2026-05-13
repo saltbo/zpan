@@ -49,4 +49,22 @@ describe('auth captcha guard', () => {
     expect(res.status).toBe(200)
     expect(fetch).toHaveBeenCalledOnce()
   })
+
+  it('rejects social auth when captcha is enabled', async () => {
+    const { app, db } = await createTestApp()
+    await db.insert(systemOptions).values([
+      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+    ])
+
+    const res = await app.request('/api/auth/sign-in/social', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'github', callbackURL: '/files' }),
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toEqual({ error: 'Captcha is required for social authentication' })
+  })
 })

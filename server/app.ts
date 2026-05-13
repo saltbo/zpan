@@ -33,7 +33,7 @@ import { publicTeams, teams } from './routes/teams'
 import trash from './routes/trash'
 import users from './routes/users'
 import webdav from './routes/webdav'
-import { verifyCaptchaToken } from './services/captcha'
+import { isCaptchaEnabled, verifyCaptchaToken } from './services/captcha'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
@@ -54,6 +54,7 @@ export function createApp(platform: Platform, auth: Auth) {
 
   app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     const captchaAuthPaths = ['/api/auth/sign-in/email', '/api/auth/sign-in/username', '/api/auth/sign-up/email']
+    const captchaBlockedAuthPaths = ['/api/auth/sign-in/social']
     if (c.req.method === 'POST' && captchaAuthPaths.includes(c.req.path)) {
       const body = (await c.req.raw
         .clone()
@@ -61,6 +62,11 @@ export function createApp(platform: Platform, auth: Auth) {
         .catch(() => ({}))) as { captchaToken?: string }
       const valid = await verifyCaptchaToken(c.get('platform').db, body.captchaToken, c.req.header('CF-Connecting-IP'))
       if (!valid) return c.json({ error: 'Invalid captcha token' }, 400)
+    }
+    if (c.req.method === 'POST' && captchaBlockedAuthPaths.includes(c.req.path)) {
+      if (await isCaptchaEnabled(c.get('platform').db)) {
+        return c.json({ error: 'Captcha is required for social authentication' }, 400)
+      }
     }
     const a = c.get('auth')
     return a.handler(c.req.raw)

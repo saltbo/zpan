@@ -27,6 +27,7 @@ function SignUp() {
   const { invite } = Route.useSearch()
   const { authSignupMode, captchaEnabled, captchaSiteKey, isLoading: optionsLoading, siteName } = useSiteOptions()
   const { providers } = useOAuthProviders()
+  const authProviders = captchaEnabled ? [] : providers
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -147,7 +148,7 @@ function SignUp() {
     }
   }
 
-  const showDivider = providers.length > 0
+  const showDivider = authProviders.length > 0
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -156,7 +157,7 @@ function SignUp() {
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signUpSubtitle')}</p>
         </div>
-        <OAuthButtons />
+        {!captchaEnabled && <OAuthButtons />}
         {showDivider && (
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />
@@ -164,7 +165,7 @@ function SignUp() {
             <Separator className="flex-1" />
           </div>
         )}
-        {providers.length > 3 && !formExpanded ? (
+        {authProviders.length > 3 && !formExpanded ? (
           <button
             type="button"
             onClick={() => setFormExpanded(true)}
