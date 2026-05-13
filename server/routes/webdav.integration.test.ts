@@ -493,7 +493,7 @@ describe('WebDAV API', () => {
     expect(S3Service.prototype.getObjectBytes).not.toHaveBeenCalled()
   })
 
-  it('expands tiny WebDAVFS ranges for mounted media reads', async () => {
+  it('serves WebDAVFS ranges exactly for mounted media reads', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await seedStorage(db)
@@ -512,12 +512,14 @@ describe('WebDAV API', () => {
     })
 
     expect(partial.status).toBe(206)
-    expect(partial.headers.get('Content-Range')).toBe('bytes 419430-1468005/2097152')
-    expect(partial.headers.get('Content-Length')).toBe('1048576')
+    expect(partial.headers.get('Content-Range')).toBe('bytes 419430-419430/2097152')
+    expect(partial.headers.get('Content-Length')).toBe('1')
+    expect(partial.headers.get('Cache-Control')).toBe('no-store')
+    expect(partial.headers.get('ETag')).toBeNull()
     expect(S3Service.prototype.getObjectBody).toHaveBeenCalledWith(
       expect.objectContaining({ id: storage.id }),
       'objects/mounted-media.txt',
-      'bytes=419430-1468005',
+      'bytes=419430-419430',
     )
   })
 

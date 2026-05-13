@@ -137,12 +137,10 @@ describe('WebDAV HTTP e2e', () => {
       headers: { Range: 'bytes=10-10', 'User-Agent': 'WebDAVFS/3.0.0 (03008000) Darwin/24.6.0 (arm64)' },
     })
     expect(webDavFsRange.status).toBe(206)
-    expect(webDavFsRange.headers.get('Content-Range')).toBe(
-      `bytes 10-${smallBody.byteLength - 1}/${smallBody.byteLength}`,
-    )
+    expect(webDavFsRange.headers.get('Content-Range')).toBe(`bytes 10-10/${smallBody.byteLength}`)
     expect(webDavFsRange.headers.get('Cache-Control')).toBe('no-store')
     expect(webDavFsRange.headers.get('ETag')).toBeNull()
-    expect(await webDavFsRange.text()).toBe('abcdefghijklmnopqrstuvwxyz')
+    expect(await webDavFsRange.text()).toBe('a')
 
     const normalCached = await dav('GET', ws('/song.mp3'), { headers: { 'If-None-Match': etag ?? '' } })
     expect(normalCached.status).toBe(304)
