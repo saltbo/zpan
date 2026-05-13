@@ -360,10 +360,26 @@ async function bridgeFixedLengthStream(
     }
     await writer.close()
   } catch (error) {
-    await Promise.allSettled([reader.cancel(error), writer.abort(error)])
+    await Promise.allSettled([cancelStreamReader(reader, error), writer.abort(error)])
   } finally {
-    reader.releaseLock()
-    writer.releaseLock()
+    releaseStreamLock(reader)
+    releaseStreamLock(writer)
+  }
+}
+
+async function cancelStreamReader(reader: ReadableStreamDefaultReader<Uint8Array>, reason: unknown): Promise<void> {
+  try {
+    await reader.cancel(reason)
+  } catch {
+    return
+  }
+}
+
+function releaseStreamLock(stream: { releaseLock: () => void }): void {
+  try {
+    stream.releaseLock()
+  } catch {
+    return
   }
 }
 
