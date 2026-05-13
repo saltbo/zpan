@@ -216,6 +216,8 @@ function etagMatches(header: string, etag: string): boolean {
 
 function preconditionResponse(c: DavContext, matter: NonNullable<WebDavTarget['matter']>): Response | null {
   const etag = matterEtag(matter)
+  const method = c.req.method.toUpperCase()
+  const isWebDavFsRead = method === 'GET' && c.req.header('User-Agent')?.startsWith('WebDAVFS/')
   const ifMatch = c.req.header('If-Match')
   if (ifMatch && !etagMatches(ifMatch, etag)) return new Response(null, { status: 412 })
 
@@ -227,17 +229,17 @@ function preconditionResponse(c: DavContext, matter: NonNullable<WebDavTarget['m
   const ifNoneMatch = c.req.header('If-None-Match')
   if (ifNoneMatch) {
     if (!etagMatches(ifNoneMatch, etag)) return null
-    if (c.req.method.toUpperCase() === 'GET' || c.req.method.toUpperCase() === 'HEAD') {
+    if (isWebDavFsRead) return null
+    if (method === 'GET' || method === 'HEAD') {
       return new Response(null, { status: 304, headers: validatorHeaders(matter) })
     }
     return new Response(null, { status: 412 })
   }
 
   const ifModifiedSince =
-    c.req.method.toUpperCase() === 'GET' || c.req.method.toUpperCase() === 'HEAD'
-      ? parseHttpDate(c.req.header('If-Modified-Since'))
-      : null
+    method === 'GET' || method === 'HEAD' ? parseHttpDate(c.req.header('If-Modified-Since')) : null
   if (ifModifiedSince && matter.updatedAt.getTime() <= ifModifiedSince.getTime()) {
+    if (isWebDavFsRead) return null
     return new Response(null, { status: 304, headers: validatorHeaders(matter) })
   }
 

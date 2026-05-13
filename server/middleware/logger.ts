@@ -36,6 +36,8 @@ function accessLogFields(
     fields.push(
       ['range', c.req.header('Range') ?? '-'],
       ['ifRange', c.req.header('If-Range') ?? '-'],
+      ['ifNoneMatch', c.req.header('If-None-Match') ?? '-'],
+      ['ifModifiedSince', c.req.header('If-Modified-Since') ?? '-'],
       ['contentLength', c.req.header('Content-Length') ?? '-'],
       ['contentRange', c.res.headers.get('Content-Range') ?? '-'],
       ['userAgent', c.req.header('User-Agent') ?? '-'],

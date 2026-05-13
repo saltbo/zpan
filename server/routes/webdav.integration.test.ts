@@ -633,6 +633,37 @@ describe('WebDAV API', () => {
     expect(updated.headers.get('ETag')).not.toBe(etag)
   })
 
+  it('does not return 304 for WebDAVFS media reads', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    await file(db, workspace.id, { id: 'webdavfs-cache', name: 'cached.mp3', size: 12 })
+
+    const head = await app.request(`/dav/${workspace.slug}/cached.mp3`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key),
+    })
+    const etag = head.headers.get('ETag') ?? ''
+
+    const cached = await app.request(`/dav/${workspace.slug}/cached.mp3`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, {
+        'If-None-Match': etag,
+        'User-Agent': 'WebDAVFS/3.0.0 (03008000) Darwin/24.6.0 (arm64)',
+      }),
+    })
+
+    expect(cached.status).toBe(200)
+    expect(await cached.text()).toBe('hello webdav')
+    expect(S3Service.prototype.getObjectBody).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: storage.id }),
+      'objects/webdavfs-cache.txt',
+    )
+  })
+
   it('honors HTTP date preconditions', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
