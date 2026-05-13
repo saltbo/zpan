@@ -489,6 +489,34 @@ describe('WebDAV API', () => {
     expect(S3Service.prototype.getObjectBytes).not.toHaveBeenCalled()
   })
 
+  it('expands tiny WebDAVFS ranges for mounted media reads', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    await file(db, workspace.id, { id: 'mounted-media', name: 'audio.mp3', size: 2 * 1024 * 1024 })
+    vi.mocked(S3Service.prototype.getObjectBody).mockResolvedValueOnce(streamBody('chunk'))
+
+    const partial = await app.request(`/dav/${workspace.slug}/audio.mp3`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, {
+        Range: 'bytes=419430-419430',
+        'User-Agent': 'WebDAVFS/3.0.0 (03008000) Darwin/24.6.0 (arm64)',
+      }),
+    })
+
+    expect(partial.status).toBe(206)
+    expect(partial.headers.get('Content-Range')).toBe('bytes 419430-1468005/2097152')
+    expect(partial.headers.get('Content-Length')).toBe('1048576')
+    expect(S3Service.prototype.getObjectBody).toHaveBeenCalledWith(
+      expect.objectContaining({ id: storage.id }),
+      'objects/mounted-media.txt',
+      'bytes=419430-1468005',
+    )
+  })
+
   it('GET ignores unsupported ranges and honors If-Range validators', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)

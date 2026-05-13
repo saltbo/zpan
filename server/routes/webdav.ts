@@ -261,6 +261,8 @@ interface ByteRange {
   end: number
 }
 
+const WEBDAVFS_READ_AHEAD_BYTES = 1024 * 1024
+
 type RangeRequest = { action: 'none' | 'ignore' } | { action: 'serve'; range: ByteRange } | { action: 'reject' }
 
 function parseRangeRequest(header: string | undefined, size: number): RangeRequest {
@@ -296,6 +298,12 @@ function parseRangeRequest(header: string | undefined, size: number): RangeReque
 
 function rangeNotSatisfiable(size: number): Response {
   return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
+}
+
+function webDavFsReadAheadRange(c: DavContext, range: ByteRange, size: number): ByteRange {
+  if (!c.req.header('User-Agent')?.startsWith('WebDAVFS/')) return range
+  if (range.end - range.start + 1 >= WEBDAVFS_READ_AHEAD_BYTES) return range
+  return { start: range.start, end: Math.min(size - 1, range.start + WEBDAVFS_READ_AHEAD_BYTES - 1) }
 }
 
 function ifRangeMatches(header: string | undefined, matter: NonNullable<WebDavTarget['matter']>): boolean {
@@ -622,7 +630,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
     if (rangeRequest.action === 'reject') return rangeNotSatisfiable(size)
     if (rangeRequest.action !== 'serve') throw new Error('Unexpected range request action')
-    const range = rangeRequest.range
+    const range = webDavFsReadAheadRange(c, rangeRequest.range, size)
     const body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
     headers.set('Content-Length', String(range.end - range.start + 1))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
