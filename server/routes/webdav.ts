@@ -331,11 +331,15 @@ function fixedLengthResponseBody(body: BodyInit, contentLength: number): BodyIni
       }
     }
   ).FixedLengthStream
-  if (!ctor || !(body instanceof ReadableStream)) return body
+  if (!ctor || !isPipeableStream(body)) return body
 
   const { readable, writable } = new ctor(contentLength)
   void body.pipeTo(writable)
   return readable
+}
+
+function isPipeableStream(body: BodyInit): body is ReadableStream<Uint8Array> {
+  return typeof (body as ReadableStream<Uint8Array>).pipeTo === 'function'
 }
 
 function overwriteAllowed(c: DavContext): boolean {
@@ -653,8 +657,8 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (rangeRequest.action === 'reject') return rangeNotSatisfiable(size)
     if (rangeRequest.action !== 'serve') throw new Error('Unexpected range request action')
     const range = rangeRequest.range
-    const body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
     const contentLength = range.end - range.start + 1
+    const body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
     headers.set('Content-Length', String(contentLength))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
     return new Response(fixedLengthResponseBody(body, contentLength), { status: 206, headers })
