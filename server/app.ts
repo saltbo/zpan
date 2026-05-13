@@ -40,6 +40,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.use('/*', platformMiddleware(platform, auth))
   app.use('/*', imageHostingDomain)
   app.use('/api/*', accessLog)
+  app.use('/dav/*', accessLog)
 
   app.use(
     '/api/*',

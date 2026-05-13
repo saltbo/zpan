@@ -97,6 +97,7 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
     )
       return unauthorized()
     if (!(await usernameMatches(db, key.referenceId, credentials.username))) return unauthorized()
+    c.set('userId', key.referenceId)
     return { userId: key.referenceId }
   } catch {
     return unauthorized()
