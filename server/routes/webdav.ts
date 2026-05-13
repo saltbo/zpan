@@ -261,12 +261,15 @@ function rangeNotSatisfiable(size: number): Response {
   return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
 }
 
-function overwriteAllowed(c: DavContext): boolean {
-  return (c.req.header('Overwrite') ?? 'T').toUpperCase() !== 'F'
+function parseContentLength(header: string | undefined): number | Response {
+  if (!header) return new Response('Content-Length required', { status: 411 })
+  const size = Number(header)
+  if (!Number.isSafeInteger(size) || size < 0) return new Response('Invalid Content-Length', { status: 400 })
+  return size
 }
 
-function bytesBody(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+function overwriteAllowed(c: DavContext): boolean {
+  return (c.req.header('Overwrite') ?? 'T').toUpperCase() !== 'F'
 }
 
 function resourcePath(target: WebDavTarget): string {
@@ -561,16 +564,16 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     const size = matter.size ?? 0
     const rangeHeader = c.req.header('Range')
     if (!rangeHeader) {
-      const bytes = await s3.getObjectBytes(storage, matter.object)
-      return new Response(bytesBody(bytes), { headers })
+      const body = await s3.getObjectBody(storage, matter.object)
+      return new Response(body, { headers })
     }
 
     const range = parseByteRange(rangeHeader, size)
     if (!range) return rangeNotSatisfiable(size)
-    const bytes = await s3.getObjectBytes(storage, matter.object, `bytes=${range.start}-${range.end}`)
+    const body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
     headers.set('Content-Length', String(range.end - range.start + 1))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
-    return new Response(bytesBody(bytes), { status: 206, headers })
+    return new Response(body, { status: 206, headers })
   } catch (e) {
     return davError(c, e)
   }
@@ -592,7 +595,10 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (precondition) return precondition
     await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
 
-    const bytes = new Uint8Array(await c.req.arrayBuffer())
+    const contentLength = parseContentLength(c.req.header('Content-Length'))
+    if (contentLength instanceof Response) return contentLength
+    const body = contentLength === 0 ? new Uint8Array() : c.req.raw.body
+    if (!body) return c.text('Request body required', 400)
     const storage = target.matter
       ? ((await getStorage(db, target.matter.storageId)) as unknown as S3Storage | null)
       : ((await selectStorage(db, 'private')) as unknown as S3Storage)
@@ -602,14 +608,14 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       : buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
     const contentType = c.req.header('Content-Type') ?? 'application/octet-stream'
 
-    const sizeDelta = target.matter ? bytes.byteLength - (target.matter.size ?? 0) : bytes.byteLength
+    const sizeDelta = target.matter ? contentLength - (target.matter.size ?? 0) : contentLength
     if (sizeDelta > 0) {
       const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, sizeDelta)
       if (!allowed) return c.text('Quota exceeded', 422)
     }
 
     try {
-      await s3.putObject(storage, objectKey, bytes, contentType)
+      await s3.putObject(storage, objectKey, body, contentType, contentLength)
     } catch (e) {
       if (sizeDelta > 0) await decrementUsage(db, workspace.id, new Map([[storage.id, sizeDelta]]), sizeDelta)
       throw e
@@ -623,7 +629,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       const now = new Date()
       await db
         .update(matters)
-        .set({ type: contentType, size: bytes.byteLength, updatedAt: now })
+        .set({ type: contentType, size: contentLength, updatedAt: now })
         .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, workspace.id)))
       return new Response(null, { status: 204 })
     }
@@ -633,7 +639,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
       userId: auth.userId,
       name: target.name,
       type: contentType,
-      size: bytes.byteLength,
+      size: contentLength,
       dirtype: DirType.FILE,
       parent: target.parent,
       object: objectKey,

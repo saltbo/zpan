@@ -20,9 +20,20 @@ beforeEach(() => {
   vi.restoreAllMocks()
   vi.spyOn(S3Service.prototype, 'presignDownload').mockResolvedValue('https://download.example.com/file.txt')
   vi.spyOn(S3Service.prototype, 'getObjectBytes').mockResolvedValue(new TextEncoder().encode('hello webdav'))
+  vi.spyOn(S3Service.prototype, 'getObjectBody').mockImplementation(async () => streamBody('hello webdav'))
   vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(undefined)
   vi.spyOn(S3Service.prototype, 'copyObject').mockResolvedValue(undefined)
 })
+
+function streamBody(text: string): ReadableStream {
+  const bytes = new TextEncoder().encode(text)
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes)
+      controller.close()
+    },
+  })
+}
 
 async function seedStorage(db: TestApp['db']) {
   const now = Date.now()
@@ -415,10 +426,11 @@ describe('WebDAV API', () => {
     expect(get.headers.get('Location')).toBeNull()
     expect(await get.text()).toBe('hello webdav')
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
-    expect(S3Service.prototype.getObjectBytes).toHaveBeenCalledWith(
+    expect(S3Service.prototype.getObjectBody).toHaveBeenCalledWith(
       expect.objectContaining({ id: storage.id }),
       'objects/readme.txt',
     )
+    expect(S3Service.prototype.getObjectBytes).not.toHaveBeenCalled()
   })
 
   it('GET supports valid byte ranges and rejects invalid ranges', async () => {
@@ -429,7 +441,7 @@ describe('WebDAV API', () => {
     const account = await userAccount(db)
     const key = await apiKey(auth, account.id, { webdav: ['read'] })
     await file(db, workspace.id, { id: 'range', name: 'range.txt', size: 12 })
-    vi.mocked(S3Service.prototype.getObjectBytes).mockResolvedValueOnce(new TextEncoder().encode('hello'))
+    vi.mocked(S3Service.prototype.getObjectBody).mockResolvedValueOnce(streamBody('hello'))
 
     const partial = await app.request(`/dav/${workspace.slug}/range.txt`, {
       method: 'GET',
@@ -439,7 +451,7 @@ describe('WebDAV API', () => {
     expect(partial.headers.get('Content-Range')).toBe('bytes 0-4/12')
     expect(partial.headers.get('Content-Length')).toBe('5')
     expect(await partial.text()).toBe('hello')
-    expect(S3Service.prototype.getObjectBytes).toHaveBeenCalledWith(
+    expect(S3Service.prototype.getObjectBody).toHaveBeenCalledWith(
       expect.objectContaining({ id: storage.id }),
       'objects/range.txt',
       'bytes=0-4',
@@ -452,7 +464,7 @@ describe('WebDAV API', () => {
     expect(invalid.status).toBe(416)
     expect(invalid.headers.get('Content-Range')).toBe('bytes */12')
 
-    vi.mocked(S3Service.prototype.getObjectBytes).mockResolvedValueOnce(new TextEncoder().encode('dav'))
+    vi.mocked(S3Service.prototype.getObjectBody).mockResolvedValueOnce(streamBody('dav'))
     const suffix = await app.request(`/dav/${workspace.slug}/range.txt`, {
       method: 'GET',
       headers: basicHeaders(account.email, key, { Range: 'bytes=-3' }),
@@ -460,6 +472,7 @@ describe('WebDAV API', () => {
     expect(suffix.status).toBe(206)
     expect(suffix.headers.get('Content-Range')).toBe('bytes 9-11/12')
     expect(await suffix.text()).toBe('dav')
+    expect(S3Service.prototype.getObjectBytes).not.toHaveBeenCalled()
   })
 
   it('honors ETag preconditions and changes ETag after overwrite', async () => {
@@ -506,7 +519,11 @@ describe('WebDAV API', () => {
 
     const overwrite = await app.request(`/dav/${workspace.slug}/precondition.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { 'If-Match': etag ?? '', 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, {
+        'If-Match': etag ?? '',
+        'Content-Type': 'text/plain',
+        'Content-Length': '9',
+      }),
       body: 'new bytes',
     })
     expect(overwrite.status).toBe(204)
@@ -551,21 +568,46 @@ describe('WebDAV API', () => {
 
     const res = await app.request(`/dav/${workspace.slug}/upload.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain', 'Content-Length': '9' }),
       body: 'hello dav',
     })
     expect(res.status).toBe(201)
     expect(S3Service.prototype.putObject).toHaveBeenCalledWith(
       expect.objectContaining({ id: storage.id }),
       expect.any(String),
-      expect.any(Uint8Array),
+      expect.any(ReadableStream),
       'text/plain',
+      9,
+    )
+    expect(S3Service.prototype.putObject).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.any(Uint8Array),
+      expect.anything(),
+      expect.anything(),
     )
 
     const rows = await db.all<{ name: string; size: number; status: string }>(
       sql`SELECT name, size, status FROM matters WHERE org_id = ${workspace.id} AND name = 'upload.txt'`,
     )
     expect(rows[0]).toEqual({ name: 'upload.txt', size: 9, status: 'active' })
+  })
+
+  it('PUT requires Content-Length before streaming request body to storage', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['write'] })
+
+    const res = await app.request(`/dav/${workspace.slug}/upload.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
+      body: 'hello dav',
+    })
+    expect(res.status).toBe(411)
+    expect(S3Service.prototype.putObject).not.toHaveBeenCalled()
   })
 
   it('PUT updates an existing file matter and rejects collection writes', async () => {
@@ -580,7 +622,10 @@ describe('WebDAV API', () => {
 
     const update = await app.request(`/dav/${workspace.slug}/existing`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { 'Content-Type': 'application/octet-stream' }),
+      headers: basicHeaders(account.email, key, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': '5',
+      }),
       body: 'short',
     })
     expect(update.status).toBe(204)
@@ -589,14 +634,14 @@ describe('WebDAV API', () => {
 
     const root = await app.request(`/dav/${workspace.slug}/`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key),
+      headers: basicHeaders(account.email, key, { 'Content-Length': '4' }),
       body: 'nope',
     })
     expect(root.status).toBe(405)
 
     const folderWrite = await app.request(`/dav/${workspace.slug}/Docs`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key),
+      headers: basicHeaders(account.email, key, { 'Content-Length': '4' }),
       body: 'nope',
     })
     expect(folderWrite.status).toBe(409)
@@ -613,7 +658,7 @@ describe('WebDAV API', () => {
 
     const res = await app.request(`/dav/${workspace.slug}/will-fail.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain', 'Content-Length': '5' }),
       body: 'bytes',
     })
     expect(res.status).toBe(500)
@@ -1073,7 +1118,7 @@ describe('WebDAV API', () => {
 
     const recreate = await app.request(`/dav/${workspace.slug}/moved-state.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain', 'Content-Length': '3' }),
       body: 'new',
     })
     expect(recreate.status).toBe(201)
@@ -1108,6 +1153,7 @@ describe('WebDAV API', () => {
       headers: basicHeaders(account.email, key, {
         If: `<http://localhost/dav/${workspace.slug}/if.txt> ([${firstEtag}])`,
         'Content-Type': 'text/plain',
+        'Content-Length': '6',
       }),
       body: 'tagged',
     })
@@ -1121,7 +1167,11 @@ describe('WebDAV API', () => {
 
     const matched = await app.request(`/dav/${workspace.slug}/if.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { If: `([${etag}])`, 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, {
+        If: `([${etag}])`,
+        'Content-Type': 'text/plain',
+        'Content-Length': '7',
+      }),
       body: 'matched',
     })
     expect(matched.status).toBe(204)
@@ -1189,7 +1239,11 @@ describe('WebDAV API', () => {
 
     const notMatched = await app.request(`/dav/${workspace.slug}/if.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { If: '(Not ["stale"])', 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, {
+        If: '(Not ["stale"])',
+        'Content-Type': 'text/plain',
+        'Content-Length': '11',
+      }),
       body: 'not matched',
     })
     expect(notMatched.status).toBe(204)
@@ -1236,14 +1290,22 @@ describe('WebDAV API', () => {
 
     const accepted = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { 'Lock-Token': token, 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, {
+        'Lock-Token': token,
+        'Content-Type': 'text/plain',
+        'Content-Length': '7',
+      }),
       body: 'allowed',
     })
     expect(accepted.status).toBe(204)
 
     const acceptedWithIfToken = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { If: `(${token})`, 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, {
+        If: `(${token})`,
+        'Content-Type': 'text/plain',
+        'Content-Length': '13',
+      }),
       body: 'allowed by if',
     })
     expect(acceptedWithIfToken.status).toBe(204)
@@ -1361,7 +1423,7 @@ describe('WebDAV API', () => {
 
     const afterUnlock = await app.request(`/dav/${workspace.slug}/locked.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain', 'Content-Length': '5' }),
       body: 'after',
     })
     expect(afterUnlock.status).toBe(204)
@@ -1432,7 +1494,7 @@ describe('WebDAV API', () => {
 
     const afterDescendantUnlock = await app.request(`/dav/${workspace.slug}/RefreshScope/child.txt`, {
       method: 'PUT',
-      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain' }),
+      headers: basicHeaders(account.email, key, { 'Content-Type': 'text/plain', 'Content-Length': '12' }),
       body: 'after unlock',
     })
     expect(afterDescendantUnlock.status).toBe(204)

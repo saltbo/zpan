@@ -89,6 +89,14 @@ export class S3Service {
     return bodyToBytes(result.Body)
   }
 
+  async getObjectBody(storage: Storage, key: string, range?: string): Promise<BodyInit> {
+    const client = this.createClient(storage)
+    const input = range ? { Bucket: storage.bucket, Key: key, Range: range } : { Bucket: storage.bucket, Key: key }
+    const result = await client.send(new GetObjectCommand(input))
+    if (!result.Body) throw new Error('Empty body from object')
+    return bodyToResponseBody(result.Body)
+  }
+
   async copyObject(srcStorage: Storage, srcKey: string, dstStorage: Storage, dstKey: string): Promise<void> {
     const client = this.createClient(dstStorage)
     await client.send(
@@ -123,26 +131,21 @@ export class S3Service {
     key: string,
     body: ReadableStream | Uint8Array,
     contentType: string,
+    contentLength?: number,
   ): Promise<void> {
     const client = this.createClient(storage)
-
-    // AWS SDK on Node expects Node Readable or Uint8Array, not Web
-    // ReadableStream.  Convert to Uint8Array for cross-runtime compat
-    // (the file is already buffered in memory by Hono's multipart parser).
-    let payload: Uint8Array
-    if (body instanceof Uint8Array) {
-      payload = body
-    } else {
-      const response = new Response(body)
-      payload = new Uint8Array(await response.arrayBuffer())
-    }
+    if (body instanceof ReadableStream && contentLength === undefined)
+      throw new Error('Content-Length required for streaming object uploads')
+    const resolvedContentLength = body instanceof Uint8Array ? body.byteLength : contentLength
 
     await client.send(
       new PutObjectCommand({
         Bucket: storage.bucket,
         Key: key,
-        Body: payload,
+        // biome-ignore lint/suspicious/noExplicitAny: AWS SDK stream body type differs across runtimes
+        Body: body as any,
         ContentType: contentType,
+        ContentLength: resolvedContentLength,
       }),
     )
   }
@@ -170,6 +173,19 @@ async function bodyToBytes(body: unknown): Promise<Uint8Array> {
   }
   if (streamBody.transformToByteArray) return streamBody.transformToByteArray()
   if (streamBody.arrayBuffer) return new Uint8Array(await streamBody.arrayBuffer())
+
+  throw new Error('Unsupported object body')
+}
+
+function bodyToResponseBody(body: unknown): BodyInit {
+  if (body instanceof Uint8Array)
+    return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer
+  if (body instanceof ReadableStream) return body
+
+  const streamBody = body as {
+    transformToWebStream?: () => ReadableStream
+  }
+  if (streamBody.transformToWebStream) return streamBody.transformToWebStream()
 
   throw new Error('Unsupported object body')
 }
