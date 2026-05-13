@@ -207,6 +207,11 @@ function validatorHeaders(matter: NonNullable<WebDavTarget['matter']>): Headers 
   return new Headers({ ETag: matterEtag(matter), 'Last-Modified': matter.updatedAt.toUTCString() })
 }
 
+function isMountedWebDavRead(c: DavContext): boolean {
+  const method = c.req.method.toUpperCase()
+  return (method === 'GET' || method === 'HEAD') && Boolean(c.req.header('User-Agent')?.startsWith('WebDAVFS/'))
+}
+
 function etagMatches(header: string, etag: string): boolean {
   return header
     .split(',')
@@ -217,7 +222,7 @@ function etagMatches(header: string, etag: string): boolean {
 function preconditionResponse(c: DavContext, matter: NonNullable<WebDavTarget['matter']>): Response | null {
   const etag = matterEtag(matter)
   const method = c.req.method.toUpperCase()
-  const isWebDavFsRead = method === 'GET' && c.req.header('User-Agent')?.startsWith('WebDAVFS/')
+  const isWebDavFsRead = isMountedWebDavRead(c)
   const ifMatch = c.req.header('If-Match')
   if (ifMatch && !etagMatches(ifMatch, etag)) return new Response(null, { status: 412 })
 
@@ -614,6 +619,11 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage | null
     if (!storage) return c.text('Storage not found', 404)
     const headers = fileHeaders(matter)
+    if (isMountedWebDavRead(c)) {
+      headers.delete('ETag')
+      headers.delete('Last-Modified')
+      headers.set('Cache-Control', 'no-store')
+    }
 
     if (c.req.method.toUpperCase() === 'HEAD') {
       return new Response(null, { headers })

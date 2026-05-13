@@ -140,6 +140,8 @@ describe('WebDAV HTTP e2e', () => {
     expect(webDavFsRange.headers.get('Content-Range')).toBe(
       `bytes 10-${smallBody.byteLength - 1}/${smallBody.byteLength}`,
     )
+    expect(webDavFsRange.headers.get('Cache-Control')).toBe('no-store')
+    expect(webDavFsRange.headers.get('ETag')).toBeNull()
     expect(await webDavFsRange.text()).toBe('abcdefghijklmnopqrstuvwxyz')
 
     const normalCached = await dav('GET', ws('/song.mp3'), { headers: { 'If-None-Match': etag ?? '' } })
@@ -152,6 +154,8 @@ describe('WebDAV HTTP e2e', () => {
       },
     })
     expect(mountedCached.status).toBe(200)
+    expect(mountedCached.headers.get('Cache-Control')).toBe('no-store')
+    expect(mountedCached.headers.get('ETag')).toBeNull()
     expect(await mountedCached.text()).toBe('0123456789abcdefghijklmnopqrstuvwxyz')
 
     const setProp = await dav('PROPPATCH', ws('/song.mp3'), {
