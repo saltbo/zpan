@@ -2,6 +2,13 @@ import { zValidator } from '@hono/zod-validator'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import {
+  CAPTCHA_ENABLED_KEY,
+  CAPTCHA_PRIVATE_KEYS,
+  CAPTCHA_PUBLIC_KEYS,
+  CAPTCHA_SECRET_OPTION_KEY,
+  CAPTCHA_SITE_KEY_KEY,
+} from '../../shared/captcha'
 import { SignupMode } from '../../shared/constants'
 import { systemOptions } from '../db/schema'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
@@ -42,6 +49,7 @@ const app = new Hono<Env>()
     const key = c.req.param('key')
     const body = c.req.valid('json')
     let value = body.value
+    let isPublic = body.public
 
     if (key === 'auth_signup_mode' && body.value === SignupMode.OPEN) {
       const state = await loadBindingState(db)
@@ -51,6 +59,27 @@ const app = new Hono<Env>()
           402,
         )
       }
+    }
+
+    if (key === CAPTCHA_ENABLED_KEY && body.value === 'true') {
+      const rows = await db
+        .select({ key: systemOptions.key, value: systemOptions.value })
+        .from(systemOptions)
+        .where(eq(systemOptions.key, CAPTCHA_SECRET_OPTION_KEY))
+      const [siteKey] = await db
+        .select({ value: systemOptions.value })
+        .from(systemOptions)
+        .where(eq(systemOptions.key, CAPTCHA_SITE_KEY_KEY))
+      if (!siteKey?.value) return c.json({ error: 'Captcha site key is required before enabling captcha' }, 400)
+      if (!rows[0]?.value) return c.json({ error: 'Captcha secret key is required before enabling captcha' }, 400)
+    }
+
+    if ((CAPTCHA_PUBLIC_KEYS as readonly string[]).includes(key)) {
+      isPublic = true
+    }
+
+    if ((CAPTCHA_PRIVATE_KEYS as readonly string[]).includes(key)) {
+      isPublic = false
     }
 
     if (key === 'default_org_quota') {
@@ -73,7 +102,7 @@ const app = new Hono<Env>()
       .from(systemOptions)
       .where(eq(systemOptions.key, key))
     if (existing.length > 0) {
-      const nextPublic = body.public ?? existing[0].public
+      const nextPublic = isPublic ?? existing[0].public
       await db.update(systemOptions).set({ value, public: nextPublic }).where(eq(systemOptions.key, key))
       await recordActivity(db, {
         orgId,
@@ -85,7 +114,7 @@ const app = new Hono<Env>()
       })
       return c.json({ key, value, public: !!nextPublic })
     }
-    const nextPublic = body.public ?? false
+    const nextPublic = isPublic ?? false
     await db.insert(systemOptions).values({ key, value, public: nextPublic })
     await recordActivity(db, {
       orgId,

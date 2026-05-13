@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '../../shared/captcha.js'
 import { adminHeaders, createTestApp } from '../test/setup.js'
 
 async function putOption(
@@ -110,5 +111,28 @@ describe('System API — options CRUD', () => {
     const updated = await putOption(app, admin, 'default_org_monthly_traffic_quota', { value: '0' })
     expect(updated.status).toBe(200)
     await expect(updated.json()).resolves.toMatchObject({ value: '0' })
+  })
+
+  it('keeps captcha secret private and rejects enabling captcha before keys exist', async () => {
+    const { app } = await createTestApp()
+    const admin = await adminHeaders(app)
+
+    const missingKeys = await putOption(app, admin, CAPTCHA_ENABLED_KEY, { value: 'true', public: true })
+    expect(missingKeys.status).toBe(400)
+
+    await putOption(app, admin, CAPTCHA_SITE_KEY_KEY, { value: 'site-key', public: false })
+    await putOption(app, admin, CAPTCHA_SECRET_OPTION_KEY, { value: 'secret-key', public: true })
+    const enabled = await putOption(app, admin, CAPTCHA_ENABLED_KEY, { value: 'true', public: false })
+    expect(enabled.status).toBe(201)
+    expect(await enabled.json()).toEqual({ key: CAPTCHA_ENABLED_KEY, value: 'true', public: true })
+
+    const anonList = await app.request('/api/system/options')
+    const anonBody = (await anonList.json()) as { items: { key: string }[] }
+    expect(anonBody.items.map((item) => item.key)).toContain(CAPTCHA_SITE_KEY_KEY)
+    expect(anonBody.items.map((item) => item.key)).not.toContain(CAPTCHA_SECRET_OPTION_KEY)
+
+    const adminSecret = await app.request(`/api/system/options/${CAPTCHA_SECRET_OPTION_KEY}`, { headers: admin })
+    expect(adminSecret.status).toBe(200)
+    expect(await adminSecret.json()).toEqual({ key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false })
   })
 })

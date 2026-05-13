@@ -1,8 +1,13 @@
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '../../shared/captcha.js'
 import * as authSchema from '../db/auth-schema.js'
 import * as schema from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('Auth API', () => {
   it('POST /api/auth/sign-up/email creates user', async () => {
@@ -33,6 +38,99 @@ describe('Auth API', () => {
     })
     expect(res.status).toBe(200)
     expect(res.headers.get('set-cookie')).toBeTruthy()
+  })
+
+  it('POST /api/auth/sign-in/email rejects missing captcha token when captcha is enabled', async () => {
+    const { app, db } = await createTestApp()
+    await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', email: 'captcha-login@example.com', password: 'password123456' }),
+    })
+    await db.insert(schema.systemOptions).values([
+      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+    ])
+
+    const res = await app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'captcha-login@example.com', password: 'password123456' }),
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: 'Invalid captcha token' })
+  })
+
+  it('POST /api/auth/sign-up/email rejects missing captcha token when captcha is enabled', async () => {
+    const { app, db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+    ])
+
+    const res = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', email: 'captcha-signup@example.com', password: 'password123456' }),
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: 'Invalid captcha token' })
+  })
+
+  it('POST /api/auth/sign-in/email accepts valid captcha token when captcha is enabled', async () => {
+    const { app, db } = await createTestApp()
+    await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', email: 'captcha-valid@example.com', password: 'password123456' }),
+    })
+    await db.insert(schema.systemOptions).values([
+      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+    ])
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }))))
+
+    const res = await app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'captcha-valid@example.com',
+        password: 'password123456',
+        captchaToken: 'valid-token',
+      }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it('POST /api/auth/sign-up/email accepts valid captcha token when captcha is enabled', async () => {
+    const { app, db } = await createTestApp()
+    await db.insert(schema.systemOptions).values([
+      { key: CAPTCHA_ENABLED_KEY, value: 'true', public: true },
+      { key: CAPTCHA_SITE_KEY_KEY, value: 'site-key', public: true },
+      { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
+    ])
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }))))
+
+    const res = await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Test',
+        email: 'captcha-signup-valid@example.com',
+        password: 'password123456',
+        captchaToken: 'valid-token',
+      }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(fetch).toHaveBeenCalledOnce()
   })
 
   it('POST /api/auth/sign-in/email rejects wrong password', async () => {

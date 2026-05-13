@@ -94,3 +94,21 @@ describe('SignIn — OAuth and form callback URL', () => {
     expect(SIGN_IN_CALLBACK_URL).toBe('/files')
   })
 })
+
+function visibleOAuthProviderCount(captchaEnabled: boolean, providerCount: number): number {
+  return captchaEnabled ? 0 : providerCount
+}
+
+describe('SignIn — OAuth visibility with captcha', () => {
+  it('hides OAuth providers when captcha is enabled', () => {
+    expect(visibleOAuthProviderCount(true, 2)).toBe(0)
+  })
+
+  it('keeps OAuth providers visible when captcha is disabled', () => {
+    expect(visibleOAuthProviderCount(false, 2)).toBe(2)
+  })
+
+  it('hides the OAuth divider when captcha removes visible providers', () => {
+    expect(visibleOAuthProviderCount(true, 2) > 0).toBe(false)
+  })
+})

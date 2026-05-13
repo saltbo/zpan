@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '@shared/captcha'
 import { SignupMode } from '@shared/constants'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Globe2 } from 'lucide-react'
+import { Globe2, ShieldCheck } from 'lucide-react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -39,6 +40,9 @@ const settingsSchema = z.object({
   quotaUnit: z.enum(['MB', 'GB']),
   cloudStoreEnabled: z.boolean(),
   registrationsEnabled: z.boolean(),
+  captchaEnabled: z.boolean(),
+  captchaSiteKey: z.string(),
+  captchaSecretKey: z.string(),
 })
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
@@ -58,7 +62,16 @@ function ProFeatureHeader({ title, description, tooltip }: { title: string; desc
 export function SettingsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { siteName, siteDescription, defaultOrgQuota: quotaBytes, authSignupMode, isLoading } = useSiteOptions()
+  const {
+    siteName,
+    siteDescription,
+    defaultOrgQuota: quotaBytes,
+    authSignupMode,
+    captchaEnabled,
+    captchaSiteKey,
+    captchaSecretKey,
+    isLoading,
+  } = useSiteOptions()
   const { hasFeature } = useEntitlement()
   const hasWhiteLabel = hasFeature('white_label')
   const hasOpenRegistration = hasFeature('open_registration')
@@ -79,6 +92,9 @@ export function SettingsPage() {
       quotaUnit: 'MB',
       cloudStoreEnabled: false,
       registrationsEnabled: false,
+      captchaEnabled: false,
+      captchaSiteKey: '',
+      captchaSecretKey: '',
     },
   })
 
@@ -92,8 +108,22 @@ export function SettingsPage() {
       quotaUnit: unit,
       cloudStoreEnabled: cloudStoreQuery.data?.enabled ?? false,
       registrationsEnabled: authSignupMode === SignupMode.OPEN,
+      captchaEnabled,
+      captchaSiteKey,
+      captchaSecretKey,
     })
-  }, [isLoading, siteName, siteDescription, quotaBytes, cloudStoreQuery.data, authSignupMode, form])
+  }, [
+    isLoading,
+    siteName,
+    siteDescription,
+    quotaBytes,
+    cloudStoreQuery.data,
+    authSignupMode,
+    captchaEnabled,
+    captchaSiteKey,
+    captchaSecretKey,
+    form,
+  ])
 
   const identityMutation = useMutation({
     mutationFn: async () => {
@@ -146,9 +176,29 @@ export function SettingsPage() {
     },
   })
 
+  const captchaMutation = useMutation({
+    mutationFn: async () => {
+      const valid = await form.trigger(['captchaEnabled', 'captchaSiteKey', 'captchaSecretKey'])
+      if (!valid) throw new Error(t('admin.settings.captchaInvalid'))
+      const values = form.getValues()
+      await setSystemOption(CAPTCHA_SITE_KEY_KEY, values.captchaSiteKey.trim(), true)
+      await setSystemOption(CAPTCHA_SECRET_OPTION_KEY, values.captchaSecretKey.trim(), false)
+      await setSystemOption(CAPTCHA_ENABLED_KEY, String(values.captchaEnabled), true)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      toast.success(t('admin.settings.saved'))
+    },
+    onError: (err) => {
+      queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
+      toast.error(err.message)
+    },
+  })
+
   const quotaUnit = form.watch('quotaUnit')
   const cloudStoreEnabled = form.watch('cloudStoreEnabled')
   const registrationsEnabled = form.watch('registrationsEnabled')
+  const captchaProtectionEnabled = form.watch('captchaEnabled')
 
   if (isLoading) {
     return (
@@ -252,6 +302,62 @@ export function SettingsPage() {
                   registrationMutation.mutate(checked)
                 }}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardHeader className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl border border-border/60 bg-emerald-500/10 p-2 text-emerald-600">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <CardTitle>{t('admin.settings.captchaTitle')}</CardTitle>
+                <CardDescription>{t('admin.settings.captchaDescription')}</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/60 bg-background p-4">
+              <div className="space-y-1">
+                <Label htmlFor="captchaEnabled">{t('admin.settings.captchaEnabled')}</Label>
+                <p className="text-xs leading-5 text-muted-foreground">{t('admin.settings.captchaEnabledHint')}</p>
+              </div>
+              <Switch
+                id="captchaEnabled"
+                checked={captchaProtectionEnabled}
+                disabled={captchaMutation.isPending}
+                onCheckedChange={(checked) => form.setValue('captchaEnabled', checked, { shouldDirty: true })}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="captchaSiteKey">{t('admin.settings.captchaSiteKey')}</Label>
+                <Input
+                  id="captchaSiteKey"
+                  placeholder={t('admin.settings.captchaSiteKeyPlaceholder')}
+                  {...form.register('captchaSiteKey')}
+                />
+                <p className="text-xs text-muted-foreground">{t('admin.settings.captchaSiteKeyHint')}</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="captchaSecretKey">{t('admin.settings.captchaSecretKey')}</Label>
+                <Input
+                  id="captchaSecretKey"
+                  type="password"
+                  placeholder={t('admin.settings.captchaSecretKeyPlaceholder')}
+                  {...form.register('captchaSecretKey')}
+                />
+                <p className="text-xs text-muted-foreground">{t('admin.settings.captchaSecretKeyHint')}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button type="button" disabled={captchaMutation.isPending} onClick={() => captchaMutation.mutate()}>
+                {captchaMutation.isPending ? t('common.loading') : t('common.save')}
+              </Button>
             </div>
           </CardContent>
         </Card>

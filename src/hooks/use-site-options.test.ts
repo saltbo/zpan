@@ -1,3 +1,4 @@
+import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '@shared/captcha'
 import { DEFAULT_ORG_QUOTA, DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME, SignupMode } from '@shared/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SiteOption } from '@/lib/api'
@@ -46,6 +47,9 @@ describe('useSiteOptions — option map extraction logic', () => {
           makeItem('site_description', 'Custom description'),
           makeItem('default_org_quota', '0'),
           makeItem('auth_signup_mode', SignupMode.CLOSED),
+          makeItem(CAPTCHA_ENABLED_KEY, 'true'),
+          makeItem(CAPTCHA_SITE_KEY_KEY, 'site-key'),
+          { key: CAPTCHA_SECRET_OPTION_KEY, value: 'secret-key', public: false },
         ],
       },
       isLoading: false,
@@ -57,6 +61,9 @@ describe('useSiteOptions — option map extraction logic', () => {
       siteDescription: 'Custom description',
       defaultOrgQuota: DEFAULT_ORG_QUOTA,
       authSignupMode: SignupMode.CLOSED,
+      captchaEnabled: true,
+      captchaSiteKey: 'site-key',
+      captchaSecretKey: 'secret-key',
       isLoading: false,
       isError: false,
     })
@@ -74,6 +81,9 @@ describe('useSiteOptions — option map extraction logic', () => {
       siteDescription: DEFAULT_SITE_DESCRIPTION,
       defaultOrgQuota: DEFAULT_ORG_QUOTA,
       authSignupMode: SignupMode.OPEN,
+      captchaEnabled: false,
+      captchaSiteKey: '',
+      captchaSecretKey: '',
       isLoading: true,
       isError: true,
     })

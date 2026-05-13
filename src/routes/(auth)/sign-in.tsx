@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Turnstile } from '@/components/captcha/turnstile'
 import { OAuthButtons, useOAuthProviders } from '@/components/oauth-buttons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,13 +30,15 @@ function SignIn() {
       return null
     }
   })()
-  const { authSignupMode, siteName } = useSiteOptions()
+  const { authSignupMode, captchaEnabled, captchaSiteKey, siteName } = useSiteOptions()
   const { providers } = useOAuthProviders()
+  const authProviders = captchaEnabled ? [] : providers
   const [identity, setIdentity] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [formExpanded, setFormExpanded] = useState(providers.length <= 3)
+  const [captchaToken, setCaptchaToken] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -44,8 +47,8 @@ function SignIn() {
     try {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)
       const result = isEmail
-        ? await signIn.email({ email: identity, password, callbackURL: '/files' })
-        : await signIn.username({ username: identity, password, callbackURL: '/files' })
+        ? await signIn.email({ email: identity, password, callbackURL: '/files' }, { body: { captchaToken } })
+        : await signIn.username({ username: identity, password, callbackURL: '/files' }, { body: { captchaToken } })
 
       if (result.error) {
         setError(result.error.message ?? t('auth.signInFailed'))
@@ -61,7 +64,7 @@ function SignIn() {
     }
   }
 
-  const showDivider = providers.length > 0
+  const showDivider = authProviders.length > 0
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -70,7 +73,7 @@ function SignIn() {
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signInSubtitle')}</p>
         </div>
-        <OAuthButtons />
+        {!captchaEnabled && <OAuthButtons />}
         {showDivider && (
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />
@@ -78,7 +81,7 @@ function SignIn() {
             <Separator className="flex-1" />
           </div>
         )}
-        {providers.length > 3 && !formExpanded ? (
+        {authProviders.length > 3 && !formExpanded ? (
           <button
             type="button"
             onClick={() => setFormExpanded(true)}
@@ -109,8 +112,9 @@ function SignIn() {
                 required
               />
             </div>
+            {captchaEnabled && captchaSiteKey && <Turnstile siteKey={captchaSiteKey} onToken={setCaptchaToken} />}
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken)}>
               {loading ? t('auth.signingIn') : t('auth.signIn')}
             </Button>
           </form>
