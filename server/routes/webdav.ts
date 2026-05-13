@@ -218,17 +218,40 @@ function preconditionResponse(c: DavContext, matter: NonNullable<WebDavTarget['m
   const ifMatch = c.req.header('If-Match')
   if (ifMatch && !etagMatches(ifMatch, etag)) return new Response(null, { status: 412 })
 
-  const ifNoneMatch = c.req.header('If-None-Match')
-  if (!ifNoneMatch || !etagMatches(ifNoneMatch, etag)) return null
+  const ifUnmodifiedSince = ifMatch ? null : parseHttpDate(c.req.header('If-Unmodified-Since'))
+  if (ifUnmodifiedSince && matter.updatedAt.getTime() > ifUnmodifiedSince.getTime()) {
+    return new Response(null, { status: 412 })
+  }
 
-  if (c.req.method.toUpperCase() === 'GET' || c.req.method.toUpperCase() === 'HEAD') {
+  const ifNoneMatch = c.req.header('If-None-Match')
+  if (ifNoneMatch) {
+    if (!etagMatches(ifNoneMatch, etag)) return null
+    if (c.req.method.toUpperCase() === 'GET' || c.req.method.toUpperCase() === 'HEAD') {
+      return new Response(null, { status: 304, headers: validatorHeaders(matter) })
+    }
+    return new Response(null, { status: 412 })
+  }
+
+  const ifModifiedSince =
+    c.req.method.toUpperCase() === 'GET' || c.req.method.toUpperCase() === 'HEAD'
+      ? parseHttpDate(c.req.header('If-Modified-Since'))
+      : null
+  if (ifModifiedSince && matter.updatedAt.getTime() <= ifModifiedSince.getTime()) {
     return new Response(null, { status: 304, headers: validatorHeaders(matter) })
   }
-  return new Response(null, { status: 412 })
+
+  return null
+}
+
+function parseHttpDate(header: string | undefined): Date | null {
+  if (!header) return null
+  const timestamp = Date.parse(header)
+  if (!Number.isFinite(timestamp)) return null
+  return new Date(timestamp)
 }
 
 function missingPreconditionResponse(c: DavContext): Response | null {
-  if (c.req.header('If-Match')) return new Response(null, { status: 412 })
+  if (c.req.header('If-Match') || c.req.header('If-Unmodified-Since')) return new Response(null, { status: 412 })
   return null
 }
 
@@ -762,6 +785,7 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     }
     const targetLocked = await lockPrecondition(c, target)
     if (targetLocked) return targetLocked
+    const replacingTarget = Boolean(target.matter)
     if (target.matter) {
       if (target.matter.id === source.matter.id) return new Response(null, { status: 204 })
       if (!overwriteAllowed(c)) return c.text('Already exists', 412)
@@ -781,7 +805,7 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       auth.userId,
     )
     await moveWebDavState(db, sourceWorkspace.id, oldPath, newPath)
-    return new Response(null, { status: 201 })
+    return new Response(null, { status: replacingTarget ? 204 : 201 })
   } catch (e) {
     return davError(c, e)
   }
@@ -811,10 +835,11 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
     const targetLocked = await lockPrecondition(c, target)
     if (targetLocked) return targetLocked
     if (target.matter && !overwriteAllowed(c)) return c.text('Already exists', 412)
+    const replacingTarget = Boolean(target.matter)
     await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
 
     if (source.matter.dirtype !== DirType.FILE) {
-      return copyCollection(c, auth, source, target)
+      return copyCollection(c, auth, source, target, replacingTarget)
     }
 
     let newObject = ''
@@ -843,7 +868,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
       })
       await copyDeadProperties(db, sourceWorkspace.id, resourcePath(source), joinMatterPath(copy.parent, copy.name))
       c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(copy.parent, copy.name)))
-      return c.body(null, 201)
+      return c.body(null, replacingTarget ? 204 : 201)
     } catch (e) {
       if (reservedUsage) {
         await decrementUsage(
@@ -865,6 +890,7 @@ async function copyCollection(
   auth: DavAuth,
   source: WebDavTarget,
   target: WebDavTarget,
+  replacingTarget: boolean,
 ): Promise<Response> {
   const db = c.get('platform').db
   const sourceWorkspace = requireWorkspace(source)
@@ -946,7 +972,7 @@ async function copyCollection(
       'Location',
       matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(rootCopy.parent, rootCopy.name)),
     )
-    return c.body(null, 201)
+    return c.body(null, replacingTarget ? 204 : 201)
   } catch (e) {
     if (createdIds.length > 0) {
       await db

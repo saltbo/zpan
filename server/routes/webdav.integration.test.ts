@@ -605,6 +605,52 @@ describe('WebDAV API', () => {
     expect(updated.headers.get('ETag')).not.toBe(etag)
   })
 
+  it('honors HTTP date preconditions', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read', 'write'] })
+    await file(db, workspace.id, { id: 'date-precondition', name: 'date.txt', size: 12 })
+
+    const head = await app.request(`/dav/${workspace.slug}/date.txt`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key),
+    })
+    const lastModified = head.headers.get('Last-Modified') ?? ''
+    const stale = new Date(Date.parse(lastModified) - 1000).toUTCString()
+    const fresh = new Date(Date.parse(lastModified) + 1000).toUTCString()
+
+    const notModified = await app.request(`/dav/${workspace.slug}/date.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { 'If-Modified-Since': fresh }),
+    })
+    expect(notModified.status).toBe(304)
+
+    const staleWrite = await app.request(`/dav/${workspace.slug}/date.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, {
+        'If-Unmodified-Since': stale,
+        'Content-Type': 'text/plain',
+        'Content-Length': '7',
+      }),
+      body: 'changed',
+    })
+    expect(staleWrite.status).toBe(412)
+
+    const freshWrite = await app.request(`/dav/${workspace.slug}/date.txt`, {
+      method: 'PUT',
+      headers: basicHeaders(account.email, key, {
+        'If-Unmodified-Since': fresh,
+        'Content-Type': 'text/plain',
+        'Content-Length': '7',
+      }),
+      body: 'changed',
+    })
+    expect(freshWrite.status).toBe(204)
+  })
+
   it('OPTIONS advertises DAV methods', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
@@ -941,7 +987,7 @@ describe('WebDAV API', () => {
         Depth: '0',
       }),
     })
-    expect(replacedCollection.status).toBe(201)
+    expect(replacedCollection.status).toBe(204)
   })
 
   it('COPY enforces destination locks and rolls back collection copy quota on storage failure', async () => {
@@ -1644,7 +1690,7 @@ describe('WebDAV API', () => {
         Destination: `http://localhost/dav/${workspace.slug}/move-target.txt`,
       }),
     })
-    expect(replaced.status).toBe(201)
+    expect(replaced.status).toBe(204)
     const rows = await db.all<{ id: string; name: string; status: string }>(
       sql`SELECT id, name, status FROM matters WHERE id IN ('move-source', 'move-target') ORDER BY id`,
     )
@@ -1680,7 +1726,7 @@ describe('WebDAV API', () => {
         Destination: `http://localhost/dav/${workspace.slug}/copy-target.txt`,
       }),
     })
-    expect(replaced.status).toBe(201)
+    expect(replaced.status).toBe(204)
     const rows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = 'copy-target'`)
     expect(rows[0]?.status).toBe('trashed')
 
@@ -1696,6 +1742,15 @@ describe('WebDAV API', () => {
       sql`SELECT name, parent FROM matters WHERE org_id = ${workspace.id} AND name = 'Copied Folder'`,
     )
     expect(folders[0]).toEqual({ name: 'Copied Folder', parent: '' })
+
+    const collectionReplacement = await app.request(`/dav/${workspace.slug}/Copy%20Folder`, {
+      method: 'COPY',
+      headers: basicHeaders(account.email, key, {
+        Destination: `http://localhost/dav/${workspace.slug}/Copied%20Folder`,
+        Depth: '0',
+      }),
+    })
+    expect(collectionReplacement.status).toBe(204)
   })
 
   it('COPY rolls back quota reservation when storage copy fails', async () => {
