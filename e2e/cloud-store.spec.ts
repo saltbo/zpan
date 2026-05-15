@@ -1,4 +1,12 @@
-import { type APIResponse, type Browser, expect, type Page, request as playwrightRequest, test } from '@playwright/test'
+import {
+  type APIRequestContext,
+  type APIResponse,
+  type Browser,
+  expect,
+  type Page,
+  request as playwrightRequest,
+  test,
+} from '@playwright/test'
 import { ADMIN_EMAIL, ADMIN_PASSWORD, signInAsAdmin, signUpAndGoToFiles } from './helpers'
 
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
@@ -29,6 +37,10 @@ type CloudOrder = {
   id: string
   paymentStatus: string
   fulfillmentStatus: string
+}
+
+type CloudLicense = {
+  id: string
 }
 
 test.describe
@@ -176,10 +188,35 @@ async function approvePairingInCloud(pairing: PairingInfo) {
     const approve = await cloudRequest.patch(`/api/pairings/${encodeURIComponent(pairing.code)}`, {
       data: { action: 'approve' },
     })
+    if (approve.status() === 409 && (await cloudErrorCode(approve)) === 'instance_limit') {
+      await unbindCloudTestLicenses(cloudRequest)
+      const retry = await cloudRequest.patch(`/api/pairings/${encodeURIComponent(pairing.code)}`, {
+        data: { action: 'approve' },
+      })
+      await expectCloudOk(retry, 'Cloud pairing approval failed after license cleanup')
+      return
+    }
     await expectCloudOk(approve, 'Cloud pairing approval failed')
   } finally {
     await cloudRequest.dispose()
   }
+}
+
+async function unbindCloudTestLicenses(cloudRequest: APIRequestContext) {
+  const response = await cloudRequest.get('/api/licenses')
+  await expectCloudOk(response, 'Cloud license list failed during pairing cleanup')
+
+  const body = (await response.json()) as { data?: { items?: CloudLicense[] } }
+  const licenses = body.data?.items ?? []
+  for (const license of licenses) {
+    const deleted = await cloudRequest.delete(`/api/licenses/${encodeURIComponent(license.id)}`)
+    await expectCloudOk(deleted, 'Cloud license cleanup failed')
+  }
+}
+
+async function cloudErrorCode(response: APIResponse): Promise<string | null> {
+  const body = (await response.json().catch(() => null)) as { error?: { code?: string } } | null
+  return body?.error?.code ?? null
 }
 
 async function expectCloudOk(response: APIResponse, message: string) {
