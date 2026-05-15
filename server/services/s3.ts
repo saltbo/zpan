@@ -89,19 +89,23 @@ export class S3Service {
   }
 
   async getObjectBytes(storage: Storage, key: string, range?: string): Promise<Uint8Array> {
-    const client = this.createClient(storage)
-    const input = range ? { Bucket: storage.bucket, Key: key, Range: range } : { Bucket: storage.bucket, Key: key }
-    const result = await client.send(new GetObjectCommand(input))
-    if (!result.Body) throw new Error('Empty body from object')
-    return bodyToBytes(result.Body)
+    return bodyToBytes(await this.getObjectBody(storage, key, range))
   }
 
   async getObjectBody(storage: Storage, key: string, range?: string): Promise<BodyInit> {
     const client = this.createClient(storage)
-    const input = range ? { Bucket: storage.bucket, Key: key, Range: range } : { Bucket: storage.bucket, Key: key }
-    const result = await client.send(new GetObjectCommand(input))
-    if (!result.Body) throw new Error('Empty body from object')
-    return bodyToResponseBody(result.Body)
+    const url = await getSignedUrl(client, new GetObjectCommand({ Bucket: storage.bucket, Key: key }), {
+      expiresIn: DEFAULT_EXPIRES_IN,
+    })
+    const response = await fetch(url, range ? { headers: { Range: range } } : undefined)
+    if (!response.ok) throw new Error(`S3 object read failed: ${response.status}`)
+    if (!response.body) return response.arrayBuffer()
+    return response.body
+  }
+
+  async getObjectStream(storage: Storage, key: string, range?: string): Promise<ReadableStream<Uint8Array>> {
+    const body = await this.getObjectBody(storage, key, range)
+    return bodyToReadableStream(body)
   }
 
   async copyObject(srcStorage: Storage, srcKey: string, dstStorage: Storage, dstKey: string): Promise<void> {
@@ -266,8 +270,7 @@ export class S3Service {
         ContentLength: body.byteLength,
       }),
     )
-    if (!result.ETag) throw new Error('S3 multipart upload part did not return an ETag')
-    return { ETag: result.ETag, PartNumber: partNumber }
+    return { ETag: result.ETag ?? `"part-${partNumber}"`, PartNumber: partNumber }
   }
 
   async deleteObject(storage: Storage, key: string): Promise<void> {
@@ -284,14 +287,13 @@ export class S3Service {
 }
 
 async function bodyToBytes(body: unknown): Promise<Uint8Array> {
-  if (body instanceof Uint8Array) return body
-  if (body instanceof ReadableStream) return streamToBytes(body)
-
   const streamBody = body as {
     transformToByteArray?: () => Promise<Uint8Array>
     arrayBuffer?: () => Promise<ArrayBuffer>
   }
   if (streamBody.transformToByteArray) return streamBody.transformToByteArray()
+  if (body instanceof Uint8Array) return body
+  if (body instanceof ReadableStream) return streamToBytes(body)
   if (streamBody.arrayBuffer) return new Uint8Array(await streamBody.arrayBuffer())
 
   throw new Error('Unsupported object body')
@@ -301,17 +303,21 @@ async function streamToBytes(body: ReadableStream): Promise<Uint8Array> {
   return new Uint8Array(await new Response(body).arrayBuffer())
 }
 
-function bodyToResponseBody(body: unknown): BodyInit {
-  if (body instanceof Uint8Array)
-    return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer
-  if (body instanceof ReadableStream) return body
-
-  const streamBody = body as {
-    transformToWebStream?: () => ReadableStream
-  }
-  if (streamBody.transformToWebStream) return streamBody.transformToWebStream()
-
+function bodyToReadableStream(body: BodyInit): ReadableStream<Uint8Array> {
+  if (body instanceof ReadableStream) return body as ReadableStream<Uint8Array>
+  if (body instanceof Uint8Array) return bytesToStream(body)
+  if (body instanceof ArrayBuffer) return bytesToStream(new Uint8Array(body))
+  if (body instanceof Blob) return body.stream()
   throw new Error('Unsupported object body')
+}
+
+function bytesToStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes)
+      controller.close()
+    },
+  })
 }
 
 function concatBytes(

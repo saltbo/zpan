@@ -19,6 +19,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { useBranding } from '@/components/branding/BrandingProvider'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   DropdownMenu,
@@ -40,7 +41,7 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { useSiteOptions } from '@/hooks/use-site-options'
-import { getIhostConfig } from '@/lib/api'
+import { getIhostConfig, listBackgroundJobs } from '@/lib/api'
 import { signOut, useActiveOrganization, useSession } from '@/lib/auth-client'
 import { OrgSwitcher } from '../team/org-switcher'
 import { FolderTree } from './folder-tree'
@@ -68,6 +69,18 @@ export function AppSidebar() {
     queryKey: ['ihost', 'config', activeOrg?.id],
     queryFn: getIhostConfig,
     enabled: !!session,
+  })
+  const { data: activeTaskCount = 0 } = useQuery({
+    queryKey: ['background-jobs', 'active-count'],
+    queryFn: async () => {
+      const [queued, running] = await Promise.all([
+        listBackgroundJobs({ status: 'queued', page: 1, pageSize: 1 }),
+        listBackgroundJobs({ status: 'running', page: 1, pageSize: 1 }),
+      ])
+      return queued.total + running.total
+    },
+    enabled: !!session,
+    refetchInterval: 5000,
   })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const fileType = useRouterState({ select: (s) => (s.location.search as { type?: string })?.type })
@@ -158,6 +171,11 @@ export function AppSidebar() {
                   <Link to="/tasks">
                     <ListChecks className="h-4 w-4" />
                     <span>{t('nav.tasks')}</span>
+                    {activeTaskCount > 0 && (
+                      <Badge className="ml-auto h-5 min-w-5 rounded-full px-1.5 text-[10px]">
+                        {activeTaskCount > 99 ? '99+' : activeTaskCount}
+                      </Badge>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

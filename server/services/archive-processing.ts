@@ -7,11 +7,12 @@ import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { createBackgroundJob, updateBackgroundJob } from './background-jobs'
 import { createMatter, decrementUsage, getMatter, incrementUsageIfAllowed, purgeMatters } from './matter'
+import { createNotification } from './notification'
 import { buildObjectKey } from './path-template'
 import { S3Service } from './s3'
 import { getStorage, selectStorage } from './storage'
-import { collectCompressionPlan, createZipArchive } from './zip-compress'
-import { validateAndExtractZip } from './zip-extract'
+import { collectCompressionPlan, createZipArchiveStream } from './zip-compress'
+import { streamValidatedZip, validateZipDirectory } from './zip-extract'
 
 export interface CreateArchiveJobInput {
   orgId: string
@@ -24,8 +25,13 @@ const ZIP_MIME = 'application/zip'
 const DEFAULT_FILE_MIME = 'application/octet-stream'
 
 export async function createArchiveJob(db: Database, input: CreateArchiveJobInput): Promise<BackgroundJob> {
+  const job = await enqueueArchiveJob(db, input)
+  return processArchiveJob(db, { ...input, jobId: job.id })
+}
+
+export async function enqueueArchiveJob(db: Database, input: CreateArchiveJobInput): Promise<BackgroundJob> {
   const targetFolder = input.request.targetFolder ?? null
-  const job = await createBackgroundJob(db, {
+  return createBackgroundJob(db, {
     orgId: input.orgId,
     userId: input.userId,
     type: input.request.type,
@@ -33,21 +39,30 @@ export async function createArchiveJob(db: Database, input: CreateArchiveJobInpu
     metadata: input.request,
     cancelable: false,
   })
+}
 
+export async function processArchiveJob(
+  db: Database,
+  input: CreateArchiveJobInput & { jobId: string },
+): Promise<BackgroundJob> {
   const s3 = input.s3 ?? new S3Service()
   try {
-    await updateBackgroundJob(db, input.orgId, job.id, { status: 'running', startedAt: new Date() })
-    if (input.request.type === 'archive_compress') {
-      return await runCompressionJob(db, s3, job.id, input.orgId, input.userId, input.request)
-    }
-    return await runExtractionJob(db, s3, job.id, input.orgId, input.userId, input.request)
+    await updateBackgroundJob(db, input.orgId, input.jobId, { status: 'running', startedAt: new Date() })
+    const finished =
+      input.request.type === 'archive_compress'
+        ? await runCompressionJob(db, s3, input.jobId, input.orgId, input.userId, input.request)
+        : await runExtractionJob(db, s3, input.jobId, input.orgId, input.userId, input.request)
+    await notifyArchiveJobFinished(db, finished)
+    return finished
   } catch (error) {
-    return updateBackgroundJob(db, input.orgId, job.id, {
+    const failed = await updateBackgroundJob(db, input.orgId, input.jobId, {
       status: 'failed',
       errorMessage: (error as Error).message,
       retryable: false,
       cancelable: false,
     })
+    await notifyArchiveJobFinished(db, failed)
+    return failed
   }
 }
 
@@ -68,28 +83,30 @@ async function runCompressionJob(
     progress: { inputBytes: plan.inputBytes, fileCount: plan.files.length },
   })
 
-  const objects = []
+  const sources = []
   for (const file of plan.files) {
     const storage = await requireStorage(db, file.matter.storageId)
-    objects.push({ archivePath: file.archivePath, bytes: await s3.getObjectBytes(storage, file.matter.object) })
+    sources.push({
+      archivePath: file.archivePath,
+      openStream: () => s3.getObjectStream(storage, file.matter.object),
+    })
   }
 
-  const zipBytes = createZipArchive(objects, plan.directories)
   const targetStorage = (await selectStorage(db, 'private')) as unknown as S3StorageType
-  const allowed = await incrementUsageIfAllowed(db, orgId, targetStorage.id, zipBytes.length)
-  if (!allowed) throw new Error('Quota exceeded for generated ZIP archive')
-
   const key = buildObjectKey({ uid: userId, orgId, rawExt: '.zip' })
   let objectWritten = false
+  let outputBytes = 0
   try {
-    await s3.putObject(targetStorage, key, zipBytes, ZIP_MIME)
+    outputBytes = await s3.putObject(targetStorage, key, createZipArchiveStream(sources, plan.directories), ZIP_MIME)
     objectWritten = true
+    const allowed = await incrementUsageIfAllowed(db, orgId, targetStorage.id, outputBytes)
+    if (!allowed) throw new Error('Quota exceeded for generated ZIP archive')
     const matter = await createMatter(db, {
       orgId,
       userId,
       name: plan.outputName,
       type: ZIP_MIME,
-      size: zipBytes.length,
+      size: outputBytes,
       dirtype: DirType.FILE,
       parent: plan.targetFolder,
       object: key,
@@ -102,16 +119,16 @@ async function runCompressionJob(
       status: 'completed',
       progress: {
         inputBytes: plan.inputBytes,
-        outputBytes: zipBytes.length,
+        outputBytes,
         processedBytes: plan.inputBytes,
         fileCount: plan.files.length,
         currentFilename: null,
       },
-      resultMetadata: { matterId: matter.id, outputName: matter.name, outputBytes: zipBytes.length },
+      resultMetadata: { matterId: matter.id, outputName: matter.name, outputBytes },
       cancelable: false,
     })
   } catch (error) {
-    await decrementUsage(db, orgId, new Map([[targetStorage.id, zipBytes.length]]), zipBytes.length)
+    if (outputBytes > 0) await decrementUsage(db, orgId, new Map([[targetStorage.id, outputBytes]]), outputBytes)
     if (objectWritten) await s3.deleteObject(targetStorage, key)
     throw error
   }
@@ -133,51 +150,37 @@ async function runExtractionJob(
 
   if (request.targetFolder !== undefined) await requireTargetFolder(db, orgId, request.targetFolder)
   const sourceStorage = await requireStorage(db, zipMatter.storageId)
-  const zipBytes = await s3.getObjectBytes(sourceStorage, zipMatter.object)
-  const archive = validateAndExtractZip(zipBytes)
+  const sourceHead = await s3.headObject(sourceStorage, zipMatter.object)
+  const plan = await validateZipDirectory(sourceHead.size, (start, end) =>
+    s3.getObjectBytes(sourceStorage, zipMatter.object, `bytes=${start}-${end}`),
+  )
   const targetFolder = request.targetFolder ?? zipMatter.parent
   const targetStorage = (await selectStorage(db, 'private')) as unknown as S3StorageType
-  const allowed = await incrementUsageIfAllowed(db, orgId, targetStorage.id, archive.totalBytes)
-  if (!allowed) throw new Error('Quota exceeded for extracted ZIP contents')
-
   const writtenKeys: string[] = []
   const createdMatterIds: string[] = []
+  const folderParents = new Map<string, string>()
+  let outputBytes = 0
   try {
-    const folderParents = new Map<string, string>()
-    for (const folderPath of archive.folders) {
-      const parts = folderPath.split('/')
-      const parentPath = parts.slice(0, -1).join('/')
-      const parent = parentPath ? folderParents.get(parentPath) : targetFolder
-      if (parent === undefined) throw new Error(`Missing parent folder for ${folderPath}`)
-      const folder = await createMatter(db, {
-        orgId,
-        userId,
-        name: parts[parts.length - 1],
-        type: 'folder',
-        size: 0,
-        dirtype: DirType.USER_FOLDER,
-        parent,
-        object: '',
-        storageId: targetStorage.id,
-        status: 'active',
-        onConflict: 'rename',
-      })
-      createdMatterIds.push(folder.id)
-      folderParents.set(folderPath, buildMatterPath(folder.parent, folder.name))
+    for (const folderPath of plan.folders) {
+      await ensureExtractedFolder(folderPath)
     }
+    const allowed = await incrementUsageIfAllowed(db, orgId, targetStorage.id, plan.totalBytes)
+    if (!allowed) throw new Error('Quota exceeded for extracted ZIP contents')
+    outputBytes = plan.totalBytes
 
-    for (const file of archive.files) {
-      const parent = file.parentPath ? folderParents.get(file.parentPath) : targetFolder
-      if (parent === undefined) throw new Error(`Missing parent folder for ${file.path}`)
+    const zipStream = await s3.getObjectStream(sourceStorage, zipMatter.object)
+    const archive = await streamValidatedZip(zipStream, async (file) => {
+      const parent = file.parentPath ? await ensureExtractedFolder(file.parentPath) : targetFolder
       const key = buildObjectKey({ uid: userId, orgId, rawExt: extension(file.name) })
-      await s3.putObject(targetStorage, key, file.bytes, DEFAULT_FILE_MIME)
+      const size = await s3.putObject(targetStorage, key, file.stream, DEFAULT_FILE_MIME)
+      await file.size
       writtenKeys.push(key)
       const matter = await createMatter(db, {
         orgId,
         userId,
         name: file.name,
         type: DEFAULT_FILE_MIME,
-        size: file.size,
+        size,
         dirtype: DirType.FILE,
         parent,
         object: key,
@@ -186,15 +189,15 @@ async function runExtractionJob(
         onConflict: 'rename',
       })
       createdMatterIds.push(matter.id)
-    }
+    })
 
     return updateBackgroundJob(db, orgId, jobId, {
       status: 'completed',
       progress: {
-        inputBytes: zipMatter.size ?? zipBytes.length,
+        inputBytes: sourceHead.size,
         outputBytes: archive.totalBytes,
-        processedBytes: zipMatter.size ?? zipBytes.length,
-        fileCount: archive.files.length,
+        processedBytes: sourceHead.size,
+        fileCount: plan.fileCount,
         currentFilename: null,
       },
       resultMetadata: { matterIds: createdMatterIds, outputBytes: archive.totalBytes },
@@ -202,9 +205,35 @@ async function runExtractionJob(
     })
   } catch (error) {
     await purgeMatters(db, orgId, createdMatterIds)
-    await decrementUsage(db, orgId, new Map([[targetStorage.id, archive.totalBytes]]), archive.totalBytes)
+    if (outputBytes > 0) await decrementUsage(db, orgId, new Map([[targetStorage.id, outputBytes]]), outputBytes)
     await s3.deleteObjects(targetStorage, writtenKeys)
     throw error
+  }
+
+  async function ensureExtractedFolder(folderPath: string): Promise<string> {
+    const existing = folderParents.get(folderPath)
+    if (existing) return existing
+
+    const parts = folderPath.split('/')
+    const parentPath = parts.slice(0, -1).join('/')
+    const parent = parentPath ? await ensureExtractedFolder(parentPath) : targetFolder
+    const folder = await createMatter(db, {
+      orgId,
+      userId,
+      name: parts[parts.length - 1],
+      type: 'folder',
+      size: 0,
+      dirtype: DirType.USER_FOLDER,
+      parent,
+      object: '',
+      storageId: targetStorage.id,
+      status: 'active',
+      onConflict: 'rename',
+    })
+    createdMatterIds.push(folder.id)
+    const matterPath = buildMatterPath(folder.parent, folder.name)
+    folderParents.set(folderPath, matterPath)
+    return matterPath
   }
 }
 
@@ -239,4 +268,20 @@ function buildMatterPath(parent: string, name: string): string {
 function extension(name: string): string {
   const dot = name.lastIndexOf('.')
   return dot >= 0 ? name.slice(dot) : ''
+}
+
+async function notifyArchiveJobFinished(db: Database, job: BackgroundJob): Promise<void> {
+  const completed = job.status === 'completed'
+  const action = job.type === 'archive_extract' ? 'extraction' : 'compression'
+  await createNotification(db, {
+    userId: job.userId,
+    type: completed ? 'archive_job_completed' : 'archive_job_failed',
+    title: completed ? `File ${action} completed` : `File ${action} failed`,
+    body: completed
+      ? `Background task ${job.id} is complete.`
+      : (job.errorMessage ?? `Background task ${job.id} failed.`),
+    refType: 'background_job',
+    refId: job.id,
+    metadata: JSON.stringify({ jobId: job.id, jobType: job.type, status: job.status }),
+  })
 }

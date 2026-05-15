@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ARCHIVE_QUEUE_BINDING, type ArchiveJobMessage, runArchiveJobMessage } from '../services/archive-jobs'
 import {
   cancelBackgroundJob,
   createBackgroundJob,
@@ -33,7 +34,7 @@ describe('background jobs API', () => {
     vi.restoreAllMocks()
   })
 
-  it('creates archive jobs through POST and returns the final job state', async () => {
+  it('creates archive jobs through POST and completes them after the response', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-create@example.com')
     const { orgId } = await getUserOrg(db, 'jobs-create@example.com')
@@ -46,10 +47,25 @@ describe('background jobs API', () => {
 
     const objectStore = new Map<string, Uint8Array>([['route/source.zip', createZip({ 'route.txt': bytes('ok') })]])
     const putKeys: string[] = []
-    vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_storage, key) => {
+    vi.spyOn(S3Service.prototype, 'headObject').mockImplementation(async (_storage, key) => {
       const bytes = objectStore.get(key)
       if (!bytes) throw new Error(`missing ${key}`)
-      return bytes
+      return { size: bytes.byteLength, contentType: 'application/zip' }
+    })
+    vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_storage, key, range) => {
+      const bytes = objectStore.get(key)
+      if (!bytes) throw new Error(`missing ${key}`)
+      return range ? sliceRange(bytes, range) : bytes
+    })
+    vi.spyOn(S3Service.prototype, 'getObjectStream').mockImplementation(async (_storage, key) => {
+      const bytes = objectStore.get(key)
+      if (!bytes) throw new Error(`missing ${key}`)
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue(bytes)
+          controller.close()
+        },
+      })
     })
     vi.spyOn(S3Service.prototype, 'putObject').mockImplementation(async (_storage, key, body) => {
       const bytes = body instanceof Uint8Array ? body : new Uint8Array(await new Response(body).arrayBuffer())
@@ -65,13 +81,80 @@ describe('background jobs API', () => {
     })
 
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject({
+    const created = (await res.json()) as { id: string }
+    expect(created).toMatchObject({
+      orgId,
+      type: 'archive_extract',
+      status: 'queued',
+    })
+    const completed = await waitForJob(db, orgId, created.id, 'completed')
+    expect(completed).toMatchObject({
       orgId,
       type: 'archive_extract',
       status: 'completed',
       progress: { outputBytes: 2, fileCount: 1 },
     })
     expect(putKeys).toHaveLength(1)
+  })
+
+  it('dispatches archive jobs to Cloudflare Queue bindings and lets the consumer complete them', async () => {
+    const messages: ArchiveJobMessage[] = []
+    const queue = { send: async (message: ArchiveJobMessage) => messages.push(message) }
+    const { app, db, platform } = await createTestApp({}, { [ARCHIVE_QUEUE_BINDING]: queue })
+    const headers = await authedHeaders(app, 'jobs-queue@example.com')
+    const { orgId } = await getUserOrg(db, 'jobs-queue@example.com')
+    await seedStorage(db)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES ('queue-zip', ${orgId}, 'queue-zip-alias', 'queue.zip', 'application/zip', 200, 0, '', 'queue/source.zip', 'route-storage', 'active', ${now}, ${now})
+    `)
+
+    const objectStore = new Map<string, Uint8Array>([['queue/source.zip', createZip({ 'queue.txt': bytes('ok') })]])
+    vi.spyOn(S3Service.prototype, 'headObject').mockImplementation(async (_storage, key) => {
+      const bytes = objectStore.get(key)
+      if (!bytes) throw new Error(`missing ${key}`)
+      return { size: bytes.byteLength, contentType: 'application/zip' }
+    })
+    vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_storage, key, range) => {
+      const bytes = objectStore.get(key)
+      if (!bytes) throw new Error(`missing ${key}`)
+      return range ? sliceRange(bytes, range) : bytes
+    })
+    vi.spyOn(S3Service.prototype, 'getObjectStream').mockImplementation(async (_storage, key) => {
+      const bytes = objectStore.get(key)
+      if (!bytes) throw new Error(`missing ${key}`)
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue(bytes)
+          controller.close()
+        },
+      })
+    })
+    vi.spyOn(S3Service.prototype, 'putObject').mockImplementation(async (_storage, key, body) => {
+      const bytes = body instanceof Uint8Array ? body : new Uint8Array(await new Response(body).arrayBuffer())
+      objectStore.set(key, bytes)
+      return bytes.byteLength
+    })
+
+    const res = await app.request('/api/background-jobs', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'archive_extract', matterId: 'queue-zip' }),
+    })
+
+    expect(res.status).toBe(201)
+    const created = (await res.json()) as { id: string; status: string }
+    expect(created.status).toBe('queued')
+    expect(messages).toHaveLength(1)
+    await expect(getBackgroundJob(db, orgId, created.id)).resolves.toMatchObject({ status: 'queued' })
+
+    await runArchiveJobMessage(platform, messages[0])
+
+    await expect(getBackgroundJob(db, orgId, created.id)).resolves.toMatchObject({
+      status: 'completed',
+      progress: { outputBytes: 2, fileCount: 1 },
+    })
   })
 
   it('returns a failed archive job for a missing explicit target folder', async () => {
@@ -92,7 +175,15 @@ describe('background jobs API', () => {
     })
 
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject({
+    const created = (await res.json()) as { id: string }
+    expect(created).toMatchObject({
+      orgId,
+      type: 'archive_compress',
+      status: 'queued',
+      errorMessage: null,
+    })
+    const failed = await waitForJob(db, orgId, created.id, 'failed')
+    expect(failed).toMatchObject({
       orgId,
       type: 'archive_compress',
       status: 'failed',
@@ -122,7 +213,15 @@ describe('background jobs API', () => {
     })
 
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject({
+    const created = (await res.json()) as { id: string }
+    expect(created).toMatchObject({
+      orgId,
+      type: 'archive_extract',
+      status: 'queued',
+      errorMessage: null,
+    })
+    const failed = await waitForJob(db, orgId, created.id, 'failed')
+    expect(failed).toMatchObject({
       orgId,
       type: 'archive_extract',
       status: 'failed',
@@ -235,6 +334,20 @@ async function seedStorage(db: TestDb): Promise<void> {
   `)
 }
 
+async function waitForJob(
+  db: TestDb,
+  orgId: string,
+  jobId: string,
+  status: 'completed' | 'failed',
+): Promise<Awaited<ReturnType<typeof getBackgroundJob>>> {
+  for (let i = 0; i < 20; i++) {
+    const job = await getBackgroundJob(db, orgId, jobId)
+    if (job.status === status) return job
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error(`Job ${jobId} did not reach ${status}`)
+}
+
 function createZip(files: Record<string, Uint8Array>): Uint8Array {
   const encoder = new TextEncoder()
   const localParts: Uint8Array[] = []
@@ -280,6 +393,12 @@ function createZip(files: Record<string, Uint8Array>): Uint8Array {
 
 function bytes(value: string): Uint8Array {
   return new TextEncoder().encode(value)
+}
+
+function sliceRange(bytes: Uint8Array, range: string): Uint8Array {
+  const match = /^bytes=(\d+)-(\d+)$/.exec(range)
+  if (!match) throw new Error(`Unsupported range: ${range}`)
+  return bytes.slice(Number(match[1]), Number(match[2]) + 1)
 }
 
 function concat(parts: Uint8Array[]): Uint8Array {

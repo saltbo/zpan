@@ -2,6 +2,7 @@ import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
+import { type ArchiveJobMessage, runArchiveJobMessage } from '../server/services/archive-jobs'
 import { resolveShareByToken } from '../server/services/share'
 import { DirType } from '../shared/constants'
 import { handleScheduled } from './scheduled'
@@ -23,7 +24,7 @@ let cachedAuth: Auth | null = null
 const SHARE_TOKEN_RE = /^\/s\/([^/?#]+)/
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { BETTER_AUTH_SECRET } = env
     if (!BETTER_AUTH_SECRET) {
       throw new Error('BETTER_AUTH_SECRET is not configured for this deployment.')
@@ -43,14 +44,22 @@ export default {
     const shareMatch = SHARE_TOKEN_RE.exec(url.pathname)
 
     if (shareMatch && request.method === 'GET') {
-      return handleShareSsr(request, env, shareMatch[1], platform, cachedAuth)
+      return handleShareSsr(request, env, ctx, shareMatch[1], platform, cachedAuth)
     }
 
-    return createApp(platform, cachedAuth).fetch(request)
+    return createApp(platform, cachedAuth).fetch(request, env, ctx)
   },
 
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
     await handleScheduled(event, env)
+  },
+
+  async queue(batch: MessageBatch<ArchiveJobMessage>, env: Env): Promise<void> {
+    const platform = createCloudflarePlatform(env)
+    for (const message of batch.messages) {
+      await runArchiveJobMessage(platform, message.body)
+      message.ack()
+    }
   },
 }
 
@@ -112,6 +121,7 @@ function buildOgTags(meta: ShareMeta, pageUrl: string): string {
 async function handleShareSsr(
   request: Request,
   env: Env,
+  ctx: ExecutionContext,
   token: string,
   platform: ReturnType<typeof createCloudflarePlatform>,
   auth: Auth,
@@ -125,7 +135,7 @@ async function handleShareSsr(
   ])
 
   if (!spaRes.ok) {
-    return createApp(platform, auth).fetch(request)
+    return createApp(platform, auth).fetch(request, env, ctx)
   }
 
   const html = await spaRes.text()

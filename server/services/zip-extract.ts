@@ -1,9 +1,9 @@
-import { unzipSync } from 'fflate'
+import { Unzip, UnzipInflate, unzipSync } from 'fflate'
 
 export const ZIP_EXTRACT_LIMITS = {
-  totalOutputBytes: 100 * 1024 * 1024,
-  singleFileBytes: 25 * 1024 * 1024,
-  fileCount: 200,
+  totalOutputBytes: 1024 * 1024 * 1024,
+  singleFileBytes: 1024 * 1024 * 1024,
+  fileCount: 1000,
   directoryDepth: 10,
 } as const
 
@@ -24,8 +24,27 @@ interface CentralDirectoryEntry {
   externalAttributes: number
 }
 
+export interface ZipDirectoryPlan {
+  folders: string[]
+  totalBytes: number
+  fileCount: number
+}
+
 export interface ValidatedZip {
   files: ExtractedZipEntry[]
+  folders: string[]
+  totalBytes: number
+}
+
+export interface StreamingZipFile {
+  path: string
+  name: string
+  parentPath: string
+  stream: ReadableStream<Uint8Array>
+  size: Promise<number>
+}
+
+export interface StreamingZipExtraction {
   folders: string[]
   totalBytes: number
 }
@@ -56,6 +75,133 @@ export function validateAndExtractZip(data: Uint8Array): ValidatedZip {
   }
 
   return { files, folders, totalBytes }
+}
+
+export async function validateZipDirectory(
+  size: number,
+  readRange: (start: number, end: number) => Promise<Uint8Array>,
+): Promise<ZipDirectoryPlan> {
+  const tailLength = Math.min(size, 65557)
+  const tailOffset = size - tailLength
+  const tail = await readRange(tailOffset, size - 1)
+  const eocd = findEndOfCentralDirectory(tail)
+  const entryCount = uint16(tail, eocd + 10)
+  const centralDirectorySize = uint32(tail, eocd + 12)
+  const centralDirectoryOffset = uint32(tail, eocd + 16)
+  if (entryCount === 0xffff || centralDirectorySize === 0xffffffff || centralDirectoryOffset === 0xffffffff) {
+    throw new Error('ZIP64 archives are not supported')
+  }
+
+  const centralDirectory = await readRange(centralDirectoryOffset, centralDirectoryOffset + centralDirectorySize - 1)
+  const entries = readCentralDirectoryEntries(centralDirectory, entryCount)
+  validateEntries(entries)
+
+  return {
+    folders: collectFolders(entries),
+    totalBytes: totalEntryBytes(entries),
+    fileCount: entries.filter((entry) => !isDirectoryEntry(entry)).length,
+  }
+}
+
+export async function streamValidatedZip(
+  data: ReadableStream<Uint8Array>,
+  onFile: (file: StreamingZipFile) => Promise<void>,
+): Promise<StreamingZipExtraction> {
+  const folders = new Set<string>()
+  const tasks: Promise<void>[] = []
+  let fileCount = 0
+  let totalBytes = 0
+
+  const unzip = new Unzip((file) => {
+    validatePath(file.name)
+    if (file.compression !== 0 && file.compression !== 8) throw new Error('ZIP contains unsupported compression method')
+    const directory = file.name.endsWith('/')
+    const depth = directoryDepth(file.name, directory)
+    if (depth > ZIP_EXTRACT_LIMITS.directoryDepth) {
+      throw new Error(`ZIP directory depth exceeds ${ZIP_EXTRACT_LIMITS.directoryDepth}`)
+    }
+    collectPathFolders(file.name, directory, folders)
+
+    if (directory) {
+      file.start()
+      return
+    }
+
+    fileCount += 1
+    if (fileCount > ZIP_EXTRACT_LIMITS.fileCount) {
+      throw new Error(`ZIP file count exceeds ${ZIP_EXTRACT_LIMITS.fileCount}`)
+    }
+    if (file.originalSize !== undefined && file.originalSize > ZIP_EXTRACT_LIMITS.singleFileBytes) {
+      throw new Error(`ZIP entry exceeds ${ZIP_EXTRACT_LIMITS.singleFileBytes} bytes`)
+    }
+
+    const parts = pathParts(file.name)
+    const stream = new TransformStream<Uint8Array, Uint8Array>()
+    const writer = stream.writable.getWriter()
+    let writes = Promise.resolve()
+    let size = 0
+    let resolveSize: (value: number) => void
+    let rejectSize: (error: unknown) => void
+    const sizePromise = new Promise<number>((resolve, reject) => {
+      resolveSize = resolve
+      rejectSize = reject
+    })
+
+    file.ondata = (error, chunk, final) => {
+      if (error) {
+        writes = writes.then(() => writer.abort(error))
+        rejectSize(error)
+        return
+      }
+      if (chunk) {
+        size += chunk.byteLength
+        totalBytes += chunk.byteLength
+        if (size > ZIP_EXTRACT_LIMITS.singleFileBytes) {
+          const err = new Error(`ZIP entry exceeds ${ZIP_EXTRACT_LIMITS.singleFileBytes} bytes`)
+          writes = writes.then(() => writer.abort(err))
+          rejectSize(err)
+          return
+        }
+        if (totalBytes > ZIP_EXTRACT_LIMITS.totalOutputBytes) {
+          const err = new Error(`ZIP extraction output exceeds ${ZIP_EXTRACT_LIMITS.totalOutputBytes} bytes`)
+          writes = writes.then(() => writer.abort(err))
+          rejectSize(err)
+          return
+        }
+        writes = writes.then(() => writer.write(chunk))
+      }
+      if (final) {
+        writes = writes.then(() => writer.close()).then(() => resolveSize(size))
+      }
+    }
+
+    const zipFile: StreamingZipFile = {
+      path: file.name,
+      name: parts[parts.length - 1],
+      parentPath: parts.slice(0, -1).join('/'),
+      stream: stream.readable,
+      size: sizePromise,
+    }
+    tasks.push(onFile(zipFile))
+    file.start()
+  })
+  unzip.register(UnzipInflate)
+
+  const reader = data.getReader()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    unzip.push(value, false)
+  }
+  unzip.push(new Uint8Array(), true)
+  const results = await Promise.allSettled(tasks)
+  const failed = results.find((result) => result.status === 'rejected')
+  if (failed?.status === 'rejected') throw failed.reason
+
+  return {
+    folders: [...folders].sort((a, b) => pathParts(a).length - pathParts(b).length || a.localeCompare(b)),
+    totalBytes,
+  }
 }
 
 function validateEntries(entries: CentralDirectoryEntry[]): void {
@@ -94,7 +240,12 @@ function validateEntries(entries: CentralDirectoryEntry[]): void {
 function readCentralDirectory(data: Uint8Array): CentralDirectoryEntry[] {
   const eocd = findEndOfCentralDirectory(data)
   const entryCount = uint16(data, eocd + 10)
-  let offset = uint32(data, eocd + 16)
+  const offset = uint32(data, eocd + 16)
+  return readCentralDirectoryEntries(data, entryCount, offset)
+}
+
+function readCentralDirectoryEntries(data: Uint8Array, entryCount: number, startOffset = 0): CentralDirectoryEntry[] {
+  let offset = startOffset
   const entries: CentralDirectoryEntry[] = []
 
   for (let i = 0; i < entryCount; i += 1) {
@@ -117,6 +268,10 @@ function readCentralDirectory(data: Uint8Array): CentralDirectoryEntry[] {
   return entries
 }
 
+function totalEntryBytes(entries: CentralDirectoryEntry[]): number {
+  return entries.reduce((sum, entry) => sum + (isDirectoryEntry(entry) ? 0 : entry.uncompressedSize), 0)
+}
+
 function findEndOfCentralDirectory(data: Uint8Array): number {
   const minOffset = Math.max(0, data.length - 65557)
   for (let offset = data.length - 22; offset >= minOffset; offset -= 1) {
@@ -128,11 +283,15 @@ function findEndOfCentralDirectory(data: Uint8Array): number {
 function collectFolders(entries: CentralDirectoryEntry[]): string[] {
   const folders = new Set<string>()
   for (const entry of entries) {
-    const parts = pathParts(entry.name)
-    const max = isDirectoryEntry(entry) ? parts.length : parts.length - 1
-    for (let i = 1; i <= max; i += 1) folders.add(parts.slice(0, i).join('/'))
+    collectPathFolders(entry.name, isDirectoryEntry(entry), folders)
   }
   return [...folders].sort((a, b) => pathParts(a).length - pathParts(b).length || a.localeCompare(b))
+}
+
+function collectPathFolders(path: string, directory: boolean, folders: Set<string>): void {
+  const parts = pathParts(path)
+  const max = directory ? parts.length : parts.length - 1
+  for (let i = 1; i <= max; i += 1) folders.add(parts.slice(0, i).join('/'))
 }
 
 function validatePath(path: string): void {

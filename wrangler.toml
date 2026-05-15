@@ -24,6 +24,16 @@ bucket_name = "zpan-public-images"
 [[send_email]]
 name = "EMAIL"
 
+[[queues.producers]]
+binding = "ARCHIVE_QUEUE"
+queue = "zpan-archive-jobs"
+
+[[queues.consumers]]
+queue = "zpan-archive-jobs"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 3
+
 [observability]
 enabled = true
 
@@ -47,3 +57,13 @@ migrations_dir = "./migrations"
 [[env.staging.r2_buckets]]
 binding = "PUBLIC_IMAGES"
 bucket_name = "zpan-public-images-staging"
+
+[[env.staging.queues.producers]]
+binding = "ARCHIVE_QUEUE"
+queue = "zpan-archive-jobs-staging"
+
+[[env.staging.queues.consumers]]
+queue = "zpan-archive-jobs-staging"
+max_batch_size = 1
+max_batch_timeout = 1
+max_retries = 3

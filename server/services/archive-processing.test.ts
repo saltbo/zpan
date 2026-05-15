@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { createTestApp } from '../test/setup.js'
 import { createArchiveJob } from './archive-processing'
 import type { S3Service } from './s3'
-import { collectCompressionPlan } from './zip-compress'
-import { validateAndExtractZip } from './zip-extract'
+import { collectCompressionPlan, createZipArchiveStream, ZIP_COMPRESS_LIMITS } from './zip-compress'
+import { validateAndExtractZip, ZIP_EXTRACT_LIMITS } from './zip-extract'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -16,10 +16,27 @@ class MemoryS3 {
   objects = new Map<string, Uint8Array>()
   putKeys: string[] = []
 
-  async getObjectBytes(_storage: unknown, key: string): Promise<Uint8Array> {
+  async getObjectBytes(_storage: unknown, key: string, range?: string): Promise<Uint8Array> {
     const bytes = this.objects.get(key)
     if (!bytes) throw new Error(`Object not found: ${key}`)
+    if (range) return sliceRange(bytes, range)
     return bytes
+  }
+
+  async headObject(_storage: unknown, key: string): Promise<{ size: number; contentType: string }> {
+    const bytes = this.objects.get(key)
+    if (!bytes) throw new Error(`Object not found: ${key}`)
+    return { size: bytes.byteLength, contentType: 'application/octet-stream' }
+  }
+
+  async getObjectStream(_storage: unknown, key: string): Promise<ReadableStream<Uint8Array>> {
+    const bytes = await this.getObjectBytes(_storage, key)
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(bytes)
+        controller.close()
+      },
+    })
   }
 
   async putObject(_storage: unknown, key: string, body: Uint8Array | ReadableStream): Promise<number> {
@@ -58,6 +75,30 @@ class FailAfterPutS3 extends MemoryS3 {
   }
 }
 
+class GeneratedObjectS3 extends MemoryS3 {
+  putSizes = new Map<string, number>()
+
+  constructor(
+    private readonly generatedKey: string,
+    private readonly generatedSize: number,
+  ) {
+    super()
+  }
+
+  override async getObjectStream(_storage: unknown, key: string): Promise<ReadableStream<Uint8Array>> {
+    if (key === this.generatedKey) return generatedBytes(this.generatedSize)
+    return super.getObjectStream(_storage, key)
+  }
+
+  override async putObject(_storage: unknown, key: string, body: Uint8Array | ReadableStream): Promise<number> {
+    const size = body instanceof Uint8Array ? body.byteLength : await drainStream(body)
+    this.objects.set(key, new Uint8Array())
+    this.putKeys.push(key)
+    this.putSizes.set(key, size)
+    return size
+  }
+}
+
 describe('archive processing', () => {
   it('extracts a small ZIP into folder and file matters and writes objects', async () => {
     const { db } = await createTestApp()
@@ -90,6 +131,30 @@ describe('archive processing', () => {
     expect(s3.putKeys).toHaveLength(1)
   })
 
+  it('prevalidates then streams extraction for a 128 MiB ZIP entry', async () => {
+    const { db } = await createTestApp()
+    await seedStorage(db)
+    const size = 128 * 1024 * 1024
+    const archive = await streamToBytes(
+      createZipArchiveStream([{ archivePath: 'large.bin', openStream: async () => generatedBytes(size) }]),
+    )
+    await seedMatter(db, { id: 'large-zip', name: 'large.zip', object: 'source/large.zip', size: archive.byteLength })
+
+    const s3 = new GeneratedObjectS3('unused', 0)
+    s3.objects.set('source/large.zip', archive)
+    const job = await createArchiveJob(db, {
+      orgId: ORG_ID,
+      userId: USER_ID,
+      request: { type: 'archive_extract', matterId: 'large-zip' },
+      s3: s3 as unknown as S3Service,
+    })
+
+    expect(job).toMatchObject({ status: 'completed', type: 'archive_extract' })
+    expect(job.progress).toMatchObject({ outputBytes: size, fileCount: 1 })
+    expect(s3.putKeys).toHaveLength(1)
+    expect(s3.putSizes.get(s3.putKeys[0])).toBe(size)
+  }, 60_000)
+
   it('compresses selected matters into a ZIP matter and object', async () => {
     const { db } = await createTestApp()
     await seedStorage(db)
@@ -115,6 +180,26 @@ describe('archive processing', () => {
     expect(zipMatter[0].type).toBe('application/zip')
     expect(s3.objects.get(zipMatter[0].object)?.length).toBe(zipMatter[0].size)
   })
+
+  it('streams compression for a 128 MiB source without buffering the source object', async () => {
+    const { db } = await createTestApp()
+    await seedStorage(db)
+    const size = 128 * 1024 * 1024
+    await seedMatter(db, { id: 'large-file', name: 'large.bin', object: 'objects/large.bin', size })
+
+    const s3 = new GeneratedObjectS3('objects/large.bin', size)
+    const job = await createArchiveJob(db, {
+      orgId: ORG_ID,
+      userId: USER_ID,
+      request: { type: 'archive_compress', matterIds: ['large-file'] },
+      s3: s3 as unknown as S3Service,
+    })
+
+    expect(job).toMatchObject({ status: 'completed', type: 'archive_compress' })
+    expect(job.progress).toMatchObject({ inputBytes: size, processedBytes: size, fileCount: 1 })
+    expect(s3.putKeys).toHaveLength(1)
+    expect(s3.putSizes.get(s3.putKeys[0]) ?? 0).toBeGreaterThan(0)
+  }, 60_000)
 
   it('compresses an empty selected folder as a ZIP directory entry', async () => {
     const { db } = await createTestApp()
@@ -194,7 +279,10 @@ describe('archive processing', () => {
     const s3 = new MemoryS3()
     s3.objects.set(
       'source/large.zip',
-      createZip({ 'large.bin': bytes('x') }, { declaredSizes: { 'large.bin': 25 * 1024 * 1024 + 1 } }),
+      createZip(
+        { 'large.bin': bytes('x') },
+        { declaredSizes: { 'large.bin': ZIP_EXTRACT_LIMITS.singleFileBytes + 1 } },
+      ),
     )
 
     const job = await createArchiveJob(db, {
@@ -206,7 +294,7 @@ describe('archive processing', () => {
 
     expect(job).toMatchObject({
       status: 'failed',
-      errorMessage: 'ZIP entry exceeds 26214400 bytes',
+      errorMessage: `ZIP entry exceeds ${ZIP_EXTRACT_LIMITS.singleFileBytes} bytes`,
     })
     expect(s3.putKeys).toHaveLength(0)
   })
@@ -232,11 +320,11 @@ describe('archive processing', () => {
 
     expect(job.status).toBe('failed')
     expect(job.errorMessage).toBe('Quota exceeded for extracted ZIP contents')
-    expect(s3.putKeys).toHaveLength(0)
+    expect(s3.objects.size).toBe(1)
     await expect(activeMatterCount(db)).resolves.toBe(1)
   })
 
-  it('fails compression quota checks before writing output', async () => {
+  it('fails compression quota checks and removes streamed output', async () => {
     const { db } = await createTestApp()
     await seedStorage(db)
     await db.run(sql`
@@ -257,7 +345,7 @@ describe('archive processing', () => {
 
     expect(job.status).toBe('failed')
     expect(job.errorMessage).toBe('Quota exceeded for generated ZIP archive')
-    expect(s3.putKeys).toHaveLength(0)
+    expect(s3.objects.size).toBe(1)
     await expect(activeMatterCount(db)).resolves.toBe(1)
   })
 
@@ -437,7 +525,7 @@ describe('archive processing', () => {
       id: 'large-file',
       name: 'large.bin',
       object: 'objects/large.bin',
-      size: 25 * 1024 * 1024 + 1,
+      size: ZIP_COMPRESS_LIMITS.singleFileBytes + 1,
     })
     await seedMatter(db, {
       id: 'deep-file',
@@ -455,7 +543,7 @@ describe('archive processing', () => {
       'Only active matters can be archived',
     )
     await expect(collectCompressionPlan(db, ORG_ID, ['large-file'])).rejects.toThrow(
-      'Compression source file exceeds 26214400 bytes',
+      `Compression source file exceeds ${ZIP_COMPRESS_LIMITS.singleFileBytes} bytes`,
     )
     await expect(collectCompressionPlan(db, ORG_ID, ['deep-file'])).rejects.toThrow(
       'Compression directory depth exceeds 10',
@@ -482,13 +570,15 @@ describe('archive processing', () => {
     const { db } = await createTestApp()
     await seedStorage(db)
     const ids: string[] = []
-    for (let index = 0; index < 201; index += 1) {
+    for (let index = 0; index < ZIP_COMPRESS_LIMITS.fileCount + 1; index += 1) {
       const id = `many-${index}`
       ids.push(id)
       await seedMatter(db, { id, name: `${id}.txt`, object: `objects/${id}.txt`, size: 1 })
     }
 
-    await expect(collectCompressionPlan(db, ORG_ID, ids)).rejects.toThrow('Compression file count exceeds 200')
+    await expect(collectCompressionPlan(db, ORG_ID, ids)).rejects.toThrow(
+      `Compression file count exceeds ${ZIP_COMPRESS_LIMITS.fileCount}`,
+    )
   })
 
   it('rejects unsafe and unsupported ZIP entries during validation', () => {
@@ -517,16 +607,20 @@ describe('archive processing', () => {
   })
 
   it('enforces ZIP validation count and total output limits from metadata', () => {
-    const manyEntries = Object.fromEntries(Array.from({ length: 201 }, (_, index) => [`file-${index}.txt`, bytes('x')]))
-    expect(() => validateAndExtractZip(createZip(manyEntries))).toThrow('ZIP file count exceeds 200')
+    const manyEntries = Object.fromEntries(
+      Array.from({ length: ZIP_EXTRACT_LIMITS.fileCount + 1 }, (_, index) => [`file-${index}.txt`, bytes('x')]),
+    )
+    expect(() => validateAndExtractZip(createZip(manyEntries))).toThrow(
+      `ZIP file count exceeds ${ZIP_EXTRACT_LIMITS.fileCount}`,
+    )
     const totalLimitEntries = Object.fromEntries(
       Array.from({ length: 5 }, (_, index) => [`total-${index}`, bytes('x')]),
     )
     const totalLimitSizes = Object.fromEntries(
-      Array.from({ length: 5 }, (_, index) => [`total-${index}`, 21 * 1024 * 1024]),
+      Array.from({ length: 5 }, (_, index) => [`total-${index}`, 256 * 1024 * 1024]),
     )
     expect(() => validateAndExtractZip(createZip(totalLimitEntries, { declaredSizes: totalLimitSizes }))).toThrow(
-      'ZIP extraction output exceeds 104857600 bytes',
+      `ZIP extraction output exceeds ${ZIP_EXTRACT_LIMITS.totalOutputBytes} bytes`,
     )
   })
 })
@@ -624,6 +718,42 @@ function createZip(files: Record<string, Uint8Array>, opts: ZipFixtureOptions = 
 
 function bytes(value: string): Uint8Array {
   return new TextEncoder().encode(value)
+}
+
+function generatedBytes(size: number): ReadableStream<Uint8Array> {
+  const chunk = new Uint8Array(1024 * 1024)
+  let remaining = size
+  return new ReadableStream({
+    pull(controller) {
+      if (remaining <= 0) {
+        controller.close()
+        return
+      }
+      const length = Math.min(chunk.byteLength, remaining)
+      controller.enqueue(length === chunk.byteLength ? chunk : chunk.slice(0, length))
+      remaining -= length
+    },
+  })
+}
+
+async function drainStream(stream: ReadableStream): Promise<number> {
+  const reader = stream.getReader()
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) return size
+    size += value instanceof Uint8Array ? value.byteLength : 0
+  }
+}
+
+async function streamToBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
+function sliceRange(bytes: Uint8Array, range: string): Uint8Array {
+  const match = /^bytes=(\d+)-(\d+)$/.exec(range)
+  if (!match) throw new Error(`Unsupported range: ${range}`)
+  return bytes.slice(Number(match[1]), Number(match[2]) + 1)
 }
 
 function concat(parts: Uint8Array[]): Uint8Array {

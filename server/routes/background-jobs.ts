@@ -5,7 +5,8 @@ import { Hono } from 'hono'
 import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { createArchiveJob } from '../services/archive-processing'
+import { dispatchArchiveJob } from '../services/archive-jobs'
+import { enqueueArchiveJob } from '../services/archive-processing'
 import {
   BackgroundJobError,
   cancelBackgroundJob,
@@ -32,11 +33,15 @@ const backgroundJobs = new Hono<Env>()
         const orgId = requireOrg(c)
         const userId = c.get('userId')
         if (!userId) throw new BackgroundJobError('not_found')
-        return createArchiveJob(c.get('platform').db, {
+        const db = c.get('platform').db
+        const request = c.req.valid('json')
+        const job = await enqueueArchiveJob(db, {
           orgId,
           userId,
-          request: c.req.valid('json'),
+          request,
         })
+        await dispatchArchiveJob(c.get('platform'), { orgId, userId, request, jobId: job.id })
+        return job
       },
       201,
     ),
@@ -58,7 +63,18 @@ const backgroundJobs = new Hono<Env>()
       c,
       async () => {
         const orgId = requireOrg(c)
-        return retryBackgroundJob(c.get('platform').db, orgId, c.req.param('id'))
+        const db = c.get('platform').db
+        const job = await retryBackgroundJob(db, orgId, c.req.param('id'))
+        const request = createBackgroundJobRequestSchema.safeParse(job.metadata)
+        if (request.success) {
+          await dispatchArchiveJob(c.get('platform'), {
+            orgId,
+            userId: job.userId,
+            request: request.data,
+            jobId: job.id,
+          })
+        }
+        return job
       },
       201,
     ),
@@ -66,7 +82,7 @@ const backgroundJobs = new Hono<Env>()
 
 export default backgroundJobs
 
-function requireOrg(c: Context<Env>): string {
+function requireOrg(c: { get(key: 'orgId'): string | null }): string {
   const orgId = c.get('orgId')
   if (!orgId) throw new BackgroundJobError('not_found')
   return orgId

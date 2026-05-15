@@ -1,14 +1,14 @@
 import { and, eq, like, or } from 'drizzle-orm'
-import { type Zippable, zipSync } from 'fflate'
+import { Zip, ZipDeflate, ZipPassThrough, type Zippable, zipSync } from 'fflate'
 import { DirType } from '../../shared/constants'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import type { Matter } from './matter'
 
 export const ZIP_COMPRESS_LIMITS = {
-  totalInputBytes: 50 * 1024 * 1024,
-  singleFileBytes: 25 * 1024 * 1024,
-  fileCount: 200,
+  totalInputBytes: 512 * 1024 * 1024,
+  singleFileBytes: 512 * 1024 * 1024,
+  fileCount: 1000,
   directoryDepth: 10,
 } as const
 
@@ -26,6 +26,11 @@ export interface ZipSourceObject {
   bytes: Uint8Array
 }
 
+export interface ZipSourceStream {
+  archivePath: string
+  openStream: () => Promise<ReadableStream<Uint8Array>>
+}
+
 export interface CompressionPlan {
   files: CompressionSourceFile[]
   directories: CompressionSourceDirectory[]
@@ -41,6 +46,9 @@ export async function collectCompressionPlan(
   opts: { targetFolder?: string; outputName?: string } = {},
 ): Promise<CompressionPlan> {
   const uniqueIds = [...new Set(matterIds)]
+  if (uniqueIds.length > ZIP_COMPRESS_LIMITS.fileCount) {
+    throw new Error(`Compression file count exceeds ${ZIP_COMPRESS_LIMITS.fileCount}`)
+  }
   const roots = await db
     .select()
     .from(matters)
@@ -74,6 +82,70 @@ export function createZipArchive(
   for (const directory of directories) zippable[`${directory.archivePath}/`] = new Uint8Array()
   for (const object of objects) zippable[object.archivePath] = object.bytes
   return zipSync(zippable, { level: 6 })
+}
+
+export function createZipArchiveStream(
+  sources: ZipSourceStream[],
+  directories: CompressionSourceDirectory[] = [],
+): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const zip = new Zip()
+      zip.ondata = (error, chunk, final) => {
+        if (error) {
+          controller.error(error)
+          return
+        }
+        if (chunk) controller.enqueue(new Uint8Array(chunk))
+        if (final) controller.close()
+      }
+
+      void streamZipEntries(zip, sources, directories, async () => {}).catch((error) => {
+        zip.terminate()
+        controller.error(error)
+      })
+    },
+  })
+}
+
+async function streamZipEntries(
+  zip: Zip,
+  sources: ZipSourceStream[],
+  directories: CompressionSourceDirectory[],
+  waitForWrites: () => Promise<void>,
+): Promise<void> {
+  for (const directory of directories) {
+    const entry = new ZipPassThrough(`${directory.archivePath}/`)
+    zip.add(entry)
+    entry.push(new Uint8Array(), true)
+    await waitForWrites()
+  }
+
+  for (const source of sources) {
+    const entry = new ZipDeflate(source.archivePath, { level: 6 })
+    zip.add(entry)
+    await pushStreamToZipEntry(await source.openStream(), entry, waitForWrites)
+  }
+
+  zip.end()
+}
+
+async function pushStreamToZipEntry(
+  stream: ReadableStream<Uint8Array>,
+  entry: ZipDeflate,
+  waitForWrites: () => Promise<void>,
+): Promise<void> {
+  const reader = stream.getReader()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) {
+      entry.push(new Uint8Array(), true)
+      await waitForWrites()
+      return
+    }
+    entry.push(value, false)
+    await waitForWrites()
+  }
 }
 
 function validateCompressionEntries(files: CompressionSourceFile[], directories: CompressionSourceDirectory[]): void {

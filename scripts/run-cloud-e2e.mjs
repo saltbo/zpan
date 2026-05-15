@@ -5,9 +5,13 @@ import { Resolver } from 'node:dns/promises'
 const args = process.argv.slice(2)
 const runtime = valueAfter('--runtime') ?? process.env.E2E_RUNTIME ?? 'node'
 const project = valueAfter('--project') ?? 'desktop'
+const spec = valueAfter('--spec') ?? 'cloud-store.spec.ts'
+const local = args.includes('--local')
+const withS3Mock = args.includes('--with-s3-mock')
 const cloudflared = process.env.CLOUDFLARED_BIN ?? 'cloudflared'
 const appPort = Number(process.env.E2E_APP_PORT ?? (runtime === 'cf' ? 6174 : 6173))
 const apiPort = Number(process.env.E2E_API_PORT ?? 9222)
+const s3MockPort = Number(process.env.E2E_S3_MOCK_PORT ?? 9191)
 const localBaseUrl = `http://localhost:${appPort}`
 const pidFile = `.cloudflared.${runtime}.pid`
 const tunnelUrlPattern = /https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/
@@ -19,36 +23,41 @@ const cloudEnv = {
   VITE_ZPAN_CLOUD_URL: process.env.VITE_ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev',
 }
 
-const tunnel = await startTunnel(localBaseUrl)
-const tunnelHost = new URL(tunnel.url).hostname
-const tunnelIp = await waitForPublicTunnelIp(tunnelHost)
+const tunnel = local ? null : await startTunnel(localBaseUrl)
+const tunnelHost = tunnel ? new URL(tunnel.url).hostname : ''
+const tunnelIp = tunnel ? await waitForPublicTunnelIp(tunnelHost) : ''
+const baseUrl = tunnel?.url ?? localBaseUrl
 const tunnelEnv = {
-  E2E_BASE_URL: tunnel.url,
+  E2E_BASE_URL: baseUrl,
   E2E_LOCAL_BASE_URL: localBaseUrl,
   E2E_APP_PORT: String(appPort),
   E2E_API_PORT: String(apiPort),
-  BETTER_AUTH_URL: tunnel.url,
-  TRUSTED_ORIGINS: `${tunnel.url},${localBaseUrl}`,
-  E2E_CHROME_HOST_RESOLVER_RULES: `MAP ${tunnelHost} ${tunnelIp}`,
+  BETTER_AUTH_URL: baseUrl,
+  TRUSTED_ORIGINS: `${baseUrl},${localBaseUrl}`,
+  ...(tunnel ? { E2E_CHROME_HOST_RESOLVER_RULES: `MAP ${tunnelHost} ${tunnelIp}` } : {}),
 }
 const e2eEnv = {
   ...cloudEnv,
   ...tunnelEnv,
+  ...s3MockEnv(),
   ...runtimeCloudCredentials(runtime),
   ...(runtime === 'cf' ? { E2E_RUNTIME: 'cf' } : {}),
 }
 
 if (runtime === 'cf') {
+  if (local) rmSync('.wrangler/state/v3/d1', { recursive: true, force: true })
   writeDevVars(e2eEnv)
   await run('npx', ['wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'], e2eEnv)
 }
 
 try {
-  await run('npx', ['playwright', 'test', 'cloud-store.spec.ts', `--project=${project}`], e2eEnv)
+  await run('npx', ['playwright', 'test', spec, `--project=${project}`], e2eEnv)
 } finally {
-  try {
-    tunnel.process.kill()
-  } catch {}
+  if (tunnel) {
+    try {
+      tunnel.process.kill()
+    } catch {}
+  }
   if (existsSync(pidFile)) {
     const pid = Number(readFileSync(pidFile, 'utf8'))
     if (Number.isInteger(pid)) {
@@ -75,6 +84,19 @@ function runtimeCloudCredentials(runtime) {
         E2E_CLOUD_PRO_PASSWORD: password,
       }
     : {}
+}
+
+function s3MockEnv() {
+  if (!withS3Mock) return {}
+  return {
+    E2E_S3_MOCK: '1',
+    E2E_S3_MOCK_PORT: String(s3MockPort),
+    E2E_STORAGE_ENDPOINT: `http://127.0.0.1:${s3MockPort}`,
+    E2E_STORAGE_BUCKET: 'e2e-test',
+    E2E_STORAGE_REGION: 'auto',
+    E2E_STORAGE_ACCESS_KEY: 'e2e-access-key',
+    E2E_STORAGE_SECRET_KEY: 'e2e-secret-key',
+  }
 }
 
 function startTunnel(target) {

@@ -224,6 +224,9 @@ export function FileManager({
     mutationFn: (
       input: { type: 'archive_compress'; matterIds: string[] } | { type: 'archive_extract'; matterId: string },
     ) => createBackgroundJob(input),
+    onMutate: () => {
+      queryClient.setQueryData<number>(['background-jobs', 'active-count'], (count) => (count ?? 0) + 1)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['objects'] })
       queryClient.invalidateQueries({ queryKey: ['background-jobs'] })
@@ -235,6 +238,7 @@ export function FileManager({
       })
     },
     onError: (err) => {
+      queryClient.setQueryData<number>(['background-jobs', 'active-count'], (count) => Math.max(0, (count ?? 1) - 1))
       toast.error(err.message)
     },
   })

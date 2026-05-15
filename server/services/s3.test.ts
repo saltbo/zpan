@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Storage } from '../../shared/types'
 import { S3Service } from './s3.js'
 
@@ -116,6 +116,12 @@ describe('S3Service', () => {
   const service = new S3Service()
   const storage = makeStorage()
 
+  beforeEach(() => {
+    mockSend.mockReset()
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
+
   describe('createClient', () => {
     it('creates a client with correct config', () => {
       const client = service.createClient(storage)
@@ -231,104 +237,37 @@ describe('S3Service', () => {
   })
 
   describe('getObjectBytes', () => {
-    it('returns bytes from Uint8Array bodies', async () => {
+    it('returns bytes from fetched object bodies', async () => {
       const bytes = new Uint8Array([1, 2, 3])
-      mockSend.mockResolvedValueOnce({ Body: bytes })
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(bytes)))
 
       await expect(service.getObjectBytes(storage, 'test.bin')).resolves.toEqual(bytes)
+      expect(fetch).toHaveBeenCalledWith('https://signed-url.example.com', undefined)
     })
 
-    it('returns bytes from ReadableStream bodies', async () => {
+    it('sends Range when reading partial object bytes', async () => {
       const bytes = new Uint8Array([4, 5, 6])
-      const stream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(bytes)
-          controller.close()
-        },
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(bytes, { status: 206 })))
+
+      await expect(service.getObjectBytes(storage, 'test.bin', 'bytes=0-2')).resolves.toEqual(bytes)
+      expect(fetch).toHaveBeenCalledWith('https://signed-url.example.com', {
+        headers: { Range: 'bytes=0-2' },
       })
-      mockSend.mockResolvedValueOnce({ Body: stream })
-
-      await expect(service.getObjectBytes(storage, 'test.bin')).resolves.toEqual(bytes)
     })
 
-    it('returns bytes from transformToByteArray bodies', async () => {
-      const bytes = new Uint8Array([1, 2, 3])
-      mockSend.mockResolvedValueOnce({
-        Body: { transformToByteArray: async () => bytes },
-      })
+    it('rejects failed object reads', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(null, { status: 404 })))
 
-      await expect(service.getObjectBytes(storage, 'test.bin')).resolves.toEqual(bytes)
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'test.bin' } }),
-      )
-    })
-
-    it('returns bytes from arrayBuffer bodies', async () => {
-      const bytes = new Uint8Array([7, 8, 9])
-      mockSend.mockResolvedValueOnce({
-        Body: { arrayBuffer: async () => bytes.buffer },
-      })
-
-      await expect(service.getObjectBytes(storage, 'test.bin')).resolves.toEqual(bytes)
-    })
-
-    it('rejects empty object bodies', async () => {
-      mockSend.mockResolvedValueOnce({})
-
-      await expect(service.getObjectBytes(storage, 'missing.bin')).rejects.toThrow('Empty body from object')
-    })
-
-    it('rejects unsupported object bodies', async () => {
-      mockSend.mockResolvedValueOnce({ Body: {} })
-
-      await expect(service.getObjectBytes(storage, 'test.bin')).rejects.toThrow('Unsupported object body')
+      await expect(service.getObjectBytes(storage, 'missing.bin')).rejects.toThrow('S3 object read failed: 404')
     })
   })
 
   describe('getObjectBody', () => {
-    it('returns ReadableStream bodies without buffering', async () => {
+    it('returns fetched ReadableStream bodies without buffering', async () => {
       const stream = new ReadableStream()
-      mockSend.mockResolvedValueOnce({ Body: stream })
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(stream)))
 
       await expect(service.getObjectBody(storage, 'test.bin')).resolves.toBe(stream)
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'test.bin' } }),
-      )
-    })
-
-    it('returns Uint8Array bodies as a response body', async () => {
-      const bytes = new Uint8Array([1, 2, 3])
-      mockSend.mockResolvedValueOnce({ Body: bytes })
-
-      const body = await service.getObjectBody(storage, 'test.bin')
-      await expect(new Response(body).arrayBuffer()).resolves.toEqual(bytes.buffer)
-    })
-
-    it('uses transformToWebStream bodies without converting to bytes', async () => {
-      const stream = new ReadableStream()
-      const body = {
-        transformToByteArray: vi.fn(),
-        transformToWebStream: vi.fn(() => stream),
-      }
-      mockSend.mockResolvedValueOnce({ Body: body })
-
-      await expect(service.getObjectBody(storage, 'test.bin', 'bytes=0-4')).resolves.toBe(stream)
-      expect(body.transformToByteArray).not.toHaveBeenCalled()
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'test.bin', Range: 'bytes=0-4' } }),
-      )
-    })
-
-    it('rejects empty object bodies', async () => {
-      mockSend.mockResolvedValueOnce({})
-
-      await expect(service.getObjectBody(storage, 'missing.bin')).rejects.toThrow('Empty body from object')
-    })
-
-    it('rejects unsupported object bodies', async () => {
-      mockSend.mockResolvedValueOnce({ Body: {} })
-
-      await expect(service.getObjectBody(storage, 'test.bin')).rejects.toThrow('Unsupported object body')
     })
   })
 

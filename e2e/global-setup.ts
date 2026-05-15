@@ -9,15 +9,16 @@ import { hashPassword } from '../server/lib/password'
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from './helpers'
 
 const localBaseUrl = process.env.E2E_LOCAL_BASE_URL ?? 'http://localhost:5173'
+const defaultOrgQuota = process.env.E2E_DEFAULT_ORG_QUOTA ?? String(1024 * 1024 * 1024)
 
 const storageConfig = {
   title: 'E2E Storage',
   mode: 'private',
-  bucket: 'e2e-test',
-  endpoint: 'https://localhost:9000',
-  region: 'auto',
-  accessKey: 'e2e-access-key',
-  secretKey: 'e2e-secret-key',
+  bucket: process.env.E2E_STORAGE_BUCKET ?? 'e2e-test',
+  endpoint: process.env.E2E_STORAGE_ENDPOINT ?? 'https://localhost:9000',
+  region: process.env.E2E_STORAGE_REGION ?? 'auto',
+  accessKey: process.env.E2E_STORAGE_ACCESS_KEY ?? 'e2e-access-key',
+  secretKey: process.env.E2E_STORAGE_SECRET_KEY ?? 'e2e-secret-key',
   capacity: 0,
   status: 'active',
 }
@@ -69,11 +70,18 @@ function prepareNodeDatabase() {
     .prepare(
       `
         INSERT INTO system_options (key, value, public)
-        VALUES (?, ?, 0), (?, ?, 0)
+        VALUES (?, ?, 0), (?, ?, 0), (?, ?, 0)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
       `,
     )
-    .run('cloud_store_created_at', new Date().toISOString(), 'cloud_store_updated_at', new Date().toISOString())
+    .run(
+      'cloud_store_created_at',
+      new Date().toISOString(),
+      'cloud_store_updated_at',
+      new Date().toISOString(),
+      'default_org_quota',
+      defaultOrgQuota,
+    )
 
   sqlite
     .prepare(
@@ -193,6 +201,12 @@ setup('seed admin and storage', async () => {
         return
       }
     }
+
+    const quotaResp = await request.put('/api/system/options/default_org_quota', {
+      headers,
+      data: { value: defaultOrgQuota },
+    })
+    if (!quotaResp.ok()) throw new Error(`could not set E2E default quota: ${quotaResp.status()}`)
 
     if (ensureNodeStorage()) return
 
