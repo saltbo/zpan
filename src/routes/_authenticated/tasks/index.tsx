@@ -25,7 +25,7 @@ function TasksPage() {
   const jobsQuery = useQuery({
     queryKey: [...QUERY_KEY, status],
     queryFn: () => listBackgroundJobs({ status, page: 1, pageSize: PAGE_SIZE }),
-    refetchInterval: filter === 'active' ? 3000 : false,
+    refetchInterval: filter === 'active' ? 1000 : false,
   })
 
   const cancelMutation = useMutation({

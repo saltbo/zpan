@@ -23,6 +23,8 @@ export interface CreateArchiveJobInput {
 
 const ZIP_MIME = 'application/zip'
 const DEFAULT_FILE_MIME = 'application/octet-stream'
+const PROGRESS_REPORT_INTERVAL_MS = 1000
+const PROGRESS_REPORT_BYTES = 5 * 1024 * 1024
 
 export async function createArchiveJob(db: Database, input: CreateArchiveJobInput): Promise<BackgroundJob> {
   const job = await enqueueArchiveJob(db, input)
@@ -79,16 +81,20 @@ async function runCompressionJob(
     targetFolder: request.targetFolder,
     outputName: request.outputName,
   })
-  await updateBackgroundJob(db, orgId, jobId, {
-    progress: { inputBytes: plan.inputBytes, fileCount: plan.files.length },
-  })
+  const progress = createArchiveProgressReporter(db, orgId, jobId, plan.inputBytes, plan.files.length)
+  await progress.report(true)
 
   const sources = []
   for (const file of plan.files) {
     const storage = await requireStorage(db, file.matter.storageId)
     sources.push({
       archivePath: file.archivePath,
-      openStream: () => s3.getObjectStream(storage, file.matter.object),
+      openStream: async () => {
+        await progress.setCurrentFilename(file.archivePath)
+        return trackReadableStream(await s3.getObjectStream(storage, file.matter.object), (chunk) =>
+          progress.addProcessedBytes(chunk.byteLength),
+        )
+      },
     })
   }
 
@@ -154,6 +160,8 @@ async function runExtractionJob(
   const plan = await validateZipDirectory(sourceHead.size, (start, end) =>
     s3.getObjectBytes(sourceStorage, zipMatter.object, `bytes=${start}-${end}`),
   )
+  const progress = createArchiveProgressReporter(db, orgId, jobId, sourceHead.size, plan.fileCount)
+  await progress.report(true)
   const targetFolder = request.targetFolder ?? zipMatter.parent
   const targetStorage = (await selectStorage(db, 'private')) as unknown as S3StorageType
   const writtenKeys: string[] = []
@@ -168,8 +176,11 @@ async function runExtractionJob(
     if (!allowed) throw new Error('Quota exceeded for extracted ZIP contents')
     outputBytes = plan.totalBytes
 
-    const zipStream = await s3.getObjectStream(sourceStorage, zipMatter.object)
+    const zipStream = trackReadableStream(await s3.getObjectStream(sourceStorage, zipMatter.object), (chunk) =>
+      progress.addProcessedBytes(chunk.byteLength),
+    )
     const archive = await streamValidatedZip(zipStream, async (file) => {
+      await progress.setCurrentFilename(file.path)
       const parent = file.parentPath ? await ensureExtractedFolder(file.parentPath) : targetFolder
       const key = buildObjectKey({ uid: userId, orgId, rawExt: extension(file.name) })
       const size = await s3.putObject(targetStorage, key, file.stream, DEFAULT_FILE_MIME)
@@ -235,6 +246,79 @@ async function runExtractionJob(
     folderParents.set(folderPath, matterPath)
     return matterPath
   }
+}
+
+function createArchiveProgressReporter(
+  db: Database,
+  orgId: string,
+  jobId: string,
+  inputBytes: number,
+  fileCount: number,
+) {
+  let processedBytes = 0
+  let currentFilename: string | null = null
+  let lastReportedAt = 0
+  let lastReportedBytes = -1
+  let lastReportedFilename: string | null = null
+  let writes = Promise.resolve()
+
+  async function report(force = false): Promise<void> {
+    const now = Date.now()
+    const enoughTime = now - lastReportedAt >= PROGRESS_REPORT_INTERVAL_MS
+    const enoughBytes = processedBytes - lastReportedBytes >= PROGRESS_REPORT_BYTES
+    const complete = inputBytes > 0 && processedBytes >= inputBytes
+    if (!force && !enoughTime && !enoughBytes && !complete) return
+    if (!force && processedBytes === lastReportedBytes && currentFilename === lastReportedFilename) return
+
+    const snapshot = { processedBytes, currentFilename }
+    lastReportedAt = now
+    lastReportedBytes = snapshot.processedBytes
+    lastReportedFilename = snapshot.currentFilename
+    writes = writes.then(() =>
+      updateBackgroundJob(db, orgId, jobId, {
+        progress: {
+          inputBytes,
+          fileCount,
+          processedBytes: snapshot.processedBytes,
+          currentFilename: snapshot.currentFilename,
+        },
+      }).then(() => undefined),
+    )
+    await writes
+  }
+
+  return {
+    report,
+    async setCurrentFilename(filename: string): Promise<void> {
+      currentFilename = filename
+      await report(true)
+    },
+    async addProcessedBytes(bytes: number): Promise<void> {
+      processedBytes += bytes
+      await report(false)
+    },
+  }
+}
+
+function trackReadableStream(
+  stream: ReadableStream<Uint8Array>,
+  onChunk: (chunk: Uint8Array) => Promise<void>,
+): ReadableStream<Uint8Array> {
+  const reader = stream.getReader()
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read()
+      if (done) {
+        controller.close()
+        return
+      }
+      await onChunk(value)
+      controller.enqueue(value)
+    },
+    cancel(reason) {
+      return reader.cancel(reason)
+    },
+  })
 }
 
 async function requireStorage(db: Database, storageId: string): Promise<S3StorageType> {

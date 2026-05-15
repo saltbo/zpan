@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import type { BackgroundJob } from '../../shared/types'
 import { createTestApp } from '../test/setup.js'
-import { createArchiveJob } from './archive-processing'
+import { createArchiveJob, enqueueArchiveJob, processArchiveJob } from './archive-processing'
+import { getBackgroundJob } from './background-jobs'
 import type { S3Service } from './s3'
 import { collectCompressionPlan, createZipArchiveStream, ZIP_COMPRESS_LIMITS } from './zip-compress'
 import { validateAndExtractZip, ZIP_EXTRACT_LIMITS } from './zip-extract'
@@ -79,8 +81,8 @@ class GeneratedObjectS3 extends MemoryS3 {
   putSizes = new Map<string, number>()
 
   constructor(
-    private readonly generatedKey: string,
-    private readonly generatedSize: number,
+    protected readonly generatedKey: string,
+    protected readonly generatedSize: number,
   ) {
     super()
   }
@@ -96,6 +98,74 @@ class GeneratedObjectS3 extends MemoryS3 {
     this.putKeys.push(key)
     this.putSizes.set(key, size)
     return size
+  }
+}
+
+class BlockingGeneratedObjectS3 extends GeneratedObjectS3 {
+  readonly firstChunkRead: Promise<void>
+  private resolveFirstChunkRead!: () => void
+  private releaseNextChunk!: () => void
+  private released = false
+
+  constructor(
+    generatedKey: string,
+    generatedSize: number,
+    private readonly chunkSize: number,
+  ) {
+    super(generatedKey, generatedSize)
+    this.firstChunkRead = new Promise((resolve) => {
+      this.resolveFirstChunkRead = resolve
+    })
+  }
+
+  override async getObjectStream(_storage: unknown, key: string): Promise<ReadableStream<Uint8Array>> {
+    if (key === this.generatedKey) {
+      return blockingBytes(this.generatedSize, this.chunkSize, this.resolveFirstChunkRead, () => this.waitForRelease())
+    }
+    return super.getObjectStream(_storage, key)
+  }
+
+  release(): void {
+    this.released = true
+    this.releaseNextChunk?.()
+  }
+
+  private waitForRelease(): Promise<void> {
+    if (this.released) return Promise.resolve()
+    return new Promise((resolve) => {
+      this.releaseNextChunk = resolve
+    })
+  }
+}
+
+class BlockingStoredObjectS3 extends MemoryS3 {
+  readonly firstChunkRead: Promise<void>
+  private resolveFirstChunkRead!: () => void
+  private releaseNextChunk!: () => void
+  private released = false
+
+  constructor(private readonly chunkSize: number) {
+    super()
+    this.firstChunkRead = new Promise((resolve) => {
+      this.resolveFirstChunkRead = resolve
+    })
+  }
+
+  override async getObjectStream(_storage: unknown, key: string): Promise<ReadableStream<Uint8Array>> {
+    const bytes = await this.getObjectBytes(_storage, key)
+    return blockingStoredBytes(bytes, this.chunkSize, this.resolveFirstChunkRead, () => this.waitForRelease())
+  }
+
+  release(): void {
+    this.released = true
+    this.releaseNextChunk?.()
+  }
+
+  private waitForRelease(): Promise<void> {
+    if (this.released) return Promise.resolve()
+    return new Promise((resolve) => {
+      this.releaseNextChunk = resolve
+    })
   }
 }
 
@@ -200,6 +270,89 @@ describe('archive processing', () => {
     expect(s3.putKeys).toHaveLength(1)
     expect(s3.putSizes.get(s3.putKeys[0]) ?? 0).toBeGreaterThan(0)
   }, 60_000)
+
+  it('persists compression progress while streaming source objects', async () => {
+    const { db } = await createTestApp()
+    await seedStorage(db)
+    const size = 12 * 1024 * 1024
+    await seedMatter(db, { id: 'progress-file', name: 'large.bin', object: 'objects/progress.bin', size })
+
+    const s3 = new BlockingGeneratedObjectS3('objects/progress.bin', size, 6 * 1024 * 1024)
+    const request = { type: 'archive_compress' as const, matterIds: ['progress-file'] }
+    const queued = await enqueueArchiveJob(db, {
+      orgId: ORG_ID,
+      userId: USER_ID,
+      request,
+      s3: s3 as unknown as S3Service,
+    })
+    const processing = processArchiveJob(db, {
+      orgId: ORG_ID,
+      userId: USER_ID,
+      request,
+      jobId: queued.id,
+      s3: s3 as unknown as S3Service,
+    })
+
+    try {
+      await s3.firstChunkRead
+      const running = await waitForJobProgress(db, queued.id, (job) => job.progress.processedBytes > 0)
+      expect(running.status).toBe('running')
+      expect(running.progress.processedBytes).toBeLessThan(size)
+      expect(running.progress.currentFilename).toBe('large.bin')
+    } finally {
+      s3.release()
+    }
+
+    const finished = await processing
+    expect(finished.progress).toMatchObject({ inputBytes: size, processedBytes: size, currentFilename: null })
+  }, 30_000)
+
+  it('persists extraction progress while streaming ZIP bytes', async () => {
+    const { db } = await createTestApp()
+    await seedStorage(db)
+    const size = 12 * 1024 * 1024
+    const archive = createZip({ 'large.bin': filledBytes(size) })
+    await seedMatter(db, {
+      id: 'progress-zip',
+      name: 'progress.zip',
+      object: 'source/progress.zip',
+      size: archive.byteLength,
+    })
+
+    const s3 = new BlockingStoredObjectS3(6 * 1024 * 1024)
+    s3.objects.set('source/progress.zip', archive)
+    const request = { type: 'archive_extract' as const, matterId: 'progress-zip' }
+    const queued = await enqueueArchiveJob(db, {
+      orgId: ORG_ID,
+      userId: USER_ID,
+      request,
+      s3: s3 as unknown as S3Service,
+    })
+    const processing = processArchiveJob(db, {
+      orgId: ORG_ID,
+      userId: USER_ID,
+      request,
+      jobId: queued.id,
+      s3: s3 as unknown as S3Service,
+    })
+
+    try {
+      await s3.firstChunkRead
+      const running = await waitForJobProgress(db, queued.id, (job) => job.progress.processedBytes > 0)
+      expect(running.status).toBe('running')
+      expect(running.progress.processedBytes).toBeLessThan(archive.byteLength)
+    } finally {
+      s3.release()
+    }
+
+    const finished = await processing
+    expect(finished.progress).toMatchObject({
+      inputBytes: archive.byteLength,
+      processedBytes: archive.byteLength,
+      outputBytes: size,
+      currentFilename: null,
+    })
+  }, 30_000)
 
   it('compresses an empty selected folder as a ZIP directory entry', async () => {
     const { db } = await createTestApp()
@@ -660,6 +813,24 @@ async function activeMatterCount(db: TestDb): Promise<number> {
   return rows[0]?.count ?? 0
 }
 
+async function waitForJobProgress(
+  db: TestDb,
+  jobId: string,
+  predicate: (job: BackgroundJob) => boolean,
+): Promise<BackgroundJob> {
+  const deadline = Date.now() + 3000
+  for (;;) {
+    const job = await getBackgroundJob(db, ORG_ID, jobId)
+    if (predicate(job)) return job
+    if (Date.now() >= deadline) throw new Error('Timed out waiting for archive job progress')
+    await sleep(20)
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 interface ZipFixtureOptions {
   declaredSizes?: Record<string, number>
   flags?: Record<string, number>
@@ -720,6 +891,12 @@ function bytes(value: string): Uint8Array {
   return new TextEncoder().encode(value)
 }
 
+function filledBytes(size: number): Uint8Array {
+  const data = new Uint8Array(size)
+  data.fill(7)
+  return data
+}
+
 function generatedBytes(size: number): ReadableStream<Uint8Array> {
   const chunk = new Uint8Array(1024 * 1024)
   let remaining = size
@@ -732,6 +909,57 @@ function generatedBytes(size: number): ReadableStream<Uint8Array> {
       const length = Math.min(chunk.byteLength, remaining)
       controller.enqueue(length === chunk.byteLength ? chunk : chunk.slice(0, length))
       remaining -= length
+    },
+  })
+}
+
+function blockingBytes(
+  size: number,
+  chunkSize: number,
+  onFirstChunk: () => void,
+  waitAfterFirstChunk: () => Promise<void>,
+): ReadableStream<Uint8Array> {
+  const chunk = new Uint8Array(chunkSize)
+  let remaining = size
+  let chunks = 0
+  return new ReadableStream({
+    async pull(controller) {
+      if (remaining <= 0) {
+        controller.close()
+        return
+      }
+      if (chunks === 1) await waitAfterFirstChunk()
+
+      const length = Math.min(chunk.byteLength, remaining)
+      controller.enqueue(length === chunk.byteLength ? chunk : chunk.slice(0, length))
+      remaining -= length
+      chunks += 1
+      if (chunks === 1) onFirstChunk()
+    },
+  })
+}
+
+function blockingStoredBytes(
+  bytes: Uint8Array,
+  chunkSize: number,
+  onFirstChunk: () => void,
+  waitAfterFirstChunk: () => Promise<void>,
+): ReadableStream<Uint8Array> {
+  let offset = 0
+  let chunks = 0
+  return new ReadableStream({
+    async pull(controller) {
+      if (offset >= bytes.byteLength) {
+        controller.close()
+        return
+      }
+      if (chunks === 1) await waitAfterFirstChunk()
+
+      const nextOffset = Math.min(bytes.byteLength, offset + chunkSize)
+      controller.enqueue(bytes.slice(offset, nextOffset))
+      offset = nextOffset
+      chunks += 1
+      if (chunks === 1) onFirstChunk()
     },
   })
 }
