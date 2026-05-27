@@ -57,7 +57,7 @@ export class S3Service {
     const command = new GetObjectCommand({
       Bucket: storage.bucket,
       Key: key,
-      ResponseContentDisposition: `attachment; filename="${encodeURIComponent(filename)}"`,
+      ResponseContentDisposition: `attachment; filename="${filename.replace(/"/g, '\\"')}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     })
     const url = await getSignedUrl(client, command, { expiresIn })
     return this.applyCustomHost(storage, url)

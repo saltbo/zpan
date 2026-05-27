@@ -185,7 +185,7 @@ describe('S3Service', () => {
         expect.anything(),
         expect.objectContaining({
           input: expect.objectContaining({
-            ResponseContentDisposition: 'attachment; filename="my%20photo.jpg"',
+            ResponseContentDisposition: 'attachment; filename="my photo.jpg"; filename*=UTF-8\'\'my%20photo.jpg',
           }),
         }),
         expect.anything(),
