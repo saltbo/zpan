@@ -102,8 +102,9 @@ const app = new Hono<Env>()
         onConflict,
       })
       if (isFolder) return c.json(matter, 201)
-      const uploadUrl = await s3.presignUpload(storage, objectKey, type)
-      return c.json({ ...matter, uploadUrl }, 201)
+      const contentDisposition = `attachment; filename="${name.replace(/"/g, '\\"')}"; filename*=UTF-8''${encodeURIComponent(name)}`
+      const uploadUrl = await s3.presignUpload(storage, objectKey, type, name)
+      return c.json({ ...matter, uploadUrl, contentDisposition }, 201)
     } catch (e) {
       if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
       throw e

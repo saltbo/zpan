@@ -72,7 +72,11 @@ async function uploadFile(
   if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
 
   ctx.setStatus('uploading')
-  await uploadToS3(created.uploadUrl, file, { onProgress: ctx.onProgress, signal: ctx.signal })
+  await uploadToS3(created.uploadUrl, file, {
+    onProgress: ctx.onProgress,
+    signal: ctx.signal,
+    contentDisposition: created.contentDisposition,
+  })
   if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
 
   // Step 2: confirm. Another client may have activated the same name during our

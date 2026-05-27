@@ -152,6 +152,20 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 600 })
     })
 
+    it('includes Content-Disposition metadata when filename is provided', async () => {
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+      await service.presignUpload(storage, 'test.jpg', 'image/jpeg', 'my file.jpg')
+      expect(getSignedUrl).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          input: expect.objectContaining({
+            ContentDisposition: 'attachment; filename="my file.jpg"; filename*=UTF-8\'\'my%20file.jpg',
+          }),
+        }),
+        expect.anything(),
+      )
+    })
+
     it('applies customHost to the signed URL and omits the bucket name from the path', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       vi.mocked(getSignedUrl).mockResolvedValueOnce('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')

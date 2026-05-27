@@ -163,6 +163,7 @@ export function getObject(id: string) {
 
 export interface CreateObjectResult extends StorageObject {
   uploadUrl?: string
+  contentDisposition?: string
 }
 
 export function createObject(data: {
@@ -956,6 +957,7 @@ export interface UploadProgress {
 export interface UploadToS3Options {
   onProgress?: (progress: UploadProgress) => void
   signal?: AbortSignal
+  contentDisposition?: string
 }
 
 // S3 direct upload (external presigned URL, not our API)
@@ -997,6 +999,9 @@ export function uploadToS3(url: string, file: File, options: UploadToS3Options =
     }
     xhr.open('PUT', url)
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+    if (options.contentDisposition) {
+      xhr.setRequestHeader('Content-Disposition', options.contentDisposition)
+    }
     xhr.send(file)
   })
 }

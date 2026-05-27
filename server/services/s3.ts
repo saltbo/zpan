@@ -35,15 +35,29 @@ export class S3Service {
     storage: Storage,
     key: string,
     contentType: string,
+    filenameOrExpiresIn?: string | number,
     expiresIn = DEFAULT_EXPIRES_IN,
   ): Promise<string> {
+    let filename: string | undefined
+    let ttl = expiresIn
+    if (typeof filenameOrExpiresIn === 'string') {
+      filename = filenameOrExpiresIn
+    } else if (typeof filenameOrExpiresIn === 'number') {
+      ttl = filenameOrExpiresIn
+    }
+
     const client = this.createClient(storage)
     const command = new PutObjectCommand({
       Bucket: storage.bucket,
       Key: key,
       ContentType: contentType,
+      ...(filename
+        ? {
+            ContentDisposition: `attachment; filename="${filename.replace(/"/g, '\\"')}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+          }
+        : {}),
     })
-    const url = await getSignedUrl(client, command, { expiresIn })
+    const url = await getSignedUrl(client, command, { expiresIn: ttl })
     return this.applyCustomHost(storage, url)
   }
 

@@ -904,6 +904,18 @@ describe('api', () => {
 
       await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
     })
+
+    it('sets Content-Disposition header when option is provided', async () => {
+      const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
+      const promise = uploadToS3('https://s3/presigned', file, {
+        contentDisposition: 'attachment; filename="hello.txt"',
+      })
+      const xhr = MockXMLHttpRequest.instances[0]
+      xhr.onload?.()
+      await promise
+
+      expect(xhr.headers['Content-Disposition']).toBe('attachment; filename="hello.txt"')
+    })
   })
 
   describe('restoreObject', () => {
