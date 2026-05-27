@@ -44,7 +44,7 @@ export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) 
     <div className="flex h-full items-center justify-center">
       <MediaPlayer
         title={filename}
-        src={{ src: url, type: mime as 'audio/mpeg' }}
+        src={url}
         viewType={previewType === 'video' ? 'video' : 'audio'}
         crossOrigin
         className="max-h-full w-full [--audio-bg:transparent] [--audio-border:0] [--audio-border-radius:0] [--audio-filter:none] [--video-bg:transparent] [--video-border:0] [--video-border-radius:0]"
