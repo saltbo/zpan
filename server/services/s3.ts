@@ -77,10 +77,25 @@ export class S3Service {
 
   private applyCustomHost(storage: Storage, url: string): string {
     if (!storage.customHost) return url
+
+    let customHost = storage.customHost.trim()
+    if (!/^https?:\/\//i.test(customHost)) {
+      customHost = `https://${customHost}`
+    }
+
     const parsed = new URL(url)
-    const custom = new URL(storage.customHost)
+    const custom = new URL(customHost)
+
     parsed.protocol = custom.protocol
     parsed.host = custom.host
+
+    const bucketPrefix = `/${storage.bucket}/`
+    if (parsed.pathname.startsWith(bucketPrefix)) {
+      parsed.pathname = `/${parsed.pathname.slice(bucketPrefix.length)}`
+    } else if (parsed.pathname === `/${storage.bucket}`) {
+      parsed.pathname = '/'
+    }
+
     return parsed.toString()
   }
 

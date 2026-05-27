@@ -152,12 +152,20 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 600 })
     })
 
-    it('applies customHost to the signed URL', async () => {
+    it('applies customHost to the signed URL and omits the bucket name from the path', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       vi.mocked(getSignedUrl).mockResolvedValueOnce('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
       const s = makeStorage({ customHost: 'https://cdn.example.com' })
       const url = await service.presignUpload(s, 'test.jpg', 'image/jpeg')
-      expect(url).toBe('https://cdn.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
+      expect(url).toBe('https://cdn.example.com/test.jpg?X-Amz-Signature=abc')
+    })
+
+    it('defaults to https when customHost is provided without a scheme', async () => {
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+      vi.mocked(getSignedUrl).mockResolvedValueOnce('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
+      const s = makeStorage({ customHost: 'cdn.example.com' })
+      const url = await service.presignUpload(s, 'test.jpg', 'image/jpeg')
+      expect(url).toBe('https://cdn.example.com/test.jpg?X-Amz-Signature=abc')
     })
 
     it('leaves URL unchanged when customHost is empty', async () => {
@@ -184,12 +192,12 @@ describe('S3Service', () => {
       )
     })
 
-    it('applies customHost to the signed URL', async () => {
+    it('applies customHost to the signed URL and omits the bucket name from the path', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       vi.mocked(getSignedUrl).mockResolvedValueOnce('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
       const s = makeStorage({ customHost: 'https://cdn.example.com' })
       const url = await service.presignDownload(s, 'test.jpg', 'test.jpg')
-      expect(url).toBe('https://cdn.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
+      expect(url).toBe('https://cdn.example.com/test.jpg?X-Amz-Signature=abc')
     })
   })
 
@@ -216,14 +224,14 @@ describe('S3Service', () => {
       expect(getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 600 })
     })
 
-    it('applies customHost to the signed URL', async () => {
+    it('applies customHost to the signed URL and omits the bucket name from the path', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       vi.mocked(getSignedUrl).mockResolvedValueOnce(
         'https://s3.example.com/my-bucket/images/photo.jpg?X-Amz-Signature=abc',
       )
       const s = makeStorage({ customHost: 'https://cdn.example.com' })
       const url = await service.presignInline(s, 'images/photo.jpg', 'image/jpeg')
-      expect(url).toBe('https://cdn.example.com/my-bucket/images/photo.jpg?X-Amz-Signature=abc')
+      expect(url).toBe('https://cdn.example.com/images/photo.jpg?X-Amz-Signature=abc')
     })
   })
 
