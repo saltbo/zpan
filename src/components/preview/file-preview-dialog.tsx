@@ -136,7 +136,12 @@ function MobilePreview({ file, previewType, open, onOpenChange }: PreviewPanelPr
           <div className="h-1 w-8 rounded-full bg-muted-foreground/30" />
         </div>
         <PreviewHeader file={file} onClose={() => onOpenChange(false)} compact />
-        <div className="flex-1 overflow-auto">
+        <div
+          className={cn(
+            'flex-1',
+            previewType === 'video' || previewType === 'audio' ? 'overflow-hidden' : 'overflow-auto',
+          )}
+        >
           <FilePreviewContent file={file} previewType={previewType} />
         </div>
       </SheetContent>
@@ -166,7 +171,12 @@ function DesktopPreview({ file, previewType, open, onOpenChange }: PreviewPanelP
           fullscreen={fullscreen}
           onToggleFullscreen={() => setFullscreen((value) => !value)}
         />
-        <div className="flex-1 overflow-auto">
+        <div
+          className={cn(
+            'flex-1',
+            previewType === 'video' || previewType === 'audio' ? 'overflow-hidden' : 'overflow-auto',
+          )}
+        >
           <FilePreviewContent file={file} previewType={previewType} />
         </div>
       </DialogContent>
