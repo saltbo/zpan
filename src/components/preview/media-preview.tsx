@@ -42,7 +42,9 @@ export function mimeFromExt(filename: string, previewType: PreviewType): string 
 }
 
 export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) {
-  const [error, setError] = useState(false)
+  const ext = filename.split('.').pop()?.toLowerCase() ?? ''
+  const isUnsupported = previewType === 'video' && ['mkv', 'avi', 'wmv', 'flv'].includes(ext)
+  const [error, setError] = useState(isUnsupported)
   const { t } = useTranslation()
 
   if (error) {
