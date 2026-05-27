@@ -43,7 +43,8 @@ export class S3Service {
       Key: key,
       ContentType: contentType,
     })
-    return getSignedUrl(client, command, { expiresIn })
+    const url = await getSignedUrl(client, command, { expiresIn })
+    return this.applyCustomHost(storage, url)
   }
 
   async presignDownload(
@@ -58,7 +59,8 @@ export class S3Service {
       Key: key,
       ResponseContentDisposition: `attachment; filename="${encodeURIComponent(filename)}"`,
     })
-    return getSignedUrl(client, command, { expiresIn })
+    const url = await getSignedUrl(client, command, { expiresIn })
+    return this.applyCustomHost(storage, url)
   }
 
   async presignInline(storage: Storage, key: string, mime: string, expiresIn = DEFAULT_EXPIRES_IN): Promise<string> {
@@ -69,7 +71,17 @@ export class S3Service {
       ResponseContentDisposition: 'inline',
       ResponseContentType: mime,
     })
-    return getSignedUrl(client, command, { expiresIn })
+    const url = await getSignedUrl(client, command, { expiresIn })
+    return this.applyCustomHost(storage, url)
+  }
+
+  private applyCustomHost(storage: Storage, url: string): string {
+    if (!storage.customHost) return url
+    const parsed = new URL(url)
+    const custom = new URL(storage.customHost)
+    parsed.protocol = custom.protocol
+    parsed.host = custom.host
+    return parsed.toString()
   }
 
   getPublicUrl(storage: Storage, key: string): string {
