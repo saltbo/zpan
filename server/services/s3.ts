@@ -58,7 +58,7 @@ export class S3Service {
         : {}),
     })
     const url = await getSignedUrl(client, command, { expiresIn: ttl })
-    return this.applyCustomHost(storage, url)
+    return url
   }
 
   async presignDownload(

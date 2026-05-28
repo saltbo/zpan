@@ -166,20 +166,12 @@ describe('S3Service', () => {
       )
     })
 
-    it('applies customHost to the signed URL and omits the bucket name from the path', async () => {
+    it('does not apply customHost to the signed URL to support PUT write uploads', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       vi.mocked(getSignedUrl).mockResolvedValueOnce('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
       const s = makeStorage({ customHost: 'https://cdn.example.com' })
       const url = await service.presignUpload(s, 'test.jpg', 'image/jpeg')
-      expect(url).toBe('https://cdn.example.com/test.jpg?X-Amz-Signature=abc')
-    })
-
-    it('defaults to https when customHost is provided without a scheme', async () => {
-      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
-      vi.mocked(getSignedUrl).mockResolvedValueOnce('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
-      const s = makeStorage({ customHost: 'cdn.example.com' })
-      const url = await service.presignUpload(s, 'test.jpg', 'image/jpeg')
-      expect(url).toBe('https://cdn.example.com/test.jpg?X-Amz-Signature=abc')
+      expect(url).toBe('https://s3.example.com/my-bucket/test.jpg?X-Amz-Signature=abc')
     })
 
     it('leaves URL unchanged when customHost is empty', async () => {
