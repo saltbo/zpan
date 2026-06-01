@@ -47,6 +47,7 @@ jobs:
   e2e-node:
     name: E2E (Node)
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.59.1-noble
     needs: check
     env:
       BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
@@ -58,7 +59,6 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
       - name: Install cloudflared
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
@@ -74,6 +74,7 @@ jobs:
   e2e-cf:
     name: E2E (CF Workers)
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.59.1-noble
     needs: check
     steps:
       - uses: actions/checkout@v6
@@ -83,7 +84,6 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
       - name: Install cloudflared
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
