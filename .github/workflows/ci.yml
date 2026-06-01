@@ -50,6 +50,8 @@ jobs:
     needs: check
     env:
       BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
+      E2E_CLOUD_PRO_EMAIL_NODE: ${{ secrets.E2E_CLOUD_PRO_EMAIL_NODE }}
+      E2E_CLOUD_PRO_PASSWORD_NODE: ${{ secrets.E2E_CLOUD_PRO_PASSWORD_NODE }}
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -73,7 +75,10 @@ jobs:
   e2e-cf:
     name: E2E (CF Workers)
     runs-on: ubuntu-latest
-    needs: [check, e2e-node]
+    needs: check
+    env:
+      E2E_CLOUD_PRO_EMAIL_CF: ${{ secrets.E2E_CLOUD_PRO_EMAIL_CF }}
+      E2E_CLOUD_PRO_PASSWORD_CF: ${{ secrets.E2E_CLOUD_PRO_PASSWORD_CF }}
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
