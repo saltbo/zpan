@@ -56,10 +56,10 @@ When `TURSO_DATABASE_URL` is present:
 ```sh
 TURSO_DATABASE_URL=libsql://your-db.turso.io \
 TURSO_AUTH_TOKEN=your-token \
-npm run db:migrate
+pnpm db:migrate
 ```
 
-`drizzle.config.ts` automatically switches to the `turso` dialect when `TURSO_DATABASE_URL` is set, so `npm run db:generate` and `npm run db:migrate` work against Turso without any extra flags.
+`drizzle.config.ts` automatically switches to the `turso` dialect when `TURSO_DATABASE_URL` is set, so `pnpm db:generate` and `pnpm db:migrate` work against Turso without any extra flags.
 
 ### Obtaining a Turso auth token
 

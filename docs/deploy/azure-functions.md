@@ -100,8 +100,8 @@ The workflow triggers automatically on every push to `master` **and** can be tri
    - Storage Account (required by the Functions runtime)
    - Consumption plan (Y1 / Dynamic SKU)
    - Function App (Node 22, runtime v4)
-6. **Build** — `npm run build:azure` produces the `azure-functions/` publish directory.
-7. **Migrate** — `npm run db:migrate` applies Drizzle migrations to Turso.
+6. **Build** — `pnpm build:azure` produces the `azure-functions/` publish directory.
+7. **Migrate** — `pnpm db:migrate` applies Drizzle migrations to Turso.
 8. **Publish** — `func azure functionapp publish <name>` uploads the bundle.
 9. **Set `BETTER_AUTH_SECRET`** — checks whether the setting already exists; generates and sets it if missing.
 10. **Update `APP_URL`** — patches the real function-app URL into its own app settings.
@@ -130,13 +130,13 @@ curl https://<your-func-app>.azurewebsites.net/api/health
 TURSO_DATABASE_URL=libsql://your-db.turso.io \
 TURSO_AUTH_TOKEN=your-token \
 BETTER_AUTH_SECRET=$(openssl rand -base64 32) \
-npm run dev:node
+pnpm dev:node
 ```
 
 ### Local Azure Functions emulation
 
 ```sh
-npm run build:azure
+pnpm build:azure
 cd azure-functions
 func start
 ```

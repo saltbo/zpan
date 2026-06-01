@@ -84,7 +84,7 @@ The workflow follows the standard 8-step deployment contract:
 3. **Resolve release tag** — defaults to the latest `saltbo/zpan` release; override via `workflow_dispatch` input.
 4. **Checkout** upstream code at the resolved tag.
 5. **Authenticate** to Google Cloud using the service account key.
-6. **Apply Turso migrations** (`npm run db:migrate`).
+6. **Apply Turso migrations** (`pnpm db:migrate`).
 7. **Store required secrets** in Secret Manager (`turso-database-url`, `better-auth-secret`).
 8. **Build + deploy** — Cloud Build builds the image; `gcloud run services replace deploy/cloud-run/service.yaml` creates or updates the service; a post-deploy step wires `BETTER_AUTH_URL` (from the real service URL) and `TURSO_AUTH_TOKEN` (if provided) into the running service via `gcloud run services update --update-secrets`.
 

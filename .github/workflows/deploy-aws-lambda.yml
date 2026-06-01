@@ -73,9 +73,11 @@ jobs:
           repository: saltbo/zpan
           ref: ${{ steps.release.outputs.version }}
 
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
+          cache: pnpm
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -87,7 +89,7 @@ jobs:
       - name: Setup SAM CLI
         uses: aws-actions/setup-sam@v2
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Ensure SAM artifact bucket exists
         id: bucket
@@ -106,7 +108,7 @@ jobs:
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-        run: npx drizzle-kit migrate
+        run: pnpm exec drizzle-kit migrate
 
       - name: Resolve existing deployment state
         id: state
@@ -139,10 +141,10 @@ jobs:
 
       - name: Build
         run: |
-          npx vite build --mode node
+          pnpm exec vite build --mode node
 
           # Bundle Lambda entry; @libsql/client is external (native binding)
-          npx tsup server/entry-lambda.ts --format cjs --outDir dist-lambda --external @libsql/client
+          pnpm exec tsup server/entry-lambda.ts --format cjs --outDir dist-lambda --external @libsql/client
 
           # Assemble minimal Lambda deployment package
           mkdir -p dist-lambda-pkg

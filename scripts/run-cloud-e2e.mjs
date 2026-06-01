@@ -47,11 +47,11 @@ const e2eEnv = {
 if (runtime === 'cf') {
   if (local) rmSync('.wrangler/state/v3/d1', { recursive: true, force: true })
   writeDevVars(e2eEnv)
-  await run('npx', ['wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'], e2eEnv)
+  await run('pnpm', ['exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'], e2eEnv)
 }
 
 try {
-  await run('npx', ['playwright', 'test', spec, `--project=${project}`], e2eEnv)
+  await run('pnpm', ['exec', 'playwright', 'test', spec, `--project=${project}`], e2eEnv)
 } finally {
   if (tunnel) {
     try {

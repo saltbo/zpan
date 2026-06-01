@@ -1,6 +1,6 @@
 [build]
   # Build the React SPA then compile the Netlify Function.
-  command  = "npm run build && npm run build:netlify"
+  command  = "pnpm build && pnpm build:netlify"
   publish  = "dist"
 
 [functions]

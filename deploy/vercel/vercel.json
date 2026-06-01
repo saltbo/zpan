@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm run build:vercel",
+  "buildCommand": "pnpm build:vercel",
   "outputDirectory": "dist",
   "functions": {
     "api/entry-vercel.js": {

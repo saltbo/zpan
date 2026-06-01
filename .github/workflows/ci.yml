@@ -17,19 +17,15 @@ jobs:
     if: github.repository == 'saltbo/zpan'
     steps:
       - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - uses: actions/cache@v4
-        id: deps
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-      - if: steps.deps.outputs.cache-hit != 'true'
-        run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npx vitest run --project unit --coverage
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm exec vitest run --project unit --coverage
       - uses: codecov/codecov-action@v5
         if: always()
         with:
@@ -37,7 +33,7 @@ jobs:
           flags: unit
           fail_ci_if_error: false
           handle_no_reports_found: true
-      - run: npx vitest run --project integration --coverage
+      - run: pnpm exec vitest run --project integration --coverage
       - uses: codecov/codecov-action@v5
         if: always()
         with:
@@ -46,7 +42,7 @@ jobs:
           fail_ci_if_error: false
           handle_no_reports_found: true
       - run: mkdir -p dist
-      - run: npm run test:cf
+      - run: pnpm test:cf
 
   e2e-node:
     name: E2E (Node)
@@ -56,19 +52,18 @@ jobs:
       BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
     steps:
       - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-      - run: npx playwright install --with-deps chromium
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
       - name: Install cloudflared
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cloudflared
-      - run: CLOUDFLARED_BIN=./cloudflared npm run e2e:cloud -- --runtime node
+      - run: CLOUDFLARED_BIN=./cloudflared pnpm e2e:cloud -- --runtime node
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -82,19 +77,18 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-      - run: npx playwright install --with-deps chromium
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
       - name: Install cloudflared
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cloudflared
-      - run: CLOUDFLARED_BIN=./cloudflared npm run e2e:cloud:cf
+      - run: CLOUDFLARED_BIN=./cloudflared pnpm e2e:cloud:cf
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

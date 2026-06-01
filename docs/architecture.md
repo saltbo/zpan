@@ -38,7 +38,7 @@ CF Workers (wrangler)                  Docker (Node.js)
 | ORM | **Drizzle** | Prisma, Kysely | First-class D1 support, type-safe, SQL-like syntax, lightweight bundle for CF Workers |
 | Auth | **Better Auth** | Lucia, Auth.js, custom JWT | Drizzle adapter, D1 support, built-in social login / OIDC / organization plugin, active development |
 | S3 SDK | **@aws-sdk/client-s3** | minio-js, custom fetch | Industry standard, works with every S3-compatible provider including R2 |
-| Package Manager | **npm** | pnpm, yarn, bun | Standard, no extra tooling, Volta manages Node version |
+| Package Manager | **pnpm** | npm, yarn, bun | Fast, strict dependency installs with a committed lockfile; Volta pins the version |
 | Frontend Framework | **React 19 + Vite** | Vue, Solid, Svelte | Largest ecosystem, Capacitor-ready for future native apps if needed |
 | UI Components | **shadcn/ui + Tailwind CSS 4** | Ant Design, MUI | Zero runtime overhead (source code, not npm dep), best responsive/mobile support, modern aesthetic preferred by international users |
 | Admin Scaffold | **[shadcn-admin](https://github.com/satnaing/shadcn-admin)** (11.6k stars) | Custom build | Fork as starting point for the **admin backend panel**. Includes sidebar, navigation, search, dark mode, responsive layout, settings pages. Same stack: Vite + TanStack Router + shadcn/ui. The user-facing frontend is custom-built |
@@ -97,7 +97,7 @@ zpan/
 ├── e2e/                       # Playwright E2E tests
 ├── wrangler.toml              # Cloudflare Workers config
 ├── biome.json                 # Lint + format config
-└── package.json               # Single package, npm
+└── package.json               # Single package, pnpm
 ```
 
 ## API Communication
@@ -138,10 +138,10 @@ Coverage gate: 90% on server. Playwright tests live in `e2e/` at the repo root, 
 GitHub Actions:
 
 **On PR:**
-- `npm lint` — Biome lint + format check
-- `npm typecheck` — TypeScript compilation
-- `npm test` — Vitest unit + API tests
-- `npm e2e` — Playwright tests
+- `pnpm lint` — Biome lint + format check
+- `pnpm typecheck` — TypeScript compilation
+- `pnpm test` — Vitest unit + API tests
+- `pnpm e2e` — Playwright tests
 
 **On merge to master:**
 - Build + deploy to CF Workers (preview / production)

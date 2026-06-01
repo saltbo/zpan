@@ -1306,7 +1306,7 @@ describe('Quota Store API', () => {
       body: JSON.stringify({
         amount: 4096,
         currency: 'usd',
-        expiresAt: '2026-06-01T00:00:00.000Z',
+        expiresAt: '2099-06-01T00:00:00.000Z',
         count: 2,
       }),
     })
@@ -1335,7 +1335,7 @@ describe('Quota Store API', () => {
     expect(JSON.parse(generateInit.body as string)).toEqual({
       amount: 4096,
       currency: 'usd',
-      expiresAt: '2026-06-01T00:00:00.000Z',
+      expiresAt: '2099-06-01T00:00:00.000Z',
       count: 2,
     })
     expect(String(listUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards?status=active`)
@@ -2090,7 +2090,7 @@ describe('Quota Store API', () => {
       trafficBytes: 0,
       source: 'stripe',
       packageName: 'Storage Pack',
-      expiresAt: '2026-06-01T00:00:00.000Z',
+      expiresAt: '2099-06-01T00:00:00.000Z',
     })
 
     const res = await postWebhook(app, payload)
@@ -2115,7 +2115,7 @@ describe('Quota Store API', () => {
       trafficBytes: 0,
       source: 'stripe',
       packageName: 'Storage Pack',
-      expiresAt: '2026-06-01T00:00:00.000Z',
+      expiresAt: '2099-06-01T00:00:00.000Z',
     })
 
     const res = await app.request('/api/store/webhook', {
@@ -2149,7 +2149,7 @@ describe('Quota Store API', () => {
       trafficBytes: 0,
       source: 'stripe',
       packageName: 'Storage Pack',
-      expiresAt: '2026-06-01T00:00:00.000Z',
+      expiresAt: '2099-06-01T00:00:00.000Z',
     })
 
     const first = await postWebhook(app, payload)
@@ -2175,7 +2175,7 @@ describe('Quota Store API', () => {
       WHERE org_id = ${orgId} AND resource_type = 'storage'
     `)
     expect(entitlement).toEqual([
-      { bytes: 4096, status: 'active', sourceId: 'order-1', expiresAt: Date.parse('2026-06-01T00:00:00.000Z') },
+      { bytes: 4096, status: 'active', sourceId: 'order-1', expiresAt: Date.parse('2099-06-01T00:00:00.000Z') },
     ])
     const audit = await db.all<{ action: string; metadata: string }>(
       sql`SELECT action, metadata FROM activity_events WHERE org_id = ${orgId} ORDER BY created_at DESC LIMIT 1`,
@@ -2210,7 +2210,7 @@ describe('Quota Store API', () => {
       packageId: 'pkg-monthly-storage-traffic',
       packageName: 'Team Plan',
       occurredAt: '2026-05-01T00:00:00.000Z',
-      expiresAt: '2026-06-01T00:00:00.000Z',
+      expiresAt: '2099-06-01T00:00:00.000Z',
       customerId: 'buyer-1',
       customerEmail: 'buyer@example.com',
     })
@@ -2245,14 +2245,14 @@ describe('Quota Store API', () => {
       { resourceType: 'traffic', bytes: 2048 },
     ])
     expect(new Date(entitlements[0].startsAt).toISOString()).toBe('2026-05-01T00:00:00.000Z')
-    expect(new Date(entitlements[0].expiresAt).toISOString()).toBe('2026-06-01T00:00:00.000Z')
+    expect(new Date(entitlements[0].expiresAt).toISOString()).toBe('2099-06-01T00:00:00.000Z')
     expect(JSON.parse(entitlements[0].metadata)).toMatchObject({
       eventId: 'evt-subscription-initial-entitlement',
       source: 'stripe_subscription',
       packageId: 'pkg-monthly-storage-traffic',
       packageName: 'Team Plan',
       trafficOveragePriceCents: 25,
-      expiresAt: '2026-06-01T00:00:00.000Z',
+      expiresAt: '2099-06-01T00:00:00.000Z',
       customerId: 'buyer-1',
       customerEmail: 'buyer@example.com',
     })
@@ -2303,7 +2303,7 @@ describe('Quota Store API', () => {
         source: 'stripe_subscription',
         packageName: 'Team Plan',
         occurredAt: '2026-05-01T00:00:00.000Z',
-        expiresAt: '2026-06-01T00:00:00.000Z',
+        expiresAt: '2099-06-01T00:00:00.000Z',
       }),
     )
     const renewal = await postWebhook(
@@ -2319,7 +2319,7 @@ describe('Quota Store API', () => {
         source: 'stripe_subscription',
         packageName: 'Team Plan Plus',
         occurredAt: '2026-06-01T00:00:00.000Z',
-        expiresAt: '2026-07-01T00:00:00.000Z',
+        expiresAt: '2099-07-01T00:00:00.000Z',
       }),
     )
 
@@ -2332,8 +2332,8 @@ describe('Quota Store API', () => {
       ORDER BY resource_type
     `)
     expect(entitlements).toEqual([
-      { resourceType: 'storage', bytes: 8192, expiresAt: Date.parse('2026-07-01T00:00:00.000Z') },
-      { resourceType: 'traffic', bytes: 4096, expiresAt: Date.parse('2026-07-01T00:00:00.000Z') },
+      { resourceType: 'storage', bytes: 8192, expiresAt: Date.parse('2099-07-01T00:00:00.000Z') },
+      { resourceType: 'traffic', bytes: 4096, expiresAt: Date.parse('2099-07-01T00:00:00.000Z') },
     ])
 
     const quotaRes = await app.request('/api/quotas/me', { headers })

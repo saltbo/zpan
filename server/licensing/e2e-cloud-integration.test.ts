@@ -16,7 +16,7 @@
  * the poll-pending stage against the live API, then use locally-signed PASETO
  * certs to test the full feature-gate chain end-to-end.
  *
- * Run with: npx vitest run server/licensing/e2e-cloud-integration.test.ts
+ * Run with: pnpm exec vitest run server/licensing/e2e-cloud-integration.test.ts
  */
 
 import { generateKeys, sign } from 'paseto-ts/v4'

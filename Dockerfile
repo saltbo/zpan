@@ -6,12 +6,14 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+COPY package.json pnpm-lock.yaml ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    corepack enable \
+ && pnpm install --frozen-lockfile
 
 COPY . .
-RUN npm run build:node \
- && npm prune --omit=dev
+RUN pnpm build:node \
+ && pnpm prune --prod
 
 FROM node:24-slim
 WORKDIR /app

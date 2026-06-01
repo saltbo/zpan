@@ -89,12 +89,13 @@ jobs:
       # ------------------------------------------------------------------
       # Step 3 — Node.js setup + install dependencies.
       # ------------------------------------------------------------------
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
+          node-version: 24
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # ------------------------------------------------------------------
       # Step 4 — Log in to Azure using the service-principal credentials.
@@ -202,7 +203,7 @@ jobs:
       # Step 7 — Build frontend + Azure Functions bundle.
       # ------------------------------------------------------------------
       - name: Build
-        run: npm run build:azure
+        run: pnpm build:azure
 
       # ------------------------------------------------------------------
       # Step 8 — Run database migrations against Turso.
@@ -211,7 +212,7 @@ jobs:
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-        run: npm run db:migrate
+        run: pnpm db:migrate
 
       # ------------------------------------------------------------------
       # Step 9 — Install Azure Functions Core Tools and publish.
@@ -219,7 +220,7 @@ jobs:
       # are already in place before this step runs.
       # ------------------------------------------------------------------
       - name: Install Azure Functions Core Tools
-        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+        run: pnpm add --global azure-functions-core-tools@4
 
       - name: Publish to Azure Functions
         working-directory: azure-functions

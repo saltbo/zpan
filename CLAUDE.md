@@ -34,7 +34,7 @@ Conventional Commits (`feat:`, `fix:`, `docs:`, etc.). PRs target `master`.
 
 ## Pre-commit Hooks
 
-Husky runs `npm run typecheck` + lint-staged (biome auto-fix) on every `git commit`. **Never** bypass with `--no-verify`. **Never** run `npm install --ignore-scripts` — the `prepare` script must run so hooks are installed. If a hook fails, fix the underlying issue and re-commit.
+Husky runs `pnpm typecheck` + lint-staged (biome auto-fix) on every `git commit`. **Never** bypass with `--no-verify`. **Never** run `pnpm install --ignore-scripts` — the `prepare` script must run so hooks are installed. If a hook fails, fix the underlying issue and re-commit.
 
 ## API Client (Hono RPC)
 
@@ -59,7 +59,7 @@ All shared types live in `shared/`. **Never** create duplicate type definitions 
 
 ## Migrations
 
-**Always** generate migrations with `npm run db:generate` (drizzle-kit). **Never** hand-author the `.sql` file or the `migrations/meta/_journal.json` entry.
+**Always** generate migrations with `pnpm db:generate` (drizzle-kit). **Never** hand-author the `.sql` file or the `migrations/meta/_journal.json` entry.
 
 Why: drizzle-kit migrator orders migrations by the `when` timestamp in `_journal.json`. Hand-written entries with guessed timestamps break the ordering silently — drizzle sees the new migration's `when` as older than the last applied one and skips it, leaving dev databases out of sync while CI (which starts from empty) passes cleanly. Past incident: v2.3.0 T1/T2 shipped journal entries with `when = 1745000000000` (April 2025) while the last applied migration was `when = 1776200000000` (March 2026); every developer already at 0009 silently missed 0010/0011.
 

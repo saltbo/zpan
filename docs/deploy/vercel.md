@@ -46,7 +46,7 @@ Set these in your fork's GitHub repository under **Settings → Secrets and vari
 3. **Link your Vercel project** locally (first time only):
    ```sh
    cp deploy/vercel/vercel.json vercel.json
-   npx vercel link
+   pnpm exec vercel link
    # Note the VERCEL_ORG_ID and VERCEL_PROJECT_ID from .vercel/project.json
    ```
 
@@ -59,7 +59,7 @@ Set these in your fork's GitHub repository under **Settings → Secrets and vari
 Install the Vercel CLI and run:
 
 ```sh
-npm install -g vercel
+pnpm add --global vercel
 cp deploy/vercel/vercel.json vercel.json
 
 # Using a local libSQL file (no Turso token needed)
@@ -72,7 +72,7 @@ The app will be available at `http://localhost:3000`.
 
 ## Build Output
 
-`npm run build:vercel` produces:
+`pnpm build:vercel` produces:
 
 | Path | Contents |
 |------|---------|

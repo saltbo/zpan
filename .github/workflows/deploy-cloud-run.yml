@@ -71,9 +71,11 @@ jobs:
           repository: saltbo/zpan
           ref: ${{ steps.release.outputs.version }}
 
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: pnpm
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -90,8 +92,8 @@ jobs:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
         run: |
-          npm ci
-          npm run db:migrate
+          pnpm install --frozen-lockfile
+          pnpm db:migrate
 
       - name: Store required secrets in Secret Manager
         env:

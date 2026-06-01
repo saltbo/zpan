@@ -9,14 +9,14 @@ Prerequisites: Node.js 24+ (managed by [Volta](https://volta.sh/))
 ```sh
 git clone git@github.com:saltbo/zpan.git
 cd zpan
-npm install
+pnpm install
 ```
 
 ## Development
 
 ```sh
-npm run dev              # CF Workers mode with HMR (default, uses staging D1)
-npm run dev:node         # Node.js mode with HMR (SQLite, reads .dev.vars)
+pnpm dev              # CF Workers mode with HMR (default, uses staging D1)
+pnpm dev:node         # Node.js mode with HMR (SQLite, reads .dev.vars)
 ```
 
 ## Quality Gates
@@ -24,18 +24,18 @@ npm run dev:node         # Node.js mode with HMR (SQLite, reads .dev.vars)
 Every commit and PR must pass these checks. Husky enforces them on pre-commit.
 
 ```sh
-npm run lint             # Biome — lint + format check
-npm run typecheck        # TypeScript strict mode
-npm test                 # Unit + integration tests (Node runtime, 90% coverage gate)
-npm run test:cf          # Integration tests (Cloudflare Workers runtime)
-npm run e2e              # Playwright E2E tests
+pnpm lint             # Biome — lint + format check
+pnpm typecheck        # TypeScript strict mode
+pnpm test                 # Unit + integration tests (Node runtime, 90% coverage gate)
+pnpm test:cf          # Integration tests (Cloudflare Workers runtime)
+pnpm e2e              # Playwright E2E tests
 ```
 
 ## Adding a Feature
 
 1. **Write code** in the relevant directory (`server/`, `src/`, `shared/`)
 2. **Write tests** — co-locate with source as `*.test.ts` (Node) or `*.cf-test.ts` (CF Workers)
-3. **Run checks** — `npm run lint && npm run typecheck && npm test && npm run test:cf`
+3. **Run checks** — `pnpm lint && pnpm typecheck && pnpm test && pnpm test:cf`
 4. **Coverage** — new code must maintain 90%+ line coverage on `server/`
 5. **Commit** — use [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `docs:`, etc.)
 6. **PR** — target the `master` branch
@@ -78,17 +78,17 @@ For admin feature testing, read admin credentials from the local `.dev.vars` fil
 Schema is defined in `server/db/schema.ts` and `server/db/auth-schema.ts`.
 
 ```sh
-npm run db:generate                            # Generate migration SQL after schema changes
-npm run db:migrate                             # Apply migrations (Node/SQLite)
-npm run db:migrate:d1                          # Apply migrations (D1 local)
+pnpm db:generate                            # Generate migration SQL after schema changes
+pnpm db:migrate                             # Apply migrations (Node/SQLite)
+pnpm db:migrate:d1                          # Apply migrations (D1 local)
 wrangler d1 migrations apply zpan-db --remote  # Apply migrations (D1 production)
 ```
 
 To reset local databases with seed data (admin user + dev storage):
 
 ```sh
-npm run db:reset                # Reset Node database (zpan.db)
-npm run db:reset:d1             # Reset D1 local database (.wrangler)
+pnpm db:reset                # Reset Node database (zpan.db)
+pnpm db:reset:d1             # Reset D1 local database (.wrangler)
 ```
 
 Migration files live in `migrations/` at project root. Always commit them.
@@ -100,13 +100,13 @@ When deploying the Node/Docker image against a Turso (libSQL) database, set `TUR
 ```sh
 TURSO_DATABASE_URL=libsql://your-db.turso.io \
 TURSO_AUTH_TOKEN=your-token \
-npm run db:migrate
+pnpm db:migrate
 ```
 
 For local libSQL files the token can be omitted:
 
 ```sh
-TURSO_DATABASE_URL=file:./zpan.db npm run db:migrate
+TURSO_DATABASE_URL=file:./zpan.db pnpm db:migrate
 ```
 
 Migrations run automatically at Docker container startup when `TURSO_DATABASE_URL` is set. See [docs/deploy/docker.md](docs/deploy/docker.md) for the full Docker + Turso setup.
@@ -116,8 +116,8 @@ Migrations run automatically at Docker container startup when `TURSO_DATABASE_UR
 Primary target is Cloudflare Workers. Node.js (Docker) is the backup runtime.
 
 ```sh
-npm run build            # Build frontend to dist/
-npm run deploy           # Build + deploy to Cloudflare Workers
+pnpm build            # Build frontend to dist/
+pnpm deploy           # Build + deploy to Cloudflare Workers
 ```
 
 ## Project Structure

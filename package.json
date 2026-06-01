@@ -4,6 +4,7 @@
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
+  "packageManager": "pnpm@10.30.2",
   "scripts": {
     "dev": "CLOUDFLARE_ENV=staging vite dev",
     "dev:node": "node --env-file=.dev.vars node_modules/vite/bin/vite.js dev --mode node",
@@ -13,7 +14,7 @@
     "build:vercel": "vite build --mode node && tsup server/entry-vercel.ts --format esm --outDir api --external @libsql/client",
     "build:netlify": "tsup server/entry-netlify.ts --format esm --outDir netlify/functions --external @libsql/client",
     "build:azure": "vite build && tsup server/entry-azure.ts --format esm --outDir azure-functions --external @azure/functions --external @libsql/client && cp server/azure-host.json azure-functions/host.json && cp -r dist azure-functions/dist",
-    "deploy": "npm run db:migrate:d1:prod && wrangler deploy",
+    "deploy": "pnpm db:migrate:d1:prod && wrangler deploy",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:d1": "wrangler d1 migrations apply zpan-db-staging --local --env staging",
@@ -64,6 +65,7 @@
     "@tanstack/react-router": "^1.93.0",
     "@tanstack/react-table": "^8.21.3",
     "@uiw/react-md-editor": "^4.1.0",
+    "@uiw/react-markdown-preview": "5.2.0",
     "@vidstack/react": "^1.12.13",
     "better-auth": "^1.6.2",
     "better-sqlite3": "^11.0.0",
@@ -142,8 +144,34 @@
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json,jsonc}": "biome check --write --no-errors-on-unmatched"
   },
+  "pnpm": {
+    "overrides": {
+      "@better-auth/core": "1.6.2",
+      "@better-auth/drizzle-adapter": "1.6.2",
+      "@better-auth/kysely-adapter": "1.6.2",
+      "@better-auth/memory-adapter": "1.6.2",
+      "@better-auth/mongo-adapter": "1.6.2",
+      "@better-auth/prisma-adapter": "1.6.2",
+      "@better-auth/telemetry": "1.6.2",
+      "@vitest/expect": "4.1.4",
+      "@vitest/mocker": "4.1.4",
+      "@vitest/pretty-format": "4.1.4",
+      "@vitest/runner": "4.1.4",
+      "@vitest/snapshot": "4.1.4",
+      "@vitest/spy": "4.1.4",
+      "@vitest/utils": "4.1.4",
+      "undici": "7.24.8"
+    },
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "better-sqlite3",
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
+  },
   "volta": {
     "node": "24.14.1",
-    "npm": "11.11.0"
+    "pnpm": "10.30.2"
   }
 }

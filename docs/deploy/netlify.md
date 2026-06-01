@@ -28,7 +28,7 @@ ZPan runs on Netlify via [Netlify Functions v2](https://docs.netlify.com/functio
    Or via CLI:
 
    ```sh
-   npm install -g netlify-cli
+   pnpm add --global netlify-cli
    netlify login
    netlify sites:create --name my-zpan
    ```
@@ -111,7 +111,7 @@ In the Netlify dashboard → **Domain management → Add a domain**. No changes 
 ```sh
 TURSO_DATABASE_URL=libsql://your-db.turso.io \
 TURSO_AUTH_TOKEN=your-token \
-npm run db:migrate
+pnpm db:migrate
 ```
 
 ### Free-tier limits

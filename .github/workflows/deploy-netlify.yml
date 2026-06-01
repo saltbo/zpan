@@ -66,28 +66,30 @@ jobs:
           repository: saltbo/zpan
           ref: ${{ steps.release.outputs.version }}
 
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Apply Turso migrations
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN:   ${{ secrets.TURSO_AUTH_TOKEN }}
-        run: npx drizzle-kit migrate
+        run: pnpm exec drizzle-kit migrate
 
       - name: Ensure BETTER_AUTH_SECRET is set (first deploy only)
         env:
           USER_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
         run: |
-          EXISTING=$(npx netlify env:get BETTER_AUTH_SECRET 2>&1 || true)
+          EXISTING=$(pnpm exec netlify env:get BETTER_AUTH_SECRET 2>&1 || true)
           if [ -n "$USER_SECRET" ]; then
-            npx netlify env:set BETTER_AUTH_SECRET "$USER_SECRET" --context production
+            pnpm exec netlify env:set BETTER_AUTH_SECRET "$USER_SECRET" --context production
             echo "Set BETTER_AUTH_SECRET from GitHub secret"
           elif [ -z "$EXISTING" ]; then
-            npx netlify env:set BETTER_AUTH_SECRET "$(openssl rand -base64 32)" --context production
+            pnpm exec netlify env:set BETTER_AUTH_SECRET "$(openssl rand -base64 32)" --context production
             echo "Auto-generated BETTER_AUTH_SECRET"
           else
             echo "BETTER_AUTH_SECRET already set, skipping"
@@ -95,8 +97,8 @@ jobs:
 
       - name: Build
         run: |
-          npm run build
-          npm run build:netlify
+          pnpm build
+          pnpm build:netlify
 
       - name: Deploy
         id: deploy
@@ -104,7 +106,7 @@ jobs:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN:   ${{ secrets.TURSO_AUTH_TOKEN }}
         run: |
-          OUTPUT=$(npx netlify deploy \
+          OUTPUT=$(pnpm exec netlify deploy \
             --prod \
             --dir=dist \
             --functions=netlify/functions \
