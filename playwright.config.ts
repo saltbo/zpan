@@ -51,6 +51,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
     headless: true,
+    channel: process.env.CI ? 'chrome' : undefined,
     launchOptions: chromeHostResolverRules
       ? { args: [`--host-resolver-rules=${chromeHostResolverRules}`] }
       : undefined,
