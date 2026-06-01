@@ -20,12 +20,12 @@ const s3MockServer = process.env.E2E_S3_MOCK
 const nodeServers = [
   ...s3MockServer,
   {
-    command: `PORT=${apiPort} node ${envFile} node_modules/.bin/tsx server/entry-node.ts`,
+    command: `PORT=${apiPort} node ${envFile} node_modules/tsx/dist/cli.mjs server/entry-node.ts`,
     port: apiPort,
     reuseExistingServer: !process.env.CI,
   },
   {
-    command: `node ${envFile} node_modules/.bin/vite --mode node --host 127.0.0.1 --port ${appPort} --strictPort`,
+    command: `node ${envFile} node_modules/vite/bin/vite.js --mode node --host 127.0.0.1 --port ${appPort} --strictPort`,
     port: appPort,
     reuseExistingServer: !process.env.CI,
   },
