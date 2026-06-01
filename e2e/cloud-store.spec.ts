@@ -257,7 +257,7 @@ async function createOneTimePackage(page: Page, name: string) {
     },
     prices: [{ currency: 'usd', amount: 100 }],
     active: true,
-    sortOrder: 100_000,
+    sortOrder: -Date.now(),
   })
 }
 

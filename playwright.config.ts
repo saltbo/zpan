@@ -42,7 +42,7 @@ const cfServers = [
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 30000,
+  timeout: isCF ? 180000 : 30000,
   // The suite shares one local dev server pair and one SQLite database. Keep
   // execution serial to avoid flaky connection resets and cross-test bleed.
   workers: 1,
