@@ -64,6 +64,7 @@
   "files.colModified": "Modified",
   "files.searchPlaceholder": "Search files...",
   "files.upload": "Upload",
+  "files.uploadFolder": "Upload Folder",
   "files.preview": "Preview",
   "files.folderNamePlaceholder": "Folder name",
   "files.folderCreated": "Folder created",

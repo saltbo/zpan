@@ -9,7 +9,7 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { Clock3, FolderOpen, FolderPlus, Upload } from 'lucide-react'
+import { Clock3, FolderOpen, FolderPlus, FolderUp, Upload } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -434,10 +434,18 @@ export function FileManager({
           </Button>
         )}
         {resolvedCapabilities.upload && (
-          <Button size="sm" onClick={() => dropzoneRef.current?.openFileDialog()}>
-            <Upload />
-            <span className="sr-only sm:not-sr-only">{t('files.upload')}</span>
-          </Button>
+          <>
+            {!dataSource && (
+              <Button variant="outline" size="sm" onClick={() => dropzoneRef.current?.openDirectoryDialog()}>
+                <FolderUp />
+                <span className="sr-only sm:not-sr-only">{t('files.uploadFolder')}</span>
+              </Button>
+            )}
+            <Button size="sm" onClick={() => dropzoneRef.current?.openFileDialog()}>
+              <Upload />
+              <span className="sr-only sm:not-sr-only">{t('files.upload')}</span>
+            </Button>
+          </>
         )}
       </>
     ) : null

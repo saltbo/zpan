@@ -24,6 +24,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/lib/api', () => ({
   createObject: vi.fn(),
   confirmUpload: vi.fn(),
+  cancelUpload: vi.fn(),
   uploadToS3: vi.fn(),
   isNameConflictError: vi.fn(() => false),
 }))
@@ -43,6 +44,7 @@ vi.mock('react-dropzone', () => ({
 
 import { toast } from 'sonner'
 import { confirmUpload, createObject, uploadToS3 } from '@/lib/api'
+import { relativePathParts } from './upload-dropzone'
 
 // ---------------------------------------------------------------------------
 // Extracted pure logic: simulate the onDrop handler with uploadFn path
@@ -97,6 +99,21 @@ const t = (key: string, opts?: Record<string, unknown>) => (opts ? `${key}:${JSO
 
 afterEach(() => {
   vi.clearAllMocks()
+})
+
+describe('UploadDropzone — directory path parsing', () => {
+  it('uses webkitRelativePath when a browser directory picker provides one', () => {
+    const file = new File(['data'], 'photo.jpg', { type: 'image/jpeg' }) as File & { webkitRelativePath: string }
+    Object.defineProperty(file, 'webkitRelativePath', { value: 'Album/Trips/photo.jpg' })
+
+    expect(relativePathParts(file)).toEqual(['Album', 'Trips', 'photo.jpg'])
+  })
+
+  it('falls back to file.name for ordinary file uploads', () => {
+    const file = new File(['data'], 'photo.jpg', { type: 'image/jpeg' })
+
+    expect(relativePathParts(file)).toEqual(['photo.jpg'])
+  })
 })
 
 // ---------------------------------------------------------------------------

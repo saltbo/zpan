@@ -8,6 +8,10 @@ import { withConflictRetry } from '@/components/files/hooks/use-conflict-resolve
 import { cancelUpload, confirmUpload, createObject, isNameConflictError, uploadToS3 } from '../../lib/api'
 import { type UploadRunnerContext, useUploadQueue } from './upload-queue'
 
+type DirectoryFile = File & {
+  webkitRelativePath?: string
+}
+
 interface UploadDropzoneProps {
   parent: string
   onUploadComplete: () => void
@@ -26,6 +30,86 @@ interface UploadDropzoneProps {
 
 export interface UploadDropzoneHandle {
   openFileDialog: () => void
+  openDirectoryDialog: () => void
+}
+
+function joinPath(parent: string, name: string) {
+  return parent ? `${parent}/${name}` : name
+}
+
+export function relativePathParts(file: File): string[] {
+  const path = (file as DirectoryFile).webkitRelativePath || file.name
+  return path
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function isDirectorySelection(files: File[]) {
+  return files.some((file) => relativePathParts(file).length > 1)
+}
+
+async function createFolder(
+  name: string,
+  parent: string,
+  prompt: Prompt | undefined,
+  showApplyToAll: boolean,
+): Promise<string | 'cancelled'> {
+  const created = prompt
+    ? await withConflictRetry(
+        prompt,
+        'folder',
+        (strategy) =>
+          createObject({
+            name,
+            type: 'folder',
+            parent,
+            dirtype: DirType.USER_FOLDER,
+            onConflict: strategy,
+          }),
+        { showApplyToAll },
+      )
+    : await createObject({
+        name,
+        type: 'folder',
+        parent,
+        dirtype: DirType.USER_FOLDER,
+      })
+  if (!created) return 'cancelled'
+  return created.name
+}
+
+async function ensureDirectoryPath(
+  baseParent: string,
+  parts: string[],
+  folders: Map<string, Promise<string>>,
+  prompt: Prompt | undefined,
+  showApplyToAll: boolean,
+): Promise<string | 'cancelled'> {
+  let intendedParent = baseParent
+  let actualParent = baseParent
+
+  for (const part of parts) {
+    const intendedPath = joinPath(intendedParent, part)
+    const existing = folders.get(intendedPath)
+    if (existing) {
+      actualParent = await existing
+      intendedParent = intendedPath
+      continue
+    }
+
+    const folderParent = actualParent
+    const created = createFolder(part, folderParent, prompt, showApplyToAll).then((name) => {
+      if (name === 'cancelled') throw new DOMException('Upload cancelled', 'AbortError')
+      return joinPath(folderParent, name)
+    })
+    folders.set(intendedPath, created)
+    actualParent = await created
+    intendedParent = intendedPath
+  }
+
+  return actualParent
 }
 
 /**
@@ -93,6 +177,21 @@ async function uploadFile(
   return true
 }
 
+async function uploadDirectoryFile(
+  file: File,
+  baseParent: string,
+  folders: Map<string, Promise<string>>,
+  prompt: Prompt | undefined,
+  showApplyToAll: boolean,
+  ctx: UploadRunnerContext,
+): Promise<boolean | 'cancelled'> {
+  const parts = relativePathParts(file)
+  const folderParts = parts.slice(0, -1)
+  const parent = await ensureDirectoryPath(baseParent, folderParts, folders, prompt, showApplyToAll)
+  if (parent === 'cancelled') return 'cancelled'
+  return uploadFile(file, parent, prompt, showApplyToAll, ctx)
+}
+
 function makeQueuedPrompt(prompt: Prompt): Prompt {
   let tail = Promise.resolve()
   return (args) => {
@@ -130,14 +229,18 @@ export const UploadDropzone = forwardRef<UploadDropzoneHandle, UploadDropzonePro
 
         // Default object-upload path
         onConflictBatchStart?.()
+        const directorySelection = isDirectorySelection(files)
         const showApplyToAll = files.length > 1
         const queuedPrompt = conflictPrompt ? makeQueuedPrompt(conflictPrompt) : undefined
+        const folders = new Map<string, Promise<string>>()
 
         uploadQueue.enqueue(
           files.map((file) => ({
             file,
             run: async (ctx) => {
-              const result = await uploadFile(file, parent, queuedPrompt, showApplyToAll, ctx)
+              const result = directorySelection
+                ? await uploadDirectoryFile(file, parent, folders, queuedPrompt, showApplyToAll, ctx)
+                : await uploadFile(file, parent, queuedPrompt, showApplyToAll, ctx)
               if (result === 'cancelled') throw new DOMException('Upload cancelled', 'AbortError')
             },
           })),
@@ -149,6 +252,18 @@ export const UploadDropzone = forwardRef<UploadDropzoneHandle, UploadDropzonePro
       [parent, uploadFn, onUploadComplete, conflictPrompt, onConflictBatchStart, uploadQueue],
     )
 
+    const openDirectoryDialog = useCallback(() => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.multiple = true
+      input.setAttribute('webkitdirectory', '')
+      input.setAttribute('directory', '')
+      input.addEventListener('change', () => {
+        void onDrop(Array.from(input.files ?? []))
+      })
+      input.click()
+    }, [onDrop])
+
     const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
       onDrop,
       multiple: true,
@@ -156,7 +271,7 @@ export const UploadDropzone = forwardRef<UploadDropzoneHandle, UploadDropzonePro
       noKeyboard: true,
     })
 
-    useImperativeHandle(ref, () => ({ openFileDialog: open }), [open])
+    useImperativeHandle(ref, () => ({ openFileDialog: open, openDirectoryDialog }), [open, openDirectoryDialog])
 
     return (
       <div {...getRootProps()} className="relative h-full">

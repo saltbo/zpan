@@ -64,6 +64,7 @@
   "files.colModified": "修改时间",
   "files.searchPlaceholder": "搜索文件...",
   "files.upload": "上传",
+  "files.uploadFolder": "上传文件夹",
   "files.preview": "预览",
   "files.folderNamePlaceholder": "文件夹名称",
   "files.folderCreated": "文件夹已创建",
