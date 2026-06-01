@@ -99,8 +99,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",
-    "@cloudflare/vite-plugin": "^1.35.0",
-    "@cloudflare/vitest-pool-workers": "^0.15.2",
+    "@cloudflare/vite-plugin": "^1.39.0",
+    "@cloudflare/vitest-pool-workers": "^0.16.10",
     "@cloudflare/workers-types": "^4.20260505.1",
     "@hono/vite-dev-server": "^0.25.1",
     "@playwright/test": "^1.59.1",
@@ -127,7 +127,7 @@
     "vite": "^7.3.2",
     "vitest": "^4.1.2",
     "webdav": "^5.10.0",
-    "wrangler": "^4.87.0"
+    "wrangler": "^4.95.0"
   },
   "cloudflare": {
     "bindings": {
