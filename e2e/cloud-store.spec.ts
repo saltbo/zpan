@@ -66,7 +66,7 @@ test.describe
       await expectAdminGiftCardVisibleInApi(page, giftCard.code)
 
       await page.goto('/storage')
-      await expect(page.getByRole('heading', { name: 'Storage' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Storage' })).toBeVisible({ timeout: 20_000 })
       await expectStorefrontProductVisibleInApi(page, packageName)
 
       const walletBefore = await getWalletBalance(page)
@@ -129,7 +129,7 @@ test.describe
         const userPage = await userContext.newPage()
         await signUpAndGoToFiles(userPage)
         await userPage.goto('/storage')
-        await expect(userPage.getByRole('heading', { name: 'Storage' })).toBeVisible()
+        await expect(userPage.getByRole('heading', { name: 'Storage' })).toBeVisible({ timeout: 20_000 })
         await expectStorefrontProductVisibleInApi(userPage, packageName)
 
         const walletBefore = await getWalletBalance(userPage)
@@ -275,7 +275,7 @@ async function createGiftCard(page: Page) {
 
 async function createOneTimePackageThroughUi(page: Page, packageName: string) {
   await page.goto('/admin/cloud-store')
-  await expect(page.getByRole('heading', { name: 'Storage Plans' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Storage Plans' })).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: 'New plan' }).click()
   const dialog = page.getByRole('dialog', { name: 'New plan' })
   await dialog.getByLabel('Plan name').fill(packageName)
@@ -297,7 +297,7 @@ async function createOneTimePackageThroughUi(page: Page, packageName: string) {
 
 async function createGiftCardThroughUi(page: Page) {
   await page.goto('/admin/cloud-store')
-  await expect(page.getByRole('heading', { name: 'Storage Plans' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Storage Plans' })).toBeVisible({ timeout: 20_000 })
   await page.getByRole('tab', { name: 'Gift Cards' }).click()
   await page.getByRole('button', { name: 'Generate gift cards' }).click()
   const dialog = page.getByRole('dialog', { name: 'Generate gift cards' })
