@@ -13,7 +13,7 @@ export const cloudStoreSettingsSchema = z.object({
   enabled: z.boolean(),
 })
 
-export const cloudStoreCurrencySchema = z.string().min(1)
+export const cloudStoreCurrencySchema = z.literal('usd')
 export const cloudProductPriceSchema = productPriceSchema.extend({
   currency: cloudStoreCurrencySchema,
   amount: z.number().int().positive(),
@@ -175,11 +175,12 @@ export const cloudProductPatchSchema = updateProductSchema
     }
   })
 
-export const checkoutInputSchema = z.object({
-  packageId: z.string().min(1),
-  currency: cloudStoreCurrencySchema.optional(),
-  priceId: z.string().min(1).optional(),
-})
+export const checkoutInputSchema = z
+  .object({
+    packageId: z.string().min(1),
+    priceId: z.string().min(1).optional(),
+  })
+  .strict()
 
 export const giftCardStatusSchema = z.enum(['active', 'redeemed', 'disabled', 'expired', 'revoked'])
 

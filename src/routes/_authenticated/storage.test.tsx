@@ -141,7 +141,7 @@ function quotaPackage(): CloudProduct {
     name: '100 GB',
     description: 'Extra storage',
     metadata: { deliverable: { type: 'zpan.extra', storageBytes: 107374182400, trafficBytes: 0 } },
-    prices: [{ currency: 'usd', amount: 999 }],
+    prices: [{ id: 'price-usd', currency: 'usd', amount: 999 }],
     active: true,
     sortOrder: 1,
     createdAt: '2026-05-05T00:00:00.000Z',
@@ -156,7 +156,12 @@ function subscriptionPackage(): CloudProduct {
     name: 'Team Plan',
     metadata: { deliverable: { type: 'zpan.plan', storageBytes: 107374182400, trafficBytes: 21474836480 } },
     prices: [
-      { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
+      {
+        id: 'price-subscription-usd',
+        currency: 'usd',
+        amount: 999,
+        recurring: { interval: 'month', intervalCount: 1 },
+      },
       {
         currency: 'usd',
         amount: 25,
@@ -349,7 +354,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
     expect(toast.info).not.toHaveBeenCalled()
   })
 
@@ -370,7 +375,7 @@ describe('StoragePage', () => {
     expect(view.getByText(/storage\.trafficOveragePerGb/)).toBeTruthy()
   })
 
-  it('uses an available product price when the locale currency is missing', async () => {
+  it('uses the USD product price for checkout regardless of locale', async () => {
     i18nState.language = 'zh-CN'
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
@@ -386,7 +391,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
   })
 
   it('opens the checkout redirect page instead of creating a blank tab', async () => {
@@ -404,7 +409,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
   })
 
   it('refreshes quota and orders after checkout starts', async () => {
@@ -422,7 +427,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
     expect(view.getByText('storage.checkoutPending')).toBeTruthy()
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
@@ -530,7 +535,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.queryByText('org-2')).toBeNull())
     fireEvent.click(await view.findByRole('button', { name: /storage.checkoutPackage/ }))
 
-    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&currency=usd')
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
   })
 
   it('requires an active organization to checkout', async () => {

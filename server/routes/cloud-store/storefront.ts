@@ -111,7 +111,7 @@ export const cloudStore = new Hono<Env>()
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const currency = body.currency ?? 'usd'
+    const currency = 'usd'
     const product = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
         await client.stores[':storeId'].products[':productId'].$get({
@@ -121,9 +121,11 @@ export const cloudStore = new Hono<Env>()
       ),
     )
     if (isCloudError(product)) return c.json(product, 502)
-    const price =
-      product.prices.find((item) => item.id === body.priceId && item.currency === currency) ??
-      product.prices.find((item) => item.currency === currency && item.recurring?.usageType !== 'metered')
+    const price = body.priceId
+      ? product.prices.find(
+          (item) => item.id === body.priceId && item.currency === currency && item.recurring?.usageType !== 'metered',
+        )
+      : product.prices.find((item) => item.currency === currency && item.recurring?.usageType !== 'metered')
     if (!price) return c.json({ error: 'package_price_missing' }, 400)
     if (price.recurring) {
       const quota = await getEffectiveQuota(db, targetOrgId)

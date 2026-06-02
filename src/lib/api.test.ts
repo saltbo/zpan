@@ -327,13 +327,6 @@ describe('api', () => {
             recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
             metadata: { usageResource: 'traffic_egress' },
           },
-          { currency: 'cny', amount: 3600, recurring: { interval: 'month', intervalCount: 1 } },
-          {
-            currency: 'cny',
-            amount: 14,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
-          },
         ],
         active: true,
         sortOrder: 0,
@@ -357,13 +350,6 @@ describe('api', () => {
           {
             currency: 'usd',
             amount: 2,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
-          },
-          { currency: 'cny', amount: 3600, recurring: { interval: 'month', intervalCount: 1 } },
-          {
-            currency: 'cny',
-            amount: 14,
             recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
             metadata: { usageResource: 'traffic_egress' },
           },
@@ -459,7 +445,7 @@ describe('api', () => {
 
       await listCloudProducts()
       await listCloudStoreTargets()
-      await createCloudCheckout('pkg-1', 'cny')
+      await createCloudCheckout('pkg-1', 'price-usd')
       await createCloudBillingPortalSession()
       await listCloudOrders({ limit: 100, offset: 100 })
 
@@ -469,7 +455,7 @@ describe('api', () => {
       expect(calls[2][0]).toBe('/api/store/checkouts')
       expect(JSON.parse(calls[2][1].body as string)).toEqual({
         packageId: 'pkg-1',
-        currency: 'cny',
+        priceId: 'price-usd',
       })
       expect(calls[3][0]).toBe('/api/store/billing-portal-sessions')
       expect(calls[3][1].method).toBe('POST')

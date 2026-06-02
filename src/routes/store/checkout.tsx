@@ -9,7 +9,7 @@ import { redirectExternal } from '@/lib/browser-navigation'
 type CheckoutSearch = {
   action: 'checkout' | 'payment' | 'portal' | 'invalid'
   packageId?: string
-  currency?: string
+  priceId?: string
   orderId?: string
 }
 
@@ -71,7 +71,7 @@ function normalizeCheckoutSearch(search: Record<string, unknown>): CheckoutSearc
     return {
       action,
       packageId: stringValue(search.packageId),
-      currency: stringValue(search.currency),
+      priceId: stringValue(search.priceId),
     }
   }
   if (action === 'payment') return { action, orderId: stringValue(search.orderId) }
@@ -81,8 +81,8 @@ function normalizeCheckoutSearch(search: Record<string, unknown>): CheckoutSearc
 
 async function createCheckoutSession(search: CheckoutSearch) {
   if (search.action === 'checkout') {
-    if (!search.packageId || !search.currency) throw new Error('invalid_checkout_request')
-    const result = await createCloudCheckout(search.packageId, search.currency)
+    if (!search.packageId || !search.priceId) throw new Error('invalid_checkout_request')
+    const result = await createCloudCheckout(search.packageId, search.priceId)
     return result.url
   }
   if (search.action === 'payment') {

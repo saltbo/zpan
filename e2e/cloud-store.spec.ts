@@ -84,7 +84,7 @@ test.describe
 
       await postJson<{ orderId: string; url: string }>(page, '/api/store/checkouts', {
         packageId: product.id,
-        currency: 'usd',
+        priceId: product.prices[0].id,
       })
 
       const orders = await expectOrderCreated(page, product.id)
@@ -284,7 +284,7 @@ async function createOneTimePackageThroughUi(page: Page, packageName: string) {
   await dialog.getByLabel('Valid days').fill('7')
   await dialog.getByRole('spinbutton', { name: 'Storage quota' }).fill('1')
   await dialog.getByRole('spinbutton', { name: 'Download traffic quota' }).fill('1')
-  await dialog.getByLabel('USD amount').fill('1')
+  await dialog.getByLabel('Package amount (USD)').fill('1')
 
   const response = page.waitForResponse(
     (item) => item.url().includes('/api/admin/store/packages') && item.request().method() === 'POST',
