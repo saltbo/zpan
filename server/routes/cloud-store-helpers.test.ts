@@ -200,6 +200,12 @@ describe('quota store helper schemas', () => {
     expect(cloudGiftCardCreateResponseSchema.parse({ items: [card], total: 1, limit: 50, offset: 0 })).toEqual([
       normalized,
     ])
+    expect(
+      cloudGiftCardCreateResponseSchema.parse([{ ...card, credits: undefined, amount: 500, currency: 'credits' }]),
+    ).toEqual([normalized])
+    expect(() =>
+      cloudGiftCardCreateResponseSchema.parse([{ ...card, credits: undefined, amount: 500, currency: 'usd' }]),
+    ).toThrow()
   })
 
   it('parses Cloud package responses', () => {
