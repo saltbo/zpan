@@ -113,8 +113,7 @@ function giftCard(overrides: Partial<CloudGiftCard> = {}): CloudGiftCard {
     campaignId: null,
     code: null,
     codeLast4: 'ODE1',
-    amount: 10_000,
-    currency: 'usd',
+    credits: 10_000,
     status: 'active',
     expiresAt: null,
     disabledAt: null,
@@ -519,17 +518,14 @@ describe('AdminCloudStorePage', () => {
     fireEvent.click(view.getByRole('tab', { name: 'admin.cloudStore.tabs.codes' }))
     await waitFor(() => expect(view.getByText('****-****-****-ODE1')).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.codes.generateTitle' }))
-    const dialog = await view.findByRole('dialog')
-    fireEvent.change(view.getByLabelText('admin.cloudStore.codes.amount'), { target: { value: '50' } })
-    fireEvent.click(within(dialog).getByRole('combobox', { name: 'admin.cloudStore.codes.currency' }))
-    fireEvent.click(await view.findByRole('option', { name: 'USD' }))
+    await view.findByRole('dialog')
+    fireEvent.change(view.getByLabelText('admin.cloudStore.codes.credits'), { target: { value: '5000' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.codes.count'), { target: { value: '3' } })
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.codes.generate' }))
 
     await waitFor(() =>
       expect(createCloudGiftCards).toHaveBeenCalledWith({
-        amount: 5000,
-        currency: 'usd',
+        credits: 5000,
         count: 3,
       }),
     )
@@ -572,7 +568,7 @@ describe('AdminCloudStorePage', () => {
     vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
     vi.mocked(listAdminCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudGiftCards).mockResolvedValue({
-      items: [giftCard({ id: 'gift-card-2', code: null, codeLast4: 'ODE2', amount: 5000, status: 'active' })],
+      items: [giftCard({ id: 'gift-card-2', code: null, codeLast4: 'ODE2', credits: 5000, status: 'active' })],
       total: 1,
     })
 

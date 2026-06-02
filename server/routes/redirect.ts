@@ -61,15 +61,6 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
     return c.json({ error: 'Traffic quota exceeded' }, 422)
   }
 
-  let url: string
-  try {
-    url = await s3.presignDownload(storage, matter.object, matter.name, PRESIGN_TTL_SECS)
-  } catch (e) {
-    await refundTraffic(db, share.orgId, matter.size ?? 0)
-    await decrementDownloads(db, share.id)
-    throw e
-  }
-
   const trafficReportError = await reportTrafficForDownload(c, {
     orgId: share.orgId,
     bytes: matter.size ?? 0,
@@ -78,6 +69,15 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
     onRejected: () => decrementDownloads(db, share.id),
   })
   if (trafficReportError) return trafficReportError
+
+  let url: string
+  try {
+    url = await s3.presignDownload(storage, matter.object, matter.name, PRESIGN_TTL_SECS)
+  } catch (e) {
+    await refundTraffic(db, share.orgId, matter.size ?? 0)
+    await decrementDownloads(db, share.id)
+    throw e
+  }
 
   const res = c.redirect(url, 302)
   res.headers.set('Cache-Control', 'no-store')

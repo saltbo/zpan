@@ -10,7 +10,8 @@ import { Hono } from 'hono'
 import { requireAdmin } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { getCloudStoreSettings, upsertCloudStoreSettings } from '../../services/cloud-store'
+import { getCloudStoreBinding, getCloudStoreSettings, upsertCloudStoreSettings } from '../../services/cloud-store'
+import { requestBoundCloudJson } from '../../services/licensing-cloud'
 import {
   cloudGiftCardCreateResponseSchema,
   cloudGiftCardsResponseSchema,
@@ -18,6 +19,7 @@ import {
   cloudPackageListResponseSchema,
   cloudPackageResponseSchema,
   getBoundCloudClient,
+  getCloudBaseUrl,
   giftCardListQuerySchema,
   type RouteContext,
   unwrapCloudResponse,
@@ -125,12 +127,7 @@ export const adminCloudStore = new Hono<Env>()
     return c.json(result)
   })
   .post('/gift-cards', zValidator('json', createGiftCardInputSchema), async (c) => {
-    const result = await cloudRequest(c, async ({ client, storeId }) =>
-      unwrapCloudResponse(
-        await client.stores[':storeId']['gift-cards'].$post({ param: { storeId }, json: c.req.valid('json') }),
-        cloudGiftCardCreateResponseSchema,
-      ),
-    )
+    const result = await cloudRequest(c, async ({ storeId }) => createCloudGiftCards(c, storeId, c.req.valid('json')))
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result, 201)
   })
@@ -174,4 +171,15 @@ async function cloudRequest<T>(
 
 function isCloudError(result: unknown): result is { error: string } {
   return Boolean(result && typeof result === 'object' && 'error' in result)
+}
+
+async function createCloudGiftCards(c: RouteContext, storeId: string, payload: object) {
+  const binding = await getCloudStoreBinding(c.get('platform').db)
+  const data = await requestBoundCloudJson(
+    getCloudBaseUrl(c),
+    `/api/stores/${encodeURIComponent(storeId)}/gift-cards`,
+    binding.refreshToken,
+    { method: 'POST', payload },
+  )
+  return cloudGiftCardCreateResponseSchema.parse(data)
 }

@@ -8,10 +8,8 @@ import {
   billingPortalSessionResponseSchema,
   commerceProductSchema,
   createCloudClient,
-  giftCardListResponseSchema,
   paymentCreateResponseSchema,
   productListResponseSchema,
-  storeGiftCardSchema,
 } from 'zpan-cloud-sdk'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
@@ -34,9 +32,28 @@ export const cloudOrdersQuerySchema = z.object({
 })
 export const cloudStoreOrdersQuerySchema = cloudOrdersQuerySchema
 
-export const cloudGiftCardSchema = storeGiftCardSchema
-export const cloudGiftCardsResponseSchema = giftCardListResponseSchema
-export const cloudGiftCardListSchema = z.array(storeGiftCardSchema)
+export const cloudGiftCardSchema = z.object({
+  id: z.string().min(1),
+  storeId: z.string().min(1),
+  campaignId: z.string().nullable(),
+  code: z.string().nullable(),
+  codeLast4: z.string().min(1),
+  credits: z.number().int().positive(),
+  status: giftCardStatusSchema,
+  expiresAt: z.string().nullable(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  disabledAt: z.string().nullable(),
+  revokedAt: z.string().nullable(),
+  createdByAdmin: z.string().min(1),
+})
+export const cloudGiftCardsResponseSchema = z.object({
+  items: z.array(cloudGiftCardSchema),
+  total: z.number().int(),
+  limit: z.number().int().optional(),
+  offset: z.number().int().optional(),
+})
+export const cloudGiftCardListSchema = z.array(cloudGiftCardSchema)
 export const cloudGiftCardCreateResponseSchema = z
   .union([cloudGiftCardListSchema, cloudGiftCardsResponseSchema])
   .transform((response) => (Array.isArray(response) ? response : response.items))

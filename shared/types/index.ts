@@ -1,4 +1,4 @@
-import type { CommercePayment, CommerceProduct, ProductPrice, StoreGiftCard } from 'zpan-cloud-sdk'
+import type { CommercePayment, CommerceProduct, ProductPrice } from 'zpan-cloud-sdk'
 import type { DirType, ObjectStatus, StorageMode, StorageStatus } from '../constants'
 import type {
   CloudOrder as ZPanCloudOrder,
@@ -93,7 +93,21 @@ export interface CloudOrderTarget {
 
 export type CloudOrderPayment = CommercePayment
 export type CloudOrder = ZPanCloudOrder
-export type CloudGiftCard = StoreGiftCard
+export interface CloudGiftCard {
+  id: string
+  storeId: string
+  campaignId: string | null
+  code: string | null
+  codeLast4: string
+  credits: number
+  status: 'active' | 'redeemed' | 'disabled' | 'expired' | 'revoked'
+  expiresAt: string | null
+  createdAt: string
+  updatedAt: string
+  disabledAt: string | null
+  revokedAt: string | null
+  createdByAdmin: string
+}
 
 export interface CloudStoreTarget {
   orgId: string

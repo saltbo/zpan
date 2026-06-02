@@ -32,10 +32,13 @@ describe('cloud traffic metering', () => {
     vi.unstubAllGlobals()
   })
 
-  it('queues traffic egress locally without calling Cloud from the request path', async () => {
+  it('reports traffic egress to Cloud from the request path', async () => {
     const { db, platform } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
     await seedTrafficBinding(db)
-    vi.stubGlobal('fetch', vi.fn())
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(makeResponse({ data: { accepted: true, duplicate: false, eventId: 'evt_1' } })),
+    )
 
     const result = await reportTrafficEgress({
       platform,
@@ -46,9 +49,9 @@ describe('cloud traffic metering', () => {
       eventId: 'evt_1',
     })
 
-    expect(result).toMatchObject({ status: 'pending', eventId: 'evt_1', duplicate: false })
-    expect(fetch).not.toHaveBeenCalled()
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'pending' }])
+    expect(result).toMatchObject({ status: 'reported', eventId: 'evt_1', duplicate: false })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
   })
 
   it('syncs pending traffic reports to Cloud outside the request path', async () => {
@@ -69,7 +72,7 @@ describe('cloud traffic metering', () => {
 
     const result = await syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })
 
-    expect(result).toEqual({ attempted: 1, reported: 1, blocked: 0, failed: 0 })
+    expect(result).toEqual({ attempted: 0, reported: 0, blocked: 0, failed: 0 })
     expect(fetch).toHaveBeenCalledTimes(1)
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
     expect(url).toBe('https://cloud.example/api/stores/store-test-binding/billing/usage-events')
@@ -101,7 +104,7 @@ describe('cloud traffic metering', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
   })
 
-  it('keeps idempotent reports local after the first queued report', async () => {
+  it('keeps idempotent reports local after the first reported request', async () => {
     const { db, platform } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal(
@@ -121,8 +124,8 @@ describe('cloud traffic metering', () => {
     const second = await reportTrafficEgress(input)
 
     expect(first.duplicate).toBe(false)
-    expect(second).toMatchObject({ duplicate: true, eventId: 'evt_dup', status: 'pending' })
-    expect(fetch).not.toHaveBeenCalled()
+    expect(second).toMatchObject({ duplicate: true, eventId: 'evt_dup', status: 'reported' })
+    expect(fetch).toHaveBeenCalledTimes(1)
     await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(1)
   })
 
@@ -155,29 +158,24 @@ describe('cloud traffic metering', () => {
     ).rejects.toThrow('traffic_report_idempotency_conflict')
   })
 
-  it('records Cloud cap rejection during background sync', async () => {
+  it('records Cloud credit rejection during the request path', async () => {
     const { db, platform } = await createTestApp()
     await seedTrafficBinding(db)
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse({ error: { code: 'overage_cap_exceeded' } }, 429)))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse({ error: { code: 'insufficient_credits' } }, 402)))
 
-    await reportTrafficEgress({
-      platform,
-      orgId: 'org_1',
-      bytes: 1024,
-      source: 'landing_share',
-      sourceId: 'share_1',
-      eventId: 'evt_blocked',
-    })
-
-    await expect(syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })).resolves.toEqual({
-      attempted: 1,
-      reported: 0,
-      blocked: 1,
-      failed: 0,
-    })
+    await expect(
+      reportTrafficEgress({
+        platform,
+        orgId: 'org_1',
+        bytes: 1024,
+        source: 'landing_share',
+        sourceId: 'share_1',
+        eventId: 'evt_blocked',
+      }),
+    ).rejects.toThrow(CloudTrafficBlockedError)
 
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { eventId: 'evt_blocked', status: 'blocked', error: 'overage_cap_exceeded' },
+      { eventId: 'evt_blocked', status: 'blocked', error: 'insufficient_credits' },
     ])
     await expect(
       reportTrafficEgress({
@@ -211,12 +209,12 @@ describe('cloud traffic metering', () => {
       eventId: 'evt_retry',
       now: new Date('2026-04-30T23:59:00.000Z'),
     }
-    await reportTrafficEgress(input)
+    await expect(reportTrafficEgress(input)).resolves.toMatchObject({ status: 'failed', eventId: 'evt_retry' })
     await expect(syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })).resolves.toEqual({
       attempted: 1,
-      reported: 0,
+      reported: 1,
       blocked: 0,
-      failed: 1,
+      failed: 0,
     })
 
     const result = await syncPendingCloudTrafficReports({
@@ -225,7 +223,7 @@ describe('cloud traffic metering', () => {
       now: new Date('2026-05-01T00:01:00.000Z'),
     })
 
-    expect(result).toEqual({ attempted: 1, reported: 1, blocked: 0, failed: 0 })
+    expect(result).toEqual({ attempted: 0, reported: 0, blocked: 0, failed: 0 })
     expect(fetch).toHaveBeenCalledTimes(2)
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       { status: 'reported', error: null, period: '2026-04' },

@@ -283,6 +283,15 @@ export const publicShares = new Hono<Env>()
       return c.json({ error: 'Traffic quota exceeded' }, 422)
     }
 
+    const trafficReportError = await reportTrafficForDownload(c, {
+      orgId: share.orgId,
+      bytes: targetMatter.size ?? 0,
+      source: 'landing_share',
+      sourceId: share.id,
+      onRejected: () => decrementDownloads(db, share.id),
+    })
+    if (trafficReportError) return trafficReportError
+
     // Record download audit event. Use the authenticated viewer if available;
     // fall back to the share creator as the org-attributed actor for anonymous
     // downloads. The presigned URL is never stored in metadata.
@@ -295,15 +304,6 @@ export const publicShares = new Hono<Env>()
       await decrementDownloads(db, share.id)
       throw e
     }
-
-    const trafficReportError = await reportTrafficForDownload(c, {
-      orgId: share.orgId,
-      bytes: targetMatter.size ?? 0,
-      source: 'landing_share',
-      sourceId: share.id,
-      onRejected: () => decrementDownloads(db, share.id),
-    })
-    if (trafficReportError) return trafficReportError
 
     try {
       await recordActivity(db, {

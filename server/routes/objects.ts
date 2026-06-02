@@ -200,14 +200,6 @@ const app = new Hono<Env>()
     const trafficAllowed = await consumeTrafficIfQuotaAllows(db, orgId, matter.size ?? 0)
     if (!trafficAllowed) return c.json({ error: 'Traffic quota exceeded' }, 422)
 
-    let downloadUrl: string
-    try {
-      downloadUrl = await s3.presignDownload(storage, matter.object, matter.name)
-    } catch (e) {
-      await refundTraffic(db, orgId, matter.size ?? 0)
-      throw e
-    }
-
     const trafficReportError = await reportTrafficForDownload(c, {
       orgId,
       bytes: matter.size ?? 0,
@@ -215,6 +207,14 @@ const app = new Hono<Env>()
       sourceId: matter.id,
     })
     if (trafficReportError) return trafficReportError
+
+    let downloadUrl: string
+    try {
+      downloadUrl = await s3.presignDownload(storage, matter.object, matter.name)
+    } catch (e) {
+      await refundTraffic(db, orgId, matter.size ?? 0)
+      throw e
+    }
 
     return c.json({ ...matter, downloadUrl })
   })

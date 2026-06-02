@@ -1,12 +1,24 @@
 import { zValidator } from '@hono/zod-validator'
-import { checkoutInputSchema, redeemGiftCardInputSchema } from '@shared/schemas'
+import {
+  checkoutInputSchema,
+  cloudCreditBalanceResponseSchema,
+  cloudCreditLedgerResponseSchema,
+  redeemGiftCardInputSchema,
+  redeemGiftCardResponseSchema,
+} from '@shared/schemas'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { canAccessTargetOrg, getAccessibleTargets, getCustomerLabel } from '../../services/cloud-store'
+import {
+  canAccessTargetOrg,
+  getAccessibleTargets,
+  getCloudStoreBinding,
+  getCustomerLabel,
+} from '../../services/cloud-store'
 import { getEffectiveQuota } from '../../services/effective-quota'
+import { requestBoundCloudJson } from '../../services/licensing-cloud'
 import {
   cloudBillingPortalSessionResponseSchema,
   cloudCheckoutResponseSchema,
@@ -15,6 +27,7 @@ import {
   cloudPackageResponseSchema,
   cloudStoreOrdersQuerySchema,
   getBoundCloudClient,
+  getCloudBaseUrl,
   getUserStoreSettings,
   type RouteContext,
   unwrapCloudResponse,
@@ -46,49 +59,43 @@ export const cloudStore = new Hono<Env>()
     const items = await getAccessibleTargets(db, c.get('userId')!)
     return c.json({ items, total: items.length })
   })
-  .get('/wallet', async (c) => {
+  .get('/credits', async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await cloudRequest(c, async ({ client, storeId }) =>
+    const result = await cloudRequest(c, async ({ storeId }) =>
       unwrapCloudResponse(
-        await client.stores[':storeId'].wallets[':customerId'].balances.$get({
-          param: { storeId, customerId: targetOrgId },
-          query: {},
-        }),
+        await getCloudCreditResource(c, storeId, targetOrgId, 'balance'),
+        cloudCreditBalanceResponseSchema,
       ),
     )
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
-  .get('/wallet/transactions', async (c) => {
+  .get('/credits/ledger-entries', async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await cloudRequest(c, async ({ client, storeId }) =>
+    const result = await cloudRequest(c, async ({ storeId }) =>
       unwrapCloudResponse(
-        await client.stores[':storeId'].wallets[':customerId'].transactions.$get({
-          param: { storeId, customerId: targetOrgId },
-          query: {},
-        }),
+        await getCloudCreditResource(c, storeId, targetOrgId, 'ledger-entries'),
+        cloudCreditLedgerResponseSchema,
       ),
     )
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
-  .post('/gift-cards/redeem', zValidator('json', redeemGiftCardInputSchema), async (c) => {
+  .post('/credits/redemptions', zValidator('json', redeemGiftCardInputSchema), async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await cloudRequest(c, async ({ client, storeId }) =>
+    const result = await cloudRequest(c, async ({ storeId }) =>
       unwrapCloudResponse(
-        await client.stores[':storeId'].wallets[':customerId'].redemptions.$post({
-          param: { storeId, customerId: targetOrgId },
-          json: { codes: [c.req.valid('json').code] },
-        }),
+        await postCloudCreditRedemption(c, storeId, targetOrgId, [c.req.valid('json').code]),
+        redeemGiftCardResponseSchema,
       ),
     )
     if (isCloudError(result)) return c.json(result, 502)
@@ -259,6 +266,50 @@ function getOrder(c: RouteContext, orderId: string) {
 
 function orderBelongsToTarget(target: Record<string, unknown> | null, targetOrgId: string): boolean {
   return target?.orgId === targetOrgId || target?.customerId === targetOrgId
+}
+
+function cloudCreditPath(storeId: string, customerId: string, resource: string) {
+  return `/api/stores/${encodeURIComponent(storeId)}/credit-accounts/${encodeURIComponent(customerId)}/${resource}`
+}
+
+async function getCloudCreditResource(
+  c: RouteContext,
+  storeId: string,
+  customerId: string,
+  resource: 'balance' | 'ledger-entries',
+) {
+  const binding = await getCloudStoreBinding(c.get('platform').db)
+  const data = await requestBoundCloudJson(
+    getCloudBaseUrl(c),
+    cloudCreditPath(storeId, customerId, resource),
+    binding.refreshToken,
+    {
+      method: 'GET',
+    },
+  )
+  return jsonResponse(data)
+}
+
+async function postCloudCreditRedemption(c: RouteContext, storeId: string, customerId: string, codes: string[]) {
+  const binding = await getCloudStoreBinding(c.get('platform').db)
+  const data = await requestBoundCloudJson(
+    getCloudBaseUrl(c),
+    cloudCreditPath(storeId, customerId, 'redemptions'),
+    binding.refreshToken,
+    {
+      method: 'POST',
+      payload: { codes },
+    },
+  )
+  return jsonResponse(data, 201)
+}
+
+function jsonResponse(data: unknown, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => data,
+  }
 }
 
 async function cloudRequest<T>(

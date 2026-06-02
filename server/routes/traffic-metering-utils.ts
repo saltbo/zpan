@@ -30,7 +30,7 @@ export async function reportTrafficForDownload(
     await refundTraffic(c.get('platform').db, params.orgId, params.bytes)
     await params.onRejected?.()
     if (error instanceof CloudTrafficBlockedError) {
-      return c.json({ error: 'Cloud traffic overage cap exceeded' }, 429)
+      return c.json({ error: 'insufficient_credits', code: 'insufficient_credits', resource: 'traffic_egress' }, 402)
     }
     throw error
   }
