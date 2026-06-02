@@ -264,6 +264,7 @@ async function createOneTimePackage(page: Page, name: string) {
 async function createGiftCard(page: Page) {
   const cards = await postJson<CloudGiftCard[]>(page, '/api/admin/store/gift-cards', {
     credits: 200,
+    campaignId: null,
     count: 1,
   })
   expect(cards.length).toBe(1)

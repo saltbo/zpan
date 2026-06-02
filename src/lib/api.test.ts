@@ -424,6 +424,7 @@ describe('api', () => {
       expect(calls[1][1].method).toBe('POST')
       expect(JSON.parse(calls[1][1].body as string)).toEqual({
         credits: 1024,
+        campaignId: null,
         count: 3,
       })
       expect(createdGiftCards).toEqual([{ code: 'ZS123' }])

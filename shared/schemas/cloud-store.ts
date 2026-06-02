@@ -187,6 +187,7 @@ export const giftCardStatusSchema = z.enum(['active', 'redeemed', 'disabled', 'e
 export const createGiftCardInputSchema = z.object({
   credits: z.number().int().positive(),
   expiresAt: z.string().datetime().optional(),
+  campaignId: z.string().nullable().optional().default(null),
   count: z.number().int().min(1).max(100),
 })
 

@@ -1336,6 +1336,7 @@ describe('Quota Store API', () => {
     expect(JSON.parse(generateInit.body as string)).toEqual({
       credits: 4096,
       expiresAt: '2099-06-01T00:00:00.000Z',
+      campaignId: null,
       count: 2,
     })
     expect(String(listUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards?status=active`)
@@ -1382,6 +1383,7 @@ describe('Quota Store API', () => {
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         credits: 4096,
+        campaignId: null,
         count: 1,
       }),
     })
@@ -1392,6 +1394,7 @@ describe('Quota Store API', () => {
     expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
     expect(JSON.parse(init.body as string)).toEqual({
       credits: 4096,
+      campaignId: null,
       count: 1,
     })
   })
