@@ -135,7 +135,7 @@ function OrderRow({
           </div>
           {order.discountAmount > 0 && (
             <div className="text-xs text-muted-foreground">
-              {t('storage.walletCredit', {
+              {t('storage.creditDiscount', {
                 amount: formatMoney(order.discountAmount, order.currency, i18n.resolvedLanguage ?? 'en'),
               })}
             </div>

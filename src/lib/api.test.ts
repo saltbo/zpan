@@ -47,8 +47,8 @@ import {
   getAnnouncement,
   getBackgroundJob,
   getBranding,
+  getCloudCredits,
   getCloudStoreSettings,
-  getCloudWallet,
   getEmailConfig,
   getIhostConfig,
   getLicensingStatus,
@@ -69,11 +69,11 @@ import {
   listAnnouncements,
   listAuthProviders,
   listBackgroundJobs,
+  listCloudCreditLedgerEntries,
   listCloudGiftCards,
   listCloudOrders,
   listCloudProducts,
   listCloudStoreTargets,
-  listCloudWalletTransactions,
   listIhostApiKeys,
   listIhostImages,
   listNotifications,
@@ -477,25 +477,11 @@ describe('api', () => {
       expect(calls[4][0]).toBe('/api/store/orders?limit=100&offset=100')
     })
 
-    it('calls wallet, wallet transactions, redemption, and order action endpoints', async () => {
+    it('calls credit balance, credit activity, redemption, and order action endpoints', async () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(
           makeResponse({
-            items: [
-              {
-                id: 'wallet-1',
-                storeId: 'store-1',
-                customerId: 'org-1',
-                currency: 'usd',
-                availableAmount: 500,
-                pendingAmount: 0,
-                stripeCustomerId: null,
-                updatedAt: '2026-05-08T00:00:00.000Z',
-              },
-            ],
-            total: 1,
-            limit: 50,
-            offset: 0,
+            balance: 500,
           }),
         )
         .mockResolvedValueOnce(
@@ -503,9 +489,10 @@ describe('api', () => {
             items: [
               {
                 id: 'ledger-1',
+                creditAccountId: 'credit-account-1',
+                creditBucketId: 'credit-bucket-1',
                 storeId: 'store-1',
                 customerId: 'org-1',
-                currency: 'usd',
                 amount: 500,
                 direction: 'credit',
                 status: 'posted',
@@ -513,7 +500,6 @@ describe('api', () => {
                 sourceId: 'gc-1',
                 orderId: null,
                 paymentId: null,
-                stripeCustomerBalanceTransactionId: null,
                 createdAt: '2026-05-08T00:00:00.000Z',
               },
             ],
@@ -524,8 +510,7 @@ describe('api', () => {
         )
         .mockResolvedValueOnce(
           makeResponse({
-            redeemedAmount: 1000,
-            currency: 'usd',
+            redeemedCredits: 1000,
             entries: [],
             failures: [],
           }),
@@ -533,36 +518,21 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse({ orderId: 'order-1', url: 'https://cloud.example/pay' }))
         .mockResolvedValueOnce(makeResponse({ id: 'order-1', status: 'canceled' }))
 
-      const wallet = await getCloudWallet()
-      const transactions = await listCloudWalletTransactions()
+      const credits = await getCloudCredits()
+      const ledger = await listCloudCreditLedgerEntries()
       const redeem = await redeemCloudGiftCard('GIFT-123')
       const payment = await continueCloudOrderPayment('order-1')
       const canceled = await cancelCloudOrder('order-1')
 
-      expect(wallet).toEqual({
-        items: [
-          {
-            id: 'wallet-1',
-            storeId: 'store-1',
-            customerId: 'org-1',
-            currency: 'usd',
-            availableAmount: 500,
-            pendingAmount: 0,
-            stripeCustomerId: null,
-            updatedAt: '2026-05-08T00:00:00.000Z',
-          },
-        ],
-        total: 1,
-        limit: 50,
-        offset: 0,
-      })
-      expect(transactions).toEqual({
+      expect(credits).toEqual({ balance: 500 })
+      expect(ledger).toEqual({
         items: [
           {
             id: 'ledger-1',
+            creditAccountId: 'credit-account-1',
+            creditBucketId: 'credit-bucket-1',
             storeId: 'store-1',
             customerId: 'org-1',
-            currency: 'usd',
             amount: 500,
             direction: 'credit',
             status: 'posted',
@@ -570,7 +540,6 @@ describe('api', () => {
             sourceId: 'gc-1',
             orderId: null,
             paymentId: null,
-            stripeCustomerBalanceTransactionId: null,
             createdAt: '2026-05-08T00:00:00.000Z',
           },
         ],
@@ -578,14 +547,14 @@ describe('api', () => {
         limit: 50,
         offset: 0,
       })
-      expect(redeem).toEqual({ redeemedAmount: 1000, currency: 'usd', entries: [], failures: [] })
+      expect(redeem).toEqual({ redeemedCredits: 1000, entries: [], failures: [] })
       expect(payment).toEqual({ orderId: 'order-1', url: 'https://cloud.example/pay' })
       expect(canceled).toEqual({ id: 'order-1', status: 'canceled' })
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
-      expect(calls[0][0]).toBe('/api/store/wallet')
-      expect(calls[1][0]).toBe('/api/store/wallet/transactions')
-      expect(calls[2][0]).toBe('/api/store/gift-cards/redeem')
+      expect(calls[0][0]).toBe('/api/store/credits')
+      expect(calls[1][0]).toBe('/api/store/credits/ledger-entries')
+      expect(calls[2][0]).toBe('/api/store/credits/redemptions')
       expect(calls[2][1].method).toBe('POST')
       expect(JSON.parse(calls[2][1].body as string)).toEqual({ code: 'GIFT-123' })
       expect(calls[3][0]).toBe('/api/store/orders/order-1/payments')
