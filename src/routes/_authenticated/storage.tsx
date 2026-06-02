@@ -125,8 +125,8 @@ export function StoragePage() {
     },
   })
 
-  function startCheckout(packageId: string, currency: string) {
-    openCheckoutTab({ action: 'checkout', packageId, currency })
+  function startCheckout(packageId: string, priceId: string) {
+    openCheckoutTab({ action: 'checkout', packageId, priceId })
     setCheckoutRefreshActive(true)
     queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
     queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
@@ -228,7 +228,7 @@ export function StoragePage() {
 }
 
 type CheckoutTabInput =
-  | { action: 'checkout'; packageId: string; currency: string }
+  | { action: 'checkout'; packageId: string; priceId: string }
   | { action: 'payment'; orderId: string }
   | { action: 'portal' }
 
@@ -236,7 +236,7 @@ function openCheckoutTab(input: CheckoutTabInput) {
   const search = new URLSearchParams({ action: input.action })
   if (input.action === 'checkout') {
     search.set('packageId', input.packageId)
-    search.set('currency', input.currency)
+    search.set('priceId', input.priceId)
   }
   if (input.action === 'payment') search.set('orderId', input.orderId)
   openNewTab(`/store/checkout?${search.toString()}`)

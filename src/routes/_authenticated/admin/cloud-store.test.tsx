@@ -213,8 +213,6 @@ describe('AdminCloudStorePage', () => {
     fireEvent.change(view.getByLabelText('admin.cloudStore.storageQuota'), { target: { value: '250' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.usdAmount'), { target: { value: '19.99' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.usdTrafficOveragePrice'), { target: { value: '0.02' } })
-    fireEvent.change(view.getByLabelText('admin.cloudStore.cnyAmount'), { target: { value: '129.00' } })
-    fireEvent.change(view.getByLabelText('admin.cloudStore.cnyTrafficOveragePrice'), { target: { value: '0.14' } })
     fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
@@ -238,13 +236,6 @@ describe('AdminCloudStorePage', () => {
             recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
             metadata: { usageResource: 'traffic_egress' },
           },
-          { currency: 'cny', amount: 12900, recurring: { interval: 'month', intervalCount: 1 } },
-          {
-            currency: 'cny',
-            amount: 14,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
-          },
         ],
         active: true,
         sortOrder: 0,
@@ -253,7 +244,7 @@ describe('AdminCloudStorePage', () => {
     expect(toast.success).toHaveBeenCalledWith('admin.cloudStore.packageSaved')
   })
 
-  it('creates a traffic-only package with USD and CNY prices', async () => {
+  it('creates a traffic-only package with a USD price', async () => {
     vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
     vi.mocked(listAdminCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(createCloudProduct).mockResolvedValue(
@@ -281,7 +272,6 @@ describe('AdminCloudStorePage', () => {
     fireEvent.click(within(dialog).getByLabelText('admin.cloudStore.trafficQuota unit'))
     fireEvent.click(await view.findByRole('option', { name: 'TB' }))
     fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.usdAmount'), { target: { value: '49.99' } })
-    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.cnyAmount'), { target: { value: '329.00' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
@@ -297,10 +287,7 @@ describe('AdminCloudStorePage', () => {
             validityDays: 30,
           },
         },
-        prices: [
-          { currency: 'usd', amount: 4999 },
-          { currency: 'cny', amount: 32900 },
-        ],
+        prices: [{ currency: 'usd', amount: 4999 }],
         active: true,
         sortOrder: 0,
       }),
@@ -320,7 +307,6 @@ describe('AdminCloudStorePage', () => {
               recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
               metadata: { usageResource: 'traffic_egress' },
             },
-            { currency: 'cny', amount: 6900, recurring: { interval: 'month', intervalCount: 1 } },
           ],
         }),
       ],
@@ -334,7 +320,6 @@ describe('AdminCloudStorePage', () => {
     expect(view.getByRole('columnheader', { name: 'admin.cloudStore.prices' })).toBeTruthy()
     expect(view.getByText('9.99 USD')).toBeTruthy()
     expect(view.queryByText('0.02 USD')).toBeNull()
-    expect(view.queryByText('69.00 CNY')).toBeNull()
     expect(view.queryByRole('button', { name: 'admin.cloudStore.sync' })).toBeNull()
     expect(view.queryByText('admin.cloudStore.lastSync')).toBeNull()
     expect(view.queryByText('admin.cloudStore.lastOrder')).toBeNull()
@@ -345,6 +330,7 @@ describe('AdminCloudStorePage', () => {
     const dialog = await view.findByRole('dialog')
     expect(within(dialog).getByText('admin.cloudStore.newPackage')).toBeTruthy()
     expect(within(dialog).getByLabelText('admin.cloudStore.planName')).toBeTruthy()
+    expect(within(dialog).queryByLabelText('admin.cloudStore.cnyAmount')).toBeNull()
     expect(within(dialog).queryByLabelText('admin.cloudStore.sortOrder')).toBeNull()
     expect(within(dialog).queryByLabelText('admin.cloudStore.active')).toBeNull()
   })
@@ -395,6 +381,74 @@ describe('AdminCloudStorePage', () => {
           {
             currency: 'usd',
             amount: 2,
+            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+            metadata: { usageResource: 'traffic_egress' },
+          },
+        ],
+        sortOrder: 1,
+      }),
+    )
+  })
+
+  it('edits legacy multi-currency packages with USD-only form controls and payloads', async () => {
+    vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
+    vi.mocked(listAdminCloudProducts).mockResolvedValue({
+      items: [
+        quotaPackage({
+          prices: [
+            { currency: 'usd', amount: 1299, recurring: { interval: 'month', intervalCount: 1 } },
+            { currency: 'cny', amount: 9800, recurring: { interval: 'month', intervalCount: 1 } },
+            {
+              currency: 'usd',
+              amount: 3,
+              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+            {
+              currency: 'cny',
+              amount: 22,
+              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
+              metadata: { usageResource: 'traffic_egress' },
+            },
+          ],
+        }),
+      ],
+      total: 1,
+    })
+    vi.mocked(updateCloudProduct).mockResolvedValue(quotaPackage({ name: 'USD only plan' }))
+
+    const view = renderAdminPage()
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'common.edit' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'common.edit' }))
+
+    const dialog = await view.findByRole('dialog')
+    expect(within(dialog).getByLabelText('admin.cloudStore.usdAmount')).toHaveProperty('value', '12.99')
+    expect(within(dialog).getByLabelText('admin.cloudStore.usdTrafficOveragePrice')).toHaveProperty('value', '0.03')
+    expect(within(dialog).queryByLabelText('admin.cloudStore.cnyAmount')).toBeNull()
+    expect(within(dialog).queryByLabelText('admin.cloudStore.cnyTrafficOveragePrice')).toBeNull()
+
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.planName'), { target: { value: 'USD only plan' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() =>
+      expect(updateCloudProduct).toHaveBeenCalledWith('pkg-1', {
+        type: 'store_item',
+        name: 'USD only plan',
+        description: 'Extra storage',
+        metadata: {
+          deliverable: {
+            type: 'zpan.plan',
+            storageBytes: 107374182400,
+            trafficBytes: 0,
+            trafficOveragePriceCents: 3,
+          },
+        },
+        prices: [
+          { currency: 'usd', amount: 1299, recurring: { interval: 'month', intervalCount: 1 } },
+          {
+            currency: 'usd',
+            amount: 3,
             recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
             metadata: { usageResource: 'traffic_egress' },
           },

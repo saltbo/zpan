@@ -13,9 +13,6 @@ import { cloudProductStorageBytes, cloudProductTrafficBytes, cloudProductValidit
 const units = { MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 } as const
 type Unit = keyof typeof units
 type BillingMode = 'subscription' | 'one_time'
-type PriceCurrency = 'usd' | 'cny'
-
-const packageCurrencies: PriceCurrency[] = ['usd', 'cny']
 
 export const emptyPackageForm = {
   name: '',
@@ -28,8 +25,6 @@ export const emptyPackageForm = {
   trafficUnit: 'GB' as Unit,
   usdAmount: '9.99',
   usdTrafficOverageAmount: '',
-  cnyAmount: '',
-  cnyTrafficOverageAmount: '',
   sortOrder: '0',
 }
 
@@ -71,10 +66,8 @@ export function packageFormFromPackage(pkg: CloudProduct): PackageFormState {
     storageUnit: storageDisplay?.unit ?? 'GB',
     trafficSize: trafficDisplay ? String(trafficDisplay.size) : '',
     trafficUnit: trafficDisplay?.unit ?? 'GB',
-    usdAmount: formatMinorAmount(monthlyPrice(pkg, 'usd')?.amount),
-    usdTrafficOverageAmount: formatMinorAmount(meteredPrice(pkg, 'usd')?.amount),
-    cnyAmount: formatMinorAmount(monthlyPrice(pkg, 'cny')?.amount),
-    cnyTrafficOverageAmount: formatMinorAmount(meteredPrice(pkg, 'cny')?.amount),
+    usdAmount: formatMinorAmount(monthlyPrice(pkg)?.amount),
+    usdTrafficOverageAmount: formatMinorAmount(meteredPrice(pkg)?.amount),
     sortOrder: String(pkg.sortOrder),
   }
 }
@@ -143,9 +136,7 @@ export function StoragePlanForm({
 }
 
 function packagePricesFromForm(form: PackageFormState) {
-  return packageCurrencies
-    .flatMap((currency) => packagePricesForCurrency(currency, form))
-    .filter((price) => Number.isFinite(price.amount) && price.amount > 0)
+  return packagePricesForForm(form).filter((price) => Number.isFinite(price.amount) && price.amount > 0)
 }
 
 function trafficOveragePrice(prices: ReturnType<typeof packagePricesFromForm>) {
@@ -160,34 +151,23 @@ function isFormMeteredTrafficPrice(price: ReturnType<typeof packagePricesFromFor
 }
 
 function packagePriceInputsValid(form: PackageFormState) {
-  let hasPrice = false
-  for (const currency of packageCurrencies) {
-    const amount = currency === 'usd' ? form.usdAmount : form.cnyAmount
-    const trafficOverageAmount = currency === 'usd' ? form.usdTrafficOverageAmount : form.cnyTrafficOverageAmount
-    const hasAmount = convertCurrencyAmount(amount) > 0
-    const hasTrafficOverageAmount = convertCurrencyAmount(trafficOverageAmount) > 0
-    if (!hasAmount && !hasTrafficOverageAmount) continue
-    if (!hasAmount) return false
-    if (form.billingMode === 'subscription' && !hasTrafficOverageAmount) return false
-    hasPrice = true
-  }
-  return hasPrice
+  const hasAmount = convertCurrencyAmount(form.usdAmount) > 0
+  if (!hasAmount) return false
+  return form.billingMode !== 'subscription' || convertCurrencyAmount(form.usdTrafficOverageAmount) > 0
 }
 
-function packagePricesForCurrency(currency: PriceCurrency, form: PackageFormState) {
-  const monthlyAmount = currency === 'usd' ? form.usdAmount : form.cnyAmount
-  const trafficOverageAmount = currency === 'usd' ? form.usdTrafficOverageAmount : form.cnyTrafficOverageAmount
+function packagePricesForForm(form: PackageFormState) {
   const monthlyPrice = {
-    currency,
-    amount: convertCurrencyAmount(monthlyAmount),
+    currency: 'usd' as const,
+    amount: convertCurrencyAmount(form.usdAmount),
     ...(form.billingMode === 'subscription' ? { recurring: { interval: 'month' as const, intervalCount: 1 } } : {}),
   }
   if (form.billingMode !== 'subscription') return [monthlyPrice]
   return [
     monthlyPrice,
     {
-      currency,
-      amount: convertCurrencyAmount(trafficOverageAmount),
+      currency: 'usd' as const,
+      amount: convertCurrencyAmount(form.usdTrafficOverageAmount),
       recurring: { interval: 'month' as const, intervalCount: 1, usageType: 'metered' as const },
       metadata: { usageResource: 'traffic_egress' },
     },
@@ -206,12 +186,12 @@ function isMeteredTrafficPrice(price: CloudProduct['prices'][number]) {
   return price.recurring?.usageType === 'metered' && price.metadata?.usageResource === 'traffic_egress'
 }
 
-function monthlyPrice(pkg: CloudProduct, currency: PriceCurrency) {
-  return pkg.prices.find((price) => price.currency === currency && !isMeteredTrafficPrice(price))
+function monthlyPrice(pkg: CloudProduct) {
+  return pkg.prices.find((price) => price.currency === 'usd' && !isMeteredTrafficPrice(price))
 }
 
-function meteredPrice(pkg: CloudProduct, currency: PriceCurrency) {
-  return pkg.prices.find((price) => price.currency === currency && isMeteredTrafficPrice(price))
+function meteredPrice(pkg: CloudProduct) {
+  return pkg.prices.find((price) => price.currency === 'usd' && isMeteredTrafficPrice(price))
 }
 
 function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
@@ -347,24 +327,6 @@ function PackageAmountFields({
           step="0.01"
           value={form.usdTrafficOverageAmount}
           onChange={(usdTrafficOverageAmount) => onFormChange({ ...form, usdTrafficOverageAmount })}
-        />
-      )}
-      <NumberField
-        label={t('admin.cloudStore.cnyAmount')}
-        id="packageCnyAmount"
-        min="0.01"
-        step="0.01"
-        value={form.cnyAmount}
-        onChange={(cnyAmount) => onFormChange({ ...form, cnyAmount })}
-      />
-      {form.billingMode === 'subscription' && (
-        <NumberField
-          label={t('admin.cloudStore.cnyTrafficOveragePrice')}
-          id="packageCnyTrafficOverageAmount"
-          min="0.01"
-          step="0.01"
-          value={form.cnyTrafficOverageAmount}
-          onChange={(cnyTrafficOverageAmount) => onFormChange({ ...form, cnyTrafficOverageAmount })}
         />
       )}
     </div>

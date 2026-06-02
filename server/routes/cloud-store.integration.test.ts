@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import type { CloudGiftCard } from '../../shared/types'
 import { PUBLIC_KEYS } from '../licensing/public-keys.js'
 import { getCloudStoreSettings } from '../services/cloud-store.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
@@ -16,7 +15,7 @@ const REFRESH_TOKEN = 'test-refresh-token'
 const INSTANCE_STORE_PATH = '/api/stores/store-test-binding'
 const { secretKey: EVENT_SECRET, publicKey: EVENT_PUBLIC } = generateKeys('public')
 
-const zpanCloudGiftCardResponseFixture: CloudGiftCard = {
+const cloudGiftCardResponseFixture = {
   id: 'gift-card-1',
   storeId: 'store-test-binding',
   campaignId: null,
@@ -32,8 +31,8 @@ const zpanCloudGiftCardResponseFixture: CloudGiftCard = {
   createdByAdmin: 'admin',
 }
 
-function cloudGiftCard(overrides: Partial<typeof zpanCloudGiftCardResponseFixture> = {}) {
-  return { ...zpanCloudGiftCardResponseFixture, ...overrides }
+function cloudGiftCard(overrides: Record<string, unknown> = {}) {
+  return { ...cloudGiftCardResponseFixture, ...overrides }
 }
 
 function cloudProduct(overrides: Record<string, unknown> = {}) {
@@ -44,10 +43,7 @@ function cloudProduct(overrides: Record<string, unknown> = {}) {
     name: 'Small',
     description: 'starter',
     metadata: { deliverable: { type: 'zpan.extra', storageBytes: 4096, trafficBytes: 0 } },
-    prices: [
-      { id: 'price-usd', currency: 'usd', amount: 500 },
-      { id: 'price-cny', currency: 'cny', amount: 3600 },
-    ],
+    prices: [{ id: 'price-usd', currency: 'usd', amount: 500 }],
     active: true,
     sortOrder: 1,
     createdAt: '2026-05-06T00:00:00.000Z',
@@ -623,10 +619,7 @@ describe('Quota Store API', () => {
             name: 'Object Shape',
             description: null,
             metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 4096 } },
-            prices: [
-              { currency: 'usd', amount: 500 },
-              { currency: 'cny', amount: 3600 },
-            ],
+            prices: [{ currency: 'usd', amount: 500 }],
             sortOrder: 3,
           }),
         ],
@@ -644,7 +637,7 @@ describe('Quota Store API', () => {
         cloudProductRequest({
           name: 'Updated',
           metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192 } },
-          prices: [{ currency: 'cny', amount: 900 }],
+          prices: [{ currency: 'usd', amount: 900 }],
         }),
       ),
     })
@@ -673,7 +666,7 @@ describe('Quota Store API', () => {
       metadata: {
         deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 8192 },
       },
-      prices: [{ currency: 'cny', amount: 900 }],
+      prices: [{ currency: 'usd', amount: 900 }],
       active: true,
       sortOrder: 0,
     })
@@ -795,13 +788,40 @@ describe('Quota Store API', () => {
           metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, trafficBytes: 0 } },
           prices: [
             { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-            { currency: 'cny', amount: 9000 },
+            { currency: 'usd', amount: 9000 },
           ],
         }),
       ),
     })
 
     expect(created.status).toBe(400)
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-USD package prices before proxying to Cloud', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    await seedSettings(app, headers)
+
+    const created = await app.request('/api/admin/store/packages', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        cloudProductRequest({
+          name: 'CNY Package',
+          prices: [{ currency: 'cny', amount: 9000 }],
+        }),
+      ),
+    })
+    const updated = await app.request('/api/admin/store/packages/cloud-pkg-1', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prices: [{ currency: 'cny', amount: 9000 }] }),
+    })
+
+    expect(created.status).toBe(400)
+    expect(updated.status).toBe(400)
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
   })
 
@@ -1368,6 +1388,12 @@ describe('Quota Store API', () => {
 
     expect(res.status).toBe(201)
     await expect(res.json()).resolves.toMatchObject([{ code: 'ZS-PAGED-CREATE-1' }])
+    const [[url, init]] = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
+    expect(JSON.parse(init.body as string)).toEqual({
+      credits: 4096,
+      count: 1,
+    })
   })
 
   it('disables admin gift cards through Cloud', async () => {
@@ -1581,7 +1607,7 @@ describe('Quota Store API', () => {
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, currency: 'usd' }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(checkout.status).toBe(200)
@@ -1621,7 +1647,7 @@ describe('Quota Store API', () => {
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, currency: 'usd' }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(checkout.status).toBe(409)
@@ -1639,7 +1665,7 @@ describe('Quota Store API', () => {
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, currency: 'usd' }),
+      body: JSON.stringify({ packageId }),
     })
 
     expect(checkout.status).toBe(200)
@@ -1686,7 +1712,7 @@ describe('Quota Store API', () => {
     const checkout = await app.request('/api/store/checkouts', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId, currency: 'cny' }),
+      body: JSON.stringify({ packageId }),
     })
     const orders = await app.request('/api/store/orders', { headers })
 
@@ -1713,7 +1739,7 @@ describe('Quota Store API', () => {
     expect(requestHeader(orderInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(orderBody).toMatchObject({
       items: [{ productId: packageId }],
-      currency: 'cny',
+      currency: 'usd',
       target: {
         orgId,
         customerId: orgId,
@@ -1748,6 +1774,61 @@ describe('Quota Store API', () => {
     expect(parsedOrdersUrl.pathname).toBe('/api/stores/store-test-binding/orders')
     expect(parsedOrdersUrl.searchParams.get('limit')).toBe('100')
     expect(parsedOrdersUrl.searchParams.get('customerId')).toBe(orgId)
+  })
+
+  it('rejects checkout currency fields before proxying to Cloud', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    const packageId = await seedPackage(db)
+
+    const cnyCheckout = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, currency: 'cny' }),
+    })
+    const usdCheckout = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, currency: 'usd' }),
+    })
+
+    expect(cnyCheckout.status).toBe(400)
+    expect(usdCheckout.status).toBe(400)
+    const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
+    expect(calls.some(([url, init]) => init.method === 'POST' && String(url).endsWith('/orders'))).toBe(false)
+  })
+
+  it('rejects non-USD checkout price ids instead of falling back to USD', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    await seedSettings(app, headers)
+    const packageId = await seedPackage(db)
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () =>
+        cloudProduct({
+          id: packageId,
+          prices: [
+            { id: 'price-usd', currency: 'usd', amount: 500 },
+            { id: 'price-cny', currency: 'cny', amount: 3600 },
+          ],
+        }),
+    } as Response)
+
+    const checkout = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId, priceId: 'price-cny' }),
+    })
+
+    expect(checkout.status).toBe(400)
+    await expect(checkout.json()).resolves.toEqual({ error: 'package_price_missing' })
+    const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
+    expect(calls.some(([url, init]) => init.method === 'POST' && String(url).endsWith('/orders'))).toBe(false)
   })
 
   it('proxies credit balance and gift card redemption through credit endpoints', async () => {

@@ -38,9 +38,9 @@ describe('StorageCheckoutRedirect', () => {
       url: 'https://cloud.example.test/checkout',
     })
 
-    render(<StorageCheckoutRedirect search={{ action: 'checkout', packageId: 'pkg-1', currency: 'usd' }} />)
+    render(<StorageCheckoutRedirect search={{ action: 'checkout', packageId: 'pkg-1', priceId: 'price-usd' }} />)
 
-    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'usd'))
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'price-usd'))
     expect(redirectExternal).toHaveBeenCalledWith('https://cloud.example.test/checkout')
   })
 

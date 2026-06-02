@@ -14,7 +14,7 @@ export function StoragePackages({
 }: {
   packages: CloudProduct[]
   disabled: boolean
-  onCheckout: (packageId: string, currency: string) => void
+  onCheckout: (packageId: string, priceId: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'en'
@@ -98,10 +98,10 @@ function PackageCard({
   pkg: CloudProduct
   disabled: boolean
   language: string
-  onCheckout: (packageId: string, currency: string) => void
+  onCheckout: (packageId: string, priceId: string) => void
 }) {
   const { t } = useTranslation()
-  const price = selectPrice(pkg.prices, language)
+  const price = selectPrice(pkg.prices)
   const priceLabel = formatPackagePrice(price, pkg, language, t)
   const plan = isPlanProduct(pkg)
   const storageBytes = cloudProductStorageBytes(pkg)
@@ -114,7 +114,7 @@ function PackageCard({
       icon={plan ? <HardDrive className="h-4 w-4" /> : <Package className="h-4 w-4" />}
       price={priceLabel}
       action={
-        <Button className="h-9 w-full" disabled={disabled} onClick={() => onCheckout(pkg.id, price.currency)}>
+        <Button className="h-9 w-full" disabled={disabled} onClick={() => onCheckout(pkg.id, price.id)}>
           <PlusCircle className="h-3.5 w-3.5" />
           {plan ? t('storage.checkoutPlan') : t('storage.checkoutPackage')}
         </Button>
@@ -149,12 +149,13 @@ function PlanDetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function selectPrice(prices: CloudProduct['prices'], language: string) {
-  const currency = language.startsWith('zh') ? 'cny' : 'usd'
+function selectPrice(prices: CloudProduct['prices']) {
   const purchasablePrices = prices.filter((item) => item.recurring?.usageType !== 'metered')
-  const price = purchasablePrices.find((item) => item.currency === currency) ?? purchasablePrices[0]
+  const price = purchasablePrices.find((item) => item.currency === 'usd')
   if (!price) throw new Error('cloud_product_price_missing')
-  return price
+  const priceId = price.id
+  if (!priceId) throw new Error('cloud_product_price_missing')
+  return { ...price, id: priceId }
 }
 
 function isPlanProduct(pkg: CloudProduct) {
