@@ -216,7 +216,7 @@ beforeEach(() => {
             }),
           } as Response
         }
-        const body = JSON.parse(String(init?.body ?? '{}')) as { credits?: number; count?: number }
+        const body = JSON.parse(String(init?.body ?? '{}')) as { amount?: number; count?: number }
         return {
           ok: true,
           status: 201,
@@ -225,7 +225,7 @@ beforeEach(() => {
               cloudGiftCard({
                 code: `ZS-GEN-${index + 1}`,
                 codeLast4: `GEN${index + 1}`,
-                credits: body.credits ?? 1024,
+                credits: body.amount ?? 1024,
                 status: 'active',
               }),
             ),
@@ -1335,7 +1335,7 @@ describe('Quota Store API', () => {
     expect(String(generateUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
     expect(requestHeader(generateInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(JSON.parse(generateInit.body as string)).toEqual({
-      credits: 4096,
+      amount: 4096,
       expiresAt: '2099-06-01T00:00:00.000Z',
       count: 2,
     })

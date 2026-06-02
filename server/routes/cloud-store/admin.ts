@@ -173,13 +173,22 @@ function isCloudError(result: unknown): result is { error: string } {
   return Boolean(result && typeof result === 'object' && 'error' in result)
 }
 
-async function createCloudGiftCards(c: RouteContext, storeId: string, payload: object) {
+async function createCloudGiftCards(
+  c: RouteContext,
+  storeId: string,
+  payload: { credits: number; count: number; expiresAt?: string },
+) {
   const binding = await getCloudStoreBinding(c.get('platform').db)
+  const cloudPayload = {
+    amount: payload.credits,
+    count: payload.count,
+    ...(payload.expiresAt ? { expiresAt: payload.expiresAt } : {}),
+  }
   const data = await requestBoundCloudJson(
     getCloudBaseUrl(c),
     `/api/stores/${encodeURIComponent(storeId)}/gift-cards`,
     binding.refreshToken,
-    { method: 'POST', payload },
+    { method: 'POST', payload: cloudPayload },
   )
   return cloudGiftCardCreateResponseSchema.parse(data)
 }
