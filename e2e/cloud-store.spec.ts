@@ -340,7 +340,7 @@ async function expectAdminGiftCardVisibleInApi(page: Page, code: string) {
 }
 
 async function redeemGiftCard(page: Page, code: string) {
-  await page.getByRole('button', { name: 'Credits' }).click()
+  await page.getByRole('button', { name: 'View credit activity' }).click()
   const creditsDialog = page.getByRole('dialog', { name: 'Credits' })
   await creditsDialog.getByRole('button', { name: 'Redeem gift card' }).click()
   const redeemDialog = page.getByRole('dialog', { name: 'Redeem gift card' })
