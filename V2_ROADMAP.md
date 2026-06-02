@@ -99,7 +99,7 @@ Pro is purchased or redeemed on ZPan Cloud, then mirrored to a bound ZPan instan
 
 ### Managed Cloud Services (separate repo)
 
-A small set of Pro features depend on backend infrastructure we host: large archive processing, content moderation (third-party NSFW scanning), server-side media/document processing, and managed custom domains (SSL provisioning). Those services live in a separate closed-source repo (`zpan-cloud`) and version independently. Self-hosted Pro users call these services via HTTPS; usage included up to a monthly quota per plan, overage billed post-paid with a user-set hard cap. Cloud does not run remote-download workers in the v2.7 plan.
+A small set of Pro features depend on backend infrastructure we host: large archive processing, content moderation (third-party NSFW scanning), server-side media/document processing, and managed custom domains (SSL provisioning). Those services live in a separate closed-source repo (`zpan-cloud`) and version independently. Self-hosted Pro users call these services via HTTPS; usage included up to a monthly quota per plan, post-included usage paid with unitless ZPan Cloud credits. Stripe subscriptions remain normal USD subscriptions; ZPan only receives entitlements and usage accept/reject decisions. Cloud does not run remote-download workers in the v2.7 plan.
 
 ### Pricing
 
