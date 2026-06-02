@@ -125,8 +125,7 @@ describe('quota store helper schemas', () => {
             campaignId: null,
             code: null,
             codeLast4: 'GED1',
-            amount: 2500,
-            currency: 'usd',
+            credits: 2500,
             status: 'active',
             expiresAt: null,
             createdAt: '2026-05-07T00:00:00.000Z',
@@ -164,15 +163,14 @@ describe('quota store helper schemas', () => {
     })
   })
 
-  it('normalizes Cloud gift card create responses to generated cards', () => {
+  it('parses Cloud gift card create responses to generated cards', () => {
     const card = {
       id: 'gift-created',
       storeId: 'store-1',
       campaignId: null,
       code: 'ZS-CREATED-1',
       codeLast4: 'TED1',
-      amount: 500,
-      currency: 'usd',
+      credits: 500,
       status: 'active',
       expiresAt: null,
       createdAt: '2026-05-07T00:00:00.000Z',

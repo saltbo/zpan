@@ -65,7 +65,10 @@ export const cloudStore = new Hono<Env>()
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const result = await cloudRequest(c, async ({ storeId }) =>
-      unwrapCloudResponse(await getCloudCreditBalance(c, storeId, targetOrgId), cloudCreditBalanceResponseSchema),
+      unwrapCloudResponse(
+        await getCloudCreditResource(c, storeId, targetOrgId, 'balance'),
+        cloudCreditBalanceResponseSchema,
+      ),
     )
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
@@ -76,7 +79,10 @@ export const cloudStore = new Hono<Env>()
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const result = await cloudRequest(c, async ({ storeId }) =>
-      unwrapCloudResponse(await getCloudCreditLedger(c, storeId, targetOrgId), cloudCreditLedgerResponseSchema),
+      unwrapCloudResponse(
+        await getCloudCreditResource(c, storeId, targetOrgId, 'ledger-entries'),
+        cloudCreditLedgerResponseSchema,
+      ),
     )
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
@@ -264,123 +270,40 @@ function orderBelongsToTarget(target: Record<string, unknown> | null, targetOrgI
   return target?.orgId === targetOrgId || target?.customerId === targetOrgId
 }
 
-const cloudWalletBalanceListSchema = z
-  .object({
-    items: z.array(
-      z.object({
-        currency: z.literal('usd'),
-        availableAmount: z.number().int(),
-      }),
-    ),
-  })
-  .transform((response) => ({
-    balance: response.items.reduce((total, item) => total + item.availableAmount, 0),
-  }))
-
-const cloudWalletLedgerResponseSchema = z
-  .object({
-    items: z.array(
-      z.object({
-        id: z.string().min(1),
-        walletId: z.string().nullable(),
-        storeId: z.string().min(1),
-        customerId: z.string().nullable(),
-        amount: z.number().int(),
-        direction: z.enum(['credit', 'debit']),
-        status: z.enum(['posted', 'pending', 'released', 'refunded']),
-        sourceType: z.enum(['gift_card_redemption', 'order_payment', 'stripe_invoice', 'adjustment', 'refund']),
-        sourceId: z.string().nullable(),
-        orderId: z.string().nullable(),
-        paymentId: z.string().nullable(),
-        createdAt: z.string().min(1),
-      }),
-    ),
-    total: z.number().int(),
-    limit: z.number().int(),
-    offset: z.number().int(),
-  })
-  .transform((response) => ({
-    ...response,
-    items: response.items.map((entry) => ({
-      id: entry.id,
-      creditAccountId: entry.walletId,
-      creditBucketId: null,
-      storeId: entry.storeId,
-      customerId: entry.customerId,
-      amount: entry.amount,
-      direction: entry.direction,
-      status: entry.status === 'refunded' ? ('reversed' as const) : ('posted' as const),
-      sourceType: creditSourceType(entry.sourceType),
-      sourceId: entry.sourceId ?? entry.id,
-      orderId: entry.orderId,
-      paymentId: entry.paymentId,
-      createdAt: entry.createdAt,
-    })),
-  }))
-
-const cloudWalletRedemptionResponseSchema = z
-  .object({
-    redeemedAmount: z.number().int().min(0),
-    currency: z.literal('usd').nullable(),
-    failures: z.array(z.object({ code: z.string().min(1), error: z.string().min(1) })),
-  })
-  .transform((response) => ({
-    redeemedCredits: response.redeemedAmount,
-    entries: [],
-    failures: response.failures,
-  }))
-
-function cloudWalletPath(storeId: string, customerId: string, resource: string) {
-  return `/api/stores/${encodeURIComponent(storeId)}/wallets/${encodeURIComponent(customerId)}/${resource}`
+function cloudCreditPath(storeId: string, customerId: string, resource: string) {
+  return `/api/stores/${encodeURIComponent(storeId)}/credit-accounts/${encodeURIComponent(customerId)}/${resource}`
 }
 
-async function getCloudCreditBalance(c: RouteContext, storeId: string, customerId: string) {
+async function getCloudCreditResource(
+  c: RouteContext,
+  storeId: string,
+  customerId: string,
+  resource: 'balance' | 'ledger-entries',
+) {
   const binding = await getCloudStoreBinding(c.get('platform').db)
   const data = await requestBoundCloudJson(
     getCloudBaseUrl(c),
-    cloudWalletPath(storeId, customerId, 'balances'),
+    cloudCreditPath(storeId, customerId, resource),
     binding.refreshToken,
     {
       method: 'GET',
     },
   )
-  return jsonResponse(cloudWalletBalanceListSchema.parse(data))
-}
-
-async function getCloudCreditLedger(c: RouteContext, storeId: string, customerId: string) {
-  const binding = await getCloudStoreBinding(c.get('platform').db)
-  const data = await requestBoundCloudJson(
-    getCloudBaseUrl(c),
-    cloudWalletPath(storeId, customerId, 'transactions'),
-    binding.refreshToken,
-    {
-      method: 'GET',
-    },
-  )
-  return jsonResponse(cloudWalletLedgerResponseSchema.parse(data))
+  return jsonResponse(data)
 }
 
 async function postCloudCreditRedemption(c: RouteContext, storeId: string, customerId: string, codes: string[]) {
   const binding = await getCloudStoreBinding(c.get('platform').db)
   const data = await requestBoundCloudJson(
     getCloudBaseUrl(c),
-    cloudWalletPath(storeId, customerId, 'redemptions'),
+    cloudCreditPath(storeId, customerId, 'redemptions'),
     binding.refreshToken,
     {
       method: 'POST',
       payload: { codes },
     },
   )
-  return jsonResponse(cloudWalletRedemptionResponseSchema.parse(data), 201)
-}
-
-function creditSourceType(
-  sourceType: 'gift_card_redemption' | 'order_payment' | 'stripe_invoice' | 'adjustment' | 'refund',
-) {
-  if (sourceType === 'gift_card_redemption' || sourceType === 'adjustment') return sourceType
-  if (sourceType === 'order_payment') return 'usage_charge'
-  if (sourceType === 'stripe_invoice') return 'subscription_grant'
-  return 'adjustment'
+  return jsonResponse(data, 201)
 }
 
 function jsonResponse(data: unknown, status = 200) {

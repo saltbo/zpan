@@ -174,19 +174,12 @@ function isCloudError(result: unknown): result is { error: string } {
 }
 
 async function createCloudGiftCards(c: RouteContext, storeId: string, payload: object) {
-  const input = payload as { credits: number; count: number; expiresAt?: string }
   const binding = await getCloudStoreBinding(c.get('platform').db)
-  const cloudPayload = {
-    amount: input.credits,
-    currency: 'usd',
-    count: input.count,
-    ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
-  }
   const data = await requestBoundCloudJson(
     getCloudBaseUrl(c),
     `/api/stores/${encodeURIComponent(storeId)}/gift-cards`,
     binding.refreshToken,
-    { method: 'POST', payload: cloudPayload },
+    { method: 'POST', payload },
   )
   return cloudGiftCardCreateResponseSchema.parse(data)
 }

@@ -38,8 +38,7 @@ const rawCloudGiftCardSchema = z.object({
   campaignId: z.string().nullable(),
   code: z.string().nullable(),
   codeLast4: z.string().min(1),
-  amount: z.number().int().positive(),
-  currency: z.literal('usd'),
+  credits: z.number().int().positive(),
   status: giftCardStatusSchema,
   expiresAt: z.string().nullable(),
   createdAt: z.string().min(1),
@@ -48,10 +47,7 @@ const rawCloudGiftCardSchema = z.object({
   revokedAt: z.string().nullable(),
   createdByAdmin: z.string().min(1),
 })
-export const cloudGiftCardSchema = rawCloudGiftCardSchema.transform(({ amount, currency: _currency, ...card }) => ({
-  ...card,
-  credits: amount,
-}))
+export const cloudGiftCardSchema = rawCloudGiftCardSchema
 export const cloudGiftCardsResponseSchema = z.object({
   items: z.array(cloudGiftCardSchema),
   total: z.number().int(),

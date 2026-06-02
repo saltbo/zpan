@@ -21,8 +21,7 @@ const cloudGiftCardResponseFixture = {
   campaignId: null,
   code: null,
   codeLast4: '0001',
-  amount: 1000,
-  currency: 'usd',
+  credits: 1000,
   status: 'active',
   expiresAt: null,
   createdAt: '2026-05-06T00:00:00.000Z',
@@ -143,9 +142,9 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url, init) => {
-      if (String(url).includes('/api/stores/') && String(url).includes('/wallets/')) {
+      if (String(url).includes('/api/stores/') && String(url).includes('/credit-accounts/')) {
         if (init?.method === 'GET') {
-          if (String(url).includes('/transactions')) {
+          if (String(url).includes('/ledger-entries')) {
             return {
               ok: true,
               status: 200,
@@ -153,10 +152,10 @@ beforeEach(() => {
                 items: [
                   {
                     id: 'ledger-1',
-                    walletId: 'wallet-1',
+                    creditAccountId: 'credit-account-1',
+                    creditBucketId: 'credit-bucket-1',
                     storeId: 'store-test-binding',
                     customerId: 'org-placeholder',
-                    currency: 'usd',
                     amount: 500,
                     direction: 'credit',
                     status: 'posted',
@@ -177,22 +176,7 @@ beforeEach(() => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [
-                {
-                  id: 'balance-1',
-                  walletId: 'wallet-1',
-                  storeId: 'store-test-binding',
-                  customerId: lastTargetOrgId,
-                  currency: 'usd',
-                  availableAmount: 1250,
-                  pendingAmount: 0,
-                  stripeCustomerId: null,
-                  updatedAt: '2026-05-06T00:00:00.000Z',
-                },
-              ],
-              total: 1,
-              limit: 50,
-              offset: 0,
+              balance: 1250,
             }),
           } as Response
         }
@@ -200,8 +184,8 @@ beforeEach(() => {
           ok: true,
           status: 201,
           json: async () => ({
-            redeemedAmount: 1000,
-            currency: 'usd',
+            redeemedCredits: 1000,
+            entries: [],
             failures: [],
           }),
         } as Response
@@ -218,12 +202,12 @@ beforeEach(() => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', amount: 1024 })],
+              items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', credits: 1024 })],
               total: 1,
               limit: 50,
               offset: 0,
               data: {
-                items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', amount: 1024 })],
+                items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', credits: 1024 })],
                 total: 1,
                 limit: 50,
                 offset: 0,
@@ -231,7 +215,7 @@ beforeEach(() => {
             }),
           } as Response
         }
-        const body = JSON.parse(String(init?.body ?? '{}')) as { amount?: number; count?: number }
+        const body = JSON.parse(String(init?.body ?? '{}')) as { credits?: number; count?: number }
         return {
           ok: true,
           status: 201,
@@ -240,7 +224,7 @@ beforeEach(() => {
               cloudGiftCard({
                 code: `ZS-GEN-${index + 1}`,
                 codeLast4: `GEN${index + 1}`,
-                amount: body.amount ?? 1024,
+                credits: body.credits ?? 1024,
                 status: 'active',
               }),
             ),
@@ -419,7 +403,7 @@ describe('Quota Store API', () => {
           cloudGiftCard({
             code: 'ZS11-ACTV-0000-0001',
             codeLast4: '0001',
-            amount: 2048,
+            credits: 2048,
           }),
         ],
         total: 1,
@@ -1350,8 +1334,7 @@ describe('Quota Store API', () => {
     expect(String(generateUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
     expect(requestHeader(generateInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(JSON.parse(generateInit.body as string)).toEqual({
-      amount: 4096,
-      currency: 'usd',
+      credits: 4096,
       expiresAt: '2099-06-01T00:00:00.000Z',
       count: 2,
     })
@@ -1408,8 +1391,7 @@ describe('Quota Store API', () => {
     const [[url, init]] = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
     expect(JSON.parse(init.body as string)).toEqual({
-      amount: 4096,
-      currency: 'usd',
+      credits: 4096,
       count: 1,
     })
   })
@@ -1849,7 +1831,7 @@ describe('Quota Store API', () => {
     expect(calls.some(([url, init]) => init.method === 'POST' && String(url).endsWith('/orders'))).toBe(false)
   })
 
-  it('proxies credit balance and gift card redemption through Cloud wallet endpoints', async () => {
+  it('proxies credit balance and gift card redemption through credit endpoints', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1873,16 +1855,20 @@ describe('Quota Store API', () => {
     })
 
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
-    const [creditsUrl, creditsInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/balances`))!
-    const [redeemUrl, redeemInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/redemptions`))!
-    expect(String(creditsUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/balances`)
+    const [creditsUrl, creditsInit] = calls.find(([url]) => String(url).includes(`/credit-accounts/${orgId}/balance`))!
+    const [redeemUrl, redeemInit] = calls.find(([url]) =>
+      String(url).includes(`/credit-accounts/${orgId}/redemptions`),
+    )!
+    expect(String(creditsUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/credit-accounts/${orgId}/balance`)
     expect(creditsInit.method).toBe('GET')
-    expect(String(redeemUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/redemptions`)
+    expect(String(redeemUrl)).toBe(
+      `${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/credit-accounts/${orgId}/redemptions`,
+    )
     expect(redeemInit.method).toBe('POST')
     expect(JSON.parse(String(redeemInit.body))).toEqual({ codes: ['ZS-1234-5678'] })
   })
 
-  it('proxies credit ledger entries through Cloud wallet endpoints', async () => {
+  it('proxies credit ledger entries through credit endpoints', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1896,8 +1882,8 @@ describe('Quota Store API', () => {
       items: [
         {
           id: 'ledger-1',
-          creditAccountId: 'wallet-1',
-          creditBucketId: null,
+          creditAccountId: 'credit-account-1',
+          creditBucketId: 'credit-bucket-1',
           storeId: 'store-test-binding',
           customerId: 'org-placeholder',
           amount: 500,
@@ -1916,136 +1902,13 @@ describe('Quota Store API', () => {
     })
 
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
-    const [ledgerUrl, ledgerInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/transactions`))!
-    expect(String(ledgerUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/transactions`)
+    const [ledgerUrl, ledgerInit] = calls.find(([url]) =>
+      String(url).includes(`/credit-accounts/${orgId}/ledger-entries`),
+    )!
+    expect(String(ledgerUrl)).toBe(
+      `${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/credit-accounts/${orgId}/ledger-entries`,
+    )
     expect(ledgerInit.method).toBe('GET')
-  })
-
-  it('maps Cloud wallet transaction source types and statuses back to the ZPan ledger contract', async () => {
-    const { app, db } = await createTestApp()
-    await seedProLicense(db)
-    const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
-    const orgId = await getFirstOrgId(db)
-    const baseFetch = vi.mocked(fetch).getMockImplementation()
-    if (!baseFetch) throw new Error('fetch_mock_missing')
-    vi.mocked(fetch).mockImplementation(async (url, init) => {
-      if (String(url).includes(`/wallets/${orgId}/transactions`)) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            items: [
-              {
-                id: 'ledger-order',
-                walletId: 'wallet-1',
-                storeId: 'store-test-binding',
-                customerId: orgId,
-                currency: 'usd',
-                amount: 700,
-                direction: 'debit',
-                status: 'pending',
-                sourceType: 'order_payment',
-                sourceId: 'order-source',
-                orderId: 'order-1',
-                paymentId: 'payment-1',
-                createdAt: '2026-05-07T00:00:00.000Z',
-              },
-              {
-                id: 'ledger-invoice',
-                walletId: 'wallet-1',
-                storeId: 'store-test-binding',
-                customerId: orgId,
-                currency: 'usd',
-                amount: 1200,
-                direction: 'credit',
-                status: 'released',
-                sourceType: 'stripe_invoice',
-                sourceId: 'invoice-source',
-                orderId: null,
-                paymentId: null,
-                createdAt: '2026-05-08T00:00:00.000Z',
-              },
-              {
-                id: 'ledger-refund',
-                walletId: 'wallet-1',
-                storeId: 'store-test-binding',
-                customerId: orgId,
-                currency: 'usd',
-                amount: 300,
-                direction: 'credit',
-                status: 'refunded',
-                sourceType: 'refund',
-                sourceId: null,
-                orderId: null,
-                paymentId: null,
-                createdAt: '2026-05-09T00:00:00.000Z',
-              },
-            ],
-            total: 3,
-            limit: 50,
-            offset: 0,
-          }),
-        } as Response
-      }
-      return (await baseFetch(url, init)) as Response
-    })
-
-    const ledger = await app.request('/api/store/credits/ledger-entries', { headers })
-
-    expect(ledger.status).toBe(200)
-    await expect(ledger.json()).resolves.toEqual({
-      items: [
-        {
-          id: 'ledger-order',
-          creditAccountId: 'wallet-1',
-          creditBucketId: null,
-          storeId: 'store-test-binding',
-          customerId: orgId,
-          amount: 700,
-          direction: 'debit',
-          status: 'posted',
-          sourceType: 'usage_charge',
-          sourceId: 'order-source',
-          orderId: 'order-1',
-          paymentId: 'payment-1',
-          createdAt: '2026-05-07T00:00:00.000Z',
-        },
-        {
-          id: 'ledger-invoice',
-          creditAccountId: 'wallet-1',
-          creditBucketId: null,
-          storeId: 'store-test-binding',
-          customerId: orgId,
-          amount: 1200,
-          direction: 'credit',
-          status: 'posted',
-          sourceType: 'subscription_grant',
-          sourceId: 'invoice-source',
-          orderId: null,
-          paymentId: null,
-          createdAt: '2026-05-08T00:00:00.000Z',
-        },
-        {
-          id: 'ledger-refund',
-          creditAccountId: 'wallet-1',
-          creditBucketId: null,
-          storeId: 'store-test-binding',
-          customerId: orgId,
-          amount: 300,
-          direction: 'credit',
-          status: 'reversed',
-          sourceType: 'adjustment',
-          sourceId: 'ledger-refund',
-          orderId: null,
-          paymentId: null,
-          createdAt: '2026-05-09T00:00:00.000Z',
-        },
-      ],
-      total: 3,
-      limit: 50,
-      offset: 0,
-    })
   })
 
   it('continues payment and cancels orders through Cloud', async () => {
