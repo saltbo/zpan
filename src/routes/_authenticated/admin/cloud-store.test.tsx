@@ -477,7 +477,7 @@ describe('AdminCloudStorePage', () => {
     )
   })
 
-  it('edits legacy multi-currency packages with USD-only form controls and payloads', async () => {
+  it('edits plan packages with USD-only form controls and payloads', async () => {
     vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
     vi.mocked(listAdminCloudProducts).mockResolvedValue({
       items: [
@@ -495,7 +495,6 @@ describe('AdminCloudStorePage', () => {
               recurring: { interval: 'year', intervalCount: 1 },
               metadata: { creditGrantType: 'subscription_grant', creditAmount: '1500' },
             },
-            { currency: 'cny', amount: 9800, recurring: { interval: 'month', intervalCount: 1 } },
           ],
           metadata: {
             deliverable: { type: 'zpan.plan', storageBytes: 107374182400, includedCredits: 1500 },

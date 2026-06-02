@@ -64,8 +64,8 @@
     "@tanstack/react-query": "^5.100.9",
     "@tanstack/react-router": "^1.93.0",
     "@tanstack/react-table": "^8.21.3",
-    "@uiw/react-md-editor": "^4.1.0",
     "@uiw/react-markdown-preview": "5.2.0",
+    "@uiw/react-md-editor": "^4.1.0",
     "@vidstack/react": "^1.12.13",
     "better-auth": "^1.6.2",
     "better-sqlite3": "^11.0.0",
@@ -97,7 +97,7 @@
     "tailwind-merge": "^3.5.0",
     "yet-another-react-lightbox": "^3.30.1",
     "zod": "^4.4.3",
-    "zpan-cloud-sdk": "^1.0.2"
+    "zpan-cloud-sdk": "^1.0.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",
