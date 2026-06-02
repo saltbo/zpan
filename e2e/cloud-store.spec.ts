@@ -263,8 +263,7 @@ async function createOneTimePackage(page: Page, name: string) {
 
 async function createGiftCard(page: Page) {
   const cards = await postJson<CloudGiftCard[]>(page, '/api/admin/store/gift-cards', {
-    amount: 200,
-    currency: 'usd',
+    credits: 200,
     count: 1,
   })
   expect(cards.length).toBe(1)
@@ -301,7 +300,7 @@ async function createGiftCardThroughUi(page: Page) {
   await page.getByRole('tab', { name: 'Gift Cards' }).click()
   await page.getByRole('button', { name: 'Generate gift cards' }).click()
   const dialog = page.getByRole('dialog', { name: 'Generate gift cards' })
-  await dialog.getByLabel('Amount').fill('3')
+  await dialog.getByLabel('Credits').fill('3')
 
   const response = page.waitForResponse(
     (item) => item.url().includes('/api/admin/store/gift-cards') && item.request().method() === 'POST',
