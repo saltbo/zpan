@@ -206,7 +206,12 @@ export function StoragePage() {
       )}
 
       {hasActivePlan && quotaQuery.data ? (
-        <CurrentPlanCard quota={quotaQuery.data} onManagePlan={managePlan} isManagingPlan={false} />
+        <CurrentPlanCard
+          quota={quotaQuery.data}
+          creditsBalance={creditsQuery.data?.balance}
+          onManagePlan={managePlan}
+          isManagingPlan={false}
+        />
       ) : (
         <div className="space-y-6">
           <FreeQuotaCard quota={quotaQuery.data} />

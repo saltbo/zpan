@@ -1264,7 +1264,7 @@
   "storage.currentPeriodTraffic": "计量流量",
   "storage.trafficUsage": "流量用量",
   "storage.currentPlan": "当前套餐",
-  "storage.currentPlanDescription": "用量会计入该套餐包含的存储空间和下载流量。",
+  "storage.currentPlanDescription": "存储空间由当前套餐提供，计量用量使用 Credits 结算。",
   "storage.planActive": "已开通",
   "storage.freePlanName": "免费版",
   "storage.freePlanDescription": "当前工作空间默认包含的基础存储额度。",

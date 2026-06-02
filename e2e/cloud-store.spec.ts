@@ -59,8 +59,10 @@ test.describe
       await ensureCloudBinding(page)
 
       const testId = Date.now()
-      const packageName = `E2E Cloud Pack ${testId}`
-      const product = await createOneTimePackage(page, packageName)
+      const packageName = `E2E Cloud Plan ${testId}`
+      const creditPackageName = `E2E Credits ${testId}`
+      await createStoragePlan(page, packageName)
+      const product = await createCreditPackage(page, creditPackageName)
       const giftCard = await createGiftCard(page)
       await expectAdminProductVisibleInApi(page, packageName)
       await expectAdminGiftCardVisibleInApi(page, giftCard.code)
@@ -89,7 +91,7 @@ test.describe
 
       const orders = await expectOrderCreated(page, product.id)
       await expectOrderFulfilled(page, orders.items[0].id)
-      await expectUserQuotaIncludesPackage(page, packageName)
+      await expect.poll(() => getCreditBalance(page), { timeout: 60_000 }).toBeGreaterThanOrEqual(creditsBefore + 400)
     })
 
     test('@desktop creates Cloud store products and gift cards through admin UI forms', async ({ page }) => {
@@ -99,10 +101,13 @@ test.describe
       await ensureCloudBinding(page)
 
       const testId = Date.now()
-      const packageName = `E2E UI Pack ${testId}`
-      await createOneTimePackageThroughUi(page, packageName)
+      const packageName = `E2E UI Plan ${testId}`
+      const creditPackageName = `E2E UI Credits ${testId}`
+      await createStoragePlanThroughUi(page, packageName)
+      await createCreditPackageThroughUi(page, creditPackageName)
 
       await expectAdminProductVisibleInApi(page, packageName)
+      await expectAdminCreditProductVisibleInApi(page, creditPackageName)
 
       const giftCardCode = await createGiftCardThroughUi(page)
       await expectAdminGiftCardVisibleInApi(page, giftCardCode)
@@ -119,8 +124,8 @@ test.describe
       await ensureCloudBinding(page)
 
       const testId = Date.now()
-      const packageName = `E2E User Pack ${testId}`
-      await createOneTimePackage(page, packageName)
+      const packageName = `E2E User Plan ${testId}`
+      await createStoragePlan(page, packageName)
       const giftCard = await createGiftCard(page)
       await expectStorefrontProductVisibleInApi(page, packageName)
 
@@ -242,20 +247,43 @@ async function unbindCurrentCloudBinding() {
   }
 }
 
-async function createOneTimePackage(page: Page, name: string) {
+async function createStoragePlan(page: Page, name: string) {
   return postJson<CloudProduct>(page, '/api/admin/store/packages', {
     type: 'store_item',
     name,
-    description: 'Playwright staging Cloud store package',
+    description: 'Playwright staging Cloud store plan',
     metadata: {
       deliverable: {
-        type: 'zpan.extra',
+        type: 'zpan.plan',
         storageBytes: 1024 * 1024,
-        trafficBytes: 1024 * 1024,
-        validityDays: 7,
+        includedCredits: 200,
       },
     },
-    prices: [{ currency: 'usd', amount: 100 }],
+    prices: [
+      {
+        currency: 'usd',
+        amount: 100,
+        recurring: { interval: 'month', intervalCount: 1 },
+        metadata: { creditGrantType: 'subscription_grant', creditAmount: '200' },
+      },
+    ],
+    active: true,
+    sortOrder: -Date.now(),
+  })
+}
+
+async function createCreditPackage(page: Page, name: string) {
+  return postJson<CloudProduct>(page, '/api/admin/store/packages', {
+    type: 'store_item',
+    name,
+    description: 'Playwright staging Cloud store Credits package',
+    metadata: {
+      deliverable: {
+        type: 'zpan.credits',
+        includedCredits: 200,
+      },
+    },
+    prices: [{ currency: 'usd', amount: 100, metadata: { creditGrantType: 'top_up', creditAmount: '200' } }],
     active: true,
     sortOrder: -Date.now(),
   })
@@ -272,18 +300,33 @@ async function createGiftCard(page: Page) {
   return { ...card, code: card.code }
 }
 
-async function createOneTimePackageThroughUi(page: Page, packageName: string) {
+async function createStoragePlanThroughUi(page: Page, packageName: string) {
   await page.goto('/admin/cloud-store')
   await expect(page.getByRole('heading', { name: 'Storage Plans' })).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: 'New plan' }).click()
   const dialog = page.getByRole('dialog', { name: 'New plan' })
   await dialog.getByLabel('Plan name').fill(packageName)
   await dialog.getByLabel('Description').fill('Created by Playwright through the admin form')
-  await dialog.getByRole('combobox', { name: 'Billing' }).click()
-  await page.getByRole('option', { name: 'Fixed-duration package' }).click()
-  await dialog.getByLabel('Valid days').fill('7')
   await dialog.getByRole('spinbutton', { name: 'Storage quota' }).fill('1')
-  await dialog.getByRole('spinbutton', { name: 'Download traffic quota' }).fill('1')
+  await dialog.getByRole('spinbutton', { name: 'Included Credits' }).fill('200')
+  await dialog.getByLabel('Monthly price (USD)').fill('1')
+
+  const response = page.waitForResponse(
+    (item) => item.url().includes('/api/admin/store/packages') && item.request().method() === 'POST',
+  )
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  expect((await response).status()).toBe(201)
+  await expect(dialog).not.toBeVisible({ timeout: 20_000 })
+}
+
+async function createCreditPackageThroughUi(page: Page, packageName: string) {
+  await page.goto('/admin/cloud-store')
+  await expect(page.getByRole('heading', { name: 'Storage Plans' })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'New Credits package' }).click()
+  const dialog = page.getByRole('dialog', { name: 'New Credits package' })
+  await dialog.getByLabel('Name').fill(packageName)
+  await dialog.getByLabel('Description').fill('Created by Playwright through the admin form')
+  await dialog.getByRole('spinbutton', { name: 'Credits' }).fill('200')
   await dialog.getByLabel('Package amount (USD)').fill('1')
 
   const response = page.waitForResponse(
@@ -320,6 +363,18 @@ async function expectAdminProductVisibleInApi(page: Page, packageName: string) {
     .poll(
       async () => {
         const products = await getJson<{ items: CloudProduct[] }>(page, '/api/admin/store/packages')
+        return products.items.map((item) => item.name)
+      },
+      { timeout: 60_000 },
+    )
+    .toContain(packageName)
+}
+
+async function expectAdminCreditProductVisibleInApi(page: Page, packageName: string) {
+  await expect
+    .poll(
+      async () => {
+        const products = await getJson<{ items: CloudProduct[] }>(page, '/api/admin/store/credits/products')
         return products.items.map((item) => item.name)
       },
       { timeout: 60_000 },
@@ -396,28 +451,6 @@ async function expectOrderFulfilled(page: Page, orderId: string) {
       { timeout: 60_000 },
     )
     .toBe('fulfilled')
-}
-
-async function expectUserQuotaIncludesPackage(page: Page, packageName: string) {
-  await expect
-    .poll(
-      async () => {
-        const quota = await getJson<{
-          storagePlanName: string | null
-          storageExtraNames: string[]
-          trafficPlanName: string | null
-          trafficExtraNames: string[]
-        }>(page, '/api/quotas/me')
-        return [
-          quota.storagePlanName,
-          quota.trafficPlanName,
-          ...quota.storageExtraNames,
-          ...quota.trafficExtraNames,
-        ].filter(Boolean)
-      },
-      { timeout: 60_000 },
-    )
-    .toContain(packageName)
 }
 
 async function newBrowserContext(browser: Browser, baseURL: string | undefined) {

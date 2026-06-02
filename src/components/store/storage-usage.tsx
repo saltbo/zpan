@@ -10,10 +10,12 @@ import { formatSize } from '@/lib/format'
 
 export function CurrentPlanCard({
   quota,
+  creditsBalance,
   onManagePlan,
   isManagingPlan,
 }: {
   quota: UserQuota
+  creditsBalance?: number
   onManagePlan: () => void
   isManagingPlan: boolean
 }) {
@@ -44,7 +46,7 @@ export function CurrentPlanCard({
       <CardContent>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
           <UsageRows quota={quota} />
-          <PlanEntitlementSummary quota={quota} />
+          <PlanEntitlementSummary quota={quota} creditsBalance={creditsBalance} />
         </div>
       </CardContent>
     </Card>
@@ -91,7 +93,7 @@ function FreeQuotaUsage({ quota }: { quota: UserQuota }) {
         })}
       />
       <CompactQuotaMetric
-        label={t('storage.trafficUsage')}
+        label={t('storage.currentPeriodTraffic')}
         used={quota.trafficUsed}
         total={quota.trafficQuota}
         footer={t('storage.trafficPeriodDetail', { period: quota.trafficPeriod })}
@@ -147,7 +149,7 @@ function UsageRows({ quota, compact = false }: { quota: UserQuota; compact?: boo
       />
       <UsageMeter
         icon={<Activity className="h-4 w-4" />}
-        label={t('storage.trafficUsage')}
+        label={t('storage.currentPeriodTraffic')}
         used={quota.trafficUsed}
         total={quota.trafficQuota}
         detail={t('storage.trafficPeriodDetail', { period: quota.trafficPeriod })}
@@ -195,7 +197,7 @@ function UsageMeter({
   )
 }
 
-function PlanEntitlementSummary({ quota }: { quota: UserQuota }) {
+function PlanEntitlementSummary({ quota, creditsBalance }: { quota: UserQuota; creditsBalance?: number }) {
   const { t } = useTranslation()
   const plan = quota.currentPlan
   const rows = [
@@ -204,23 +206,16 @@ function PlanEntitlementSummary({ quota }: { quota: UserQuota }) {
       value: formatQuotaPlanValue(plan?.storageBytes ?? quota.baseQuota, quota.storagePlanName),
     },
     {
-      label: t('storage.includedTraffic'),
-      value: formatQuotaPlanValue(plan?.trafficBytes ?? quota.baseTrafficQuota, quota.trafficPlanName),
-    },
-    {
       label: t('storage.cloudStorageEntitlement'),
       value: formatExtraValue(quota.entitlementQuota, quota.storageExtraNames),
     },
     {
-      label: t('storage.cloudTrafficEntitlement'),
-      value: formatExtraValue(quota.entitlementTrafficQuota, quota.trafficExtraNames),
+      label: t('storage.creditBalance'),
+      value: creditsBalance === undefined ? t('common.loading') : formatCredits(creditsBalance),
     },
     {
       label: t('storage.trafficPolicy'),
-      value:
-        (plan?.trafficOveragePriceCents ?? 0) > 0
-          ? t('storage.trafficOverageEnabled')
-          : t('storage.trafficStopsAtQuota'),
+      value: t('storage.usageBilledWithCredits'),
     },
   ]
   return (
@@ -245,4 +240,8 @@ function formatExtraValue(bytes: number, names: string[]) {
   if (bytes <= 0 || names.length === 0) return size
   if (names.length === 1) return `${names[0]} · ${size}`
   return `${names[0]} +${names.length - 1} · ${size}`
+}
+
+function formatCredits(credits: number) {
+  return new Intl.NumberFormat().format(credits)
 }

@@ -1264,7 +1264,7 @@
   "storage.currentPeriodTraffic": "Metered traffic",
   "storage.trafficUsage": "Traffic usage",
   "storage.currentPlan": "Current plan",
-  "storage.currentPlanDescription": "Usage is tracked against the storage and traffic included in this plan.",
+  "storage.currentPlanDescription": "Storage comes from this plan. Metered usage is billed with Credits.",
   "storage.planActive": "Active",
   "storage.freePlanName": "Free",
   "storage.freePlanDescription": "Starter storage included with this workspace.",
