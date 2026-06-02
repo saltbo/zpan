@@ -181,6 +181,7 @@ async function createCloudGiftCards(
   const binding = await getCloudStoreBinding(c.get('platform').db)
   const cloudPayload = {
     amount: payload.credits,
+    currency: 'usd',
     count: payload.count,
     ...(payload.expiresAt ? { expiresAt: payload.expiresAt } : {}),
   }

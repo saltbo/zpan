@@ -32,13 +32,14 @@ export const cloudOrdersQuerySchema = z.object({
 })
 export const cloudStoreOrdersQuerySchema = cloudOrdersQuerySchema
 
-export const cloudGiftCardSchema = z.object({
+const rawCloudGiftCardSchema = z.object({
   id: z.string().min(1),
   storeId: z.string().min(1),
   campaignId: z.string().nullable(),
   code: z.string().nullable(),
   codeLast4: z.string().min(1),
-  credits: z.number().int().positive(),
+  amount: z.number().int().positive(),
+  currency: z.literal('usd'),
   status: giftCardStatusSchema,
   expiresAt: z.string().nullable(),
   createdAt: z.string().min(1),
@@ -47,6 +48,10 @@ export const cloudGiftCardSchema = z.object({
   revokedAt: z.string().nullable(),
   createdByAdmin: z.string().min(1),
 })
+export const cloudGiftCardSchema = rawCloudGiftCardSchema.transform(({ amount, currency: _currency, ...card }) => ({
+  ...card,
+  credits: amount,
+}))
 export const cloudGiftCardsResponseSchema = z.object({
   items: z.array(cloudGiftCardSchema),
   total: z.number().int(),

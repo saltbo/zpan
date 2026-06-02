@@ -125,7 +125,8 @@ describe('quota store helper schemas', () => {
             campaignId: null,
             code: null,
             codeLast4: 'GED1',
-            credits: 2500,
+            amount: 2500,
+            currency: 'usd',
             status: 'active',
             expiresAt: null,
             createdAt: '2026-05-07T00:00:00.000Z',
@@ -170,6 +171,23 @@ describe('quota store helper schemas', () => {
       campaignId: null,
       code: 'ZS-CREATED-1',
       codeLast4: 'TED1',
+      amount: 500,
+      currency: 'usd',
+      status: 'active',
+      expiresAt: null,
+      createdAt: '2026-05-07T00:00:00.000Z',
+      updatedAt: '2026-05-07T00:00:00.000Z',
+      disabledAt: null,
+      revokedAt: null,
+      createdByAdmin: 'admin',
+    }
+
+    const normalized = {
+      id: 'gift-created',
+      storeId: 'store-1',
+      campaignId: null,
+      code: 'ZS-CREATED-1',
+      codeLast4: 'TED1',
       credits: 500,
       status: 'active',
       expiresAt: null,
@@ -180,8 +198,10 @@ describe('quota store helper schemas', () => {
       createdByAdmin: 'admin',
     }
 
-    expect(cloudGiftCardCreateResponseSchema.parse([card])).toEqual([card])
-    expect(cloudGiftCardCreateResponseSchema.parse({ items: [card], total: 1, limit: 50, offset: 0 })).toEqual([card])
+    expect(cloudGiftCardCreateResponseSchema.parse([card])).toEqual([normalized])
+    expect(cloudGiftCardCreateResponseSchema.parse({ items: [card], total: 1, limit: 50, offset: 0 })).toEqual([
+      normalized,
+    ])
   })
 
   it('parses Cloud package responses', () => {

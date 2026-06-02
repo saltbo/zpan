@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import type { CloudGiftCard } from '../../shared/types'
 import { PUBLIC_KEYS } from '../licensing/public-keys.js'
 import { getCloudStoreSettings } from '../services/cloud-store.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
@@ -16,13 +15,14 @@ const REFRESH_TOKEN = 'test-refresh-token'
 const INSTANCE_STORE_PATH = '/api/stores/store-test-binding'
 const { secretKey: EVENT_SECRET, publicKey: EVENT_PUBLIC } = generateKeys('public')
 
-const zpanCloudGiftCardResponseFixture: CloudGiftCard = {
+const cloudGiftCardResponseFixture = {
   id: 'gift-card-1',
   storeId: 'store-test-binding',
   campaignId: null,
   code: null,
   codeLast4: '0001',
-  credits: 1000,
+  amount: 1000,
+  currency: 'usd',
   status: 'active',
   expiresAt: null,
   createdAt: '2026-05-06T00:00:00.000Z',
@@ -32,8 +32,8 @@ const zpanCloudGiftCardResponseFixture: CloudGiftCard = {
   createdByAdmin: 'admin',
 }
 
-function cloudGiftCard(overrides: Partial<typeof zpanCloudGiftCardResponseFixture> = {}) {
-  return { ...zpanCloudGiftCardResponseFixture, ...overrides }
+function cloudGiftCard(overrides: Record<string, unknown> = {}) {
+  return { ...cloudGiftCardResponseFixture, ...overrides }
 }
 
 function cloudProduct(overrides: Record<string, unknown> = {}) {
@@ -203,12 +203,12 @@ beforeEach(() => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', credits: 1024 })],
+              items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', amount: 1024 })],
               total: 1,
               limit: 50,
               offset: 0,
               data: {
-                items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', credits: 1024 })],
+                items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', amount: 1024 })],
                 total: 1,
                 limit: 50,
                 offset: 0,
@@ -225,7 +225,7 @@ beforeEach(() => {
               cloudGiftCard({
                 code: `ZS-GEN-${index + 1}`,
                 codeLast4: `GEN${index + 1}`,
-                credits: body.amount ?? 1024,
+                amount: body.amount ?? 1024,
                 status: 'active',
               }),
             ),
@@ -404,7 +404,7 @@ describe('Quota Store API', () => {
           cloudGiftCard({
             code: 'ZS11-ACTV-0000-0001',
             codeLast4: '0001',
-            credits: 2048,
+            amount: 2048,
           }),
         ],
         total: 1,
@@ -1336,6 +1336,7 @@ describe('Quota Store API', () => {
     expect(requestHeader(generateInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(JSON.parse(generateInit.body as string)).toEqual({
       amount: 4096,
+      currency: 'usd',
       expiresAt: '2099-06-01T00:00:00.000Z',
       count: 2,
     })
