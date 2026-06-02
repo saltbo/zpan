@@ -1390,6 +1390,13 @@ describe('Quota Store API', () => {
 
     expect(res.status).toBe(201)
     await expect(res.json()).resolves.toMatchObject([{ code: 'ZS-PAGED-CREATE-1' }])
+    const [[url, init]] = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
+    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
+    expect(JSON.parse(init.body as string)).toEqual({
+      amount: 4096,
+      currency: 'usd',
+      count: 1,
+    })
   })
 
   it('disables admin gift cards through Cloud', async () => {
