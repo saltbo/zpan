@@ -412,7 +412,7 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
       await listCloudGiftCards('active')
-      const createdGiftCards = await createCloudGiftCards({ credits: 1024, count: 3 })
+      const createdGiftCards = await createCloudGiftCards({ credits: 1024, campaignId: 'campaign-1', count: 3 })
       await disableCloudGiftCard('ZS123')
       await deleteCloudGiftCard('ZS123')
       await listAdminCloudOrders({ limit: 100, offset: 100 })
@@ -424,7 +424,7 @@ describe('api', () => {
       expect(calls[1][1].method).toBe('POST')
       expect(JSON.parse(calls[1][1].body as string)).toEqual({
         credits: 1024,
-        campaignId: null,
+        campaignId: 'campaign-1',
         count: 3,
       })
       expect(createdGiftCards).toEqual([{ code: 'ZS123' }])

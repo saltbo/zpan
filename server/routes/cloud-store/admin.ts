@@ -1,6 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
 import {
-  type CreateGiftCardInput,
   cloudProductInputSchema,
   cloudProductPatchSchema,
   cloudStoreSettingsSchema,
@@ -174,17 +173,13 @@ function isCloudError(result: unknown): result is { error: string } {
   return Boolean(result && typeof result === 'object' && 'error' in result)
 }
 
-async function createCloudGiftCards(c: RouteContext, storeId: string, payload: CreateGiftCardInput) {
+async function createCloudGiftCards(c: RouteContext, storeId: string, payload: object) {
   const binding = await getCloudStoreBinding(c.get('platform').db)
   const data = await requestBoundCloudJson(
     getCloudBaseUrl(c),
     `/api/stores/${encodeURIComponent(storeId)}/gift-cards`,
     binding.refreshToken,
-    { method: 'POST', payload: cloudGiftCardPayload(payload) },
+    { method: 'POST', payload },
   )
   return cloudGiftCardCreateResponseSchema.parse(data)
-}
-
-function cloudGiftCardPayload(payload: CreateGiftCardInput) {
-  return { ...payload, amount: payload.credits, currency: 'credits' }
 }

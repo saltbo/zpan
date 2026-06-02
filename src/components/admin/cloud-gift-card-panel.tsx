@@ -29,7 +29,6 @@ export type GiftCardFormState = typeof emptyGiftCardForm
 export function giftCardInputFromForm(form: GiftCardFormState): CreateGiftCardInput {
   const input: CreateGiftCardInput = {
     credits: Math.round(Number(form.credits)),
-    campaignId: null,
     count: Math.round(Number(form.count)),
   }
   if (form.expiresAt) input.expiresAt = new Date(form.expiresAt).toISOString()

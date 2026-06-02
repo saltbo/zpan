@@ -402,9 +402,7 @@ export function listCloudGiftCards(status?: GiftCardStatus) {
 }
 
 export function createCloudGiftCards(data: CreateGiftCardInput) {
-  return unwrap<CloudGiftCard[]>(
-    adminCloudStoreApi['gift-cards'].$post({ json: { ...data, campaignId: data.campaignId ?? null } }),
-  )
+  return unwrap<CloudGiftCard[]>(adminCloudStoreApi['gift-cards'].$post({ json: data }))
 }
 
 export function disableCloudGiftCard(code: string) {

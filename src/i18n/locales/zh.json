@@ -1326,7 +1326,7 @@
   "storage.priceMonthly": "{{amount}} / 月",
   "storage.priceForDays": "{{amount}} / {{days}} 天",
   "storage.redeemTitle": "礼品卡兑换",
-  "storage.redeemDescription": "输入礼品卡，并在计划结账时使用。",
+  "storage.redeemDescription": "输入礼品卡，将其兑换为 Cloud 积分。",
   "storage.redeemAction": "兑换",
   "storage.redeemSuccess": "兑换成功！{{amount}} 积分已存入余额。",
   "storage.continuePayment": "继续支付",

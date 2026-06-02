@@ -1326,7 +1326,7 @@
   "storage.priceMonthly": "{{amount}} / month",
   "storage.priceForDays": "{{amount}} for {{days}} days",
   "storage.redeemTitle": "Redeem gift card",
-  "storage.redeemDescription": "Enter a gift card and use it during package checkout.",
+  "storage.redeemDescription": "Enter a gift card to redeem it into Cloud credits.",
   "storage.redeemAction": "Redeem",
   "storage.redeemSuccess": "Redeemed successfully! {{amount}} Credits added to your balance.",
   "storage.continuePayment": "Continue payment",

@@ -580,7 +580,6 @@ describe('AdminCloudStorePage', () => {
     await waitFor(() =>
       expect(createCloudGiftCards).toHaveBeenCalledWith({
         credits: 5000,
-        campaignId: null,
         count: 3,
       }),
     )
