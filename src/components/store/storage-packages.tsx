@@ -1,10 +1,10 @@
 import type { CloudProduct } from '@shared/types'
-import { HardDrive, Package, PlusCircle } from 'lucide-react'
+import { HardDrive, PlusCircle } from 'lucide-react'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { cloudProductStorageBytes, cloudProductTrafficBytes, cloudProductValidityDays } from '@/lib/cloud-product'
+import { cloudProductIncludedCredits, cloudProductStorageBytes } from '@/lib/cloud-product'
 import { formatSize } from '@/lib/format'
 
 export function StoragePackages({
@@ -101,41 +101,44 @@ function PackageCard({
   onCheckout: (packageId: string, priceId: string) => void
 }) {
   const { t } = useTranslation()
-  const price = selectPrice(pkg.prices)
-  const priceLabel = formatPackagePrice(price, pkg, language, t)
-  const plan = isPlanProduct(pkg)
+  const prices = selectPlanPrices(pkg.prices)
+  const primaryPrice = prices.monthly ?? prices.yearly
+  if (!primaryPrice) throw new Error('cloud_product_price_missing')
+  const priceLabel = formatPlanPrice(primaryPrice, language, t)
   const storageBytes = cloudProductStorageBytes(pkg)
-  const trafficBytes = cloudProductTrafficBytes(pkg)
+  const includedCredits = cloudProductIncludedCredits(pkg)
   return (
     <ProductCardShell
       title={pkg.name}
       description={pkg.description ?? ''}
-      badge={plan ? t('storage.monthlyPlanBadge') : t('storage.resourcePackageBadge')}
-      icon={plan ? <HardDrive className="h-4 w-4" /> : <Package className="h-4 w-4" />}
+      badge={t('storage.planBadge')}
+      icon={<HardDrive className="h-4 w-4" />}
       price={priceLabel}
       action={
-        <Button className="h-9 w-full" disabled={disabled} onClick={() => onCheckout(pkg.id, price.id)}>
-          <PlusCircle className="h-3.5 w-3.5" />
-          {plan ? t('storage.checkoutPlan') : t('storage.checkoutPackage')}
-        </Button>
+        <div className="grid gap-2">
+          {prices.monthly && (
+            <Button className="h-9 w-full" disabled={disabled} onClick={() => onCheckout(pkg.id, prices.monthly!.id)}>
+              <PlusCircle className="h-3.5 w-3.5" />
+              {t('storage.checkoutMonthly')}
+            </Button>
+          )}
+          {prices.yearly && (
+            <Button
+              className="h-9 w-full"
+              variant={prices.monthly ? 'outline' : 'default'}
+              disabled={disabled}
+              onClick={() => onCheckout(pkg.id, prices.yearly!.id)}
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              {t('storage.checkoutYearly')}
+            </Button>
+          )}
+        </div>
       }
     >
-      {plan ? (
-        <>
-          <PlanDetailRow label={t('storage.baseStorageQuota')} value={formatSize(storageBytes)} />
-          <PlanDetailRow label={t('storage.includedTraffic')} value={formatSize(trafficBytes)} />
-          <PlanDetailRow
-            label={t('storage.trafficPolicy')}
-            value={formatTrafficPolicy(pkg, price.currency, language, t)}
-          />
-        </>
-      ) : (
-        <>
-          <PlanDetailRow label={t('storage.packageStorageQuota')} value={formatSize(storageBytes)} />
-          <PlanDetailRow label={t('storage.packageTrafficQuota')} value={formatSize(trafficBytes)} />
-          <PlanDetailRow label={t('storage.packageValidity')} value={formatValidity(pkg, t)} />
-        </>
-      )}
+      <PlanDetailRow label={t('storage.baseStorageQuota')} value={formatSize(storageBytes)} />
+      <PlanDetailRow label={t('storage.includedCredits')} value={formatCredits(includedCredits)} />
+      <PlanDetailRow label={t('storage.trafficPolicy')} value={t('storage.usageBilledWithCredits')} />
     </ProductCardShell>
   )
 }
@@ -149,60 +152,44 @@ function PlanDetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function selectPrice(prices: CloudProduct['prices']) {
-  const purchasablePrices = prices.filter((item) => item.recurring?.usageType !== 'metered')
-  const price = purchasablePrices.find((item) => item.currency === 'usd')
-  if (!price) throw new Error('cloud_product_price_missing')
-  const priceId = price.id
-  if (!priceId) throw new Error('cloud_product_price_missing')
-  return { ...price, id: priceId }
-}
-
-function isPlanProduct(pkg: CloudProduct) {
-  return pkg.prices.some((price) => price.recurring && price.recurring.usageType !== 'metered')
+function selectPlanPrices(prices: CloudProduct['prices']) {
+  return {
+    monthly: recurringPrice(prices, 'month'),
+    yearly: recurringPrice(prices, 'year'),
+  }
 }
 
 function formatMoney(amount: number, currency: string, language: string) {
   return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
 }
 
-function formatPackagePrice(
+function formatPlanPrice(
   price: CloudProduct['prices'][number],
-  pkg: CloudProduct,
   language: string,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
   const amount = formatMoney(price.amount, price.currency, language)
   if (price.recurring?.interval === 'month' && price.recurring.intervalCount === 1)
     return t('storage.priceMonthly', { amount })
-  const validityDays = cloudProductValidityDays(pkg)
-  if (validityDays) return t('storage.priceForDays', { amount, days: validityDays })
+  if (price.recurring?.interval === 'year' && price.recurring.intervalCount === 1)
+    return t('storage.priceYearly', { amount })
   return amount
 }
 
-function formatValidity(pkg: CloudProduct, t: ReturnType<typeof useTranslation>['t']) {
-  const validityDays = cloudProductValidityDays(pkg)
-  if (validityDays) return t('storage.billingFixedDays', { days: validityDays })
-  return t('storage.packageNoExpiry')
-}
-
-function selectMeteredTrafficPrice(prices: CloudProduct['prices'], currency: string) {
-  return prices.find(
-    (price) =>
-      price.currency === currency &&
-      price.recurring?.usageType === 'metered' &&
-      price.metadata?.usageResource === 'traffic_egress',
+function recurringPrice(prices: CloudProduct['prices'], interval: 'month' | 'year') {
+  const price = prices.find(
+    (item) =>
+      item.currency === 'usd' &&
+      item.recurring?.interval === interval &&
+      item.recurring.intervalCount === 1 &&
+      item.recurring.usageType !== 'metered',
   )
+  if (!price) return null
+  const priceId = price.id
+  if (!priceId) throw new Error('cloud_product_price_missing')
+  return { ...price, id: priceId }
 }
 
-function formatTrafficPolicy(
-  pkg: CloudProduct,
-  currency: string,
-  language: string,
-  t: ReturnType<typeof useTranslation>['t'],
-) {
-  if (cloudProductTrafficBytes(pkg) <= 0) return t('storage.usageNoLimit')
-  const overagePrice = selectMeteredTrafficPrice(pkg.prices, currency)
-  if (!overagePrice) return t('storage.trafficStopsAtQuota')
-  return t('storage.trafficOveragePerGb', { amount: formatMoney(overagePrice.amount, currency, language) })
+function formatCredits(credits: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(credits)
 }

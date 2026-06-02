@@ -86,7 +86,9 @@ describe('quota store helper schemas', () => {
               quantity: 1,
               unitAmount: 999,
               totalAmount: 999,
-              fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 2048 } },
+              fulfillmentPayload: {
+                deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 2048, includedCredits: 0 },
+              },
             },
           ],
           payments: [

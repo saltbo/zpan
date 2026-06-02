@@ -50,7 +50,24 @@ export const cloudStore = new Hono<Env>()
       ),
     )
     if (isCloudError(result)) return c.json(result, 502)
-    return c.json(result)
+    const items = result.items.filter((item) => item.metadata.deliverable.type === 'zpan.plan')
+    return c.json({ ...result, items, total: items.length })
+  })
+  .get('/credits/products', async (c) => {
+    const store = await getUserStoreSettings(c.get('platform').db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products.$get({
+          param: { storeId },
+          query: { type: 'store_item', limit: '100', status: 'active' },
+        }),
+        cloudPackageListResponseSchema,
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
+    const items = result.items.filter((item) => item.metadata.deliverable.type === 'zpan.credits')
+    return c.json({ ...result, items, total: items.length })
   })
   .get('/targets', async (c) => {
     const db = c.get('platform').db

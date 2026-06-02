@@ -8,27 +8,34 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { cloudProductStorageBytes, cloudProductTrafficBytes, cloudProductValidityDays } from '@/lib/cloud-product'
+import { cloudProductIncludedCredits, cloudProductStorageBytes } from '@/lib/cloud-product'
 
 const units = { MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 } as const
 type Unit = keyof typeof units
-type BillingMode = 'subscription' | 'one_time'
 
 export const emptyPackageForm = {
   name: '',
   description: '',
-  billingMode: 'subscription' as BillingMode,
-  validityDays: '',
   storageSize: '',
   storageUnit: 'GB' as Unit,
-  trafficSize: '',
-  trafficUnit: 'GB' as Unit,
-  usdAmount: '9.99',
-  usdTrafficOverageAmount: '',
+  includedCredits: '',
+  usdMonthlyAmount: '9.99',
+  usdYearlyAmount: '',
   sortOrder: '0',
 }
 
 export type PackageFormState = typeof emptyPackageForm
+
+export const emptyCreditPackageForm = {
+  name: '',
+  description: '',
+  credits: '1000',
+  usdAmount: '9.99',
+  sortOrder: '0',
+}
+
+export type CreditPackageFormState = typeof emptyCreditPackageForm
+type CloudProductPriceInput = CloudProductInput['prices'][number]
 
 export function packageInputFromForm(form: PackageFormState): CloudProductInput {
   const prices = packagePricesFromForm(form)
@@ -38,11 +45,9 @@ export function packageInputFromForm(form: PackageFormState): CloudProductInput 
     description: form.description,
     metadata: {
       deliverable: {
-        type: form.billingMode === 'subscription' ? 'zpan.plan' : 'zpan.extra',
+        type: 'zpan.plan',
         storageBytes: form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0,
-        trafficBytes: form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0,
-        ...(form.billingMode === 'one_time' ? { validityDays: Math.round(Number(form.validityDays)) } : {}),
-        ...trafficOveragePrice(prices),
+        includedCredits: creditsFromForm(form),
       },
     },
     prices,
@@ -53,23 +58,101 @@ export function packageInputFromForm(form: PackageFormState): CloudProductInput 
 
 export function packageFormFromPackage(pkg: CloudProduct): PackageFormState {
   const storageBytes = cloudProductStorageBytes(pkg)
-  const trafficBytes = cloudProductTrafficBytes(pkg)
-  const validityDays = cloudProductValidityDays(pkg)
   const storageDisplay = storageBytes > 0 ? bytesToDisplay(storageBytes) : null
-  const trafficDisplay = trafficBytes > 0 ? bytesToDisplay(trafficBytes) : null
   return {
     name: pkg.name,
     description: pkg.description ?? '',
-    billingMode: pkg.prices.some((price) => price.recurring) ? 'subscription' : 'one_time',
-    validityDays: validityDays ? String(validityDays) : '',
     storageSize: storageDisplay ? String(storageDisplay.size) : '',
     storageUnit: storageDisplay?.unit ?? 'GB',
-    trafficSize: trafficDisplay ? String(trafficDisplay.size) : '',
-    trafficUnit: trafficDisplay?.unit ?? 'GB',
-    usdAmount: formatMinorAmount(monthlyPrice(pkg)?.amount),
-    usdTrafficOverageAmount: formatMinorAmount(meteredPrice(pkg)?.amount),
+    includedCredits: String(cloudProductIncludedCredits(pkg) || ''),
+    usdMonthlyAmount: formatMinorAmount(recurringUsdPrice(pkg, 'month')?.amount),
+    usdYearlyAmount: formatMinorAmount(recurringUsdPrice(pkg, 'year')?.amount),
     sortOrder: String(pkg.sortOrder),
   }
+}
+
+export function creditPackageInputFromForm(form: CreditPackageFormState): CloudProductInput {
+  const credits = creditsFromValue(form.credits)
+  const usdPrice: CloudProductPriceInput = {
+    currency: 'usd',
+    amount: convertCurrencyAmount(form.usdAmount),
+    metadata: { creditGrantType: 'top_up', creditAmount: String(credits) },
+  }
+  return {
+    type: 'store_item',
+    name: form.name,
+    description: form.description,
+    metadata: {
+      deliverable: {
+        type: 'zpan.credits',
+        includedCredits: credits,
+      },
+    },
+    prices: [usdPrice].filter((price) => Number.isFinite(price.amount) && price.amount > 0),
+    active: true,
+    sortOrder: Math.round(Number(form.sortOrder)),
+  }
+}
+
+export function creditPackageFormFromPackage(pkg: CloudProduct): CreditPackageFormState {
+  return {
+    name: pkg.name,
+    description: pkg.description ?? '',
+    credits: String(cloudProductIncludedCredits(pkg) || ''),
+    usdAmount: formatMinorAmount(oneTimeUsdPrice(pkg)?.amount),
+    sortOrder: String(pkg.sortOrder),
+  }
+}
+
+export function CreditPackageForm({
+  editing,
+  form,
+  available,
+  pending,
+  onFormChange,
+  onCancel,
+  onSubmit,
+}: {
+  editing: CloudProduct | null
+  form: CreditPackageFormState
+  available: boolean
+  pending: boolean
+  onFormChange: (form: CreditPackageFormState) => void
+  onCancel: () => void
+  onSubmit: () => void
+}) {
+  const { t } = useTranslation()
+  const creditsValid = creditsFromValue(form.credits) > 0
+  const priceValid = convertCurrencyAmount(form.usdAmount) > 0
+
+  return (
+    <div className="space-y-4">
+      <PackageIdentityFields form={form} onFormChange={onFormChange} />
+      <NumberField
+        label={t('admin.cloudStore.creditAmount')}
+        id="creditPackageAmount"
+        min="1"
+        step="1"
+        value={form.credits}
+        onChange={(credits) => onFormChange({ ...form, credits })}
+      />
+      <NumberField
+        label={t('admin.cloudStore.usdAmount')}
+        id="creditPackageUsdAmount"
+        min="0.01"
+        step="0.01"
+        value={form.usdAmount}
+        onChange={(usdAmount) => onFormChange({ ...form, usdAmount })}
+      />
+      <PackageFormActions
+        editing={editing}
+        available={available && creditsValid && priceValid}
+        pending={pending}
+        onCancel={onCancel}
+        onSubmit={onSubmit}
+      />
+    </div>
+  )
 }
 
 export function StoragePlanForm({
@@ -92,15 +175,12 @@ export function StoragePlanForm({
   const { t } = useTranslation()
 
   const storageBytes = form.storageSize ? Math.round(Number(form.storageSize) * units[form.storageUnit]) : 0
-  const trafficBytes = form.trafficSize ? Math.round(Number(form.trafficSize) * units[form.trafficUnit]) : 0
-  const quotaValid = storageBytes > 0 || trafficBytes > 0
-  const validityValid = form.billingMode === 'subscription' || Number(form.validityDays) > 0
+  const quotaValid = storageBytes > 0
   const pricesValid = packagePriceInputsValid(form)
 
   return (
     <div className="space-y-4">
       <PackageIdentityFields form={form} onFormChange={onFormChange} />
-      <PackageBillingFields form={form} onFormChange={onFormChange} />
       <PackageQuotaFields
         label={t('admin.cloudStore.storageQuota')}
         sizeId="packageStorageSize"
@@ -109,24 +189,21 @@ export function StoragePlanForm({
         onSizeChange={(storageSize) => onFormChange({ ...form, storageSize })}
         onUnitChange={(storageUnit) => onFormChange({ ...form, storageUnit })}
       />
-      <PackageQuotaFields
-        label={t('admin.cloudStore.trafficQuota')}
-        sizeId="packageTrafficSize"
-        sizeValue={form.trafficSize}
-        unit={form.trafficUnit}
-        onSizeChange={(trafficSize) => onFormChange({ ...form, trafficSize })}
-        onUnitChange={(trafficUnit) => onFormChange({ ...form, trafficUnit })}
+      <NumberField
+        label={t('admin.cloudStore.includedCredits')}
+        id="packageIncludedCredits"
+        min="0"
+        step="1"
+        value={form.includedCredits}
+        onChange={(includedCredits) => onFormChange({ ...form, includedCredits })}
       />
-      {!quotaValid && (form.storageSize !== '' || form.trafficSize !== '') && (
+      {!quotaValid && form.storageSize !== '' && (
         <p className="text-xs text-destructive">{t('admin.cloudStore.quotaRequired')}</p>
-      )}
-      {!validityValid && form.validityDays !== '' && (
-        <p className="text-xs text-destructive">{t('admin.cloudStore.validityRequired')}</p>
       )}
       <PackageAmountFields form={form} onFormChange={onFormChange} />
       <PackageFormActions
         editing={editing}
-        available={available && quotaValid && validityValid && pricesValid}
+        available={available && quotaValid && pricesValid}
         pending={pending}
         onCancel={onCancel}
         onSubmit={onSubmit}
@@ -139,37 +216,34 @@ function packagePricesFromForm(form: PackageFormState) {
   return packagePricesForForm(form).filter((price) => Number.isFinite(price.amount) && price.amount > 0)
 }
 
-function trafficOveragePrice(prices: ReturnType<typeof packagePricesFromForm>) {
-  const price = prices.find(isFormMeteredTrafficPrice)
-  return price ? { trafficOveragePriceCents: price.amount } : {}
+function creditsFromForm(form: PackageFormState) {
+  return creditsFromValue(form.includedCredits)
 }
 
-function isFormMeteredTrafficPrice(price: ReturnType<typeof packagePricesFromForm>[number]) {
-  return (
-    'metadata' in price && price.recurring.usageType === 'metered' && price.metadata.usageResource === 'traffic_egress'
-  )
+function creditsFromValue(value: string) {
+  const credits = Number(value)
+  return Number.isSafeInteger(credits) && credits > 0 ? credits : 0
 }
 
 function packagePriceInputsValid(form: PackageFormState) {
-  const hasAmount = convertCurrencyAmount(form.usdAmount) > 0
-  if (!hasAmount) return false
-  return form.billingMode !== 'subscription' || convertCurrencyAmount(form.usdTrafficOverageAmount) > 0
+  return convertCurrencyAmount(form.usdMonthlyAmount) > 0 || convertCurrencyAmount(form.usdYearlyAmount) > 0
 }
 
 function packagePricesForForm(form: PackageFormState) {
-  const monthlyPrice = {
-    currency: 'usd' as const,
-    amount: convertCurrencyAmount(form.usdAmount),
-    ...(form.billingMode === 'subscription' ? { recurring: { interval: 'month' as const, intervalCount: 1 } } : {}),
-  }
-  if (form.billingMode !== 'subscription') return [monthlyPrice]
+  const credits = creditsFromForm(form)
+  const metadata = credits > 0 ? { creditGrantType: 'subscription_grant', creditAmount: String(credits) } : undefined
   return [
-    monthlyPrice,
     {
       currency: 'usd' as const,
-      amount: convertCurrencyAmount(form.usdTrafficOverageAmount),
-      recurring: { interval: 'month' as const, intervalCount: 1, usageType: 'metered' as const },
-      metadata: { usageResource: 'traffic_egress' },
+      amount: convertCurrencyAmount(form.usdMonthlyAmount),
+      recurring: { interval: 'month' as const, intervalCount: 1 },
+      ...(metadata ? { metadata } : {}),
+    },
+    {
+      currency: 'usd' as const,
+      amount: convertCurrencyAmount(form.usdYearlyAmount),
+      recurring: { interval: 'year' as const, intervalCount: 1 },
+      ...(metadata ? { metadata } : {}),
     },
   ]
 }
@@ -182,16 +256,18 @@ function formatMinorAmount(minorAmount: number | undefined): string {
   return minorAmount === undefined ? '' : (minorAmount / 100).toString()
 }
 
-function isMeteredTrafficPrice(price: CloudProduct['prices'][number]) {
-  return price.recurring?.usageType === 'metered' && price.metadata?.usageResource === 'traffic_egress'
+function recurringUsdPrice(pkg: CloudProduct, interval: 'month' | 'year') {
+  return pkg.prices.find(
+    (price) =>
+      price.currency === 'usd' &&
+      price.recurring?.interval === interval &&
+      price.recurring.intervalCount === 1 &&
+      price.recurring.usageType !== 'metered',
+  )
 }
 
-function monthlyPrice(pkg: CloudProduct) {
-  return pkg.prices.find((price) => price.currency === 'usd' && !isMeteredTrafficPrice(price))
-}
-
-function meteredPrice(pkg: CloudProduct) {
-  return pkg.prices.find((price) => price.currency === 'usd' && isMeteredTrafficPrice(price))
+function oneTimeUsdPrice(pkg: CloudProduct) {
+  return pkg.prices.find((price) => price.currency === 'usd' && !price.recurring)
 }
 
 function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
@@ -203,12 +279,12 @@ function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; 
   )
 }
 
-function PackageIdentityFields({
+function PackageIdentityFields<TForm extends { name: string; description: string }>({
   form,
   onFormChange,
 }: {
-  form: PackageFormState
-  onFormChange: (form: PackageFormState) => void
+  form: TForm
+  onFormChange: (form: TForm) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -225,44 +301,6 @@ function PackageIdentityFields({
         />
       </Field>
     </>
-  )
-}
-
-function PackageBillingFields({
-  form,
-  onFormChange,
-}: {
-  form: PackageFormState
-  onFormChange: (form: PackageFormState) => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      <Field label={t('admin.cloudStore.billingMode')}>
-        <Select
-          value={form.billingMode}
-          onValueChange={(billingMode) => onFormChange({ ...form, billingMode: billingMode as BillingMode })}
-        >
-          <SelectTrigger aria-label={t('admin.cloudStore.billingMode')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="subscription">{t('admin.cloudStore.billingSubscription')}</SelectItem>
-            <SelectItem value="one_time">{t('admin.cloudStore.billingOneTime')}</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
-      {form.billingMode === 'one_time' && (
-        <NumberField
-          label={t('admin.cloudStore.validityDays')}
-          id="packageValidityDays"
-          min="1"
-          step="1"
-          value={form.validityDays}
-          onChange={(validityDays) => onFormChange({ ...form, validityDays })}
-        />
-      )}
-    </div>
   )
 }
 
@@ -312,23 +350,21 @@ function PackageAmountFields({
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <NumberField
-        label={t('admin.cloudStore.usdAmount')}
-        id="packageUsdAmount"
+        label={t('admin.cloudStore.usdMonthlyAmount')}
+        id="packageUsdMonthlyAmount"
         min="0.01"
         step="0.01"
-        value={form.usdAmount}
-        onChange={(usdAmount) => onFormChange({ ...form, usdAmount })}
+        value={form.usdMonthlyAmount}
+        onChange={(usdMonthlyAmount) => onFormChange({ ...form, usdMonthlyAmount })}
       />
-      {form.billingMode === 'subscription' && (
-        <NumberField
-          label={t('admin.cloudStore.usdTrafficOveragePrice')}
-          id="packageUsdTrafficOverageAmount"
-          min="0.01"
-          step="0.01"
-          value={form.usdTrafficOverageAmount}
-          onChange={(usdTrafficOverageAmount) => onFormChange({ ...form, usdTrafficOverageAmount })}
-        />
-      )}
+      <NumberField
+        label={t('admin.cloudStore.usdYearlyAmount')}
+        id="packageUsdYearlyAmount"
+        min="0.01"
+        step="0.01"
+        value={form.usdYearlyAmount}
+        onChange={(usdYearlyAmount) => onFormChange({ ...form, usdYearlyAmount })}
+      />
     </div>
   )
 }

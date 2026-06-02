@@ -384,6 +384,10 @@ export function listAdminCloudProducts() {
   return unwrap<{ items: CloudProduct[]; total: number }>(adminCloudStoreApi.packages.$get())
 }
 
+export function listAdminCloudCreditProducts() {
+  return unwrap<{ items: CloudProduct[]; total: number }>(adminCloudStoreApi.credits.products.$get())
+}
+
 export function createCloudProduct(data: CloudProductInput) {
   return unwrap<CloudProduct>(adminCloudStoreApi.packages.$post({ json: data }))
 }
@@ -430,6 +434,10 @@ export function listAdminCloudOrders(options: { limit?: number; offset?: number 
 
 export function listCloudProducts() {
   return unwrap<{ items: CloudProduct[]; total: number }>(cloudStoreApi.packages.$get())
+}
+
+export function listCloudCreditProducts() {
+  return unwrap<{ items: CloudProduct[]; total: number }>(cloudStoreApi.credits.products.$get())
 }
 
 export function listCloudStoreTargets() {

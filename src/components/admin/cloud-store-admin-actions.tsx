@@ -11,12 +11,16 @@ import {
   StorageGiftCardPanel,
 } from '@/components/admin/cloud-gift-card-panel'
 import {
+  CreditPackageForm,
+  creditPackageFormFromPackage,
+  creditPackageInputFromForm,
+  emptyCreditPackageForm,
   emptyPackageForm,
   packageFormFromPackage,
   packageInputFromForm,
   StoragePlanForm,
 } from '@/components/admin/cloud-product-form'
-import { StoragePlanList } from '@/components/admin/cloud-product-list'
+import { CreditPackageList, StoragePlanList } from '@/components/admin/cloud-product-list'
 import {
   createCloudGiftCards,
   createCloudProduct,
@@ -72,6 +76,47 @@ export function usePackageEditor() {
   }
 }
 
+export function useCreditPackageEditor() {
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<CloudProduct | null>(null)
+  const [deleting, setDeleting] = useState<CloudProduct | null>(null)
+  const [form, setForm] = useState(emptyCreditPackageForm)
+  const mutation = useCreditPackageMutation(editing, form, () => {
+    setOpen(false)
+    setEditing(null)
+    setForm(emptyCreditPackageForm)
+  })
+  const publishMutation = usePackagePublishMutation()
+  const deleteMutation = usePackageDeleteMutation(() => setDeleting(null))
+  return {
+    open,
+    editing,
+    deleting,
+    form,
+    setForm,
+    newPackage: () => {
+      setEditing(null)
+      setForm(emptyCreditPackageForm)
+      setOpen(true)
+    },
+    mutation,
+    publishMutation,
+    deleteMutation,
+    edit: (pkg: CloudProduct) => editCreditPackage(pkg, setEditing, setForm, setOpen),
+    publish: (pkg: CloudProduct, active: boolean) => publishMutation.mutate({ id: pkg.id, active }),
+    delete: (pkg: CloudProduct) => setDeleting(pkg),
+    cancelDelete: () => setDeleting(null),
+    confirmDelete: () => {
+      if (deleting) deleteMutation.mutate(deleting.id)
+    },
+    cancel: () => {
+      setOpen(false)
+      setEditing(null)
+      setForm(emptyCreditPackageForm)
+    },
+  }
+}
+
 export function useGiftCardActions() {
   const [form, setForm] = useState(emptyGiftCardForm)
   const [disablingGiftCard, setDisablingGiftCard] = useState<string | null>(null)
@@ -85,18 +130,23 @@ export function useGiftCardActions() {
 export function PackagesTab({
   available,
   packages,
+  creditPackages,
   editor,
+  creditEditor,
 }: {
   available: boolean
   packages: CloudProduct[]
+  creditPackages: CloudProduct[]
   editor: ReturnType<typeof usePackageEditor>
+  creditEditor: ReturnType<typeof useCreditPackageEditor>
 }) {
   const { t } = useTranslation()
   const [filter, setFilter] = useState<PackageFilter>('all')
   const visiblePackages = filterPackages(packages, filter)
+  const visibleCreditPackages = filterPackages(creditPackages, filter)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <Select value={filter} onValueChange={(value) => setFilter(value as PackageFilter)}>
           <SelectTrigger className="w-40">
@@ -113,15 +163,42 @@ export function PackagesTab({
           {t('admin.cloudStore.newPackage')}
         </Button>
       </div>
-      <StoragePlanList
-        packages={visiblePackages}
-        actionPending={editor.publishMutation.isPending || editor.deleteMutation.isPending}
-        onEdit={editor.edit}
-        onDelete={editor.delete}
-        onPublishChange={editor.publish}
-      />
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-base font-semibold">{t('admin.cloudStore.planProductsTitle')}</h3>
+          <p className="text-sm text-muted-foreground">{t('admin.cloudStore.planProductsDescription')}</p>
+        </div>
+        <StoragePlanList
+          packages={visiblePackages}
+          actionPending={editor.publishMutation.isPending || editor.deleteMutation.isPending}
+          onEdit={editor.edit}
+          onDelete={editor.delete}
+          onPublishChange={editor.publish}
+        />
+      </section>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">{t('admin.cloudStore.creditProductsTitle')}</h3>
+            <p className="text-sm text-muted-foreground">{t('admin.cloudStore.creditProductsDescription')}</p>
+          </div>
+          <Button disabled={!available} onClick={creditEditor.newPackage}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t('admin.cloudStore.newCreditPackage')}
+          </Button>
+        </div>
+        <CreditPackageList
+          packages={visibleCreditPackages}
+          actionPending={creditEditor.publishMutation.isPending || creditEditor.deleteMutation.isPending}
+          onEdit={creditEditor.edit}
+          onDelete={creditEditor.delete}
+          onPublishChange={creditEditor.publish}
+        />
+      </section>
       <PackageDialog available={available} editor={editor} />
       <DeletePackageDialog editor={editor} />
+      <CreditPackageDialog available={available} editor={creditEditor} />
+      <DeleteCreditPackageDialog editor={creditEditor} />
     </div>
   )
 }
@@ -150,6 +227,36 @@ function PackageDialog({ available, editor }: { available: boolean; editor: Retu
   )
 }
 
+function CreditPackageDialog({
+  available,
+  editor,
+}: {
+  available: boolean
+  editor: ReturnType<typeof useCreditPackageEditor>
+}) {
+  const { t } = useTranslation()
+  return (
+    <Dialog open={editor.open} onOpenChange={(open) => (open ? editor.newPackage() : editor.cancel())}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>
+            {editor.editing ? t('admin.cloudStore.editCreditPackage') : t('admin.cloudStore.newCreditPackage')}
+          </DialogTitle>
+        </DialogHeader>
+        <CreditPackageForm
+          editing={editor.editing}
+          form={editor.form}
+          available={available}
+          pending={editor.mutation.isPending}
+          onFormChange={editor.setForm}
+          onCancel={editor.cancel}
+          onSubmit={() => editor.mutation.mutate()}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function DeletePackageDialog({ editor }: { editor: ReturnType<typeof usePackageEditor> }) {
   const { t } = useTranslation()
   const pkg = editor.deleting
@@ -165,6 +272,36 @@ function DeletePackageDialog({ editor }: { editor: ReturnType<typeof usePackageE
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('admin.cloudStore.deleteTitle')}</DialogTitle>
+          <DialogDescription>{t('admin.cloudStore.deleteConfirm', { name: pkg.name })}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={editor.cancelDelete} disabled={editor.deleteMutation.isPending}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="destructive" disabled={editor.deleteMutation.isPending} onClick={editor.confirmDelete}>
+            {editor.deleteMutation.isPending ? t('common.loading') : t('common.delete')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DeleteCreditPackageDialog({ editor }: { editor: ReturnType<typeof useCreditPackageEditor> }) {
+  const { t } = useTranslation()
+  const pkg = editor.deleting
+  if (!pkg) return null
+
+  return (
+    <Dialog
+      open={Boolean(pkg)}
+      onOpenChange={(open) => {
+        if (!open && !editor.deleteMutation.isPending) editor.cancelDelete()
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('admin.cloudStore.deleteCreditTitle')}</DialogTitle>
           <DialogDescription>{t('admin.cloudStore.deleteConfirm', { name: pkg.name })}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -216,6 +353,24 @@ function usePackageMutation(editing: CloudProduct | null, form: typeof emptyPack
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => savePackage(editing, form),
+    onSuccess: () => {
+      onSaved()
+      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store'] })
+      toast.success(t('admin.cloudStore.packageSaved'))
+    },
+    onError: (err) => toast.error(err.message),
+  })
+}
+
+function useCreditPackageMutation(
+  editing: CloudProduct | null,
+  form: typeof emptyCreditPackageForm,
+  onSaved: () => void,
+) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => saveCreditPackage(editing, form),
     onSuccess: () => {
       onSaved()
       queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store'] })
@@ -307,8 +462,32 @@ function editPackage(
   setOpen(true)
 }
 
+function editCreditPackage(
+  pkg: CloudProduct,
+  setEditing: (pkg: CloudProduct) => void,
+  setForm: (form: typeof emptyCreditPackageForm) => void,
+  setOpen: (open: boolean) => void,
+) {
+  setEditing(pkg)
+  setForm(creditPackageFormFromPackage(pkg))
+  setOpen(true)
+}
+
 function savePackage(editing: CloudProduct | null, form: typeof emptyPackageForm) {
   const input = packageInputFromForm(form)
+  if (!editing) return createCloudProduct(input)
+  return updateCloudProduct(editing.id, {
+    type: input.type,
+    name: input.name,
+    description: input.description,
+    metadata: input.metadata,
+    prices: input.prices,
+    sortOrder: input.sortOrder,
+  })
+}
+
+function saveCreditPackage(editing: CloudProduct | null, form: typeof emptyCreditPackageForm) {
+  const input = creditPackageInputFromForm(form)
   if (!editing) return createCloudProduct(input)
   return updateCloudProduct(editing.id, {
     type: input.type,

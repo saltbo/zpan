@@ -6,8 +6,10 @@ import {
   orderListResponseSchema,
   productPriceSchema,
   updateProductSchema,
-  zpanCloudEventSchema,
 } from 'zpan-cloud-sdk'
+import { type CloudOrderQuotaChange, legacyCloudProductDeliverableSchema } from './cloud-store-legacy'
+
+export { cloudOrderQuotaChangeSchema } from './cloud-store-legacy'
 
 export const cloudStoreSettingsSchema = z.object({
   enabled: z.boolean(),
@@ -18,16 +20,24 @@ export const cloudProductPriceSchema = productPriceSchema.extend({
   currency: cloudStoreCurrencySchema,
   amount: z.number().int().positive(),
 })
-export const cloudProductDeliverableSchema = z.object({
-  type: z.enum(['zpan.plan', 'zpan.extra']),
-  storageBytes: z.number().int().min(0).default(0),
-  trafficBytes: z.number().int().min(0).default(0),
-  validityDays: z.number().int().positive().optional(),
-  trafficOveragePriceCents: z.number().int().min(0).optional(),
-})
+export const cloudProductDeliverableSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('zpan.plan'),
+      storageBytes: z.number().int().min(0).default(0),
+      includedCredits: z.number().int().min(0).default(0),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('zpan.credits'),
+      includedCredits: z.number().int().positive(),
+    })
+    .strict(),
+])
 
 export const cloudOrderFulfillmentPayloadSchema = z.object({
-  deliverable: cloudProductDeliverableSchema,
+  deliverable: z.union([legacyCloudProductDeliverableSchema, cloudProductDeliverableSchema]),
 })
 export const cloudOrderItemSchema = commerceOrderItemSchema.extend({
   fulfillmentPayload: cloudOrderFulfillmentPayloadSchema,
@@ -54,11 +64,7 @@ function validateUniformPriceBilling(
   }
 }
 
-function isMeteredTrafficPrice(price: CloudProductPrice) {
-  return price.recurring?.usageType === 'metered' && price.metadata?.usageResource === 'traffic_egress'
-}
-
-function validateSubscriptionMeteredPairs(
+function validateSubscriptionPrices(
   prices: CloudProductPrice[],
   ctx: z.RefinementCtx,
   path: Array<string | number> = ['prices'],
@@ -67,52 +73,47 @@ function validateSubscriptionMeteredPairs(
   if (recurringPrices.length === 0) return
 
   for (const [index, price] of prices.entries()) {
-    if (price.recurring && (price.recurring.interval !== 'month' || price.recurring.intervalCount !== 1)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...path, index, 'recurring'],
-        message: 'Subscription prices must bill monthly',
-      })
+    if (price.recurring) {
+      const isMonthly = price.recurring.interval === 'month' && price.recurring.intervalCount === 1
+      const isAnnual = price.recurring.interval === 'year' && price.recurring.intervalCount === 1
+      if (!isMonthly && !isAnnual) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...path, index, 'recurring'],
+          message: 'Subscription prices must bill monthly or yearly',
+        })
+      }
     }
-    const usageType = price.recurring?.usageType
-    const usageResource = price.metadata?.usageResource
-    if (usageType === 'metered' && usageResource !== 'traffic_egress') {
+    if (price.recurring?.usageType === 'metered') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: [...path, index],
-        message: 'Metered traffic prices must set usageResource to traffic_egress',
+        message: 'Subscription prices must not use metered billing',
       })
     }
-    if (usageResource === 'traffic_egress' && usageType !== 'metered') {
+    if (price.metadata?.usageResource === 'traffic_egress') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: [...path, index],
-        message: 'Traffic overage prices must use metered billing',
+        message: 'Traffic overage prices are no longer supported',
       })
     }
   }
 
   const currencies = new Set(recurringPrices.map((price) => price.currency))
   for (const currency of currencies) {
-    const monthlyCount = recurringPrices.filter(
-      (price) => price.currency === currency && !isMeteredTrafficPrice(price),
-    ).length
-    if (monthlyCount !== 1) {
+    const fixedPrices = recurringPrices.filter(
+      (price) => price.currency === currency && price.recurring?.usageType !== 'metered',
+    )
+    const monthlyCount = fixedPrices.filter((price) => price.recurring?.interval === 'month').length
+    const yearlyCount = fixedPrices.filter((price) => price.recurring?.interval === 'year').length
+    if (fixedPrices.length < 1 || monthlyCount > 1 || yearlyCount > 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path,
-        message: `Subscription prices for ${currency} must have exactly one monthly price`,
+        message: `Subscription prices for ${currency} must have at least one monthly or yearly price, and at most one of each`,
       })
     }
-    const meteredCount = recurringPrices.filter(
-      (price) => price.currency === currency && isMeteredTrafficPrice(price),
-    ).length
-    if (meteredCount === 1) continue
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path,
-      message: `Subscription prices for ${currency} must have exactly one metered traffic price`,
-    })
   }
 }
 
@@ -121,12 +122,15 @@ function validateDeliverableBillingMode(
   prices: CloudProductPrice[],
   ctx: z.RefinementCtx,
 ) {
-  const expectedType = prices.some((price) => price.recurring) ? 'zpan.plan' : 'zpan.extra'
-  if (deliverable.type === expectedType) return
+  const recurring = prices.some((price) => price.recurring)
+  if (recurring && deliverable.type === 'zpan.plan') return
+  if (!recurring && deliverable.type === 'zpan.credits') return
   ctx.addIssue({
     code: z.ZodIssueCode.custom,
     path: ['metadata', 'deliverable', 'type'],
-    message: `Deliverable type must be ${expectedType}`,
+    message: recurring
+      ? 'Recurring prices must use zpan.plan deliverables'
+      : 'One-time prices must use zpan.credits deliverables',
   })
 }
 
@@ -139,14 +143,14 @@ export const cloudProductInputSchema = createProductSchema
   })
   .superRefine((data, ctx) => {
     validateUniformPriceBilling(data.prices, ctx)
-    validateSubscriptionMeteredPairs(data.prices, ctx)
+    validateSubscriptionPrices(data.prices, ctx)
     const deliverable = data.metadata.deliverable
     validateDeliverableBillingMode(deliverable, data.prices, ctx)
-    if (deliverable.storageBytes === 0 && deliverable.trafficBytes === 0) {
+    if (deliverable.type === 'zpan.plan' && deliverable.storageBytes === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['metadata', 'deliverable', 'storageBytes'],
-        message: 'At least one of storageBytes or trafficBytes must be greater than 0',
+        message: 'Plan storageBytes must be greater than 0',
       })
     }
   })
@@ -161,16 +165,16 @@ export const cloudProductPatchSchema = updateProductSchema
   .superRefine((data, ctx) => {
     if (data.prices) {
       validateUniformPriceBilling(data.prices, ctx)
-      validateSubscriptionMeteredPairs(data.prices, ctx)
+      validateSubscriptionPrices(data.prices, ctx)
     }
     if (data.metadata) {
       const deliverable = data.metadata.deliverable
       if (data.prices) validateDeliverableBillingMode(deliverable, data.prices, ctx)
-      if (deliverable.storageBytes > 0 || deliverable.trafficBytes > 0) return
+      if (deliverable.type === 'zpan.credits' || deliverable.storageBytes > 0) return
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['metadata', 'deliverable', 'storageBytes'],
-        message: 'At least one of storageBytes or trafficBytes must be greater than 0',
+        message: 'Plan storageBytes must be greater than 0',
       })
     }
   })
@@ -195,93 +199,6 @@ export const disableGiftCardSchema = z.object({
   disabled: z.literal(true),
 })
 
-const legacyCloudOrderQuotaChangeSchema = z
-  .object({
-    eventId: z.string().min(1),
-    eventType: z.literal('order.quota_changed'),
-    cloudOrderId: z.string().min(1),
-    targetOrgId: z.string().min(1),
-    direction: z.enum(['increase', 'decrease']),
-    storageBytes: z.number().int().min(0).default(0),
-    trafficBytes: z.number().int().min(0).default(0),
-    trafficOveragePriceCents: z.number().int().min(0).optional(),
-    source: z.string().min(1).optional(),
-    packageId: z.string().min(1).optional(),
-    packageName: z.string().min(1).optional(),
-    occurredAt: z.string().min(1).optional(),
-    expiresAt: z.string().datetime().optional(),
-    customerId: z.string().optional(),
-    customerEmail: z.string().email().optional(),
-  })
-  .strict()
-  .superRefine((event, ctx) => {
-    if (event.storageBytes === 0 && event.trafficBytes === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['storageBytes'],
-        message: 'At least one of storageBytes or trafficBytes must be greater than 0',
-      })
-    }
-  })
-
-const storeDeliveryEventSchema = zpanCloudEventSchema
-
-function numberDeliverableValue(deliverable: Record<string, unknown>, key: string) {
-  const value = deliverable[key]
-  return typeof value === 'number' ? value : 0
-}
-
-function optionalNumberDeliverableValue(deliverable: Record<string, unknown>, key: string) {
-  const value = deliverable[key]
-  return typeof value === 'number' ? value : undefined
-}
-
-function stringDeliverableValue(deliverable: Record<string, unknown>, key: string) {
-  const value = deliverable[key]
-  return typeof value === 'string' ? value : undefined
-}
-
-function targetOrgId(target: Record<string, unknown> | null) {
-  return typeof target?.orgId === 'string' ? target.orgId : ''
-}
-
-function sourceId(event: z.infer<typeof storeDeliveryEventSchema>) {
-  const orgId = targetOrgId(event.target)
-  if (event.context.stripeSubscriptionId) return `stripe_subscription:${event.context.stripeSubscriptionId}:${orgId}`
-  return event.orderId
-}
-
-function expiresAt(event: z.infer<typeof storeDeliveryEventSchema>) {
-  if (event.context.billingPeriodEnd) return event.context.billingPeriodEnd
-  const validityDays = numberDeliverableValue(event.deliverable, 'validityDays')
-  if (validityDays <= 0) return undefined
-  return new Date(new Date(event.occurredAt).getTime() + validityDays * 86_400_000).toISOString()
-}
-
-export const cloudOrderQuotaChangeSchema = z.union([
-  legacyCloudOrderQuotaChangeSchema,
-  storeDeliveryEventSchema.transform((event) => ({
-    eventId: event.eventId,
-    eventType: 'order.quota_changed' as const,
-    cloudOrderId: sourceId(event),
-    targetOrgId: targetOrgId(event.target),
-    direction:
-      event.eventType === 'store.subscription.canceled' || event.eventType === 'store.subscription.expired'
-        ? ('decrease' as const)
-        : ('increase' as const),
-    storageBytes: numberDeliverableValue(event.deliverable, 'storageBytes'),
-    trafficBytes: numberDeliverableValue(event.deliverable, 'trafficBytes'),
-    trafficOveragePriceCents: optionalNumberDeliverableValue(event.deliverable, 'trafficOveragePriceCents'),
-    source: event.context.stripeSubscriptionId ? 'stripe_subscription' : 'stripe',
-    packageId: event.productId,
-    packageName: stringDeliverableValue(event.deliverable, 'packageName') ?? event.productName,
-    occurredAt: event.occurredAt,
-    expiresAt: expiresAt(event),
-    customerId: typeof event.target?.customerId === 'string' ? event.target.customerId : undefined,
-    customerEmail: typeof event.target?.customerLabel === 'string' ? event.target.customerLabel : undefined,
-  })),
-])
-
 export type CloudStoreSettingsInput = z.infer<typeof cloudStoreSettingsSchema>
 export type CloudStoreCurrency = z.infer<typeof cloudStoreCurrencySchema>
 export type CloudProductPrice = z.infer<typeof cloudProductPriceSchema>
@@ -295,7 +212,7 @@ export type CheckoutInput = z.infer<typeof checkoutInputSchema>
 export type GiftCardStatus = z.infer<typeof giftCardStatusSchema>
 export type CreateGiftCardInput = z.input<typeof createGiftCardInputSchema>
 export type DisableGiftCardInput = z.infer<typeof disableGiftCardSchema>
-export type CloudOrderQuotaChange = z.infer<typeof cloudOrderQuotaChangeSchema>
+export type { CloudOrderQuotaChange }
 
 export const cloudCreditBalanceResponseSchema = z.object({
   balance: z.number().int(),

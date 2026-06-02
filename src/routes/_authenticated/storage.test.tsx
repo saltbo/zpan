@@ -9,6 +9,7 @@ import {
   getCloudCredits,
   getUserQuota,
   listCloudCreditLedgerEntries,
+  listCloudCreditProducts,
   listCloudOrders,
   listCloudProducts,
   redeemCloudGiftCard,
@@ -91,6 +92,7 @@ vi.mock('@/lib/api', () => {
     getUserQuota: vi.fn(),
     getCloudCredits: vi.fn(),
     redeemCloudGiftCard: vi.fn(),
+    listCloudCreditProducts: vi.fn(),
     listCloudProducts: vi.fn(),
     listCloudOrders: vi.fn(),
     listCloudCreditLedgerEntries: vi.fn(),
@@ -119,7 +121,9 @@ function order(overrides: Partial<CloudOrder> = {}): CloudOrder {
         quantity: 1,
         unitAmount: 999,
         totalAmount: 999,
-        fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0 } },
+        fulfillmentPayload: {
+          deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0, includedCredits: 0 },
+        },
       },
     ],
     payments: [],
@@ -140,8 +144,18 @@ function quotaPackage(): CloudProduct {
     type: 'store_item',
     name: '100 GB',
     description: 'Extra storage',
-    metadata: { deliverable: { type: 'zpan.extra', storageBytes: 107374182400, trafficBytes: 0 } },
-    prices: [{ id: 'price-usd', currency: 'usd', amount: 999 }],
+    metadata: {
+      deliverable: { type: 'zpan.plan', storageBytes: 107374182400, includedCredits: 1000 },
+    },
+    prices: [
+      {
+        id: 'price-usd',
+        currency: 'usd',
+        amount: 999,
+        recurring: { interval: 'month', intervalCount: 1 },
+        metadata: { creditGrantType: 'subscription_grant', creditAmount: '1000' },
+      },
+    ],
     active: true,
     sortOrder: 1,
     createdAt: '2026-05-05T00:00:00.000Z',
@@ -154,21 +168,50 @@ function subscriptionPackage(): CloudProduct {
     ...quotaPackage(),
     id: 'pkg-subscription',
     name: 'Team Plan',
-    metadata: { deliverable: { type: 'zpan.plan', storageBytes: 107374182400, trafficBytes: 21474836480 } },
+    metadata: {
+      deliverable: { type: 'zpan.plan', storageBytes: 107374182400, includedCredits: 1000 },
+    },
     prices: [
       {
         id: 'price-subscription-usd',
         currency: 'usd',
         amount: 999,
         recurring: { interval: 'month', intervalCount: 1 },
+        metadata: { creditGrantType: 'subscription_grant', creditAmount: '1000' },
       },
       {
+        id: 'price-subscription-yearly-usd',
         currency: 'usd',
-        amount: 25,
-        recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-        metadata: { usageResource: 'traffic_egress' },
+        amount: 9999,
+        recurring: { interval: 'year', intervalCount: 1 },
+        metadata: { creditGrantType: 'subscription_grant', creditAmount: '1000' },
       },
     ],
+  }
+}
+
+function creditPackage(): CloudProduct {
+  return {
+    id: 'pkg-credits',
+    storeId: 'store-1',
+    type: 'store_item',
+    name: '5,000 Credits',
+    description: 'Credit top-up',
+    metadata: {
+      deliverable: { type: 'zpan.credits', includedCredits: 5000 },
+    },
+    prices: [
+      {
+        id: 'price-credits-usd',
+        currency: 'usd',
+        amount: 2999,
+        metadata: { creditGrantType: 'top_up', creditAmount: '5000' },
+      },
+    ],
+    active: true,
+    sortOrder: 1,
+    createdAt: '2026-05-05T00:00:00.000Z',
+    updatedAt: '2026-05-05T00:00:00.000Z',
   }
 }
 
@@ -208,6 +251,7 @@ describe('StoragePage', () => {
       trafficExtraNames: [],
     })
     vi.mocked(getCloudCredits).mockResolvedValue({ balance: 0 })
+    vi.mocked(listCloudCreditProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudCreditLedgerEntries).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
   })
 
@@ -351,8 +395,8 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkoutMonthly/ }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
     expect(toast.info).not.toHaveBeenCalled()
@@ -370,9 +414,10 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByText('storage.monthlyPlanBadge')).toBeTruthy())
+    await waitFor(() => expect(view.getByText('storage.planBadge')).toBeTruthy())
     expect(view.getByText('storage.trafficPolicy')).toBeTruthy()
-    expect(view.getByText(/storage\.trafficOveragePerGb/)).toBeTruthy()
+    expect(view.getByText('storage.includedCredits')).toBeTruthy()
+    expect(view.getByText('storage.usageBilledWithCredits')).toBeTruthy()
   })
 
   it('uses the USD product price for checkout regardless of locale', async () => {
@@ -388,8 +433,8 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkoutMonthly/ }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
   })
@@ -406,8 +451,8 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkoutMonthly/ }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
   })
@@ -424,8 +469,8 @@ describe('StoragePage', () => {
     const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: /storage.checkoutPackage/ }))
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: /storage.checkoutMonthly/ }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
     expect(view.getByText('storage.checkoutPending')).toBeTruthy()
@@ -507,7 +552,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy())
     expect(view.getByText('Team Plan')).toBeTruthy()
     expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy()
-    expect(view.queryByRole('button', { name: /storage.checkoutPlan|storage.checkoutPackage/ })).toBeNull()
+    expect(view.queryByRole('button', { name: /storage.checkoutMonthly|storage.checkoutYearly/ })).toBeNull()
     expect(openNewTab).not.toHaveBeenCalled()
   })
 
@@ -533,7 +578,7 @@ describe('StoragePage', () => {
     expect(vi.mocked(listCloudOrders)).toHaveBeenCalledWith()
     fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
     await waitFor(() => expect(view.queryByText('org-2')).toBeNull())
-    fireEvent.click(await view.findByRole('button', { name: /storage.checkoutPackage/ }))
+    fireEvent.click(await view.findByRole('button', { name: /storage.checkoutMonthly/ }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
   })
@@ -552,8 +597,8 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.queryByLabelText('storage.giftCardCode')).toBeNull())
-    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy())
-    const checkoutButton = view.getByRole('button', { name: /storage.checkoutPackage/ }) as HTMLButtonElement
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
+    const checkoutButton = view.getByRole('button', { name: /storage.checkoutMonthly/ }) as HTMLButtonElement
     expect(checkoutButton.disabled).toBe(true)
     fireEvent.click(checkoutButton)
 
@@ -576,8 +621,8 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
     await waitFor(() => expect(view.getByText('100 GB')).toBeTruthy())
     expect(view.getByText('storage.availableProductsTitle')).toBeTruthy()
-    expect(view.getByText('storage.packageStorageQuota')).toBeTruthy()
-    expect(view.getByRole('button', { name: /storage.checkoutPackage/ })).toBeTruthy()
+    expect(view.getByText('storage.baseStorageQuota')).toBeTruthy()
+    expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy()
     expect(view.queryByRole('button', { name: 'storage.redeemTitle' })).toBeNull()
   })
 
@@ -604,6 +649,29 @@ describe('StoragePage', () => {
     expect(await view.findByText('storage.creditBalance')).toBeTruthy()
     expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy()
     await waitFor(() => expect(view.getByText('1,250')).toBeTruthy())
+  })
+
+  it('starts checkout from a credits top-up product', async () => {
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listCloudCreditProducts).mockResolvedValue({ items: [creditPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByLabelText('storage.viewCreditActivity')).toBeTruthy())
+    fireEvent.click(view.getByLabelText('storage.viewCreditActivity'))
+    expect(await view.findByText('storage.creditTopUpTitle')).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: 'storage.buyCredits' }))
+
+    expect(openNewTab).toHaveBeenCalledWith(
+      '/store/checkout?action=checkout&packageId=pkg-credits&priceId=price-credits-usd',
+    )
   })
 
   it('opens credit activity dialog', async () => {

@@ -64,12 +64,14 @@ import {
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
+  listAdminCloudCreditProducts,
   listAdminCloudOrders,
   listAdminCloudProducts,
   listAnnouncements,
   listAuthProviders,
   listBackgroundJobs,
   listCloudCreditLedgerEntries,
+  listCloudCreditProducts,
   listCloudGiftCards,
   listCloudOrders,
   listCloudProducts,
@@ -317,15 +319,14 @@ describe('api', () => {
         name: 'Small',
         description: '',
         metadata: {
-          deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0, trafficOveragePriceCents: 2 },
+          deliverable: { type: 'zpan.plan', storageBytes: 1024, includedCredits: 100 },
         },
         prices: [
-          { currency: 'usd', amount: 500, recurring: { interval: 'month', intervalCount: 1 } },
           {
             currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
+            amount: 500,
+            recurring: { interval: 'month', intervalCount: 1 },
+            metadata: { creditGrantType: 'subscription_grant', creditAmount: '100' },
           },
         ],
         active: true,
@@ -343,15 +344,14 @@ describe('api', () => {
         name: 'Small',
         description: '',
         metadata: {
-          deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0, trafficOveragePriceCents: 2 },
+          deliverable: { type: 'zpan.plan', storageBytes: 1024, includedCredits: 100 },
         },
         prices: [
-          { currency: 'usd', amount: 500, recurring: { interval: 'month', intervalCount: 1 } },
           {
             currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
+            amount: 500,
+            recurring: { interval: 'month', intervalCount: 1 },
+            metadata: { creditGrantType: 'subscription_grant', creditAmount: '100' },
           },
         ],
         active: true,
@@ -380,8 +380,8 @@ describe('api', () => {
           type: 'store_item',
           name: 'Small',
           description: '',
-          metadata: { deliverable: { type: 'zpan.extra', storageBytes: 1024, trafficBytes: 0 } },
-          prices: [{ currency: 'usd', amount: 500 }],
+          metadata: { deliverable: { type: 'zpan.credits', includedCredits: 500 } },
+          prices: [{ currency: 'usd', amount: 500, metadata: { creditGrantType: 'top_up', creditAmount: '500' } }],
           active: true,
           sortOrder: 0,
         }),
@@ -436,8 +436,19 @@ describe('api', () => {
       expect(calls[4][0]).toBe('/api/admin/store/orders?limit=100&offset=100')
     })
 
+    it('calls admin credits product endpoint', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+
+      await listAdminCloudCreditProducts()
+
+      const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
+      expect(calls[0][0]).toBe('/api/admin/store/credits/products')
+      expect(calls[0][1].method).toBe('GET')
+    })
+
     it('calls user store endpoints', async () => {
       vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
         .mockResolvedValueOnce(makeResponse({ orderId: 'order-1', url: 'https://cloud.example/checkout' }))
@@ -445,6 +456,7 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
 
       await listCloudProducts()
+      await listCloudCreditProducts()
       await listCloudStoreTargets()
       await createCloudCheckout('pkg-1', 'price-usd')
       await createCloudBillingPortalSession()
@@ -452,15 +464,16 @@ describe('api', () => {
 
       const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
       expect(calls[0][0]).toBe('/api/store/packages')
-      expect(calls[1][0]).toBe('/api/store/targets')
-      expect(calls[2][0]).toBe('/api/store/checkouts')
-      expect(JSON.parse(calls[2][1].body as string)).toEqual({
+      expect(calls[1][0]).toBe('/api/store/credits/products')
+      expect(calls[2][0]).toBe('/api/store/targets')
+      expect(calls[3][0]).toBe('/api/store/checkouts')
+      expect(JSON.parse(calls[3][1].body as string)).toEqual({
         packageId: 'pkg-1',
         priceId: 'price-usd',
       })
-      expect(calls[3][0]).toBe('/api/store/billing-portal-sessions')
-      expect(calls[3][1].method).toBe('POST')
-      expect(calls[4][0]).toBe('/api/store/orders?limit=100&offset=100')
+      expect(calls[4][0]).toBe('/api/store/billing-portal-sessions')
+      expect(calls[4][1].method).toBe('POST')
+      expect(calls[5][0]).toBe('/api/store/orders?limit=100&offset=100')
     })
 
     it('calls credit balance, credit activity, redemption, and order action endpoints', async () => {
@@ -567,8 +580,8 @@ describe('api', () => {
             type: 'store_item',
             name: 'Small',
             description: '',
-            metadata: { deliverable: { type: 'zpan.extra', storageBytes: 1024, trafficBytes: 0 } },
-            prices: [{ currency: 'usd', amount: 500 }],
+            metadata: { deliverable: { type: 'zpan.credits', includedCredits: 500 } },
+            prices: [{ currency: 'usd', amount: 500, metadata: { creditGrantType: 'top_up', creditAmount: '500' } }],
             active: true,
             sortOrder: 0,
           }),
@@ -580,8 +593,8 @@ describe('api', () => {
             type: 'store_item',
             name: 'Small',
             description: '',
-            metadata: { deliverable: { type: 'zpan.extra', storageBytes: 1024, trafficBytes: 0 } },
-            prices: [{ currency: 'usd', amount: 500 }],
+            metadata: { deliverable: { type: 'zpan.credits', includedCredits: 500 } },
+            prices: [{ currency: 'usd', amount: 500, metadata: { creditGrantType: 'top_up', creditAmount: '500' } }],
             sortOrder: 0,
           }),
       ],

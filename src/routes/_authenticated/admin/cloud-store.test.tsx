@@ -12,6 +12,7 @@ import {
   deleteCloudProduct,
   disableCloudGiftCard,
   getCloudStoreSettings,
+  listAdminCloudCreditProducts,
   listAdminCloudOrders,
   listAdminCloudProducts,
   listCloudGiftCards,
@@ -63,6 +64,7 @@ vi.mock('@/lib/api', () => {
     disableCloudGiftCard: vi.fn(),
     getCloudStoreSettings: vi.fn(),
     listAdminCloudOrders: vi.fn(),
+    listAdminCloudCreditProducts: vi.fn(),
     listAdminCloudProducts: vi.fn(),
     listCloudGiftCards: vi.fn(),
     updateCloudProduct: vi.fn(),
@@ -88,14 +90,47 @@ function quotaPackage(overrides: Partial<CloudProduct> = {}): CloudProduct {
     type: 'store_item',
     name: '100 GB',
     description: 'Extra storage',
-    metadata: { deliverable: { type: 'zpan.plan', storageBytes: 107374182400, trafficBytes: 0 } },
+    metadata: {
+      deliverable: { type: 'zpan.plan', storageBytes: 107374182400, includedCredits: 1000 },
+    },
     prices: [
-      { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
       {
+        id: 'price-monthly',
         currency: 'usd',
-        amount: 2,
-        recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-        metadata: { usageResource: 'traffic_egress' },
+        amount: 999,
+        recurring: { interval: 'month', intervalCount: 1 },
+        metadata: { creditGrantType: 'subscription_grant', creditAmount: '1000' },
+      },
+      {
+        id: 'price-yearly',
+        currency: 'usd',
+        amount: 9999,
+        recurring: { interval: 'year', intervalCount: 1 },
+        metadata: { creditGrantType: 'subscription_grant', creditAmount: '1000' },
+      },
+    ],
+    active: true,
+    sortOrder: 1,
+    createdAt: '2026-05-05T00:00:00.000Z',
+    updatedAt: '2026-05-05T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function creditPackage(overrides: Partial<CloudProduct> = {}): CloudProduct {
+  return {
+    id: 'pkg-credits',
+    storeId: 'store-1',
+    type: 'store_item',
+    name: '5,000 Credits',
+    description: 'Credit top-up',
+    metadata: { deliverable: { type: 'zpan.credits', includedCredits: 5000 } },
+    prices: [
+      {
+        id: 'price-credits',
+        currency: 'usd',
+        amount: 2999,
+        metadata: { creditGrantType: 'top_up', creditAmount: '5000' },
       },
     ],
     active: true,
@@ -147,7 +182,9 @@ function storeOrder(overrides: Partial<CloudOrder> = {}): CloudOrder {
         quantity: 1,
         unitAmount: 999,
         totalAmount: 999,
-        fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0 } },
+        fulfillmentPayload: {
+          deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 0, includedCredits: 0 },
+        },
       },
     ],
     payments: [],
@@ -187,6 +224,7 @@ describe('AdminCloudStorePage', () => {
   beforeEach(() => {
     HTMLElement.prototype.scrollIntoView = vi.fn()
     vi.mocked(listAdminCloudOrders).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(listAdminCloudCreditProducts).mockResolvedValue({ items: [], total: 0 })
   })
 
   it('shows the Pro gate when quota store settings are unavailable', async () => {
@@ -211,8 +249,9 @@ describe('AdminCloudStorePage', () => {
     fireEvent.change(view.getByLabelText('admin.cloudStore.planName'), { target: { value: '250 GB' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.description'), { target: { value: 'Team storage' } })
     fireEvent.change(view.getByLabelText('admin.cloudStore.storageQuota'), { target: { value: '250' } })
-    fireEvent.change(view.getByLabelText('admin.cloudStore.usdAmount'), { target: { value: '19.99' } })
-    fireEvent.change(view.getByLabelText('admin.cloudStore.usdTrafficOveragePrice'), { target: { value: '0.02' } })
+    fireEvent.change(view.getByLabelText('admin.cloudStore.includedCredits'), { target: { value: '2500' } })
+    fireEvent.change(view.getByLabelText('admin.cloudStore.usdMonthlyAmount'), { target: { value: '19.99' } })
+    fireEvent.change(view.getByLabelText('admin.cloudStore.usdYearlyAmount'), { target: { value: '199.99' } })
     fireEvent.click(view.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
@@ -224,17 +263,21 @@ describe('AdminCloudStorePage', () => {
           deliverable: {
             type: 'zpan.plan',
             storageBytes: 268435456000,
-            trafficBytes: 0,
-            trafficOveragePriceCents: 2,
+            includedCredits: 2500,
           },
         },
         prices: [
-          { currency: 'usd', amount: 1999, recurring: { interval: 'month', intervalCount: 1 } },
           {
             currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
+            amount: 1999,
+            recurring: { interval: 'month', intervalCount: 1 },
+            metadata: { creditGrantType: 'subscription_grant', creditAmount: '2500' },
+          },
+          {
+            currency: 'usd',
+            amount: 19999,
+            recurring: { interval: 'year', intervalCount: 1 },
+            metadata: { creditGrantType: 'subscription_grant', creditAmount: '2500' },
           },
         ],
         active: true,
@@ -244,15 +287,55 @@ describe('AdminCloudStorePage', () => {
     expect(toast.success).toHaveBeenCalledWith('admin.cloudStore.packageSaved')
   })
 
-  it('creates a traffic-only package with a USD price', async () => {
+  it('creates a credits package with configured top-up values', async () => {
     vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
     vi.mocked(listAdminCloudProducts).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(createCloudProduct).mockResolvedValue(
-      quotaPackage({
-        id: 'pkg-traffic',
-        metadata: { deliverable: { type: 'zpan.extra', storageBytes: 0, trafficBytes: 1099511627776 } },
+    vi.mocked(listAdminCloudCreditProducts).mockResolvedValue({ items: [creditPackage()], total: 1 })
+    vi.mocked(createCloudProduct).mockResolvedValue(creditPackage({ id: 'pkg-credits-2' }))
+
+    const view = renderAdminPage()
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'admin.cloudStore.newCreditPackage' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.newCreditPackage' }))
+    const dialog = await view.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.planName'), {
+      target: { value: '10,000 Credits' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.description'), {
+      target: { value: 'Top-up bundle' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.creditAmount'), { target: { value: '10000' } })
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.usdAmount'), { target: { value: '49.99' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() =>
+      expect(createCloudProduct).toHaveBeenCalledWith({
+        type: 'store_item',
+        name: '10,000 Credits',
+        description: 'Top-up bundle',
+        metadata: {
+          deliverable: {
+            type: 'zpan.credits',
+            includedCredits: 10000,
+          },
+        },
+        prices: [
+          {
+            currency: 'usd',
+            amount: 4999,
+            metadata: { creditGrantType: 'top_up', creditAmount: '10000' },
+          },
+        ],
+        active: true,
+        sortOrder: 0,
       }),
     )
+  })
+
+  it('creates a yearly-only plan with included credits', async () => {
+    vi.mocked(getCloudStoreSettings).mockResolvedValue(settings())
+    vi.mocked(listAdminCloudProducts).mockResolvedValue({ items: [], total: 0 })
+    vi.mocked(createCloudProduct).mockResolvedValue(quotaPackage({ id: 'pkg-yearly' }))
 
     const view = renderAdminPage()
 
@@ -260,34 +343,39 @@ describe('AdminCloudStorePage', () => {
     fireEvent.click(view.getByRole('button', { name: 'admin.cloudStore.newPackage' }))
     const dialog = await view.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.planName'), {
-      target: { value: '1 TB traffic' },
+      target: { value: 'Annual Plan' },
     })
     fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.description'), {
-      target: { value: 'Download traffic' },
+      target: { value: 'Annual storage' },
     })
-    fireEvent.click(within(dialog).getByRole('combobox', { name: 'admin.cloudStore.billingMode' }))
-    fireEvent.click(await view.findByRole('option', { name: 'admin.cloudStore.billingOneTime' }))
-    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.validityDays'), { target: { value: '30' } })
-    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.trafficQuota'), { target: { value: '1' } })
-    fireEvent.click(within(dialog).getByLabelText('admin.cloudStore.trafficQuota unit'))
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.storageQuota'), { target: { value: '1' } })
+    fireEvent.click(within(dialog).getByLabelText('admin.cloudStore.storageQuota unit'))
     fireEvent.click(await view.findByRole('option', { name: 'TB' }))
-    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.usdAmount'), { target: { value: '49.99' } })
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.includedCredits'), { target: { value: '12000' } })
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.usdMonthlyAmount'), { target: { value: '' } })
+    fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.usdYearlyAmount'), { target: { value: '499.99' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
       expect(createCloudProduct).toHaveBeenCalledWith({
         type: 'store_item',
-        name: '1 TB traffic',
-        description: 'Download traffic',
+        name: 'Annual Plan',
+        description: 'Annual storage',
         metadata: {
           deliverable: {
-            type: 'zpan.extra',
-            storageBytes: 0,
-            trafficBytes: 1099511627776,
-            validityDays: 30,
+            type: 'zpan.plan',
+            storageBytes: 1099511627776,
+            includedCredits: 12000,
           },
         },
-        prices: [{ currency: 'usd', amount: 4999 }],
+        prices: [
+          {
+            currency: 'usd',
+            amount: 49999,
+            recurring: { interval: 'year', intervalCount: 1 },
+            metadata: { creditGrantType: 'subscription_grant', creditAmount: '12000' },
+          },
+        ],
         active: true,
         sortOrder: 0,
       }),
@@ -301,12 +389,7 @@ describe('AdminCloudStorePage', () => {
         quotaPackage({
           prices: [
             { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
-            {
-              currency: 'usd',
-              amount: 2,
-              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-              metadata: { usageResource: 'traffic_egress' },
-            },
+            { currency: 'usd', amount: 9999, recurring: { interval: 'year', intervalCount: 1 } },
           ],
         }),
       ],
@@ -315,11 +398,11 @@ describe('AdminCloudStorePage', () => {
 
     const view = renderAdminPage()
 
-    await waitFor(() => expect(view.getByRole('table')).toBeTruthy())
+    await waitFor(() => expect(view.getByText('admin.cloudStore.planProductsTitle')).toBeTruthy())
+    expect(view.getAllByRole('table')).toHaveLength(2)
     expect(view.getByRole('columnheader', { name: 'admin.cloudStore.planName' })).toBeTruthy()
-    expect(view.getByRole('columnheader', { name: 'admin.cloudStore.prices' })).toBeTruthy()
-    expect(view.getByText('9.99 USD')).toBeTruthy()
-    expect(view.queryByText('0.02 USD')).toBeNull()
+    expect(view.getAllByRole('columnheader', { name: 'admin.cloudStore.prices' })).toHaveLength(2)
+    expect(view.getByText('$9.99/mo · $99.99/yr')).toBeTruthy()
     expect(view.queryByRole('button', { name: 'admin.cloudStore.sync' })).toBeNull()
     expect(view.queryByText('admin.cloudStore.lastSync')).toBeNull()
     expect(view.queryByText('admin.cloudStore.lastOrder')).toBeNull()
@@ -372,17 +455,21 @@ describe('AdminCloudStorePage', () => {
           deliverable: {
             type: 'zpan.plan',
             storageBytes: 107374182400,
-            trafficBytes: 0,
-            trafficOveragePriceCents: 2,
+            includedCredits: 1000,
           },
         },
         prices: [
-          { currency: 'usd', amount: 999, recurring: { interval: 'month', intervalCount: 1 } },
           {
             currency: 'usd',
-            amount: 2,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
+            amount: 999,
+            recurring: { interval: 'month', intervalCount: 1 },
+            metadata: { creditGrantType: 'subscription_grant', creditAmount: '1000' },
+          },
+          {
+            currency: 'usd',
+            amount: 9999,
+            recurring: { interval: 'year', intervalCount: 1 },
+            metadata: { creditGrantType: 'subscription_grant', creditAmount: '1000' },
           },
         ],
         sortOrder: 1,
@@ -396,21 +483,23 @@ describe('AdminCloudStorePage', () => {
       items: [
         quotaPackage({
           prices: [
-            { currency: 'usd', amount: 1299, recurring: { interval: 'month', intervalCount: 1 } },
-            { currency: 'cny', amount: 9800, recurring: { interval: 'month', intervalCount: 1 } },
             {
               currency: 'usd',
-              amount: 3,
-              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-              metadata: { usageResource: 'traffic_egress' },
+              amount: 1299,
+              recurring: { interval: 'month', intervalCount: 1 },
+              metadata: { creditGrantType: 'subscription_grant', creditAmount: '1500' },
             },
             {
-              currency: 'cny',
-              amount: 22,
-              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-              metadata: { usageResource: 'traffic_egress' },
+              currency: 'usd',
+              amount: 12999,
+              recurring: { interval: 'year', intervalCount: 1 },
+              metadata: { creditGrantType: 'subscription_grant', creditAmount: '1500' },
             },
+            { currency: 'cny', amount: 9800, recurring: { interval: 'month', intervalCount: 1 } },
           ],
+          metadata: {
+            deliverable: { type: 'zpan.plan', storageBytes: 107374182400, includedCredits: 1500 },
+          },
         }),
       ],
       total: 1,
@@ -423,10 +512,10 @@ describe('AdminCloudStorePage', () => {
     fireEvent.click(view.getByRole('button', { name: 'common.edit' }))
 
     const dialog = await view.findByRole('dialog')
-    expect(within(dialog).getByLabelText('admin.cloudStore.usdAmount')).toHaveProperty('value', '12.99')
-    expect(within(dialog).getByLabelText('admin.cloudStore.usdTrafficOveragePrice')).toHaveProperty('value', '0.03')
+    expect(within(dialog).getByLabelText('admin.cloudStore.usdMonthlyAmount')).toHaveProperty('value', '12.99')
+    expect(within(dialog).getByLabelText('admin.cloudStore.usdYearlyAmount')).toHaveProperty('value', '129.99')
+    expect(within(dialog).getByLabelText('admin.cloudStore.includedCredits')).toHaveProperty('value', '1500')
     expect(within(dialog).queryByLabelText('admin.cloudStore.cnyAmount')).toBeNull()
-    expect(within(dialog).queryByLabelText('admin.cloudStore.cnyTrafficOveragePrice')).toBeNull()
 
     fireEvent.change(within(dialog).getByLabelText('admin.cloudStore.planName'), { target: { value: 'USD only plan' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'common.save' }))
@@ -440,17 +529,21 @@ describe('AdminCloudStorePage', () => {
           deliverable: {
             type: 'zpan.plan',
             storageBytes: 107374182400,
-            trafficBytes: 0,
-            trafficOveragePriceCents: 3,
+            includedCredits: 1500,
           },
         },
         prices: [
-          { currency: 'usd', amount: 1299, recurring: { interval: 'month', intervalCount: 1 } },
           {
             currency: 'usd',
-            amount: 3,
-            recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-            metadata: { usageResource: 'traffic_egress' },
+            amount: 1299,
+            recurring: { interval: 'month', intervalCount: 1 },
+            metadata: { creditGrantType: 'subscription_grant', creditAmount: '1500' },
+          },
+          {
+            currency: 'usd',
+            amount: 12999,
+            recurring: { interval: 'year', intervalCount: 1 },
+            metadata: { creditGrantType: 'subscription_grant', creditAmount: '1500' },
           },
         ],
         sortOrder: 1,
@@ -660,7 +753,9 @@ describe('AdminCloudStorePage', () => {
               quantity: 1,
               unitAmount: 999,
               totalAmount: 999,
-              fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 2048 } },
+              fulfillmentPayload: {
+                deliverable: { type: 'zpan.plan', storageBytes: 1024, trafficBytes: 2048, includedCredits: 0 },
+              },
             },
           ],
         }),

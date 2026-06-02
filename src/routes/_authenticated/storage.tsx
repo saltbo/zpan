@@ -26,6 +26,7 @@ import {
   getCloudCredits,
   getUserQuota,
   listCloudCreditLedgerEntries,
+  listCloudCreditProducts,
   listCloudOrders,
   listCloudProducts,
   redeemCloudGiftCard,
@@ -65,6 +66,12 @@ export function StoragePage() {
     queryKey: ['cloud-store', 'credits', targetOrgId],
     queryFn: getCloudCredits,
     enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
+    retry: false,
+  })
+  const creditProductsQuery = useQuery({
+    queryKey: ['cloud-store', 'credits', 'products'],
+    queryFn: listCloudCreditProducts,
+    enabled: cloudStoreQuery.isSuccess,
     retry: false,
   })
   const creditLedgerQuery = useQuery({
@@ -174,10 +181,13 @@ export function StoragePage() {
         <div className="flex flex-wrap justify-end gap-2">
           <CreditBalanceButton
             credits={credits}
+            products={creditProductsQuery.data?.items ?? []}
             entries={creditLedgerQuery.data?.items ?? []}
             loading={creditLedgerQuery.isLoading}
             onRedeem={(code) => redeemMutation.mutate(code)}
+            onCheckout={startCheckout}
             isRedeeming={redeemMutation.isPending}
+            checkoutDisabled={!targetOrgId}
           />
           <StorageOrderHistoryDialog
             orders={currentOrders}

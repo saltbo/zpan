@@ -10,6 +10,7 @@ import { StorageOrdersTable } from '@/components/admin/cloud-orders-table'
 import {
   GiftCardsTab,
   PackagesTab,
+  useCreditPackageEditor,
   useGiftCardActions,
   usePackageEditor,
 } from '@/components/admin/cloud-store-admin-actions'
@@ -24,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import {
   ApiError,
   getCloudStoreSettings,
+  listAdminCloudCreditProducts,
   listAdminCloudOrders,
   listAdminCloudProducts,
   listCloudGiftCards,
@@ -49,6 +51,7 @@ function useAdminCloudStoreState() {
   const [giftCardStatus, setGiftCardStatus] = useState<GiftCardStatus | 'all'>('all')
   const query = useQuery({ queryKey: ['admin', 'cloud-store'], queryFn: loadAdminCloudStore })
   const packageEditor = usePackageEditor()
+  const creditPackageEditor = useCreditPackageEditor()
   const giftCardActions = useGiftCardActions()
   const giftCardsQuery = useQuery({
     queryKey: ['admin', 'cloud-store', 'gift-cards', giftCardStatus],
@@ -70,6 +73,7 @@ function useAdminCloudStoreState() {
     giftCardsQuery,
     giftCardStatus,
     data,
+    creditPackageEditor,
     ordersQuery,
     packageEditor,
     query,
@@ -182,7 +186,13 @@ function AdminTabs({ state }: { state: AdminCloudStoreReadyState }) {
     <div className="space-y-4">
       <CloudStoreTabBar activeTab={state.activeTab} onChange={state.setActiveTab} />
       {state.activeTab === 'packages' && (
-        <PackagesTab available={state.data.available} packages={state.data.packages} editor={state.packageEditor} />
+        <PackagesTab
+          available={state.data.available}
+          packages={state.data.packages}
+          creditPackages={state.data.creditPackages}
+          editor={state.packageEditor}
+          creditEditor={state.creditPackageEditor}
+        />
       )}
       {state.activeTab === 'codes' && <GiftCardsPanel state={state} />}
       {state.activeTab === 'orders' && <OrdersPanel state={state} />}
@@ -217,13 +227,24 @@ async function loadAdminCloudStore(): Promise<{
   enabled: boolean
   settings: CloudStoreSettings | null
   packages: CloudProduct[]
+  creditPackages: CloudProduct[]
 }> {
   try {
-    const [settings, packages] = await Promise.all([getCloudStoreSettings(), listAdminCloudProducts()])
-    return { available: true, enabled: settings?.enabled ?? false, settings, packages: packages.items }
+    const [settings, packages, creditPackages] = await Promise.all([
+      getCloudStoreSettings(),
+      listAdminCloudProducts(),
+      listAdminCloudCreditProducts(),
+    ])
+    return {
+      available: true,
+      enabled: settings?.enabled ?? false,
+      settings,
+      packages: packages.items,
+      creditPackages: creditPackages.items,
+    }
   } catch (err) {
     if (err instanceof ApiError && err.status === 402) {
-      return { available: false, enabled: false, settings: null, packages: [] }
+      return { available: false, enabled: false, settings: null, packages: [], creditPackages: [] }
     }
     throw err
   }

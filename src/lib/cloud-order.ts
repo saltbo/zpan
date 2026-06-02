@@ -9,9 +9,15 @@ export function cloudOrderTrafficBytes(order: CloudOrder) {
 }
 
 export function cloudOrderItemStorageBytes(item: CloudOrderItem | undefined) {
-  return item?.fulfillmentPayload.deliverable.storageBytes ?? 0
+  return cloudOrderItemDeliverableNumber(item, 'storageBytes')
 }
 
 export function cloudOrderItemTrafficBytes(item: CloudOrderItem | undefined) {
-  return item?.fulfillmentPayload.deliverable.trafficBytes ?? 0
+  return cloudOrderItemDeliverableNumber(item, 'trafficBytes')
+}
+
+function cloudOrderItemDeliverableNumber(item: CloudOrderItem | undefined, key: string) {
+  const deliverable = item?.fulfillmentPayload.deliverable as Record<string, unknown> | undefined
+  const value = deliverable?.[key]
+  return typeof value === 'number' ? value : 0
 }

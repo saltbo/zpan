@@ -48,7 +48,22 @@ export const adminCloudStore = new Hono<Env>()
       ),
     )
     if (isCloudError(result)) return c.json(result, 502)
-    return c.json(result)
+    const items = result.items.filter((item) => item.metadata.deliverable.type === 'zpan.plan')
+    return c.json({ ...result, items, total: items.length })
+  })
+  .get('/credits/products', async (c) => {
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId'].products.$get({
+          param: { storeId },
+          query: { type: 'store_item', limit: '100' },
+        }),
+        cloudPackageListResponseSchema,
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
+    const items = result.items.filter((item) => item.metadata.deliverable.type === 'zpan.credits')
+    return c.json({ ...result, items, total: items.length })
   })
   .post('/packages', zValidator('json', cloudProductInputSchema), async (c) => {
     const result = await cloudRequest(c, async ({ client, storeId }) =>
