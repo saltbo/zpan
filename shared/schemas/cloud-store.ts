@@ -6,10 +6,6 @@ import {
   orderListResponseSchema,
   productPriceSchema,
   updateProductSchema,
-  walletBalanceListResponseSchema,
-  walletBalanceSchema,
-  walletLedgerEntrySchema,
-  walletLedgerResponseSchema,
   zpanCloudEventSchema,
 } from 'zpan-cloud-sdk'
 
@@ -300,16 +296,65 @@ export type CreateGiftCardInput = z.input<typeof createGiftCardInputSchema>
 export type DisableGiftCardInput = z.infer<typeof disableGiftCardSchema>
 export type CloudOrderQuotaChange = z.infer<typeof cloudOrderQuotaChangeSchema>
 
-export const cloudWalletBalanceSchema = walletBalanceSchema
-export const cloudWalletResponseSchema = walletBalanceListResponseSchema
+export const cloudCreditBalanceResponseSchema = z.object({
+  balance: z.number().int(),
+})
 
-export type CloudWalletResponse = z.infer<typeof cloudWalletResponseSchema>
+export const cloudCreditBucketSchema = z.object({
+  id: z.string().min(1),
+  creditAccountId: z.string().min(1),
+  storeId: z.string().min(1),
+  customerId: z.string().nullable(),
+  sourceType: z.enum(['subscription_grant', 'top_up', 'gift_card_redemption', 'admin_grant']),
+  sourceId: z.string().min(1),
+  originalCredits: z.number().int(),
+  remainingCredits: z.number().int(),
+  expiresAt: z.string().nullable(),
+  updatedAt: z.string().min(1),
+})
 
-export const cloudWalletTransactionSchema = walletLedgerEntrySchema
-export const cloudWalletTransactionsResponseSchema = walletLedgerResponseSchema
+export const cloudCreditLedgerEntrySchema = z.object({
+  id: z.string().min(1),
+  creditAccountId: z.string().nullable(),
+  creditBucketId: z.string().nullable(),
+  storeId: z.string().min(1),
+  customerId: z.string().nullable(),
+  amount: z.number().int(),
+  direction: z.enum(['credit', 'debit']),
+  status: z.enum(['posted', 'reversed']),
+  sourceType: z.enum([
+    'subscription_grant',
+    'top_up',
+    'gift_card_redemption',
+    'admin_grant',
+    'usage_charge',
+    'adjustment',
+  ]),
+  sourceId: z.string().min(1),
+  orderId: z.string().nullable(),
+  paymentId: z.string().nullable(),
+  createdAt: z.string().min(1),
+})
 
-export type CloudWalletTransaction = z.infer<typeof cloudWalletTransactionSchema>
-export type CloudWalletTransactionsResponse = z.infer<typeof cloudWalletTransactionsResponseSchema>
+export const cloudCreditBucketsResponseSchema = z.object({
+  items: z.array(cloudCreditBucketSchema),
+  total: z.number().int(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+})
+
+export const cloudCreditLedgerResponseSchema = z.object({
+  items: z.array(cloudCreditLedgerEntrySchema),
+  total: z.number().int(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+})
+
+export type CloudCreditBalanceResponse = z.infer<typeof cloudCreditBalanceResponseSchema>
+export type CloudCreditBucket = z.infer<typeof cloudCreditBucketSchema>
+export type CloudCreditBucketsResponse = z.infer<typeof cloudCreditBucketsResponseSchema>
+export type CloudCreditLedgerEntry = z.infer<typeof cloudCreditLedgerEntrySchema>
+export type CloudCreditLedgerResponse = z.infer<typeof cloudCreditLedgerResponseSchema>
 
 export const redeemGiftCardInputSchema = z.object({
   code: z.string().min(1),
@@ -318,25 +363,8 @@ export const redeemGiftCardInputSchema = z.object({
 export type RedeemGiftCardInput = z.infer<typeof redeemGiftCardInputSchema>
 
 export const redeemGiftCardResponseSchema = z.object({
-  redeemedAmount: z.number().int().min(0),
-  currency: z.string().nullable(),
-  entries: z.array(
-    z.object({
-      id: z.string().min(1),
-      storeId: z.string().min(1),
-      customerId: z.string().nullable(),
-      currency: z.string().min(1),
-      amount: z.number().int().min(0),
-      direction: z.enum(['credit', 'debit']),
-      status: z.string().min(1),
-      sourceType: z.string().min(1),
-      sourceId: z.string().min(1),
-      orderId: z.string().nullable().optional(),
-      paymentId: z.string().nullable().optional(),
-      stripeCustomerBalanceTransactionId: z.string().nullable().optional(),
-      createdAt: z.string().min(1),
-    }),
-  ),
+  redeemedCredits: z.number().int().min(0),
+  entries: z.array(cloudCreditLedgerEntrySchema),
   failures: z.array(
     z.object({
       code: z.string().min(1),

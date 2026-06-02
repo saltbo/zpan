@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
+  CreditBalanceButton,
   CurrentPlanCard,
   FreeQuotaCard,
   StorageOrderHistoryDialog,
   StoragePackages,
   StorageUnavailableState,
-  WalletBalanceButton,
 } from '@/components/store/storage-panels'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,11 +23,11 @@ import {
 import {
   ApiError,
   cancelCloudOrder,
-  getCloudWallet,
+  getCloudCredits,
   getUserQuota,
+  listCloudCreditLedgerEntries,
   listCloudOrders,
   listCloudProducts,
-  listCloudWalletTransactions,
   redeemCloudGiftCard,
 } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
@@ -61,15 +61,15 @@ export function StoragePage() {
     enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
-  const walletQuery = useQuery({
-    queryKey: ['cloud-store', 'wallet', targetOrgId],
-    queryFn: getCloudWallet,
+  const creditsQuery = useQuery({
+    queryKey: ['cloud-store', 'credits', targetOrgId],
+    queryFn: getCloudCredits,
     enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
-  const walletTransactionsQuery = useQuery({
-    queryKey: ['cloud-store', 'wallet', 'transactions', targetOrgId],
-    queryFn: listCloudWalletTransactions,
+  const creditLedgerQuery = useQuery({
+    queryKey: ['cloud-store', 'credits', 'ledger-entries', targetOrgId],
+    queryFn: listCloudCreditLedgerEntries,
     enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
     retry: false,
   })
@@ -78,12 +78,7 @@ export function StoragePage() {
   const hasActivePlan = Boolean(
     quotaQuery.data?.currentPlan || quotaQuery.data?.storagePlanName || quotaQuery.data?.trafficPlanName,
   )
-  const wallet = walletQuery.data
-    ? {
-        balance: walletQuery.data.items[0]?.availableAmount ?? 0,
-        currency: walletQuery.data.items[0]?.currency ?? 'usd',
-      }
-    : undefined
+  const credits = creditsQuery.data ? { balance: creditsQuery.data.balance } : undefined
 
   useEffect(() => {
     if (deliveredCheckoutCount > 0) queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
@@ -94,7 +89,7 @@ export function StoragePage() {
     const interval = window.setInterval(() => {
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
       queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
-      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'credits'] })
     }, 5000)
     const timeout = window.setTimeout(() => setCheckoutRefreshActive(false), 120000)
     return () => {
@@ -108,7 +103,7 @@ export function StoragePage() {
     onSuccess: () => {
       toast.success(t('storage.cancelSuccess'))
       queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
-      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'credits'] })
     },
     onError: (err) => {
       toast.error(err.message)
@@ -120,11 +115,10 @@ export function StoragePage() {
     onSuccess: (result) => {
       toast.success(
         t('storage.redeemSuccess', {
-          amount: result.redeemedAmount / 100,
-          currency: result.currency?.toUpperCase() ?? 'USD',
+          amount: result.redeemedCredits,
         }),
       )
-      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'wallet'] })
+      queryClient.invalidateQueries({ queryKey: ['cloud-store', 'credits'] })
     },
     onError: (err) => {
       toast.error(err.message)
@@ -178,10 +172,10 @@ export function StoragePage() {
           <p className="text-sm text-muted-foreground">{t('storage.subtitle')}</p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <WalletBalanceButton
-            wallet={wallet}
-            transactions={walletTransactionsQuery.data?.items ?? []}
-            loading={walletTransactionsQuery.isLoading}
+          <CreditBalanceButton
+            credits={credits}
+            entries={creditLedgerQuery.data?.items ?? []}
+            loading={creditLedgerQuery.isLoading}
             onRedeem={(code) => redeemMutation.mutate(code)}
             isRedeeming={redeemMutation.isPending}
           />

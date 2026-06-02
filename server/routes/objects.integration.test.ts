@@ -699,7 +699,7 @@ describe('Objects API', () => {
     expect(body.downloadUrl).toBe('https://presigned-download.example.com')
   })
 
-  it('GET /api/objects/:id queues Cloud traffic for bound instances without calling Cloud', async () => {
+  it('GET /api/objects/:id reports Cloud traffic for bound instances before returning the URL', async () => {
     const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -715,21 +715,31 @@ describe('Objects API', () => {
       cachedExpiresAt: Math.floor(Date.now() / 1000) + 3600,
       lastRefreshAt: Math.floor(Date.now() / 1000),
     })
-    vi.stubGlobal('fetch', vi.fn())
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as { eventId: string }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { accepted: true, duplicate: false, eventId: body.eventId } }),
+        } as Response
+      }),
+    )
 
     const res = await app.request('/api/objects/m1', { headers })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.downloadUrl).toBe('https://presigned-download.example.com')
-    expect(fetch).not.toHaveBeenCalled()
+    expect(fetch).toHaveBeenCalledTimes(1)
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
       {
         orgId,
         source: 'object_download',
         sourceId: 'm1',
         bytes: 100,
-        status: 'pending',
+        status: 'reported',
       },
     ])
   })

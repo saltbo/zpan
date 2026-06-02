@@ -2,10 +2,10 @@ import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
   AllowedImageMime,
   AnnouncementInput,
+  CloudCreditBalanceResponse,
+  CloudCreditLedgerResponse,
   CloudProductInput,
   CloudProductPatchInput,
-  CloudWalletResponse,
-  CloudWalletTransactionsResponse,
   ConflictStrategy,
   CreateBackgroundJobRequest,
   CreateGiftCardInput,
@@ -436,16 +436,16 @@ export function listCloudStoreTargets() {
   return unwrap<{ items: CloudStoreTarget[]; total: number }>(cloudStoreApi.targets.$get())
 }
 
-export function getCloudWallet() {
-  return unwrap<CloudWalletResponse>(cloudStoreApi.wallet.$get())
+export function getCloudCredits() {
+  return unwrap<CloudCreditBalanceResponse>(cloudStoreApi.credits.$get())
 }
 
-export function listCloudWalletTransactions() {
-  return unwrap<CloudWalletTransactionsResponse>(cloudStoreApi.wallet.transactions.$get())
+export function listCloudCreditLedgerEntries() {
+  return unwrap<CloudCreditLedgerResponse>(cloudStoreApi.credits['ledger-entries'].$get())
 }
 
 export function redeemCloudGiftCard(code: string) {
-  return unwrap<RedeemGiftCardResponse>(cloudStoreApi['gift-cards'].redeem.$post({ json: { code } }))
+  return unwrap<RedeemGiftCardResponse>(cloudStoreApi.credits.redemptions.$post({ json: { code } }))
 }
 
 export function createCloudCheckout(packageId: string, currency?: string, priceId?: string) {
