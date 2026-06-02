@@ -6,11 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
   cancelCloudOrder,
-  getCloudWallet,
+  getCloudCredits,
   getUserQuota,
+  listCloudCreditLedgerEntries,
   listCloudOrders,
   listCloudProducts,
-  listCloudWalletTransactions,
   redeemCloudGiftCard,
 } from '@/lib/api'
 import { openNewTab } from '@/lib/browser-navigation'
@@ -89,11 +89,11 @@ vi.mock('@/lib/api', () => {
     ApiError: MockApiError,
     cancelCloudOrder: vi.fn(),
     getUserQuota: vi.fn(),
-    getCloudWallet: vi.fn(),
+    getCloudCredits: vi.fn(),
     redeemCloudGiftCard: vi.fn(),
     listCloudProducts: vi.fn(),
     listCloudOrders: vi.fn(),
-    listCloudWalletTransactions: vi.fn(),
+    listCloudCreditLedgerEntries: vi.fn(),
   }
 })
 
@@ -202,8 +202,8 @@ describe('StoragePage', () => {
       trafficPlanName: null,
       trafficExtraNames: [],
     })
-    vi.mocked(getCloudWallet).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
-    vi.mocked(listCloudWalletTransactions).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
+    vi.mocked(getCloudCredits).mockResolvedValue({ balance: 0 })
+    vi.mocked(listCloudCreditLedgerEntries).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
   })
 
   it('refreshes quota when a checkout order is delivered', async () => {
@@ -576,27 +576,10 @@ describe('StoragePage', () => {
     expect(view.queryByRole('button', { name: 'storage.redeemTitle' })).toBeNull()
   })
 
-  it('shows wallet balance inside the wallet dialog', async () => {
+  it('shows credit balance inside the credits dialog', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(getCloudWallet).mockResolvedValue({
-      items: [
-        {
-          id: 'wallet-1',
-          walletId: null,
-          storeId: 'store-1',
-          customerId: 'org-1',
-          currency: 'usd',
-          availableAmount: 1250,
-          pendingAmount: 0,
-          stripeCustomerId: null,
-          updatedAt: '2026-05-08T00:00:00.000Z',
-        },
-      ],
-      total: 1,
-      limit: 50,
-      offset: 0,
-    })
+    vi.mocked(getCloudCredits).mockResolvedValue({ balance: 1250 })
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -607,46 +590,29 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
-    const walletButton = view.getByLabelText('storage.viewWalletTransactions')
-    expect(walletButton).toBeTruthy()
-    expect(walletButton.textContent).toContain('storage.walletButton')
-    expect(walletButton.textContent).not.toContain('12.50')
+    const creditsButton = view.getByLabelText('storage.viewCreditActivity')
+    expect(creditsButton).toBeTruthy()
+    expect(creditsButton.textContent).toContain('storage.creditsButton')
+    expect(creditsButton.textContent).not.toContain('1,250')
     expect(view.getByText('storage.trafficUsage')).toBeTruthy()
-    fireEvent.click(walletButton)
-    expect(await view.findByText('storage.walletBalance')).toBeTruthy()
+    fireEvent.click(creditsButton)
+    expect(await view.findByText('storage.creditBalance')).toBeTruthy()
     expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy()
-    await waitFor(() => expect(view.getByText(/12\.50/)).toBeTruthy())
+    await waitFor(() => expect(view.getByText('1,250')).toBeTruthy())
   })
 
-  it('opens wallet transactions dialog', async () => {
+  it('opens credit activity dialog', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
-    vi.mocked(getCloudWallet).mockResolvedValue({
-      items: [
-        {
-          id: 'wallet-1',
-          walletId: null,
-          storeId: 'store-1',
-          customerId: 'org-1',
-          currency: 'usd',
-          availableAmount: 1250,
-          pendingAmount: 0,
-          stripeCustomerId: null,
-          updatedAt: '2026-05-08T00:00:00.000Z',
-        },
-      ],
-      total: 1,
-      limit: 50,
-      offset: 0,
-    })
-    vi.mocked(listCloudWalletTransactions).mockResolvedValue({
+    vi.mocked(getCloudCredits).mockResolvedValue({ balance: 1250 })
+    vi.mocked(listCloudCreditLedgerEntries).mockResolvedValue({
       items: [
         {
           id: 'ledger-1',
-          walletId: null,
+          creditAccountId: 'credit-account-1',
+          creditBucketId: 'credit-bucket-1',
           storeId: 'store-1',
           customerId: 'org-1',
-          currency: 'usd',
           amount: 500,
           direction: 'credit',
           status: 'posted',
@@ -654,7 +620,6 @@ describe('StoragePage', () => {
           sourceId: 'gift-1',
           orderId: null,
           paymentId: null,
-          stripeCustomerBalanceTransactionId: null,
           createdAt: '2026-05-08T00:00:00.000Z',
         },
       ],
@@ -671,20 +636,19 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByLabelText('storage.viewWalletTransactions')).toBeTruthy())
-    fireEvent.click(view.getByLabelText('storage.viewWalletTransactions'))
+    await waitFor(() => expect(view.getByLabelText('storage.viewCreditActivity')).toBeTruthy())
+    fireEvent.click(view.getByLabelText('storage.viewCreditActivity'))
 
-    expect(await view.findByText('storage.walletTransactionsTitle')).toBeTruthy()
-    expect(view.getByText(/12\.50/)).toBeTruthy()
-    expect(view.getByText('storage.walletSourceGiftCard')).toBeTruthy()
+    expect(await view.findByText('storage.creditActivityTitle')).toBeTruthy()
+    expect(view.getByText('1,250')).toBeTruthy()
+    expect(view.getByText('storage.creditSourceGiftCard')).toBeTruthy()
   })
 
   it('redeems a gift card successfully', async () => {
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
     vi.mocked(redeemCloudGiftCard).mockResolvedValue({
-      redeemedAmount: 5000,
-      currency: 'usd',
+      redeemedCredits: 5000,
       entries: [],
       failures: [],
     })
@@ -699,15 +663,15 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
-    fireEvent.click(view.getByLabelText('storage.viewWalletTransactions'))
+    fireEvent.click(view.getByLabelText('storage.viewCreditActivity'))
     await waitFor(() => expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: 'storage.redeemTitle' }))
     fireEvent.change(view.getByLabelText('storage.giftCardCode'), { target: { value: 'ZS-1234-5678' } })
     fireEvent.click(view.getByRole('button', { name: 'storage.redeemAction' }))
 
     await waitFor(() => expect(redeemCloudGiftCard).toHaveBeenCalledWith('ZS-1234-5678'))
-    expect(toast.success).toHaveBeenCalledWith('storage.redeemSuccess:50')
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'wallet'] })
+    expect(toast.success).toHaveBeenCalledWith('storage.redeemSuccess:5000')
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'credits'] })
   })
 
   it('continues payment for an unpaid order', async () => {
@@ -764,6 +728,6 @@ describe('StoragePage', () => {
     await waitFor(() => expect(cancelCloudOrder).toHaveBeenCalledWith('order-unpaid'))
     expect(toast.success).toHaveBeenCalledWith('storage.cancelSuccess')
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'orders'] })
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'wallet'] })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cloud-store', 'credits'] })
   })
 })

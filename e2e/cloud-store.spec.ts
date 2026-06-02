@@ -49,7 +49,7 @@ test.describe
       await unbindCurrentCloudBinding()
     })
 
-    test('@desktop covers pairing, admin store setup, gift-card wallet redemption, and wallet checkout', async ({
+    test('@desktop covers pairing, admin store setup, gift-card credit redemption, and checkout', async ({
       page,
       baseURL,
     }) => {
@@ -69,9 +69,9 @@ test.describe
       await expect(page.getByRole('heading', { name: 'Storage' })).toBeVisible({ timeout: 20_000 })
       await expectStorefrontProductVisibleInApi(page, packageName)
 
-      const walletBefore = await getWalletBalance(page)
+      const creditsBefore = await getCreditBalance(page)
       await redeemGiftCard(page, giftCard.code)
-      await expect.poll(() => getWalletBalance(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(walletBefore + 200)
+      await expect.poll(() => getCreditBalance(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(creditsBefore + 200)
 
       const hasPublicCallbackUrl = Boolean(baseURL && !LOCALHOST_RE.test(new URL(baseURL).origin))
       if (!hasPublicCallbackUrl) {
@@ -132,11 +132,11 @@ test.describe
         await expect(userPage.getByRole('heading', { name: 'Storage' })).toBeVisible({ timeout: 20_000 })
         await expectStorefrontProductVisibleInApi(userPage, packageName)
 
-        const walletBefore = await getWalletBalance(userPage)
+        const creditsBefore = await getCreditBalance(userPage)
         await redeemGiftCard(userPage, giftCard.code)
         await expect
-          .poll(() => getWalletBalance(userPage), { timeout: 20_000 })
-          .toBeGreaterThanOrEqual(walletBefore + 200)
+          .poll(() => getCreditBalance(userPage), { timeout: 20_000 })
+          .toBeGreaterThanOrEqual(creditsBefore + 200)
       } finally {
         await userContext.close()
       }
@@ -263,8 +263,7 @@ async function createOneTimePackage(page: Page, name: string) {
 
 async function createGiftCard(page: Page) {
   const cards = await postJson<CloudGiftCard[]>(page, '/api/admin/store/gift-cards', {
-    amount: 200,
-    currency: 'usd',
+    credits: 200,
     count: 1,
   })
   expect(cards.length).toBe(1)
@@ -301,7 +300,7 @@ async function createGiftCardThroughUi(page: Page) {
   await page.getByRole('tab', { name: 'Gift Cards' }).click()
   await page.getByRole('button', { name: 'Generate gift cards' }).click()
   const dialog = page.getByRole('dialog', { name: 'Generate gift cards' })
-  await dialog.getByLabel('Amount').fill('3')
+  await dialog.getByLabel('Credits').fill('3')
 
   const response = page.waitForResponse(
     (item) => item.url().includes('/api/admin/store/gift-cards') && item.request().method() === 'POST',
@@ -341,13 +340,13 @@ async function expectAdminGiftCardVisibleInApi(page: Page, code: string) {
 }
 
 async function redeemGiftCard(page: Page, code: string) {
-  await page.getByRole('button', { name: 'Wallet' }).click()
-  const walletDialog = page.getByRole('dialog', { name: 'Wallet' })
-  await walletDialog.getByRole('button', { name: 'Redeem gift card' }).click()
+  await page.getByRole('button', { name: 'Credits' }).click()
+  const creditsDialog = page.getByRole('dialog', { name: 'Credits' })
+  await creditsDialog.getByRole('button', { name: 'Redeem gift card' }).click()
   const redeemDialog = page.getByRole('dialog', { name: 'Redeem gift card' })
   await redeemDialog.getByLabel('Gift card code').fill(code)
   const redeemResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/store/gift-cards/redeem') && response.request().method() === 'POST',
+    (response) => response.url().includes('/api/store/credits/redemptions') && response.request().method() === 'POST',
   )
   await redeemDialog.getByRole('button', { name: 'Redeem' }).click()
   expect((await redeemResponse).status()).toBe(200)
@@ -355,12 +354,9 @@ async function redeemGiftCard(page: Page, code: string) {
   await page.keyboard.press('Escape')
 }
 
-async function getWalletBalance(page: Page) {
-  const wallet = await getJson<{ items: Array<{ availableAmount: number; currency: string }> }>(
-    page,
-    '/api/store/wallet',
-  )
-  return wallet.items.find((balance) => balance.currency === 'usd')?.availableAmount ?? 0
+async function getCreditBalance(page: Page) {
+  const credits = await getJson<{ balance: number }>(page, '/api/store/credits')
+  return credits.balance
 }
 
 async function expectStorefrontProductVisibleInApi(page: Page, packageName: string) {

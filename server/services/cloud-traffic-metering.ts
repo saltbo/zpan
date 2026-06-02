@@ -1,6 +1,7 @@
 import { asc, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { cloudTrafficReports } from '../db/schema'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database, Platform } from '../platform/interface'
@@ -56,12 +57,21 @@ export async function reportTrafficEgress(params: {
   }
 
   const binding = await loadActiveLicenseBinding(platform.db)
-  if (!binding?.refreshToken) {
+  if (!binding?.refreshToken || !binding.cloudStoreId) {
     await updateTrafficReport(platform.db, eventId, 'skipped_unbound', null, now)
     return { status: 'skipped_unbound', eventId, duplicate: false }
   }
 
-  return { status: 'pending', eventId, duplicate: false }
+  const status = await syncTrafficReport({
+    db: platform.db,
+    cloudBaseUrl: platform.getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT,
+    refreshToken: binding.refreshToken,
+    storeId: binding.cloudStoreId,
+    report: (await loadTrafficReport(platform.db, eventId))!,
+    now,
+  })
+  if (status === 'blocked') throw new CloudTrafficBlockedError()
+  return { status, eventId, duplicate: false }
 }
 
 export async function syncPendingCloudTrafficReports(params: {
@@ -124,7 +134,7 @@ async function syncTrafficReport(params: {
     return 'reported'
   } catch (error) {
     const message = error instanceof Error ? error.message : 'cloud_usage_report_failed'
-    if (message === 'overage_cap_exceeded') {
+    if (message === 'insufficient_credits' || message === 'overage_cap_exceeded') {
       await updateTrafficReport(db, report.eventId, 'blocked', message, now)
       return 'blocked'
     }

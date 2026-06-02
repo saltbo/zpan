@@ -18,11 +18,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { formatMoney } from '@/lib/format'
 
 export const emptyGiftCardForm = {
-  amount: '10',
-  currency: 'usd',
+  credits: '1000',
   expiresAt: '',
   count: '1',
 }
@@ -30,8 +28,7 @@ export type GiftCardFormState = typeof emptyGiftCardForm
 
 export function giftCardInputFromForm(form: GiftCardFormState): CreateGiftCardInput {
   const input: CreateGiftCardInput = {
-    amount: Math.round(Number(form.amount) * 100),
-    currency: form.currency.trim().toLowerCase(),
+    credits: Math.round(Number(form.credits)),
     count: Math.round(Number(form.count)),
   }
   if (form.expiresAt) input.expiresAt = new Date(form.expiresAt).toISOString()
@@ -111,22 +108,11 @@ function CodeGenerateForm({ form, available, pending, onFormChange, onGenerate }
   return (
     <div className="space-y-4">
       <NumberField
-        id="giftCardAmount"
-        label={t('admin.cloudStore.codes.amount')}
-        value={form.amount}
-        onChange={(amount) => onFormChange({ ...form, amount })}
+        id="giftCardCredits"
+        label={t('admin.cloudStore.codes.credits')}
+        value={form.credits}
+        onChange={(credits) => onFormChange({ ...form, credits })}
       />
-      <Field label={t('admin.cloudStore.codes.currency')} htmlFor="giftCardCurrency">
-        <Select value={form.currency} onValueChange={(currency) => onFormChange({ ...form, currency })}>
-          <SelectTrigger id="giftCardCurrency">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="usd">USD</SelectItem>
-            <SelectItem value="cny">CNY</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
       <DateField value={form.expiresAt} onChange={(expiresAt) => onFormChange({ ...form, expiresAt })} />
       <NumberField
         id="codeCount"
@@ -257,7 +243,7 @@ function CodeRow({
       <TableCell className="truncate font-mono text-xs" title={codeLabel}>
         {codeLabel}
       </TableCell>
-      <TableCell className="whitespace-nowrap">{formatMoney(code.amount, code.currency)}</TableCell>
+      <TableCell className="whitespace-nowrap">{formatCredits(code.credits)}</TableCell>
       <TableCell className="truncate" title={code.expiresAt ? new Date(code.expiresAt).toLocaleString() : '-'}>
         {code.expiresAt ? new Date(code.expiresAt).toLocaleString() : '-'}
       </TableCell>
@@ -346,6 +332,10 @@ function CodeRow({
       </TableCell>
     </TableRow>
   )
+}
+
+function formatCredits(credits: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(credits)
 }
 
 function CodeStatusBadge({ code }: { code: CloudGiftCard }) {

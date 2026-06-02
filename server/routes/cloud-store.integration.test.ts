@@ -22,8 +22,7 @@ const zpanCloudGiftCardResponseFixture: CloudGiftCard = {
   campaignId: null,
   code: null,
   codeLast4: '0001',
-  amount: 1000,
-  currency: 'usd',
+  credits: 1000,
   status: 'active',
   expiresAt: null,
   createdAt: '2026-05-06T00:00:00.000Z',
@@ -147,9 +146,9 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url, init) => {
-      if (String(url).includes('/api/stores/') && String(url).includes('/wallets/')) {
+      if (String(url).includes('/api/stores/') && String(url).includes('/credit-accounts/')) {
         if (init?.method === 'GET') {
-          if (String(url).includes('/transactions')) {
+          if (String(url).includes('/ledger-entries')) {
             return {
               ok: true,
               status: 200,
@@ -157,9 +156,10 @@ beforeEach(() => {
                 items: [
                   {
                     id: 'ledger-1',
+                    creditAccountId: 'credit-account-1',
+                    creditBucketId: 'credit-bucket-1',
                     storeId: 'store-test-binding',
                     customerId: 'org-placeholder',
-                    currency: 'usd',
                     amount: 500,
                     direction: 'credit',
                     status: 'posted',
@@ -167,7 +167,6 @@ beforeEach(() => {
                     sourceId: 'gift-1',
                     orderId: null,
                     paymentId: null,
-                    stripeCustomerBalanceTransactionId: null,
                     createdAt: '2026-05-06T00:00:00.000Z',
                   },
                 ],
@@ -181,21 +180,7 @@ beforeEach(() => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [
-                {
-                  id: 'wallet-1',
-                  storeId: 'store-test-binding',
-                  customerId: 'org-placeholder',
-                  currency: 'usd',
-                  availableAmount: 1250,
-                  pendingAmount: 0,
-                  stripeCustomerId: null,
-                  updatedAt: '2026-05-06T00:00:00.000Z',
-                },
-              ],
-              total: 1,
-              limit: 50,
-              offset: 0,
+              balance: 1250,
             }),
           } as Response
         }
@@ -203,8 +188,7 @@ beforeEach(() => {
           ok: true,
           status: 201,
           json: async () => ({
-            redeemedAmount: 1000,
-            currency: 'usd',
+            redeemedCredits: 1000,
             entries: [],
             failures: [],
           }),
@@ -222,12 +206,12 @@ beforeEach(() => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', amount: 1024 })],
+              items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', credits: 1024 })],
               total: 1,
               limit: 50,
               offset: 0,
               data: {
-                items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', amount: 1024 })],
+                items: [cloudGiftCard({ code: 'ZS-LIST-1', codeLast4: 'ST-1', credits: 1024 })],
                 total: 1,
                 limit: 50,
                 offset: 0,
@@ -235,7 +219,7 @@ beforeEach(() => {
             }),
           } as Response
         }
-        const body = JSON.parse(String(init?.body ?? '{}')) as { amount?: number; count?: number }
+        const body = JSON.parse(String(init?.body ?? '{}')) as { credits?: number; count?: number }
         return {
           ok: true,
           status: 201,
@@ -244,7 +228,7 @@ beforeEach(() => {
               cloudGiftCard({
                 code: `ZS-GEN-${index + 1}`,
                 codeLast4: `GEN${index + 1}`,
-                amount: body.amount ?? 1024,
+                credits: body.credits ?? 1024,
                 status: 'active',
               }),
             ),
@@ -423,8 +407,7 @@ describe('Quota Store API', () => {
           cloudGiftCard({
             code: 'ZS11-ACTV-0000-0001',
             codeLast4: '0001',
-            amount: 2048,
-            currency: 'usd',
+            credits: 2048,
           }),
         ],
         total: 1,
@@ -439,8 +422,7 @@ describe('Quota Store API', () => {
           campaignId: null,
           code: 'ZS11-ACTV-0000-0001',
           codeLast4: '0001',
-          amount: 2048,
-          currency: 'usd',
+          credits: 2048,
           status: 'active',
           expiresAt: null,
           createdAt: '2026-05-06T00:00:00.000Z',
@@ -1304,8 +1286,7 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        amount: 4096,
-        currency: 'usd',
+        credits: 4096,
         expiresAt: '2099-06-01T00:00:00.000Z',
         count: 2,
       }),
@@ -1315,13 +1296,13 @@ describe('Quota Store API', () => {
 
     expect(generated.status).toBe(201)
     await expect(generated.json()).resolves.toMatchObject([
-      { code: 'ZS-GEN-1', amount: 4096, status: 'active' },
-      { code: 'ZS-GEN-2', amount: 4096, status: 'active' },
+      { code: 'ZS-GEN-1', credits: 4096, status: 'active' },
+      { code: 'ZS-GEN-2', credits: 4096, status: 'active' },
     ])
     expect(listed.status).toBe(200)
     await expect(listed.json()).resolves.toMatchObject({
       total: 1,
-      items: [{ code: 'ZS-LIST-1', amount: 1024 }],
+      items: [{ code: 'ZS-LIST-1', credits: 1024 }],
     })
     expect(deleted.status).toBe(200)
     await expect(deleted.json()).resolves.toEqual({ code: 'ZS-GEN-1', deleted: true })
@@ -1333,8 +1314,7 @@ describe('Quota Store API', () => {
     expect(String(generateUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
     expect(requestHeader(generateInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
     expect(JSON.parse(generateInit.body as string)).toEqual({
-      amount: 4096,
-      currency: 'usd',
+      credits: 4096,
       expiresAt: '2099-06-01T00:00:00.000Z',
       count: 2,
     })
@@ -1381,8 +1361,7 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        amount: 4096,
-        currency: 'usd',
+        credits: 4096,
         count: 1,
       }),
     })
@@ -1576,7 +1555,7 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(200)
   })
 
-  it('omits wallet credit when checking out recurring packages', async () => {
+  it('omits credit discount fields when checking out recurring packages', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1606,7 +1585,6 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(200)
-    expect(orderPayload()).not.toHaveProperty('walletCreditAmount')
   })
 
   it('rejects recurring checkout when the workspace already has an active plan', async () => {
@@ -1651,7 +1629,7 @@ describe('Quota Store API', () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 
-  it('uses wallet credit when checking out fixed-duration packages', async () => {
+  it('creates fixed-duration package checkouts without credit discount fields', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1665,7 +1643,6 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(200)
-    expect(orderPayload()).not.toHaveProperty('walletCreditAmount')
   })
 
   it('creates a subscription portal for the active workspace plan', async () => {
@@ -1743,7 +1720,6 @@ describe('Quota Store API', () => {
         customerLabel: 'buyer@example.com',
       },
     })
-    expect(orderBody).not.toHaveProperty('walletCreditAmount')
     const [paymentUrl, paymentInit] = calls.find(([url]) => String(url).includes('/payments'))!
     const paymentBody = JSON.parse(String(paymentInit.body))
     expect(String(paymentUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders/order-cloud-1/payments`)
@@ -1774,73 +1750,61 @@ describe('Quota Store API', () => {
     expect(parsedOrdersUrl.searchParams.get('customerId')).toBe(orgId)
   })
 
-  it('proxies wallet balance and gift card redemption through wallet endpoints', async () => {
+  it('proxies credit balance and gift card redemption through credit endpoints', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
 
-    const wallet = await app.request('/api/store/wallet', { headers })
-    const redeem = await app.request('/api/store/gift-cards/redeem', {
+    const credits = await app.request('/api/store/credits', { headers })
+    const redeem = await app.request('/api/store/credits/redemptions', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: 'ZS-1234-5678' }),
     })
 
-    expect(wallet.status).toBe(200)
-    await expect(wallet.json()).resolves.toEqual({
-      items: [
-        {
-          id: 'wallet-1',
-          storeId: 'store-test-binding',
-          customerId: 'org-placeholder',
-          currency: 'usd',
-          availableAmount: 1250,
-          pendingAmount: 0,
-          stripeCustomerId: null,
-          updatedAt: '2026-05-06T00:00:00.000Z',
-        },
-      ],
-      total: 1,
-      limit: 50,
-      offset: 0,
-    })
+    expect(credits.status).toBe(200)
+    await expect(credits.json()).resolves.toEqual({ balance: 1250 })
     expect(redeem.status).toBe(200)
     await expect(redeem.json()).resolves.toEqual({
-      redeemedAmount: 1000,
-      currency: 'usd',
+      redeemedCredits: 1000,
       entries: [],
       failures: [],
     })
 
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
-    const [walletUrl, walletInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/balances`))!
-    const [redeemUrl, redeemInit] = calls.find(([url]) => String(url).includes(`/wallets/${orgId}/redemptions`))!
-    expect(String(walletUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/balances`)
-    expect(walletInit.method).toBe('GET')
-    expect(String(redeemUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/redemptions`)
+    const [creditsUrl, creditsInit] = calls.find(([url]) => String(url).includes(`/credit-accounts/${orgId}/balance`))!
+    const [redeemUrl, redeemInit] = calls.find(([url]) =>
+      String(url).includes(`/credit-accounts/${orgId}/redemptions`),
+    )!
+    expect(String(creditsUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/credit-accounts/${orgId}/balance`)
+    expect(creditsInit.method).toBe('GET')
+    expect(String(redeemUrl)).toBe(
+      `${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/credit-accounts/${orgId}/redemptions`,
+    )
     expect(redeemInit.method).toBe('POST')
     expect(JSON.parse(String(redeemInit.body))).toEqual({ codes: ['ZS-1234-5678'] })
   })
 
-  it('proxies wallet transactions through wallet endpoints', async () => {
+  it('proxies credit ledger entries through credit endpoints', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
 
-    const transactions = await app.request('/api/store/wallet/transactions', { headers })
+    const ledger = await app.request('/api/store/credits/ledger-entries', { headers })
 
-    expect(transactions.status).toBe(200)
-    await expect(transactions.json()).resolves.toEqual({
+    expect(ledger.status).toBe(200)
+    await expect(ledger.json()).resolves.toEqual({
       items: [
         {
           id: 'ledger-1',
+          creditAccountId: 'credit-account-1',
+          creditBucketId: 'credit-bucket-1',
           storeId: 'store-test-binding',
           customerId: 'org-placeholder',
-          currency: 'usd',
           amount: 500,
           direction: 'credit',
           status: 'posted',
@@ -1848,7 +1812,6 @@ describe('Quota Store API', () => {
           sourceId: 'gift-1',
           orderId: null,
           paymentId: null,
-          stripeCustomerBalanceTransactionId: null,
           createdAt: '2026-05-06T00:00:00.000Z',
         },
       ],
@@ -1858,13 +1821,13 @@ describe('Quota Store API', () => {
     })
 
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
-    const [transactionsUrl, transactionsInit] = calls.find(([url]) =>
-      String(url).includes(`/wallets/${orgId}/transactions`),
+    const [ledgerUrl, ledgerInit] = calls.find(([url]) =>
+      String(url).includes(`/credit-accounts/${orgId}/ledger-entries`),
     )!
-    expect(String(transactionsUrl)).toBe(
-      `${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/wallets/${orgId}/transactions`,
+    expect(String(ledgerUrl)).toBe(
+      `${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/credit-accounts/${orgId}/ledger-entries`,
     )
-    expect(transactionsInit.method).toBe('GET')
+    expect(ledgerInit.method).toBe('GET')
   })
 
   it('continues payment and cancels orders through Cloud', async () => {
