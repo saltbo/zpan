@@ -13,6 +13,17 @@ export default defineConfig(({ mode }) => ({
     outDir: 'dist',
     emptyOutDir: true,
   },
+  environments:
+    mode === 'node'
+      ? undefined
+      : {
+          zpan: {
+            resolve: {
+              conditions: ['browser', 'workerd', 'worker', 'module', 'development|production'],
+              mainFields: ['browser', 'module', 'jsnext:main', 'jsnext'],
+            },
+          },
+        },
   plugins: [
     TanStackRouterVite({
       routesDirectory: './src/routes',
