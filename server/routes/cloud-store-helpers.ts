@@ -15,6 +15,8 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
 import { getCloudStoreBinding, getRequiredSettings } from '../services/cloud-store'
 
+const CLOUD_STORE_REQUEST_TIMEOUT_MS = 10_000
+
 export type RouteContext = {
   get(key: 'platform'): Env['Variables']['platform']
   req: { url: string; header(name: string): string | undefined }
@@ -77,6 +79,20 @@ export async function getBoundCloudClient(c: RouteContext) {
   return {
     client: createCloudClient({ baseUrl: `${getCloudBaseUrl(c).replace(/\/$/, '')}/api`, token: binding.refreshToken }),
     storeId: binding.storeId,
+  }
+}
+
+export async function withCloudRequestTimeout<T>(request: Promise<T>): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      request,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('cloud_request_timeout')), CLOUD_STORE_REQUEST_TIMEOUT_MS)
+      }),
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
   }
 }
 

@@ -398,7 +398,7 @@ describe('AdminCloudStorePage', () => {
 
     const view = renderAdminPage()
 
-    await waitFor(() => expect(view.getByText('admin.cloudStore.planProductsTitle')).toBeTruthy())
+    await waitFor(() => expect(view.getAllByRole('table')).toHaveLength(2))
     expect(view.getAllByRole('table')).toHaveLength(2)
     expect(view.getByRole('columnheader', { name: 'admin.cloudStore.planName' })).toBeTruthy()
     expect(view.getAllByRole('columnheader', { name: 'admin.cloudStore.prices' })).toHaveLength(2)
@@ -639,7 +639,7 @@ describe('AdminCloudStorePage', () => {
     expect(view.queryByText('admin.cloudStore.storage.closed')).toBeNull()
     expect(view.queryByText('admin.cloudStore.cloud.notConnected')).toBeNull()
     expect(view.getByRole('tablist')).toBeTruthy()
-    expect(view.getByText('100 GB')).toBeTruthy()
+    await waitFor(() => expect(view.getByText('100 GB')).toBeTruthy())
     expect(view.queryByRole('switch', { name: 'admin.cloudStore.enabled' })).toBeNull()
     expect(view.queryByRole('button', { name: 'common.save' })).toBeNull()
     expect(view.queryByRole('button', { name: 'admin.cloudStore.sync' })).toBeNull()

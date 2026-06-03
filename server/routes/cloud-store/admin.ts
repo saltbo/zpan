@@ -23,6 +23,7 @@ import {
   giftCardListQuerySchema,
   type RouteContext,
   unwrapCloudResponse,
+  withCloudRequestTimeout,
 } from '../cloud-store-helpers'
 import { getCloudOrders } from './shared'
 
@@ -178,7 +179,7 @@ async function cloudRequest<T>(
   request: (context: Awaited<ReturnType<typeof getBoundCloudClient>>) => Promise<T>,
 ): Promise<T | { error: string }> {
   try {
-    return await request(await getBoundCloudClient(c))
+    return await withCloudRequestTimeout(request(await getBoundCloudClient(c)))
   } catch (error) {
     return { error: (error as Error).message }
   }

@@ -1,5 +1,5 @@
 import type { GiftCardStatus } from '@shared/schemas'
-import type { CloudProduct, CloudStoreSettings } from '@shared/types'
+import type { CloudStoreSettings } from '@shared/types'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { CheckCircle2, CircleSlash2, XCircle } from 'lucide-react'
@@ -49,20 +49,33 @@ export function AdminCloudStorePage() {
 function useAdminCloudStoreState() {
   const [activeTab, setActiveTab] = useState<CloudStoreAdminTab>('packages')
   const [giftCardStatus, setGiftCardStatus] = useState<GiftCardStatus | 'all'>('all')
-  const query = useQuery({ queryKey: ['admin', 'cloud-store'], queryFn: loadAdminCloudStore })
+  const query = useQuery({ queryKey: ['admin', 'cloud-store', 'settings'], queryFn: loadAdminCloudStore })
+  const available = query.data?.available === true
+  const packagesQuery = useQuery({
+    queryKey: ['admin', 'cloud-store', 'packages'],
+    queryFn: listAdminCloudProducts,
+    enabled: available,
+    retry: false,
+  })
+  const creditPackagesQuery = useQuery({
+    queryKey: ['admin', 'cloud-store', 'credit-packages'],
+    queryFn: listAdminCloudCreditProducts,
+    enabled: available,
+    retry: false,
+  })
   const packageEditor = usePackageEditor()
   const creditPackageEditor = useCreditPackageEditor()
   const giftCardActions = useGiftCardActions()
   const giftCardsQuery = useQuery({
     queryKey: ['admin', 'cloud-store', 'gift-cards', giftCardStatus],
     queryFn: () => listCloudGiftCards(giftCardStatus === 'all' ? undefined : giftCardStatus),
-    enabled: query.data?.available === true && activeTab === 'codes',
+    enabled: available && activeTab === 'codes',
     retry: false,
   })
   const ordersQuery = useQuery({
     queryKey: ['admin', 'cloud-store', 'orders'],
     queryFn: () => listAdminCloudOrders(),
-    enabled: query.data?.available === true,
+    enabled: available,
     retry: false,
   })
   const data = query.data
@@ -73,6 +86,8 @@ function useAdminCloudStoreState() {
     giftCardsQuery,
     giftCardStatus,
     data,
+    packagesQuery,
+    creditPackagesQuery,
     creditPackageEditor,
     ordersQuery,
     packageEditor,
@@ -188,8 +203,10 @@ function AdminTabs({ state }: { state: AdminCloudStoreReadyState }) {
       {state.activeTab === 'packages' && (
         <PackagesTab
           available={state.data.available}
-          packages={state.data.packages}
-          creditPackages={state.data.creditPackages}
+          packages={state.packagesQuery.data?.items ?? []}
+          creditPackages={state.creditPackagesQuery.data?.items ?? []}
+          packagesQuery={state.packagesQuery}
+          creditPackagesQuery={state.creditPackagesQuery}
           editor={state.packageEditor}
           creditEditor={state.creditPackageEditor}
         />
@@ -226,25 +243,17 @@ async function loadAdminCloudStore(): Promise<{
   available: boolean
   enabled: boolean
   settings: CloudStoreSettings | null
-  packages: CloudProduct[]
-  creditPackages: CloudProduct[]
 }> {
   try {
-    const [settings, packages, creditPackages] = await Promise.all([
-      getCloudStoreSettings(),
-      listAdminCloudProducts(),
-      listAdminCloudCreditProducts(),
-    ])
+    const settings = await getCloudStoreSettings()
     return {
       available: true,
       enabled: settings?.enabled ?? false,
       settings,
-      packages: packages.items,
-      creditPackages: creditPackages.items,
     }
   } catch (err) {
     if (err instanceof ApiError && err.status === 402) {
-      return { available: false, enabled: false, settings: null, packages: [], creditPackages: [] }
+      return { available: false, enabled: false, settings: null }
     }
     throw err
   }

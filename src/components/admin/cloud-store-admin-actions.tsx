@@ -21,6 +21,7 @@ import {
   StoragePlanForm,
 } from '@/components/admin/cloud-product-form'
 import { CreditPackageList, StoragePlanList } from '@/components/admin/cloud-product-list'
+import { CloudStoreTabState } from '@/components/admin/cloud-store-admin-shell'
 import {
   createCloudGiftCards,
   createCloudProduct,
@@ -131,12 +132,16 @@ export function PackagesTab({
   available,
   packages,
   creditPackages,
+  packagesQuery,
+  creditPackagesQuery,
   editor,
   creditEditor,
 }: {
   available: boolean
   packages: CloudProduct[]
   creditPackages: CloudProduct[]
+  packagesQuery: { isLoading: boolean; isError: boolean }
+  creditPackagesQuery: { isLoading: boolean; isError: boolean }
   editor: ReturnType<typeof usePackageEditor>
   creditEditor: ReturnType<typeof useCreditPackageEditor>
 }) {
@@ -168,13 +173,15 @@ export function PackagesTab({
           <h3 className="text-base font-semibold">{t('admin.cloudStore.planProductsTitle')}</h3>
           <p className="text-sm text-muted-foreground">{t('admin.cloudStore.planProductsDescription')}</p>
         </div>
-        <StoragePlanList
-          packages={visiblePackages}
-          actionPending={editor.publishMutation.isPending || editor.deleteMutation.isPending}
-          onEdit={editor.edit}
-          onDelete={editor.delete}
-          onPublishChange={editor.publish}
-        />
+        <CloudStoreTabState query={packagesQuery}>
+          <StoragePlanList
+            packages={visiblePackages}
+            actionPending={editor.publishMutation.isPending || editor.deleteMutation.isPending}
+            onEdit={editor.edit}
+            onDelete={editor.delete}
+            onPublishChange={editor.publish}
+          />
+        </CloudStoreTabState>
       </section>
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
@@ -187,13 +194,15 @@ export function PackagesTab({
             {t('admin.cloudStore.newCreditPackage')}
           </Button>
         </div>
-        <CreditPackageList
-          packages={visibleCreditPackages}
-          actionPending={creditEditor.publishMutation.isPending || creditEditor.deleteMutation.isPending}
-          onEdit={creditEditor.edit}
-          onDelete={creditEditor.delete}
-          onPublishChange={creditEditor.publish}
-        />
+        <CloudStoreTabState query={creditPackagesQuery}>
+          <CreditPackageList
+            packages={visibleCreditPackages}
+            actionPending={creditEditor.publishMutation.isPending || creditEditor.deleteMutation.isPending}
+            onEdit={creditEditor.edit}
+            onDelete={creditEditor.delete}
+            onPublishChange={creditEditor.publish}
+          />
+        </CloudStoreTabState>
       </section>
       <PackageDialog available={available} editor={editor} />
       <DeletePackageDialog editor={editor} />
