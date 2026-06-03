@@ -5,7 +5,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   AlertCircle,
   Check,
-  ChevronDown,
   ChevronRight,
   Clock,
   Download,
@@ -23,7 +22,7 @@ import {
   Upload,
   Users,
 } from 'lucide-react'
-import { type FormEvent, Fragment, type ReactNode, useState } from 'react'
+import { type FormEvent, type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useFilesQuery } from '@/components/files/hooks/use-files-query'
@@ -39,6 +38,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { createDownloadTask, listDownloadTasks, updateDownloadTask } from '@/lib/api'
+import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/downloads/')({
   component: DownloadsPage,
@@ -46,6 +46,15 @@ export const Route = createFileRoute('/_authenticated/downloads/')({
 
 const QUERY_KEY = ['download-tasks']
 const ACTIVE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'running', 'billing_paused', 'uploading'])
+type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'log'
+
+const DETAIL_TABS: Array<{ id: DetailTab; labelKey: string; icon: ReactNode }> = [
+  { id: 'overview', labelKey: 'downloads.detail.tabs.overview', icon: <Gauge className="size-4" /> },
+  { id: 'trackers', labelKey: 'downloads.detail.tabs.trackers', icon: <RadioTower className="size-4" /> },
+  { id: 'peers', labelKey: 'downloads.detail.tabs.peers', icon: <Users className="size-4" /> },
+  { id: 'files', labelKey: 'downloads.detail.tabs.files', icon: <FileDown className="size-4" /> },
+  { id: 'log', labelKey: 'downloads.detail.tabs.log', icon: <AlertCircle className="size-4" /> },
+]
 
 function DownloadsPage() {
   const { t } = useTranslation()
@@ -55,7 +64,8 @@ function DownloadsPage() {
   const [targetFolder, setTargetFolder] = useState('')
   const [name, setName] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [detailTab, setDetailTab] = useState<DetailTab>('overview')
 
   const tasksQuery = useQuery({
     queryKey: QUERY_KEY,
@@ -95,9 +105,11 @@ function DownloadsPage() {
   }
 
   const tasks = tasksQuery.data?.items ?? []
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null
+  const activeSelectedTaskId = selectedTask?.id ?? null
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-[calc(100dvh-8rem)] flex-col gap-3">
       <PageHeader
         items={[{ label: t('downloads.title'), icon: <Download className="size-4 text-muted-foreground" /> }]}
         actions={
@@ -186,36 +198,45 @@ function DownloadsPage() {
         </DialogContent>
       </Dialog>
 
-      <section className="rounded-md border bg-background">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('downloads.table.source')}</TableHead>
-              <TableHead>{t('downloads.table.status')}</TableHead>
-              <TableHead>{t('downloads.table.progress')}</TableHead>
-              <TableHead>{t('downloads.table.speed')}</TableHead>
-              <TableHead className="text-right">{t('common.actions')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tasks.length === 0 && (
+      <section className="min-h-0 flex-1 overflow-hidden rounded-md border bg-background">
+        <div className="max-h-[46dvh] overflow-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="h-28 text-center text-muted-foreground">
-                  {tasksQuery.isLoading ? t('common.loading') : t('downloads.empty')}
-                </TableCell>
+                <TableHead>{t('downloads.table.source')}</TableHead>
+                <TableHead>{t('downloads.table.status')}</TableHead>
+                <TableHead>{t('downloads.table.progress')}</TableHead>
+                <TableHead>{t('downloads.table.size')}</TableHead>
+                <TableHead>{t('downloads.table.speed')}</TableHead>
+                <TableHead>{t('downloads.table.peers')}</TableHead>
+                <TableHead>{t('downloads.table.eta')}</TableHead>
+                <TableHead className="text-right">{t('common.actions')}</TableHead>
               </TableRow>
-            )}
-            {tasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                expanded={expandedTaskId === task.id}
-                onToggle={() => setExpandedTaskId((current) => (current === task.id ? null : task.id))}
-                onCancel={(id) => pauseMutation.mutate(id)}
-              />
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {tasks.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-28 text-center text-muted-foreground">
+                    {tasksQuery.isLoading ? t('common.loading') : t('downloads.empty')}
+                  </TableCell>
+                </TableRow>
+              )}
+              {tasks.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  selected={task.id === activeSelectedTaskId}
+                  onSelect={() => setSelectedTaskId(task.id)}
+                  onCancel={(id) => pauseMutation.mutate(id)}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      <section className="min-h-[22rem] overflow-hidden rounded-md border bg-background">
+        <DownloadInspector task={selectedTask} tab={detailTab} onTabChange={setDetailTab} />
       </section>
     </div>
   )
@@ -335,178 +356,214 @@ function FolderPicker({ value, onChange }: { value: string; onChange: (path: str
 
 function TaskRow({
   task,
-  expanded,
-  onToggle,
+  selected,
+  onSelect,
   onCancel,
 }: {
   task: DownloadTask
-  expanded: boolean
-  onToggle: () => void
+  selected: boolean
+  onSelect: () => void
   onCancel: (id: string) => void
 }) {
   const { t } = useTranslation()
   const total = task.totalBytes ?? task.downloadedBytes
   const progress = total > 0 ? Math.min(100, Math.round((task.downloadedBytes / total) * 100)) : 0
   const active = ACTIVE_STATUSES.has(task.status)
+  const detail = task.detail
+  const peers = detail?.peers ?? detail?.connections
 
   return (
-    <Fragment>
-      <TableRow>
-        <TableCell className="max-w-[32rem]">
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" onClick={onToggle}>
-              {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-            </Button>
-            <LinkIcon className="size-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0">
-              <div className="truncate font-medium">{task.detail?.torrentName || task.name || task.sourceUri}</div>
-              <div className="truncate text-xs text-muted-foreground">{task.sourceUri}</div>
-            </div>
+    <TableRow
+      className={cn('h-12 cursor-pointer hover:bg-muted/50', selected && 'bg-primary/5 hover:bg-primary/10')}
+      onClick={onSelect}
+    >
+      <TableCell className="max-w-[28rem] py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <SourceIcon type={task.sourceType} />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium">{getTaskTitle(task)}</div>
+            <div className="truncate text-xs text-muted-foreground">{task.sourceUri}</div>
           </div>
-        </TableCell>
-        <TableCell>
-          <StatusBadge status={task.status} />
-          {task.detail?.phase && <div className="mt-1 text-xs text-muted-foreground">{task.detail.phase}</div>}
-          {task.status === 'billing_paused' && (
-            <div className="mt-1 text-xs text-muted-foreground">{t('downloads.billingPaused')}</div>
-          )}
-        </TableCell>
-        <TableCell className="min-w-44">
-          <div className="flex items-center gap-2">
-            <Progress value={progress} className="h-2" />
-            <span className="w-10 text-right text-xs text-muted-foreground">{progress}%</span>
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {formatBytes(task.downloadedBytes)} /{' '}
-            {task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}
-          </div>
-        </TableCell>
-        <TableCell>
-          <div className="text-sm">{formatBytes(task.downloadBps)}/s</div>
-          {task.uploadBps > 0 && (
-            <div className="text-xs text-muted-foreground">{formatBytes(task.uploadBps)}/s up</div>
-          )}
-        </TableCell>
-        <TableCell className="text-right">
-          {active ? (
-            <Button variant="ghost" size="sm" onClick={() => onCancel(task.id)}>
-              <PauseCircle className="size-4" />
-              {t('downloads.cancel')}
-            </Button>
-          ) : (
-            <RotateCw className="ml-auto size-4 text-muted-foreground" />
-          )}
-        </TableCell>
-      </TableRow>
-      {expanded && (
-        <TableRow>
-          <TableCell colSpan={5} className="bg-muted/20 p-0">
-            <TaskDetails task={task} progress={progress} />
-          </TableCell>
-        </TableRow>
-      )}
-    </Fragment>
+        </div>
+      </TableCell>
+      <TableCell className="py-2">
+        <StatusBadge status={task.status} />
+        <div className="mt-1 max-w-32 truncate text-xs text-muted-foreground">
+          {task.status === 'billing_paused' ? t('downloads.billingPaused') : detail?.phase || '-'}
+        </div>
+      </TableCell>
+      <TableCell className="min-w-40 py-2">
+        <div className="flex items-center gap-2">
+          <Progress value={progress} className="h-1.5" />
+          <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{progress}%</span>
+        </div>
+      </TableCell>
+      <TableCell className="whitespace-nowrap py-2 text-xs tabular-nums text-muted-foreground">
+        {formatBytes(task.downloadedBytes)} / {task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}
+      </TableCell>
+      <TableCell className="whitespace-nowrap py-2 text-xs tabular-nums">
+        <div>{formatBytes(task.downloadBps)}/s ↓</div>
+        <div className="text-muted-foreground">{formatBytes(task.uploadBps)}/s ↑</div>
+      </TableCell>
+      <TableCell className="whitespace-nowrap py-2 text-xs tabular-nums text-muted-foreground">
+        {formatNumber(detail?.seeders)} / {formatNumber(peers)}
+      </TableCell>
+      <TableCell className="whitespace-nowrap py-2 text-xs tabular-nums text-muted-foreground">
+        {formatDuration(detail?.etaSeconds)}
+      </TableCell>
+      <TableCell className="py-2 text-right">
+        {active ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(event) => {
+              event.stopPropagation()
+              onCancel(task.id)
+            }}
+          >
+            <PauseCircle className="size-4" />
+            {t('downloads.cancel')}
+          </Button>
+        ) : (
+          <RotateCw className="ml-auto size-4 text-muted-foreground" />
+        )}
+      </TableCell>
+    </TableRow>
   )
 }
 
-function TaskDetails({ task, progress }: { task: DownloadTask; progress: number }) {
+function DownloadInspector({
+  task,
+  tab,
+  onTabChange,
+}: {
+  task: DownloadTask | null
+  tab: DetailTab
+  onTabChange: (tab: DetailTab) => void
+}) {
   const { t } = useTranslation()
-  const detail = task.detail
-  const hasBtDetail = Boolean(
-    detail?.infoHash || detail?.trackers?.length || detail?.peerSamples?.length || detail?.files?.length,
-  )
+
+  if (!task) {
+    return (
+      <div className="flex h-full min-h-[22rem] items-center justify-center text-sm text-muted-foreground">
+        {t('downloads.detail.noSelection')}
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric
+    <div className="flex h-full min-h-[22rem] flex-col">
+      <div className="flex min-h-14 items-center justify-between gap-3 border-b px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <SourceIcon type={task.sourceType} />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium">{getTaskTitle(task)}</div>
+            <div className="truncate text-xs text-muted-foreground">{task.sourceUri}</div>
+          </div>
+        </div>
+        <StatusBadge status={task.status} />
+      </div>
+
+      <div className="flex overflow-x-auto border-b bg-muted/20 px-2" role="tablist">
+        {DETAIL_TABS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            className={cn(
+              'flex h-10 items-center gap-2 border-b-2 px-3 text-sm text-muted-foreground transition-colors',
+              tab === item.id
+                ? 'border-primary text-foreground'
+                : 'border-transparent hover:border-muted-foreground/30 hover:text-foreground',
+            )}
+            onClick={() => onTabChange(item.id)}
+          >
+            {item.icon}
+            {t(item.labelKey)}
+          </button>
+        ))}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        {tab === 'overview' && <OverviewPanel task={task} />}
+        {tab === 'trackers' && <TrackersPanel task={task} />}
+        {tab === 'peers' && <PeersPanel task={task} />}
+        {tab === 'files' && <FilesPanel task={task} />}
+        {tab === 'log' && <LogPanel task={task} />}
+      </div>
+    </div>
+  )
+}
+
+function OverviewPanel({ task }: { task: DownloadTask }) {
+  const { t } = useTranslation()
+  const detail = task.detail
+  const total = task.totalBytes ?? task.downloadedBytes
+  const progress = total > 0 ? Math.min(100, Math.round((task.downloadedBytes / total) * 100)) : 0
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <InspectorMetric
           icon={<Gauge className="size-4" />}
           label={t('downloads.detail.downloadSpeed')}
           value={`${formatBytes(task.downloadBps)}/s`}
         />
-        <Metric
+        <InspectorMetric
           icon={<Upload className="size-4" />}
           label={t('downloads.detail.uploadSpeed')}
           value={`${formatBytes(task.uploadBps)}/s`}
         />
-        <Metric
+        <InspectorMetric
           icon={<Users className="size-4" />}
           label={t('downloads.detail.connections')}
           value={formatNumber(detail?.connections)}
         />
-        <Metric
+        <InspectorMetric
           icon={<Clock className="size-4" />}
           label={t('downloads.detail.eta')}
           value={formatDuration(detail?.etaSeconds)}
         />
       </div>
 
-      <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
-        <DetailItem label={t('downloads.detail.progress')} value={`${progress}%`} />
-        <DetailItem label={t('downloads.detail.target')} value={task.targetFolder || t('downloads.targetFolderRoot')} />
-        <DetailItem label={t('downloads.detail.engine')} value={detail?.engine || t('downloads.unknown')} />
-        <DetailItem
+      <div className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+        <InspectorField label={t('downloads.detail.progress')} value={`${progress}%`} />
+        <InspectorField label={t('downloads.detail.engine')} value={detail?.engine || t('downloads.unknown')} />
+        <InspectorField label={t('downloads.detail.phase')} value={detail?.phase || '-'} />
+        <InspectorField
+          label={t('downloads.detail.target')}
+          value={task.targetFolder || t('downloads.targetFolderRoot')}
+        />
+        <InspectorField
+          label={t('downloads.detail.sourceType')}
+          value={t(`downloads.sourceTypes.${sourceTypeKey(task)}`)}
+        />
+        <InspectorField label={t('downloads.detail.source')} value={task.sourceUri} />
+        <InspectorField
+          label={t('downloads.detail.size')}
+          value={`${formatBytes(task.downloadedBytes)} / ${task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}`}
+        />
+        <InspectorField
           label={t('downloads.detail.billing')}
           value={`${formatBytes(task.billedBytes)} / ${task.billedCredits} credits`}
         />
+        <InspectorField label={t('downloads.detail.infoHash')} value={detail?.infoHash || '-'} />
+        <InspectorField label={t('downloads.detail.torrentName')} value={detail?.torrentName || '-'} />
+        <InspectorField label={t('downloads.detail.seeders')} value={formatNumber(detail?.seeders)} />
+        <InspectorField label={t('downloads.detail.leechers')} value={formatNumber(detail?.leechers)} />
+        <InspectorField label={t('downloads.detail.uploaded')} value={formatBytes(detail?.uploadedBytes ?? 0)} />
+        <InspectorField label={t('downloads.detail.createdAt')} value={formatDate(task.createdAt)} />
+        <InspectorField label={t('downloads.detail.startedAt')} value={formatDate(task.startedAt)} />
+        <InspectorField label={t('downloads.detail.finishedAt')} value={formatDate(task.finishedAt)} />
       </div>
 
-      {task.errorMessage && (
+      {(task.errorMessage || detail?.message) && (
         <div className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <div className="min-w-0 break-words">{task.errorMessage}</div>
-        </div>
-      )}
-
-      {hasBtDetail && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-3">
-            <SectionTitle icon={<Magnet className="size-4" />} title={t('downloads.detail.bt')} />
-            <div className="grid gap-2 text-sm sm:grid-cols-2">
-              <DetailItem label={t('downloads.detail.infoHash')} value={detail?.infoHash || t('downloads.unknown')} />
-              <DetailItem label={t('downloads.detail.seeders')} value={formatNumber(detail?.seeders)} />
-              <DetailItem label={t('downloads.detail.leechers')} value={formatNumber(detail?.leechers)} />
-              <DetailItem label={t('downloads.detail.uploaded')} value={formatBytes(detail?.uploadedBytes ?? 0)} />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <SectionTitle icon={<RadioTower className="size-4" />} title={t('downloads.detail.trackers')} />
-            <CompactList
-              empty={t('downloads.detail.noTrackers')}
-              items={(detail?.trackers ?? []).slice(0, 8).map((tracker) => ({
-                key: tracker.url,
-                primary: tracker.url,
-                secondary: [tracker.status, tracker.message].filter(Boolean).join(' · '),
-                meta: `${formatNumber(tracker.seeds)} / ${formatNumber(tracker.peers)}`,
-              }))}
-            />
-          </div>
-
-          <div className="space-y-3">
-            <SectionTitle icon={<Users className="size-4" />} title={t('downloads.detail.peers')} />
-            <CompactList
-              empty={t('downloads.detail.noPeers')}
-              items={(detail?.peerSamples ?? []).slice(0, 8).map((peer) => ({
-                key: peer.address,
-                primary: peer.address,
-                secondary: peer.client,
-                meta: `${formatBytes(peer.downloadBps ?? 0)}/s`,
-              }))}
-            />
-          </div>
-
-          <div className="space-y-3">
-            <SectionTitle icon={<FileDown className="size-4" />} title={t('downloads.detail.files')} />
-            <CompactList
-              empty={t('downloads.detail.noFiles')}
-              items={(detail?.files ?? []).slice(0, 8).map((file) => ({
-                key: file.path,
-                primary: file.path,
-                secondary: `${formatBytes(file.completedBytes ?? 0)} / ${formatBytes(file.size)}`,
-                meta: file.selected === false ? t('downloads.detail.skipped') : '',
-              }))}
-            />
+          <div className="min-w-0 space-y-1 break-words">
+            {task.errorMessage && <div>{task.errorMessage}</div>}
+            {detail?.message && <div>{detail.message}</div>}
           </div>
         </div>
       )}
@@ -514,19 +571,155 @@ function TaskDetails({ task, progress }: { task: DownloadTask; progress: number 
   )
 }
 
-function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function TrackersPanel({ task }: { task: DownloadTask }) {
+  const { t } = useTranslation()
+  const trackers = task.detail?.trackers ?? []
+
+  if (trackers.length === 0) return <EmptyPanel text={t('downloads.detail.noTrackers')} />
+
   return (
-    <div className="rounded-md border bg-background px-3 py-2">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{t('downloads.detail.trackerUrl')}</TableHead>
+          <TableHead>{t('downloads.detail.trackerStatus')}</TableHead>
+          <TableHead>{t('downloads.detail.seeders')}</TableHead>
+          <TableHead>{t('downloads.detail.peers')}</TableHead>
+          <TableHead>{t('downloads.detail.statusMessage')}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {trackers.map((tracker) => (
+          <TableRow key={tracker.url}>
+            <TableCell className="max-w-[34rem] truncate font-mono text-xs">{tracker.url}</TableCell>
+            <TableCell>{tracker.status || '-'}</TableCell>
+            <TableCell className="tabular-nums">{formatNumber(tracker.seeds)}</TableCell>
+            <TableCell className="tabular-nums">{formatNumber(tracker.peers)}</TableCell>
+            <TableCell className="max-w-[24rem] truncate text-muted-foreground">{tracker.message || '-'}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+function PeersPanel({ task }: { task: DownloadTask }) {
+  const { t } = useTranslation()
+  const peers = task.detail?.peerSamples ?? []
+
+  if (peers.length === 0) return <EmptyPanel text={t('downloads.detail.noPeers')} />
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{t('downloads.detail.peerAddress')}</TableHead>
+          <TableHead>{t('downloads.detail.peerClient')}</TableHead>
+          <TableHead>{t('downloads.detail.progress')}</TableHead>
+          <TableHead>{t('downloads.detail.downloadSpeed')}</TableHead>
+          <TableHead>{t('downloads.detail.uploadSpeed')}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {peers.map((peer) => (
+          <TableRow key={peer.address}>
+            <TableCell className="font-mono text-xs">{peer.address}</TableCell>
+            <TableCell className="max-w-[20rem] truncate">{peer.client || '-'}</TableCell>
+            <TableCell className="tabular-nums">{formatPercent(peer.progress)}</TableCell>
+            <TableCell className="tabular-nums">{formatBytes(peer.downloadBps ?? 0)}/s</TableCell>
+            <TableCell className="tabular-nums">{formatBytes(peer.uploadBps ?? 0)}/s</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+function FilesPanel({ task }: { task: DownloadTask }) {
+  const { t } = useTranslation()
+  const files = task.detail?.files ?? []
+
+  if (files.length === 0) return <EmptyPanel text={t('downloads.detail.noFiles')} />
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{t('downloads.detail.filePath')}</TableHead>
+          <TableHead>{t('downloads.detail.progress')}</TableHead>
+          <TableHead>{t('downloads.detail.size')}</TableHead>
+          <TableHead>{t('downloads.detail.fileStatus')}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {files.map((file) => {
+          const progress = file.size > 0 ? Math.min(100, Math.round(((file.completedBytes ?? 0) / file.size) * 100)) : 0
+          return (
+            <TableRow key={file.path}>
+              <TableCell className="max-w-[38rem] truncate">{file.path}</TableCell>
+              <TableCell className="min-w-40">
+                <div className="flex items-center gap-2">
+                  <Progress value={progress} className="h-1.5" />
+                  <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{progress}%</span>
+                </div>
+              </TableCell>
+              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
+                {formatBytes(file.completedBytes ?? 0)} / {formatBytes(file.size)}
+              </TableCell>
+              <TableCell>
+                {file.selected === false ? t('downloads.detail.skipped') : t('downloads.detail.selected')}
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
+  )
+}
+
+function LogPanel({ task }: { task: DownloadTask }) {
+  const { t } = useTranslation()
+  const detail = task.detail
+  const messages = [
+    detail?.message && { label: t('downloads.detail.statusMessage'), value: detail.message },
+    task.errorMessage && { label: t('downloads.detail.errorMessage'), value: task.errorMessage },
+    { label: t('downloads.detail.createdAt'), value: formatDate(task.createdAt) },
+    { label: t('downloads.detail.startedAt'), value: formatDate(task.startedAt) },
+    { label: t('downloads.detail.finishedAt'), value: formatDate(task.finishedAt) },
+  ].filter(Boolean) as Array<{ label: string; value: string }>
+
+  return (
+    <div className="space-y-2 font-mono text-xs">
+      {messages.map((message) => (
+        <div key={message.label} className="grid gap-2 rounded-sm border px-3 py-2 sm:grid-cols-[10rem_1fr]">
+          <div className="text-muted-foreground">{message.label}</div>
+          <div className="min-w-0 break-words">{message.value || '-'}</div>
+        </div>
+      ))}
+      {messages.length === 0 && <EmptyPanel text={t('downloads.detail.noLog')} />}
+    </div>
+  )
+}
+
+function SourceIcon({ type }: { type: DownloadTask['sourceType'] }) {
+  if (type === 'magnet') return <Magnet className="size-4 shrink-0 text-amber-500" />
+  if (type === 'torrent_url') return <FileDown className="size-4 shrink-0 text-violet-500" />
+  return <LinkIcon className="size-4 shrink-0 text-blue-500" />
+}
+
+function InspectorMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-muted/20 px-3 py-2">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {icon}
         {label}
       </div>
-      <div className="mt-1 truncate text-sm font-medium">{value}</div>
+      <div className="mt-1 truncate text-sm font-medium tabular-nums">{value}</div>
     </div>
   )
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
+function InspectorField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <div className="text-xs text-muted-foreground">{label}</div>
@@ -535,37 +728,53 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   )
 }
 
-function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
+function EmptyPanel({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2 text-sm font-medium">
-      {icon}
-      {title}
+    <div className="flex h-48 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+      {text}
     </div>
   )
 }
 
-function CompactList({
-  items,
-  empty,
-}: {
-  items: Array<{ key: string; primary: string; secondary?: string; meta?: string }>
-  empty: string
-}) {
-  if (items.length === 0)
-    return <div className="rounded-md border bg-background p-3 text-sm text-muted-foreground">{empty}</div>
-  return (
-    <div className="rounded-md border bg-background">
-      {items.map((item) => (
-        <div key={item.key} className="flex min-w-0 items-center gap-3 border-b px-3 py-2 text-sm last:border-b-0">
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{item.primary}</div>
-            {item.secondary && <div className="truncate text-xs text-muted-foreground">{item.secondary}</div>}
-          </div>
-          {item.meta && <div className="shrink-0 text-xs text-muted-foreground">{item.meta}</div>}
-        </div>
-      ))}
-    </div>
-  )
+function getTaskTitle(task: DownloadTask) {
+  return task.detail?.torrentName || task.name || filenameFromUri(task.sourceUri) || task.sourceUri
+}
+
+function filenameFromUri(uri: string) {
+  try {
+    const parsed = new URL(uri)
+    const name = parsed.pathname.split('/').filter(Boolean).at(-1)
+    return name ? decodeURIComponent(name) : ''
+  } catch {
+    if (uri.startsWith('magnet:')) {
+      const match = uri.match(/[?&]dn=([^&]+)/)
+      return match ? decodeURIComponent(match[1].replace(/\+/g, ' ')) : ''
+    }
+    return ''
+  }
+}
+
+function sourceTypeKey(task: DownloadTask) {
+  if (task.sourceType === 'torrent_url') return 'torrentUrl'
+  return task.sourceType
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (!Number.isFinite(value)) return '-'
+  const normalized = (value as number) > 1 ? (value as number) : (value as number) * 100
+  return `${Math.max(0, Math.min(100, normalized)).toFixed(1)}%`
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 
 function StatusBadge({ status }: { status: DownloadTaskStatus }) {
