@@ -6,10 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/saltbo/zpan/downloader/internal/client"
 	"github.com/saltbo/zpan/downloader/internal/config"
+	"github.com/saltbo/zpan/downloader/internal/engine"
 )
 
 func TestResolveEngineRejectsUnknownConfiguredEngine(t *testing.T) {
@@ -85,6 +89,120 @@ func TestTaskErrorMessageTruncatesToSchemaLimit(t *testing.T) {
 	}
 }
 
+func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
+	dir := t.TempDir()
+	cleaned := false
+	w := New(config.Config{SeedEnabled: true, SeedDuration: time.Hour})
+
+	retained := w.retainSeed(
+		clientTask("task-1"),
+		engine.Result{
+			Path: filepath.Join(dir, "result"),
+			Seed: &engine.Seed{
+				Engine: "aria2",
+				ID:     "gid",
+				Path:   dir,
+				Cleanup: func(context.Context) error {
+					cleaned = true
+					return nil
+				},
+			},
+		},
+		w.logger,
+	)
+
+	if !retained {
+		t.Fatal("expected bt result to be retained")
+	}
+	if cleaned {
+		t.Fatal("expected retained seed cleanup to be deferred")
+	}
+	if len(w.retainedSeedSnapshot()) != 1 {
+		t.Fatalf("expected one retained seed, got %d", len(w.retainedSeedSnapshot()))
+	}
+}
+
+func TestCleanupRetainedSeedsRemovesExpiredSeed(t *testing.T) {
+	dir := t.TempDir()
+	w := New(config.Config{SeedEnabled: true, SeedDuration: time.Hour})
+	cleaned := false
+	w.retainedSeeds = []retainedSeed{{
+		taskID:    "task-1",
+		engine:    "aria2",
+		seedID:    "gid",
+		path:      dir,
+		expiresAt: time.Now().Add(-time.Second),
+		cleanup: func(context.Context) error {
+			cleaned = true
+			return nil
+		},
+	}}
+
+	w.cleanupRetainedSeeds(context.Background())
+
+	if !cleaned {
+		t.Fatal("expected expired seed to be cleaned")
+	}
+	if len(w.retainedSeedSnapshot()) != 0 {
+		t.Fatalf("expected retained seed to be removed, got %d", len(w.retainedSeedSnapshot()))
+	}
+}
+
+func TestCleanupRetainedSeedsRemovesOldestWhenCacheLimitExceeded(t *testing.T) {
+	root := t.TempDir()
+	oldDir := filepath.Join(root, "old")
+	newDir := filepath.Join(root, "new")
+	if err := os.MkdirAll(oldDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(newDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldDir, "old.bin"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(newDir, "new.bin"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var cleaned []string
+	w := New(config.Config{SeedEnabled: true, SeedCacheLimit: 3})
+	w.retainedSeeds = []retainedSeed{
+		{
+			taskID:     "old",
+			engine:     "qbittorrent",
+			seedID:     "old-hash",
+			path:       oldDir,
+			retainedAt: time.Now().Add(-time.Hour),
+			cleanup: func(context.Context) error {
+				cleaned = append(cleaned, "old")
+				return nil
+			},
+		},
+		{
+			taskID:     "new",
+			engine:     "qbittorrent",
+			seedID:     "new-hash",
+			path:       newDir,
+			retainedAt: time.Now(),
+			cleanup: func(context.Context) error {
+				cleaned = append(cleaned, "new")
+				return nil
+			},
+		},
+	}
+
+	w.cleanupRetainedSeeds(context.Background())
+
+	if len(cleaned) != 1 || cleaned[0] != "old" {
+		t.Fatalf("expected oldest seed to be cleaned first, got %v", cleaned)
+	}
+	seeds := w.retainedSeedSnapshot()
+	if len(seeds) != 1 || seeds[0].taskID != "new" {
+		t.Fatalf("expected newest seed to remain, got %+v", seeds)
+	}
+}
+
 func writeTempFile(t *testing.T, content string) string {
 	t.Helper()
 	file, err := os.CreateTemp(t.TempDir(), "upload-*")
@@ -98,4 +216,8 @@ func writeTempFile(t *testing.T, content string) string {
 		t.Fatal(err)
 	}
 	return file.Name()
+}
+
+func clientTask(id string) client.DownloadTask {
+	return client.DownloadTask{ID: id, SourceType: "magnet"}
 }

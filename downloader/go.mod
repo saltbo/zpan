@@ -5,6 +5,8 @@ go 1.25.0
 require (
 	github.com/Braurbeki/arigo v0.0.7
 	github.com/autobrr/go-qbittorrent v1.16.0
+	github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa
+	github.com/docker/go-units v0.5.0
 	github.com/oapi-codegen/runtime v1.4.1
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.21.0
@@ -15,7 +17,6 @@ require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible // indirect
 	github.com/cenkalti/hub v1.0.1-0.20160527103212-11382a9960d3 // indirect
-	github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect

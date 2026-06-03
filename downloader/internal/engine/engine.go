@@ -23,6 +23,14 @@ type Result struct {
 	Name  string
 	Size  int64
 	IsDir bool
+	Seed  *Seed
+}
+
+type Seed struct {
+	Engine  string
+	ID      string
+	Path    string
+	Cleanup func(context.Context) error
 }
 
 type Progress func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error
@@ -96,9 +104,10 @@ func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress P
 }
 
 type Aria2 struct {
-	URL    string
-	Secret string
-	Dir    string
+	URL        string
+	Secret     string
+	Dir        string
+	RetainSeed bool
 }
 
 func (a Aria2) Check(ctx context.Context) error {
@@ -138,6 +147,9 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 		AllowOverwrite:   true,
 		AutoFileRenaming: false,
 	}
+	if a.RetainSeed && task.SourceType != "http" {
+		options.SeedTime = 1000000
+	}
 	if task.Name != "" && task.SourceType == "http" {
 		options.Out = task.Name
 	}
@@ -170,6 +182,15 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	if err != nil {
 		return Result{}, err
 	}
+	if a.RetainSeed && task.SourceType != "http" {
+		result.Seed = &Seed{
+			Engine:  "aria2",
+			ID:      status.GID,
+			Path:    taskDir,
+			Cleanup: a.cleanupSeed(status.GID, taskDir),
+		}
+		return result, nil
+	}
 	_ = aria.ForceRemove(status.GID)
 	_ = aria.RemoveDownloadResult(status.GID)
 	return result, nil
@@ -179,11 +200,30 @@ func (a Aria2) client(ctx context.Context) (*arigo.Client, error) {
 	return arigo.DialContext(ctx, a.URL, a.Secret)
 }
 
+func (a Aria2) cleanupSeed(gid string, localPath string) func(context.Context) error {
+	return func(ctx context.Context) error {
+		var errs []error
+		aria, err := a.client(ctx)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			_ = aria.ForceRemove(gid)
+			_ = aria.RemoveDownloadResult(gid)
+			_ = aria.Close()
+		}
+		if err := os.RemoveAll(localPath); err != nil {
+			errs = append(errs, err)
+		}
+		return errors.Join(errs...)
+	}
+}
+
 type QBittorrent struct {
-	URL      string
-	Username string
-	Password string
-	Dir      string
+	URL        string
+	Username   string
+	Password   string
+	Dir        string
+	RetainSeed bool
 }
 
 func (q QBittorrent) Check(ctx context.Context) error {
@@ -256,8 +296,37 @@ func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, pro
 	if err != nil {
 		return Result{}, err
 	}
+	result, err := resultFromPath(task, taskDir, torrent.Name)
+	if err != nil {
+		return Result{}, err
+	}
+	if q.RetainSeed {
+		result.Seed = &Seed{
+			Engine:  "qbittorrent",
+			ID:      torrent.Hash,
+			Path:    taskDir,
+			Cleanup: q.cleanupSeed(torrent.Hash, taskDir),
+		}
+		return result, nil
+	}
 	_ = qbt.DeleteTorrentsCtx(ctx, []string{torrent.Hash}, false)
-	return resultFromPath(task, taskDir, torrent.Name)
+	return result, nil
+}
+
+func (q QBittorrent) cleanupSeed(hash string, localPath string) func(context.Context) error {
+	return func(ctx context.Context) error {
+		var errs []error
+		qbt, err := q.login(ctx)
+		if err != nil {
+			errs = append(errs, err)
+		} else if err := qbt.DeleteTorrentsCtx(ctx, []string{hash}, false); err != nil {
+			errs = append(errs, err)
+		}
+		if err := os.RemoveAll(localPath); err != nil {
+			errs = append(errs, err)
+		}
+		return errors.Join(errs...)
+	}
 }
 
 type progressWriter struct {

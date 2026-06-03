@@ -30,13 +30,24 @@ const maxTaskErrorMessageLength = 1000
 var errBillingPaused = errors.New("billing paused")
 
 type Worker struct {
-	cfg     config.Config
-	api     *client.Client
-	engine  engine.Engine
-	logger  *slog.Logger
-	running map[string]struct{}
-	started []*exec.Cmd
-	mu      sync.Mutex
+	cfg           config.Config
+	api           *client.Client
+	engine        engine.Engine
+	logger        *slog.Logger
+	running       map[string]struct{}
+	retainedSeeds []retainedSeed
+	started       []*exec.Cmd
+	mu            sync.Mutex
+}
+
+type retainedSeed struct {
+	taskID     string
+	engine     string
+	seedID     string
+	path       string
+	retainedAt time.Time
+	expiresAt  time.Time
+	cleanup    func(context.Context) error
 }
 
 func New(cfg config.Config) *Worker {
@@ -58,6 +69,9 @@ func (w *Worker) Run(ctx context.Context) error {
 		"download_dir", w.cfg.DownloadDir,
 		"poll_interval", w.cfg.PollInterval.String(),
 		"max_concurrent_tasks", w.cfg.MaxConcurrentTasks,
+		"seed_enabled", w.cfg.SeedEnabled,
+		"seed_duration", w.cfg.SeedDuration.String(),
+		"seed_cache_limit", w.cfg.SeedCacheLimit,
 	)
 	if err := w.resolveEngine(ctx); err != nil {
 		return err
@@ -75,6 +89,8 @@ func (w *Worker) Run(ctx context.Context) error {
 	w.logger.Info("downloader started", "engine", w.cfg.Engine)
 	ticker := time.NewTicker(w.cfg.PollInterval)
 	defer ticker.Stop()
+	seedCleanupTicker := time.NewTicker(time.Minute)
+	defer seedCleanupTicker.Stop()
 
 	if err := w.tick(ctx); err != nil {
 		w.logger.Error("downloader tick failed", "error", err)
@@ -88,6 +104,8 @@ func (w *Worker) Run(ctx context.Context) error {
 			if err := w.tick(ctx); err != nil {
 				w.logger.Error("downloader tick failed", "error", err)
 			}
+		case <-seedCleanupTicker.C:
+			w.cleanupRetainedSeeds(ctx)
 		}
 	}
 }
@@ -196,9 +214,140 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 		return
 	}
 	log.Debug("task completed", "object_id", resultObjectID)
-	if err := os.RemoveAll(result.Path); err != nil {
+	if w.retainSeed(task, result, log) {
+		w.cleanupRetainedSeeds(ctx)
+		return
+	}
+	if err := cleanupDownloadedResult(ctx, result); err != nil {
 		log.Warn("failed to remove local downloaded result", "path", result.Path, "error", err)
 	}
+}
+
+func cleanupDownloadedResult(ctx context.Context, result engine.Result) error {
+	if result.Seed != nil && result.Seed.Cleanup != nil {
+		return result.Seed.Cleanup(ctx)
+	}
+	return os.RemoveAll(result.Path)
+}
+
+func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log *slog.Logger) bool {
+	if !w.cfg.SeedEnabled || result.Seed == nil || result.Seed.Cleanup == nil {
+		return false
+	}
+	now := time.Now()
+	seed := retainedSeed{
+		taskID:     task.ID,
+		engine:     result.Seed.Engine,
+		seedID:     result.Seed.ID,
+		path:       result.Seed.Path,
+		retainedAt: now,
+		cleanup:    result.Seed.Cleanup,
+	}
+	if w.cfg.SeedDuration > 0 {
+		seed.expiresAt = now.Add(w.cfg.SeedDuration)
+	}
+	w.mu.Lock()
+	w.retainedSeeds = append(w.retainedSeeds, seed)
+	count := len(w.retainedSeeds)
+	w.mu.Unlock()
+
+	log.Info("retaining completed bt task for seeding",
+		"engine", seed.engine,
+		"seed_id", seed.seedID,
+		"path", seed.path,
+		"expires_at", optionalTime(seed.expiresAt),
+		"retained_seeds", count,
+	)
+	return true
+}
+
+func (w *Worker) cleanupRetainedSeeds(ctx context.Context) {
+	seeds := w.retainedSeedSnapshot()
+	if len(seeds) == 0 {
+		return
+	}
+
+	reasons := map[string]string{}
+	now := time.Now()
+	for _, seed := range seeds {
+		if !seed.expiresAt.IsZero() && !now.Before(seed.expiresAt) {
+			reasons[seed.taskID] = "expired"
+		}
+	}
+
+	if w.cfg.SeedCacheLimit > 0 {
+		type seedSize struct {
+			seed retainedSeed
+			size int64
+		}
+		sized := make([]seedSize, 0, len(seeds))
+		var total int64
+		for _, seed := range seeds {
+			if reasons[seed.taskID] != "" {
+				continue
+			}
+			size, err := directorySize(seed.path)
+			if err != nil {
+				w.logger.Warn("failed to inspect retained seed size", "task_id", seed.taskID, "path", seed.path, "error", err)
+				continue
+			}
+			total += size
+			sized = append(sized, seedSize{seed: seed, size: size})
+		}
+		sort.Slice(sized, func(i, j int) bool {
+			return sized[i].seed.retainedAt.Before(sized[j].seed.retainedAt)
+		})
+		for _, item := range sized {
+			if total <= w.cfg.SeedCacheLimit {
+				break
+			}
+			reasons[item.seed.taskID] = "cache_limit"
+			total -= item.size
+		}
+	}
+
+	for _, seed := range seeds {
+		reason := reasons[seed.taskID]
+		if reason == "" {
+			continue
+		}
+		w.cleanupRetainedSeed(ctx, seed, reason)
+	}
+}
+
+func (w *Worker) retainedSeedSnapshot() []retainedSeed {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]retainedSeed(nil), w.retainedSeeds...)
+}
+
+func (w *Worker) cleanupRetainedSeed(ctx context.Context, seed retainedSeed, reason string) {
+	w.logger.Info("cleaning retained bt seed",
+		"task_id", seed.taskID,
+		"engine", seed.engine,
+		"seed_id", seed.seedID,
+		"path", seed.path,
+		"reason", reason,
+	)
+	if err := seed.cleanup(ctx); err != nil {
+		w.logger.Warn("failed to clean retained bt seed",
+			"task_id", seed.taskID,
+			"engine", seed.engine,
+			"seed_id", seed.seedID,
+			"path", seed.path,
+			"error", err,
+		)
+		return
+	}
+	w.mu.Lock()
+	next := w.retainedSeeds[:0]
+	for _, retained := range w.retainedSeeds {
+		if retained.taskID != seed.taskID {
+			next = append(next, retained)
+		}
+	}
+	w.retainedSeeds = next
+	w.mu.Unlock()
 }
 
 type uploadProgress struct {
@@ -540,7 +689,7 @@ func externalEngineCandidates() []engineCandidate {
 			name:   "aria2",
 			binary: []string{"aria2c"},
 			engine: func(cfg config.Config) engine.Engine {
-				return engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir}
+				return engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled}
 			},
 			start:   startAria2,
 			canAuto: true,
@@ -549,7 +698,7 @@ func externalEngineCandidates() []engineCandidate {
 			name:   "qbittorrent",
 			binary: []string{"qbittorrent-nox", "qbittorrent"},
 			engine: func(cfg config.Config) engine.Engine {
-				return engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir}
+				return engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled}
 			},
 			start:   startQBittorrent,
 			canAuto: true,
@@ -567,13 +716,14 @@ func builtinEngineCandidate() engineCandidate {
 func selectEngine(cfg config.Config) engine.Engine {
 	switch cfg.Engine {
 	case "aria2":
-		return engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir}
+		return engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled}
 	case "qbittorrent":
 		return engine.QBittorrent{
-			URL:      cfg.QBittorrentURL,
-			Username: cfg.QBittorrentUser,
-			Password: cfg.QBittorrentPass,
-			Dir:      cfg.DownloadDir,
+			URL:        cfg.QBittorrentURL,
+			Username:   cfg.QBittorrentUser,
+			Password:   cfg.QBittorrentPass,
+			Dir:        cfg.DownloadDir,
+			RetainSeed: cfg.SeedEnabled,
 		}
 	default:
 		return engine.HTTP{Dir: cfg.DownloadDir}
@@ -784,4 +934,39 @@ func optionalInt64(value *int64) any {
 		return nil
 	}
 	return *value
+}
+
+func optionalTime(value time.Time) any {
+	if value.IsZero() {
+		return nil
+	}
+	return value.Format(time.RFC3339)
+}
+
+func directorySize(root string) (int64, error) {
+	var total int64
+	err := filepath.WalkDir(root, func(_ string, entry os.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		total += info.Size()
+		return nil
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	return total, err
 }

@@ -84,6 +84,9 @@ func runCommand(v *viper.Viper) *cobra.Command {
 				"download_dir", cfg.DownloadDir,
 				"poll_interval", cfg.PollInterval.String(),
 				"max_concurrent_tasks", cfg.MaxConcurrentTasks,
+				"seed_enabled", cfg.SeedEnabled,
+				"seed_duration", cfg.SeedDuration.String(),
+				"seed_cache_limit", cfg.SeedCacheLimit,
 			)
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()

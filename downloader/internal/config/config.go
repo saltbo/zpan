@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/go-units"
 	"github.com/spf13/viper"
 )
 
@@ -22,6 +23,9 @@ type Config struct {
 	QBittorrentURL     string
 	QBittorrentUser    string
 	QBittorrentPass    string
+	SeedEnabled        bool
+	SeedDuration       time.Duration
+	SeedCacheLimit     int64
 }
 
 func Defaults(v *viper.Viper) {
@@ -33,6 +37,9 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("max_concurrent_tasks", 2)
 	v.SetDefault("aria2.url", "ws://127.0.0.1:6800/jsonrpc")
 	v.SetDefault("qbittorrent.url", "http://127.0.0.1:8080")
+	v.SetDefault("seed.enabled", true)
+	v.SetDefault("seed.duration", "1h")
+	v.SetDefault("seed.cache_limit", "10GB")
 }
 
 func Load(v *viper.Viper) (Config, error) {
@@ -52,6 +59,14 @@ func Load(v *viper.Viper) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	seedDuration, err := time.ParseDuration(v.GetString("seed.duration"))
+	if err != nil {
+		return Config{}, err
+	}
+	seedCacheLimit, err := parseBytes(v.GetString("seed.cache_limit"))
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		ServerURL:          strings.TrimRight(v.GetString("server_url"), "/"),
@@ -65,6 +80,9 @@ func Load(v *viper.Viper) (Config, error) {
 		QBittorrentURL:     v.GetString("qbittorrent.url"),
 		QBittorrentUser:    v.GetString("qbittorrent.username"),
 		QBittorrentPass:    v.GetString("qbittorrent.password"),
+		SeedEnabled:        v.GetBool("seed.enabled"),
+		SeedDuration:       seedDuration,
+		SeedCacheLimit:     seedCacheLimit,
 	}
 	if cfg.ServerURL == "" {
 		return Config{}, errors.New("server_url is required")
@@ -75,7 +93,25 @@ func Load(v *viper.Viper) (Config, error) {
 	if cfg.MaxConcurrentTasks < 1 {
 		return Config{}, errors.New("max_concurrent_tasks must be at least 1")
 	}
+	if cfg.SeedDuration < 0 {
+		return Config{}, errors.New("seed.duration must not be negative")
+	}
+	if cfg.SeedCacheLimit < 0 {
+		return Config{}, errors.New("seed.cache_limit must not be negative")
+	}
 	return cfg, nil
+}
+
+func parseBytes(value string) (int64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, nil
+	}
+	parsed, err := units.FromHumanSize(value)
+	if err != nil {
+		return 0, err
+	}
+	return parsed, nil
 }
 
 func DefaultConfigPath() string {
