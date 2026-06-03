@@ -13,6 +13,7 @@ export const downloadTaskStatusSchema = z.enum([
   'canceled',
 ])
 export const downloadSourceTypeSchema = z.enum(['http', 'magnet', 'torrent_url'])
+export const downloadTaskPhaseSchema = z.enum(['metadata', 'downloading', 'uploading', 'seeding', 'completed', 'error'])
 
 const downloadTaskTrackerSchema = z.object({
   url: z.string().max(1024),
@@ -40,7 +41,8 @@ const downloadTaskFileSchema = z.object({
 
 export const downloadTaskDetailSchema = z.object({
   engine: downloaderEngineSchema.optional(),
-  phase: z.string().max(80).optional(),
+  phase: downloadTaskPhaseSchema.optional(),
+  engineState: z.string().max(80).optional(),
   message: z.string().max(500).optional(),
   etaSeconds: z.number().int().min(0).nullable().optional(),
   connections: z.number().int().min(0).optional(),

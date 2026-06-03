@@ -124,6 +124,7 @@ export async function deleteDownloader(platform: Platform, id: string): Promise<
   const rows = await platform.db.select({ id: downloaders.id }).from(downloaders).where(eq(downloaders.id, id)).limit(1)
   if (!rows[0]) throw new DownloadError('not_found')
   const now = new Date()
+
   await platform.db
     .update(downloadTasks)
     .set({
@@ -342,6 +343,9 @@ export async function updateDownloadTask(
     }
   }
 
+  const nextFinishedAt =
+    task.finishedAt ?? (input.status !== undefined && ['completed', 'failed', 'canceled'].includes(status) ? now : null)
+
   await platform.db
     .update(downloadTasks)
     .set({
@@ -359,7 +363,7 @@ export async function updateDownloadTask(
       resultObjectId: input.resultObjectId === undefined ? task.resultObjectId : input.resultObjectId,
       detail: input.detail === undefined ? task.detail : JSON.stringify(input.detail),
       startedAt: task.startedAt ?? (status === 'running' ? now : null),
-      finishedAt: ['completed', 'failed', 'canceled'].includes(status) ? now : task.finishedAt,
+      finishedAt: nextFinishedAt,
       updatedAt: now,
     })
     .where(eq(downloadTasks.id, id))

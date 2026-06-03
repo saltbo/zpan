@@ -349,6 +349,17 @@
                               },
                               "phase": {
                                 "type": "string",
+                                "enum": [
+                                  "metadata",
+                                  "downloading",
+                                  "uploading",
+                                  "seeding",
+                                  "completed",
+                                  "error"
+                                ]
+                              },
+                              "engineState": {
+                                "type": "string",
                                 "maxLength": 80
                               },
                               "message": {
@@ -685,6 +696,17 @@
                         },
                         "phase": {
                           "type": "string",
+                          "enum": [
+                            "metadata",
+                            "downloading",
+                            "uploading",
+                            "seeding",
+                            "completed",
+                            "error"
+                          ]
+                        },
+                        "engineState": {
+                          "type": "string",
                           "maxLength": 80
                         },
                         "message": {
@@ -1005,6 +1027,17 @@
                         },
                         "phase": {
                           "type": "string",
+                          "enum": [
+                            "metadata",
+                            "downloading",
+                            "uploading",
+                            "seeding",
+                            "completed",
+                            "error"
+                          ]
+                        },
+                        "engineState": {
+                          "type": "string",
                           "maxLength": 80
                         },
                         "message": {
@@ -1268,6 +1301,17 @@
                       },
                       "phase": {
                         "type": "string",
+                        "enum": [
+                          "metadata",
+                          "downloading",
+                          "uploading",
+                          "seeding",
+                          "completed",
+                          "error"
+                        ]
+                      },
+                      "engineState": {
+                        "type": "string",
                         "maxLength": 80
                       },
                       "message": {
@@ -1498,6 +1542,17 @@
                           ]
                         },
                         "phase": {
+                          "type": "string",
+                          "enum": [
+                            "metadata",
+                            "downloading",
+                            "uploading",
+                            "seeding",
+                            "completed",
+                            "error"
+                          ]
+                        },
+                        "engineState": {
                           "type": "string",
                           "maxLength": 80
                         },

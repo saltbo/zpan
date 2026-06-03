@@ -102,6 +102,9 @@ func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 				Engine: "aria2",
 				ID:     "gid",
 				Path:   dir,
+				Snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+					return engine.SeedSnapshot{}, nil
+				},
 				Cleanup: func(context.Context) error {
 					cleaned = true
 					return nil
@@ -132,6 +135,9 @@ func TestCleanupRetainedSeedsRemovesExpiredSeed(t *testing.T) {
 		seedID:    "gid",
 		path:      dir,
 		expiresAt: time.Now().Add(-time.Second),
+		snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+			return engine.SeedSnapshot{}, nil
+		},
 		cleanup: func(context.Context) error {
 			cleaned = true
 			return nil
@@ -174,6 +180,9 @@ func TestCleanupRetainedSeedsRemovesOldestWhenCacheLimitExceeded(t *testing.T) {
 			seedID:     "old-hash",
 			path:       oldDir,
 			retainedAt: time.Now().Add(-time.Hour),
+			snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+				return engine.SeedSnapshot{}, nil
+			},
 			cleanup: func(context.Context) error {
 				cleaned = append(cleaned, "old")
 				return nil
@@ -185,6 +194,9 @@ func TestCleanupRetainedSeedsRemovesOldestWhenCacheLimitExceeded(t *testing.T) {
 			seedID:     "new-hash",
 			path:       newDir,
 			retainedAt: time.Now(),
+			snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+				return engine.SeedSnapshot{}, nil
+			},
 			cleanup: func(context.Context) error {
 				cleaned = append(cleaned, "new")
 				return nil

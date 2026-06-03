@@ -46,6 +46,7 @@ type DownloadTask struct {
 type DownloadTaskDetail struct {
 	Engine            string                `json:"engine,omitempty"`
 	Phase             string                `json:"phase,omitempty"`
+	EngineState       string                `json:"engineState,omitempty"`
 	Message           string                `json:"message,omitempty"`
 	ETASeconds        *int64                `json:"etaSeconds,omitempty"`
 	Connections       *int64                `json:"connections,omitempty"`

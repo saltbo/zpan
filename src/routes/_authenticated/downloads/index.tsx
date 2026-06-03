@@ -22,7 +22,7 @@ import {
   Upload,
   Users,
 } from 'lucide-react'
-import { type FormEvent, type ReactNode, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useFilesQuery } from '@/components/files/hooks/use-files-query'
@@ -37,7 +37,7 @@ import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { createDownloadTask, listDownloadTasks, updateDownloadTask } from '@/lib/api'
+import { createDownloadTask, downloadTaskEventsUrl, listDownloadTasks, updateDownloadTask } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/downloads/')({
@@ -46,6 +46,8 @@ export const Route = createFileRoute('/_authenticated/downloads/')({
 
 const QUERY_KEY = ['download-tasks']
 const ACTIVE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'running', 'billing_paused', 'uploading'])
+type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
+type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['detail']>['phase']>
 type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'log'
 
 const DETAIL_TABS: Array<{ id: DetailTab; labelKey: string; icon: ReactNode }> = [
@@ -70,8 +72,16 @@ function DownloadsPage() {
   const tasksQuery = useQuery({
     queryKey: QUERY_KEY,
     queryFn: () => listDownloadTasks({ page: 1, pageSize: 50 }),
-    refetchInterval: 2000,
   })
+
+  useEffect(() => {
+    const events = new EventSource(downloadTaskEventsUrl(), { withCredentials: true })
+    events.addEventListener('snapshot', (event) => {
+      const data = JSON.parse((event as MessageEvent<string>).data)
+      queryClient.setQueryData(QUERY_KEY, data)
+    })
+    return () => events.close()
+  }, [queryClient])
 
   const createMutation = useMutation({
     mutationFn: createDownloadTask,
@@ -366,7 +376,6 @@ function TaskRow({
   const { t } = useTranslation()
   const progress = transferProgress(task)
   const active = ACTIVE_STATUSES.has(task.status)
-  const detail = task.detail
 
   return (
     <TableRow
@@ -383,10 +392,7 @@ function TaskRow({
         </div>
       </TableCell>
       <TableCell className="py-1">
-        <StatusBadge status={task.status} />
-        <div className="mt-0.5 max-w-32 truncate text-[11px] text-muted-foreground">
-          {task.status === 'billing_paused' ? t('downloads.billingPaused') : detail?.phase || '-'}
-        </div>
+        <StatusBadge status={displayStatus(task)} />
       </TableCell>
       <TableCell className="min-w-48 py-1">
         <div className="flex items-center gap-2">
@@ -402,7 +408,7 @@ function TaskRow({
         {formatBytes(task.downloadedBytes)} / {task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}
       </TableCell>
       <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
-        {formatDuration(detail?.etaSeconds)}
+        {formatDuration(task.detail?.etaSeconds)}
       </TableCell>
       <TableCell className="py-1 text-right">
         {active ? (
@@ -553,7 +559,8 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
       <div className="grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
         <InspectorField label={t('downloads.detail.progress')} value={`${progress.overall}%`} />
         <InspectorField label={t('downloads.detail.engine')} value={detail?.engine || t('downloads.unknown')} />
-        <InspectorField label={t('downloads.detail.phase')} value={detail?.phase || '-'} />
+        <InspectorField label={t('downloads.detail.phase')} value={formatPhase(detail?.phase, t)} />
+        <InspectorField label={t('downloads.detail.engineState')} value={detail?.engineState || '-'} />
         <InspectorField
           label={t('downloads.detail.target')}
           value={task.targetFolder || t('downloads.targetFolderRoot')}
@@ -808,11 +815,25 @@ function formatDate(value: string | null | undefined) {
   }).format(date)
 }
 
-function StatusBadge({ status }: { status: DownloadTaskStatus }) {
+function displayStatus(task: DownloadTask): DownloadTaskDisplayStatus {
+  if (task.status === 'completed' && task.detail?.phase === 'seeding') return 'seeding'
+  return task.status
+}
+
+function StatusBadge({ status }: { status: DownloadTaskDisplayStatus }) {
   const { t } = useTranslation()
   const variant =
-    status === 'completed' ? 'default' : status === 'failed' || status === 'canceled' ? 'destructive' : 'secondary'
+    status === 'completed' || status === 'seeding'
+      ? 'default'
+      : status === 'failed' || status === 'canceled'
+        ? 'destructive'
+        : 'secondary'
   return <Badge variant={variant}>{t(`downloads.status.${status}`)}</Badge>
+}
+
+function formatPhase(phase: DownloadTaskPhase | undefined, t: ReturnType<typeof useTranslation>['t']) {
+  if (!phase) return '-'
+  return t(`downloads.phase.${phase}`)
 }
 
 function formatBytes(bytes: number) {

@@ -44,6 +44,7 @@ import {
   deleteUser,
   disableCloudGiftCard,
   disconnectCloud,
+  downloadTaskEventsUrl,
   emptyTrash,
   enableIhostFeature,
   getAnnouncement,
@@ -1034,6 +1035,10 @@ describe('api', () => {
       expect(url).toContain('/api/download-tasks/task-1')
       expect(init.method).toBe('PATCH')
       expect(init.body).toBe(JSON.stringify(body))
+    })
+
+    it('builds the download task events URL from RPC client', () => {
+      expect(downloadTaskEventsUrl().pathname).toBe('/api/download-tasks/events')
     })
 
     it('lists admin downloaders', async () => {

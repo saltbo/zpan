@@ -27,10 +27,18 @@ type Result struct {
 }
 
 type Seed struct {
-	Engine  string
-	ID      string
-	Path    string
-	Cleanup func(context.Context) error
+	Engine   string
+	ID       string
+	Path     string
+	Snapshot func(context.Context) (SeedSnapshot, error)
+	Cleanup  func(context.Context) error
+}
+
+type SeedSnapshot struct {
+	Downloaded int64
+	Total      *int64
+	Bps        int64
+	Detail     *client.DownloadTaskDetail
 }
 
 type Progress func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error
@@ -184,10 +192,11 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	}
 	if a.RetainSeed && task.SourceType != "http" {
 		result.Seed = &Seed{
-			Engine:  "aria2",
-			ID:      status.GID,
-			Path:    taskDir,
-			Cleanup: a.cleanupSeed(status.GID, taskDir),
+			Engine:   "aria2",
+			ID:       status.GID,
+			Path:     taskDir,
+			Snapshot: a.seedSnapshot(status.GID),
+			Cleanup:  a.cleanupSeed(status.GID, taskDir),
 		}
 		return result, nil
 	}
@@ -198,6 +207,34 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 
 func (a Aria2) client(ctx context.Context) (*arigo.Client, error) {
 	return arigo.DialContext(ctx, a.URL, a.Secret)
+}
+
+func (a Aria2) seedSnapshot(gid string) func(context.Context) (SeedSnapshot, error) {
+	return func(ctx context.Context) (SeedSnapshot, error) {
+		aria, err := a.client(ctx)
+		if err != nil {
+			return SeedSnapshot{}, err
+		}
+		defer aria.Close()
+		status, err := aria.TellStatus(gid)
+		if err != nil {
+			return SeedSnapshot{}, err
+		}
+		peers := a.getAria2Peers(ctx, &aria, gid)
+		total := int64(status.TotalLength)
+		var totalPtr *int64
+		if total > 0 {
+			totalPtr = &total
+		}
+		detail := aria2Detail(status, peers)
+		detail.Phase = "seeding"
+		return SeedSnapshot{
+			Downloaded: int64(status.CompletedLength),
+			Total:      totalPtr,
+			Bps:        int64(status.DownloadSpeed),
+			Detail:     detail,
+		}, nil
+	}
 }
 
 func (a Aria2) cleanupSeed(gid string, localPath string) func(context.Context) error {
@@ -302,10 +339,11 @@ func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, pro
 	}
 	if q.RetainSeed {
 		result.Seed = &Seed{
-			Engine:  "qbittorrent",
-			ID:      torrent.Hash,
-			Path:    taskDir,
-			Cleanup: q.cleanupSeed(torrent.Hash, taskDir),
+			Engine:   "qbittorrent",
+			ID:       torrent.Hash,
+			Path:     taskDir,
+			Snapshot: q.seedSnapshot(torrent.Hash),
+			Cleanup:  q.cleanupSeed(torrent.Hash, taskDir),
 		}
 		return result, nil
 	}
@@ -326,6 +364,39 @@ func (q QBittorrent) cleanupSeed(hash string, localPath string) func(context.Con
 			errs = append(errs, err)
 		}
 		return errors.Join(errs...)
+	}
+}
+
+func (q QBittorrent) seedSnapshot(hash string) func(context.Context) (SeedSnapshot, error) {
+	return func(ctx context.Context) (SeedSnapshot, error) {
+		qbt, err := q.login(ctx)
+		if err != nil {
+			return SeedSnapshot{}, err
+		}
+		torrents, err := qbt.GetTorrentsCtx(ctx, qbittorrent.TorrentFilterOptions{Hashes: []string{hash}})
+		if err != nil {
+			return SeedSnapshot{}, err
+		}
+		if len(torrents) == 0 {
+			return SeedSnapshot{}, fmt.Errorf("qbittorrent torrent %s not found", hash)
+		}
+		torrent := torrents[0]
+		total := torrent.TotalSize
+		if total <= 0 {
+			total = torrent.Size
+		}
+		var totalPtr *int64
+		if total > 0 {
+			totalPtr = &total
+		}
+		detail := qbittorrentDetail(ctx, qbt, torrent)
+		detail.Phase = "seeding"
+		return SeedSnapshot{
+			Downloaded: torrent.Completed,
+			Total:      totalPtr,
+			Bps:        torrent.DlSpeed,
+			Detail:     detail,
+		}, nil
 	}
 }
 
@@ -457,7 +528,8 @@ func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskDe
 	uploadBps := int64(status.UploadSpeed)
 	detail := &client.DownloadTaskDetail{
 		Engine:            "aria2",
-		Phase:             string(status.Status),
+		Phase:             aria2Phase(string(status.Status), status.FollowedBy),
+		EngineState:       string(status.Status),
 		Connections:       &connections,
 		InfoHash:          status.InfoHash,
 		TorrentName:       status.BitTorrent.Info.Name,
@@ -474,6 +546,24 @@ func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskDe
 		detail.Message = status.ErrorMessage
 	}
 	return detail
+}
+
+func aria2Phase(state string, followedBy []string) string {
+	switch state {
+	case string(arigo.StatusWaiting):
+		if len(followedBy) > 0 {
+			return "metadata"
+		}
+		return "downloading"
+	case string(arigo.StatusActive):
+		return "downloading"
+	case "complete", string(arigo.StatusCompleted):
+		return "completed"
+	case string(arigo.StatusError), string(arigo.StatusRemoved):
+		return "error"
+	default:
+		return "downloading"
+	}
 }
 
 func aria2Trackers(announceList [][]string) []client.DownloadTaskTracker {
@@ -621,7 +711,8 @@ func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbi
 	}
 	return &client.DownloadTaskDetail{
 		Engine:            "qbittorrent",
-		Phase:             string(torrent.State),
+		Phase:             qbittorrentPhase(string(torrent.State)),
+		EngineState:       string(torrent.State),
 		ETASeconds:        eta,
 		Connections:       &connections,
 		InfoHash:          torrent.Hash,
@@ -633,6 +724,24 @@ func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbi
 		PeerUploadBps:     &uploadBps,
 		Trackers:          qbittorrentTrackers(ctx, qbt, torrent),
 		PeerSamples:       qbittorrentPeers(ctx, qbt, torrent.Hash),
+	}
+}
+
+func qbittorrentPhase(state string) string {
+	normalized := strings.ToLower(state)
+	switch {
+	case strings.Contains(normalized, "meta"):
+		return "metadata"
+	case strings.Contains(normalized, "up"), strings.Contains(normalized, "seed"):
+		return "seeding"
+	case strings.Contains(normalized, "error"), strings.Contains(normalized, "missing"):
+		return "error"
+	case strings.Contains(normalized, "paused"):
+		return "downloading"
+	case normalized == "uploading":
+		return "seeding"
+	default:
+		return "downloading"
 	}
 }
 

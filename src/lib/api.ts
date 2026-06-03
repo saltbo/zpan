@@ -71,6 +71,7 @@ import {
   cloudStoreApi,
   downloaderSelfApi,
   downloadTasksApi,
+  downloadTasksUrlApi,
   emailConfig,
   ihostApi,
   ihostConfigApi,
@@ -290,6 +291,10 @@ export function createDownloadTask(data: CreateDownloadTaskInput) {
 
 export function updateDownloadTask(id: string, data: UpdateDownloadTaskInput) {
   return unwrap<DownloadTask>(downloadTasksApi[':id'].$patch({ param: { id }, json: data }))
+}
+
+export function downloadTaskEventsUrl() {
+  return downloadTasksUrlApi.events.$url()
 }
 
 export function listDownloaders() {

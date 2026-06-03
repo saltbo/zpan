@@ -297,7 +297,8 @@ export interface DownloadTaskFile {
 
 export interface DownloadTaskDetail {
   engine?: Downloader['engine']
-  phase?: string
+  phase?: 'metadata' | 'downloading' | 'uploading' | 'seeding' | 'completed' | 'error'
+  engineState?: string
   message?: string
   etaSeconds?: number | null
   connections?: number

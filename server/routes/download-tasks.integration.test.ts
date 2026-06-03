@@ -205,7 +205,8 @@ describe('Download tasks API integration', () => {
         downloadBps: 512_000,
         detail: {
           engine: 'aria2',
-          phase: 'active',
+          phase: 'downloading',
+          engineState: 'active',
           infoHash: 'abc123',
           torrentName: 'fixture',
           connections: 8,

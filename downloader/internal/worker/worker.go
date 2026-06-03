@@ -26,6 +26,7 @@ import (
 
 const Version = "0.1.0"
 const maxTaskErrorMessageLength = 1000
+const retainedSeedReportInterval = 5 * time.Second
 
 var errBillingPaused = errors.New("billing paused")
 
@@ -47,6 +48,7 @@ type retainedSeed struct {
 	path       string
 	retainedAt time.Time
 	expiresAt  time.Time
+	snapshot   func(context.Context) (engine.SeedSnapshot, error)
 	cleanup    func(context.Context) error
 }
 
@@ -91,6 +93,8 @@ func (w *Worker) Run(ctx context.Context) error {
 	defer ticker.Stop()
 	seedCleanupTicker := time.NewTicker(time.Minute)
 	defer seedCleanupTicker.Stop()
+	seedReportTicker := time.NewTicker(retainedSeedReportInterval)
+	defer seedReportTicker.Stop()
 
 	if err := w.tick(ctx); err != nil {
 		w.logger.Error("downloader tick failed", "error", err)
@@ -106,6 +110,8 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 		case <-seedCleanupTicker.C:
 			w.cleanupRetainedSeeds(ctx)
+		case <-seedReportTicker.C:
+			w.reportRetainedSeeds(ctx)
 		}
 	}
 }
@@ -215,6 +221,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	}
 	log.Debug("task completed", "object_id", resultObjectID)
 	if w.retainSeed(task, result, log) {
+		w.reportRetainedSeeds(ctx)
 		w.cleanupRetainedSeeds(ctx)
 		return
 	}
@@ -231,7 +238,7 @@ func cleanupDownloadedResult(ctx context.Context, result engine.Result) error {
 }
 
 func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log *slog.Logger) bool {
-	if !w.cfg.SeedEnabled || result.Seed == nil || result.Seed.Cleanup == nil {
+	if !w.cfg.SeedEnabled || result.Seed == nil || result.Seed.Cleanup == nil || result.Seed.Snapshot == nil {
 		return false
 	}
 	now := time.Now()
@@ -241,6 +248,7 @@ func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log 
 		seedID:     result.Seed.ID,
 		path:       result.Seed.Path,
 		retainedAt: now,
+		snapshot:   result.Seed.Snapshot,
 		cleanup:    result.Seed.Cleanup,
 	}
 	if w.cfg.SeedDuration > 0 {
@@ -259,6 +267,34 @@ func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log 
 		"retained_seeds", count,
 	)
 	return true
+}
+
+func (w *Worker) reportRetainedSeeds(ctx context.Context) {
+	for _, seed := range w.retainedSeedSnapshot() {
+		log := w.logger.With("task_id", seed.taskID, "engine", seed.engine, "seed_id", seed.seedID)
+		snapshot, err := seed.snapshot(ctx)
+		if err != nil {
+			log.Warn("failed to inspect retained bt seed", "error", err)
+			continue
+		}
+		if snapshot.Detail == nil {
+			continue
+		}
+		snapshot.Detail.Phase = "seeding"
+		zero := int64(0)
+		_, err = w.api.UpdateTask(ctx, seed.taskID, client.TaskPatch{
+			DownloadedBytes:  &snapshot.Downloaded,
+			TotalBytes:       snapshot.Total,
+			DownloadBps:      &snapshot.Bps,
+			StorageUploadBps: &zero,
+			Detail:           snapshot.Detail,
+		})
+		if err != nil {
+			log.Warn("failed to report retained bt seed", "error", err)
+			continue
+		}
+		log.Debug("reported retained bt seed", "downloaded_bytes", snapshot.Downloaded, "bps", snapshot.Bps)
+	}
 }
 
 func (w *Worker) cleanupRetainedSeeds(ctx context.Context) {
