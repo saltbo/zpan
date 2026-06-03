@@ -16,6 +16,12 @@ function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string 
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 }
 
+function configuredInstanceId(c: {
+  get(key: 'platform'): { getEnv(k: string): string | undefined }
+}): string | undefined {
+  return c.get('platform').getEnv('ZPAN_INSTANCE_ID')
+}
+
 function configuredPublicOrigin(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string | null {
   const value = c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL')
   if (!value) return null
@@ -62,7 +68,7 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
     const baseUrl = getCloudBaseUrl(c)
 
-    const instanceId = await getOrCreateInstanceId(db)
+    const instanceId = await getOrCreateInstanceId(db, configuredInstanceId(c))
 
     const titleRows = await db
       .select({ value: systemOptions.value })
@@ -91,7 +97,7 @@ const app = new Hono<Env>()
         binding: result.binding,
         account: result.account,
       }
-      const instanceId = await getOrCreateInstanceId(db)
+      const instanceId = await getOrCreateInstanceId(db, configuredInstanceId(c))
       const cert = entitlement.certificate
       const assertion = verifyCertificate(cert, {
         instanceId,

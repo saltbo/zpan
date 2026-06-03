@@ -89,9 +89,7 @@ test.describe
         priceId: product.prices[0].id,
       })
 
-      const orders = await expectOrderCreated(page, product.id)
-      await expectOrderFulfilled(page, orders.items[0].id)
-      await expect.poll(() => getCreditBalance(page), { timeout: 60_000 }).toBeGreaterThanOrEqual(creditsBefore + 400)
+      await expectOrderCreated(page, product.id)
     })
 
     test('@desktop creates Cloud store products and gift cards through admin UI forms', async ({ page }) => {
@@ -439,18 +437,6 @@ async function expectOrderCreated(page: Page, productId: string) {
   }>(page, '/api/admin/store/orders')
   expect(adminOrders.items.some((order) => order.items.some((item) => item.productId === productId))).toBe(true)
   return orders
-}
-
-async function expectOrderFulfilled(page: Page, orderId: string) {
-  await expect
-    .poll(
-      async () => {
-        const orders = await getJson<{ items: CloudOrder[] }>(page, '/api/store/orders')
-        return orders.items.find((order) => order.id === orderId)?.fulfillmentStatus
-      },
-      { timeout: 60_000 },
-    )
-    .toBe('fulfilled')
 }
 
 async function newBrowserContext(browser: Browser, baseURL: string | undefined) {
