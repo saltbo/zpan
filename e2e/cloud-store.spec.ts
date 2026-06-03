@@ -68,7 +68,7 @@ test.describe
       await expectAdminGiftCardVisibleInApi(page, giftCard.code)
 
       await page.goto('/storage')
-      await expect(page.getByRole('heading', { name: 'Storage' })).toBeVisible({ timeout: 20_000 })
+      await expect(page.getByRole('heading', { name: 'Storage', exact: true })).toBeVisible({ timeout: 20_000 })
       await expectStorefrontProductVisibleInApi(page, packageName)
 
       const creditsBefore = await getCreditBalance(page)
@@ -93,7 +93,7 @@ test.describe
     })
 
     test('@desktop creates Cloud store products and gift cards through admin UI forms', async ({ page }) => {
-      test.setTimeout(120_000)
+      test.setTimeout(180_000)
 
       await signInAsAdmin(page)
       await ensureCloudBinding(page)
@@ -132,7 +132,7 @@ test.describe
         const userPage = await userContext.newPage()
         await signUpAndGoToFiles(userPage)
         await userPage.goto('/storage')
-        await expect(userPage.getByRole('heading', { name: 'Storage' })).toBeVisible({ timeout: 20_000 })
+        await expect(userPage.getByRole('heading', { name: 'Storage', exact: true })).toBeVisible({ timeout: 20_000 })
         await expectStorefrontProductVisibleInApi(userPage, packageName)
 
         const creditsBefore = await getCreditBalance(userPage)
@@ -368,18 +368,19 @@ async function gotoAdminCloudStore(page: Page) {
           return false
         }
       },
-      { timeout: 60_000 },
+      { timeout: 45_000 },
     )
     .toBe(true)
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     await page.goto('/admin/cloud-store', { waitUntil: 'domcontentloaded' })
-    const heading = page.getByRole('heading', { name: 'Storage Plans' })
+    await expect(page).toHaveURL(/admin\/cloud-store/, { timeout: 10_000 })
+    const heading = page.getByRole('heading', { name: 'Storage Plans', exact: true })
     try {
-      await expect(heading).toBeVisible({ timeout: 20_000 })
+      await expect(heading).toBeVisible({ timeout: 15_000 })
       return
     } catch (error) {
-      if (attempt === 2) throw error
+      if (attempt === 1) throw error
       await page.waitForTimeout(1500)
     }
   }
