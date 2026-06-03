@@ -207,8 +207,6 @@ function DownloadsPage() {
                 <TableHead className="h-8">{t('downloads.table.status')}</TableHead>
                 <TableHead className="h-8">{t('downloads.table.progress')}</TableHead>
                 <TableHead className="h-8">{t('downloads.table.size')}</TableHead>
-                <TableHead className="h-8">{t('downloads.table.speed')}</TableHead>
-                <TableHead className="h-8">{t('downloads.table.peers')}</TableHead>
                 <TableHead className="h-8">{t('downloads.table.eta')}</TableHead>
                 <TableHead className="h-8 text-right">{t('common.actions')}</TableHead>
               </TableRow>
@@ -216,7 +214,7 @@ function DownloadsPage() {
             <TableBody>
               {tasks.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-28 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-28 text-center text-muted-foreground">
                     {tasksQuery.isLoading ? t('common.loading') : t('downloads.empty')}
                   </TableCell>
                 </TableRow>
@@ -370,7 +368,6 @@ function TaskRow({
   const progress = total > 0 ? Math.min(100, Math.round((task.downloadedBytes / total) * 100)) : 0
   const active = ACTIVE_STATUSES.has(task.status)
   const detail = task.detail
-  const peers = detail?.peers ?? detail?.connections
 
   return (
     <TableRow
@@ -392,21 +389,18 @@ function TaskRow({
           {task.status === 'billing_paused' ? t('downloads.billingPaused') : detail?.phase || '-'}
         </div>
       </TableCell>
-      <TableCell className="min-w-36 py-1">
+      <TableCell className="min-w-48 py-1">
         <div className="flex items-center gap-2">
           <Progress value={progress} className="h-1.5" />
           <span className="w-8 text-right text-[11px] tabular-nums text-muted-foreground">{progress}%</span>
         </div>
+        <div className="mt-0.5 flex items-center gap-2 text-[11px] tabular-nums">
+          <span>{formatBytes(task.downloadBps)}/s ↓</span>
+          <span className="text-muted-foreground">{formatBytes(task.uploadBps)}/s ↑</span>
+        </div>
       </TableCell>
       <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
         {formatBytes(task.downloadedBytes)} / {task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}
-      </TableCell>
-      <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums">
-        <div>{formatBytes(task.downloadBps)}/s ↓</div>
-        <div className="text-muted-foreground">{formatBytes(task.uploadBps)}/s ↑</div>
-      </TableCell>
-      <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
-        {formatNumber(detail?.seeders)} / {formatNumber(peers)}
       </TableCell>
       <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
         {formatDuration(detail?.etaSeconds)}
