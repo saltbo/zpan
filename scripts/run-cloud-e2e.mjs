@@ -77,8 +77,13 @@ function valueAfter(flag) {
 
 function runtimeCloudCredentials(runtime) {
   const suffix = runtime === 'cf' ? '_CF' : '_NODE'
-  const email = process.env[`E2E_CLOUD_PRO_EMAIL${suffix}`] ?? process.env.E2E_CLOUD_PRO_EMAIL
-  const password = process.env[`E2E_CLOUD_PRO_PASSWORD${suffix}`] ?? process.env.E2E_CLOUD_PRO_PASSWORD
+  const runtimeEmail = process.env[`E2E_CLOUD_PRO_EMAIL${suffix}`]?.trim()
+  const runtimePassword = process.env[`E2E_CLOUD_PRO_PASSWORD${suffix}`]?.trim()
+  if (process.env.CI && (!runtimeEmail || !runtimePassword)) {
+    throw new Error(`Missing E2E_CLOUD_PRO_EMAIL${suffix} or E2E_CLOUD_PRO_PASSWORD${suffix}`)
+  }
+  const email = runtimeEmail || process.env.E2E_CLOUD_PRO_EMAIL
+  const password = runtimePassword || process.env.E2E_CLOUD_PRO_PASSWORD
   return email && password
     ? {
         E2E_CLOUD_PRO_EMAIL: email,

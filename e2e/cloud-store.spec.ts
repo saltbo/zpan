@@ -209,8 +209,8 @@ async function unbindCloudTestLicenses(cloudRequest: APIRequestContext) {
   const response = await cloudRequest.get('/api/licenses')
   await expectCloudOk(response, 'Cloud license list failed during pairing cleanup')
 
-  const body = (await response.json()) as { data?: { items?: CloudLicense[] } }
-  const licenses = body.data?.items ?? []
+  const body = (await response.json()) as { items: CloudLicense[] }
+  const licenses = body.items
   for (const license of licenses) {
     const deleted = await cloudRequest.delete(`/api/licenses/${encodeURIComponent(license.id)}`)
     await expectCloudOk(deleted, 'Cloud license cleanup failed')
