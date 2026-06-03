@@ -14,6 +14,16 @@ const ORG_ID = 'archive-org'
 const USER_ID = 'archive-user'
 const STORAGE_ID = 'archive-storage'
 
+async function seedStoragePlanEntitlement(db: TestDb, orgId: string, bytes: number, id: string) {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO org_quota_entitlements
+      (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+    VALUES
+      (${id}, ${orgId}, 'storage', 'plan', 'test', ${`${id}:${orgId}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+  `)
+}
+
 class MemoryS3 {
   objects = new Map<string, Uint8Array>()
   putKeys: string[] = []
@@ -457,8 +467,9 @@ describe('archive processing', () => {
     await seedStorage(db)
     await db.run(sql`
       INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
-      VALUES ('archive-quota', ${ORG_ID}, 4, 0, 0, 0, '1970-01')
+      VALUES ('archive-quota', ${ORG_ID}, 0, 0, 0, 0, '1970-01')
     `)
+    await seedStoragePlanEntitlement(db, ORG_ID, 4, 'archive-quota-plan')
     await seedMatter(db, { id: 'quota-zip', name: 'quota.zip', object: 'source/quota.zip', size: 200 })
 
     const s3 = new MemoryS3()
@@ -482,8 +493,9 @@ describe('archive processing', () => {
     await seedStorage(db)
     await db.run(sql`
       INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
-      VALUES ('archive-compress-quota', ${ORG_ID}, 4, 0, 0, 0, '1970-01')
+      VALUES ('archive-compress-quota', ${ORG_ID}, 0, 0, 0, 0, '1970-01')
     `)
+    await seedStoragePlanEntitlement(db, ORG_ID, 4, 'archive-compress-quota-plan')
     await seedMatter(db, { id: 'file-a', name: 'a.txt', object: 'objects/a.txt', size: 5 })
 
     const s3 = new MemoryS3()

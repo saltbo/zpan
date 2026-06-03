@@ -20,14 +20,8 @@ const ADMIN_USERS_KEYS = [
   'admin.users.disabled',
   'admin.users.enable',
   'admin.users.disable',
-  'admin.users.setQuota',
-  'admin.users.setQuotaFor',
-  'admin.users.quotaLabel',
   'admin.users.quotaUnit',
-  'admin.users.currentUsage',
-  'admin.users.quotaUpdated',
   'admin.users.positiveQuotaRequired',
-  'admin.users.positiveQuotaHint',
   'admin.users.statusUpdated',
   'admin.users.selectedCount',
   'admin.users.selectedUsers',
@@ -35,12 +29,10 @@ const ADMIN_USERS_KEYS = [
   'admin.users.selectUser',
   'admin.users.batchDisable',
   'admin.users.batchEnable',
-  'admin.users.batchSetQuota',
   'admin.users.batchDelete',
   'admin.users.batchDeleteConfirm',
   'admin.users.batchStatusUpdated',
   'admin.users.batchDeleted',
-  'admin.users.batchQuotaUpdated',
   'admin.users.deleteTitle',
   'admin.users.deleteConfirm',
   'admin.users.userDeleted',
@@ -79,15 +71,12 @@ const ADMIN_USERS_KEYS = [
 
 // Keys that contain interpolation placeholders and the expected placeholder tokens
 const INTERPOLATED_KEYS: Record<string, string[]> = {
-  'admin.users.setQuotaFor': ['{{name}}'],
-  'admin.users.currentUsage': ['{{used}}'],
   'admin.users.selectedCount': ['{{count}}'],
   'admin.users.selectedUsers': ['{{count}}'],
   'admin.users.selectUser': ['{{name}}'],
   'admin.users.batchDeleteConfirm': ['{{count}}'],
   'admin.users.batchStatusUpdated': ['{{count}}'],
   'admin.users.batchDeleted': ['{{count}}'],
-  'admin.users.batchQuotaUpdated': ['{{count}}'],
   'admin.users.deleteConfirm': ['{{name}}'],
   'admin.users.pageInfo': ['{{page}}', '{{total}}'],
   'admin.users.pageSizeOption': ['{{count}}'],
@@ -153,14 +142,6 @@ describe('admin.users locale keys — English values contract', () => {
     expect(enLocale['admin.users.disable']).toBe('Disable')
   })
 
-  it('admin.users.setQuota is "Set Quota"', () => {
-    expect(enLocale['admin.users.setQuota']).toBe('Set Quota')
-  })
-
-  it('admin.users.quotaUpdated is "Quota updated"', () => {
-    expect(enLocale['admin.users.quotaUpdated']).toBe('Quota updated')
-  })
-
   it('admin.users.statusUpdated is "User status updated"', () => {
     expect(enLocale['admin.users.statusUpdated']).toBe('User status updated')
   })
@@ -187,10 +168,6 @@ describe('admin.users locale keys — English values contract', () => {
 
   it('admin.users.searchPlaceholder is "Search by name, username, or email"', () => {
     expect(enLocale['admin.users.searchPlaceholder']).toBe('Search by name, username, or email')
-  })
-
-  it('admin.users.quotaLabel is "Quota"', () => {
-    expect(enLocale['admin.users.quotaLabel']).toBe('Quota')
   })
 })
 
@@ -231,24 +208,6 @@ describe('admin.users locale keys — i18n runtime translation', () => {
     expect(i18n.t('admin.users.disabled')).toBe('已禁用')
   })
 
-  it('interpolates admin.users.setQuotaFor with name in English', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('en')
-    expect(i18n.t('admin.users.setQuotaFor', { name: 'Alice' })).toBe('Set storage quota for Alice')
-  })
-
-  it('interpolates admin.users.setQuotaFor with name in Chinese', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.users.setQuotaFor', { name: 'Alice' })).toBe('为 Alice 设置存储配额')
-  })
-
-  it('interpolates admin.users.currentUsage with used value in English', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('en')
-    expect(i18n.t('admin.users.currentUsage', { used: '2.50 GB' })).toBe('Current usage: 2.50 GB')
-  })
-
   it('interpolates admin.users.deleteConfirm with name in English', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('en')
@@ -279,12 +238,6 @@ describe('admin.users locale keys — i18n runtime translation', () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
     expect(i18n.t('admin.users.deleteTitle')).toBe('删除用户')
-  })
-
-  it('translates admin.users.quotaUpdated to Chinese', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.users.quotaUpdated')).toBe('配额已更新')
   })
 
   it('translates admin.users.userDeleted to Chinese', async () => {

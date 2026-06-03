@@ -54,6 +54,14 @@ afterEach(() => {
 })
 
 describe('QuotaPanel', () => {
+  it('keeps the storage area visible while quota is loading', () => {
+    vi.mocked(getUserQuota).mockReturnValue(new Promise(() => {}) as ReturnType<typeof getUserQuota>)
+
+    const view = renderQuotaPanel()
+
+    expect(view.getByRole('link', { name: 'quota.storage' }).getAttribute('href')).toBe('/storage')
+  })
+
   it('keeps the storage area clickable when the store is unavailable', async () => {
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
@@ -98,8 +106,7 @@ describe('QuotaPanel', () => {
 
     const view = renderQuotaPanel()
 
-    await waitFor(() => expect(view.getByRole('link', { name: 'quota.storage' })).toBeTruthy())
-    expect(view.getByText('quota.usage:25 B/100 B')).toBeTruthy()
+    await waitFor(() => expect(view.getByText('quota.usage:25 B/100 B')).toBeTruthy())
   })
 
   it('shows total storage without plan or extra storage names', async () => {
@@ -122,8 +129,7 @@ describe('QuotaPanel', () => {
 
     const view = renderQuotaPanel()
 
-    await waitFor(() => expect(view.getByRole('link', { name: 'quota.storage' })).toBeTruthy())
-    expect(view.getByText('quota.usage:25 B/200 B')).toBeTruthy()
+    await waitFor(() => expect(view.getByText('quota.usage:25 B/200 B')).toBeTruthy())
     expect(view.queryByText('Team Plan · 100 B')).toBeNull()
     expect(view.queryByText('quota.cloudStorageEntitlement:Storage Pack · 100 B')).toBeNull()
   })

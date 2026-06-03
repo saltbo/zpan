@@ -18,6 +18,21 @@ async function signUp(ctx: TestCtx, email: string, extra?: Record<string, unknow
   })
 }
 
+async function expectPlanEntitlement(ctx: TestCtx, resourceType: 'storage' | 'traffic', bytes: number) {
+  const rows = await ctx.db.select().from(schema.orgQuotaEntitlements)
+  expect(rows).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        resourceType,
+        entitlementType: 'plan',
+        source: 'free_plan',
+        bytes,
+        status: 'active',
+      }),
+    ]),
+  )
+}
+
 describe('registration gate — first user always allowed', () => {
   it('first user can register when auth_signup_mode is closed', async () => {
     const ctx = await createTestApp()
@@ -469,10 +484,12 @@ describe('createPersonalOrg — org name and quota edge cases', () => {
     expect(res.status).toBe(200)
     const quotas = await ctx.db.select().from(schema.orgQuotas)
     expect(quotas).toHaveLength(1)
-    expect(quotas[0].quota).toBe(10485760)
+    expect(quotas[0].quota).toBe(0)
     expect(quotas[0].trafficQuota).toBe(0)
     expect(quotas[0].trafficUsed).toBe(0)
     expect(quotas[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
+    await expectPlanEntitlement(ctx, 'storage', 10485760)
+    await expectPlanEntitlement(ctx, 'traffic', 0)
   })
 })
 

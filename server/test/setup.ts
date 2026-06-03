@@ -183,6 +183,7 @@ const APP_SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
     resource_type TEXT NOT NULL,
+    entitlement_type TEXT NOT NULL DEFAULT 'grant',
     source TEXT NOT NULL,
     source_id TEXT NOT NULL,
     bytes INTEGER NOT NULL,
@@ -195,6 +196,11 @@ const APP_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS org_quota_entitlements_org_resource_idx
     ON org_quota_entitlements(org_id, resource_type, status);
+  CREATE INDEX IF NOT EXISTS org_quota_entitlements_org_type_idx
+    ON org_quota_entitlements(org_id, resource_type, entitlement_type, status);
+  CREATE UNIQUE INDEX IF NOT EXISTS org_quota_entitlements_active_plan_uniq
+    ON org_quota_entitlements(org_id, resource_type, entitlement_type)
+    WHERE status = 'active' AND entitlement_type = 'plan';
   CREATE UNIQUE INDEX IF NOT EXISTS org_quota_entitlements_source_resource_uniq
     ON org_quota_entitlements(source, source_id, resource_type);
   CREATE TABLE IF NOT EXISTS webhook_events (

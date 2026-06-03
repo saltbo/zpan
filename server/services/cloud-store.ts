@@ -187,7 +187,8 @@ async function requireTargetQuota(db: Database, orgId: string): Promise<void> {
 }
 
 function insertQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): AtomicQuery[] {
-  return quotaEntitlementValues(event, now).map((value) =>
+  return quotaEntitlementValues(event, now).flatMap((value) => [
+    ...revokeExistingPlanQueries(db, value, now),
     db
       .insert(orgQuotaEntitlements)
       .values(value)
@@ -195,7 +196,29 @@ function insertQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChang
         target: [orgQuotaEntitlements.source, orgQuotaEntitlements.sourceId, orgQuotaEntitlements.resourceType],
         set: quotaEntitlementIncreaseValues(value, now),
       }),
-  )
+  ])
+}
+
+function revokeExistingPlanQueries(
+  db: Database,
+  value: typeof orgQuotaEntitlements.$inferInsert,
+  now: Date,
+): AtomicQuery[] {
+  if (value.entitlementType !== 'plan') return []
+  return [
+    db
+      .update(orgQuotaEntitlements)
+      .set({ status: 'revoked', updatedAt: now })
+      .where(
+        and(
+          eq(orgQuotaEntitlements.orgId, value.orgId),
+          eq(orgQuotaEntitlements.resourceType, value.resourceType),
+          eq(orgQuotaEntitlements.entitlementType, 'plan'),
+          eq(orgQuotaEntitlements.status, 'active'),
+          sql`${orgQuotaEntitlements.sourceId} != ${value.sourceId}`,
+        ),
+      ),
+  ]
 }
 
 function revokeQuotaEntitlementQueries(db: Database, event: CloudOrderQuotaChange, now: Date): AtomicQuery[] {
@@ -268,6 +291,7 @@ function quotaEntitlementIncreaseValues(value: typeof orgQuotaEntitlements.$infe
       END` as unknown as number)
   return {
     bytes,
+    entitlementType: value.entitlementType,
     status: 'active',
     expiresAt: value.expiresAt,
     metadata: value.metadata,
@@ -295,6 +319,7 @@ function quotaEntitlementValue(
     id: nanoid(),
     orgId: event.targetOrgId,
     resourceType,
+    entitlementType: isSubscriptionSourceId(event.cloudOrderId) ? 'plan' : 'grant',
     source: 'cloud_order',
     sourceId: event.cloudOrderId,
     bytes,

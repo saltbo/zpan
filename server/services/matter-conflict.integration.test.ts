@@ -475,7 +475,13 @@ describe('confirmUpload — quota-then-replace atomicity', () => {
     const quotaId = nanoid()
     await db.run(sql`
       INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
-      VALUES (${quotaId}, ${orgId}, 100, 100, 0, 0, '2026-05')
+      VALUES (${quotaId}, ${orgId}, 0, 100, 0, 0, '2026-05')
+    `)
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        (${nanoid()}, ${orgId}, 'storage', 'plan', 'test', ${`test-storage-plan:${orgId}:${nanoid()}`}, 100, ${Date.now()}, NULL, 'active', '{"packageName":"Test Plan"}', ${Date.now()}, ${Date.now()})
     `)
 
     // Incumbent active file that 'replace' would trash

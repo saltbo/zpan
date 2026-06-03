@@ -78,6 +78,23 @@ async function setOrgQuota(
       trafficPeriod: currentTrafficPeriod(),
     })
   }
+  const now = Date.now()
+  await db.run(sql`
+    UPDATE org_quota_entitlements
+    SET status = 'revoked', updated_at = ${now}
+    WHERE org_id = ${orgId}
+      AND resource_type = 'storage'
+      AND entitlement_type = 'plan'
+      AND status = 'active'
+  `)
+  if (quota > 0) {
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        (${nanoid()}, ${orgId}, 'storage', 'plan', 'test', ${`test-storage-plan:${orgId}:${nanoid()}`}, ${quota}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+    `)
+  }
 }
 
 async function addStorageEntitlement(
@@ -313,8 +330,23 @@ describe('GET /api/objects/:id — traffic quota enforcement', () => {
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
-      SET traffic_quota = 50, traffic_used = 0, traffic_period = ${trafficPeriod}
+      SET traffic_quota = 0, traffic_used = 0, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
+    `)
+    const now = Date.now()
+    await db.run(sql`
+      UPDATE org_quota_entitlements
+      SET status = 'revoked', updated_at = ${now}
+      WHERE org_id = ${orgId}
+        AND resource_type = 'traffic'
+        AND entitlement_type = 'plan'
+        AND status = 'active'
+    `)
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        (${nanoid()}, ${orgId}, 'traffic', 'plan', 'test', ${`test-traffic-plan:${orgId}`}, 50, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
     `)
 
     const res = await app.request('/api/objects/m-download-over', { headers })

@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { orgQuotas } from '../db/schema.js'
+import { orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
 import { getEffectiveQuota, hasQuotaForBytes } from './effective-quota.js'
 import { confirmUpload, incrementUsageIfAllowed, listTrashedRoots, updateMatter } from './matter.js'
@@ -23,12 +23,30 @@ async function insertOrgQuota(db: TestDb, orgId: string, quota: number, used = 0
   await db.insert(orgQuotas).values({
     id: nanoid(),
     orgId,
-    quota,
+    quota: 0,
     used,
     trafficQuota: 0,
     trafficUsed: 0,
     trafficPeriod: '2026-05',
   })
+  if (quota > 0) {
+    const now = new Date()
+    await db.insert(orgQuotaEntitlements).values({
+      id: nanoid(),
+      orgId,
+      resourceType: 'storage',
+      entitlementType: 'plan',
+      source: 'test',
+      sourceId: `test-storage-plan:${orgId}:${nanoid()}`,
+      bytes: quota,
+      startsAt: new Date(),
+      expiresAt: null,
+      status: 'active',
+      metadata: JSON.stringify({ packageName: 'Test Plan' }),
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
 }
 
 async function insertDraftFile(

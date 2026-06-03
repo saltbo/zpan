@@ -37,6 +37,7 @@ import type {
   ImageHosting,
   Notification,
   OrgQuota,
+  OrgQuotaEntitlement,
   PaginatedResponse,
   ShareListItem,
   ShareView,
@@ -303,10 +304,16 @@ export interface UserWithOrg {
   quotaTotal: number
 }
 
+export type UserEntitlementsResponse = { orgId: string; items: OrgQuotaEntitlement[] }
+
 export function listUsers(page: number, pageSize: number, search?: string) {
   const query: Record<string, string> = { page: String(page), pageSize: String(pageSize) }
   if (search?.trim()) query.search = search.trim()
   return unwrap<{ items: UserWithOrg[]; total: number }>(users.index.$get({ query }))
+}
+
+export function getUser(userId: string) {
+  return unwrap<UserWithOrg>(users[':id'].$get({ param: { id: userId } }))
 }
 
 export function updateUserStatus(userId: string, status: 'active' | 'disabled') {
@@ -326,9 +333,16 @@ export function batchDeleteUsers(ids: string[]) {
   return unwrap<{ deleted: number; ids: string[] }>(users.batch.$delete({ json: { ids } }))
 }
 
-export function batchUpdateUserQuota(ids: string[], quota: number) {
-  return unwrap<{ updated: number; userIds: string[]; orgIds: string[]; quota: number }>(
-    users.batch.$patch({ json: { action: 'set_quota' as const, ids, quota } }),
+export function listUserEntitlements(userId: string) {
+  return unwrap<UserEntitlementsResponse>(users[':id'].entitlements.$get({ param: { id: userId } }))
+}
+
+export function grantUserEntitlement(
+  userId: string,
+  data: { resourceType: 'storage'; bytes: number; expiresAt?: string | null; note?: string | null },
+) {
+  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
+    users[':id'].entitlements.$post({ param: { id: userId }, json: data }),
   )
 }
 
@@ -353,15 +367,6 @@ export type QuotaItem = Pick<
 
 export function listQuotas() {
   return unwrap<{ items: QuotaItem[]; total: number }>(adminQuotas.index.$get())
-}
-
-export function updateQuota(orgId: string, quota: number, trafficQuota?: number) {
-  return unwrap<QuotaItem>(
-    adminQuotas[':orgId'].$put({
-      param: { orgId },
-      json: trafficQuota == null ? { quota } : { quota, trafficQuota },
-    }),
-  )
 }
 
 // User Quotas API

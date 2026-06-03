@@ -9,6 +9,26 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+async function expectPlanEntitlement(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  orgId: string,
+  resourceType: 'storage' | 'traffic',
+  bytes: number,
+) {
+  const rows = await db.select().from(schema.orgQuotaEntitlements).where(eq(schema.orgQuotaEntitlements.orgId, orgId))
+  expect(rows).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        resourceType,
+        entitlementType: 'plan',
+        source: 'free_plan',
+        bytes,
+        status: 'active',
+      }),
+    ]),
+  )
+}
+
 describe('Auth API', () => {
   it('POST /api/auth/sign-up/email creates user', async () => {
     const { app } = await createTestApp()
@@ -265,11 +285,13 @@ describe('Auth API', () => {
 
     const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, orgId))
     expect(rows).toHaveLength(1)
-    expect(rows[0].quota).toBe(10485760)
+    expect(rows[0].quota).toBe(0)
     expect(rows[0].used).toBe(0)
     expect(rows[0].trafficQuota).toBe(0)
     expect(rows[0].trafficUsed).toBe(0)
     expect(rows[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
+    await expectPlanEntitlement(db, orgId, 'storage', 10485760)
+    await expectPlanEntitlement(db, orgId, 'traffic', 0)
   })
 
   it('signup with default quotas set creates an org_quotas row with storage and monthly traffic quotas', async () => {
@@ -292,11 +314,13 @@ describe('Auth API', () => {
 
     const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, orgId))
     expect(rows).toHaveLength(1)
-    expect(rows[0].quota).toBe(1073741824)
+    expect(rows[0].quota).toBe(0)
     expect(rows[0].used).toBe(0)
-    expect(rows[0].trafficQuota).toBe(2147483648)
+    expect(rows[0].trafficQuota).toBe(0)
     expect(rows[0].trafficUsed).toBe(0)
     expect(rows[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
+    await expectPlanEntitlement(db, orgId, 'storage', 1073741824)
+    await expectPlanEntitlement(db, orgId, 'traffic', 2147483648)
   })
 
   it('team org creation initializes storage and monthly traffic quotas from defaults', async () => {
@@ -320,11 +344,13 @@ describe('Auth API', () => {
 
     const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, org.id))
     expect(rows).toHaveLength(1)
-    expect(rows[0].quota).toBe(1073741824)
+    expect(rows[0].quota).toBe(0)
     expect(rows[0].used).toBe(0)
-    expect(rows[0].trafficQuota).toBe(2147483648)
+    expect(rows[0].trafficQuota).toBe(0)
     expect(rows[0].trafficUsed).toBe(0)
     expect(rows[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
+    await expectPlanEntitlement(db, org.id, 'storage', 1073741824)
+    await expectPlanEntitlement(db, org.id, 'traffic', 2147483648)
   })
 
   it('signup fails when stored default monthly traffic quota is invalid', async () => {
@@ -355,7 +381,8 @@ describe('Auth API', () => {
       .where(eq(authSchema.organization.slug, `personal-${body.user.id}`))
     const rows = await db.select().from(schema.orgQuotas).where(eq(schema.orgQuotas.orgId, orgs[0].id))
     expect(rows).toHaveLength(1)
-    expect(rows[0].quota).toBe(10485760)
+    expect(rows[0].quota).toBe(0)
+    await expectPlanEntitlement(db, orgs[0].id, 'storage', 10485760)
   })
 
   it('sign-in with a malformed stored password hash returns a non-200 error response', async () => {

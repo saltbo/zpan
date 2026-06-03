@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
-import { activityEvents, matters, orgQuotas, shares } from '../db/schema'
+import { activityEvents, matters, orgQuotaEntitlements, orgQuotas, shares } from '../db/schema'
 import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 import { computeSourceBytes, isQuotaSufficient, saveShareToDrive } from './save-to-drive.js'
@@ -61,12 +61,30 @@ async function seedOrgQuota(db: TestDb, orgId: string, quota: number, used = 0) 
   await db.insert(orgQuotas).values({
     id: nanoid(),
     orgId,
-    quota,
+    quota: 0,
     used,
     trafficQuota: 0,
     trafficUsed: 0,
     trafficPeriod: '2026-05',
   })
+  if (quota > 0) {
+    const now = new Date()
+    await db.insert(orgQuotaEntitlements).values({
+      id: nanoid(),
+      orgId,
+      resourceType: 'storage',
+      entitlementType: 'plan',
+      source: 'test',
+      sourceId: `test-storage-plan:${orgId}:${nanoid()}`,
+      bytes: quota,
+      startsAt: new Date(),
+      expiresAt: null,
+      status: 'active',
+      metadata: JSON.stringify({ packageName: 'Test Plan' }),
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
 }
 
 async function getShare(db: TestDb, shareId: string) {
@@ -633,11 +651,27 @@ describe('POST /api/shares/:token/objects', () => {
     await db.insert(orgQuotas).values({
       id: nanoid(),
       orgId: quotaOrgId,
-      quota: 100,
+      quota: 0,
       used: 0,
       trafficQuota: 0,
       trafficUsed: 0,
       trafficPeriod: '2026-05',
+    })
+    const now = new Date()
+    await db.insert(orgQuotaEntitlements).values({
+      id: nanoid(),
+      orgId: quotaOrgId,
+      resourceType: 'storage',
+      entitlementType: 'plan',
+      source: 'test',
+      sourceId: `test-storage-plan:${quotaOrgId}:${nanoid()}`,
+      bytes: 100,
+      startsAt: new Date(),
+      expiresAt: null,
+      status: 'active',
+      metadata: JSON.stringify({ packageName: 'Test Plan' }),
+      createdAt: now,
+      updatedAt: now,
     })
 
     // The share from setup() has a matter with size 512 — well above the 100-byte quota

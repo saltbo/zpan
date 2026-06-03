@@ -146,7 +146,7 @@ export const cloudStore = new Hono<Env>()
     if (!price) return c.json({ error: 'package_price_missing' }, 400)
     if (price.recurring) {
       const quota = await getEffectiveQuota(db, targetOrgId)
-      if (quota.storagePlanName || quota.trafficPlanName) return c.json({ error: 'workspace_plan_exists' }, 409)
+      if (quota.currentPlan?.subscription) return c.json({ error: 'workspace_plan_exists' }, 409)
     }
     const order = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(

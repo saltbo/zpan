@@ -190,6 +190,33 @@ function subscriptionPackage(): CloudProduct {
   }
 }
 
+function higherSubscriptionPackage(): CloudProduct {
+  return {
+    ...subscriptionPackage(),
+    id: 'pkg-business',
+    name: 'Business Plan',
+    metadata: {
+      deliverable: { type: 'zpan.plan', storageBytes: 214748364800, includedCredits: 5000 },
+    },
+    prices: [
+      {
+        id: 'price-business-usd',
+        currency: 'usd',
+        amount: 2999,
+        recurring: { interval: 'month', intervalCount: 1 },
+        metadata: { creditGrantType: 'subscription_grant', creditAmount: '5000' },
+      },
+      {
+        id: 'price-business-yearly-usd',
+        currency: 'usd',
+        amount: 29999,
+        recurring: { interval: 'year', intervalCount: 1 },
+        metadata: { creditGrantType: 'subscription_grant', creditAmount: '5000' },
+      },
+    ],
+  }
+}
+
 function creditPackage(): CloudProduct {
   return {
     id: 'pkg-credits',
@@ -274,7 +301,7 @@ describe('StoragePage', () => {
     await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['user', 'quota'] }))
   })
 
-  it('shows effective quota and metered traffic status', async () => {
+  it('shows effective quota and plan credits status', async () => {
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
       baseQuota: 1024,
@@ -315,18 +342,13 @@ describe('StoragePage', () => {
     await waitFor(() => expect(view.getByText('Team Plan')).toBeTruthy())
     expect(view.getByText('storage.planActive')).toBeTruthy()
     expect(view.getByText('storage.currentPlanDescription')).toBeTruthy()
-    expect(view.getByText('storage.effectiveStorageQuota')).toBeTruthy()
-    expect(view.getByText('storage.baseStorageQuota')).toBeTruthy()
-    expect(view.getByText('storage.cloudStorageEntitlement')).toBeTruthy()
-    expect(view.getByText('storage.creditBalance')).toBeTruthy()
-    expect(view.getByText('storage.trafficPolicy')).toBeTruthy()
-    expect(view.getByText('storage.usageBilledWithCredits')).toBeTruthy()
-    expect(view.getByText('storage.currentPeriodTraffic')).toBeTruthy()
-    await waitFor(() => expect(view.getByText('storage.storageQuotaDetail:1.5 KB/1.0 KB/512 B')).toBeTruthy())
+    expect(view.getByText('storage.storageUsage')).toBeTruthy()
+    expect(view.getByText('storage.trafficUsage')).toBeTruthy()
+    expect(view.queryByText('storage.storageQuotaEntitlement')).toBeNull()
+    expect(view.getAllByRole('progressbar')).toHaveLength(2)
+    expect(view.getByLabelText('storage.viewCreditActivity')).toBeTruthy()
+    await waitFor(() => expect(view.getAllByText('1.5 KB').length).toBeGreaterThan(0))
     expect(view.getByText('storage.trafficPeriodDetail:2026-05')).toBeTruthy()
-    expect(view.getByText('Team Plan · 1.0 KB')).toBeTruthy()
-    expect(view.getByText('Storage Pack · 512 B')).toBeTruthy()
-    await waitFor(() => expect(view.getAllByText('storage.overCap')).toHaveLength(2))
   })
 
   it('does not mark unlimited quota usage as over cap', async () => {
@@ -357,7 +379,7 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByText('storage.storageQuotaDetail:1.5 KB/0 B/0 B')).toBeTruthy())
+    await waitFor(() => expect(view.getAllByText('1.5 KB').length).toBeGreaterThan(0))
     expect(view.queryByText('storage.overCap')).toBeNull()
     expect(view.getAllByText('storage.usageNoLimit')).toHaveLength(2)
   })
@@ -416,9 +438,8 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.getByText('storage.planBadge')).toBeTruthy())
-    expect(view.getByText('storage.trafficPolicy')).toBeTruthy()
     expect(view.getByText('storage.includedCredits')).toBeTruthy()
-    expect(view.getByText('storage.usageBilledWithCredits')).toBeTruthy()
+    expect(view.queryByText('storage.trafficPolicy')).toBeNull()
   })
 
   it('uses the USD product price for checkout regardless of locale', async () => {
@@ -495,6 +516,16 @@ describe('StoragePage', () => {
       storageExtraNames: [],
       trafficPlanName: null,
       trafficExtraNames: [],
+      currentPlan: {
+        sourceId: 'stripe_subscription:sub_1:org-1',
+        packageId: 'pkg-subscription',
+        name: 'Team Plan',
+        storageBytes: 107374182400,
+        trafficBytes: 0,
+        trafficOveragePriceCents: null,
+        expiresAt: null,
+        subscription: true,
+      },
     })
     vi.mocked(listCloudProducts).mockResolvedValue({ items: [subscriptionPackage()], total: 1 })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
@@ -506,13 +537,55 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy())
-    fireEvent.click(view.getByRole('button', { name: 'storage.managePlan' }))
+    await waitFor(() => expect(view.getAllByRole('button', { name: 'storage.managePlan' }).length).toBeGreaterThan(0))
+    fireEvent.click(view.getAllByRole('button', { name: 'storage.managePlan' })[0])
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=portal')
   })
 
-  it('shows only the active workspace plan when a subscription is active', async () => {
+  it('does not show manage plan for the free plan entitlement', async () => {
+    vi.mocked(getUserQuota).mockResolvedValue({
+      orgId: 'org-1',
+      baseQuota: 10485760,
+      entitlementQuota: 0,
+      quota: 10485760,
+      used: 0,
+      baseTrafficQuota: 0,
+      entitlementTrafficQuota: 0,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+      storagePlanName: 'Free',
+      storageExtraNames: [],
+      trafficPlanName: null,
+      trafficExtraNames: [],
+      currentPlan: {
+        sourceId: 'free_plan:org-1',
+        packageId: null,
+        name: 'Free',
+        storageBytes: 10485760,
+        trafficBytes: 0,
+        trafficOveragePriceCents: null,
+        expiresAt: null,
+        subscription: false,
+      },
+    })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [subscriptionPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByText('storage.freePlanName')).toBeTruthy())
+    expect(view.queryByRole('button', { name: 'storage.managePlan' })).toBeNull()
+  })
+
+  it('keeps available plans visible and marks the active plan card', async () => {
     vi.mocked(getUserQuota).mockResolvedValue({
       orgId: 'org-1',
       baseQuota: 1024,
@@ -539,7 +612,10 @@ describe('StoragePage', () => {
         subscription: true,
       },
     })
-    vi.mocked(listCloudProducts).mockResolvedValue({ items: [subscriptionPackage()], total: 1 })
+    vi.mocked(listCloudProducts).mockResolvedValue({
+      items: [subscriptionPackage(), higherSubscriptionPackage()],
+      total: 2,
+    })
     vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
 
     const queryClient = new QueryClient({
@@ -550,11 +626,61 @@ describe('StoragePage', () => {
     })
     const view = renderStoragePage(queryClient)
 
-    await waitFor(() => expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy())
+    await waitFor(() => expect(view.getByText('storage.availablePlansTitle')).toBeTruthy())
     expect(view.getByText('Team Plan')).toBeTruthy()
-    expect(view.getByRole('button', { name: 'storage.managePlan' })).toBeTruthy()
+    expect(view.getByText('Business Plan')).toBeTruthy()
+    await waitFor(() => expect(view.getByText('storage.currentPlanBadge')).toBeTruthy())
+    await waitFor(() => expect(view.getAllByRole('button', { name: 'storage.managePlan' }).length).toBeGreaterThan(0))
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.upgradeToPlan' })).toBeTruthy())
     expect(view.queryByRole('button', { name: /storage.checkoutMonthly|storage.checkoutYearly/ })).toBeNull()
     expect(openNewTab).not.toHaveBeenCalled()
+  })
+
+  it('opens the Stripe portal for higher plan changes while a plan is active', async () => {
+    vi.mocked(getUserQuota).mockResolvedValue({
+      orgId: 'org-1',
+      baseQuota: 1024,
+      entitlementQuota: 512,
+      quota: 1536,
+      used: 0,
+      baseTrafficQuota: 0,
+      entitlementTrafficQuota: 0,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+      storagePlanName: 'Team Plan',
+      storageExtraNames: [],
+      trafficPlanName: null,
+      trafficExtraNames: [],
+      currentPlan: {
+        sourceId: 'stripe_subscription:sub_1:org-1',
+        packageId: 'pkg-subscription',
+        name: 'Team Plan',
+        storageBytes: 107374182400,
+        trafficBytes: 0,
+        trafficOveragePriceCents: null,
+        expiresAt: null,
+        subscription: true,
+      },
+    })
+    vi.mocked(listCloudProducts).mockResolvedValue({
+      items: [subscriptionPackage(), higherSubscriptionPackage()],
+      total: 2,
+    })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByRole('button', { name: 'storage.upgradeToPlan' })).toBeTruthy())
+    fireEvent.click(view.getByRole('button', { name: 'storage.upgradeToPlan' }))
+
+    expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=portal')
   })
 
   it('uses the active workspace for orders and checkout', async () => {
@@ -621,8 +747,8 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.queryByText('common.loading')).toBeNull())
     await waitFor(() => expect(view.getByText('100 GB')).toBeTruthy())
-    expect(view.getByText('storage.availableProductsTitle')).toBeTruthy()
-    expect(view.getByText('storage.baseStorageQuota')).toBeTruthy()
+    expect(view.getByText('storage.availablePlansTitle')).toBeTruthy()
+    expect(view.getAllByText('storage.storageQuota').length).toBeGreaterThan(0)
     expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy()
     expect(view.queryByRole('button', { name: 'storage.redeemTitle' })).toBeNull()
   })
@@ -645,11 +771,14 @@ describe('StoragePage', () => {
     expect(creditsButton).toBeTruthy()
     expect(creditsButton.textContent).toContain('storage.creditsButton')
     expect(creditsButton.textContent).not.toContain('1,250')
-    expect(view.getByText('storage.currentPeriodTraffic')).toBeTruthy()
+    expect(view.getByText('storage.trafficUsage')).toBeTruthy()
+    expect(view.queryByText('storage.storageQuotaEntitlement')).toBeNull()
+    expect(view.queryByText('storage.creditBalance')).toBeNull()
+    expect(view.queryByText('1,250')).toBeNull()
     fireEvent.click(creditsButton)
-    expect(await view.findByText('storage.creditBalance')).toBeTruthy()
+    await waitFor(() => expect(view.getAllByText('storage.creditBalance').length).toBeGreaterThan(0))
     expect(view.getByRole('button', { name: 'storage.redeemTitle' })).toBeTruthy()
-    await waitFor(() => expect(view.getByText('1,250')).toBeTruthy())
+    await waitFor(() => expect(view.getAllByText('1,250').length).toBeGreaterThan(0))
   })
 
   it('starts checkout from a credits top-up product', async () => {
@@ -714,7 +843,7 @@ describe('StoragePage', () => {
     fireEvent.click(view.getByLabelText('storage.viewCreditActivity'))
 
     expect(await view.findByText('storage.creditActivityTitle')).toBeTruthy()
-    expect(view.getByText('1,250')).toBeTruthy()
+    expect(view.getAllByText('1,250').length).toBeGreaterThan(0)
     expect(view.getByText('storage.creditSourceGiftCard')).toBeTruthy()
   })
 

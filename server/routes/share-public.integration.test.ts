@@ -23,6 +23,28 @@ async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']
   `)
 }
 
+async function setTrafficPlanEntitlement(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  orgId: string,
+  bytes: number,
+) {
+  const now = Date.now()
+  await db.run(sql`
+    UPDATE org_quota_entitlements
+    SET status = 'revoked', updated_at = ${now}
+    WHERE org_id = ${orgId}
+      AND resource_type = 'traffic'
+      AND entitlement_type = 'plan'
+      AND status = 'active'
+  `)
+  await db.run(sql`
+    INSERT INTO org_quota_entitlements
+      (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+    VALUES
+      (${`test-traffic-plan-${now}`}, ${orgId}, 'traffic', 'plan', 'test', ${`test-traffic-plan:${orgId}:${now}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+  `)
+}
+
 async function getOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
   const rows = await db.all<{ id: string }>(
     sql`SELECT id FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1`,
@@ -397,9 +419,10 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
-      SET traffic_quota = 512, traffic_used = 0, traffic_period = ${trafficPeriod}
+      SET traffic_quota = 0, traffic_used = 0, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
     `)
+    await setTrafficPlanEntitlement(db, orgId, 512)
     const share = await createShare(db, { matterId: 'dl-traffic', orgId, creatorId, kind: 'landing', downloadLimit: 1 })
 
     const rootRef = await fetchRootRef(app, share.token)

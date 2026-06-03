@@ -57,21 +57,17 @@ export async function getEffectiveQuota(db: Database, orgId: string, now = new D
     .limit(1)
   const quotaRow = quotaRows[0]
 
-  const defaultQuota = quotaRow?.baseQuota ?? 0
   const storagePlan = await activePlanEntitlement(db, orgId, 'storage', now)
-  const planQuota = storagePlan?.bytes ?? 0
-  const baseQuota = planQuota > 0 ? planQuota : defaultQuota
   const entitlementQuota = await activeExtraEntitlementBytes(db, orgId, 'storage', now)
   const storageExtraNames = await activeExtraEntitlementNames(db, orgId, 'storage', now)
   const entitlementTrafficQuota = await activeExtraEntitlementBytes(db, orgId, 'traffic', now)
   const trafficExtraNames = await activeExtraEntitlementNames(db, orgId, 'traffic', now)
   const trafficUsed = quotaRow && quotaRow.trafficPeriod === period ? quotaRow.trafficUsed : 0
   const trafficPeriod = quotaRow?.trafficPeriod === period ? quotaRow.trafficPeriod : period
-  const defaultTrafficQuota = quotaRow?.trafficQuota ?? 0
   const trafficPlan = await activePlanEntitlement(db, orgId, 'traffic', now)
-  const planTrafficQuota = trafficPlan?.bytes ?? 0
-  const baseTrafficQuota = planTrafficQuota > 0 ? planTrafficQuota : defaultTrafficQuota
   const currentPlan = buildCurrentPlan(storagePlan, trafficPlan)
+  const baseQuota = storagePlan?.bytes ?? 0
+  const baseTrafficQuota = trafficPlan?.bytes ?? 0
   return {
     orgId,
     baseQuota,
@@ -130,9 +126,13 @@ export async function consumeTrafficIfQuotaAllows(
   const overageAllowedSql = trafficOverageAllowed ? sql`1 = 1` : sql`1 = 0`
 
   if (quotaRows[0].trafficPeriod !== period) {
-    const planBytes = activePlanEntitlementBytesSql(orgId, 'traffic', now)
-    const extraBytes = activeExtraEntitlementBytesSql(orgId, 'traffic', now)
-    const limitBytes = effectiveQuotaLimitSql(orgQuotas.trafficQuota, planBytes, extraBytes)
+    const limitBytes = activeEntitlementBytesSql({
+      aggregate: sql`SUM(${orgQuotaEntitlements.bytes})`,
+      orgId,
+      resourceType: 'traffic',
+      now,
+      sourceCondition: sql`1 = 1`,
+    })
     const updated = await db
       .update(orgQuotas)
       .set({ trafficUsed: bytes, trafficPeriod: period })
@@ -140,7 +140,7 @@ export async function consumeTrafficIfQuotaAllows(
         sql`${orgQuotas.orgId} = ${orgId}
           AND ${orgQuotas.trafficPeriod} != ${period}
           AND (
-            (${orgQuotas.trafficQuota} = 0 AND ${planBytes} = 0 AND ${extraBytes} = 0)
+            (${limitBytes} = 0)
             OR ${overageAllowedSql}
             OR ${bytes} <= ${limitBytes}
           )`,
@@ -149,9 +149,13 @@ export async function consumeTrafficIfQuotaAllows(
     if (updated.length > 0) return true
   }
 
-  const planBytes = activePlanEntitlementBytesSql(orgId, 'traffic', now)
-  const extraBytes = activeExtraEntitlementBytesSql(orgId, 'traffic', now)
-  const limitBytes = effectiveQuotaLimitSql(orgQuotas.trafficQuota, planBytes, extraBytes)
+  const limitBytes = activeEntitlementBytesSql({
+    aggregate: sql`SUM(${orgQuotaEntitlements.bytes})`,
+    orgId,
+    resourceType: 'traffic',
+    now,
+    sourceCondition: sql`1 = 1`,
+  })
   const updated = await db
     .update(orgQuotas)
     .set({ trafficUsed: sql`${orgQuotas.trafficUsed} + ${bytes}` })
@@ -159,7 +163,7 @@ export async function consumeTrafficIfQuotaAllows(
       sql`${orgQuotas.orgId} = ${orgId}
         AND ${orgQuotas.trafficPeriod} = ${period}
         AND (
-          (${orgQuotas.trafficQuota} = 0 AND ${planBytes} = 0 AND ${extraBytes} = 0)
+          (${limitBytes} = 0)
           OR ${overageAllowedSql}
           OR ${orgQuotas.trafficUsed} + ${bytes} <= ${limitBytes}
         )`,
@@ -196,16 +200,20 @@ export async function incrementUsageIfEffectiveQuotaAllows(
   if (teamQuotaEnabled) {
     const rows = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, orgId)).limit(1)
     if (rows.length > 0) {
-      const planBytes = activePlanEntitlementBytesSql(orgId, 'storage', now)
-      const extraBytes = activeExtraEntitlementBytesSql(orgId, 'storage', now)
-      const limitBytes = effectiveQuotaLimitSql(orgQuotas.quota, planBytes, extraBytes)
+      const limitBytes = activeEntitlementBytesSql({
+        aggregate: sql`SUM(${orgQuotaEntitlements.bytes})`,
+        orgId,
+        resourceType: 'storage',
+        now,
+        sourceCondition: sql`1 = 1`,
+      })
       const updated = await db
         .update(orgQuotas)
         .set({ used: sql`${orgQuotas.used} + ${bytes}` })
         .where(
           sql`${orgQuotas.orgId} = ${orgId}
             AND (
-              (${orgQuotas.quota} = 0 AND ${planBytes} = 0 AND ${extraBytes} = 0)
+              (${limitBytes} = 0)
               OR ${orgQuotas.used} + ${bytes} <= ${limitBytes}
             )`,
         )
@@ -288,21 +296,11 @@ async function activeExtraEntitlementNames(
 }
 
 function activePlanEntitlementWhere(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
-  return activeEntitlementWhere(
-    orgId,
-    resourceType,
-    now,
-    sql`${orgQuotaEntitlements.sourceId} LIKE 'stripe_subscription:%'`,
-  )
+  return activeEntitlementWhere(orgId, resourceType, now, sql`${orgQuotaEntitlements.entitlementType} = 'plan'`)
 }
 
 function activeExtraEntitlementWhere(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
-  return activeEntitlementWhere(
-    orgId,
-    resourceType,
-    now,
-    sql`${orgQuotaEntitlements.sourceId} NOT LIKE 'stripe_subscription:%'`,
-  )
+  return activeEntitlementWhere(orgId, resourceType, now, sql`${orgQuotaEntitlements.entitlementType} != 'plan'`)
 }
 
 function activeEntitlementWhere(
@@ -320,26 +318,6 @@ function activeEntitlementWhere(
     or(sql`${orgQuotaEntitlements.expiresAt} IS NULL`, sql`${orgQuotaEntitlements.expiresAt} > ${timestamp}`),
     sourceCondition,
   )
-}
-
-function activePlanEntitlementBytesSql(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
-  return activeEntitlementBytesSql({
-    aggregate: sql`MAX(${orgQuotaEntitlements.bytes})`,
-    orgId,
-    resourceType,
-    now,
-    sourceCondition: sql`${orgQuotaEntitlements.sourceId} LIKE 'stripe_subscription:%'`,
-  })
-}
-
-function activeExtraEntitlementBytesSql(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
-  return activeEntitlementBytesSql({
-    aggregate: sql`SUM(${orgQuotaEntitlements.bytes})`,
-    orgId,
-    resourceType,
-    now,
-    sourceCondition: sql`${orgQuotaEntitlements.sourceId} NOT LIKE 'stripe_subscription:%'`,
-  })
 }
 
 function activeEntitlementBytesSql({
@@ -366,14 +344,6 @@ function activeEntitlementBytesSql({
       AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
       AND ${sourceCondition}
   )`
-}
-
-function effectiveQuotaLimitSql(
-  defaultQuota: typeof orgQuotas.quota | typeof orgQuotas.trafficQuota,
-  planBytes: ReturnType<typeof sql>,
-  extraBytes: ReturnType<typeof sql>,
-) {
-  return sql`CASE WHEN ${planBytes} > 0 THEN ${planBytes} ELSE ${defaultQuota} END + ${extraBytes}`
 }
 
 interface PlanEntitlement {

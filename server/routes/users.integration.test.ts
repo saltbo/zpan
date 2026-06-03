@@ -69,7 +69,14 @@ describe('Admin Users API', () => {
       sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`,
     )
 
-    await db.run(sql`UPDATE org_quotas SET quota = 123456, used = 789 WHERE org_id = ${personalOrgs[0].id}`)
+    await db.run(sql`UPDATE org_quotas SET quota = 0, used = 789 WHERE org_id = ${personalOrgs[0].id}`)
+    await db.run(sql`DELETE FROM org_quota_entitlements WHERE org_id = ${personalOrgs[0].id}`)
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        ('ent-user-list-storage', ${personalOrgs[0].id}, 'storage', 'plan', 'test', 'user-list-storage', 123456, ${Date.now()}, NULL, 'active', NULL, ${Date.now()}, ${Date.now()})
+    `)
     await db.run(
       sql`INSERT INTO organization (id, name, slug, metadata) VALUES ('team-org', 'Team Org', 'team-org', '{}')`,
     )
@@ -86,7 +93,7 @@ describe('Admin Users API', () => {
       email: 'quota-list@example.com',
       orgId: personalOrgs[0].id,
       quotaUsed: 789,
-      quotaDefault: 123456,
+      quotaDefault: 0,
       quotaTotal: 123456,
     })
   })
@@ -103,15 +110,16 @@ describe('Admin Users API', () => {
     const orgId = personalOrgs[0].id
     const now = Date.now()
 
-    await db.run(sql`UPDATE org_quotas SET quota = 10000, used = 900 WHERE org_id = ${orgId}`)
+    await db.run(sql`UPDATE org_quotas SET quota = 0, used = 900 WHERE org_id = ${orgId}`)
+    await db.run(sql`DELETE FROM org_quota_entitlements WHERE org_id = ${orgId}`)
     await db.run(sql`
       INSERT INTO org_quota_entitlements
-        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
       VALUES
-        ('ent-user-plan-storage', ${orgId}, 'storage', 'test', ${`stripe_subscription:sub_storage:${orgId}`}, 5000, ${now}, NULL, 'active', '{"packageName":"Small Plan"}', ${now}, ${now}),
-        ('ent-user-plan-storage-old', ${orgId}, 'storage', 'test', ${`stripe_subscription:sub_storage_old:${orgId}`}, 4000, ${now}, NULL, 'active', '{"packageName":"Old Plan"}', ${now}, ${now}),
-        ('ent-user-extra-storage', ${orgId}, 'storage', 'test', 'storage-pack', 1000, ${now}, NULL, 'active', '{"packageName":"Storage Pack"}', ${now}, ${now}),
-        ('ent-user-expired-storage', ${orgId}, 'storage', 'test', 'expired-storage-pack', 9000, ${now}, ${now - 1}, 'active', '{"packageName":"Expired Pack"}', ${now}, ${now})
+        ('ent-user-plan-storage', ${orgId}, 'storage', 'plan', 'test', ${`stripe_subscription:sub_storage:${orgId}`}, 5000, ${now}, NULL, 'active', '{"packageName":"Small Plan"}', ${now}, ${now}),
+        ('ent-user-plan-storage-old', ${orgId}, 'storage', 'plan', 'test', ${`stripe_subscription:sub_storage_old:${orgId}`}, 4000, ${now}, NULL, 'revoked', '{"packageName":"Old Plan"}', ${now}, ${now}),
+        ('ent-user-extra-storage', ${orgId}, 'storage', 'grant', 'test', 'storage-pack', 1000, ${now}, NULL, 'active', '{"packageName":"Storage Pack"}', ${now}, ${now}),
+        ('ent-user-expired-storage', ${orgId}, 'storage', 'grant', 'test', 'expired-storage-pack', 9000, ${now}, ${now - 1}, 'active', '{"packageName":"Expired Pack"}', ${now}, ${now})
     `)
 
     const res = await app.request('/api/admin/users?search=quota-plan@example.com', { headers })
@@ -122,7 +130,7 @@ describe('Admin Users API', () => {
       email: 'quota-plan@example.com',
       orgId,
       quotaUsed: 900,
-      quotaDefault: 10000,
+      quotaDefault: 0,
       quotaTotal: 6000,
     })
   })
@@ -283,54 +291,52 @@ describe('Admin Users API', () => {
     expect(enabled.every((row) => row.banned === 0)).toBe(true)
   })
 
-  it('PATCH /api/admin/users/batch sets quota for personal orgs', async () => {
+  it('POST /api/admin/users/:id/entitlements grants storage entitlement for a personal org', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    await signUpUser(app, 'quota1@example.com')
-    await signUpUser(app, 'quota2@example.com')
-    const users = await db.all<{ id: string }>(
-      sql`SELECT id FROM user WHERE email IN ('quota1@example.com', 'quota2@example.com') ORDER BY email`,
-    )
-    const ids = users.map((row) => row.id)
-
-    const res = await app.request('/api/admin/users/batch', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set_quota', ids, quota: 123456 }),
-    })
-
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { updated: number; orgIds: string[]; quota: number }
-    expect(body.updated).toBe(2)
-    expect(body.quota).toBe(123456)
-    const quotas = await db.all<{ quota: number }>(
-      sql`SELECT quota FROM org_quotas WHERE org_id IN (${body.orgIds[0]}, ${body.orgIds[1]})`,
-    )
-    expect(quotas.map((row) => row.quota)).toEqual([123456, 123456])
-  })
-
-  it('PATCH /api/admin/users/batch creates missing personal quota rows', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await adminHeaders(app)
-    await signUpUser(app, 'quota-missing@example.com')
-    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'quota-missing@example.com'`)
+    await signUpUser(app, 'grant-storage@example.com')
+    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'grant-storage@example.com'`)
     const userId = users[0].id
     const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
-    await db.run(sql`DELETE FROM org_quotas WHERE org_id = ${orgs[0].id}`)
 
-    const res = await app.request('/api/admin/users/batch', {
-      method: 'PATCH',
+    const res = await app.request(`/api/admin/users/${userId}/entitlements`, {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set_quota', ids: [userId], quota: 654321 }),
+      body: JSON.stringify({ resourceType: 'storage', bytes: 123456, note: 'launch bonus' }),
     })
 
-    expect(res.status).toBe(200)
-    const quotas = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgs[0].id}`)
-    expect(quotas).toHaveLength(1)
-    expect(quotas[0].quota).toBe(654321)
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { orgId: string; entitlement: Record<string, unknown> }
+    expect(body.orgId).toBe(orgs[0].id)
+    expect(body.entitlement).toMatchObject({
+      orgId: orgs[0].id,
+      resourceType: 'storage',
+      entitlementType: 'grant',
+      source: 'admin_grant',
+      bytes: 123456,
+      status: 'active',
+    })
+    const entitlements = await db.all<{ bytes: number; entitlementType: string; source: string }>(
+      sql`SELECT bytes, entitlement_type AS entitlementType, source FROM org_quota_entitlements WHERE org_id = ${orgs[0].id} AND source = 'admin_grant'`,
+    )
+    expect(entitlements).toEqual([{ bytes: 123456, entitlementType: 'grant', source: 'admin_grant' }])
   })
 
-  it('PATCH /api/admin/users/batch fails when selected user has no personal org', async () => {
+  it('POST /api/admin/users/:id/entitlements rejects traffic grants', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const user = (await signUpUser(app, 'traffic-grant@example.com')) as { user: { id: string } }
+
+    const res = await app.request(`/api/admin/users/${user.user.id}/entitlements`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resourceType: 'traffic', bytes: 123456 }),
+    })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /api/admin/users/:id/entitlements fails when selected user has no personal org', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'no-personal-org@example.com')
@@ -338,14 +344,14 @@ describe('Admin Users API', () => {
     const userId = users[0].id
     await db.run(sql`DELETE FROM member WHERE user_id = ${userId}`)
 
-    const res = await app.request('/api/admin/users/batch', {
-      method: 'PATCH',
+    const res = await app.request(`/api/admin/users/${userId}/entitlements`, {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set_quota', ids: [userId], quota: 123456 }),
+      body: JSON.stringify({ resourceType: 'storage', bytes: 123456 }),
     })
 
     expect(res.status).toBe(404)
-    expect(await res.json()).toEqual({ error: `Personal organization not found for user(s): ${userId}` })
+    expect(await res.json()).toEqual({ error: `Personal organization not found for user: ${userId}` })
   })
 
   it('DELETE /api/admin/users/batch deletes selected users', async () => {
@@ -381,14 +387,6 @@ describe('Admin Users API', () => {
     expect(patch.status).toBe(404)
     expect(await patch.json()).toEqual({ error: 'User not found: missing-user' })
 
-    const quota = await app.request('/api/admin/users/batch', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set_quota', ids: ['missing-user'], quota: 123456 }),
-    })
-    expect(quota.status).toBe(404)
-    expect(await quota.json()).toEqual({ error: 'User not found: missing-user' })
-
     const del = await app.request('/api/admin/users/batch', {
       method: 'DELETE',
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -398,13 +396,14 @@ describe('Admin Users API', () => {
     expect(await del.json()).toEqual({ error: 'User not found: missing-user' })
   })
 
-  it('PATCH /api/admin/users/batch rejects non-positive quota values', async () => {
+  it('POST /api/admin/users/:id/entitlements rejects non-positive bytes', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/users/batch', {
-      method: 'PATCH',
+    const user = (await signUpUser(app, 'zero-grant@example.com')) as { user: { id: string } }
+    const res = await app.request(`/api/admin/users/${user.user.id}/entitlements`, {
+      method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set_quota', ids: ['some-user'], quota: 0 }),
+      body: JSON.stringify({ resourceType: 'storage', bytes: 0 }),
     })
     expect(res.status).toBe(400)
   })

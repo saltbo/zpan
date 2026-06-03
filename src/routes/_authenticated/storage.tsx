@@ -82,9 +82,7 @@ export function StoragePage() {
   })
   const currentOrders = ordersQuery.data?.items ?? []
   const deliveredCheckoutCount = currentOrders.filter((order) => order.fulfillmentStatus === 'fulfilled').length
-  const hasActivePlan = Boolean(
-    quotaQuery.data?.currentPlan || quotaQuery.data?.storagePlanName || quotaQuery.data?.trafficPlanName,
-  )
+  const hasActiveSubscription = quotaQuery.data?.currentPlan?.subscription === true
   const credits = creditsQuery.data ? { balance: creditsQuery.data.balance } : undefined
 
   useEffect(() => {
@@ -205,23 +203,25 @@ export function StoragePage() {
         </div>
       )}
 
-      {hasActivePlan && quotaQuery.data ? (
-        <CurrentPlanCard
-          quota={quotaQuery.data}
-          creditsBalance={creditsQuery.data?.balance}
-          onManagePlan={managePlan}
-          isManagingPlan={false}
-        />
-      ) : (
-        <div className="space-y-6">
-          <FreeQuotaCard quota={quotaQuery.data} />
-          <StoragePackages
-            packages={cloudStoreQuery.data?.items ?? []}
-            disabled={!targetOrgId}
-            onCheckout={startCheckout}
+      <div className="space-y-6">
+        {hasActiveSubscription && quotaQuery.data ? (
+          <CurrentPlanCard
+            quota={quotaQuery.data}
+            creditsBalance={creditsQuery.data?.balance}
+            onManagePlan={managePlan}
+            isManagingPlan={false}
           />
-        </div>
-      )}
+        ) : (
+          <FreeQuotaCard quota={quotaQuery.data} creditsBalance={creditsQuery.data?.balance} />
+        )}
+        <StoragePackages
+          packages={cloudStoreQuery.data?.items ?? []}
+          disabled={!targetOrgId}
+          currentPlan={quotaQuery.data?.currentPlan ?? null}
+          onCheckout={startCheckout}
+          onManagePlan={managePlan}
+        />
+      </div>
       <Dialog open={!!cancelOrderId} onOpenChange={(open) => !open && setCancelOrderId(null)}>
         <DialogContent>
           <DialogHeader>

@@ -1620,10 +1620,18 @@ describe('Quota Store API', () => {
     const packageId = await seedPackage(db)
     const now = Date.now()
     await db.run(sql`
+      UPDATE org_quota_entitlements
+      SET status = 'revoked', updated_at = ${now}
+      WHERE org_id = ${orgId}
+        AND resource_type = 'storage'
+        AND entitlement_type = 'plan'
+        AND status = 'active'
+    `)
+    await db.run(sql`
       INSERT INTO org_quota_entitlements
-        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
       VALUES
-        ('ent-active-plan', ${orgId}, 'storage', 'cloud_order', ${`stripe_subscription:sub_active:${orgId}`}, 4096, ${now}, NULL, 'active', '{"packageName":"Active Plan"}', ${now}, ${now})
+        ('ent-active-plan', ${orgId}, 'storage', 'plan', 'cloud_order', ${`stripe_subscription:sub_active:${orgId}`}, 4096, ${now}, NULL, 'active', '{"packageName":"Active Plan"}', ${now}, ${now})
     `)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
@@ -2179,8 +2187,6 @@ describe('Quota Store API', () => {
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
-    const before = await db.all<{ quota: number }>(sql`SELECT quota FROM org_quotas WHERE org_id = ${orgId}`)
-
     const payload = JSON.stringify({
       eventId: 'evt-1',
       cloudOrderId: 'order-1',
@@ -2208,13 +2214,13 @@ describe('Quota Store API', () => {
 
     const quotaRes = await app.request('/api/quotas/me', { headers })
     const quota = (await quotaRes.json()) as { baseQuota: number; entitlementQuota: number; quota: number }
-    expect(quota.baseQuota).toBe(before[0].quota)
+    expect(quota.baseQuota).toBe(10485760)
     expect(quota.entitlementQuota).toBe(4096)
-    expect(quota.quota).toBe(before[0].quota + 4096)
+    expect(quota.quota).toBe(10485760 + 4096)
     const entitlement = await db.all<{ bytes: number; status: string; sourceId: string; expiresAt: number }>(sql`
       SELECT bytes, status, source_id AS sourceId, expires_at AS expiresAt
       FROM org_quota_entitlements
-      WHERE org_id = ${orgId} AND resource_type = 'storage'
+      WHERE org_id = ${orgId} AND resource_type = 'storage' AND source_id = 'order-1'
     `)
     expect(entitlement).toEqual([
       { bytes: 4096, status: 'active', sourceId: 'order-1', expiresAt: Date.parse('2099-06-01T00:00:00.000Z') },

@@ -26,6 +26,24 @@ async function insertStorage(db: TestDb) {
   `)
 }
 
+async function setTrafficPlanEntitlement(db: TestDb, orgId: string, bytes: number) {
+  const now = Date.now()
+  await db.run(sql`
+    UPDATE org_quota_entitlements
+    SET status = 'revoked', updated_at = ${now}
+    WHERE org_id = ${orgId}
+      AND resource_type = 'traffic'
+      AND entitlement_type = 'plan'
+      AND status = 'active'
+  `)
+  await db.run(sql`
+    INSERT INTO org_quota_entitlements
+      (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+    VALUES
+      (${`test-traffic-plan-${now}`}, ${orgId}, 'traffic', 'plan', 'test', ${`test-traffic-plan:${orgId}:${now}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+  `)
+}
+
 async function insertImageHosting(db: TestDb, orgId: string, opts: { id: string; path: string; status?: string }) {
   const now = Date.now()
   await db.run(sql`
@@ -160,9 +178,10 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
-      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
+      SET traffic_quota = 0, traffic_used = 256, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
     `)
+    await setTrafficPlanEntitlement(db, orgId, 2048)
 
     const res = await app.request('/quota/image.png', {
       headers: { host: 'img.quota.com' },
@@ -186,9 +205,10 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
-      SET traffic_quota = 512, traffic_used = 0, traffic_period = ${trafficPeriod}
+      SET traffic_quota = 0, traffic_used = 0, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
     `)
+    await setTrafficPlanEntitlement(db, orgId, 512)
 
     const res = await app.request('/quota/over.png', {
       headers: { host: 'img.quota-over.com' },
@@ -210,9 +230,10 @@ describe('imageHostingDomain middleware — custom domain redirect', () => {
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
-      SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
+      SET traffic_quota = 0, traffic_used = 256, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
     `)
+    await setTrafficPlanEntitlement(db, orgId, 2048)
     vi.mocked(S3Service.prototype.presignInline).mockRejectedValueOnce(new Error('sign failed'))
 
     const res = await app.request('/quota/sign-fail.png', {

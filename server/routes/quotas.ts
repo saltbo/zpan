@@ -1,93 +1,44 @@
-import { zValidator } from '@hono/zod-validator'
 import { eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { nanoid } from 'nanoid'
-import { z } from 'zod'
 import { organization } from '../db/auth-schema'
 import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { recordActivity } from '../services/activity'
 import { currentTrafficPeriod, getEffectiveQuota } from '../services/effective-quota'
 import { findPersonalOrg } from '../services/org'
 
-const updateQuotaSchema = z.object({
-  quota: z.number().int().positive(),
-  trafficQuota: z.number().int().nonnegative().optional(),
-})
+const adminQuotas = new Hono<Env>().use(requireAdmin).get('/', async (c) => {
+  const db = c.get('platform').db
+  const period = currentTrafficPeriod()
+  const now = new Date()
 
-const adminQuotas = new Hono<Env>()
-  .use(requireAdmin)
-  .get('/', async (c) => {
-    const db = c.get('platform').db
-    const period = currentTrafficPeriod()
-    const now = new Date()
+  await db
+    .update(orgQuotas)
+    .set({ trafficUsed: 0, trafficPeriod: period })
+    .where(sql`${orgQuotas.trafficPeriod} != ${period}`)
 
-    await db
-      .update(orgQuotas)
-      .set({ trafficUsed: 0, trafficPeriod: period })
-      .where(sql`${orgQuotas.trafficPeriod} != ${period}`)
-
-    const rows = await db
-      .select({
-        id: orgQuotas.id,
-        orgId: orgQuotas.orgId,
-        orgName: organization.name,
-        orgMetadata: organization.metadata,
-      })
-      .from(orgQuotas)
-      .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
-      .orderBy(organization.name)
-
-    const items = await Promise.all(
-      rows.map(async (r) => ({
-        id: r.id,
-        ...(await getEffectiveQuota(db, r.orgId, now)),
-        orgName: r.orgName,
-        orgType: parseOrgType(r.orgMetadata),
-      })),
-    )
-
-    return c.json({ items, total: items.length })
-  })
-  .put('/:orgId', zValidator('json', updateQuotaSchema), async (c) => {
-    const db = c.get('platform').db
-    const userId = c.get('userId')!
-    const adminOrgId = c.get('orgId')!
-    const targetOrgId = c.req.param('orgId')
-    const { quota, trafficQuota } = c.req.valid('json')
-
-    const existing = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, targetOrgId))
-
-    if (existing.length > 0) {
-      await db
-        .update(orgQuotas)
-        .set(trafficQuota == null ? { quota } : { quota, trafficQuota })
-        .where(eq(orgQuotas.orgId, targetOrgId))
-    } else {
-      await db.insert(orgQuotas).values({
-        id: nanoid(),
-        orgId: targetOrgId,
-        quota,
-        used: 0,
-        trafficQuota: trafficQuota ?? 0,
-        trafficUsed: 0,
-        trafficPeriod: currentTrafficPeriod(),
-      })
-    }
-
-    await recordActivity(db, {
-      orgId: adminOrgId,
-      userId,
-      action: 'quota_update',
-      targetType: 'quota',
-      targetId: targetOrgId,
-      targetName: targetOrgId,
-      metadata: { quota, trafficQuota, targetOrgId },
+  const rows = await db
+    .select({
+      id: orgQuotas.id,
+      orgId: orgQuotas.orgId,
+      orgName: organization.name,
+      orgMetadata: organization.metadata,
     })
+    .from(orgQuotas)
+    .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
+    .orderBy(organization.name)
 
-    return c.json(await getEffectiveQuota(db, targetOrgId))
-  })
+  const items = await Promise.all(
+    rows.map(async (r) => ({
+      id: r.id,
+      ...(await getEffectiveQuota(db, r.orgId, now)),
+      orgName: r.orgName,
+      orgType: parseOrgType(r.orgMetadata),
+    })),
+  )
+
+  return c.json({ items, total: items.length })
+})
 
 const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {
   const db = c.get('platform').db

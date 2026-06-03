@@ -111,6 +111,7 @@ export const orgQuotaEntitlements = sqliteTable(
     id: text('id').primaryKey(),
     orgId: text('org_id').notNull(),
     resourceType: text('resource_type').notNull(),
+    entitlementType: text('entitlement_type').notNull().default('grant'),
     source: text('source').notNull(),
     sourceId: text('source_id').notNull(),
     bytes: integer('bytes').notNull(),
@@ -123,6 +124,10 @@ export const orgQuotaEntitlements = sqliteTable(
   },
   (t) => [
     index('org_quota_entitlements_org_resource_idx').on(t.orgId, t.resourceType, t.status),
+    index('org_quota_entitlements_org_type_idx').on(t.orgId, t.resourceType, t.entitlementType, t.status),
+    uniqueIndex('org_quota_entitlements_active_plan_uniq')
+      .on(t.orgId, t.resourceType, t.entitlementType)
+      .where(sql`status = 'active' AND entitlement_type = 'plan'`),
     uniqueIndex('org_quota_entitlements_source_resource_uniq').on(t.source, t.sourceId, t.resourceType),
   ],
 )

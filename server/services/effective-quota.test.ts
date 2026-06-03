@@ -25,6 +25,12 @@ describe('effective quota', () => {
       trafficUsed: 500,
       trafficPeriod: '2026-05',
     })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(orgId, 'storage', 'free-storage-plan', 1000, 'active', new Date('2026-05-06T00:00:00Z'), 'Free'),
+        entitlement(orgId, 'traffic', 'free-traffic-plan', 2000, 'active', new Date('2026-05-06T00:00:00Z'), 'Free'),
+      ])
 
     await expect(getEffectiveQuota(db, orgId, new Date('2026-05-06T00:00:00Z'))).resolves.toMatchObject({
       orgId,
@@ -51,6 +57,8 @@ describe('effective quota', () => {
       trafficPeriod: '2026-05',
     })
     await db.insert(orgQuotaEntitlements).values([
+      entitlement(orgId, 'storage', 'free-storage-plan', 1000, 'active', now, 'Free'),
+      entitlement(orgId, 'traffic', 'free-traffic-plan', 2000, 'active', now, 'Free'),
       entitlement(orgId, 'storage', 'active-storage', 300, 'active', now),
       entitlement(orgId, 'traffic', 'active-traffic', 700, 'active', now),
       entitlement(orgId, 'storage', 'revoked-storage', 900, 'revoked', now),
@@ -87,10 +95,10 @@ describe('effective quota', () => {
       .insert(orgQuotaEntitlements)
       .values([
         entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 3000, 'active', now),
-        entitlement(orgId, 'storage', `stripe_subscription:sub_storage_legacy:${orgId}`, 2500, 'active', now),
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage_legacy:${orgId}`, 2500, 'revoked', now),
         entitlement(orgId, 'storage', 'order-storage-pack', 500, 'active', now),
         entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic:${orgId}`, 4000, 'active', now),
-        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic_legacy:${orgId}`, 3500, 'active', now),
+        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic_legacy:${orgId}`, 3500, 'revoked', now),
         entitlement(orgId, 'traffic', 'order-traffic-pack', 700, 'active', now),
       ])
 
@@ -254,12 +262,12 @@ describe('effective quota', () => {
     ])
 
     await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
-      baseQuota: 1000,
+      baseQuota: 0,
       entitlementQuota: 0,
-      quota: 1000,
-      baseTrafficQuota: 2000,
+      quota: 0,
+      baseTrafficQuota: 0,
       entitlementTrafficQuota: 0,
-      trafficQuota: 2000,
+      trafficQuota: 0,
     })
   })
 
@@ -298,6 +306,9 @@ describe('effective quota', () => {
       trafficUsed: 400,
       trafficPeriod: '2026-05',
     })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values(entitlement(orgId, 'traffic', 'free-traffic-plan', 1000, 'active', now, 'Free'))
 
     await expect(hasTrafficQuotaForBytes(db, orgId, 600, now)).resolves.toBe(true)
     await expect(consumeTrafficIfQuotaAllows(db, orgId, 600, now)).resolves.toBe(true)
@@ -320,7 +331,12 @@ describe('effective quota', () => {
       trafficUsed: 900,
       trafficPeriod: '2026-05',
     })
-    await db.insert(orgQuotaEntitlements).values(entitlement(orgId, 'traffic', 'traffic-overage', 500, 'active', now))
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(orgId, 'traffic', 'free-traffic-plan', 1000, 'active', now, 'Free'),
+        entitlement(orgId, 'traffic', 'traffic-overage', 500, 'active', now),
+      ])
 
     await expect(consumeTrafficIfQuotaAllows(db, orgId, 400, now)).resolves.toBe(true)
     await expect(consumeTrafficIfQuotaAllows(db, orgId, 201, now)).resolves.toBe(false)
@@ -346,7 +362,7 @@ describe('effective quota', () => {
       .insert(orgQuotaEntitlements)
       .values([
         entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic:${orgId}`, 2000, 'active', now),
-        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic_legacy:${orgId}`, 1500, 'active', now),
+        entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic_legacy:${orgId}`, 1500, 'revoked', now),
         entitlement(orgId, 'traffic', 'traffic-pack', 500, 'active', now),
       ])
 
@@ -471,6 +487,9 @@ describe('effective quota', () => {
       trafficUsed: 900,
       trafficPeriod: '2026-04',
     })
+    await db
+      .insert(orgQuotaEntitlements)
+      .values(entitlement(orgId, 'traffic', 'free-traffic-plan', 1000, 'active', now, 'Free'))
 
     await expect(consumeTrafficIfQuotaAllows(db, orgId, 600, now)).resolves.toBe(true)
     await expect(consumeTrafficIfQuotaAllows(db, orgId, 401, now)).resolves.toBe(false)
@@ -555,7 +574,7 @@ describe('effective quota', () => {
       .insert(orgQuotaEntitlements)
       .values([
         entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 2000, 'active', now),
-        entitlement(orgId, 'storage', `stripe_subscription:sub_storage_legacy:${orgId}`, 1500, 'active', now),
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage_legacy:${orgId}`, 1500, 'revoked', now),
         entitlement(orgId, 'storage', 'storage-pack', 500, 'active', now),
       ])
 
@@ -581,7 +600,7 @@ describe('effective quota', () => {
       .insert(orgQuotaEntitlements)
       .values([
         entitlement(orgId, 'storage', `stripe_subscription:sub_storage:${orgId}`, 2000, 'active', now),
-        entitlement(orgId, 'storage', `stripe_subscription:sub_storage_legacy:${orgId}`, 1500, 'active', now),
+        entitlement(orgId, 'storage', `stripe_subscription:sub_storage_legacy:${orgId}`, 1500, 'revoked', now),
         entitlement(orgId, 'storage', 'storage-pack', 500, 'active', now),
       ])
 
@@ -613,6 +632,7 @@ function entitlement(
     id: nanoid(),
     orgId,
     resourceType,
+    entitlementType: sourceId.startsWith('stripe_subscription:') || sourceId.endsWith('-plan') ? 'plan' : 'grant',
     source: 'test',
     sourceId,
     bytes,

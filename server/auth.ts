@@ -14,7 +14,7 @@ import {
   parseProviderConfig,
 } from '../shared/oauth-providers'
 import * as authSchema from './db/auth-schema'
-import { orgQuotas, systemOptions } from './db/schema'
+import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
@@ -476,6 +476,7 @@ async function createPersonalOrg(
   const displayName = user.name || user.username
   const orgName = displayName ? `${displayName}'s Space` : 'Personal Space'
   const quotaValues = await createOrgQuotaValues(db, orgId, now)
+  const entitlementValues = await createFreePlanEntitlementValues(db, orgId, now)
 
   await executeWriteTransaction(db, [
     db.insert(authSchema.organization).values({
@@ -493,28 +494,74 @@ async function createPersonalOrg(
       createdAt: now,
     }),
     db.insert(orgQuotas).values(quotaValues),
+    ...entitlementValues.map((value) => db.insert(orgQuotaEntitlements).values(value)),
   ])
 
   return orgId
 }
 
-async function createOrgQuotaValues(db: Database, orgId: string, now: Date): Promise<typeof orgQuotas.$inferInsert> {
-  const defaultQuota = await getDefaultOrgQuota(db)
-  const defaultTrafficQuota = await getDefaultOrgTrafficQuota(db)
-
+async function createOrgQuotaValues(_db: Database, orgId: string, now: Date): Promise<typeof orgQuotas.$inferInsert> {
   return {
     id: nanoid(),
     orgId,
-    quota: defaultQuota,
+    quota: 0,
     used: 0,
-    trafficQuota: defaultTrafficQuota,
+    trafficQuota: 0,
     trafficUsed: 0,
     trafficPeriod: currentTrafficPeriod(now),
   }
 }
 
 async function createOrgQuota(db: Database, orgId: string, now: Date): Promise<void> {
-  await db.insert(orgQuotas).values(await createOrgQuotaValues(db, orgId, now))
+  await executeWriteTransaction(db, [
+    db.insert(orgQuotas).values(await createOrgQuotaValues(db, orgId, now)),
+    ...(await createFreePlanEntitlementValues(db, orgId, now)).map((value) =>
+      db.insert(orgQuotaEntitlements).values(value),
+    ),
+  ])
+}
+
+async function createFreePlanEntitlementValues(
+  db: Database,
+  orgId: string,
+  now: Date,
+): Promise<(typeof orgQuotaEntitlements.$inferInsert)[]> {
+  const defaultQuota = await getDefaultOrgQuota(db)
+  const defaultTrafficQuota = await getDefaultOrgTrafficQuota(db)
+
+  return [
+    freePlanEntitlementValue(orgId, 'storage', defaultQuota, now, 'default_org_quota'),
+    freePlanEntitlementValue(orgId, 'traffic', defaultTrafficQuota, now, 'default_org_monthly_traffic_quota'),
+  ]
+}
+
+function freePlanEntitlementValue(
+  orgId: string,
+  resourceType: 'storage' | 'traffic',
+  bytes: number,
+  now: Date,
+  settingKey: string,
+): typeof orgQuotaEntitlements.$inferInsert {
+  return {
+    id: nanoid(),
+    orgId,
+    resourceType,
+    entitlementType: 'plan',
+    source: 'free_plan',
+    sourceId: `free_plan:${orgId}`,
+    bytes,
+    startsAt: now,
+    expiresAt: null,
+    status: 'active',
+    metadata: JSON.stringify({
+      packageName: 'Free',
+      packageId: null,
+      source: 'free_plan',
+      settingKey,
+    }),
+    createdAt: now,
+    updatedAt: now,
+  }
 }
 
 async function getDefaultOrgQuota(db: Database): Promise<number> {

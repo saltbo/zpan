@@ -5,7 +5,6 @@ import {
   batchDeleteUsers,
   batchMoveObjects,
   batchTrashObjects,
-  batchUpdateUserQuota,
   batchUpdateUserStatus,
   buildShareObjectUrl,
   cancelBackgroundJob,
@@ -61,6 +60,7 @@ import {
   getSystemOption,
   getUnreadCount,
   getUserQuota,
+  grantUserEntitlement,
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
@@ -86,6 +86,7 @@ import {
   listSiteInvitations,
   listStorages,
   listSystemOptions,
+  listUserEntitlements,
   listUsers,
   listWebDavAppPasswords,
   markAllNotificationsRead,
@@ -111,7 +112,6 @@ import {
   updateCloudStoreSettings,
   updateIhostConfig,
   updateObject,
-  updateQuota,
   updateStorage,
   updateUserStatus,
   uploadAvatar,
@@ -1290,25 +1290,73 @@ describe('api', () => {
     })
   })
 
-  describe('batchUpdateUserQuota', () => {
-    it('sets quota for selected users through batch endpoint', async () => {
-      const payload = { updated: 2, userIds: ['u1', 'u2'], orgIds: ['o1', 'o2'], quota: 2048 }
+  describe('user entitlements', () => {
+    it('lists user quota entitlements', async () => {
+      const payload = {
+        orgId: 'org-1',
+        items: [
+          {
+            id: 'ent-1',
+            orgId: 'org-1',
+            resourceType: 'storage',
+            entitlementType: 'plan',
+            source: 'free_plan',
+            sourceId: 'free_plan:org-1',
+            bytes: 1024,
+            startsAt: '2026-05-01T00:00:00.000Z',
+            expiresAt: null,
+            status: 'active',
+            metadata: null,
+            createdAt: '2026-05-01T00:00:00.000Z',
+            updatedAt: '2026-05-01T00:00:00.000Z',
+          },
+        ],
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await batchUpdateUserQuota(['u1', 'u2'], 2048)
+      const result = await listUserEntitlements('u1')
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/users/batch')
-      expect(init.method).toBe('PATCH')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'set_quota', ids: ['u1', 'u2'], quota: 2048 })
+      expect(url).toContain('/api/admin/users/u1/entitlements')
+      expect(init.method).toBe('GET')
     })
 
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'quota required' }, false, 400))
+    it('grants a user quota entitlement', async () => {
+      const payload = {
+        orgId: 'org-1',
+        entitlement: {
+          id: 'ent-2',
+          orgId: 'org-1',
+          resourceType: 'storage',
+          entitlementType: 'grant',
+          source: 'admin_grant',
+          sourceId: 'admin_grant:1',
+          bytes: 2048,
+          startsAt: '2026-05-01T00:00:00.000Z',
+          expiresAt: null,
+          status: 'active',
+          metadata: null,
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-01T00:00:00.000Z',
+        },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      await expect(batchUpdateUserQuota(['u1'], 0)).rejects.toThrow('quota required')
+      const result = await grantUserEntitlement('u1', { resourceType: 'storage', bytes: 2048, expiresAt: null })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/users/u1/entitlements')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ resourceType: 'storage', bytes: 2048, expiresAt: null })
+    })
+
+    it('throws on entitlement error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(listUserEntitlements('missing')).rejects.toThrow('not found')
     })
   })
 
@@ -1348,43 +1396,6 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
       await expect(listQuotas()).rejects.toThrow('forbidden')
-    })
-  })
-
-  describe('updateQuota', () => {
-    it('puts quota for an org and returns updated quota', async () => {
-      const updated = {
-        orgId: 'org1',
-        baseQuota: 2048,
-        entitlementQuota: 0,
-        quota: 2048,
-        used: 512,
-        baseTrafficQuota: 4096,
-        entitlementTrafficQuota: 0,
-        trafficQuota: 4096,
-        trafficUsed: 256,
-        trafficPeriod: '2026-05',
-        storagePlanName: null,
-        storageExtraNames: [],
-        trafficPlanName: null,
-        trafficExtraNames: [],
-      }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(updated))
-
-      const result = await updateQuota('org1', 2048, 4096)
-
-      expect(result).toEqual(updated)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/quotas/org1')
-      expect(init.method).toBe('PUT')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ quota: 2048, trafficQuota: 4096 })
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
-
-      await expect(updateQuota('missing', 100)).rejects.toThrow('not found')
     })
   })
 

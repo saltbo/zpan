@@ -59,6 +59,22 @@ export interface OrgQuota {
   currentPlan?: CurrentStoragePlan | null
 }
 
+export interface OrgQuotaEntitlement {
+  id: string
+  orgId: string
+  resourceType: 'storage' | 'traffic' | string
+  entitlementType: 'plan' | 'campaign' | 'grant' | string
+  source: string
+  sourceId: string
+  bytes: number
+  startsAt: string
+  expiresAt: string | null
+  status: string
+  metadata: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface CurrentStoragePlan {
   sourceId: string
   packageId: string | null

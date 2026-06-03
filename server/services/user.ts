@@ -3,8 +3,6 @@ import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas } from '../db/schema'
 import type { Database } from '../platform/interface'
-import { type AtomicQuery, executeWriteTransaction } from './db-transaction'
-import { currentTrafficPeriod } from './effective-quota'
 
 export interface UserWithOrg {
   id: string
@@ -20,6 +18,22 @@ export interface UserWithOrg {
   quotaUsed: number
   quotaDefault: number
   quotaTotal: number
+}
+
+export interface QuotaEntitlementItem {
+  id: string
+  orgId: string
+  resourceType: string
+  entitlementType: string
+  source: string
+  sourceId: string
+  bytes: number
+  startsAt: Date
+  expiresAt: Date | null
+  status: string
+  metadata: string | null
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface UserOperationFailure {
@@ -62,8 +76,8 @@ export async function listUsers(
       orgId: organization.id,
       orgName: organization.name,
       quotaUsed: orgQuotas.used,
-      quotaDefault: orgQuotas.quota,
-      quotaTotal: sql<number>`${effectiveStoragePlanBytesSql(now)} + ${activeExtraStorageBytesSql(now)}`,
+      quotaDefault: sql<number>`0`,
+      quotaTotal: activeStorageEntitlementBytesSql(now),
     })
     .from(user)
     .leftJoin(organization, eq(organization.slug, sql`'personal-' || ${user.id}`))
@@ -82,30 +96,43 @@ export async function listUsers(
   return { items, total }
 }
 
-function effectiveStoragePlanBytesSql(now: Date) {
-  return sql`CASE
-    WHEN ${activePlanStorageBytesSql(now)} > 0 THEN ${activePlanStorageBytesSql(now)}
-    ELSE COALESCE(${orgQuotas.quota}, 0)
-  END`
+export async function getUser(db: Database, userId: string): Promise<UserWithOrg | UserOperationFailure> {
+  const now = new Date()
+  const rows = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      image: user.image,
+      role: user.role,
+      banned: user.banned,
+      createdAt: user.createdAt,
+      orgId: organization.id,
+      orgName: organization.name,
+      quotaUsed: orgQuotas.used,
+      quotaDefault: sql<number>`0`,
+      quotaTotal: activeStorageEntitlementBytesSql(now),
+    })
+    .from(user)
+    .leftJoin(organization, eq(organization.slug, sql`'personal-' || ${user.id}`))
+    .leftJoin(orgQuotas, eq(orgQuotas.orgId, organization.id))
+    .where(eq(user.id, userId))
+
+  const row = rows[0]
+  if (!row) return { error: `User not found: ${userId}`, status: 404 }
+  return {
+    ...row,
+    username: row.username ?? '',
+    quotaUsed: row.quotaUsed ?? 0,
+    quotaDefault: row.quotaDefault ?? 0,
+    quotaTotal: row.quotaTotal ?? 0,
+  }
 }
 
-function activePlanStorageBytesSql(now: Date) {
+function activeStorageEntitlementBytesSql(now: Date) {
   const timestamp = now.getTime()
-  return sql`(
-    SELECT COALESCE(MAX(${orgQuotaEntitlements.bytes}), 0)
-    FROM ${orgQuotaEntitlements}
-    WHERE ${orgQuotaEntitlements.orgId} = ${organization.id}
-      AND ${orgQuotaEntitlements.resourceType} = 'storage'
-      AND ${orgQuotaEntitlements.status} = 'active'
-      AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
-      AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
-      AND ${orgQuotaEntitlements.sourceId} LIKE 'stripe_subscription:%'
-  )`
-}
-
-function activeExtraStorageBytesSql(now: Date) {
-  const timestamp = now.getTime()
-  return sql`(
+  return sql<number>`(
     SELECT COALESCE(SUM(${orgQuotaEntitlements.bytes}), 0)
     FROM ${orgQuotaEntitlements}
     WHERE ${orgQuotaEntitlements.orgId} = ${organization.id}
@@ -113,7 +140,6 @@ function activeExtraStorageBytesSql(now: Date) {
       AND ${orgQuotaEntitlements.status} = 'active'
       AND ${orgQuotaEntitlements.startsAt} <= ${timestamp}
       AND (${orgQuotaEntitlements.expiresAt} IS NULL OR ${orgQuotaEntitlements.expiresAt} > ${timestamp})
-      AND ${orgQuotaEntitlements.sourceId} NOT LIKE 'stripe_subscription:%'
   )`
 }
 
@@ -162,64 +188,72 @@ export async function deleteUsers(
   return { deleted: existingIds.length, ids: existingIds }
 }
 
-export async function setUsersPersonalQuota(
+export async function listUserPersonalEntitlements(
   db: Database,
-  userIds: string[],
-  quota: number,
-): Promise<{ updated: number; userIds: string[]; orgIds: string[]; quota: number } | UserOperationFailure> {
-  const existingIds = await requireUsers(db, userIds)
-  if ('error' in existingIds) return existingIds
+  userId: string,
+): Promise<{ orgId: string; items: QuotaEntitlementItem[] } | UserOperationFailure> {
+  const org = await findUserPersonalOrg(db, userId)
+  if ('error' in org) return org
+  const items = await db
+    .select()
+    .from(orgQuotaEntitlements)
+    .where(eq(orgQuotaEntitlements.orgId, org.orgId))
+    .orderBy(desc(orgQuotaEntitlements.createdAt))
+  return { orgId: org.orgId, items }
+}
 
+export async function grantUserPersonalEntitlement(
+  db: Database,
+  input: {
+    adminUserId: string
+    targetUserId: string
+    resourceType: 'storage'
+    bytes: number
+    expiresAt?: Date | null
+    note?: string | null
+  },
+): Promise<{ orgId: string; entitlement: QuotaEntitlementItem } | UserOperationFailure> {
+  const org = await findUserPersonalOrg(db, input.targetUserId)
+  if ('error' in org) return org
+  const now = new Date()
+  const entitlement = {
+    id: nanoid(),
+    orgId: org.orgId,
+    resourceType: input.resourceType,
+    entitlementType: 'grant',
+    source: 'admin_grant',
+    sourceId: `admin_grant:${nanoid()}`,
+    bytes: input.bytes,
+    startsAt: now,
+    expiresAt: input.expiresAt ?? null,
+    status: 'active',
+    metadata: JSON.stringify({
+      note: input.note ?? null,
+      grantedBy: input.adminUserId,
+      targetUserId: input.targetUserId,
+    }),
+    createdAt: now,
+    updatedAt: now,
+  } satisfies typeof orgQuotaEntitlements.$inferInsert
+  const rows = await db.insert(orgQuotaEntitlements).values(entitlement).returning()
+  return { orgId: org.orgId, entitlement: rows[0] }
+}
+
+async function findUserPersonalOrg(db: Database, userId: string): Promise<{ orgId: string } | UserOperationFailure> {
+  const existingIds = await requireUsers(db, [userId])
+  if ('error' in existingIds) return existingIds
   const rows = await db
-    .select({ userId: user.id, orgId: organization.id })
+    .select({ orgId: organization.id })
     .from(user)
     .innerJoin(member, eq(member.userId, user.id))
     .innerJoin(
       organization,
       and(eq(organization.id, member.organizationId), eq(organization.slug, sql`'personal-' || ${user.id}`)),
     )
-    .where(inArray(user.id, existingIds))
-
-  if (rows.length !== existingIds.length) {
-    const found = new Set(rows.map((row) => row.userId))
-    const missing = existingIds.filter((id) => !found.has(id))
-    return { error: `Personal organization not found for user(s): ${missing.join(', ')}`, status: 404 }
-  }
-
-  const orgIds = rows.map((row) => row.orgId)
-  const existingQuotaRows = await db
-    .select({ orgId: orgQuotas.orgId })
-    .from(orgQuotas)
-    .where(inArray(orgQuotas.orgId, orgIds))
-  const existingOrgIds = new Set(existingQuotaRows.map((row) => row.orgId))
-  const nowMissing = orgIds.filter((orgId) => !existingOrgIds.has(orgId))
-  const queries: AtomicQuery[] = []
-
-  if (existingOrgIds.size > 0) {
-    queries.push(
-      db
-        .update(orgQuotas)
-        .set({ quota })
-        .where(inArray(orgQuotas.orgId, [...existingOrgIds])),
-    )
-  }
-
-  for (const orgId of nowMissing) {
-    queries.push(
-      db.insert(orgQuotas).values({
-        id: nanoid(),
-        orgId,
-        quota,
-        used: 0,
-        trafficQuota: 0,
-        trafficUsed: 0,
-        trafficPeriod: currentTrafficPeriod(),
-      }),
-    )
-  }
-
-  await executeWriteTransaction(db, queries)
-  return { updated: rows.length, userIds: existingIds, orgIds, quota }
+    .where(eq(user.id, userId))
+  const orgId = rows[0]?.orgId
+  if (!orgId) return { error: `Personal organization not found for user: ${userId}`, status: 404 }
+  return { orgId }
 }
 
 async function requireUsers(db: Database, userIds: string[]): Promise<string[] | UserOperationFailure> {

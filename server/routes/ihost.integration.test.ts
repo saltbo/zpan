@@ -34,6 +34,24 @@ async function insertStorage(db: TestDb) {
   `)
 }
 
+async function setStoragePlanEntitlement(db: TestDb, orgId: string, bytes: number) {
+  const now = Date.now()
+  await db.run(sql`
+    UPDATE org_quota_entitlements
+    SET status = 'revoked', updated_at = ${now}
+    WHERE org_id = ${orgId}
+      AND resource_type = 'storage'
+      AND entitlement_type = 'plan'
+      AND status = 'active'
+  `)
+  await db.run(sql`
+    INSERT INTO org_quota_entitlements
+      (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+    VALUES
+      (${nanoid()}, ${orgId}, 'storage', 'plan', 'test', ${`test-storage-plan:${orgId}:${nanoid()}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+  `)
+}
+
 async function insertImageHostingConfig(
   db: TestDb,
   orgId: string,
@@ -844,8 +862,8 @@ describe('POST /api/ihost/images (multipart)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    // Set quota to 50 bytes so a 100-byte upload exceeds it
-    await db.run(sql`UPDATE org_quotas SET quota = 50 WHERE org_id = ${orgId}`)
+    // Set storage quota to 50 bytes so a 100-byte upload exceeds it
+    await setStoragePlanEntitlement(db, orgId, 50)
 
     const formData = new FormData()
     formData.append('file', new File([new Uint8Array(100)], 'big.png', { type: 'image/png' }))
@@ -957,9 +975,8 @@ describe('PATCH /api/ihost/images/:id (confirm)', () => {
     const orgId = await getOrgId(db)
     await insertImageHostingConfig(db, orgId)
 
-    // Sign-up creates an org_quotas row with the default quota.
-    // Lower it to 50 bytes so a 100-byte image exceeds it.
-    await db.run(sql`UPDATE org_quotas SET quota = 50 WHERE org_id = ${orgId}`)
+    // Lower storage quota to 50 bytes so a 100-byte image exceeds it.
+    await setStoragePlanEntitlement(db, orgId, 50)
 
     const createRes = await app.request('/api/ihost/images/presign', {
       method: 'POST',

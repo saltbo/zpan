@@ -67,152 +67,6 @@ describe('Admin Quotas API', () => {
     expect(rows[0].trafficPeriod).toBe(body.items[0].trafficPeriod)
   })
 
-  it('PUT /api/admin/quotas/:orgId creates quota for org', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await adminHeaders(app)
-
-    // Find the admin's personal org
-    const orgs = await db.all<{ id: string }>(
-      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
-    )
-    const orgId = orgs[0].id
-
-    const res = await app.request(`/api/admin/quotas/${orgId}`, {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 1073741824, trafficQuota: 2147483648 }),
-    })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.orgId).toBe(orgId)
-    expect(body.quota).toBe(1073741824)
-    expect(body.trafficQuota).toBe(2147483648)
-
-    // Verify in DB
-    const quotas = await db.all<{ quota: number; trafficQuota: number }>(
-      sql`SELECT quota, traffic_quota AS trafficQuota FROM org_quotas WHERE org_id = ${orgId}`,
-    )
-    expect(quotas[0].quota).toBe(1073741824)
-    expect(quotas[0].trafficQuota).toBe(2147483648)
-  })
-
-  it('PUT /api/admin/quotas/:orgId creates missing quota with default monthly traffic quota', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await adminHeaders(app)
-
-    const orgs = await db.all<{ id: string }>(
-      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
-    )
-    const orgId = orgs[0].id
-    await db.run(sql`DELETE FROM org_quotas WHERE org_id = ${orgId}`)
-
-    const res = await app.request(`/api/admin/quotas/${orgId}`, {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 2048 }),
-    })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.quota).toBe(2048)
-    expect(body.trafficQuota).toBe(0)
-    expect(body.trafficUsed).toBe(0)
-    expect(body.trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
-  })
-
-  it('PUT /api/admin/quotas/:orgId updates existing quota', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await adminHeaders(app)
-
-    const orgs = await db.all<{ id: string }>(
-      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
-    )
-    const orgId = orgs[0].id
-
-    // Create initial quota
-    await app.request(`/api/admin/quotas/${orgId}`, {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 1000 }),
-    })
-
-    // Update it
-    const res = await app.request(`/api/admin/quotas/${orgId}`, {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 2000 }),
-    })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.quota).toBe(2000)
-    expect(body.trafficQuota).toBe(0)
-    expect(body.trafficUsed).toBe(0)
-    expect(body.trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
-  })
-
-  it('PUT /api/admin/quotas/:orgId rejects negative quota', async () => {
-    const { app } = await createTestApp()
-    const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/quotas/some-org', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: -100 }),
-    })
-    expect(res.status).toBe(400)
-  })
-
-  it('PUT /api/admin/quotas/:orgId rejects zero quota', async () => {
-    const { app } = await createTestApp()
-    const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/quotas/some-org', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 0 }),
-    })
-    expect(res.status).toBe(400)
-  })
-
-  it('PUT /api/admin/quotas/:orgId rejects decimal quota', async () => {
-    const { app } = await createTestApp()
-    const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/quotas/some-org', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 1.5 }),
-    })
-    expect(res.status).toBe(400)
-  })
-
-  it('PUT /api/admin/quotas/:orgId rejects negative traffic quota', async () => {
-    const { app } = await createTestApp()
-    const headers = await adminHeaders(app)
-    const res = await app.request('/api/admin/quotas/some-org', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 1000, trafficQuota: -1 }),
-    })
-    expect(res.status).toBe(400)
-  })
-
-  it('PUT /api/admin/quotas/:orgId works without Pro license', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await adminHeaders(app)
-
-    const orgs = await db.all<{ id: string }>(
-      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
-    )
-    const orgId = orgs[0].id
-
-    const res = await app.request(`/api/admin/quotas/${orgId}`, {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 1000 }),
-    })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.orgId).toBe(orgId)
-    expect(body.quota).toBe(1000)
-  })
-
   it('GET /api/admin/quotas lists quotas with org info', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
@@ -222,19 +76,12 @@ describe('Admin Quotas API', () => {
     )
     const orgId = orgs[0].id
 
-    // Create a quota
-    await app.request(`/api/admin/quotas/${orgId}`, {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 5000 }),
-    })
-
     const res = await app.request('/api/admin/quotas', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
     expect(body.items).toHaveLength(1)
     expect(body.items[0].orgId).toBe(orgId)
-    expect(body.items[0].quota).toBe(5000)
+    expect(body.items[0].quota).toBe(10485760)
     expect(body.items[0].trafficQuota).toBe(0)
     expect(body.items[0].trafficUsed).toBe(0)
     expect(body.items[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
@@ -250,14 +97,17 @@ describe('Admin Quotas API', () => {
     )
     const orgId = orgs[0].id
     const now = Date.now()
-    await db.run(sql`UPDATE org_quotas SET quota = 5000, traffic_quota = 1000 WHERE org_id = ${orgId}`)
+    await db.run(sql`UPDATE org_quotas SET quota = 0, traffic_quota = 0 WHERE org_id = ${orgId}`)
+    await db.run(sql`DELETE FROM org_quota_entitlements WHERE org_id = ${orgId}`)
     await db.run(sql`
       INSERT INTO org_quota_entitlements
-        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
       VALUES
-        ('ent-admin-storage', ${orgId}, 'storage', 'test', 'admin-storage', 3000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
-        ('ent-admin-traffic', ${orgId}, 'traffic', 'test', 'admin-traffic', 2000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
-        ('ent-admin-revoked', ${orgId}, 'storage', 'test', 'admin-revoked', 9000, ${now}, NULL, 'revoked', NULL, ${now}, ${now})
+        ('ent-admin-storage-plan', ${orgId}, 'storage', 'plan', 'test', 'admin-storage-plan', 5000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
+        ('ent-admin-storage', ${orgId}, 'storage', 'grant', 'test', 'admin-storage', 3000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
+        ('ent-admin-traffic-plan', ${orgId}, 'traffic', 'plan', 'test', 'admin-traffic-plan', 1000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
+        ('ent-admin-traffic', ${orgId}, 'traffic', 'grant', 'test', 'admin-traffic', 2000, ${now}, NULL, 'active', NULL, ${now}, ${now}),
+        ('ent-admin-revoked', ${orgId}, 'storage', 'grant', 'test', 'admin-revoked', 9000, ${now}, NULL, 'revoked', NULL, ${now}, ${now})
     `)
 
     const res = await app.request('/api/admin/quotas', { headers })
@@ -282,16 +132,17 @@ describe('Admin Quotas API', () => {
     )
     const orgId = orgs[0].id
     const now = Date.now()
-    await db.run(sql`UPDATE org_quotas SET quota = 1000, traffic_quota = 2000 WHERE org_id = ${orgId}`)
+    await db.run(sql`UPDATE org_quotas SET quota = 0, traffic_quota = 0 WHERE org_id = ${orgId}`)
+    await db.run(sql`DELETE FROM org_quota_entitlements WHERE org_id = ${orgId}`)
     await db.run(sql`
       INSERT INTO org_quota_entitlements
-        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
       VALUES
-        ('ent-admin-plan-storage', ${orgId}, 'storage', 'test', ${`stripe_subscription:sub_storage:${orgId}`}, 3000, ${now}, NULL, 'active', '{"packageName":"Team Plan"}', ${now}, ${now}),
-        ('ent-admin-plan-storage-old', ${orgId}, 'storage', 'test', ${`stripe_subscription:sub_storage_old:${orgId}`}, 2500, ${now}, NULL, 'active', '{"packageName":"Old Team Plan"}', ${now}, ${now}),
-        ('ent-admin-extra-storage', ${orgId}, 'storage', 'test', 'storage-pack', 700, ${now}, NULL, 'active', '{"packageName":"Storage Pack"}', ${now}, ${now}),
-        ('ent-admin-plan-traffic', ${orgId}, 'traffic', 'test', ${`stripe_subscription:sub_traffic:${orgId}`}, 4000, ${now}, NULL, 'active', '{"packageName":"Team Plan"}', ${now}, ${now}),
-        ('ent-admin-extra-traffic', ${orgId}, 'traffic', 'test', 'traffic-pack', 900, ${now}, NULL, 'active', '{"packageName":"Traffic Boost"}', ${now}, ${now})
+        ('ent-admin-plan-storage', ${orgId}, 'storage', 'plan', 'test', ${`stripe_subscription:sub_storage:${orgId}`}, 3000, ${now}, NULL, 'active', '{"packageName":"Team Plan"}', ${now}, ${now}),
+        ('ent-admin-plan-storage-old', ${orgId}, 'storage', 'plan', 'test', ${`stripe_subscription:sub_storage_old:${orgId}`}, 2500, ${now}, NULL, 'revoked', '{"packageName":"Old Team Plan"}', ${now}, ${now}),
+        ('ent-admin-extra-storage', ${orgId}, 'storage', 'grant', 'test', 'storage-pack', 700, ${now}, NULL, 'active', '{"packageName":"Storage Pack"}', ${now}, ${now}),
+        ('ent-admin-plan-traffic', ${orgId}, 'traffic', 'plan', 'test', ${`stripe_subscription:sub_traffic:${orgId}`}, 4000, ${now}, NULL, 'active', '{"packageName":"Team Plan"}', ${now}, ${now}),
+        ('ent-admin-extra-traffic', ${orgId}, 'traffic', 'grant', 'test', 'traffic-pack', 900, ${now}, NULL, 'active', '{"packageName":"Traffic Boost"}', ${now}, ${now})
     `)
 
     const res = await app.request('/api/admin/quotas', { headers })
@@ -351,33 +202,6 @@ describe('User Quotas API — /api/quotas', () => {
     expect(res.status).toBe(404)
   })
 
-  it('GET /api/quotas/me returns quota after admin sets it', async () => {
-    const { app, db } = await createTestApp()
-    const adminH = await adminHeaders(app)
-
-    // Find admin's org
-    const orgs = await db.all<{ id: string }>(
-      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
-    )
-    const orgId = orgs[0].id
-
-    // Set quota as admin
-    await app.request(`/api/admin/quotas/${orgId}`, {
-      method: 'PUT',
-      headers: { ...adminH, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 10000 }),
-    })
-
-    // Check as user (admin is also a user)
-    const res = await app.request('/api/quotas/me', { headers: adminH })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.quota).toBe(10000)
-    expect(body.used).toBe(0)
-    expect(body.trafficQuota).toBe(0)
-    expect(body.trafficUsed).toBe(0)
-  })
-
   it('GET /api/quotas/me returns base quota plus active entitlements and labels', async () => {
     const { app, db } = await createTestApp()
     const adminH = await adminHeaders(app)
@@ -386,13 +210,16 @@ describe('User Quotas API — /api/quotas', () => {
     )
     const orgId = orgs[0].id
     const now = Date.now()
-    await db.run(sql`UPDATE org_quotas SET quota = 1000, traffic_quota = 2000 WHERE org_id = ${orgId}`)
+    await db.run(sql`UPDATE org_quotas SET quota = 0, traffic_quota = 0 WHERE org_id = ${orgId}`)
+    await db.run(sql`DELETE FROM org_quota_entitlements WHERE org_id = ${orgId}`)
     await db.run(sql`
       INSERT INTO org_quota_entitlements
-        (id, org_id, resource_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
       VALUES
-        ('ent-user-storage', ${orgId}, 'storage', 'test', 'user-storage', 4000, ${now}, NULL, 'active', '{"packageName":"Storage Pack"}', ${now}, ${now}),
-        ('ent-user-traffic', ${orgId}, 'traffic', 'test', 'user-traffic', 6000, ${now}, NULL, 'active', '{"packageName":"Traffic Boost"}', ${now}, ${now})
+        ('ent-user-storage-plan', ${orgId}, 'storage', 'plan', 'test', 'user-storage-plan', 1000, ${now}, NULL, 'active', '{"packageName":"Free"}', ${now}, ${now}),
+        ('ent-user-storage', ${orgId}, 'storage', 'grant', 'test', 'user-storage', 4000, ${now}, NULL, 'active', '{"packageName":"Storage Pack"}', ${now}, ${now}),
+        ('ent-user-traffic-plan', ${orgId}, 'traffic', 'plan', 'test', 'user-traffic-plan', 2000, ${now}, NULL, 'active', '{"packageName":"Free"}', ${now}, ${now}),
+        ('ent-user-traffic', ${orgId}, 'traffic', 'grant', 'test', 'user-traffic', 6000, ${now}, NULL, 'active', '{"packageName":"Traffic Boost"}', ${now}, ${now})
     `)
 
     const res = await app.request('/api/quotas/me', { headers: adminH })
@@ -406,34 +233,10 @@ describe('User Quotas API — /api/quotas', () => {
       baseTrafficQuota: 2000,
       entitlementTrafficQuota: 6000,
       trafficQuota: 8000,
-      storagePlanName: null,
+      storagePlanName: 'Free',
       storageExtraNames: ['Storage Pack'],
-      trafficPlanName: null,
+      trafficPlanName: 'Free',
       trafficExtraNames: ['Traffic Boost'],
     })
-  })
-
-  it('admin quota updates current org quota without historical grant aggregation', async () => {
-    const { app, db } = await createTestApp()
-    const adminH = await adminHeaders(app)
-    const orgs = await db.all<{ id: string }>(
-      sql`SELECT o.id FROM organization o WHERE o.metadata LIKE '%"type":"personal"%' LIMIT 1`,
-    )
-    const orgId = orgs[0].id
-
-    const putRes = await app.request(`/api/admin/quotas/${orgId}`, {
-      method: 'PUT',
-      headers: { ...adminH, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 1000 }),
-    })
-    expect(putRes.status).toBe(200)
-    const updated = (await putRes.json()) as Record<string, unknown>
-    expect(updated.baseQuota).toBe(1000)
-    expect(updated.quota).toBe(1000)
-
-    const res = await app.request('/api/quotas/me', { headers: adminH })
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body.baseQuota).toBe(1000)
-    expect(body.quota).toBe(1000)
   })
 })

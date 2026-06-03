@@ -1,11 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
-import { Search, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Search, ShieldCheck, Trash2, UserX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
-import { UserQuotaDialog } from '@/components/admin/user-quota-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,12 +19,12 @@ type UserRow = UserWithOrg
 
 function UsersPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 20
 
-  const [quotaDialogUser, setQuotaDialogUser] = useState<UserRow | null>(null)
   const [deleteDialogUser, setDeleteDialogUser] = useState<{ id: string; name: string } | null>(null)
 
   const usersQuery = useQuery({
@@ -106,7 +105,7 @@ function UsersPage() {
                 key={user.id}
                 user={user}
                 isToggling={toggleStatusMutation.isPending}
-                onSetQuota={() => setQuotaDialogUser(user)}
+                onOpenUser={() => navigate({ to: '/admin/users/$userId', params: { userId: user.id } })}
                 onToggleStatus={() =>
                   toggleStatusMutation.mutate({
                     userId: user.id,
@@ -141,21 +140,6 @@ function UsersPage() {
         </div>
       )}
 
-      <UserQuotaDialog
-        open={quotaDialogUser !== null}
-        onOpenChange={(open) => !open && setQuotaDialogUser(null)}
-        user={
-          quotaDialogUser?.orgId
-            ? {
-                name: quotaDialogUser.name,
-                orgId: quotaDialogUser.orgId,
-                quotaUsed: quotaDialogUser.quotaUsed,
-                quotaDefault: quotaDialogUser.quotaDefault,
-              }
-            : null
-        }
-      />
-
       <DeleteUserDialog
         open={deleteDialogUser !== null}
         onOpenChange={(open) => !open && setDeleteDialogUser(null)}
@@ -168,13 +152,13 @@ function UsersPage() {
 function UserTableRow({
   user,
   isToggling,
-  onSetQuota,
+  onOpenUser,
   onToggleStatus,
   onDelete,
 }: {
   user: UserRow
   isToggling: boolean
-  onSetQuota: () => void
+  onOpenUser: () => void
   onToggleStatus: () => void
   onDelete: () => void
 }) {
@@ -191,7 +175,11 @@ function UserTableRow({
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="px-4 py-3 font-medium">
-        <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          className="flex min-w-0 items-center gap-3 text-left hover:text-primary"
+          onClick={onOpenUser}
+        >
           <Avatar className="h-7 w-7 shrink-0">
             {user.image && <AvatarImage src={user.image} alt={user.name || user.username} />}
             <AvatarFallback className="text-xs">{getInitials(user.name || user.username || user.email)}</AvatarFallback>
@@ -199,7 +187,7 @@ function UserTableRow({
           <span className="min-w-0 truncate" title={user.name || user.username}>
             {user.name || user.username}
           </span>
-        </div>
+        </button>
       </td>
       <td className="truncate px-4 py-3 text-muted-foreground" title={user.email}>
         {user.email}
@@ -218,15 +206,6 @@ function UserTableRow({
       </td>
       <td className="whitespace-nowrap px-4 py-3">
         <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            disabled={!user.orgId}
-            onClick={onSetQuota}
-            title={t('admin.users.setQuota')}
-          >
-            <Settings2 />
-          </Button>
           <Button
             variant="ghost"
             size="icon-xs"

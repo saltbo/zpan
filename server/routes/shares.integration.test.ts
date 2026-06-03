@@ -30,6 +30,24 @@ async function insertStorage(db: TestDb) {
   `)
 }
 
+async function setStoragePlanEntitlement(db: TestDb, orgId: string, bytes: number) {
+  const now = Date.now()
+  await db.run(sql`
+    UPDATE org_quota_entitlements
+    SET status = 'revoked', updated_at = ${now}
+    WHERE org_id = ${orgId}
+      AND resource_type = 'storage'
+      AND entitlement_type = 'plan'
+      AND status = 'active'
+  `)
+  await db.run(sql`
+    INSERT INTO org_quota_entitlements
+      (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+    VALUES
+      (${nanoid()}, ${orgId}, 'storage', 'plan', 'test', ${`test-storage-plan:${orgId}:${nanoid()}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+  `)
+}
+
 async function insertFile(
   db: TestDb,
   orgId: string,
@@ -634,7 +652,8 @@ describe('POST /api/shares/:token/objects', () => {
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'sv-quota', name: 'big-file.txt' })
 
-    await db.run(sql`UPDATE org_quotas SET quota = 1, used = 1 WHERE org_id = ${orgId}`)
+    await db.run(sql`UPDATE org_quotas SET used = 1 WHERE org_id = ${orgId}`)
+    await setStoragePlanEntitlement(db, orgId, 1)
 
     const createRes = await createShare(app, headers, { matterId: 'sv-quota', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string

@@ -546,25 +546,27 @@ describe('Storage audit events', () => {
 // ─── Quota audit events ───────────────────────────────────────────────────────
 
 describe('Quota audit events', () => {
-  it('records quota_update when admin updates a quota', async () => {
+  it('records quota_entitlement_grant when admin grants storage entitlement', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
-    const orgId = await getPersonalOrgId(db)
+    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'admin@example.com' LIMIT 1`)
+    const userId = users[0].id
 
-    const res = await app.request(`/api/admin/quotas/${orgId}`, {
-      method: 'PUT',
+    const res = await app.request(`/api/admin/users/${userId}/entitlements`, {
+      method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quota: 10737418240 }),
+      body: JSON.stringify({ resourceType: 'storage', bytes: 10737418240, note: 'audit grant' }),
     })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(201)
 
-    const evt = await getLatestActivity(db, 'quota_update')
+    const evt = await getLatestActivity(db, 'quota_entitlement_grant')
     expect(evt).toBeDefined()
     expect(evt?.targetType).toBe('quota')
     assertNoSecrets(evt?.metadata ?? null)
-    const meta = JSON.parse(evt?.metadata ?? '{}') as { quota: number; targetOrgId: string }
-    expect(meta.quota).toBe(10737418240)
-    expect(meta.targetOrgId).toBe(orgId)
+    const meta = JSON.parse(evt?.metadata ?? '{}') as { bytes: number; resourceType: string; targetUserId: string }
+    expect(meta.bytes).toBe(10737418240)
+    expect(meta.resourceType).toBe('storage')
+    expect(meta.targetUserId).toBe(userId)
   })
 })
 
