@@ -109,7 +109,7 @@ function DownloadsPage() {
   const activeSelectedTaskId = selectedTask?.id ?? null
 
   return (
-    <div className="flex min-h-[calc(100dvh-8rem)] flex-col gap-3">
+    <div className="flex min-h-[calc(100dvh-7rem)] flex-col gap-2">
       <PageHeader
         items={[{ label: t('downloads.title'), icon: <Download className="size-4 text-muted-foreground" /> }]}
         actions={
@@ -199,18 +199,18 @@ function DownloadsPage() {
       </Dialog>
 
       <section className="min-h-0 flex-1 overflow-hidden rounded-md border bg-background">
-        <div className="max-h-[46dvh] overflow-auto">
-          <Table>
+        <div className="max-h-[52dvh] overflow-auto">
+          <Table className="text-xs">
             <TableHeader>
               <TableRow>
-                <TableHead>{t('downloads.table.source')}</TableHead>
-                <TableHead>{t('downloads.table.status')}</TableHead>
-                <TableHead>{t('downloads.table.progress')}</TableHead>
-                <TableHead>{t('downloads.table.size')}</TableHead>
-                <TableHead>{t('downloads.table.speed')}</TableHead>
-                <TableHead>{t('downloads.table.peers')}</TableHead>
-                <TableHead>{t('downloads.table.eta')}</TableHead>
-                <TableHead className="text-right">{t('common.actions')}</TableHead>
+                <TableHead className="h-8">{t('downloads.table.source')}</TableHead>
+                <TableHead className="h-8">{t('downloads.table.status')}</TableHead>
+                <TableHead className="h-8">{t('downloads.table.progress')}</TableHead>
+                <TableHead className="h-8">{t('downloads.table.size')}</TableHead>
+                <TableHead className="h-8">{t('downloads.table.speed')}</TableHead>
+                <TableHead className="h-8">{t('downloads.table.peers')}</TableHead>
+                <TableHead className="h-8">{t('downloads.table.eta')}</TableHead>
+                <TableHead className="h-8 text-right">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -235,7 +235,7 @@ function DownloadsPage() {
         </div>
       </section>
 
-      <section className="min-h-[22rem] overflow-hidden rounded-md border bg-background">
+      <section className="min-h-[18rem] overflow-hidden rounded-md border bg-background">
         <DownloadInspector task={selectedTask} tab={detailTab} onTabChange={setDetailTab} />
       </section>
     </div>
@@ -374,48 +374,49 @@ function TaskRow({
 
   return (
     <TableRow
-      className={cn('h-12 cursor-pointer hover:bg-muted/50', selected && 'bg-primary/5 hover:bg-primary/10')}
+      className={cn('h-9 cursor-pointer hover:bg-muted/50', selected && 'bg-primary/5 hover:bg-primary/10')}
       onClick={onSelect}
     >
-      <TableCell className="max-w-[28rem] py-2">
+      <TableCell className="max-w-[28rem] py-1">
         <div className="flex min-w-0 items-center gap-2">
           <SourceIcon type={task.sourceType} />
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{getTaskTitle(task)}</div>
-            <div className="truncate text-xs text-muted-foreground">{task.sourceUri}</div>
+            <div className="truncate text-xs font-medium">{getTaskTitle(task)}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{task.sourceUri}</div>
           </div>
         </div>
       </TableCell>
-      <TableCell className="py-2">
+      <TableCell className="py-1">
         <StatusBadge status={task.status} />
-        <div className="mt-1 max-w-32 truncate text-xs text-muted-foreground">
+        <div className="mt-0.5 max-w-32 truncate text-[11px] text-muted-foreground">
           {task.status === 'billing_paused' ? t('downloads.billingPaused') : detail?.phase || '-'}
         </div>
       </TableCell>
-      <TableCell className="min-w-40 py-2">
+      <TableCell className="min-w-36 py-1">
         <div className="flex items-center gap-2">
           <Progress value={progress} className="h-1.5" />
-          <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{progress}%</span>
+          <span className="w-8 text-right text-[11px] tabular-nums text-muted-foreground">{progress}%</span>
         </div>
       </TableCell>
-      <TableCell className="whitespace-nowrap py-2 text-xs tabular-nums text-muted-foreground">
+      <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
         {formatBytes(task.downloadedBytes)} / {task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}
       </TableCell>
-      <TableCell className="whitespace-nowrap py-2 text-xs tabular-nums">
+      <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums">
         <div>{formatBytes(task.downloadBps)}/s ↓</div>
         <div className="text-muted-foreground">{formatBytes(task.uploadBps)}/s ↑</div>
       </TableCell>
-      <TableCell className="whitespace-nowrap py-2 text-xs tabular-nums text-muted-foreground">
+      <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
         {formatNumber(detail?.seeders)} / {formatNumber(peers)}
       </TableCell>
-      <TableCell className="whitespace-nowrap py-2 text-xs tabular-nums text-muted-foreground">
+      <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
         {formatDuration(detail?.etaSeconds)}
       </TableCell>
-      <TableCell className="py-2 text-right">
+      <TableCell className="py-1 text-right">
         {active ? (
           <Button
             variant="ghost"
             size="sm"
+            className="h-7 px-2 text-xs"
             onClick={(event) => {
               event.stopPropagation()
               onCancel(task.id)
@@ -445,26 +446,15 @@ function DownloadInspector({
 
   if (!task) {
     return (
-      <div className="flex h-full min-h-[22rem] items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-full min-h-[18rem] items-center justify-center text-sm text-muted-foreground">
         {t('downloads.detail.noSelection')}
       </div>
     )
   }
 
   return (
-    <div className="flex h-full min-h-[22rem] flex-col">
-      <div className="flex min-h-14 items-center justify-between gap-3 border-b px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <SourceIcon type={task.sourceType} />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{getTaskTitle(task)}</div>
-            <div className="truncate text-xs text-muted-foreground">{task.sourceUri}</div>
-          </div>
-        </div>
-        <StatusBadge status={task.status} />
-      </div>
-
-      <div className="flex overflow-x-auto border-b bg-muted/20 px-2" role="tablist">
+    <div className="flex h-full min-h-[18rem] flex-col">
+      <div className="flex overflow-x-auto border-b bg-muted/20 px-1" role="tablist">
         {DETAIL_TABS.map((item) => (
           <button
             key={item.id}
@@ -472,7 +462,7 @@ function DownloadInspector({
             role="tab"
             aria-selected={tab === item.id}
             className={cn(
-              'flex h-10 items-center gap-2 border-b-2 px-3 text-sm text-muted-foreground transition-colors',
+              'flex h-8 items-center gap-1.5 border-b-2 px-2 text-xs text-muted-foreground transition-colors [&_svg]:size-3.5',
               tab === item.id
                 ? 'border-primary text-foreground'
                 : 'border-transparent hover:border-muted-foreground/30 hover:text-foreground',
@@ -485,7 +475,7 @@ function DownloadInspector({
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <div className="min-h-0 flex-1 overflow-auto p-2">
         {tab === 'overview' && <OverviewPanel task={task} />}
         {tab === 'trackers' && <TrackersPanel task={task} />}
         {tab === 'peers' && <PeersPanel task={task} />}
@@ -503,8 +493,8 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
   const progress = total > 0 ? Math.min(100, Math.round((task.downloadedBytes / total) * 100)) : 0
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-3">
+      <div className="grid gap-2 md:grid-cols-4">
         <InspectorMetric
           icon={<Gauge className="size-4" />}
           label={t('downloads.detail.downloadSpeed')}
@@ -527,7 +517,7 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         />
       </div>
 
-      <div className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
         <InspectorField label={t('downloads.detail.progress')} value={`${progress}%`} />
         <InspectorField label={t('downloads.detail.engine')} value={detail?.engine || t('downloads.unknown')} />
         <InspectorField label={t('downloads.detail.phase')} value={detail?.phase || '-'} />
@@ -709,12 +699,12 @@ function SourceIcon({ type }: { type: DownloadTask['sourceType'] }) {
 
 function InspectorMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-md border bg-muted/20 px-3 py-2">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="rounded-sm border bg-muted/20 px-2 py-1.5">
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground [&_svg]:size-3.5">
         {icon}
         {label}
       </div>
-      <div className="mt-1 truncate text-sm font-medium tabular-nums">{value}</div>
+      <div className="mt-0.5 truncate text-xs font-medium tabular-nums">{value}</div>
     </div>
   )
 }
@@ -730,7 +720,7 @@ function InspectorField({ label, value }: { label: string; value: string }) {
 
 function EmptyPanel({ text }: { text: string }) {
   return (
-    <div className="flex h-48 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+    <div className="flex h-40 items-center justify-center rounded-sm border border-dashed text-sm text-muted-foreground">
       {text}
     </div>
   )
