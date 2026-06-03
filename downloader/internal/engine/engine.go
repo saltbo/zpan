@@ -307,7 +307,8 @@ func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, gid string, p
 			if total > 0 {
 				totalPtr = &total
 			}
-			if err := progress(completed, totalPtr, bps, aria2Detail(status)); err != nil {
+			peers := a.getAria2Peers(ctx, aria, gid)
+			if err := progress(completed, totalPtr, bps, aria2Detail(status, peers)); err != nil {
 				_ = (*aria).ForcePause(gid)
 				return arigo.Status{}, err
 			}
@@ -329,6 +330,24 @@ func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, gid string, p
 			}
 		}
 	}
+}
+
+func (a Aria2) getAria2Peers(ctx context.Context, aria **arigo.Client, gid string) []arigo.Peer {
+	peers, err := (*aria).GetPeers(gid)
+	if err == nil {
+		return peers
+	}
+	if !isAria2RPCDisconnected(err) {
+		return nil
+	}
+	if err := a.reconnect(ctx, aria); err != nil {
+		return nil
+	}
+	peers, err = (*aria).GetPeers(gid)
+	if err != nil {
+		return nil
+	}
+	return peers
 }
 
 func (a Aria2) getAria2Files(ctx context.Context, aria **arigo.Client, gid string) ([]arigo.File, error) {
@@ -359,9 +378,11 @@ func isAria2RPCDisconnected(err error) bool {
 	return errors.Is(err, rpc2.ErrShutdown) || errors.Is(err, io.ErrClosedPipe) || strings.Contains(err.Error(), "connection is shut down")
 }
 
-func aria2Detail(status arigo.Status) *client.DownloadTaskDetail {
+func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskDetail {
 	connections := int64(status.Connections)
 	seeders := int64(status.NumSeeders)
+	peerCount := int64(len(peers))
+	leechers := aria2Leechers(peers)
 	uploaded := int64(status.UploadLength)
 	detail := &client.DownloadTaskDetail{
 		Engine:        "aria2",
@@ -370,8 +391,11 @@ func aria2Detail(status arigo.Status) *client.DownloadTaskDetail {
 		InfoHash:      status.InfoHash,
 		TorrentName:   status.BitTorrent.Info.Name,
 		Seeders:       &seeders,
+		Leechers:      leechers,
+		Peers:         &peerCount,
 		UploadedBytes: &uploaded,
 		Trackers:      aria2Trackers(status.BitTorrent.AnnounceList),
+		PeerSamples:   aria2Peers(peers),
 		Files:         aria2Files(status.Files),
 	}
 	if status.ErrorMessage != "" {
@@ -392,13 +416,50 @@ func aria2Trackers(announceList [][]string) []client.DownloadTaskTracker {
 				continue
 			}
 			seen[url] = struct{}{}
-			trackers = append(trackers, client.DownloadTaskTracker{URL: url})
+			trackers = append(trackers, client.DownloadTaskTracker{
+				URL:     url,
+				Status:  "announce",
+				Message: "aria2 exposes announce URLs only",
+			})
 			if len(trackers) >= 20 {
 				return trackers
 			}
 		}
 	}
 	return trackers
+}
+
+func aria2Leechers(peers []arigo.Peer) *int64 {
+	if len(peers) == 0 {
+		return nil
+	}
+	var count int64
+	for _, peer := range peers {
+		if !peer.Seeder {
+			count++
+		}
+	}
+	return &count
+}
+
+func aria2Peers(peers []arigo.Peer) []client.DownloadTaskPeer {
+	out := make([]client.DownloadTaskPeer, 0, min(len(peers), 20))
+	for _, peer := range peers {
+		if peer.IP == "" {
+			continue
+		}
+		down := int64(peer.DownloadSpeed)
+		up := int64(peer.UploadSpeed)
+		out = append(out, client.DownloadTaskPeer{
+			Address:     fmt.Sprintf("%s:%d", peer.IP, peer.Port),
+			DownloadBps: &down,
+			UploadBps:   &up,
+		})
+		if len(out) >= 20 {
+			break
+		}
+	}
+	return out
 }
 
 func aria2Files(files []arigo.File) []client.DownloadTaskFile {

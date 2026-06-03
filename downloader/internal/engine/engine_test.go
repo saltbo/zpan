@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Braurbeki/arigo"
 	"github.com/cenkalti/rpc2"
 	"github.com/saltbo/zpan/downloader/internal/client"
 )
@@ -121,6 +122,39 @@ func TestIsAria2RPCDisconnected(t *testing.T) {
 	}
 	if isAria2RPCDisconnected(errors.New("aria2 download ended with status error")) {
 		t.Fatal("expected ordinary aria2 error to stay non-transient")
+	}
+}
+
+func TestAria2DetailIncludesPeerSamples(t *testing.T) {
+	detail := aria2Detail(
+		arigo.Status{
+			Connections: 44,
+			NumSeeders:  4,
+			BitTorrent: arigo.BitTorrentStatus{
+				AnnounceList: [][]string{{"udp://tracker.example:1337/announce"}},
+				Info:         arigo.BitTorrentStatusInfo{Name: "fixture.torrent"},
+			},
+		},
+		[]arigo.Peer{
+			{IP: "192.0.2.10", Port: 6881, DownloadSpeed: 1024, UploadSpeed: 256, Seeder: true},
+			{IP: "192.0.2.11", Port: 6882, DownloadSpeed: 2048, UploadSpeed: 512, Seeder: false},
+		},
+	)
+
+	if detail.Peers == nil || *detail.Peers != 2 {
+		t.Fatalf("expected peer count 2, got %#v", detail.Peers)
+	}
+	if detail.Leechers == nil || *detail.Leechers != 1 {
+		t.Fatalf("expected leecher count 1, got %#v", detail.Leechers)
+	}
+	if len(detail.PeerSamples) != 2 {
+		t.Fatalf("expected peer samples, got %#v", detail.PeerSamples)
+	}
+	if detail.PeerSamples[0].Address != "192.0.2.10:6881" {
+		t.Fatalf("unexpected peer address: %s", detail.PeerSamples[0].Address)
+	}
+	if len(detail.Trackers) != 1 || detail.Trackers[0].Status != "announce" || detail.Trackers[0].Message == "" {
+		t.Fatalf("expected aria2 tracker limitation marker, got %#v", detail.Trackers)
 	}
 }
 
