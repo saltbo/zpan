@@ -354,24 +354,6 @@ async function createGiftCardThroughUi(page: Page) {
 }
 
 async function gotoAdminCloudStore(page: Page) {
-  await expect
-    .poll(
-      async () => {
-        try {
-          await Promise.all([
-            getJson(page, '/api/admin/store/settings'),
-            getJson(page, '/api/admin/store/packages'),
-            getJson(page, '/api/admin/store/credits/products'),
-          ])
-          return true
-        } catch {
-          return false
-        }
-      },
-      { timeout: 45_000 },
-    )
-    .toBe(true)
-
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await page.goto('/admin/cloud-store', { waitUntil: 'domcontentloaded' })
     await expect(page).toHaveURL(/admin\/cloud-store/, { timeout: 10_000 })
