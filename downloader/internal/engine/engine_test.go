@@ -23,11 +23,13 @@ func TestHTTPDownload(t *testing.T) {
 
 	dir := t.TempDir()
 	progressCalls := 0
+	var lastDetail *client.DownloadTaskDetail
 	result, err := (HTTP{Dir: dir}).Download(
 		context.Background(),
 		client.DownloadTask{ID: "task-1", SourceType: "http", SourceURI: server.URL + "/file.txt"},
-		func(downloaded int64, total *int64, bps int64) error {
+		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error {
 			progressCalls++
+			lastDetail = detail
 			if downloaded < 0 {
 				t.Fatalf("downloaded bytes must not be negative")
 			}
@@ -53,13 +55,16 @@ func TestHTTPDownload(t *testing.T) {
 	if progressCalls == 0 {
 		t.Fatal("expected progress callback")
 	}
+	if lastDetail == nil || lastDetail.Engine != "builtin" {
+		t.Fatalf("expected builtin progress detail, got %#v", lastDetail)
+	}
 }
 
 func TestHTTPRejectsMagnet(t *testing.T) {
 	_, err := (HTTP{Dir: t.TempDir()}).Download(
 		context.Background(),
 		client.DownloadTask{ID: "task-1", SourceType: "magnet", SourceURI: "magnet:?xt=urn:btih:abc"},
-		func(downloaded int64, total *int64, bps int64) error { return nil },
+		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error { return nil },
 	)
 	if err == nil {
 		t.Fatal("expected magnet to be rejected by HTTP engine")
@@ -90,7 +95,7 @@ func TestQBittorrentHTTPDelegatesToBuiltin(t *testing.T) {
 	result, err := (QBittorrent{URL: "http://127.0.0.1:1", Dir: t.TempDir()}).Download(
 		context.Background(),
 		client.DownloadTask{ID: "task-1", SourceType: "http", SourceURI: server.URL + "/file.txt"},
-		func(downloaded int64, total *int64, bps int64) error { return nil },
+		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error { return nil },
 	)
 	if err != nil {
 		t.Fatal(err)

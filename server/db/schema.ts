@@ -348,6 +348,7 @@ export const downloadTasks = sqliteTable(
     uploadBps: integer('upload_bps').notNull().default(0),
     errorMessage: text('error_message'),
     resultObjectId: text('result_object_id'),
+    detail: text('detail'),
     uploadTokenHash: text('upload_token_hash'),
     uploadTokenJti: text('upload_token_jti'),
     uploadTokenExpiresAt: integer('upload_token_expires_at', { mode: 'timestamp_ms' }),

@@ -288,7 +288,8 @@ export async function updateDownloadTask(
       input.downloadBps === undefined &&
       input.uploadBps === undefined &&
       input.errorMessage === undefined &&
-      input.resultObjectId === undefined
+      input.resultObjectId === undefined &&
+      input.detail === undefined
     if (!onlyCancel) throw new DownloadError('forbidden')
   }
 
@@ -350,6 +351,7 @@ export async function updateDownloadTask(
       uploadBps: input.uploadBps ?? task.uploadBps,
       errorMessage: input.errorMessage === undefined ? task.errorMessage : input.errorMessage,
       resultObjectId: input.resultObjectId === undefined ? task.resultObjectId : input.resultObjectId,
+      detail: input.detail === undefined ? task.detail : JSON.stringify(input.detail),
       startedAt: task.startedAt ?? (status === 'running' ? now : null),
       finishedAt: ['completed', 'failed', 'canceled'].includes(status) ? now : task.finishedAt,
       updatedAt: now,
@@ -511,11 +513,21 @@ function toDownloadTask(row: DownloadTaskRow): DownloadTask {
     uploadBps: row.uploadBps,
     errorMessage: row.errorMessage,
     resultObjectId: row.resultObjectId,
+    detail: parseTaskDetail(row.detail),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     assignedAt: row.assignedAt?.toISOString() ?? null,
     startedAt: row.startedAt?.toISOString() ?? null,
     finishedAt: row.finishedAt?.toISOString() ?? null,
+  }
+}
+
+function parseTaskDetail(value: string | null): DownloadTask['detail'] {
+  if (!value) return null
+  try {
+    return JSON.parse(value) as DownloadTask['detail']
+  } catch {
+    return null
   }
 }
 

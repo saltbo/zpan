@@ -246,7 +246,7 @@ func TestLiveQBittorrentDownloadTorrentURL(t *testing.T) {
 func runLiveDownload(t *testing.T, ctx context.Context, downloader Engine, task client.DownloadTask) Result {
 	t.Helper()
 	var lastDownloaded int64
-	result, err := downloader.Download(ctx, task, func(downloaded int64, total *int64, bps int64) error {
+	result, err := downloader.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error {
 		if downloaded < lastDownloaded {
 			t.Fatalf("download progress moved backwards: %d < %d", downloaded, lastDownloaded)
 		}

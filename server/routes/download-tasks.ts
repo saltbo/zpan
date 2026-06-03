@@ -1,5 +1,10 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { createDownloadTaskSchema, listDownloadTasksQuerySchema, updateDownloadTaskSchema } from '@shared/schemas'
+import {
+  createDownloadTaskSchema,
+  downloadTaskDetailSchema,
+  listDownloadTasksQuerySchema,
+  updateDownloadTaskSchema,
+} from '@shared/schemas'
 import type { Context } from 'hono'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -38,7 +43,9 @@ const downloadTaskSchema = z.object({
   totalBytes: nullableInt64Schema(),
   downloadBps: int64Schema(),
   uploadBps: int64Schema(),
+  errorMessage: z.string().nullable().optional(),
   resultObjectId: z.string().nullable().optional(),
+  detail: downloadTaskDetailSchema.nullable().optional(),
   uploadToken: z.string().optional(),
   assignedDownloaderId: z.string().nullable().optional(),
 })

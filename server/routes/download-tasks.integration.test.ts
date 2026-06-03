@@ -203,9 +203,26 @@ describe('Download tasks API integration', () => {
         downloadedBytes: 10 * 1024 * 1024,
         totalBytes: 10 * 1024 * 1024,
         downloadBps: 512_000,
+        detail: {
+          engine: 'aria2',
+          phase: 'active',
+          infoHash: 'abc123',
+          torrentName: 'fixture',
+          connections: 8,
+          seeders: 3,
+          trackers: [{ url: 'udp://tracker.example/announce', status: 'working', seeds: 3, peers: 8 }],
+          peerSamples: [{ address: '127.0.0.1:6881', client: 'libtorrent', progress: 0.5, downloadBps: 128_000 }],
+          files: [{ path: 'fixture.txt', size: 10 * 1024 * 1024, completedBytes: 5 * 1024 * 1024 }],
+        },
       }),
     })
     expect(runningRes.status).toBe(200)
+    const runningTask = (await runningRes.json()) as {
+      detail: { engine: string; infoHash: string; trackers: Array<{ url: string }> }
+    }
+    expect(runningTask.detail.engine).toBe('aria2')
+    expect(runningTask.detail.infoHash).toBe('abc123')
+    expect(runningTask.detail.trackers[0].url).toBe('udp://tracker.example/announce')
 
     const createObjectRes = await app.request('/api/objects', {
       method: 'POST',

@@ -24,7 +24,7 @@ type Result struct {
 	Size int64
 }
 
-type Progress func(downloaded int64, total *int64, bps int64) error
+type Progress func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error
 
 type Engine interface {
 	Check(ctx context.Context) error
@@ -88,7 +88,7 @@ func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress P
 	if _, err := io.Copy(file, io.TeeReader(res.Body, counter)); err != nil {
 		return Result{}, err
 	}
-	if err := progress(counter.downloaded, total, 0); err != nil {
+	if err := progress(counter.downloaded, total, 0, &client.DownloadTaskDetail{Engine: "builtin", Phase: "completed"}); err != nil {
 		return Result{}, err
 	}
 	return Result{Path: path, Name: name, Size: counter.downloaded}, nil
@@ -146,7 +146,7 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	}
 	initialProgress := progress
 	if task.SourceType != "http" {
-		initialProgress = func(downloaded int64, total *int64, bps int64) error { return nil }
+		initialProgress = func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error { return nil }
 	}
 	status, err := a.waitAria2(ctx, &aria, gid.GID, initialProgress)
 	if err != nil {
@@ -273,7 +273,7 @@ func (p *progressWriter) Write(data []byte) (int, error) {
 	now := time.Now()
 	if now.Sub(p.lastAt) >= time.Second {
 		bps := int64(float64(p.downloaded-p.lastBytes) / now.Sub(p.lastAt).Seconds())
-		if err := p.progress(p.downloaded, p.total, bps); err != nil {
+		if err := p.progress(p.downloaded, p.total, bps, &client.DownloadTaskDetail{Engine: "builtin", Phase: "downloading"}); err != nil {
 			return n, err
 		}
 		p.lastBytes = p.downloaded
@@ -307,7 +307,7 @@ func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, gid string, p
 			if total > 0 {
 				totalPtr = &total
 			}
-			if err := progress(completed, totalPtr, bps); err != nil {
+			if err := progress(completed, totalPtr, bps, aria2Detail(status)); err != nil {
 				_ = (*aria).ForcePause(gid)
 				return arigo.Status{}, err
 			}
@@ -359,6 +359,70 @@ func isAria2RPCDisconnected(err error) bool {
 	return errors.Is(err, rpc2.ErrShutdown) || errors.Is(err, io.ErrClosedPipe) || strings.Contains(err.Error(), "connection is shut down")
 }
 
+func aria2Detail(status arigo.Status) *client.DownloadTaskDetail {
+	connections := int64(status.Connections)
+	seeders := int64(status.NumSeeders)
+	uploaded := int64(status.UploadLength)
+	detail := &client.DownloadTaskDetail{
+		Engine:        "aria2",
+		Phase:         string(status.Status),
+		Connections:   &connections,
+		InfoHash:      status.InfoHash,
+		TorrentName:   status.BitTorrent.Info.Name,
+		Seeders:       &seeders,
+		UploadedBytes: &uploaded,
+		Trackers:      aria2Trackers(status.BitTorrent.AnnounceList),
+		Files:         aria2Files(status.Files),
+	}
+	if status.ErrorMessage != "" {
+		detail.Message = status.ErrorMessage
+	}
+	return detail
+}
+
+func aria2Trackers(announceList [][]string) []client.DownloadTaskTracker {
+	trackers := make([]client.DownloadTaskTracker, 0, 20)
+	seen := map[string]struct{}{}
+	for _, tier := range announceList {
+		for _, url := range tier {
+			if url == "" {
+				continue
+			}
+			if _, exists := seen[url]; exists {
+				continue
+			}
+			seen[url] = struct{}{}
+			trackers = append(trackers, client.DownloadTaskTracker{URL: url})
+			if len(trackers) >= 20 {
+				return trackers
+			}
+		}
+	}
+	return trackers
+}
+
+func aria2Files(files []arigo.File) []client.DownloadTaskFile {
+	out := make([]client.DownloadTaskFile, 0, min(len(files), 50))
+	for _, file := range files {
+		if file.Path == "" || isAria2MetadataPath(file.Path) {
+			continue
+		}
+		size := int64(file.Length)
+		completed := int64(file.CompletedLength)
+		selected := file.Selected
+		out = append(out, client.DownloadTaskFile{
+			Path:           file.Path,
+			Size:           size,
+			CompletedBytes: &completed,
+			Selected:       &selected,
+		})
+		if len(out) >= 50 {
+			break
+		}
+	}
+	return out
+}
+
 func hasAria2LocalFile(files []arigo.File) bool {
 	for _, file := range files {
 		if file.Path != "" && !isAria2MetadataPath(file.Path) {
@@ -397,7 +461,7 @@ func waitQBittorrent(
 			if total > 0 {
 				totalPtr = &total
 			}
-			if err := progress(torrent.Completed, totalPtr, torrent.DlSpeed); err != nil {
+			if err := progress(torrent.Completed, totalPtr, torrent.DlSpeed, qbittorrentDetail(ctx, qbt, torrent)); err != nil {
 				_ = qbt.StopCtx(ctx, []string{torrent.Hash})
 				return qbittorrent.Torrent{}, err
 			}
@@ -409,6 +473,91 @@ func waitQBittorrent(
 			}
 		}
 	}
+}
+
+func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbittorrent.Torrent) *client.DownloadTaskDetail {
+	connections := int64(torrent.NumSeeds + torrent.NumLeechs)
+	seeders := torrent.NumSeeds
+	leechers := torrent.NumLeechs
+	peers := torrent.NumComplete + torrent.NumIncomplete
+	uploaded := torrent.Uploaded
+	var eta *int64
+	if torrent.ETA >= 0 {
+		eta = &torrent.ETA
+	}
+	return &client.DownloadTaskDetail{
+		Engine:        "qbittorrent",
+		Phase:         string(torrent.State),
+		ETASeconds:    eta,
+		Connections:   &connections,
+		InfoHash:      torrent.Hash,
+		TorrentName:   torrent.Name,
+		Seeders:       &seeders,
+		Leechers:      &leechers,
+		Peers:         &peers,
+		UploadedBytes: &uploaded,
+		Trackers:      qbittorrentTrackers(ctx, qbt, torrent),
+		PeerSamples:   qbittorrentPeers(ctx, qbt, torrent.Hash),
+	}
+}
+
+func qbittorrentTrackers(ctx context.Context, qbt *qbittorrent.Client, torrent qbittorrent.Torrent) []client.DownloadTaskTracker {
+	trackers := torrent.Trackers
+	if len(trackers) == 0 && torrent.Hash != "" {
+		loaded, err := qbt.GetTorrentTrackersCtx(ctx, torrent.Hash)
+		if err == nil {
+			trackers = loaded
+		}
+	}
+	out := make([]client.DownloadTaskTracker, 0, min(len(trackers), 20))
+	for _, tracker := range trackers {
+		peers := int64(tracker.NumPeers)
+		seeds := int64(tracker.NumSeeds)
+		leechers := int64(tracker.NumLeechers)
+		out = append(out, client.DownloadTaskTracker{
+			URL:      tracker.Url,
+			Status:   fmt.Sprint(tracker.Status),
+			Peers:    &peers,
+			Seeds:    &seeds,
+			Leechers: &leechers,
+			Message:  tracker.Message,
+		})
+		if len(out) >= 20 {
+			break
+		}
+	}
+	return out
+}
+
+func qbittorrentPeers(ctx context.Context, qbt *qbittorrent.Client, hash string) []client.DownloadTaskPeer {
+	if hash == "" {
+		return nil
+	}
+	peers, err := qbt.GetTorrentPeersCtx(ctx, hash, 0)
+	if err != nil || peers == nil {
+		return nil
+	}
+	out := make([]client.DownloadTaskPeer, 0, min(len(peers.Peers), 20))
+	for address, peer := range peers.Peers {
+		progress := peer.Progress
+		down := peer.DownSpeed
+		up := peer.UpSpeed
+		label := address
+		if peer.IP != "" && peer.Port > 0 {
+			label = fmt.Sprintf("%s:%d", peer.IP, peer.Port)
+		}
+		out = append(out, client.DownloadTaskPeer{
+			Address:     label,
+			Client:      peer.Client,
+			Progress:    &progress,
+			DownloadBps: &down,
+			UploadBps:   &up,
+		})
+		if len(out) >= 20 {
+			break
+		}
+	}
+	return out
 }
 
 func resultFromAria2Files(task client.DownloadTask, taskDir string, files []arigo.File) (Result, error) {

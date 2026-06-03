@@ -122,11 +122,12 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	}
 
 	var lastProgressLog time.Time
-	result, err := w.engine.Download(ctx, task, func(downloaded int64, total *int64, bps int64) error {
+	result, err := w.engine.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error {
 		_, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
 			DownloadedBytes: &downloaded,
 			TotalBytes:      total,
 			DownloadBps:     &bps,
+			Detail:          detail,
 		})
 		if updateErr != nil && strings.Contains(updateErr.Error(), "insufficient_credits") {
 			log.Warn("task paused by billing", "downloaded_bytes", downloaded, "total_bytes", optionalInt64(total), "bps", bps)

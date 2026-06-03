@@ -437,6 +437,7 @@ const APP_SCHEMA_SQL = `
     upload_bps INTEGER NOT NULL DEFAULT 0,
     error_message TEXT,
     result_object_id TEXT,
+    detail TEXT,
     upload_token_hash TEXT,
     upload_token_jti TEXT,
     upload_token_expires_at INTEGER,

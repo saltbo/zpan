@@ -26,19 +26,61 @@ type Page[T any] struct {
 }
 
 type DownloadTask struct {
-	ID                   string `json:"id"`
-	SourceType           string `json:"sourceType"`
-	SourceURI            string `json:"sourceUri"`
-	Name                 string `json:"name"`
-	TargetFolder         string `json:"targetFolder"`
-	Status               string `json:"status"`
-	DownloadedBytes      int64  `json:"downloadedBytes"`
-	TotalBytes           *int64 `json:"totalBytes"`
-	DownloadBps          int64  `json:"downloadBps"`
-	UploadBps            int64  `json:"uploadBps"`
-	ResultObjectID       string `json:"resultObjectId"`
-	UploadToken          string `json:"uploadToken"`
-	AssignedDownloaderID string `json:"assignedDownloaderId"`
+	ID                   string              `json:"id"`
+	SourceType           string              `json:"sourceType"`
+	SourceURI            string              `json:"sourceUri"`
+	Name                 string              `json:"name"`
+	TargetFolder         string              `json:"targetFolder"`
+	Status               string              `json:"status"`
+	DownloadedBytes      int64               `json:"downloadedBytes"`
+	TotalBytes           *int64              `json:"totalBytes"`
+	DownloadBps          int64               `json:"downloadBps"`
+	UploadBps            int64               `json:"uploadBps"`
+	Detail               *DownloadTaskDetail `json:"detail"`
+	ResultObjectID       string              `json:"resultObjectId"`
+	UploadToken          string              `json:"uploadToken"`
+	AssignedDownloaderID string              `json:"assignedDownloaderId"`
+}
+
+type DownloadTaskDetail struct {
+	Engine        string                `json:"engine,omitempty"`
+	Phase         string                `json:"phase,omitempty"`
+	Message       string                `json:"message,omitempty"`
+	ETASeconds    *int64                `json:"etaSeconds,omitempty"`
+	Connections   *int64                `json:"connections,omitempty"`
+	InfoHash      string                `json:"infoHash,omitempty"`
+	TorrentName   string                `json:"torrentName,omitempty"`
+	Seeders       *int64                `json:"seeders,omitempty"`
+	Leechers      *int64                `json:"leechers,omitempty"`
+	Peers         *int64                `json:"peers,omitempty"`
+	UploadedBytes *int64                `json:"uploadedBytes,omitempty"`
+	Trackers      []DownloadTaskTracker `json:"trackers,omitempty"`
+	PeerSamples   []DownloadTaskPeer    `json:"peerSamples,omitempty"`
+	Files         []DownloadTaskFile    `json:"files,omitempty"`
+}
+
+type DownloadTaskTracker struct {
+	URL      string `json:"url"`
+	Status   string `json:"status,omitempty"`
+	Peers    *int64 `json:"peers,omitempty"`
+	Seeds    *int64 `json:"seeds,omitempty"`
+	Leechers *int64 `json:"leechers,omitempty"`
+	Message  string `json:"message,omitempty"`
+}
+
+type DownloadTaskPeer struct {
+	Address     string   `json:"address"`
+	Client      string   `json:"client,omitempty"`
+	Progress    *float64 `json:"progress,omitempty"`
+	DownloadBps *int64   `json:"downloadBps,omitempty"`
+	UploadBps   *int64   `json:"uploadBps,omitempty"`
+}
+
+type DownloadTaskFile struct {
+	Path           string `json:"path"`
+	Size           int64  `json:"size"`
+	CompletedBytes *int64 `json:"completedBytes,omitempty"`
+	Selected       *bool  `json:"selected,omitempty"`
 }
 
 type Heartbeat struct {
@@ -56,13 +98,14 @@ type Heartbeat struct {
 }
 
 type TaskPatch struct {
-	Status          string  `json:"status,omitempty"`
-	DownloadedBytes *int64  `json:"downloadedBytes,omitempty"`
-	TotalBytes      *int64  `json:"totalBytes,omitempty"`
-	DownloadBps     *int64  `json:"downloadBps,omitempty"`
-	UploadBps       *int64  `json:"uploadBps,omitempty"`
-	ErrorMessage    *string `json:"errorMessage,omitempty"`
-	ResultObjectID  *string `json:"resultObjectId,omitempty"`
+	Status          string              `json:"status,omitempty"`
+	DownloadedBytes *int64              `json:"downloadedBytes,omitempty"`
+	TotalBytes      *int64              `json:"totalBytes,omitempty"`
+	DownloadBps     *int64              `json:"downloadBps,omitempty"`
+	UploadBps       *int64              `json:"uploadBps,omitempty"`
+	ErrorMessage    *string             `json:"errorMessage,omitempty"`
+	ResultObjectID  *string             `json:"resultObjectId,omitempty"`
+	Detail          *DownloadTaskDetail `json:"detail,omitempty"`
 }
 
 type ObjectDraft struct {

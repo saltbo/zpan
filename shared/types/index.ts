@@ -261,12 +261,54 @@ export interface DownloadTask {
   uploadBps: number
   errorMessage: string | null
   resultObjectId: string | null
+  detail: DownloadTaskDetail | null
   uploadToken?: string
   createdAt: string
   updatedAt: string
   assignedAt: string | null
   startedAt: string | null
   finishedAt: string | null
+}
+
+export interface DownloadTaskTracker {
+  url: string
+  status?: string
+  peers?: number
+  seeds?: number
+  leechers?: number
+  message?: string
+}
+
+export interface DownloadTaskPeer {
+  address: string
+  client?: string
+  progress?: number
+  downloadBps?: number
+  uploadBps?: number
+}
+
+export interface DownloadTaskFile {
+  path: string
+  size: number
+  completedBytes?: number
+  selected?: boolean
+}
+
+export interface DownloadTaskDetail {
+  engine?: Downloader['engine']
+  phase?: string
+  message?: string
+  etaSeconds?: number | null
+  connections?: number
+  infoHash?: string
+  torrentName?: string
+  seeders?: number
+  leechers?: number
+  peers?: number
+  uploadedBytes?: number
+  trackers?: DownloadTaskTracker[]
+  peerSamples?: DownloadTaskPeer[]
+  files?: DownloadTaskFile[]
 }
 
 export interface ObjectUploadSession {

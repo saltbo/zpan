@@ -246,6 +246,13 @@
       "when": 1780459022634,
       "tag": "0035_puzzling_hemingway",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1780499047848,
+      "tag": "0036_add-download-task-detail",
+      "breakpoints": true
     }
   ]
 }

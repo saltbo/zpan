@@ -14,6 +14,47 @@ export const downloadTaskStatusSchema = z.enum([
 ])
 export const downloadSourceTypeSchema = z.enum(['http', 'magnet', 'torrent_url'])
 
+const downloadTaskTrackerSchema = z.object({
+  url: z.string().max(1024),
+  status: z.string().max(80).optional(),
+  peers: z.number().int().min(0).optional(),
+  seeds: z.number().int().min(0).optional(),
+  leechers: z.number().int().min(0).optional(),
+  message: z.string().max(500).optional(),
+})
+
+const downloadTaskPeerSchema = z.object({
+  address: z.string().max(160),
+  client: z.string().max(160).optional(),
+  progress: z.number().min(0).max(1).optional(),
+  downloadBps: z.number().int().min(0).optional(),
+  uploadBps: z.number().int().min(0).optional(),
+})
+
+const downloadTaskFileSchema = z.object({
+  path: z.string().max(1024),
+  size: z.number().int().min(0),
+  completedBytes: z.number().int().min(0).optional(),
+  selected: z.boolean().optional(),
+})
+
+export const downloadTaskDetailSchema = z.object({
+  engine: downloaderEngineSchema.optional(),
+  phase: z.string().max(80).optional(),
+  message: z.string().max(500).optional(),
+  etaSeconds: z.number().int().min(0).nullable().optional(),
+  connections: z.number().int().min(0).optional(),
+  infoHash: z.string().max(120).optional(),
+  torrentName: z.string().max(255).optional(),
+  seeders: z.number().int().min(0).optional(),
+  leechers: z.number().int().min(0).optional(),
+  peers: z.number().int().min(0).optional(),
+  uploadedBytes: z.number().int().min(0).optional(),
+  trackers: z.array(downloadTaskTrackerSchema).max(20).optional(),
+  peerSamples: z.array(downloadTaskPeerSchema).max(20).optional(),
+  files: z.array(downloadTaskFileSchema).max(50).optional(),
+})
+
 export const downloaderHeartbeatSchema = z.object({
   version: z.string().min(1).max(80),
   hostname: z.string().min(1).max(160),
@@ -60,6 +101,7 @@ export const updateDownloadTaskSchema = z.object({
   uploadBps: z.number().int().min(0).optional(),
   errorMessage: z.string().max(1000).nullable().optional(),
   resultObjectId: z.string().min(1).nullable().optional(),
+  detail: downloadTaskDetailSchema.nullable().optional(),
 })
 
 export const listDownloadTasksQuerySchema = z.object({
@@ -107,6 +149,7 @@ export type CreateDownloaderInput = z.infer<typeof createDownloaderSchema>
 export type CreateDownloadTaskInput = z.infer<typeof createDownloadTaskSchema>
 export type UpdateDownloadTaskInput = z.infer<typeof updateDownloadTaskSchema>
 export type ListDownloadTasksQuery = z.infer<typeof listDownloadTasksQuerySchema>
+export type DownloadTaskDetail = z.infer<typeof downloadTaskDetailSchema>
 export type CreateObjectUploadSessionInput = z.infer<typeof createObjectUploadSessionSchema>
 export type PresignObjectUploadPartsInput = z.infer<typeof presignObjectUploadPartsSchema>
 export type PatchObjectUploadSessionInput = z.infer<typeof patchObjectUploadSessionSchema>
