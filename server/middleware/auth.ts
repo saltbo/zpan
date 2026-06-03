@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { createMiddleware } from 'hono/factory'
+import { resolveDownloaderToken, resolveTaskUploadToken } from '../services/download-tokens'
 import { findPersonalOrg, getMemberRole, isPersonalOrg } from '../services/org'
 import type { Env } from './platform'
 
@@ -18,6 +19,30 @@ type SessionWithPlugins = {
 }
 
 export const authMiddleware = createMiddleware<Env>(async (c, next) => {
+  const authHeader = c.req.raw.headers.get('Authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice('Bearer '.length).trim()
+    const platform = c.get('platform')
+    const taskUpload = await resolveTaskUploadToken(platform.db, platform, token)
+    if (taskUpload) {
+      c.set('principal', { ...taskUpload, kind: 'download-task-upload', authMethod: 'bearer' })
+      c.set('userId', null)
+      c.set('userRole', null)
+      c.set('orgId', taskUpload.orgId)
+      await next()
+      return
+    }
+    const downloader = await resolveDownloaderToken(platform, token)
+    if (downloader) {
+      c.set('principal', { kind: 'downloader', downloaderId: downloader.downloaderId, authMethod: 'bearer' })
+      c.set('userId', null)
+      c.set('userRole', null)
+      c.set('orgId', null)
+      await next()
+      return
+    }
+  }
+
   const auth = c.get('auth')
   const result = (await auth.api.getSession({ headers: c.req.raw.headers })) as SessionWithPlugins | null
 
@@ -35,10 +60,24 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   if (result?.user?.id) {
     const orgId = result.session?.activeOrganizationId ?? (await findPersonalOrg(c.get('platform').db, result.user.id))
     c.set('orgId', orgId)
+    c.set('principal', {
+      kind: 'user',
+      userId: result.user.id,
+      role: result.user.role,
+      orgId,
+      authMethod: authHeader?.startsWith('Bearer ') ? 'bearer' : 'cookie',
+    })
   } else {
     c.set('orgId', null)
+    c.set('principal', null)
   }
 
+  await next()
+})
+
+export const requireDownloader = createMiddleware<Env>(async (c, next) => {
+  const principal = c.get('principal')
+  if (principal?.kind !== 'downloader') return c.json({ error: 'Unauthorized' }, 401)
   await next()
 })
 

@@ -1,0 +1,1844 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ZPan Downloader API",
+    "version": "0.1.0"
+  },
+  "components": {
+    "schemas": {
+      "DeviceCode": {
+        "type": "object",
+        "properties": {
+          "device_code": {
+            "type": "string"
+          },
+          "user_code": {
+            "type": "string"
+          },
+          "verification_uri": {
+            "type": "string"
+          },
+          "verification_uri_complete": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer"
+          },
+          "interval": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "device_code",
+          "user_code",
+          "verification_uri",
+          "verification_uri_complete",
+          "expires_in",
+          "interval"
+        ]
+      },
+      "DeviceCodeRequest": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "scope"
+        ]
+      },
+      "DeviceToken": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "scope"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "DeviceTokenRequest": {
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string"
+          },
+          "device_code": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant_type",
+          "device_code",
+          "client_id"
+        ]
+      },
+      "ObjectDraft": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "uploadUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "uploadUrl"
+        ]
+      },
+      "ConfirmObjectRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "confirm"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/auth/device/code": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceCodeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device authorization code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/device/token": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Device login error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/download-tasks": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "assigned",
+                "running",
+                "billing_paused",
+                "uploading",
+                "completed",
+                "failed",
+                "canceled"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "me"
+              ]
+            },
+            "required": false,
+            "name": "assignedTo",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "sourceType": {
+                            "type": "string",
+                            "enum": [
+                              "http",
+                              "magnet",
+                              "torrent_url"
+                            ]
+                          },
+                          "sourceUri": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "targetFolder": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "queued",
+                              "assigned",
+                              "running",
+                              "billing_paused",
+                              "uploading",
+                              "completed",
+                              "failed",
+                              "canceled"
+                            ]
+                          },
+                          "downloadedBytes": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "totalBytes": {
+                            "type": "integer",
+                            "format": "int64",
+                            "nullable": true
+                          },
+                          "downloadBps": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "uploadBps": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "resultObjectId": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "uploadToken": {
+                            "type": "string"
+                          },
+                          "assignedDownloaderId": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "sourceType",
+                          "sourceUri",
+                          "name",
+                          "targetFolder",
+                          "status",
+                          "downloadedBytes",
+                          "totalBytes",
+                          "downloadBps",
+                          "uploadBps"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "http",
+                          "magnet",
+                          "torrent_url"
+                        ]
+                      },
+                      "uri": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "uri"
+                    ]
+                  },
+                  "targetFolder": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "source",
+                  "targetFolder"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created download task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "sourceType": {
+                      "type": "string",
+                      "enum": [
+                        "http",
+                        "magnet",
+                        "torrent_url"
+                      ]
+                    },
+                    "sourceUri": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "targetFolder": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "assigned",
+                        "running",
+                        "billing_paused",
+                        "uploading",
+                        "completed",
+                        "failed",
+                        "canceled"
+                      ]
+                    },
+                    "downloadedBytes": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "totalBytes": {
+                      "type": "integer",
+                      "format": "int64",
+                      "nullable": true
+                    },
+                    "downloadBps": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "uploadBps": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "resultObjectId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "uploadToken": {
+                      "type": "string"
+                    },
+                    "assignedDownloaderId": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "sourceType",
+                    "sourceUri",
+                    "name",
+                    "targetFolder",
+                    "status",
+                    "downloadedBytes",
+                    "totalBytes",
+                    "downloadBps",
+                    "uploadBps"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Insufficient credits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Download task conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/download-tasks/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "sourceType": {
+                      "type": "string",
+                      "enum": [
+                        "http",
+                        "magnet",
+                        "torrent_url"
+                      ]
+                    },
+                    "sourceUri": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "targetFolder": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "assigned",
+                        "running",
+                        "billing_paused",
+                        "uploading",
+                        "completed",
+                        "failed",
+                        "canceled"
+                      ]
+                    },
+                    "downloadedBytes": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "totalBytes": {
+                      "type": "integer",
+                      "format": "int64",
+                      "nullable": true
+                    },
+                    "downloadBps": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "uploadBps": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "resultObjectId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "uploadToken": {
+                      "type": "string"
+                    },
+                    "assignedDownloaderId": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "sourceType",
+                    "sourceUri",
+                    "name",
+                    "targetFolder",
+                    "status",
+                    "downloadedBytes",
+                    "totalBytes",
+                    "downloadBps",
+                    "uploadBps"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "assigned",
+                      "running",
+                      "billing_paused",
+                      "uploading",
+                      "completed",
+                      "failed",
+                      "canceled"
+                    ]
+                  },
+                  "downloadedBytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "totalBytes": {
+                    "type": "integer",
+                    "nullable": true,
+                    "minimum": 0
+                  },
+                  "downloadBps": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "uploadBps": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "errorMessage": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 1000
+                  },
+                  "resultObjectId": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated download task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "sourceType": {
+                      "type": "string",
+                      "enum": [
+                        "http",
+                        "magnet",
+                        "torrent_url"
+                      ]
+                    },
+                    "sourceUri": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "targetFolder": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "assigned",
+                        "running",
+                        "billing_paused",
+                        "uploading",
+                        "completed",
+                        "failed",
+                        "canceled"
+                      ]
+                    },
+                    "downloadedBytes": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "totalBytes": {
+                      "type": "integer",
+                      "format": "int64",
+                      "nullable": true
+                    },
+                    "downloadBps": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "uploadBps": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "resultObjectId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "uploadToken": {
+                      "type": "string"
+                    },
+                    "assignedDownloaderId": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "sourceType",
+                    "sourceUri",
+                    "name",
+                    "targetFolder",
+                    "status",
+                    "downloadedBytes",
+                    "totalBytes",
+                    "downloadBps",
+                    "uploadBps"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Insufficient credits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Download task conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/downloader/heartbeat": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "hostname": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "platform": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "arch": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "engine": {
+                    "type": "string",
+                    "enum": [
+                      "builtin",
+                      "aria2",
+                      "qbittorrent"
+                    ]
+                  },
+                  "capabilities": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "maxItems": 32
+                  },
+                  "maxConcurrentTasks": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "currentTasks": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "downloadBps": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0
+                  },
+                  "uploadBps": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0
+                  },
+                  "freeDiskBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "version",
+                  "hostname",
+                  "platform",
+                  "arch",
+                  "engine",
+                  "capabilities",
+                  "maxConcurrentTasks",
+                  "currentTasks"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated downloader",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "online",
+                        "offline",
+                        "disabled"
+                      ]
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "heartbeat": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "hostname": {
+                          "type": "string"
+                        },
+                        "platform": {
+                          "type": "string"
+                        },
+                        "arch": {
+                          "type": "string"
+                        },
+                        "engine": {
+                          "type": "string",
+                          "enum": [
+                            "builtin",
+                            "aria2",
+                            "qbittorrent"
+                          ]
+                        },
+                        "capabilities": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "maxConcurrentTasks": {
+                          "type": "integer"
+                        },
+                        "currentTasks": {
+                          "type": "integer"
+                        },
+                        "downloadBps": {
+                          "type": "integer",
+                          "format": "int64"
+                        },
+                        "uploadBps": {
+                          "type": "integer",
+                          "format": "int64"
+                        },
+                        "freeDiskBytes": {
+                          "type": "integer",
+                          "format": "int64"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "hostname",
+                        "platform",
+                        "arch",
+                        "engine",
+                        "capabilities",
+                        "maxConcurrentTasks",
+                        "currentTasks",
+                        "downloadBps",
+                        "uploadBps",
+                        "freeDiskBytes"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/downloaders": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Downloaders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "online",
+                              "offline",
+                              "disabled"
+                            ]
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "heartbeat": {
+                            "type": "object",
+                            "properties": {
+                              "version": {
+                                "type": "string"
+                              },
+                              "hostname": {
+                                "type": "string"
+                              },
+                              "platform": {
+                                "type": "string"
+                              },
+                              "arch": {
+                                "type": "string"
+                              },
+                              "engine": {
+                                "type": "string",
+                                "enum": [
+                                  "builtin",
+                                  "aria2",
+                                  "qbittorrent"
+                                ]
+                              },
+                              "capabilities": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "maxConcurrentTasks": {
+                                "type": "integer"
+                              },
+                              "currentTasks": {
+                                "type": "integer"
+                              },
+                              "downloadBps": {
+                                "type": "integer",
+                                "format": "int64"
+                              },
+                              "uploadBps": {
+                                "type": "integer",
+                                "format": "int64"
+                              },
+                              "freeDiskBytes": {
+                                "type": "integer",
+                                "format": "int64"
+                              }
+                            },
+                            "required": [
+                              "version",
+                              "hostname",
+                              "platform",
+                              "arch",
+                              "engine",
+                              "capabilities",
+                              "maxConcurrentTasks",
+                              "currentTasks",
+                              "downloadBps",
+                              "uploadBps",
+                              "freeDiskBytes"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "heartbeat": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "hostname": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "platform": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "arch": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      "engine": {
+                        "type": "string",
+                        "enum": [
+                          "builtin",
+                          "aria2",
+                          "qbittorrent"
+                        ]
+                      },
+                      "capabilities": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "maxItems": 32
+                      },
+                      "maxConcurrentTasks": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100
+                      },
+                      "currentTasks": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "downloadBps": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "default": 0
+                      },
+                      "uploadBps": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "default": 0
+                      },
+                      "freeDiskBytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "default": 0
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "hostname",
+                      "platform",
+                      "arch",
+                      "engine",
+                      "capabilities",
+                      "maxConcurrentTasks",
+                      "currentTasks"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "heartbeat"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Downloader registration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "downloader": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "online",
+                            "offline",
+                            "disabled"
+                          ]
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "heartbeat": {
+                          "type": "object",
+                          "properties": {
+                            "version": {
+                              "type": "string"
+                            },
+                            "hostname": {
+                              "type": "string"
+                            },
+                            "platform": {
+                              "type": "string"
+                            },
+                            "arch": {
+                              "type": "string"
+                            },
+                            "engine": {
+                              "type": "string",
+                              "enum": [
+                                "builtin",
+                                "aria2",
+                                "qbittorrent"
+                              ]
+                            },
+                            "capabilities": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "maxConcurrentTasks": {
+                              "type": "integer"
+                            },
+                            "currentTasks": {
+                              "type": "integer"
+                            },
+                            "downloadBps": {
+                              "type": "integer",
+                              "format": "int64"
+                            },
+                            "uploadBps": {
+                              "type": "integer",
+                              "format": "int64"
+                            },
+                            "freeDiskBytes": {
+                              "type": "integer",
+                              "format": "int64"
+                            }
+                          },
+                          "required": [
+                            "version",
+                            "hostname",
+                            "platform",
+                            "arch",
+                            "engine",
+                            "capabilities",
+                            "maxConcurrentTasks",
+                            "currentTasks",
+                            "downloadBps",
+                            "uploadBps",
+                            "freeDiskBytes"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "downloader",
+                    "token"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/downloaders/{id}": {
+      "patch": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "remoteDownloadCreditBillingEnabled": {
+                    "type": "boolean"
+                  },
+                  "remoteDownloadCreditUnitBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  "remoteDownloadCreditPerUnit": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated downloader",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "online",
+                        "offline",
+                        "disabled"
+                      ]
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "heartbeat": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "hostname": {
+                          "type": "string"
+                        },
+                        "platform": {
+                          "type": "string"
+                        },
+                        "arch": {
+                          "type": "string"
+                        },
+                        "engine": {
+                          "type": "string",
+                          "enum": [
+                            "builtin",
+                            "aria2",
+                            "qbittorrent"
+                          ]
+                        },
+                        "capabilities": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "maxConcurrentTasks": {
+                          "type": "integer"
+                        },
+                        "currentTasks": {
+                          "type": "integer"
+                        },
+                        "downloadBps": {
+                          "type": "integer",
+                          "format": "int64"
+                        },
+                        "uploadBps": {
+                          "type": "integer",
+                          "format": "int64"
+                        },
+                        "freeDiskBytes": {
+                          "type": "integer",
+                          "format": "int64"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "hostname",
+                        "platform",
+                        "arch",
+                        "engine",
+                        "capabilities",
+                        "maxConcurrentTasks",
+                        "currentTasks",
+                        "downloadBps",
+                        "uploadBps",
+                        "freeDiskBytes"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted downloader",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "size": {
+                    "type": "number"
+                  },
+                  "parent": {
+                    "type": "string",
+                    "default": ""
+                  },
+                  "dirtype": {
+                    "type": "number",
+                    "default": 0
+                  },
+                  "onConflict": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "rename",
+                      "replace"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "type"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Object draft with upload URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectDraft"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Object draft with upload URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectDraft"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Name conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objects/{id}": {
+      "patch": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmObjectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectDraft"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

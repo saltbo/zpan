@@ -1,17 +1,23 @@
 import { zValidator } from '@hono/zod-validator'
+import type { Context } from 'hono'
 import { Hono } from 'hono'
+import { createMiddleware } from 'hono/factory'
 import { DirType } from '../../shared/constants'
 import {
   batchDeleteSchema,
   batchPatchSchema,
   copyMatterSchema,
   createMatterSchema,
+  createObjectUploadSessionSchema,
   patchMatterSchema,
+  patchObjectUploadSessionSchema,
+  presignObjectUploadPartsSchema,
 } from '../../shared/schemas'
 import type { Storage as S3Storage } from '../../shared/types'
-import { requireAuth, requireTeamRole } from '../middleware/auth'
+import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
+import { assertTaskUploadAllowed } from '../services/downloads'
 import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import {
   batchMove,
@@ -30,6 +36,13 @@ import {
   updateMatter,
 } from '../services/matter'
 import { NameConflictError } from '../services/matter-name-conflict'
+import {
+  createObjectUploadSession,
+  ObjectUploadSessionError,
+  patchObjectUploadSession,
+  presignObjectUploadParts,
+} from '../services/object-upload-sessions'
+import { getMemberRole, isPersonalOrg } from '../services/org'
 import { buildObjectKey } from '../services/path-template'
 import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
@@ -52,8 +65,41 @@ function conflictBody(err: NameConflictError) {
   }
 }
 
+const ROLE_LEVELS: Record<string, number> = { owner: 3, editor: 2, viewer: 1, member: 1 }
+
+const requireObjectCreateAccess = createMiddleware<Env>(async (c, next) => {
+  const principal = c.get('principal')
+  if (principal?.kind === 'download-task-upload') {
+    await next()
+    return
+  }
+  if (!(await hasEditorAccess(c))) {
+    return c.json({ error: c.get('userId') ? 'Forbidden' : 'Unauthorized' }, c.get('userId') ? 403 : 401)
+  }
+  await next()
+})
+
+const requireObjectPatchAccess = createMiddleware<Env>(async (c, next) => {
+  const principal = c.get('principal')
+  if (principal?.kind === 'download-task-upload') {
+    await next()
+    return
+  }
+  if (!(await hasEditorAccess(c))) {
+    return c.json({ error: c.get('userId') ? 'Forbidden' : 'Unauthorized' }, c.get('userId') ? 403 : 401)
+  }
+  await next()
+})
+
 const app = new Hono<Env>()
-  .use(requireAuth)
+  .use(async (c, next) => {
+    const principal = c.get('principal')
+    if (c.get('userId') || principal?.kind === 'download-task-upload') {
+      await next()
+      return
+    }
+    return c.json({ error: 'Unauthorized' }, 401)
+  })
   .get('/', requireTeamRole('viewer'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
@@ -69,16 +115,36 @@ const app = new Hono<Env>()
     const result = await listMatters(db, orgId, { parent, status, typeFilter, search, page, pageSize })
     return c.json(result)
   })
-  .post('/', requireTeamRole('editor'), zValidator('json', createMatterSchema), async (c) => {
+  .post('/', requireObjectCreateAccess, zValidator('json', createMatterSchema), async (c) => {
+    const principal = c.get('principal')
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
     const db = c.get('platform').db
-    const userId = c.get('userId')!
+    const userId = principal?.kind === 'download-task-upload' ? principal.createdByUserId : (c.get('userId') as string)
+    const actorId =
+      principal?.kind === 'download-task-upload' ? `downloader:${principal.downloaderId}` : (c.get('userId') as string)
     const { name, type, size, parent, dirtype, onConflict } = c.req.valid('json')
     const isFolder = dirtype !== DirType.FILE
+    if (principal?.kind === 'download-task-upload') {
+      if (isFolder) return c.json({ error: 'Download task upload cannot create folders' }, 403)
+      if (parent !== principal.targetFolder)
+        return c.json({ error: 'Target folder is outside task authorization' }, 403)
+      await assertTaskUploadAllowed(c.get('platform'), {
+        taskId: principal.taskId,
+        downloaderId: principal.downloaderId,
+      })
+    }
 
-    const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+    let storage: S3Storage
+    try {
+      storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+    } catch (error) {
+      if (error instanceof Error && error.message === 'No available storage') {
+        return c.json({ error: 'Storage not configured' }, 500)
+      }
+      throw error
+    }
     const objectKey = isFolder
       ? ''
       : buildObjectKey({
@@ -90,7 +156,6 @@ const app = new Hono<Env>()
     try {
       const matter = await createMatter(db, {
         orgId,
-        userId,
         name,
         type: isFolder ? 'folder' : type,
         size: isFolder ? 0 : size,
@@ -100,6 +165,7 @@ const app = new Hono<Env>()
         storageId: storage.id,
         status: isFolder ? 'active' : 'draft',
         onConflict,
+        userId: actorId,
       })
       if (isFolder) return c.json(matter, 201)
       const contentDisposition = `attachment; filename="${name.replace(/"/g, '\\"')}"; filename*=UTF-8''${encodeURIComponent(name)}`
@@ -182,6 +248,81 @@ const app = new Hono<Env>()
       return c.json({ error: (e as Error).message }, 400)
     }
   })
+  .post('/:id/uploads', requireObjectCreateAccess, zValidator('json', createObjectUploadSessionSchema), async (c) =>
+    objectUploadResponse(
+      c,
+      async () => {
+        const orgId = c.get('orgId')
+        if (!orgId) throw new ObjectUploadSessionError('not_found')
+        const matter = await getMatter(c.get('platform').db, c.req.param('id'), orgId)
+        if (!matter || matter.status !== 'draft' || matter.dirtype !== DirType.FILE || !matter.object) {
+          throw new ObjectUploadSessionError('not_found')
+        }
+        const storage = (await getStorage(c.get('platform').db, matter.storageId)) as unknown as S3Storage | null
+        if (!storage) throw new ObjectUploadSessionError('not_found')
+        const principal = c.get('principal')
+        if (principal?.kind === 'download-task-upload') {
+          if (matter.parent !== principal.targetFolder) throw new ObjectUploadSessionError('invalid_state')
+          await assertTaskUploadAllowed(c.get('platform'), {
+            taskId: principal.taskId,
+            downloaderId: principal.downloaderId,
+          })
+        }
+        return createObjectUploadSession(c.get('platform').db, s3, {
+          orgId,
+          objectId: matter.id,
+          storage,
+          storageKey: matter.object,
+          contentType: matter.type,
+          partSize: c.req.valid('json').partSize,
+          actorId: actorId(c),
+        })
+      },
+      201,
+    ),
+  )
+  .post(
+    '/:id/uploads/:uploadSessionId/parts',
+    requireObjectCreateAccess,
+    zValidator('json', presignObjectUploadPartsSchema),
+    async (c) =>
+      objectUploadResponse(c, async () => {
+        const orgId = c.get('orgId')
+        if (!orgId) throw new ObjectUploadSessionError('not_found')
+        const matter = await getMatter(c.get('platform').db, c.req.param('id'), orgId)
+        if (!matter) throw new ObjectUploadSessionError('not_found')
+        const storage = (await getStorage(c.get('platform').db, matter.storageId)) as unknown as S3Storage | null
+        if (!storage) throw new ObjectUploadSessionError('not_found')
+        return presignObjectUploadParts(c.get('platform').db, s3, {
+          orgId,
+          objectId: matter.id,
+          sessionId: c.req.param('uploadSessionId'),
+          storage,
+          partNumbers: c.req.valid('json').partNumbers,
+        })
+      }),
+  )
+  .patch(
+    '/:id/uploads/:uploadSessionId',
+    requireObjectCreateAccess,
+    zValidator('json', patchObjectUploadSessionSchema),
+    async (c) =>
+      objectUploadResponse(c, async () => {
+        const orgId = c.get('orgId')
+        if (!orgId) throw new ObjectUploadSessionError('not_found')
+        const matter = await getMatter(c.get('platform').db, c.req.param('id'), orgId)
+        if (!matter) throw new ObjectUploadSessionError('not_found')
+        const storage = (await getStorage(c.get('platform').db, matter.storageId)) as unknown as S3Storage | null
+        if (!storage) throw new ObjectUploadSessionError('not_found')
+        return patchObjectUploadSession(c.get('platform').db, s3, {
+          orgId,
+          objectId: matter.id,
+          sessionId: c.req.param('uploadSessionId'),
+          storage,
+          input: c.req.valid('json'),
+        })
+      }),
+  )
   .get('/:id', requireTeamRole('viewer'), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
@@ -219,13 +360,24 @@ const app = new Hono<Env>()
 
     return c.json({ ...matter, downloadUrl })
   })
-  .patch('/:id', requireTeamRole('editor'), zValidator('json', patchMatterSchema), async (c) => {
+  .patch('/:id', requireObjectPatchAccess, zValidator('json', patchMatterSchema), async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
     const db = c.get('platform').db
-    const userId = c.get('userId')!
+    const userId = actorId(c)
     const body = c.req.valid('json')
+    const principal = c.get('principal')
+    if (principal?.kind === 'download-task-upload') {
+      if (body.action !== 'confirm')
+        return c.json({ error: 'Download task upload token can only confirm uploads' }, 403)
+      const matter = await getMatter(db, c.req.param('id'), orgId)
+      if (!matter || matter.parent !== principal.targetFolder) return c.json({ error: 'Forbidden' }, 403)
+      await assertTaskUploadAllowed(c.get('platform'), {
+        taskId: principal.taskId,
+        downloaderId: principal.downloaderId,
+      })
+    }
 
     switch (body.action) {
       case 'update': {
@@ -344,3 +496,32 @@ const app = new Hono<Env>()
   })
 
 export default app
+
+async function hasEditorAccess(c: Context<Env>): Promise<boolean> {
+  const orgId = c.get('orgId')
+  const userId = c.get('userId')
+  if (!orgId || !userId) return false
+  const role = await getMemberRole(c.get('platform').db, orgId, userId)
+  if (role !== null) return (ROLE_LEVELS[role] ?? 0) >= ROLE_LEVELS.editor
+  return isPersonalOrg(c.get('platform').db, orgId)
+}
+
+function actorId(c: Context<Env>): string {
+  const principal = c.get('principal')
+  if (principal?.kind === 'download-task-upload') return `downloader:${principal.downloaderId}`
+  return c.get('userId') ?? 'system'
+}
+
+async function objectUploadResponse(c: Context<Env>, action: () => Promise<unknown>, status: 200 | 201 = 200) {
+  try {
+    return c.json(await action(), status)
+  } catch (error) {
+    if (error instanceof ObjectUploadSessionError) {
+      return c.json(
+        { error: error.code === 'not_found' ? 'Not found' : 'Invalid upload session state' },
+        error.code === 'not_found' ? 404 : 409,
+      )
+    }
+    throw error
+  }
+}

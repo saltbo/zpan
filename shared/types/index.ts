@@ -202,6 +202,84 @@ export interface PaginatedResponse<T> {
   pageSize: number
 }
 
+export type DownloaderStatus = 'online' | 'offline' | 'disabled'
+export type DownloaderEngine = 'builtin' | 'aria2' | 'qbittorrent'
+
+export interface Downloader {
+  id: string
+  name: string
+  status: DownloaderStatus
+  enabled: boolean
+  version: string
+  hostname: string
+  platform: string
+  arch: string
+  engine: DownloaderEngine
+  capabilities: string[]
+  maxConcurrentTasks: number
+  currentTasks: number
+  downloadBps: number
+  uploadBps: number
+  freeDiskBytes: number
+  remoteDownloadCreditBillingEnabled: boolean
+  remoteDownloadCreditUnitBytes: number
+  remoteDownloadCreditPerUnit: number
+  lastHeartbeatAt: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type DownloadSourceType = 'http' | 'magnet' | 'torrent_url'
+export type DownloadTaskStatus =
+  | 'queued'
+  | 'assigned'
+  | 'running'
+  | 'billing_paused'
+  | 'uploading'
+  | 'completed'
+  | 'failed'
+  | 'canceled'
+
+export interface DownloadTask {
+  id: string
+  orgId: string
+  createdByUserId: string
+  sourceType: DownloadSourceType
+  sourceUri: string
+  name: string | null
+  targetFolder: string
+  assignedDownloaderId: string | null
+  status: DownloadTaskStatus
+  downloadedBytes: number
+  totalBytes: number | null
+  authorizedBytes: number
+  billedBytes: number
+  billedCredits: number
+  billingStatus: string
+  downloadBps: number
+  uploadBps: number
+  errorMessage: string | null
+  resultObjectId: string | null
+  uploadToken?: string
+  createdAt: string
+  updatedAt: string
+  assignedAt: string | null
+  startedAt: string | null
+  finishedAt: string | null
+}
+
+export interface ObjectUploadSession {
+  id: string
+  objectId: string
+  uploadId: string
+  partSize: number
+  status: 'active' | 'completed' | 'aborted'
+  expiresAt: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled'
 export type KnownBackgroundJobType = 'archive_compress' | 'archive_extract'
 export type BackgroundJobType = KnownBackgroundJobType | (string & {})

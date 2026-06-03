@@ -8,11 +8,18 @@ import type {
   CloudProductPatchInput,
   ConflictStrategy,
   CreateBackgroundJobRequest,
+  CreateDownloadTaskInput,
   CreateGiftCardInput,
+  CreateObjectUploadSessionInput,
   CreateShareRequest,
   CreateStorageInput,
+  DownloaderHeartbeatInput,
   GiftCardStatus,
+  PatchObjectUploadSessionInput,
+  PresignObjectUploadPartsInput,
   RedeemGiftCardResponse,
+  UpdateDownloaderInput,
+  UpdateDownloadTaskInput,
   UpdateStorageInput,
 } from '@shared/schemas'
 import type {
@@ -33,9 +40,12 @@ import type {
   CloudProduct,
   CloudStoreSettings,
   CloudStoreTarget,
+  Downloader,
+  DownloadTask,
   IhostConfigResponse,
   ImageHosting,
   Notification,
+  ObjectUploadSession,
   OrgQuota,
   OrgQuotaEntitlement,
   PaginatedResponse,
@@ -50,6 +60,7 @@ import {
   adminAuditApi,
   adminAuthProviders,
   adminCloudStoreApi,
+  adminDownloadersApi,
   adminQuotas,
   adminSiteInvitations,
   announcementsApi,
@@ -58,6 +69,8 @@ import {
   backgroundJobsApi,
   brandingAdminApi,
   cloudStoreApi,
+  downloaderSelfApi,
+  downloadTasksApi,
   emailConfig,
   ihostApi,
   ihostConfigApi,
@@ -226,6 +239,73 @@ export function batchDeleteObjects(ids: string[]) {
 
 export function emptyTrash() {
   return unwrap<{ purged: number }>(trash.index.$delete())
+}
+
+export function createObjectUploadSession(id: string, data: CreateObjectUploadSessionInput) {
+  return unwrap<ObjectUploadSession & { object: StorageObject }>(
+    objects[':id'].uploads.$post({ param: { id }, json: data }),
+  )
+}
+
+export function presignObjectUploadParts(id: string, uploadSessionId: string, data: PresignObjectUploadPartsInput) {
+  return unwrap<{ parts: Array<{ partNumber: number; uploadUrl: string }> }>(
+    objects[':id'].uploads[':uploadSessionId'].parts.$post({
+      param: { id, uploadSessionId },
+      json: data,
+    }),
+  )
+}
+
+export function patchObjectUploadSession(id: string, uploadSessionId: string, data: PatchObjectUploadSessionInput) {
+  return unwrap<ObjectUploadSession & { object?: StorageObject }>(
+    objects[':id'].uploads[':uploadSessionId'].$patch({
+      param: { id, uploadSessionId },
+      json: data,
+    }),
+  )
+}
+
+// Remote Download API
+
+export interface ListDownloadTasksOptions {
+  status?: string
+  assignedTo?: 'me'
+  page?: number
+  pageSize?: number
+}
+
+export function listDownloadTasks(opts: ListDownloadTasksOptions = {}) {
+  const query: Record<string, string> = {
+    page: String(opts.page ?? 1),
+    pageSize: String(opts.pageSize ?? 50),
+  }
+  if (opts.status) query.status = opts.status
+  if (opts.assignedTo) query.assignedTo = opts.assignedTo
+  return unwrap<PaginatedResponse<DownloadTask>>(downloadTasksApi.index.$get({ query }))
+}
+
+export function createDownloadTask(data: CreateDownloadTaskInput) {
+  return unwrap<DownloadTask>(downloadTasksApi.index.$post({ json: data }))
+}
+
+export function updateDownloadTask(id: string, data: UpdateDownloadTaskInput) {
+  return unwrap<DownloadTask>(downloadTasksApi[':id'].$patch({ param: { id }, json: data }))
+}
+
+export function listDownloaders() {
+  return unwrap<PaginatedResponse<Downloader>>(adminDownloadersApi.index.$get())
+}
+
+export function updateDownloader(id: string, data: UpdateDownloaderInput) {
+  return unwrap<Downloader>(adminDownloadersApi[':id'].$patch({ param: { id }, json: data }))
+}
+
+export function deleteDownloader(id: string) {
+  return unwrap<{ id: string; deleted: true }>(adminDownloadersApi[':id'].$delete({ param: { id } }))
+}
+
+export function sendDownloaderHeartbeat(data: DownloaderHeartbeatInput) {
+  return unwrap<Downloader>(downloaderSelfApi.heartbeat.$post({ json: data }))
 }
 
 // Background Jobs API

@@ -71,6 +71,32 @@ export {
   redeemGiftCardInputSchema,
   redeemGiftCardResponseSchema,
 } from './cloud-store'
+export type {
+  CreateDownloaderInput,
+  CreateDownloadTaskInput,
+  CreateObjectUploadSessionInput,
+  DownloaderHeartbeatInput,
+  ListDownloadTasksQuery,
+  PatchObjectUploadSessionInput,
+  PresignObjectUploadPartsInput,
+  UpdateDownloaderInput,
+  UpdateDownloadTaskInput,
+} from './downloads'
+export {
+  createDownloaderSchema,
+  createDownloadTaskSchema,
+  createObjectUploadSessionSchema,
+  downloaderEngineSchema,
+  downloaderHeartbeatSchema,
+  downloaderStatusSchema,
+  downloadSourceTypeSchema,
+  downloadTaskStatusSchema,
+  listDownloadTasksQuerySchema,
+  patchObjectUploadSessionSchema,
+  presignObjectUploadPartsSchema,
+  updateDownloaderSchema,
+  updateDownloadTaskSchema,
+} from './downloads'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
 export type { CreateShareInput, CreateShareRequest, ShareKind } from './share'

@@ -61,6 +61,56 @@ export class S3Service {
     return url
   }
 
+  async createMultipartUpload(storage: Storage, key: string, contentType: string): Promise<string> {
+    const client = this.createClient(storage)
+    const created = await client.send(
+      new CreateMultipartUploadCommand({ Bucket: storage.bucket, Key: key, ContentType: contentType }),
+    )
+    if (!created.UploadId) throw new Error('S3 multipart upload did not return an upload id')
+    return created.UploadId
+  }
+
+  async presignUploadPart(
+    storage: Storage,
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    expiresIn = DEFAULT_EXPIRES_IN,
+  ): Promise<string> {
+    const client = this.createClient(storage)
+    return getSignedUrl(
+      client,
+      new UploadPartCommand({ Bucket: storage.bucket, Key: key, UploadId: uploadId, PartNumber: partNumber }),
+      { expiresIn },
+    )
+  }
+
+  async completeMultipartUpload(
+    storage: Storage,
+    key: string,
+    uploadId: string,
+    parts: Array<{ etag: string; partNumber: number }>,
+  ): Promise<void> {
+    const client = this.createClient(storage)
+    await client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: storage.bucket,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: {
+          Parts: parts
+            .map((part) => ({ ETag: part.etag, PartNumber: part.partNumber }))
+            .sort((a, b) => a.PartNumber - b.PartNumber),
+        },
+      }),
+    )
+  }
+
+  async abortMultipartUpload(storage: Storage, key: string, uploadId: string): Promise<void> {
+    const client = this.createClient(storage)
+    await client.send(new AbortMultipartUploadCommand({ Bucket: storage.bucket, Key: key, UploadId: uploadId }))
+  }
+
   async presignDownload(
     storage: Storage,
     key: string,

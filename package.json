@@ -35,7 +35,8 @@
     "e2e:cloud": "node scripts/run-cloud-e2e.mjs",
     "e2e:cloud:cf": "node scripts/run-cloud-e2e.mjs --runtime cf",
     "e2e:archive": "node scripts/run-cloud-e2e.mjs --local --with-s3-mock --spec archive.spec.ts",
-    "e2e:archive:cf": "node scripts/run-cloud-e2e.mjs --runtime cf --local --with-s3-mock --spec archive.spec.ts"
+    "e2e:archive:cf": "node scripts/run-cloud-e2e.mjs --runtime cf --local --with-s3-mock --spec archive.spec.ts",
+    "openapi:downloader": "tsx scripts/generate-downloader-openapi.ts"
   },
   "engines": {
     "node": ">=24"
@@ -50,6 +51,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hono/node-server": "^1.13.0",
+    "@hono/zod-openapi": "^1.4.0",
     "@hono/zod-validator": "^0.7.6",
     "@hookform/resolvers": "^5.2.2",
     "@libsql/client": "^0.17.2",

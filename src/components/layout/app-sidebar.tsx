@@ -3,6 +3,7 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   ChevronRight,
   ChevronsUpDown,
+  Download,
   FileText,
   FolderOpen,
   Image,
@@ -89,6 +90,7 @@ export function AppSidebar() {
   const activeFileType = (type: string) => isFiles && fileType === type
   const activeRecycleBin = pathname === '/trash'
   const activeShares = pathname.startsWith('/shares')
+  const activeDownloads = pathname.startsWith('/downloads')
   const activeTasks = pathname.startsWith('/tasks')
   const activeImageHost = pathname === '/image-host'
 
@@ -163,6 +165,14 @@ export function AppSidebar() {
                   <Link to="/shares" search={{ status: 'all', page: 1 }}>
                     <Share2 className="h-4 w-4" />
                     <span>{t('nav.shares')}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={activeDownloads}>
+                  <Link to="/downloads">
+                    <Download className="h-4 w-4" />
+                    <span>{t('nav.downloads')}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

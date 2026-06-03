@@ -1,0 +1,446 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/Braurbeki/arigo"
+	qbittorrent "github.com/autobrr/go-qbittorrent"
+	"github.com/saltbo/zpan/downloader/internal/client"
+)
+
+type Result struct {
+	Path string
+	Name string
+	Size int64
+}
+
+type Progress func(downloaded int64, total *int64, bps int64) error
+
+type Engine interface {
+	Check(ctx context.Context) error
+	Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error)
+}
+
+type HTTP struct {
+	Dir string
+}
+
+func (h HTTP) Check(ctx context.Context) error {
+	if err := os.MkdirAll(h.Dir, 0o755); err != nil {
+		return err
+	}
+	file, err := os.CreateTemp(h.Dir, ".zpan-check-*")
+	if err != nil {
+		return err
+	}
+	path := file.Name()
+	if err := file.Close(); err != nil {
+		return err
+	}
+	return os.Remove(path)
+}
+
+func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {
+	if task.SourceType != "http" {
+		return Result{}, errors.New("http engine only supports http sources")
+	}
+	taskDir := filepath.Join(h.Dir, task.ID)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		return Result{}, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, task.SourceURI, nil)
+	if err != nil {
+		return Result{}, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return Result{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return Result{}, errors.New(res.Status)
+	}
+
+	name := outputName(task, filenameFromURL(req.URL))
+	path := filepath.Join(taskDir, name)
+	file, err := os.Create(path)
+	if err != nil {
+		return Result{}, err
+	}
+	defer file.Close()
+
+	var total *int64
+	if res.ContentLength > 0 {
+		total = &res.ContentLength
+	}
+	counter := &progressWriter{progress: progress, total: total, lastAt: time.Now()}
+	if _, err := io.Copy(file, io.TeeReader(res.Body, counter)); err != nil {
+		return Result{}, err
+	}
+	if err := progress(counter.downloaded, total, 0); err != nil {
+		return Result{}, err
+	}
+	return Result{Path: path, Name: name, Size: counter.downloaded}, nil
+}
+
+type Aria2 struct {
+	URL    string
+	Secret string
+	Dir    string
+}
+
+func (a Aria2) Check(ctx context.Context) error {
+	client, err := a.client(ctx)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	version, err := client.GetVersion()
+	if err != nil {
+		return err
+	}
+	if version.Version == "" {
+		return errors.New("aria2 rpc did not return a version")
+	}
+	return nil
+}
+
+func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {
+	taskDir := filepath.Join(a.Dir, task.ID)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		return Result{}, err
+	}
+
+	aria, err := a.client(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+	defer aria.Close()
+
+	options := &arigo.Options{
+		Dir:              taskDir,
+		FollowTorrent:    true,
+		BTSaveMetadata:   true,
+		SeedRatio:        0,
+		SeedTime:         0,
+		AllowOverwrite:   true,
+		AutoFileRenaming: false,
+	}
+	if task.Name != "" && task.SourceType == "http" {
+		options.Out = task.Name
+	}
+	gid, err := aria.AddURI(arigo.URIs(task.SourceURI), options)
+	if err != nil {
+		return Result{}, err
+	}
+	initialProgress := progress
+	if task.SourceType != "http" {
+		initialProgress = func(downloaded int64, total *int64, bps int64) error { return nil }
+	}
+	status, err := waitAria2(ctx, aria, gid.GID, initialProgress)
+	if err != nil {
+		_ = aria.Remove(gid.GID)
+		return Result{}, err
+	}
+	if len(status.FollowedBy) > 0 {
+		childGID := status.FollowedBy[0]
+		status, err = waitAria2(ctx, aria, childGID, progress)
+		if err != nil {
+			_ = aria.Remove(childGID)
+			return Result{}, err
+		}
+	}
+	files, err := aria.GetFiles(status.GID)
+	if err != nil {
+		return Result{}, err
+	}
+	return resultFromAria2Files(task, taskDir, files)
+}
+
+func (a Aria2) client(ctx context.Context) (*arigo.Client, error) {
+	return arigo.DialContext(ctx, a.URL, a.Secret)
+}
+
+type QBittorrent struct {
+	URL      string
+	Username string
+	Password string
+	Dir      string
+}
+
+func (q QBittorrent) Check(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(q.URL, "/")+"/api/v2/app/version", nil)
+	if err != nil {
+		return err
+	}
+	res, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return fmt.Errorf("qbittorrent web api returned %s", res.Status)
+	}
+	version, err := io.ReadAll(io.LimitReader(res.Body, 256))
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(version)) == "" {
+		return errors.New("qbittorrent web api did not return a version")
+	}
+	return nil
+}
+
+func (q QBittorrent) login(ctx context.Context) (*qbittorrent.Client, error) {
+	qbt := qbittorrent.NewClient(qbittorrent.Config{
+		Host:     q.URL,
+		Username: q.Username,
+		Password: q.Password,
+		Timeout:  10,
+	})
+	if err := qbt.LoginCtx(ctx); err != nil {
+		return nil, err
+	}
+	return qbt, nil
+}
+
+func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {
+	if task.SourceType == "http" {
+		return HTTP{Dir: q.Dir}.Download(ctx, task, progress)
+	}
+	taskDir := filepath.Join(q.Dir, task.ID)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		return Result{}, err
+	}
+
+	qbt, err := q.login(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+
+	tag := "zpan-task-" + task.ID
+	options := (&qbittorrent.TorrentAddOptions{
+		SavePath:           taskDir,
+		Category:           "zpan",
+		Tags:               tag,
+		LimitRatio:         0,
+		LimitSeedTime:      0,
+		SequentialDownload: false,
+	}).Prepare()
+	if task.Name != "" {
+		options["rename"] = task.Name
+	}
+	if _, err := qbt.AddTorrentFromUrlCtx(ctx, task.SourceURI, options); err != nil {
+		return Result{}, err
+	}
+
+	torrent, err := waitQBittorrent(ctx, qbt, tag, progress)
+	if err != nil {
+		return Result{}, err
+	}
+	_ = qbt.DeleteTorrentsCtx(ctx, []string{torrent.Hash}, false)
+	return resultFromPath(task, taskDir, torrent.Name)
+}
+
+type progressWriter struct {
+	progress   Progress
+	total      *int64
+	downloaded int64
+	lastBytes  int64
+	lastAt     time.Time
+}
+
+func (p *progressWriter) Write(data []byte) (int, error) {
+	n := len(data)
+	p.downloaded += int64(n)
+	now := time.Now()
+	if now.Sub(p.lastAt) >= time.Second {
+		bps := int64(float64(p.downloaded-p.lastBytes) / now.Sub(p.lastAt).Seconds())
+		if err := p.progress(p.downloaded, p.total, bps); err != nil {
+			return n, err
+		}
+		p.lastBytes = p.downloaded
+		p.lastAt = now
+	}
+	return n, nil
+}
+
+func waitAria2(ctx context.Context, aria *arigo.Client, gid string, progress Progress) (arigo.Status, error) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return arigo.Status{}, ctx.Err()
+		case <-ticker.C:
+			status, err := aria.TellStatus(gid)
+			if err != nil {
+				return arigo.Status{}, err
+			}
+			total := int64(status.TotalLength)
+			completed := int64(status.CompletedLength)
+			bps := int64(status.DownloadSpeed)
+			var totalPtr *int64
+			if total > 0 {
+				totalPtr = &total
+			}
+			if err := progress(completed, totalPtr, bps); err != nil {
+				_ = aria.ForcePause(gid)
+				return arigo.Status{}, err
+			}
+			switch string(status.Status) {
+			case "complete", string(arigo.StatusCompleted):
+				return status, nil
+			case string(arigo.StatusError), string(arigo.StatusRemoved):
+				if status.ErrorMessage != "" {
+					return arigo.Status{}, errors.New(status.ErrorMessage)
+				}
+				return arigo.Status{}, fmt.Errorf("aria2 download ended with status %s", status.Status)
+			}
+		}
+	}
+}
+
+func waitQBittorrent(
+	ctx context.Context,
+	qbt *qbittorrent.Client,
+	tag string,
+	progress Progress,
+) (qbittorrent.Torrent, error) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return qbittorrent.Torrent{}, ctx.Err()
+		case <-ticker.C:
+			torrents, err := qbt.GetTorrentsCtx(ctx, qbittorrent.TorrentFilterOptions{Tag: tag})
+			if err != nil {
+				return qbittorrent.Torrent{}, err
+			}
+			if len(torrents) == 0 {
+				continue
+			}
+			torrent := torrents[0]
+			total := torrent.TotalSize
+			if total <= 0 {
+				total = torrent.Size
+			}
+			var totalPtr *int64
+			if total > 0 {
+				totalPtr = &total
+			}
+			if err := progress(torrent.Completed, totalPtr, torrent.DlSpeed); err != nil {
+				_ = qbt.StopCtx(ctx, []string{torrent.Hash})
+				return qbittorrent.Torrent{}, err
+			}
+			if torrent.Progress >= 1 || (torrent.AmountLeft == 0 && total > 0) {
+				return torrent, nil
+			}
+			if isQBittorrentErrorState(torrent.State) {
+				return qbittorrent.Torrent{}, fmt.Errorf("qbittorrent download ended with state %s", torrent.State)
+			}
+		}
+	}
+}
+
+func resultFromAria2Files(task client.DownloadTask, taskDir string, files []arigo.File) (Result, error) {
+	paths := make([]string, 0, len(files))
+	for _, file := range files {
+		if file.Selected && file.Length > 0 {
+			paths = append(paths, cleanDownloadedPath(taskDir, file.Path))
+		}
+	}
+	if len(paths) == 1 {
+		return resultFromFile(task, paths[0])
+	}
+	return resultFromPath(task, taskDir, task.Name)
+}
+
+func resultFromPath(task client.DownloadTask, path string, fallbackName string) (Result, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		candidate := filepath.Join(path, fallbackName)
+		if fallbackName != "" {
+			if _, statErr := os.Stat(candidate); statErr == nil {
+				return resultFromPath(task, candidate, fallbackName)
+			}
+		}
+		return Result{}, err
+	}
+	if !info.IsDir() {
+		return resultFromFile(task, path)
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return Result{}, err
+	}
+	visible := make([]os.DirEntry, 0, len(entries))
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), ".") {
+			visible = append(visible, entry)
+		}
+	}
+	if len(visible) == 1 && !visible[0].IsDir() {
+		return resultFromFile(task, filepath.Join(path, visible[0].Name()))
+	}
+	zipName := outputName(task, fallbackName)
+	if !strings.HasSuffix(strings.ToLower(zipName), ".zip") {
+		zipName += ".zip"
+	}
+	zipPath := filepath.Join(filepath.Dir(path), zipName)
+	size, err := ZipDirectory(path, zipPath)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Path: zipPath, Name: zipName, Size: size}, nil
+}
+
+func resultFromFile(task client.DownloadTask, path string) (Result, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Path: path, Name: outputName(task, filepath.Base(path)), Size: info.Size()}, nil
+}
+
+func cleanDownloadedPath(baseDir string, path string) string {
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
+	}
+	return filepath.Join(baseDir, filepath.Clean(path))
+}
+
+func outputName(task client.DownloadTask, fallback string) string {
+	name := strings.TrimSpace(task.Name)
+	if name == "" {
+		name = strings.TrimSpace(fallback)
+	}
+	if name == "" || name == "." || name == string(filepath.Separator) {
+		name = task.ID
+	}
+	return filepath.Base(name)
+}
+
+func filenameFromURL(parsed *url.URL) string {
+	name := filepath.Base(parsed.Path)
+	if name == "." || name == "/" {
+		return ""
+	}
+	return name
+}
+
+func isQBittorrentErrorState(state qbittorrent.TorrentState) bool {
+	value := strings.ToLower(string(state))
+	return strings.Contains(value, "error") || strings.Contains(value, "missing")
+}

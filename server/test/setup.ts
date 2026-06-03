@@ -92,6 +92,23 @@ const AUTH_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS invitation_organizationId_idx ON invitation(organization_id);
   CREATE INDEX IF NOT EXISTS invitation_email_idx ON invitation(email);
+  CREATE TABLE IF NOT EXISTS deviceCode (
+    id TEXT PRIMARY KEY,
+    device_code TEXT NOT NULL,
+    user_code TEXT NOT NULL,
+    user_id TEXT,
+    client_id TEXT,
+    scope TEXT,
+    status TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    last_polled_at INTEGER,
+    polling_interval INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  );
+  CREATE INDEX IF NOT EXISTS deviceCode_device_code_idx ON deviceCode(device_code);
+  CREATE INDEX IF NOT EXISTS deviceCode_user_code_idx ON deviceCode(user_code);
+  CREATE INDEX IF NOT EXISTS deviceCode_status_idx ON deviceCode(status);
 `
 
 const APP_SCHEMA_SQL = `
@@ -370,6 +387,104 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS background_jobs_org_created_idx ON background_jobs(org_id, created_at);
   CREATE INDEX IF NOT EXISTS background_jobs_org_status_idx ON background_jobs(org_id, status);
   CREATE INDEX IF NOT EXISTS background_jobs_org_type_idx ON background_jobs(org_id, type);
+  CREATE TABLE IF NOT EXISTS downloaders (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    token_hash TEXT NOT NULL,
+    token_jti TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'offline',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    version TEXT NOT NULL DEFAULT 'unknown',
+    hostname TEXT NOT NULL DEFAULT 'unknown',
+    platform TEXT NOT NULL DEFAULT 'unknown',
+    arch TEXT NOT NULL DEFAULT 'unknown',
+    engine TEXT NOT NULL DEFAULT 'builtin',
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    max_concurrent_tasks INTEGER NOT NULL DEFAULT 1,
+    current_tasks INTEGER NOT NULL DEFAULT 0,
+    download_bps INTEGER NOT NULL DEFAULT 0,
+    upload_bps INTEGER NOT NULL DEFAULT 0,
+    free_disk_bytes INTEGER NOT NULL DEFAULT 0,
+    remote_download_credit_billing_enabled INTEGER NOT NULL DEFAULT 0,
+    remote_download_credit_unit_bytes INTEGER NOT NULL DEFAULT 104857600,
+    remote_download_credit_per_unit INTEGER NOT NULL DEFAULT 1,
+    last_heartbeat_at INTEGER,
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS downloaders_token_jti_unique ON downloaders(token_jti);
+  CREATE INDEX IF NOT EXISTS downloaders_status_idx ON downloaders(status);
+  CREATE INDEX IF NOT EXISTS downloaders_enabled_idx ON downloaders(enabled);
+  CREATE INDEX IF NOT EXISTS downloaders_created_idx ON downloaders(created_at);
+  CREATE TABLE IF NOT EXISTS download_tasks (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    created_by_user_id TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_uri TEXT NOT NULL,
+    name TEXT,
+    target_folder TEXT NOT NULL DEFAULT '',
+    assigned_downloader_id TEXT,
+    status TEXT NOT NULL,
+    downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+    total_bytes INTEGER,
+    authorized_bytes INTEGER NOT NULL DEFAULT 0,
+    billed_bytes INTEGER NOT NULL DEFAULT 0,
+    billed_credits INTEGER NOT NULL DEFAULT 0,
+    billing_status TEXT NOT NULL DEFAULT 'none',
+    download_bps INTEGER NOT NULL DEFAULT 0,
+    upload_bps INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT,
+    result_object_id TEXT,
+    upload_token_hash TEXT,
+    upload_token_jti TEXT,
+    upload_token_expires_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    assigned_at INTEGER,
+    started_at INTEGER,
+    finished_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS download_tasks_org_created_idx ON download_tasks(org_id, created_at);
+  CREATE INDEX IF NOT EXISTS download_tasks_org_status_idx ON download_tasks(org_id, status);
+  CREATE INDEX IF NOT EXISTS download_tasks_downloader_idx ON download_tasks(assigned_downloader_id, status);
+  CREATE TABLE IF NOT EXISTS object_upload_sessions (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    object_id TEXT NOT NULL,
+    storage_id TEXT NOT NULL,
+    storage_key TEXT NOT NULL,
+    upload_id TEXT NOT NULL,
+    part_size INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS object_upload_sessions_object_idx ON object_upload_sessions(org_id, object_id);
+  CREATE INDEX IF NOT EXISTS object_upload_sessions_expires_idx ON object_upload_sessions(expires_at);
+  CREATE TABLE IF NOT EXISTS remote_download_usage_reports (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    downloader_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    unit_index INTEGER NOT NULL,
+    unit_bytes INTEGER NOT NULL,
+    credits_per_unit INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS remote_download_usage_reports_event_id_unique
+    ON remote_download_usage_reports(event_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS remote_download_usage_task_unit_uniq
+    ON remote_download_usage_reports(task_id, unit_index);
+  CREATE INDEX IF NOT EXISTS remote_download_usage_org_idx ON remote_download_usage_reports(org_id);
+  CREATE INDEX IF NOT EXISTS remote_download_usage_status_idx ON remote_download_usage_reports(status);
   CREATE TABLE IF NOT EXISTS announcements (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,

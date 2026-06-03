@@ -12,6 +12,9 @@ import type {
   BackgroundJobsRoute,
   BrandingAdminRoute,
   CloudStoreRoute,
+  DownloaderSelfRoute,
+  DownloadersRoute,
+  DownloadTasksRoute,
   EmailConfigRoute,
   IhostConfigRoute,
   IhostRoute,
@@ -37,8 +40,11 @@ import { hc } from 'hono/client'
 const opts = { init: { credentials: 'include' as RequestCredentials } }
 
 export const objects = hc<ObjectsRoute>('/api/objects', opts)
+export const downloadTasksApi = hc<DownloadTasksRoute>('/api/download-tasks', opts)
+export const downloaderSelfApi = hc<DownloaderSelfRoute>('/api/downloader', opts)
 export const trash = hc<TrashRoute>('/api/trash', opts)
 export const storages = hc<StoragesRoute>('/api/admin/storages', opts)
+export const adminDownloadersApi = hc<DownloadersRoute>('/api/admin/downloaders', opts)
 export const users = hc<UsersRoute>('/api/admin/users', opts)
 export const adminQuotas = hc<AdminQuotasRoute>('/api/admin/quotas', opts)
 export const adminCloudStoreApi = hc<AdminCloudStoreRoute>('/api/admin/store', opts)

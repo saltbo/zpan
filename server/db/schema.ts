@@ -287,6 +287,128 @@ export const backgroundJobs = sqliteTable(
   ],
 )
 
+export const downloaders = sqliteTable(
+  'downloaders',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    tokenJti: text('token_jti').notNull().unique(),
+    status: text('status').notNull().default('offline'),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    version: text('version').notNull().default('unknown'),
+    hostname: text('hostname').notNull().default('unknown'),
+    platform: text('platform').notNull().default('unknown'),
+    arch: text('arch').notNull().default('unknown'),
+    engine: text('engine').notNull().default('builtin'),
+    capabilities: text('capabilities').notNull().default('[]'),
+    maxConcurrentTasks: integer('max_concurrent_tasks').notNull().default(1),
+    currentTasks: integer('current_tasks').notNull().default(0),
+    downloadBps: integer('download_bps').notNull().default(0),
+    uploadBps: integer('upload_bps').notNull().default(0),
+    freeDiskBytes: integer('free_disk_bytes').notNull().default(0),
+    remoteDownloadCreditBillingEnabled: integer('remote_download_credit_billing_enabled', {
+      mode: 'boolean',
+    })
+      .notNull()
+      .default(false),
+    remoteDownloadCreditUnitBytes: integer('remote_download_credit_unit_bytes').notNull().default(104857600),
+    remoteDownloadCreditPerUnit: integer('remote_download_credit_per_unit').notNull().default(1),
+    lastHeartbeatAt: integer('last_heartbeat_at', { mode: 'timestamp_ms' }),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('downloaders_status_idx').on(t.status),
+    index('downloaders_enabled_idx').on(t.enabled),
+    index('downloaders_created_idx').on(t.createdAt),
+  ],
+)
+
+export const downloadTasks = sqliteTable(
+  'download_tasks',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    createdByUserId: text('created_by_user_id').notNull(),
+    sourceType: text('source_type').notNull(),
+    sourceUri: text('source_uri').notNull(),
+    name: text('name'),
+    targetFolder: text('target_folder').notNull().default(''),
+    assignedDownloaderId: text('assigned_downloader_id'),
+    status: text('status').notNull(),
+    downloadedBytes: integer('downloaded_bytes').notNull().default(0),
+    totalBytes: integer('total_bytes'),
+    authorizedBytes: integer('authorized_bytes').notNull().default(0),
+    billedBytes: integer('billed_bytes').notNull().default(0),
+    billedCredits: integer('billed_credits').notNull().default(0),
+    billingStatus: text('billing_status').notNull().default('none'),
+    downloadBps: integer('download_bps').notNull().default(0),
+    uploadBps: integer('upload_bps').notNull().default(0),
+    errorMessage: text('error_message'),
+    resultObjectId: text('result_object_id'),
+    uploadTokenHash: text('upload_token_hash'),
+    uploadTokenJti: text('upload_token_jti'),
+    uploadTokenExpiresAt: integer('upload_token_expires_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    assignedAt: integer('assigned_at', { mode: 'timestamp_ms' }),
+    startedAt: integer('started_at', { mode: 'timestamp_ms' }),
+    finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [
+    index('download_tasks_org_created_idx').on(t.orgId, t.createdAt),
+    index('download_tasks_org_status_idx').on(t.orgId, t.status),
+    index('download_tasks_downloader_idx').on(t.assignedDownloaderId, t.status),
+  ],
+)
+
+export const objectUploadSessions = sqliteTable(
+  'object_upload_sessions',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    objectId: text('object_id').notNull(),
+    storageId: text('storage_id').notNull(),
+    storageKey: text('storage_key').notNull(),
+    uploadId: text('upload_id').notNull(),
+    partSize: integer('part_size').notNull(),
+    status: text('status').notNull(),
+    createdBy: text('created_by').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('object_upload_sessions_object_idx').on(t.orgId, t.objectId),
+    index('object_upload_sessions_expires_idx').on(t.expiresAt),
+  ],
+)
+
+export const remoteDownloadUsageReports = sqliteTable(
+  'remote_download_usage_reports',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    downloaderId: text('downloader_id').notNull(),
+    taskId: text('task_id').notNull(),
+    eventId: text('event_id').notNull().unique(),
+    unitIndex: integer('unit_index').notNull(),
+    unitBytes: integer('unit_bytes').notNull(),
+    creditsPerUnit: integer('credits_per_unit').notNull(),
+    status: text('status').notNull(),
+    error: text('error'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('remote_download_usage_task_unit_uniq').on(t.taskId, t.unitIndex),
+    index('remote_download_usage_org_idx').on(t.orgId),
+    index('remote_download_usage_status_idx').on(t.status),
+  ],
+)
+
 export const announcements = sqliteTable(
   'announcements',
   {

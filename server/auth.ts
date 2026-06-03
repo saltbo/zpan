@@ -1,7 +1,7 @@
 import { apiKey } from '@better-auth/api-key'
 import { APIError, type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { admin, captcha, organization, username } from 'better-auth/plugins'
+import { admin, bearer, captcha, deviceAuthorization, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
@@ -276,6 +276,12 @@ export async function createAuth(
           discoveryUrl: c.discoveryUrl,
           scopes: c.scopes,
         })),
+      }),
+      bearer(),
+      deviceAuthorization({
+        schema: {},
+        verificationUri: '/device',
+        validateClient: async (clientId) => clientId === 'zpan-downloader',
       }),
       apiKey([
         {

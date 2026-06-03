@@ -21,9 +21,11 @@ import {
   createCloudCheckout,
   createCloudGiftCards,
   createCloudProduct,
+  createDownloadTask,
   createIhostApiKey,
   createIhostImagePresign,
   createObject,
+  createObjectUploadSession,
   createShare,
   createSiteInvitation,
   createStorage,
@@ -32,6 +34,7 @@ import {
   deleteAvatar,
   deleteCloudGiftCard,
   deleteCloudProduct,
+  deleteDownloader,
   deleteIhostConfig,
   deleteIhostImage,
   deleteObject,
@@ -76,6 +79,8 @@ import {
   listCloudOrders,
   listCloudProducts,
   listCloudStoreTargets,
+  listDownloaders,
+  listDownloadTasks,
   listIhostApiKeys,
   listIhostImages,
   listNotifications,
@@ -91,7 +96,9 @@ import {
   listWebDavAppPasswords,
   markAllNotificationsRead,
   markNotificationRead,
+  patchObjectUploadSession,
   pollPairing,
+  presignObjectUploadParts,
   redeemCloudGiftCard,
   refreshLicense,
   resendSiteInvitation,
@@ -104,12 +111,15 @@ import {
   saveBranding,
   saveEmailConfig,
   saveShareToDrive,
+  sendDownloaderHeartbeat,
   setSystemOption,
   testEmail,
   trashObject,
   updateAnnouncement,
   updateCloudProduct,
   updateCloudStoreSettings,
+  updateDownloader,
+  updateDownloadTask,
   updateIhostConfig,
   updateObject,
   updateStorage,
@@ -928,6 +938,172 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'server error' }, false, 500))
 
       await expect(emptyTrash()).rejects.toThrow('server error')
+    })
+  })
+
+  describe('object upload sessions api', () => {
+    it('creates an upload session for an object', async () => {
+      const payload = { id: 'upload-1', object: { id: 'obj-1' } }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await createObjectUploadSession('obj-1', {
+        partSize: 5 * 1024 * 1024,
+      })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/obj-1/uploads')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ partSize: 5 * 1024 * 1024 }))
+    })
+
+    it('presigns upload session parts', async () => {
+      const payload = { parts: [{ partNumber: 1, uploadUrl: 'https://s3/part-1' }] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await presignObjectUploadParts('obj-1', 'upload-1', { partNumbers: [1] })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/obj-1/uploads/upload-1/parts')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ partNumbers: [1] }))
+    })
+
+    it('patches an upload session', async () => {
+      const payload = { id: 'upload-1', status: 'completed', object: { id: 'obj-1' } }
+      const body = { action: 'complete' as const, parts: [{ partNumber: 1, etag: 'etag-1' }] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await patchObjectUploadSession('obj-1', 'upload-1', body)
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/obj-1/uploads/upload-1')
+      expect(init.method).toBe('PATCH')
+      expect(init.body).toBe(JSON.stringify(body))
+    })
+
+    it('throws ApiError on upload session failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'upload denied' }, false, 403))
+
+      await expect(createObjectUploadSession('obj-1', { partSize: 5 * 1024 * 1024 })).rejects.toThrow('upload denied')
+    })
+  })
+
+  describe('remote download api', () => {
+    it('lists download tasks with filters', async () => {
+      const payload = { items: [], total: 0, page: 2, pageSize: 10 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listDownloadTasks({ status: 'running', assignedTo: 'me', page: 2, pageSize: 10 })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/download-tasks?')
+      expect(url).toContain('status=running')
+      expect(url).toContain('assignedTo=me')
+      expect(url).toContain('page=2')
+      expect(url).toContain('pageSize=10')
+      expect(init.method).toBe('GET')
+    })
+
+    it('creates a download task', async () => {
+      const payload = { id: 'task-1', status: 'queued' }
+      const body = { source: { type: 'http' as const, uri: 'https://example.com/file.zip' }, targetFolder: 'root' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await createDownloadTask(body)
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/download-tasks')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify(body))
+    })
+
+    it('updates a download task', async () => {
+      const payload = { id: 'task-1', status: 'running' }
+      const body = { status: 'running' as const, downloadedBytes: 1024 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await updateDownloadTask('task-1', body)
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/download-tasks/task-1')
+      expect(init.method).toBe('PATCH')
+      expect(init.body).toBe(JSON.stringify(body))
+    })
+
+    it('lists admin downloaders', async () => {
+      const payload = { items: [{ id: 'downloader-1', name: 'vps-1' }], total: 1 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listDownloaders()
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/downloaders')
+      expect(init.method).toBe('GET')
+    })
+
+    it('updates an admin downloader', async () => {
+      const payload = { id: 'downloader-1', enabled: false }
+      const body = { enabled: false }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await updateDownloader('downloader-1', body)
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/downloaders/downloader-1')
+      expect(init.method).toBe('PATCH')
+      expect(init.body).toBe(JSON.stringify(body))
+    })
+
+    it('deletes an admin downloader', async () => {
+      const payload = { id: 'downloader-1', deleted: true }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await deleteDownloader('downloader-1')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/downloaders/downloader-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('sends downloader heartbeat', async () => {
+      const payload = { id: 'downloader-1', status: 'online' }
+      const body = {
+        version: '0.1.0',
+        hostname: 'vps-1',
+        platform: 'linux',
+        arch: 'amd64',
+        engine: 'aria2' as const,
+        capabilities: ['http'],
+        maxConcurrentTasks: 2,
+        currentTasks: 1,
+        downloadBps: 2048,
+        uploadBps: 512,
+        freeDiskBytes: 1024,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await sendDownloaderHeartbeat(body)
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/downloader/heartbeat')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify(body))
+    })
+
+    it('throws ApiError on download task failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'credits exhausted' }, false, 402))
+
+      await expect(updateDownloadTask('task-1', { downloadedBytes: 2048 })).rejects.toThrow('credits exhausted')
     })
   })
 

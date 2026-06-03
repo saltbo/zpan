@@ -6,6 +6,7 @@ import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
 import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
+import { downloaderOpenAPIDocument } from './openapi/downloader'
 import type { Platform } from './platform/interface'
 import { adminAnnouncements, announcements } from './routes/announcements'
 import { adminAudit } from './routes/audit'
@@ -13,6 +14,8 @@ import { adminAuthProviders, publicAuthProviders } from './routes/auth-providers
 import backgroundJobs from './routes/background-jobs'
 import { brandingAdmin, publicBranding } from './routes/branding'
 import { adminCloudStore, cloudStore, cloudStoreWebhooks } from './routes/cloud-store'
+import downloadTasks from './routes/download-tasks'
+import downloaders, { downloaderSelfRoute } from './routes/downloaders'
 import emailConfig from './routes/email-config'
 import ihost from './routes/ihost'
 import ihostConfig from './routes/ihost-config'
@@ -58,6 +61,8 @@ export function createApp(platform: Platform, auth: Auth) {
     return a.handler(c.req.raw)
   })
 
+  app.get('/api/openapi/downloader.json', (c) => c.json(downloaderOpenAPIDocument()))
+
   app.all('/dav', (c) => c.redirect('/dav/', 308))
   app.route('/dav', webdav)
 
@@ -100,12 +105,15 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/admin/auth-providers', adminAuthProviders)
   app.route('/api/notifications', notifications)
   app.route('/api/background-jobs', backgroundJobs)
+  app.route('/api/download-tasks', downloadTasks)
+  app.route('/api/downloader', downloaderSelfRoute)
   app.route('/api/ihost', ihost)
   app.route('/api/ihost/config', ihostConfig)
   app.route('/api/licensing', licensingAdmin)
   app.route('/api/admin/branding', brandingAdmin)
   app.route('/api/admin/announcements', adminAnnouncements)
   app.route('/api/admin/audit', adminAudit)
+  app.route('/api/admin/downloaders', downloaders)
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
@@ -139,6 +147,9 @@ export type TeamsRoute = typeof teams
 export type PublicTeamsRoute = typeof publicTeams
 export type NotificationsRoute = typeof notifications
 export type BackgroundJobsRoute = typeof backgroundJobs
+export type DownloadTasksRoute = typeof downloadTasks
+export type DownloadersRoute = typeof downloaders
+export type DownloaderSelfRoute = typeof downloaderSelfRoute
 export type IhostRoute = typeof ihost
 export type IhostConfigRoute = typeof ihostConfig
 export type MeRoute = typeof me

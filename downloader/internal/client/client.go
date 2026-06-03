@@ -1,0 +1,332 @@
+package client
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/saltbo/zpan/downloader/internal/openapi"
+)
+
+type Client struct {
+	baseURL string
+	token   string
+	api     *openapi.ClientWithResponses
+}
+
+type Page[T any] struct {
+	Items    []T `json:"items"`
+	Total    int `json:"total"`
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+}
+
+type DownloadTask struct {
+	ID                   string `json:"id"`
+	SourceType           string `json:"sourceType"`
+	SourceURI            string `json:"sourceUri"`
+	Name                 string `json:"name"`
+	TargetFolder         string `json:"targetFolder"`
+	Status               string `json:"status"`
+	DownloadedBytes      int64  `json:"downloadedBytes"`
+	TotalBytes           *int64 `json:"totalBytes"`
+	DownloadBps          int64  `json:"downloadBps"`
+	UploadBps            int64  `json:"uploadBps"`
+	ResultObjectID       string `json:"resultObjectId"`
+	UploadToken          string `json:"uploadToken"`
+	AssignedDownloaderID string `json:"assignedDownloaderId"`
+}
+
+type Heartbeat struct {
+	Version            string   `json:"version"`
+	Hostname           string   `json:"hostname"`
+	Platform           string   `json:"platform"`
+	Arch               string   `json:"arch"`
+	Engine             string   `json:"engine"`
+	Capabilities       []string `json:"capabilities"`
+	MaxConcurrentTasks int      `json:"maxConcurrentTasks"`
+	CurrentTasks       int      `json:"currentTasks"`
+	DownloadBps        int64    `json:"downloadBps"`
+	UploadBps          int64    `json:"uploadBps"`
+	FreeDiskBytes      int64    `json:"freeDiskBytes"`
+}
+
+type TaskPatch struct {
+	Status          string  `json:"status,omitempty"`
+	DownloadedBytes *int64  `json:"downloadedBytes,omitempty"`
+	TotalBytes      *int64  `json:"totalBytes,omitempty"`
+	DownloadBps     *int64  `json:"downloadBps,omitempty"`
+	UploadBps       *int64  `json:"uploadBps,omitempty"`
+	ErrorMessage    *string `json:"errorMessage,omitempty"`
+	ResultObjectID  *string `json:"resultObjectId,omitempty"`
+}
+
+type ObjectDraft struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	UploadURL string `json:"uploadUrl"`
+}
+
+type DeviceCode struct {
+	DeviceCode              string `json:"device_code"`
+	UserCode                string `json:"user_code"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete"`
+	ExpiresIn               int    `json:"expires_in"`
+	Interval                int    `json:"interval"`
+}
+
+type DeviceToken struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
+	Scope       string `json:"scope"`
+}
+
+type CreateDownloaderRequest struct {
+	Name      string    `json:"name"`
+	Heartbeat Heartbeat `json:"heartbeat"`
+}
+
+type CreateDownloaderResponse struct {
+	Downloader struct {
+		ID string `json:"id"`
+	} `json:"downloader"`
+	Token string `json:"token"`
+}
+
+func New(baseURL, token string) *Client {
+	httpClient := &http.Client{Timeout: 60 * time.Second}
+	api, err := openapi.NewClientWithResponses(strings.TrimRight(baseURL, "/"), openapi.WithHTTPClient(httpClient))
+	if err != nil {
+		panic(err)
+	}
+	return &Client{
+		baseURL: baseURL,
+		token:   token,
+		api:     api,
+	}
+}
+
+func (c *Client) Heartbeat(ctx context.Context, heartbeat Heartbeat) error {
+	body, err := jsonBody(heartbeat)
+	if err != nil {
+		return err
+	}
+	res, err := c.api.PostApiDownloaderHeartbeatWithBodyWithResponse(ctx, "application/json", body, bearer(c.token))
+	if err != nil {
+		return err
+	}
+	return expectStatus("POST", "/api/downloader/heartbeat", res.StatusCode(), res.Body, http.StatusOK)
+}
+
+func (c *Client) AssignedTasks(ctx context.Context) ([]DownloadTask, error) {
+	statuses := []openapi.GetApiDownloadTasksParamsStatus{
+		openapi.GetApiDownloadTasksParamsStatusAssigned,
+		openapi.GetApiDownloadTasksParamsStatusBillingPaused,
+	}
+	tasks := make([]DownloadTask, 0)
+	for _, status := range statuses {
+		page := 1
+		pageSize := 20
+		assignedTo := openapi.Me
+		res, err := c.api.GetApiDownloadTasksWithResponse(ctx, &openapi.GetApiDownloadTasksParams{
+			AssignedTo: &assignedTo,
+			Status:     &status,
+			Page:       &page,
+			PageSize:   &pageSize,
+		}, bearer(c.token))
+		if err != nil {
+			return nil, err
+		}
+		if err := expectStatus("GET", "/api/download-tasks", res.StatusCode(), res.Body, http.StatusOK); err != nil {
+			return nil, err
+		}
+		var result Page[DownloadTask]
+		if err := decodeJSON(res.Body, &result); err != nil {
+			return nil, fmt.Errorf("GET /api/download-tasks failed: %w", err)
+		}
+		tasks = append(tasks, result.Items...)
+	}
+	return tasks, nil
+}
+
+func (c *Client) RequestDeviceCode(ctx context.Context) (DeviceCode, error) {
+	res, err := c.api.PostApiAuthDeviceCodeWithResponse(ctx, openapi.DeviceCodeRequest{
+		ClientId: "zpan-downloader",
+		Scope:    "downloader:register",
+	})
+	if err != nil {
+		return DeviceCode{}, err
+	}
+	if err := expectStatus("POST", "/api/auth/device/code", res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		return DeviceCode{}, err
+	}
+	if res.JSON200 == nil {
+		return DeviceCode{}, fmt.Errorf("POST /api/auth/device/code failed: empty response")
+	}
+	return DeviceCode{
+		DeviceCode:              res.JSON200.DeviceCode,
+		UserCode:                res.JSON200.UserCode,
+		VerificationURI:         res.JSON200.VerificationUri,
+		VerificationURIComplete: res.JSON200.VerificationUriComplete,
+		ExpiresIn:               res.JSON200.ExpiresIn,
+		Interval:                res.JSON200.Interval,
+	}, nil
+}
+
+func (c *Client) PollDeviceToken(ctx context.Context, deviceCode string) (DeviceToken, error) {
+	res, err := c.api.PostApiAuthDeviceTokenWithResponse(ctx, openapi.DeviceTokenRequest{
+		GrantType:  "urn:ietf:params:oauth:grant-type:device_code",
+		DeviceCode: deviceCode,
+		ClientId:   "zpan-downloader",
+	})
+	if err != nil {
+		return DeviceToken{}, err
+	}
+	if err := expectStatus("POST", "/api/auth/device/token", res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		return DeviceToken{}, err
+	}
+	if res.JSON200 == nil {
+		return DeviceToken{}, fmt.Errorf("POST /api/auth/device/token failed: empty response")
+	}
+	return DeviceToken{
+		AccessToken: res.JSON200.AccessToken,
+		TokenType:   res.JSON200.TokenType,
+		ExpiresIn:   res.JSON200.ExpiresIn,
+		Scope:       res.JSON200.Scope,
+	}, nil
+}
+
+func (c *Client) CreateDownloader(ctx context.Context, accessToken string, req CreateDownloaderRequest) (CreateDownloaderResponse, error) {
+	body, err := jsonBody(req)
+	if err != nil {
+		return CreateDownloaderResponse{}, err
+	}
+	res, err := c.api.PostApiAdminDownloadersWithBodyWithResponse(ctx, "application/json", body, bearer(accessToken))
+	if err != nil {
+		return CreateDownloaderResponse{}, err
+	}
+	if err := expectStatus("POST", "/api/admin/downloaders", res.StatusCode(), res.Body, http.StatusCreated); err != nil {
+		return CreateDownloaderResponse{}, err
+	}
+	var out CreateDownloaderResponse
+	if err := decodeJSON(res.Body, &out); err != nil {
+		return CreateDownloaderResponse{}, fmt.Errorf("POST /api/admin/downloaders failed: %w", err)
+	}
+	return out, nil
+}
+
+func (c *Client) UpdateTask(ctx context.Context, id string, patch TaskPatch) (DownloadTask, error) {
+	body, err := jsonBody(patch)
+	if err != nil {
+		return DownloadTask{}, err
+	}
+	res, err := c.api.PatchApiDownloadTasksIdWithBodyWithResponse(ctx, id, "application/json", body, bearer(c.token))
+	if err != nil {
+		return DownloadTask{}, err
+	}
+	if err := expectStatus("PATCH", "/api/download-tasks/"+id, res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		return DownloadTask{}, err
+	}
+	var task DownloadTask
+	if err := decodeJSON(res.Body, &task); err != nil {
+		return DownloadTask{}, fmt.Errorf("PATCH /api/download-tasks/%s failed: %w", id, err)
+	}
+	return task, nil
+}
+
+func (c *Client) CreateObject(ctx context.Context, token string, name string, size int64, parent string) (ObjectDraft, error) {
+	body, err := jsonBody(struct {
+		Name    string `json:"name"`
+		Type    string `json:"type"`
+		Size    int64  `json:"size"`
+		Parent  string `json:"parent"`
+		Dirtype int    `json:"dirtype"`
+	}{
+		Name:    name,
+		Type:    "application/octet-stream",
+		Size:    size,
+		Parent:  parent,
+		Dirtype: 0,
+	})
+	if err != nil {
+		return ObjectDraft{}, err
+	}
+	res, err := c.api.PostApiObjectsWithBodyWithResponse(ctx, "application/json", body, bearer(token))
+	if err != nil {
+		return ObjectDraft{}, err
+	}
+	if err := expectStatus("POST", "/api/objects", res.StatusCode(), res.Body, http.StatusOK, http.StatusCreated); err != nil {
+		return ObjectDraft{}, err
+	}
+	var draft ObjectDraft
+	if err := decodeJSON(res.Body, &draft); err != nil {
+		return ObjectDraft{}, fmt.Errorf("POST /api/objects failed: %w", err)
+	}
+	return draft, nil
+}
+
+func (c *Client) ConfirmObject(ctx context.Context, token string, id string) error {
+	body, err := jsonBody(struct {
+		Action string `json:"action"`
+	}{Action: "confirm"})
+	if err != nil {
+		return err
+	}
+	res, err := c.api.PatchApiObjectsIdWithBodyWithResponse(ctx, id, "application/json", body, bearer(token))
+	if err != nil {
+		return err
+	}
+	return expectStatus("PATCH", "/api/objects/"+id, res.StatusCode(), res.Body, http.StatusOK)
+}
+
+func jsonBody(value any) (*bytes.Reader, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(data), nil
+}
+
+func decodeJSON(data []byte, out any) error {
+	if len(data) == 0 {
+		return fmt.Errorf("empty response body")
+	}
+	return json.Unmarshal(data, out)
+}
+
+func bearer(token string) openapi.RequestEditorFn {
+	return func(ctx context.Context, req *http.Request) error {
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		return nil
+	}
+}
+
+func expectStatus(method string, path string, actual int, body []byte, expected ...int) error {
+	for _, status := range expected {
+		if actual == status {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s %s failed: %s: %s", method, path, http.StatusText(actual), responseError(body))
+}
+
+func responseError(body []byte) string {
+	if len(body) == 0 {
+		return "empty response body"
+	}
+	var problem struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &problem); err == nil && problem.Error != "" {
+		return problem.Error
+	}
+	return strings.TrimSpace(string(body))
+}

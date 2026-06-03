@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DeviceRouteImport } from './routes/device'
 import { Route as SRouteRouteImport } from './routes/s/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
@@ -29,6 +30,7 @@ import { Route as AuthenticatedSharesIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedImageHostIndexRouteImport } from './routes/_authenticated/image-host/index'
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
+import { Route as AuthenticatedDownloadsIndexRouteImport } from './routes/_authenticated/downloads/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
 import { Route as AuthenticatedSettingsWebdavRouteImport } from './routes/_authenticated/settings/webdav'
@@ -37,6 +39,7 @@ import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_aut
 import { Route as AuthenticatedSettingsIhostRouteImport } from './routes/_authenticated/settings/ihost'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authenticated/admin/licensing'
+import { Route as AuthenticatedAdminDownloadersRouteImport } from './routes/_authenticated/admin/downloaders'
 import { Route as AuthenticatedAdminCloudStoreRouteImport } from './routes/_authenticated/admin/cloud-store'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
 import { Route as AuthenticatedAdminAnnouncementRouteImport } from './routes/_authenticated/admin/announcement'
@@ -52,6 +55,11 @@ import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminSettingsOauthRouteImport } from './routes/_authenticated/admin/settings/oauth'
 import { Route as AuthenticatedAdminSettingsEmailRouteImport } from './routes/_authenticated/admin/settings/email'
 
+const DeviceRoute = DeviceRouteImport.update({
+  id: '/device',
+  path: '/device',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SRouteRoute = SRouteRouteImport.update({
   id: '/s',
   path: '/s',
@@ -156,6 +164,12 @@ const AuthenticatedFilesIndexRoute = AuthenticatedFilesIndexRouteImport.update({
   path: '/files/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDownloadsIndexRoute =
+  AuthenticatedDownloadsIndexRouteImport.update({
+    id: '/downloads/',
+    path: '/downloads/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -201,6 +215,12 @@ const AuthenticatedAdminLicensingRoute =
   AuthenticatedAdminLicensingRouteImport.update({
     id: '/licensing',
     path: '/licensing',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminDownloadersRoute =
+  AuthenticatedAdminDownloadersRouteImport.update({
+    id: '/downloaders',
+    path: '/downloaders',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
 const AuthenticatedAdminCloudStoreRoute =
@@ -290,6 +310,7 @@ const AuthenticatedAdminSettingsEmailRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/s': typeof SRouteRouteWithChildren
+  '/device': typeof DeviceRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/sign-in': typeof authSignInRoute
@@ -302,6 +323,7 @@ export interface FileRoutesByFullPath {
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/cloud-store': typeof AuthenticatedAdminCloudStoreRoute
+  '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
@@ -310,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/downloads/': typeof AuthenticatedDownloadsIndexRoute
   '/files/': typeof AuthenticatedFilesIndexRoute
   '/image-host/': typeof AuthenticatedImageHostIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -332,6 +355,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/s': typeof SRouteRouteWithChildren
+  '/device': typeof DeviceRoute
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
   '/storage': typeof AuthenticatedStorageRoute
@@ -342,6 +366,7 @@ export interface FileRoutesByTo {
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/cloud-store': typeof AuthenticatedAdminCloudStoreRoute
+  '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
@@ -350,6 +375,7 @@ export interface FileRoutesByTo {
   '/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/downloads': typeof AuthenticatedDownloadsIndexRoute
   '/files': typeof AuthenticatedFilesIndexRoute
   '/image-host': typeof AuthenticatedImageHostIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
@@ -374,6 +400,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/s': typeof SRouteRouteWithChildren
+  '/device': typeof DeviceRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/(auth)/sign-in': typeof authSignInRoute
@@ -387,6 +414,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/cloud-store': typeof AuthenticatedAdminCloudStoreRoute
+  '/_authenticated/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/_authenticated/admin/licensing': typeof AuthenticatedAdminLicensingRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/ihost': typeof AuthenticatedSettingsIhostRoute
@@ -395,6 +423,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
   '/_authenticated/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/downloads/': typeof AuthenticatedDownloadsIndexRoute
   '/_authenticated/files/': typeof AuthenticatedFilesIndexRoute
   '/_authenticated/image-host/': typeof AuthenticatedImageHostIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -420,6 +449,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/s'
+    | '/device'
     | '/admin'
     | '/settings'
     | '/sign-in'
@@ -432,6 +462,7 @@ export interface FileRouteTypes {
     | '/admin/announcement'
     | '/admin/audit'
     | '/admin/cloud-store'
+    | '/admin/downloaders'
     | '/admin/licensing'
     | '/settings/appearance'
     | '/settings/ihost'
@@ -440,6 +471,7 @@ export interface FileRouteTypes {
     | '/settings/webdav'
     | '/teams/invite'
     | '/admin/'
+    | '/downloads/'
     | '/files/'
     | '/image-host/'
     | '/settings/'
@@ -462,6 +494,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/s'
+    | '/device'
     | '/sign-in'
     | '/sign-up'
     | '/storage'
@@ -472,6 +505,7 @@ export interface FileRouteTypes {
     | '/admin/announcement'
     | '/admin/audit'
     | '/admin/cloud-store'
+    | '/admin/downloaders'
     | '/admin/licensing'
     | '/settings/appearance'
     | '/settings/ihost'
@@ -480,6 +514,7 @@ export interface FileRouteTypes {
     | '/settings/webdav'
     | '/teams/invite'
     | '/admin'
+    | '/downloads'
     | '/files'
     | '/image-host'
     | '/settings'
@@ -503,6 +538,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/s'
+    | '/device'
     | '/_authenticated/admin'
     | '/_authenticated/settings'
     | '/(auth)/sign-in'
@@ -516,6 +552,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/announcement'
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/cloud-store'
+    | '/_authenticated/admin/downloaders'
     | '/_authenticated/admin/licensing'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/ihost'
@@ -524,6 +561,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/webdav'
     | '/_authenticated/teams/invite'
     | '/_authenticated/admin/'
+    | '/_authenticated/downloads/'
     | '/_authenticated/files/'
     | '/_authenticated/image-host/'
     | '/_authenticated/settings/'
@@ -548,6 +586,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   SRouteRoute: typeof SRouteRouteWithChildren
+  DeviceRoute: typeof DeviceRoute
   authSignInRoute: typeof authSignInRoute
   authSignUpRoute: typeof authSignUpRoute
   StoreCheckoutRoute: typeof StoreCheckoutRoute
@@ -556,6 +595,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/device': {
+      id: '/device'
+      path: '/device'
+      fullPath: '/device'
+      preLoaderRoute: typeof DeviceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/s': {
       id: '/s'
       path: '/s'
@@ -696,6 +742,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFilesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/downloads/': {
+      id: '/_authenticated/downloads/'
+      path: '/downloads'
+      fullPath: '/downloads/'
+      preLoaderRoute: typeof AuthenticatedDownloadsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
@@ -750,6 +803,13 @@ declare module '@tanstack/react-router' {
       path: '/licensing'
       fullPath: '/admin/licensing'
       preLoaderRoute: typeof AuthenticatedAdminLicensingRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/downloaders': {
+      id: '/_authenticated/admin/downloaders'
+      path: '/downloaders'
+      fullPath: '/admin/downloaders'
+      preLoaderRoute: typeof AuthenticatedAdminDownloadersRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
     '/_authenticated/admin/cloud-store': {
@@ -857,6 +917,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminAnnouncementRoute: typeof AuthenticatedAdminAnnouncementRoute
   AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
   AuthenticatedAdminCloudStoreRoute: typeof AuthenticatedAdminCloudStoreRoute
+  AuthenticatedAdminDownloadersRoute: typeof AuthenticatedAdminDownloadersRoute
   AuthenticatedAdminLicensingRoute: typeof AuthenticatedAdminLicensingRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminSettingsEmailRoute: typeof AuthenticatedAdminSettingsEmailRoute
@@ -872,6 +933,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminAnnouncementRoute: AuthenticatedAdminAnnouncementRoute,
     AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
     AuthenticatedAdminCloudStoreRoute: AuthenticatedAdminCloudStoreRoute,
+    AuthenticatedAdminDownloadersRoute: AuthenticatedAdminDownloadersRoute,
     AuthenticatedAdminLicensingRoute: AuthenticatedAdminLicensingRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
     AuthenticatedAdminSettingsEmailRoute: AuthenticatedAdminSettingsEmailRoute,
@@ -940,6 +1002,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedTeamsTeamIdRouteRoute: typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
   AuthenticatedTeamsInviteRoute: typeof AuthenticatedTeamsInviteRoute
+  AuthenticatedDownloadsIndexRoute: typeof AuthenticatedDownloadsIndexRoute
   AuthenticatedFilesIndexRoute: typeof AuthenticatedFilesIndexRoute
   AuthenticatedImageHostIndexRoute: typeof AuthenticatedImageHostIndexRoute
   AuthenticatedSharesIndexRoute: typeof AuthenticatedSharesIndexRoute
@@ -958,6 +1021,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTeamsTeamIdRouteRoute:
     AuthenticatedTeamsTeamIdRouteRouteWithChildren,
   AuthenticatedTeamsInviteRoute: AuthenticatedTeamsInviteRoute,
+  AuthenticatedDownloadsIndexRoute: AuthenticatedDownloadsIndexRoute,
   AuthenticatedFilesIndexRoute: AuthenticatedFilesIndexRoute,
   AuthenticatedImageHostIndexRoute: AuthenticatedImageHostIndexRoute,
   AuthenticatedSharesIndexRoute: AuthenticatedSharesIndexRoute,
@@ -985,6 +1049,7 @@ const SRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   SRouteRoute: SRouteRouteWithChildren,
+  DeviceRoute: DeviceRoute,
   authSignInRoute: authSignInRoute,
   authSignUpRoute: authSignUpRoute,
   StoreCheckoutRoute: StoreCheckoutRoute,

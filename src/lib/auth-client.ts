@@ -1,10 +1,10 @@
 import { apiKeyClient } from '@better-auth/api-key/client'
-import { organizationClient, usernameClient } from 'better-auth/client/plugins'
+import { deviceAuthorizationClient, organizationClient, usernameClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 
 export const authClient = createAuthClient({
   baseURL: import.meta.env.VITE_API_URL || '',
-  plugins: [usernameClient(), organizationClient(), apiKeyClient()],
+  plugins: [usernameClient(), organizationClient(), apiKeyClient(), deviceAuthorizationClient()],
 })
 
 export const { signIn, signUp, signOut, useSession } = authClient
@@ -22,3 +22,36 @@ export const {
   useListOrganizations,
   useActiveOrganization,
 } = authClient
+
+type DeviceStatus = 'pending' | 'approved' | 'denied'
+type AuthFetchResult<T> = { data?: T | null; error?: { message?: string } | null }
+
+function unwrapAuthFetch<T>(result: AuthFetchResult<T>): T {
+  if (result.error) throw new Error(result.error.message ?? 'Auth request failed')
+  if (!result.data) throw new Error('Auth request failed')
+  return result.data
+}
+
+export async function verifyDeviceCode(userCode: string) {
+  const result = await authClient.$fetch<{ user_code: string; status: DeviceStatus }>('/device', {
+    method: 'GET',
+    query: { user_code: userCode },
+  })
+  return unwrapAuthFetch(result)
+}
+
+export async function approveDeviceCode(userCode: string) {
+  const result = await authClient.$fetch<{ success: boolean }>('/device/approve', {
+    method: 'POST',
+    body: { userCode },
+  })
+  return unwrapAuthFetch(result)
+}
+
+export async function denyDeviceCode(userCode: string) {
+  const result = await authClient.$fetch<{ success: boolean }>('/device/deny', {
+    method: 'POST',
+    body: { userCode },
+  })
+  return unwrapAuthFetch(result)
+}

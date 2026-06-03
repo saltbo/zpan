@@ -155,6 +155,7 @@ describe('Objects API', () => {
       body: JSON.stringify({ name: 'test.txt', type: 'text/plain' }),
     })
     expect(res.status).toBe(500)
+    await expect(res.json()).resolves.toEqual({ error: 'Storage not configured' })
   })
 
   it('GET /api/objects lists active objects in root', async () => {

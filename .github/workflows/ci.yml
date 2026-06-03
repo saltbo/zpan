@@ -11,6 +11,33 @@ env:
   E2E_CLOUD_PRO_PASSWORD: ${{ secrets.E2E_CLOUD_PRO_PASSWORD }}
 
 jobs:
+  downloader:
+    name: Downloader (Go)
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    defaults:
+      run:
+        working-directory: downloader
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: downloader/go.mod
+          cache-dependency-path: downloader/go.sum
+      - name: Check formatting
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      - run: go test ./...
+      - name: Install live downloader engines
+        run: sudo apt-get update && sudo apt-get install -y aria2 qbittorrent-nox
+        working-directory: .
+      - name: Verify live downloads
+        run: LIVE_DOWNLOAD_VERIFY=1 go test ./internal/engine -run 'TestLive(DownloadThreeSourceTypes|QBittorrentDownloadTorrentURL)' -count=1 -v
+
   check:
     name: Typecheck & Test
     runs-on: ubuntu-latest
