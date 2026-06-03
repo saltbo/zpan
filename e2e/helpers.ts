@@ -4,11 +4,20 @@ import { expect, type Page } from '@playwright/test'
 export const ADMIN_EMAIL = 'e2e-admin@test.local'
 export const ADMIN_PASSWORD = 'password123456'
 
+export async function expandSignInForm(page: Page) {
+  const identityInput = page.locator('#identity')
+  if (await identityInput.isVisible().catch(() => false)) return
+  const expandButton = page.getByRole('button', { name: /sign in with email|使用邮箱登录/i })
+  if (await expandButton.isVisible().catch(() => false)) await expandButton.click()
+  await expect(identityInput).toBeVisible()
+}
+
 /** Sign in as admin and navigate to /admin/storages. */
 export async function signInAsAdmin(page: Page) {
   await page.goto('/sign-in')
-  await page.getByLabel('Email or Username').fill(ADMIN_EMAIL)
-  await page.getByLabel('Password').fill(ADMIN_PASSWORD)
+  await expandSignInForm(page)
+  await page.locator('#identity').fill(ADMIN_EMAIL)
+  await page.locator('#password').fill(ADMIN_PASSWORD)
   const [resp] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/auth/sign-in')),
     page.getByRole('button', { name: /sign in/i }).click(),
@@ -21,7 +30,7 @@ export async function signInAsAdmin(page: Page) {
 }
 
 export async function expandSignUpForm(page: Page) {
-  const usernameInput = page.getByLabel('Username')
+  const usernameInput = page.locator('#username')
   if (await usernameInput.isVisible().catch(() => false)) return
   const expandButton = page.getByRole('button', { name: /sign up with email/i })
   if (await expandButton.isVisible().catch(() => false)) await expandButton.click()
@@ -32,12 +41,12 @@ export async function expandSignUpForm(page: Page) {
 export async function signUpAndGoToFiles(page: Page) {
   await page.goto('/sign-up')
   await expandSignUpForm(page)
-  await page.getByLabel('Email').fill(`e2e-${Date.now()}@example.com`)
-  await page.getByLabel('Username').fill(`e2e${Date.now()}`)
-  await page.getByLabel('Password').fill('password123456')
+  await page.locator('#email').fill(`e2e-${Date.now()}@example.com`)
+  await page.locator('#username').fill(`e2e${Date.now()}`)
+  await page.locator('#password').fill('password123456')
   const [resp] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/auth/sign-up')),
-    page.getByRole('button', { name: 'Sign up' }).click(),
+    page.getByRole('button', { name: /sign up/i }).click(),
   ])
   expect(resp.status()).toBe(200)
   await expect(page).toHaveURL(/files/, { timeout: 10000 })

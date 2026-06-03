@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { expandSignUpForm } from './helpers'
+import { expandSignInForm, expandSignUpForm } from './helpers'
 
 test.describe('Auth flow', () => {
   test('redirects to sign-in when not authenticated @all', async ({ page }) => {
@@ -45,8 +45,9 @@ test.describe('Auth flow', () => {
     // Clear cookies and go to sign-in
     await page.context().clearCookies()
     await page.goto('/sign-in')
-    await page.getByLabel('Email or Username').fill(email)
-    await page.getByLabel('Password').fill('password123456')
+    await expandSignInForm(page)
+    await page.locator('#identity').fill(email)
+    await page.locator('#password').fill('password123456')
 
     const [signInResp] = await Promise.all([
       page.waitForResponse((r) => r.url().includes('/api/auth/sign-in')),

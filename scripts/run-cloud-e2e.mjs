@@ -1,8 +1,10 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { Resolver } from 'node:dns/promises'
+import { createRequire } from 'node:module'
 
 const args = process.argv.slice(2)
+const require = createRequire(import.meta.url)
 const runtime = valueAfter('--runtime') ?? process.env.E2E_RUNTIME ?? 'node'
 const project = valueAfter('--project') ?? 'desktop'
 const spec = valueAfter('--spec') ?? 'cloud-store.spec.ts'
@@ -52,7 +54,7 @@ if (runtime === 'cf') {
 }
 
 try {
-  await run('pnpm', ['exec', 'playwright', 'test', spec, `--project=${project}`], e2eEnv)
+  await run(process.execPath, [require.resolve('@playwright/test/cli'), 'test', spec, `--project=${project}`], e2eEnv)
 } finally {
   if (tunnel) {
     try {

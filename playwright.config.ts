@@ -6,6 +6,7 @@ const chromeHostResolverRules = process.env.E2E_CHROME_HOST_RESOLVER_RULES
 const appPort = Number(process.env.E2E_APP_PORT ?? 5173)
 const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
 const s3MockPort = Number(process.env.E2E_S3_MOCK_PORT ?? 9191)
+const nodeCommand = JSON.stringify(process.execPath)
 
 const s3MockServer = process.env.E2E_S3_MOCK
   ? [
@@ -20,12 +21,12 @@ const s3MockServer = process.env.E2E_S3_MOCK
 const nodeServers = [
   ...s3MockServer,
   {
-    command: `PORT=${apiPort} node ${envFile} node_modules/tsx/dist/cli.mjs server/entry-node.ts`,
+    command: `PORT=${apiPort} ${nodeCommand} ${envFile} node_modules/tsx/dist/cli.mjs server/entry-node.ts`,
     port: apiPort,
     reuseExistingServer: !process.env.CI,
   },
   {
-    command: `node ${envFile} node_modules/vite/bin/vite.js --mode node --host 127.0.0.1 --port ${appPort} --strictPort`,
+    command: `${nodeCommand} ${envFile} node_modules/vite/bin/vite.js --mode node --host 127.0.0.1 --port ${appPort} --strictPort`,
     port: appPort,
     reuseExistingServer: !process.env.CI,
   },
