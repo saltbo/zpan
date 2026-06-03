@@ -330,7 +330,7 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({
         status: 'completed',
         downloadedBytes: 10 * 1024 * 1024,
-        uploadedBytes: 10 * 1024 * 1024,
+        storageUploadedBytes: 10 * 1024 * 1024,
         totalBytes: 10 * 1024 * 1024,
         resultObjectId: object.id,
       }),
@@ -343,11 +343,11 @@ describe('Download tasks API integration', () => {
       status: string
       resultObjectId: string
       downloadedBytes: number
-      uploadedBytes: number
+      storageUploadedBytes: number
     }
     expect(task.status).toBe('completed')
     expect(task.resultObjectId).toBe(object.id)
     expect(task.downloadedBytes).toBe(10 * 1024 * 1024)
-    expect(task.uploadedBytes).toBe(10 * 1024 * 1024)
+    expect(task.storageUploadedBytes).toBe(10 * 1024 * 1024)
   })
 })

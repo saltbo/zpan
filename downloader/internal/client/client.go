@@ -33,10 +33,10 @@ type DownloadTask struct {
 	TargetFolder         string              `json:"targetFolder"`
 	Status               string              `json:"status"`
 	DownloadedBytes      int64               `json:"downloadedBytes"`
-	UploadedBytes        int64               `json:"uploadedBytes"`
+	StorageUploadedBytes int64               `json:"storageUploadedBytes"`
 	TotalBytes           *int64              `json:"totalBytes"`
 	DownloadBps          int64               `json:"downloadBps"`
-	UploadBps            int64               `json:"uploadBps"`
+	StorageUploadBps     int64               `json:"storageUploadBps"`
 	Detail               *DownloadTaskDetail `json:"detail"`
 	ResultObjectID       string              `json:"resultObjectId"`
 	UploadToken          string              `json:"uploadToken"`
@@ -44,20 +44,21 @@ type DownloadTask struct {
 }
 
 type DownloadTaskDetail struct {
-	Engine        string                `json:"engine,omitempty"`
-	Phase         string                `json:"phase,omitempty"`
-	Message       string                `json:"message,omitempty"`
-	ETASeconds    *int64                `json:"etaSeconds,omitempty"`
-	Connections   *int64                `json:"connections,omitempty"`
-	InfoHash      string                `json:"infoHash,omitempty"`
-	TorrentName   string                `json:"torrentName,omitempty"`
-	Seeders       *int64                `json:"seeders,omitempty"`
-	Leechers      *int64                `json:"leechers,omitempty"`
-	Peers         *int64                `json:"peers,omitempty"`
-	UploadedBytes *int64                `json:"uploadedBytes,omitempty"`
-	Trackers      []DownloadTaskTracker `json:"trackers,omitempty"`
-	PeerSamples   []DownloadTaskPeer    `json:"peerSamples,omitempty"`
-	Files         []DownloadTaskFile    `json:"files,omitempty"`
+	Engine            string                `json:"engine,omitempty"`
+	Phase             string                `json:"phase,omitempty"`
+	Message           string                `json:"message,omitempty"`
+	ETASeconds        *int64                `json:"etaSeconds,omitempty"`
+	Connections       *int64                `json:"connections,omitempty"`
+	InfoHash          string                `json:"infoHash,omitempty"`
+	TorrentName       string                `json:"torrentName,omitempty"`
+	Seeders           *int64                `json:"seeders,omitempty"`
+	Leechers          *int64                `json:"leechers,omitempty"`
+	Peers             *int64                `json:"peers,omitempty"`
+	PeerUploadedBytes *int64                `json:"peerUploadedBytes,omitempty"`
+	PeerUploadBps     *int64                `json:"peerUploadBps,omitempty"`
+	Trackers          []DownloadTaskTracker `json:"trackers,omitempty"`
+	PeerSamples       []DownloadTaskPeer    `json:"peerSamples,omitempty"`
+	Files             []DownloadTaskFile    `json:"files,omitempty"`
 }
 
 type DownloadTaskTracker struct {
@@ -99,15 +100,15 @@ type Heartbeat struct {
 }
 
 type TaskPatch struct {
-	Status          string              `json:"status,omitempty"`
-	DownloadedBytes *int64              `json:"downloadedBytes,omitempty"`
-	UploadedBytes   *int64              `json:"uploadedBytes,omitempty"`
-	TotalBytes      *int64              `json:"totalBytes,omitempty"`
-	DownloadBps     *int64              `json:"downloadBps,omitempty"`
-	UploadBps       *int64              `json:"uploadBps,omitempty"`
-	ErrorMessage    *string             `json:"errorMessage,omitempty"`
-	ResultObjectID  *string             `json:"resultObjectId,omitempty"`
-	Detail          *DownloadTaskDetail `json:"detail,omitempty"`
+	Status               string              `json:"status,omitempty"`
+	DownloadedBytes      *int64              `json:"downloadedBytes,omitempty"`
+	StorageUploadedBytes *int64              `json:"storageUploadedBytes,omitempty"`
+	TotalBytes           *int64              `json:"totalBytes,omitempty"`
+	DownloadBps          *int64              `json:"downloadBps,omitempty"`
+	StorageUploadBps     *int64              `json:"storageUploadBps,omitempty"`
+	ErrorMessage         *string             `json:"errorMessage,omitempty"`
+	ResultObjectID       *string             `json:"resultObjectId,omitempty"`
+	Detail               *DownloadTaskDetail `json:"detail,omitempty"`
 }
 
 type ObjectDraft struct {

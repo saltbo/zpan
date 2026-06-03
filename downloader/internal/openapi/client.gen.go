@@ -879,11 +879,13 @@ type PatchApiDownloadTasksIdJSONBody struct {
 			Progress    *float32 `json:"progress,omitempty"`
 			UploadBps   *int     `json:"uploadBps,omitempty"`
 		} `json:"peerSamples,omitempty"`
-		Peers       *int    `json:"peers,omitempty"`
-		Phase       *string `json:"phase,omitempty"`
-		Seeders     *int    `json:"seeders,omitempty"`
-		TorrentName *string `json:"torrentName,omitempty"`
-		Trackers    *[]struct {
+		PeerUploadBps     *int    `json:"peerUploadBps,omitempty"`
+		PeerUploadedBytes *int    `json:"peerUploadedBytes,omitempty"`
+		Peers             *int    `json:"peers,omitempty"`
+		Phase             *string `json:"phase,omitempty"`
+		Seeders           *int    `json:"seeders,omitempty"`
+		TorrentName       *string `json:"torrentName,omitempty"`
+		Trackers          *[]struct {
 			Leechers *int    `json:"leechers,omitempty"`
 			Message  *string `json:"message,omitempty"`
 			Peers    *int    `json:"peers,omitempty"`
@@ -891,16 +893,15 @@ type PatchApiDownloadTasksIdJSONBody struct {
 			Status   *string `json:"status,omitempty"`
 			Url      string  `json:"url"`
 		} `json:"trackers,omitempty"`
-		UploadedBytes *int `json:"uploadedBytes,omitempty"`
 	} `json:"detail,omitempty"`
-	DownloadBps     *int                                   `json:"downloadBps,omitempty"`
-	DownloadedBytes *int                                   `json:"downloadedBytes,omitempty"`
-	ErrorMessage    *string                                `json:"errorMessage,omitempty"`
-	ResultObjectId  *string                                `json:"resultObjectId,omitempty"`
-	Status          *PatchApiDownloadTasksIdJSONBodyStatus `json:"status,omitempty"`
-	TotalBytes      *int                                   `json:"totalBytes,omitempty"`
-	UploadBps       *int                                   `json:"uploadBps,omitempty"`
-	UploadedBytes   *int                                   `json:"uploadedBytes,omitempty"`
+	DownloadBps          *int                                   `json:"downloadBps,omitempty"`
+	DownloadedBytes      *int                                   `json:"downloadedBytes,omitempty"`
+	ErrorMessage         *string                                `json:"errorMessage,omitempty"`
+	ResultObjectId       *string                                `json:"resultObjectId,omitempty"`
+	Status               *PatchApiDownloadTasksIdJSONBodyStatus `json:"status,omitempty"`
+	StorageUploadBps     *int                                   `json:"storageUploadBps,omitempty"`
+	StorageUploadedBytes *int                                   `json:"storageUploadedBytes,omitempty"`
+	TotalBytes           *int                                   `json:"totalBytes,omitempty"`
 }
 
 // PatchApiDownloadTasksIdJSONBodyDetailEngine defines parameters for PatchApiDownloadTasksId.
@@ -2326,11 +2327,13 @@ type GetApiDownloadTasksResponse struct {
 					Progress    *float32 `json:"progress,omitempty"`
 					UploadBps   *int     `json:"uploadBps,omitempty"`
 				} `json:"peerSamples,omitempty"`
-				Peers       *int    `json:"peers,omitempty"`
-				Phase       *string `json:"phase,omitempty"`
-				Seeders     *int    `json:"seeders,omitempty"`
-				TorrentName *string `json:"torrentName,omitempty"`
-				Trackers    *[]struct {
+				PeerUploadBps     *int    `json:"peerUploadBps,omitempty"`
+				PeerUploadedBytes *int    `json:"peerUploadedBytes,omitempty"`
+				Peers             *int    `json:"peers,omitempty"`
+				Phase             *string `json:"phase,omitempty"`
+				Seeders           *int    `json:"seeders,omitempty"`
+				TorrentName       *string `json:"torrentName,omitempty"`
+				Trackers          *[]struct {
 					Leechers *int    `json:"leechers,omitempty"`
 					Message  *string `json:"message,omitempty"`
 					Peers    *int    `json:"peers,omitempty"`
@@ -2338,22 +2341,21 @@ type GetApiDownloadTasksResponse struct {
 					Status   *string `json:"status,omitempty"`
 					Url      string  `json:"url"`
 				} `json:"trackers,omitempty"`
-				UploadedBytes *int `json:"uploadedBytes,omitempty"`
 			} `json:"detail,omitempty"`
-			DownloadBps     int64                                                 `json:"downloadBps"`
-			DownloadedBytes int64                                                 `json:"downloadedBytes"`
-			ErrorMessage    *string                                               `json:"errorMessage,omitempty"`
-			Id              string                                                `json:"id"`
-			Name            string                                                `json:"name"`
-			ResultObjectId  *string                                               `json:"resultObjectId,omitempty"`
-			SourceType      GetApiDownloadTasks200JSONResponseBodyItemsSourceType `json:"sourceType"`
-			SourceUri       string                                                `json:"sourceUri"`
-			Status          GetApiDownloadTasks200JSONResponseBodyItemsStatus     `json:"status"`
-			TargetFolder    string                                                `json:"targetFolder"`
-			TotalBytes      *int64                                                `json:"totalBytes"`
-			UploadBps       int64                                                 `json:"uploadBps"`
-			UploadToken     *string                                               `json:"uploadToken,omitempty"`
-			UploadedBytes   int64                                                 `json:"uploadedBytes"`
+			DownloadBps          int64                                                 `json:"downloadBps"`
+			DownloadedBytes      int64                                                 `json:"downloadedBytes"`
+			ErrorMessage         *string                                               `json:"errorMessage,omitempty"`
+			Id                   string                                                `json:"id"`
+			Name                 string                                                `json:"name"`
+			ResultObjectId       *string                                               `json:"resultObjectId,omitempty"`
+			SourceType           GetApiDownloadTasks200JSONResponseBodyItemsSourceType `json:"sourceType"`
+			SourceUri            string                                                `json:"sourceUri"`
+			Status               GetApiDownloadTasks200JSONResponseBodyItemsStatus     `json:"status"`
+			StorageUploadBps     int64                                                 `json:"storageUploadBps"`
+			StorageUploadedBytes int64                                                 `json:"storageUploadedBytes"`
+			TargetFolder         string                                                `json:"targetFolder"`
+			TotalBytes           *int64                                                `json:"totalBytes"`
+			UploadToken          *string                                               `json:"uploadToken,omitempty"`
 		} `json:"items"`
 		Page     int `json:"page"`
 		PageSize int `json:"pageSize"`
@@ -2413,11 +2415,13 @@ type PostApiDownloadTasksResponse struct {
 				Progress    *float32 `json:"progress,omitempty"`
 				UploadBps   *int     `json:"uploadBps,omitempty"`
 			} `json:"peerSamples,omitempty"`
-			Peers       *int    `json:"peers,omitempty"`
-			Phase       *string `json:"phase,omitempty"`
-			Seeders     *int    `json:"seeders,omitempty"`
-			TorrentName *string `json:"torrentName,omitempty"`
-			Trackers    *[]struct {
+			PeerUploadBps     *int    `json:"peerUploadBps,omitempty"`
+			PeerUploadedBytes *int    `json:"peerUploadedBytes,omitempty"`
+			Peers             *int    `json:"peers,omitempty"`
+			Phase             *string `json:"phase,omitempty"`
+			Seeders           *int    `json:"seeders,omitempty"`
+			TorrentName       *string `json:"torrentName,omitempty"`
+			Trackers          *[]struct {
 				Leechers *int    `json:"leechers,omitempty"`
 				Message  *string `json:"message,omitempty"`
 				Peers    *int    `json:"peers,omitempty"`
@@ -2425,22 +2429,21 @@ type PostApiDownloadTasksResponse struct {
 				Status   *string `json:"status,omitempty"`
 				Url      string  `json:"url"`
 			} `json:"trackers,omitempty"`
-			UploadedBytes *int `json:"uploadedBytes,omitempty"`
 		} `json:"detail,omitempty"`
-		DownloadBps     int64                                             `json:"downloadBps"`
-		DownloadedBytes int64                                             `json:"downloadedBytes"`
-		ErrorMessage    *string                                           `json:"errorMessage,omitempty"`
-		Id              string                                            `json:"id"`
-		Name            string                                            `json:"name"`
-		ResultObjectId  *string                                           `json:"resultObjectId,omitempty"`
-		SourceType      PostApiDownloadTasks201JSONResponseBodySourceType `json:"sourceType"`
-		SourceUri       string                                            `json:"sourceUri"`
-		Status          PostApiDownloadTasks201JSONResponseBodyStatus     `json:"status"`
-		TargetFolder    string                                            `json:"targetFolder"`
-		TotalBytes      *int64                                            `json:"totalBytes"`
-		UploadBps       int64                                             `json:"uploadBps"`
-		UploadToken     *string                                           `json:"uploadToken,omitempty"`
-		UploadedBytes   int64                                             `json:"uploadedBytes"`
+		DownloadBps          int64                                             `json:"downloadBps"`
+		DownloadedBytes      int64                                             `json:"downloadedBytes"`
+		ErrorMessage         *string                                           `json:"errorMessage,omitempty"`
+		Id                   string                                            `json:"id"`
+		Name                 string                                            `json:"name"`
+		ResultObjectId       *string                                           `json:"resultObjectId,omitempty"`
+		SourceType           PostApiDownloadTasks201JSONResponseBodySourceType `json:"sourceType"`
+		SourceUri            string                                            `json:"sourceUri"`
+		Status               PostApiDownloadTasks201JSONResponseBodyStatus     `json:"status"`
+		StorageUploadBps     int64                                             `json:"storageUploadBps"`
+		StorageUploadedBytes int64                                             `json:"storageUploadedBytes"`
+		TargetFolder         string                                            `json:"targetFolder"`
+		TotalBytes           *int64                                            `json:"totalBytes"`
+		UploadToken          *string                                           `json:"uploadToken,omitempty"`
 	}
 	JSON401 *struct {
 		Error string `json:"error"`
@@ -2502,11 +2505,13 @@ type GetApiDownloadTasksIdResponse struct {
 				Progress    *float32 `json:"progress,omitempty"`
 				UploadBps   *int     `json:"uploadBps,omitempty"`
 			} `json:"peerSamples,omitempty"`
-			Peers       *int    `json:"peers,omitempty"`
-			Phase       *string `json:"phase,omitempty"`
-			Seeders     *int    `json:"seeders,omitempty"`
-			TorrentName *string `json:"torrentName,omitempty"`
-			Trackers    *[]struct {
+			PeerUploadBps     *int    `json:"peerUploadBps,omitempty"`
+			PeerUploadedBytes *int    `json:"peerUploadedBytes,omitempty"`
+			Peers             *int    `json:"peers,omitempty"`
+			Phase             *string `json:"phase,omitempty"`
+			Seeders           *int    `json:"seeders,omitempty"`
+			TorrentName       *string `json:"torrentName,omitempty"`
+			Trackers          *[]struct {
 				Leechers *int    `json:"leechers,omitempty"`
 				Message  *string `json:"message,omitempty"`
 				Peers    *int    `json:"peers,omitempty"`
@@ -2514,22 +2519,21 @@ type GetApiDownloadTasksIdResponse struct {
 				Status   *string `json:"status,omitempty"`
 				Url      string  `json:"url"`
 			} `json:"trackers,omitempty"`
-			UploadedBytes *int `json:"uploadedBytes,omitempty"`
 		} `json:"detail,omitempty"`
-		DownloadBps     int64                                              `json:"downloadBps"`
-		DownloadedBytes int64                                              `json:"downloadedBytes"`
-		ErrorMessage    *string                                            `json:"errorMessage,omitempty"`
-		Id              string                                             `json:"id"`
-		Name            string                                             `json:"name"`
-		ResultObjectId  *string                                            `json:"resultObjectId,omitempty"`
-		SourceType      GetApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
-		SourceUri       string                                             `json:"sourceUri"`
-		Status          GetApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
-		TargetFolder    string                                             `json:"targetFolder"`
-		TotalBytes      *int64                                             `json:"totalBytes"`
-		UploadBps       int64                                              `json:"uploadBps"`
-		UploadToken     *string                                            `json:"uploadToken,omitempty"`
-		UploadedBytes   int64                                              `json:"uploadedBytes"`
+		DownloadBps          int64                                              `json:"downloadBps"`
+		DownloadedBytes      int64                                              `json:"downloadedBytes"`
+		ErrorMessage         *string                                            `json:"errorMessage,omitempty"`
+		Id                   string                                             `json:"id"`
+		Name                 string                                             `json:"name"`
+		ResultObjectId       *string                                            `json:"resultObjectId,omitempty"`
+		SourceType           GetApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
+		SourceUri            string                                             `json:"sourceUri"`
+		Status               GetApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
+		StorageUploadBps     int64                                              `json:"storageUploadBps"`
+		StorageUploadedBytes int64                                              `json:"storageUploadedBytes"`
+		TargetFolder         string                                             `json:"targetFolder"`
+		TotalBytes           *int64                                             `json:"totalBytes"`
+		UploadToken          *string                                            `json:"uploadToken,omitempty"`
 	}
 	JSON404 *struct {
 		Error string `json:"error"`
@@ -2585,11 +2589,13 @@ type PatchApiDownloadTasksIdResponse struct {
 				Progress    *float32 `json:"progress,omitempty"`
 				UploadBps   *int     `json:"uploadBps,omitempty"`
 			} `json:"peerSamples,omitempty"`
-			Peers       *int    `json:"peers,omitempty"`
-			Phase       *string `json:"phase,omitempty"`
-			Seeders     *int    `json:"seeders,omitempty"`
-			TorrentName *string `json:"torrentName,omitempty"`
-			Trackers    *[]struct {
+			PeerUploadBps     *int    `json:"peerUploadBps,omitempty"`
+			PeerUploadedBytes *int    `json:"peerUploadedBytes,omitempty"`
+			Peers             *int    `json:"peers,omitempty"`
+			Phase             *string `json:"phase,omitempty"`
+			Seeders           *int    `json:"seeders,omitempty"`
+			TorrentName       *string `json:"torrentName,omitempty"`
+			Trackers          *[]struct {
 				Leechers *int    `json:"leechers,omitempty"`
 				Message  *string `json:"message,omitempty"`
 				Peers    *int    `json:"peers,omitempty"`
@@ -2597,22 +2603,21 @@ type PatchApiDownloadTasksIdResponse struct {
 				Status   *string `json:"status,omitempty"`
 				Url      string  `json:"url"`
 			} `json:"trackers,omitempty"`
-			UploadedBytes *int `json:"uploadedBytes,omitempty"`
 		} `json:"detail,omitempty"`
-		DownloadBps     int64                                                `json:"downloadBps"`
-		DownloadedBytes int64                                                `json:"downloadedBytes"`
-		ErrorMessage    *string                                              `json:"errorMessage,omitempty"`
-		Id              string                                               `json:"id"`
-		Name            string                                               `json:"name"`
-		ResultObjectId  *string                                              `json:"resultObjectId,omitempty"`
-		SourceType      PatchApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
-		SourceUri       string                                               `json:"sourceUri"`
-		Status          PatchApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
-		TargetFolder    string                                               `json:"targetFolder"`
-		TotalBytes      *int64                                               `json:"totalBytes"`
-		UploadBps       int64                                                `json:"uploadBps"`
-		UploadToken     *string                                              `json:"uploadToken,omitempty"`
-		UploadedBytes   int64                                                `json:"uploadedBytes"`
+		DownloadBps          int64                                                `json:"downloadBps"`
+		DownloadedBytes      int64                                                `json:"downloadedBytes"`
+		ErrorMessage         *string                                              `json:"errorMessage,omitempty"`
+		Id                   string                                               `json:"id"`
+		Name                 string                                               `json:"name"`
+		ResultObjectId       *string                                              `json:"resultObjectId,omitempty"`
+		SourceType           PatchApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
+		SourceUri            string                                               `json:"sourceUri"`
+		Status               PatchApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
+		StorageUploadBps     int64                                                `json:"storageUploadBps"`
+		StorageUploadedBytes int64                                                `json:"storageUploadedBytes"`
+		TargetFolder         string                                               `json:"targetFolder"`
+		TotalBytes           *int64                                               `json:"totalBytes"`
+		UploadToken          *string                                              `json:"uploadToken,omitempty"`
 	}
 	JSON401 *struct {
 		Error string `json:"error"`
@@ -3257,11 +3262,13 @@ func ParseGetApiDownloadTasksResponse(rsp *http.Response) (*GetApiDownloadTasksR
 						Progress    *float32 `json:"progress,omitempty"`
 						UploadBps   *int     `json:"uploadBps,omitempty"`
 					} `json:"peerSamples,omitempty"`
-					Peers       *int    `json:"peers,omitempty"`
-					Phase       *string `json:"phase,omitempty"`
-					Seeders     *int    `json:"seeders,omitempty"`
-					TorrentName *string `json:"torrentName,omitempty"`
-					Trackers    *[]struct {
+					PeerUploadBps     *int    `json:"peerUploadBps,omitempty"`
+					PeerUploadedBytes *int    `json:"peerUploadedBytes,omitempty"`
+					Peers             *int    `json:"peers,omitempty"`
+					Phase             *string `json:"phase,omitempty"`
+					Seeders           *int    `json:"seeders,omitempty"`
+					TorrentName       *string `json:"torrentName,omitempty"`
+					Trackers          *[]struct {
 						Leechers *int    `json:"leechers,omitempty"`
 						Message  *string `json:"message,omitempty"`
 						Peers    *int    `json:"peers,omitempty"`
@@ -3269,22 +3276,21 @@ func ParseGetApiDownloadTasksResponse(rsp *http.Response) (*GetApiDownloadTasksR
 						Status   *string `json:"status,omitempty"`
 						Url      string  `json:"url"`
 					} `json:"trackers,omitempty"`
-					UploadedBytes *int `json:"uploadedBytes,omitempty"`
 				} `json:"detail,omitempty"`
-				DownloadBps     int64                                                 `json:"downloadBps"`
-				DownloadedBytes int64                                                 `json:"downloadedBytes"`
-				ErrorMessage    *string                                               `json:"errorMessage,omitempty"`
-				Id              string                                                `json:"id"`
-				Name            string                                                `json:"name"`
-				ResultObjectId  *string                                               `json:"resultObjectId,omitempty"`
-				SourceType      GetApiDownloadTasks200JSONResponseBodyItemsSourceType `json:"sourceType"`
-				SourceUri       string                                                `json:"sourceUri"`
-				Status          GetApiDownloadTasks200JSONResponseBodyItemsStatus     `json:"status"`
-				TargetFolder    string                                                `json:"targetFolder"`
-				TotalBytes      *int64                                                `json:"totalBytes"`
-				UploadBps       int64                                                 `json:"uploadBps"`
-				UploadToken     *string                                               `json:"uploadToken,omitempty"`
-				UploadedBytes   int64                                                 `json:"uploadedBytes"`
+				DownloadBps          int64                                                 `json:"downloadBps"`
+				DownloadedBytes      int64                                                 `json:"downloadedBytes"`
+				ErrorMessage         *string                                               `json:"errorMessage,omitempty"`
+				Id                   string                                                `json:"id"`
+				Name                 string                                                `json:"name"`
+				ResultObjectId       *string                                               `json:"resultObjectId,omitempty"`
+				SourceType           GetApiDownloadTasks200JSONResponseBodyItemsSourceType `json:"sourceType"`
+				SourceUri            string                                                `json:"sourceUri"`
+				Status               GetApiDownloadTasks200JSONResponseBodyItemsStatus     `json:"status"`
+				StorageUploadBps     int64                                                 `json:"storageUploadBps"`
+				StorageUploadedBytes int64                                                 `json:"storageUploadedBytes"`
+				TargetFolder         string                                                `json:"targetFolder"`
+				TotalBytes           *int64                                                `json:"totalBytes"`
+				UploadToken          *string                                               `json:"uploadToken,omitempty"`
 			} `json:"items"`
 			Page     int `json:"page"`
 			PageSize int `json:"pageSize"`
@@ -3346,11 +3352,13 @@ func ParsePostApiDownloadTasksResponse(rsp *http.Response) (*PostApiDownloadTask
 					Progress    *float32 `json:"progress,omitempty"`
 					UploadBps   *int     `json:"uploadBps,omitempty"`
 				} `json:"peerSamples,omitempty"`
-				Peers       *int    `json:"peers,omitempty"`
-				Phase       *string `json:"phase,omitempty"`
-				Seeders     *int    `json:"seeders,omitempty"`
-				TorrentName *string `json:"torrentName,omitempty"`
-				Trackers    *[]struct {
+				PeerUploadBps     *int    `json:"peerUploadBps,omitempty"`
+				PeerUploadedBytes *int    `json:"peerUploadedBytes,omitempty"`
+				Peers             *int    `json:"peers,omitempty"`
+				Phase             *string `json:"phase,omitempty"`
+				Seeders           *int    `json:"seeders,omitempty"`
+				TorrentName       *string `json:"torrentName,omitempty"`
+				Trackers          *[]struct {
 					Leechers *int    `json:"leechers,omitempty"`
 					Message  *string `json:"message,omitempty"`
 					Peers    *int    `json:"peers,omitempty"`
@@ -3358,22 +3366,21 @@ func ParsePostApiDownloadTasksResponse(rsp *http.Response) (*PostApiDownloadTask
 					Status   *string `json:"status,omitempty"`
 					Url      string  `json:"url"`
 				} `json:"trackers,omitempty"`
-				UploadedBytes *int `json:"uploadedBytes,omitempty"`
 			} `json:"detail,omitempty"`
-			DownloadBps     int64                                             `json:"downloadBps"`
-			DownloadedBytes int64                                             `json:"downloadedBytes"`
-			ErrorMessage    *string                                           `json:"errorMessage,omitempty"`
-			Id              string                                            `json:"id"`
-			Name            string                                            `json:"name"`
-			ResultObjectId  *string                                           `json:"resultObjectId,omitempty"`
-			SourceType      PostApiDownloadTasks201JSONResponseBodySourceType `json:"sourceType"`
-			SourceUri       string                                            `json:"sourceUri"`
-			Status          PostApiDownloadTasks201JSONResponseBodyStatus     `json:"status"`
-			TargetFolder    string                                            `json:"targetFolder"`
-			TotalBytes      *int64                                            `json:"totalBytes"`
-			UploadBps       int64                                             `json:"uploadBps"`
-			UploadToken     *string                                           `json:"uploadToken,omitempty"`
-			UploadedBytes   int64                                             `json:"uploadedBytes"`
+			DownloadBps          int64                                             `json:"downloadBps"`
+			DownloadedBytes      int64                                             `json:"downloadedBytes"`
+			ErrorMessage         *string                                           `json:"errorMessage,omitempty"`
+			Id                   string                                            `json:"id"`
+			Name                 string                                            `json:"name"`
+			ResultObjectId       *string                                           `json:"resultObjectId,omitempty"`
+			SourceType           PostApiDownloadTasks201JSONResponseBodySourceType `json:"sourceType"`
+			SourceUri            string                                            `json:"sourceUri"`
+			Status               PostApiDownloadTasks201JSONResponseBodyStatus     `json:"status"`
+			StorageUploadBps     int64                                             `json:"storageUploadBps"`
+			StorageUploadedBytes int64                                             `json:"storageUploadedBytes"`
+			TargetFolder         string                                            `json:"targetFolder"`
+			TotalBytes           *int64                                            `json:"totalBytes"`
+			UploadToken          *string                                           `json:"uploadToken,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -3449,11 +3456,13 @@ func ParseGetApiDownloadTasksIdResponse(rsp *http.Response) (*GetApiDownloadTask
 					Progress    *float32 `json:"progress,omitempty"`
 					UploadBps   *int     `json:"uploadBps,omitempty"`
 				} `json:"peerSamples,omitempty"`
-				Peers       *int    `json:"peers,omitempty"`
-				Phase       *string `json:"phase,omitempty"`
-				Seeders     *int    `json:"seeders,omitempty"`
-				TorrentName *string `json:"torrentName,omitempty"`
-				Trackers    *[]struct {
+				PeerUploadBps     *int    `json:"peerUploadBps,omitempty"`
+				PeerUploadedBytes *int    `json:"peerUploadedBytes,omitempty"`
+				Peers             *int    `json:"peers,omitempty"`
+				Phase             *string `json:"phase,omitempty"`
+				Seeders           *int    `json:"seeders,omitempty"`
+				TorrentName       *string `json:"torrentName,omitempty"`
+				Trackers          *[]struct {
 					Leechers *int    `json:"leechers,omitempty"`
 					Message  *string `json:"message,omitempty"`
 					Peers    *int    `json:"peers,omitempty"`
@@ -3461,22 +3470,21 @@ func ParseGetApiDownloadTasksIdResponse(rsp *http.Response) (*GetApiDownloadTask
 					Status   *string `json:"status,omitempty"`
 					Url      string  `json:"url"`
 				} `json:"trackers,omitempty"`
-				UploadedBytes *int `json:"uploadedBytes,omitempty"`
 			} `json:"detail,omitempty"`
-			DownloadBps     int64                                              `json:"downloadBps"`
-			DownloadedBytes int64                                              `json:"downloadedBytes"`
-			ErrorMessage    *string                                            `json:"errorMessage,omitempty"`
-			Id              string                                             `json:"id"`
-			Name            string                                             `json:"name"`
-			ResultObjectId  *string                                            `json:"resultObjectId,omitempty"`
-			SourceType      GetApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
-			SourceUri       string                                             `json:"sourceUri"`
-			Status          GetApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
-			TargetFolder    string                                             `json:"targetFolder"`
-			TotalBytes      *int64                                             `json:"totalBytes"`
-			UploadBps       int64                                              `json:"uploadBps"`
-			UploadToken     *string                                            `json:"uploadToken,omitempty"`
-			UploadedBytes   int64                                              `json:"uploadedBytes"`
+			DownloadBps          int64                                              `json:"downloadBps"`
+			DownloadedBytes      int64                                              `json:"downloadedBytes"`
+			ErrorMessage         *string                                            `json:"errorMessage,omitempty"`
+			Id                   string                                             `json:"id"`
+			Name                 string                                             `json:"name"`
+			ResultObjectId       *string                                            `json:"resultObjectId,omitempty"`
+			SourceType           GetApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
+			SourceUri            string                                             `json:"sourceUri"`
+			Status               GetApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
+			StorageUploadBps     int64                                              `json:"storageUploadBps"`
+			StorageUploadedBytes int64                                              `json:"storageUploadedBytes"`
+			TargetFolder         string                                             `json:"targetFolder"`
+			TotalBytes           *int64                                             `json:"totalBytes"`
+			UploadToken          *string                                            `json:"uploadToken,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -3534,11 +3542,13 @@ func ParsePatchApiDownloadTasksIdResponse(rsp *http.Response) (*PatchApiDownload
 					Progress    *float32 `json:"progress,omitempty"`
 					UploadBps   *int     `json:"uploadBps,omitempty"`
 				} `json:"peerSamples,omitempty"`
-				Peers       *int    `json:"peers,omitempty"`
-				Phase       *string `json:"phase,omitempty"`
-				Seeders     *int    `json:"seeders,omitempty"`
-				TorrentName *string `json:"torrentName,omitempty"`
-				Trackers    *[]struct {
+				PeerUploadBps     *int    `json:"peerUploadBps,omitempty"`
+				PeerUploadedBytes *int    `json:"peerUploadedBytes,omitempty"`
+				Peers             *int    `json:"peers,omitempty"`
+				Phase             *string `json:"phase,omitempty"`
+				Seeders           *int    `json:"seeders,omitempty"`
+				TorrentName       *string `json:"torrentName,omitempty"`
+				Trackers          *[]struct {
 					Leechers *int    `json:"leechers,omitempty"`
 					Message  *string `json:"message,omitempty"`
 					Peers    *int    `json:"peers,omitempty"`
@@ -3546,22 +3556,21 @@ func ParsePatchApiDownloadTasksIdResponse(rsp *http.Response) (*PatchApiDownload
 					Status   *string `json:"status,omitempty"`
 					Url      string  `json:"url"`
 				} `json:"trackers,omitempty"`
-				UploadedBytes *int `json:"uploadedBytes,omitempty"`
 			} `json:"detail,omitempty"`
-			DownloadBps     int64                                                `json:"downloadBps"`
-			DownloadedBytes int64                                                `json:"downloadedBytes"`
-			ErrorMessage    *string                                              `json:"errorMessage,omitempty"`
-			Id              string                                               `json:"id"`
-			Name            string                                               `json:"name"`
-			ResultObjectId  *string                                              `json:"resultObjectId,omitempty"`
-			SourceType      PatchApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
-			SourceUri       string                                               `json:"sourceUri"`
-			Status          PatchApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
-			TargetFolder    string                                               `json:"targetFolder"`
-			TotalBytes      *int64                                               `json:"totalBytes"`
-			UploadBps       int64                                                `json:"uploadBps"`
-			UploadToken     *string                                              `json:"uploadToken,omitempty"`
-			UploadedBytes   int64                                                `json:"uploadedBytes"`
+			DownloadBps          int64                                                `json:"downloadBps"`
+			DownloadedBytes      int64                                                `json:"downloadedBytes"`
+			ErrorMessage         *string                                              `json:"errorMessage,omitempty"`
+			Id                   string                                               `json:"id"`
+			Name                 string                                               `json:"name"`
+			ResultObjectId       *string                                              `json:"resultObjectId,omitempty"`
+			SourceType           PatchApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
+			SourceUri            string                                               `json:"sourceUri"`
+			Status               PatchApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
+			StorageUploadBps     int64                                                `json:"storageUploadBps"`
+			StorageUploadedBytes int64                                                `json:"storageUploadedBytes"`
+			TargetFolder         string                                               `json:"targetFolder"`
+			TotalBytes           *int64                                               `json:"totalBytes"`
+			UploadToken          *string                                              `json:"uploadToken,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

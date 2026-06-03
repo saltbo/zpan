@@ -184,13 +184,13 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 		completedDetail = &client.DownloadTaskDetail{}
 	}
 	completedDetail.Phase = "completed"
-	completedDetail.UploadedBytes = &uploadedBytes
+	completedDetail.PeerUploadBps = nil
 	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
-		Status:         "completed",
-		ResultObjectID: &resultObjectID,
-		UploadedBytes:  &uploadedBytes,
-		UploadBps:      &zero,
-		Detail:         completedDetail,
+		Status:               "completed",
+		ResultObjectID:       &resultObjectID,
+		StorageUploadedBytes: &uploadedBytes,
+		StorageUploadBps:     &zero,
+		Detail:               completedDetail,
 	}); err != nil {
 		log.Error("failed to mark task completed", "object_id", resultObjectID, "error", err)
 		return
@@ -296,12 +296,12 @@ func (w *Worker) reportUploadProgress(
 		detail = &client.DownloadTaskDetail{}
 	}
 	detail.Phase = "uploading"
-	detail.UploadedBytes = &progress.uploaded
+	detail.PeerUploadBps = nil
 	_, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
-		Status:        "uploading",
-		UploadedBytes: &progress.uploaded,
-		UploadBps:     &bps,
-		Detail:        detail,
+		Status:               "uploading",
+		StorageUploadedBytes: &progress.uploaded,
+		StorageUploadBps:     &bps,
+		Detail:               detail,
 	})
 	if err != nil {
 		log.Error("failed to report upload progress", "uploaded_bytes", progress.uploaded, "total_bytes", progress.totalBytes, "bps", bps, "error", err)

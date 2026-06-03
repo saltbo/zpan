@@ -252,14 +252,14 @@ export interface DownloadTask {
   assignedDownloaderId: string | null
   status: DownloadTaskStatus
   downloadedBytes: number
-  uploadedBytes: number
+  storageUploadedBytes: number
   totalBytes: number | null
   authorizedBytes: number
   billedBytes: number
   billedCredits: number
   billingStatus: string
   downloadBps: number
-  uploadBps: number
+  storageUploadBps: number
   errorMessage: string | null
   resultObjectId: string | null
   detail: DownloadTaskDetail | null
@@ -306,7 +306,8 @@ export interface DownloadTaskDetail {
   seeders?: number
   leechers?: number
   peers?: number
-  uploadedBytes?: number
+  peerUploadedBytes?: number
+  peerUploadBps?: number
   trackers?: DownloadTaskTracker[]
   peerSamples?: DownloadTaskPeer[]
   files?: DownloadTaskFile[]

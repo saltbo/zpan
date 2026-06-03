@@ -310,7 +310,7 @@
                             "type": "integer",
                             "format": "int64"
                           },
-                          "uploadedBytes": {
+                          "storageUploadedBytes": {
                             "type": "integer",
                             "format": "int64"
                           },
@@ -323,7 +323,7 @@
                             "type": "integer",
                             "format": "int64"
                           },
-                          "uploadBps": {
+                          "storageUploadBps": {
                             "type": "integer",
                             "format": "int64"
                           },
@@ -384,7 +384,11 @@
                                 "type": "integer",
                                 "minimum": 0
                               },
-                              "uploadedBytes": {
+                              "peerUploadedBytes": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "peerUploadBps": {
                                 "type": "integer",
                                 "minimum": 0
                               },
@@ -503,10 +507,10 @@
                           "targetFolder",
                           "status",
                           "downloadedBytes",
-                          "uploadedBytes",
+                          "storageUploadedBytes",
                           "totalBytes",
                           "downloadBps",
-                          "uploadBps"
+                          "storageUploadBps"
                         ]
                       }
                     },
@@ -642,7 +646,7 @@
                       "type": "integer",
                       "format": "int64"
                     },
-                    "uploadedBytes": {
+                    "storageUploadedBytes": {
                       "type": "integer",
                       "format": "int64"
                     },
@@ -655,7 +659,7 @@
                       "type": "integer",
                       "format": "int64"
                     },
-                    "uploadBps": {
+                    "storageUploadBps": {
                       "type": "integer",
                       "format": "int64"
                     },
@@ -716,7 +720,11 @@
                           "type": "integer",
                           "minimum": 0
                         },
-                        "uploadedBytes": {
+                        "peerUploadedBytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "peerUploadBps": {
                           "type": "integer",
                           "minimum": 0
                         },
@@ -835,10 +843,10 @@
                     "targetFolder",
                     "status",
                     "downloadedBytes",
-                    "uploadedBytes",
+                    "storageUploadedBytes",
                     "totalBytes",
                     "downloadBps",
-                    "uploadBps"
+                    "storageUploadBps"
                   ]
                 }
               }
@@ -958,7 +966,7 @@
                       "type": "integer",
                       "format": "int64"
                     },
-                    "uploadedBytes": {
+                    "storageUploadedBytes": {
                       "type": "integer",
                       "format": "int64"
                     },
@@ -971,7 +979,7 @@
                       "type": "integer",
                       "format": "int64"
                     },
-                    "uploadBps": {
+                    "storageUploadBps": {
                       "type": "integer",
                       "format": "int64"
                     },
@@ -1032,7 +1040,11 @@
                           "type": "integer",
                           "minimum": 0
                         },
-                        "uploadedBytes": {
+                        "peerUploadedBytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "peerUploadBps": {
                           "type": "integer",
                           "minimum": 0
                         },
@@ -1151,10 +1163,10 @@
                     "targetFolder",
                     "status",
                     "downloadedBytes",
-                    "uploadedBytes",
+                    "storageUploadedBytes",
                     "totalBytes",
                     "downloadBps",
-                    "uploadBps"
+                    "storageUploadBps"
                   ]
                 }
               }
@@ -1215,7 +1227,7 @@
                     "type": "integer",
                     "minimum": 0
                   },
-                  "uploadedBytes": {
+                  "storageUploadedBytes": {
                     "type": "integer",
                     "minimum": 0
                   },
@@ -1228,7 +1240,7 @@
                     "type": "integer",
                     "minimum": 0
                   },
-                  "uploadBps": {
+                  "storageUploadBps": {
                     "type": "integer",
                     "minimum": 0
                   },
@@ -1291,7 +1303,11 @@
                         "type": "integer",
                         "minimum": 0
                       },
-                      "uploadedBytes": {
+                      "peerUploadedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "peerUploadBps": {
                         "type": "integer",
                         "minimum": 0
                       },
@@ -1444,7 +1460,7 @@
                       "type": "integer",
                       "format": "int64"
                     },
-                    "uploadedBytes": {
+                    "storageUploadedBytes": {
                       "type": "integer",
                       "format": "int64"
                     },
@@ -1457,7 +1473,7 @@
                       "type": "integer",
                       "format": "int64"
                     },
-                    "uploadBps": {
+                    "storageUploadBps": {
                       "type": "integer",
                       "format": "int64"
                     },
@@ -1518,7 +1534,11 @@
                           "type": "integer",
                           "minimum": 0
                         },
-                        "uploadedBytes": {
+                        "peerUploadedBytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "peerUploadBps": {
                           "type": "integer",
                           "minimum": 0
                         },
@@ -1637,10 +1657,10 @@
                     "targetFolder",
                     "status",
                     "downloadedBytes",
-                    "uploadedBytes",
+                    "storageUploadedBytes",
                     "totalBytes",
                     "downloadBps",
-                    "uploadBps"
+                    "storageUploadBps"
                   ]
                 }
               }

@@ -395,7 +395,7 @@ function TaskRow({
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-[11px] tabular-nums">
           <span>{formatBytes(task.downloadBps)}/s ↓</span>
-          <span className="text-muted-foreground">{formatBytes(task.uploadBps)}/s ↑</span>
+          <span className="text-muted-foreground">{formatBytes(task.storageUploadBps)}/s ↑</span>
         </div>
       </TableCell>
       <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
@@ -446,10 +446,11 @@ function TransferProgress({ task, className }: { task: DownloadTask; className?:
 }
 
 function transferProgress(task: DownloadTask) {
-  const total = Math.max(task.totalBytes ?? task.downloadedBytes, task.downloadedBytes, task.uploadedBytes, 0)
+  const total = Math.max(task.totalBytes ?? task.downloadedBytes, task.downloadedBytes, task.storageUploadedBytes, 0)
   if (total <= 0) return { download: 0, upload: 0, overall: task.status === 'completed' ? 100 : 0 }
   const download = Math.min(100, Math.round((task.downloadedBytes / total) * 100))
-  const upload = task.status === 'completed' ? 100 : Math.min(100, Math.round((task.uploadedBytes / total) * 100))
+  const upload =
+    task.status === 'completed' ? 100 : Math.min(100, Math.round((task.storageUploadedBytes / total) * 100))
   return { download, upload, overall: task.status === 'uploading' || upload > 0 ? upload : download }
 }
 
@@ -521,8 +522,8 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         />
         <InspectorMetric
           icon={<Upload className="size-4" />}
-          label={t('downloads.detail.uploadSpeed')}
-          value={`${formatBytes(task.uploadBps)}/s`}
+          label={t('downloads.detail.storageUploadSpeed')}
+          value={`${formatBytes(task.storageUploadBps)}/s`}
         />
         <InspectorMetric
           icon={<Users className="size-4" />}
@@ -543,7 +544,7 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
             {t('downloads.detail.downloaded')}: {formatBytes(task.downloadedBytes)}
           </span>
           <span>
-            {t('downloads.detail.uploaded')}: {formatBytes(task.uploadedBytes)}
+            {t('downloads.detail.storageUploaded')}: {formatBytes(task.storageUploadedBytes)}
           </span>
           <span>{progress.overall}%</span>
         </div>
@@ -574,7 +575,15 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         <InspectorField label={t('downloads.detail.torrentName')} value={detail?.torrentName || '-'} />
         <InspectorField label={t('downloads.detail.seeders')} value={formatNumber(detail?.seeders)} />
         <InspectorField label={t('downloads.detail.leechers')} value={formatNumber(detail?.leechers)} />
-        <InspectorField label={t('downloads.detail.uploaded')} value={formatBytes(task.uploadedBytes)} />
+        <InspectorField
+          label={t('downloads.detail.peerUploadSpeed')}
+          value={`${formatBytes(detail?.peerUploadBps ?? 0)}/s`}
+        />
+        <InspectorField
+          label={t('downloads.detail.peerUploaded')}
+          value={formatBytes(detail?.peerUploadedBytes ?? 0)}
+        />
+        <InspectorField label={t('downloads.detail.storageUploaded')} value={formatBytes(task.storageUploadedBytes)} />
         <InspectorField label={t('downloads.detail.createdAt')} value={formatDate(task.createdAt)} />
         <InspectorField label={t('downloads.detail.startedAt')} value={formatDate(task.startedAt)} />
         <InspectorField label={t('downloads.detail.finishedAt')} value={formatDate(task.finishedAt)} />

@@ -284,10 +284,10 @@ export async function updateDownloadTask(
     const onlyCancel =
       input.status === 'canceled' &&
       input.downloadedBytes === undefined &&
-      input.uploadedBytes === undefined &&
+      input.storageUploadedBytes === undefined &&
       input.totalBytes === undefined &&
       input.downloadBps === undefined &&
-      input.uploadBps === undefined &&
+      input.storageUploadBps === undefined &&
       input.errorMessage === undefined &&
       input.resultObjectId === undefined &&
       input.detail === undefined
@@ -304,10 +304,10 @@ export async function updateDownloadTask(
     actor.downloaderId && input.downloadedBytes !== undefined
       ? Math.max(input.downloadedBytes, task.downloadedBytes)
       : (input.downloadedBytes ?? task.downloadedBytes)
-  const uploadedBytes =
-    actor.downloaderId && input.uploadedBytes !== undefined
-      ? Math.max(input.uploadedBytes, task.uploadedBytes)
-      : (input.uploadedBytes ?? task.uploadedBytes)
+  const storageUploadedBytes =
+    actor.downloaderId && input.storageUploadedBytes !== undefined
+      ? Math.max(input.storageUploadedBytes, task.uploadedBytes)
+      : (input.storageUploadedBytes ?? task.uploadedBytes)
 
   if (actor.downloaderId && downloadedBytes > task.downloadedBytes) {
     const downloader = await loadDownloaderRow(platform, actor.downloaderId)
@@ -347,14 +347,14 @@ export async function updateDownloadTask(
     .set({
       status,
       downloadedBytes,
-      uploadedBytes,
+      uploadedBytes: storageUploadedBytes,
       totalBytes: input.totalBytes === undefined ? task.totalBytes : input.totalBytes,
       authorizedBytes,
       billedBytes,
       billedCredits,
       billingStatus,
       downloadBps: input.downloadBps ?? task.downloadBps,
-      uploadBps: input.uploadBps ?? task.uploadBps,
+      uploadBps: input.storageUploadBps ?? task.uploadBps,
       errorMessage: input.errorMessage === undefined ? task.errorMessage : input.errorMessage,
       resultObjectId: input.resultObjectId === undefined ? task.resultObjectId : input.resultObjectId,
       detail: input.detail === undefined ? task.detail : JSON.stringify(input.detail),
@@ -510,14 +510,14 @@ function toDownloadTask(row: DownloadTaskRow): DownloadTask {
     assignedDownloaderId: row.assignedDownloaderId,
     status: row.status as DownloadTask['status'],
     downloadedBytes: row.downloadedBytes,
-    uploadedBytes: row.uploadedBytes,
+    storageUploadedBytes: row.uploadedBytes,
     totalBytes: row.totalBytes,
     authorizedBytes: row.authorizedBytes,
     billedBytes: row.billedBytes,
     billedCredits: row.billedCredits,
     billingStatus: row.billingStatus,
     downloadBps: row.downloadBps,
-    uploadBps: row.uploadBps,
+    storageUploadBps: row.uploadBps,
     errorMessage: row.errorMessage,
     resultObjectId: row.resultObjectId,
     detail: parseTaskDetail(row.detail),
@@ -532,7 +532,12 @@ function toDownloadTask(row: DownloadTaskRow): DownloadTask {
 function parseTaskDetail(value: string | null): DownloadTask['detail'] {
   if (!value) return null
   try {
-    return JSON.parse(value) as DownloadTask['detail']
+    const detail = JSON.parse(value) as DownloadTask['detail'] & { uploadedBytes?: number }
+    if (detail.peerUploadedBytes === undefined && detail.uploadedBytes !== undefined) {
+      detail.peerUploadedBytes = detail.uploadedBytes
+    }
+    delete detail.uploadedBytes
+    return detail
   } catch {
     return null
   }

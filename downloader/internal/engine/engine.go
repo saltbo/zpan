@@ -385,19 +385,21 @@ func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskDe
 	peerCount := int64(len(peers))
 	leechers := aria2Leechers(peers)
 	uploaded := int64(status.UploadLength)
+	uploadBps := int64(status.UploadSpeed)
 	detail := &client.DownloadTaskDetail{
-		Engine:        "aria2",
-		Phase:         string(status.Status),
-		Connections:   &connections,
-		InfoHash:      status.InfoHash,
-		TorrentName:   status.BitTorrent.Info.Name,
-		Seeders:       &seeders,
-		Leechers:      leechers,
-		Peers:         &peerCount,
-		UploadedBytes: &uploaded,
-		Trackers:      aria2Trackers(status.BitTorrent.AnnounceList),
-		PeerSamples:   aria2Peers(peers),
-		Files:         aria2Files(status.Files),
+		Engine:            "aria2",
+		Phase:             string(status.Status),
+		Connections:       &connections,
+		InfoHash:          status.InfoHash,
+		TorrentName:       status.BitTorrent.Info.Name,
+		Seeders:           &seeders,
+		Leechers:          leechers,
+		Peers:             &peerCount,
+		PeerUploadedBytes: &uploaded,
+		PeerUploadBps:     &uploadBps,
+		Trackers:          aria2Trackers(status.BitTorrent.AnnounceList),
+		PeerSamples:       aria2Peers(peers),
+		Files:             aria2Files(status.Files),
 	}
 	if status.ErrorMessage != "" {
 		detail.Message = status.ErrorMessage
@@ -543,23 +545,25 @@ func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbi
 	leechers := torrent.NumLeechs
 	peers := torrent.NumComplete + torrent.NumIncomplete
 	uploaded := torrent.Uploaded
+	uploadBps := torrent.UpSpeed
 	var eta *int64
 	if torrent.ETA >= 0 {
 		eta = &torrent.ETA
 	}
 	return &client.DownloadTaskDetail{
-		Engine:        "qbittorrent",
-		Phase:         string(torrent.State),
-		ETASeconds:    eta,
-		Connections:   &connections,
-		InfoHash:      torrent.Hash,
-		TorrentName:   torrent.Name,
-		Seeders:       &seeders,
-		Leechers:      &leechers,
-		Peers:         &peers,
-		UploadedBytes: &uploaded,
-		Trackers:      qbittorrentTrackers(ctx, qbt, torrent),
-		PeerSamples:   qbittorrentPeers(ctx, qbt, torrent.Hash),
+		Engine:            "qbittorrent",
+		Phase:             string(torrent.State),
+		ETASeconds:        eta,
+		Connections:       &connections,
+		InfoHash:          torrent.Hash,
+		TorrentName:       torrent.Name,
+		Seeders:           &seeders,
+		Leechers:          &leechers,
+		Peers:             &peers,
+		PeerUploadedBytes: &uploaded,
+		PeerUploadBps:     &uploadBps,
+		Trackers:          qbittorrentTrackers(ctx, qbt, torrent),
+		PeerSamples:       qbittorrentPeers(ctx, qbt, torrent.Hash),
 	}
 }
 
