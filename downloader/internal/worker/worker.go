@@ -251,8 +251,7 @@ func (w *Worker) resolveEngine(ctx context.Context) error {
 	}
 	candidate, ok := engineCandidateByName(w.cfg.Engine)
 	if !ok {
-		w.engine = selectEngine(w.cfg)
-		return nil
+		return fmt.Errorf("unsupported downloader engine %q; expected auto, builtin, aria2, or qbittorrent", w.cfg.Engine)
 	}
 	w.logger.Info("checking configured downloader engine", "engine", candidate.name)
 	if w.checkCandidate(ctx, candidate) == nil {

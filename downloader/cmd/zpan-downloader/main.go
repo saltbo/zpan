@@ -135,9 +135,13 @@ func loginCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 				return err
 			}
 			slog.Info("device authorization completed")
+			heartbeat, err := loginHeartbeat(v)
+			if err != nil {
+				return err
+			}
 			registered, err := api.CreateDownloader(ctx, token.AccessToken, client.CreateDownloaderRequest{
 				Name:      name,
-				Heartbeat: loginHeartbeat(v),
+				Heartbeat: heartbeat,
 			})
 			if err != nil {
 				return err
@@ -217,11 +221,11 @@ func isPendingDeviceAuthError(err error) bool {
 	return strings.Contains(message, "authorization_pending") || strings.Contains(message, "slow_down")
 }
 
-func loginHeartbeat(v *viper.Viper) client.Heartbeat {
+func loginHeartbeat(v *viper.Viper) (client.Heartbeat, error) {
 	hostname, _ := os.Hostname()
-	engine := v.GetString("engine")
-	if engine == "" {
-		engine = "builtin"
+	engine, err := normalizeLoginEngine(v.GetString("engine"))
+	if err != nil {
+		return client.Heartbeat{}, err
 	}
 	return client.Heartbeat{
 		Version:            worker.Version,
@@ -235,6 +239,17 @@ func loginHeartbeat(v *viper.Viper) client.Heartbeat {
 		DownloadBps:        0,
 		UploadBps:          0,
 		FreeDiskBytes:      0,
+	}, nil
+}
+
+func normalizeLoginEngine(engine string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(engine)) {
+	case "", "auto":
+		return "builtin", nil
+	case "builtin", "aria2", "qbittorrent":
+		return strings.ToLower(strings.TrimSpace(engine)), nil
+	default:
+		return "", fmt.Errorf("unsupported downloader engine %q; expected auto, builtin, aria2, or qbittorrent", engine)
 	}
 }
 
