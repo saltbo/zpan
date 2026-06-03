@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -533,17 +534,26 @@ func uploadFile(ctx context.Context, url, path string) error {
 		return err
 	}
 	defer file.Close()
+	stat, err := file.Stat()
+	if err != nil {
+		return err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, file)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
+	req.ContentLength = stat.Size()
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		if len(body) > 0 {
+			return fmt.Errorf("upload failed: %s: %s", res.Status, strings.TrimSpace(string(body)))
+		}
 		return fmt.Errorf("upload failed: %s", res.Status)
 	}
 	return nil
