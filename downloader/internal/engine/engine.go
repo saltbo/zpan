@@ -164,7 +164,13 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	if err != nil {
 		return Result{}, err
 	}
-	return resultFromAria2Files(task, taskDir, files)
+	result, err := resultFromAria2Files(task, taskDir, files)
+	if err != nil {
+		return Result{}, err
+	}
+	_ = aria.ForceRemove(status.GID)
+	_ = aria.RemoveDownloadResult(status.GID)
+	return result, nil
 }
 
 func (a Aria2) client(ctx context.Context) (*arigo.Client, error) {
@@ -300,7 +306,14 @@ func waitAria2(ctx context.Context, aria *arigo.Client, gid string, progress Pro
 			}
 			switch string(status.Status) {
 			case "complete", string(arigo.StatusCompleted):
+				if len(status.FollowedBy) == 0 && !hasAria2LocalFile(status.Files) {
+					continue
+				}
 				return status, nil
+			case string(arigo.StatusActive):
+				if total > 0 && completed >= total && hasAria2LocalFile(status.Files) {
+					return status, nil
+				}
 			case string(arigo.StatusError), string(arigo.StatusRemoved):
 				if status.ErrorMessage != "" {
 					return arigo.Status{}, errors.New(status.ErrorMessage)
@@ -309,6 +322,15 @@ func waitAria2(ctx context.Context, aria *arigo.Client, gid string, progress Pro
 			}
 		}
 	}
+}
+
+func hasAria2LocalFile(files []arigo.File) bool {
+	for _, file := range files {
+		if file.Path != "" && !isAria2MetadataPath(file.Path) {
+			return true
+		}
+	}
+	return false
 }
 
 func waitQBittorrent(
@@ -357,7 +379,7 @@ func waitQBittorrent(
 func resultFromAria2Files(task client.DownloadTask, taskDir string, files []arigo.File) (Result, error) {
 	paths := make([]string, 0, len(files))
 	for _, file := range files {
-		if file.Selected && file.Length > 0 {
+		if file.Selected && file.Length > 0 && !isAria2MetadataPath(file.Path) {
 			paths = append(paths, cleanDownloadedPath(taskDir, file.Path))
 		}
 	}
@@ -404,6 +426,10 @@ func resultFromPath(task client.DownloadTask, path string, fallbackName string) 
 		return Result{}, err
 	}
 	return Result{Path: zipPath, Name: zipName, Size: size}, nil
+}
+
+func isAria2MetadataPath(path string) bool {
+	return strings.HasPrefix(path, "[MEMORY]") || strings.HasPrefix(path, "[METADATA]")
 }
 
 func resultFromFile(task client.DownloadTask, path string) (Result, error) {
