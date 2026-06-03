@@ -2,12 +2,15 @@ package engine
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/cenkalti/rpc2"
 	"github.com/saltbo/zpan/downloader/internal/client"
 )
 
@@ -98,6 +101,21 @@ func TestQBittorrentHTTPDelegatesToBuiltin(t *testing.T) {
 	}
 	if string(data) != "hello qbit!" {
 		t.Fatalf("unexpected file content: %q", string(data))
+	}
+}
+
+func TestIsAria2RPCDisconnected(t *testing.T) {
+	for _, err := range []error{
+		rpc2.ErrShutdown,
+		io.ErrClosedPipe,
+		errors.New("connection is shut down"),
+	} {
+		if !isAria2RPCDisconnected(err) {
+			t.Fatalf("expected %v to be treated as aria2 rpc disconnect", err)
+		}
+	}
+	if isAria2RPCDisconnected(errors.New("aria2 download ended with status error")) {
+		t.Fatal("expected ordinary aria2 error to stay non-transient")
 	}
 }
 

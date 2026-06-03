@@ -14,6 +14,7 @@ import (
 
 	"github.com/Braurbeki/arigo"
 	qbittorrent "github.com/autobrr/go-qbittorrent"
+	"github.com/cenkalti/rpc2"
 	"github.com/saltbo/zpan/downloader/internal/client"
 )
 
@@ -147,20 +148,20 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	if task.SourceType != "http" {
 		initialProgress = func(downloaded int64, total *int64, bps int64) error { return nil }
 	}
-	status, err := waitAria2(ctx, aria, gid.GID, initialProgress)
+	status, err := a.waitAria2(ctx, &aria, gid.GID, initialProgress)
 	if err != nil {
 		_ = aria.Remove(gid.GID)
 		return Result{}, err
 	}
 	if len(status.FollowedBy) > 0 {
 		childGID := status.FollowedBy[0]
-		status, err = waitAria2(ctx, aria, childGID, progress)
+		status, err = a.waitAria2(ctx, &aria, childGID, progress)
 		if err != nil {
 			_ = aria.Remove(childGID)
 			return Result{}, err
 		}
 	}
-	files, err := aria.GetFiles(status.GID)
+	files, err := a.getAria2Files(ctx, &aria, status.GID)
 	if err != nil {
 		return Result{}, err
 	}
@@ -281,7 +282,7 @@ func (p *progressWriter) Write(data []byte) (int, error) {
 	return n, nil
 }
 
-func waitAria2(ctx context.Context, aria *arigo.Client, gid string, progress Progress) (arigo.Status, error) {
+func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, gid string, progress Progress) (arigo.Status, error) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
@@ -289,8 +290,14 @@ func waitAria2(ctx context.Context, aria *arigo.Client, gid string, progress Pro
 		case <-ctx.Done():
 			return arigo.Status{}, ctx.Err()
 		case <-ticker.C:
-			status, err := aria.TellStatus(gid)
+			status, err := (*aria).TellStatus(gid)
 			if err != nil {
+				if isAria2RPCDisconnected(err) {
+					if err := a.reconnect(ctx, aria); err != nil {
+						return arigo.Status{}, err
+					}
+					continue
+				}
 				return arigo.Status{}, err
 			}
 			total := int64(status.TotalLength)
@@ -301,7 +308,7 @@ func waitAria2(ctx context.Context, aria *arigo.Client, gid string, progress Pro
 				totalPtr = &total
 			}
 			if err := progress(completed, totalPtr, bps); err != nil {
-				_ = aria.ForcePause(gid)
+				_ = (*aria).ForcePause(gid)
 				return arigo.Status{}, err
 			}
 			switch string(status.Status) {
@@ -322,6 +329,34 @@ func waitAria2(ctx context.Context, aria *arigo.Client, gid string, progress Pro
 			}
 		}
 	}
+}
+
+func (a Aria2) getAria2Files(ctx context.Context, aria **arigo.Client, gid string) ([]arigo.File, error) {
+	files, err := (*aria).GetFiles(gid)
+	if err == nil {
+		return files, nil
+	}
+	if !isAria2RPCDisconnected(err) {
+		return nil, err
+	}
+	if err := a.reconnect(ctx, aria); err != nil {
+		return nil, err
+	}
+	return (*aria).GetFiles(gid)
+}
+
+func (a Aria2) reconnect(ctx context.Context, aria **arigo.Client) error {
+	_ = (*aria).Close()
+	next, err := a.client(ctx)
+	if err != nil {
+		return err
+	}
+	*aria = next
+	return nil
+}
+
+func isAria2RPCDisconnected(err error) bool {
+	return errors.Is(err, rpc2.ErrShutdown) || errors.Is(err, io.ErrClosedPipe) || strings.Contains(err.Error(), "connection is shut down")
 }
 
 func hasAria2LocalFile(files []arigo.File) bool {
