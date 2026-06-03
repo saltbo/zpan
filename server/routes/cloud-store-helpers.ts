@@ -38,7 +38,7 @@ const rawCloudGiftCardSchema = z.object({
   campaignId: z.string().nullable(),
   code: z.string().nullable(),
   codeLast4: z.string().min(1),
-  credits: z.number().int().positive(),
+  credits: z.number().int().nonnegative(),
   status: giftCardStatusSchema,
   expiresAt: z.string().nullable(),
   createdAt: z.string().min(1),
