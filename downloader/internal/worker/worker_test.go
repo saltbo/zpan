@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,9 +27,11 @@ func TestResolveEngineRejectsUnknownConfiguredEngine(t *testing.T) {
 func TestUploadFileSendsContentLength(t *testing.T) {
 	path := writeTempFile(t, "hello world")
 	var contentLength string
+	var contentDisposition string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentLength = r.Header.Get("Content-Length")
+		contentDisposition = r.Header.Get("Content-Disposition")
 		if r.TransferEncoding != nil {
 			t.Fatalf("expected fixed-length upload, got transfer encoding %v", r.TransferEncoding)
 		}
@@ -36,11 +39,14 @@ func TestUploadFileSendsContentLength(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if err := uploadFile(context.Background(), server.URL, path); err != nil {
+	if err := uploadFile(context.Background(), server.URL, path, `attachment; filename="hello.txt"`); err != nil {
 		t.Fatalf("uploadFile returned error: %v", err)
 	}
 	if contentLength != "11" {
 		t.Fatalf("expected Content-Length 11, got %q", contentLength)
+	}
+	if contentDisposition != `attachment; filename="hello.txt"` {
+		t.Fatalf("expected Content-Disposition header, got %q", contentDisposition)
 	}
 }
 
@@ -51,12 +57,24 @@ func TestUploadFileIncludesErrorBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := uploadFile(context.Background(), server.URL, path)
+	err := uploadFile(context.Background(), server.URL, path, "")
 	if err == nil {
 		t.Fatal("expected uploadFile error")
 	}
 	if !strings.Contains(err.Error(), "403 Forbidden") || !strings.Contains(err.Error(), "signature mismatch") {
 		t.Fatalf("expected status and response body in error, got %v", err)
+	}
+}
+
+func TestTaskErrorMessageTruncatesToSchemaLimit(t *testing.T) {
+	err := errors.New(strings.Repeat("x", maxTaskErrorMessageLength+100))
+
+	msg := taskErrorMessage(err)
+	if len(msg) != maxTaskErrorMessageLength {
+		t.Fatalf("expected message length %d, got %d", maxTaskErrorMessageLength, len(msg))
+	}
+	if !strings.HasSuffix(msg, "...") {
+		t.Fatalf("expected truncated message to end with ellipsis, got %q", msg[len(msg)-10:])
 	}
 }
 

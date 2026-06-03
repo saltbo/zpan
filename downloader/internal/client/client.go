@@ -66,9 +66,10 @@ type TaskPatch struct {
 }
 
 type ObjectDraft struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	UploadURL string `json:"uploadUrl"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	UploadURL          string `json:"uploadUrl"`
+	ContentDisposition string `json:"contentDisposition,omitempty"`
 }
 
 type DeviceCode struct {

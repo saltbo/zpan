@@ -22,6 +22,7 @@ import (
 )
 
 const Version = "0.1.0"
+const maxTaskErrorMessageLength = 1000
 
 var errBillingPaused = errors.New("billing paused")
 
@@ -146,7 +147,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 			log.Warn("task stopped because credits are insufficient")
 			return
 		}
-		msg := err.Error()
+		msg := taskErrorMessage(err)
 		log.Error("task download failed", "error", err)
 		if _, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
@@ -161,7 +162,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	log.Info("creating remote object", "name", result.Name, "size", result.Size, "target_folder", task.TargetFolder)
 	draft, err := w.api.CreateObject(ctx, task.UploadToken, result.Name, result.Size, task.TargetFolder)
 	if err != nil {
-		msg := err.Error()
+		msg := taskErrorMessage(err)
 		log.Error("failed to create remote object", "error", err)
 		if _, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
@@ -169,8 +170,8 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 		return
 	}
 	log.Info("uploading file to object storage", "object_id", draft.ID, "path", result.Path)
-	if err := uploadFile(ctx, draft.UploadURL, result.Path); err != nil {
-		msg := err.Error()
+	if err := uploadFile(ctx, draft.UploadURL, result.Path, draft.ContentDisposition); err != nil {
+		msg := taskErrorMessage(err)
 		log.Error("failed to upload file to object storage", "object_id", draft.ID, "error", err)
 		if _, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
@@ -179,7 +180,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	}
 	log.Info("confirming uploaded object", "object_id", draft.ID)
 	if err := w.api.ConfirmObject(ctx, task.UploadToken, draft.ID); err != nil {
-		msg := err.Error()
+		msg := taskErrorMessage(err)
 		log.Error("failed to confirm uploaded object", "object_id", draft.ID, "error", err)
 		if _, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
@@ -528,7 +529,7 @@ func capabilities(name string) []string {
 	}
 }
 
-func uploadFile(ctx context.Context, url, path string) error {
+func uploadFile(ctx context.Context, url, path string, contentDisposition string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -543,6 +544,9 @@ func uploadFile(ctx context.Context, url, path string) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
+	if contentDisposition != "" {
+		req.Header.Set("Content-Disposition", contentDisposition)
+	}
 	req.ContentLength = stat.Size()
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -557,6 +561,14 @@ func uploadFile(ctx context.Context, url, path string) error {
 		return fmt.Errorf("upload failed: %s", res.Status)
 	}
 	return nil
+}
+
+func taskErrorMessage(err error) string {
+	msg := err.Error()
+	if len(msg) <= maxTaskErrorMessageLength {
+		return msg
+	}
+	return msg[:maxTaskErrorMessageLength-3] + "..."
 }
 
 func (w *Worker) taskLogger(task client.DownloadTask) *slog.Logger {
