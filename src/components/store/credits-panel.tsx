@@ -47,7 +47,7 @@ export function CreditBalanceButton({
           {t('storage.creditsButton')}
         </button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t('storage.creditsButton')}</DialogTitle>
           <DialogDescription>{t('storage.creditActivityDescription')}</DialogDescription>
