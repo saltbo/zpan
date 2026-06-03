@@ -456,7 +456,9 @@ async function putJson<T>(page: Page, url: string, data?: unknown): Promise<T> {
 }
 
 async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: string, data?: unknown): Promise<T> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const retryDelays = [500, 1000]
+  const stripeRateLimitRetryDelays = [1000, 3000, 7000, 15000, 30000]
+  for (let attempt = 0; attempt <= stripeRateLimitRetryDelays.length; attempt += 1) {
     try {
       return (await page.evaluate(
         async ({ method, url, data }) => {
@@ -472,11 +474,25 @@ async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: s
         { method, url, data },
       )) as T
     } catch (error) {
-      if (!isTransientBrowserJsonError(error) || attempt === 2) throw error
-      await page.waitForTimeout(500 * (attempt + 1))
+      if (isStripeRateLimitBrowserJsonError(error) && attempt < stripeRateLimitRetryDelays.length) {
+        await page.waitForTimeout(stripeRateLimitRetryDelays[attempt] ?? 0)
+        continue
+      }
+
+      if (isTransientBrowserJsonError(error) && attempt < retryDelays.length) {
+        await page.waitForTimeout(retryDelays[attempt] ?? 0)
+        continue
+      }
+
+      throw error
     }
   }
   throw new Error(`${method} ${url} failed`)
+}
+
+function isStripeRateLimitBrowserJsonError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  return error.message.includes('request_rate_limit_exceeded')
 }
 
 function isTransientBrowserJsonError(error: unknown) {
