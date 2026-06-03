@@ -107,7 +107,23 @@ function s3MockEnv() {
   }
 }
 
-function startTunnel(target) {
+async function startTunnel(target) {
+  const maxAttempts = Number(process.env.E2E_TUNNEL_START_ATTEMPTS ?? 3)
+  let lastError = null
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      if (attempt > 1) console.log(`Retrying cloudflared quick tunnel startup (${attempt}/${maxAttempts})...`)
+      return await startTunnelOnce(target)
+    } catch (error) {
+      lastError = error
+      if (attempt === maxAttempts) break
+      await new Promise((resolve) => setTimeout(resolve, attempt * 3000))
+    }
+  }
+  throw lastError
+}
+
+function startTunnelOnce(target) {
   const child = spawn(cloudflared, ['tunnel', '--url', target, '--no-autoupdate'], {
     stdio: ['ignore', 'pipe', 'pipe'],
   })

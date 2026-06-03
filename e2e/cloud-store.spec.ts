@@ -299,8 +299,7 @@ async function createGiftCard(page: Page) {
 }
 
 async function createStoragePlanThroughUi(page: Page, packageName: string) {
-  await page.goto('/admin/cloud-store')
-  await expect(page.getByRole('heading', { name: 'Storage Plans' })).toBeVisible({ timeout: 20_000 })
+  await gotoAdminCloudStore(page)
   await page.getByRole('button', { name: 'New plan' }).click()
   const dialog = page.getByRole('dialog', { name: 'New plan' })
   await dialog.getByLabel('Plan name').fill(packageName)
@@ -318,8 +317,7 @@ async function createStoragePlanThroughUi(page: Page, packageName: string) {
 }
 
 async function createCreditPackageThroughUi(page: Page, packageName: string) {
-  await page.goto('/admin/cloud-store')
-  await expect(page.getByRole('heading', { name: 'Storage Plans' })).toBeVisible({ timeout: 20_000 })
+  await gotoAdminCloudStore(page)
   await page.getByRole('button', { name: 'New Credits package' }).click()
   const dialog = page.getByRole('dialog', { name: 'New Credits package' })
   await dialog.getByLabel('Name').fill(packageName)
@@ -336,8 +334,7 @@ async function createCreditPackageThroughUi(page: Page, packageName: string) {
 }
 
 async function createGiftCardThroughUi(page: Page) {
-  await page.goto('/admin/cloud-store')
-  await expect(page.getByRole('heading', { name: 'Storage Plans' })).toBeVisible({ timeout: 20_000 })
+  await gotoAdminCloudStore(page)
   await page.getByRole('tab', { name: 'Gift Cards' }).click()
   await page.getByRole('button', { name: 'Generate gift cards' }).click()
   const dialog = page.getByRole('dialog', { name: 'Generate gift cards' })
@@ -354,6 +351,38 @@ async function createGiftCardThroughUi(page: Page) {
   const card = cards[0]
   if (card.code === null) throw new Error('Cloud gift card create response did not include code')
   return card.code
+}
+
+async function gotoAdminCloudStore(page: Page) {
+  await expect
+    .poll(
+      async () => {
+        try {
+          await Promise.all([
+            getJson(page, '/api/admin/store/settings'),
+            getJson(page, '/api/admin/store/packages'),
+            getJson(page, '/api/admin/store/credits/products'),
+          ])
+          return true
+        } catch {
+          return false
+        }
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(true)
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goto('/admin/cloud-store', { waitUntil: 'domcontentloaded' })
+    const heading = page.getByRole('heading', { name: 'Storage Plans' })
+    try {
+      await expect(heading).toBeVisible({ timeout: 20_000 })
+      return
+    } catch (error) {
+      if (attempt === 2) throw error
+      await page.waitForTimeout(1500)
+    }
+  }
 }
 
 async function expectAdminProductVisibleInApi(page: Page, packageName: string) {
@@ -456,7 +485,7 @@ async function putJson<T>(page: Page, url: string, data?: unknown): Promise<T> {
 }
 
 async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: string, data?: unknown): Promise<T> {
-  const retryDelays = [500, 1000]
+  const retryDelays = [500, 1000, 3000, 7000, 15000]
   const stripeRateLimitRetryDelays = [1000, 3000, 7000, 15000, 30000]
   for (let attempt = 0; attempt <= stripeRateLimitRetryDelays.length; attempt += 1) {
     try {
@@ -497,5 +526,11 @@ function isStripeRateLimitBrowserJsonError(error: unknown) {
 
 function isTransientBrowserJsonError(error: unknown) {
   if (!(error instanceof Error)) return false
-  return error.message.includes('Failed to fetch') || error.message.includes('Execution context was destroyed')
+  return (
+    error.message.includes('Failed to fetch') ||
+    error.message.includes('Execution context was destroyed') ||
+    error.message.includes('Incoming request ended abruptly') ||
+    error.message.includes('context canceled') ||
+    error.message.includes('Load failed')
+  )
 }
