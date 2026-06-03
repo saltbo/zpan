@@ -27,6 +27,13 @@ async function seedTrafficBinding(db: Database) {
   })
 }
 
+const meteredStorage = {
+  storageId: 'storage_1',
+  egressCreditBillingEnabled: true,
+  egressCreditUnitBytes: 100 * 1024 ** 2,
+  egressCreditPerUnit: 1,
+}
+
 describe('cloud traffic metering', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -47,6 +54,7 @@ describe('cloud traffic metering', () => {
       source: 'object_download',
       sourceId: 'matter_1',
       eventId: 'evt_1',
+      ...meteredStorage,
     })
 
     expect(result).toMatchObject({ status: 'reported', eventId: 'evt_1', duplicate: false })
@@ -68,6 +76,7 @@ describe('cloud traffic metering', () => {
       source: 'object_download',
       sourceId: 'matter_1',
       eventId: 'evt_1',
+      ...meteredStorage,
     })
 
     const result = await syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })
@@ -78,11 +87,14 @@ describe('cloud traffic metering', () => {
     expect(url).toBe('https://cloud.example/api/stores/store-test-binding/billing/usage-events')
     expect(init.headers).toMatchObject({ Authorization: 'Bearer test-refresh-token' })
     expect(JSON.parse(init.body as string)).toMatchObject({
-      resource: 'traffic_egress',
+      resource: 'storage_egress',
+      unit: 'byte',
       bytes: 1024,
       eventId: 'evt_1',
       idempotencyKey: 'evt_1',
       customerId: 'org_1',
+      usageContext: { storageId: 'storage_1' },
+      pricing: { unitQuantity: 100 * 1024 ** 2, creditsPerUnit: 1 },
     })
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
   })
@@ -119,6 +131,7 @@ describe('cloud traffic metering', () => {
       source: 'direct_share' as const,
       sourceId: 'share_1',
       eventId: 'evt_dup',
+      ...meteredStorage,
     }
     const first = await reportTrafficEgress(input)
     const second = await reportTrafficEgress(input)
@@ -144,6 +157,7 @@ describe('cloud traffic metering', () => {
       source: 'direct_share',
       sourceId: 'share_1',
       eventId: 'evt_conflict',
+      ...meteredStorage,
     })
 
     await expect(
@@ -154,6 +168,7 @@ describe('cloud traffic metering', () => {
         source: 'direct_share',
         sourceId: 'share_1',
         eventId: 'evt_conflict',
+        ...meteredStorage,
       }),
     ).rejects.toThrow('traffic_report_idempotency_conflict')
   })
@@ -171,6 +186,7 @@ describe('cloud traffic metering', () => {
         source: 'landing_share',
         sourceId: 'share_1',
         eventId: 'evt_blocked',
+        ...meteredStorage,
       }),
     ).rejects.toThrow(CloudTrafficBlockedError)
 
@@ -185,6 +201,7 @@ describe('cloud traffic metering', () => {
         source: 'landing_share',
         sourceId: 'share_1',
         eventId: 'evt_blocked',
+        ...meteredStorage,
       }),
     ).rejects.toThrow(CloudTrafficBlockedError)
   })
@@ -208,6 +225,7 @@ describe('cloud traffic metering', () => {
       sourceId: 'matter_1',
       eventId: 'evt_retry',
       now: new Date('2026-04-30T23:59:00.000Z'),
+      ...meteredStorage,
     }
     await expect(reportTrafficEgress(input)).resolves.toMatchObject({ status: 'failed', eventId: 'evt_retry' })
     await expect(syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })).resolves.toEqual({
@@ -245,6 +263,7 @@ describe('cloud traffic metering', () => {
       source: 'object_download',
       sourceId: 'matter_1',
       eventId: 'evt_mismatch',
+      ...meteredStorage,
     })
     await expect(syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })).resolves.toEqual({
       attempted: 1,
@@ -269,6 +288,7 @@ describe('cloud traffic metering', () => {
       source: 'image_hosting',
       sourceId: 'image_1',
       eventId: 'evt_unbound',
+      ...meteredStorage,
     })
 
     expect(result.status).toBe('skipped_unbound')
@@ -287,6 +307,7 @@ describe('cloud traffic metering', () => {
       source: 'image_hosting' as const,
       sourceId: 'image_1',
       eventId: 'evt_unbound_dup',
+      ...meteredStorage,
     }
     const first = await reportTrafficEgress(input)
     const second = await reportTrafficEgress(input)

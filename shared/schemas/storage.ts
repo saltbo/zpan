@@ -10,6 +10,9 @@ export const createStorageSchema = z.object({
   secretKey: z.string().min(1),
   customHost: z.string().optional(),
   capacity: z.number().int().min(0).default(0),
+  egressCreditBillingEnabled: z.boolean().default(false),
+  egressCreditUnitBytes: z.number().int().positive().default(104857600),
+  egressCreditPerUnit: z.number().int().positive().default(1),
 })
 
 export const updateStorageSchema = z.object({
@@ -22,8 +25,11 @@ export const updateStorageSchema = z.object({
   secretKey: z.string().min(1).optional(),
   customHost: z.string().optional(),
   capacity: z.number().int().min(0).optional(),
+  egressCreditBillingEnabled: z.boolean().optional(),
+  egressCreditUnitBytes: z.number().int().positive().optional(),
+  egressCreditPerUnit: z.number().int().positive().optional(),
   status: z.enum(['active', 'disabled']).optional(),
 })
 
-export type CreateStorageInput = z.infer<typeof createStorageSchema>
-export type UpdateStorageInput = z.infer<typeof updateStorageSchema>
+export type CreateStorageInput = z.input<typeof createStorageSchema>
+export type UpdateStorageInput = z.input<typeof updateStorageSchema>

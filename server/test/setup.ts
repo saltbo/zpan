@@ -151,6 +151,9 @@ const APP_SCHEMA_SQL = `
     capacity INTEGER NOT NULL DEFAULT 0,
     used INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'active',
+    egress_credit_billing_enabled INTEGER NOT NULL DEFAULT 0,
+    egress_credit_unit_bytes INTEGER NOT NULL DEFAULT 104857600,
+    egress_credit_per_unit INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
@@ -169,8 +172,11 @@ const APP_SCHEMA_SQL = `
     period TEXT NOT NULL,
     source TEXT NOT NULL,
     source_id TEXT NOT NULL,
+    storage_id TEXT,
     event_id TEXT NOT NULL,
     bytes INTEGER NOT NULL,
+    unit_bytes INTEGER,
+    credits_per_unit INTEGER,
     status TEXT NOT NULL,
     error TEXT,
     created_at INTEGER NOT NULL,

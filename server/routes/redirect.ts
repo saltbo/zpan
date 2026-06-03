@@ -64,6 +64,7 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
   const trafficReportError = await reportTrafficForDownload(c, {
     orgId: share.orgId,
     bytes: matter.size ?? 0,
+    storage,
     source: 'direct_share',
     sourceId: share.id,
     onRejected: () => decrementDownloads(db, share.id),
@@ -116,6 +117,7 @@ async function handleImageHosting(c: Context<Env>, db: Database, token: string):
   const trafficReportError = await reportTrafficForDownload(c, {
     orgId: image.orgId,
     bytes: image.size,
+    storage,
     source: 'image_hosting',
     sourceId: image.id,
   })

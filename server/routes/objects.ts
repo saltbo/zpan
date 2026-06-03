@@ -203,6 +203,7 @@ const app = new Hono<Env>()
     const trafficReportError = await reportTrafficForDownload(c, {
       orgId,
       bytes: matter.size ?? 0,
+      storage,
       source: 'object_download',
       sourceId: matter.id,
     })

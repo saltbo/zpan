@@ -286,6 +286,7 @@ export const publicShares = new Hono<Env>()
     const trafficReportError = await reportTrafficForDownload(c, {
       orgId: share.orgId,
       bytes: targetMatter.size ?? 0,
+      storage,
       source: 'landing_share',
       sourceId: share.id,
       onRejected: () => decrementDownloads(db, share.id),

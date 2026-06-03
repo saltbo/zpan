@@ -11,6 +11,7 @@ import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { listStorages } from '@/lib/api'
+import { formatSize } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/storages/')({
   component: StoragesPage,
@@ -77,6 +78,9 @@ function StoragesPage() {
               <th className="hidden max-w-48 px-4 py-3 text-left font-medium lg:table-cell">
                 {t('admin.storages.colEndpoint')}
               </th>
+              <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">
+                {t('admin.storages.colEgressBilling')}
+              </th>
               <th className="px-4 py-3 text-left font-medium">{t('admin.storages.colStatus')}</th>
               <th className="px-4 py-3 text-right font-medium">{t('admin.storages.colActions')}</th>
             </tr>
@@ -92,7 +96,7 @@ function StoragesPage() {
             ))}
             {storages.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                   <div className="flex flex-col items-center gap-3">
                     <Database className="h-10 w-10" />
                     <p>{t('admin.storages.noStorages')}</p>
@@ -143,6 +147,14 @@ function StorageTableRow({
       </td>
       <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{storage.bucket}</td>
       <td className="hidden max-w-48 truncate px-4 py-3 text-muted-foreground lg:table-cell">{storage.endpoint}</td>
+      <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
+        {storage.egressCreditBillingEnabled
+          ? t('admin.storages.egressBillingRate', {
+              credits: storage.egressCreditPerUnit,
+              unit: formatSize(storage.egressCreditUnitBytes),
+            })
+          : t('admin.storages.egressBillingOff')}
+      </td>
       <td className="px-4 py-3">
         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge}`}>
           {isActive ? t('admin.storages.statusActive') : t('admin.storages.statusInactive')}

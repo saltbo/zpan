@@ -34,6 +34,9 @@ export interface Storage {
   secretKey: string
   customHost: string
   capacity: number
+  egressCreditBillingEnabled: boolean
+  egressCreditUnitBytes: number
+  egressCreditPerUnit: number
   used: number
   status: StorageStatus
   createdAt: string

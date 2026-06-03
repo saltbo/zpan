@@ -51,8 +51,15 @@ async function seedTrafficBinding(db: Database) {
 async function insertStorage(db: Database) {
   const now = Date.now()
   await db.run(sql`
-    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${STORAGE_ID}, 'Cloud Traffic S3', 'private', 'test-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AK', 'SK', '', '', 0, 0, 'active', ${now}, ${now})
+    INSERT INTO storages (
+      id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
+      capacity, used, status, egress_credit_billing_enabled, egress_credit_unit_bytes,
+      egress_credit_per_unit, created_at, updated_at
+    )
+    VALUES (
+      ${STORAGE_ID}, 'Cloud Traffic S3', 'private', 'test-bucket', 'https://s3.amazonaws.com',
+      'us-east-1', 'AK', 'SK', '', '', 0, 0, 'active', true, ${100 * 1024 ** 2}, 1, ${now}, ${now}
+    )
   `)
 }
 
@@ -140,7 +147,7 @@ describe('object download cloud traffic reporting', () => {
     await expect(res.json()).resolves.toEqual({
       error: 'insufficient_credits',
       code: 'insufficient_credits',
-      resource: 'traffic_egress',
+      resource: 'storage_egress',
     })
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
@@ -241,7 +248,7 @@ describe('public redirect cloud traffic reporting', () => {
     await expect(res.json()).resolves.toEqual({
       error: 'insufficient_credits',
       code: 'insufficient_credits',
-      resource: 'traffic_egress',
+      resource: 'storage_egress',
     })
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
@@ -299,7 +306,7 @@ describe('public redirect cloud traffic reporting', () => {
     await expect(res.json()).resolves.toEqual({
       error: 'insufficient_credits',
       code: 'insufficient_credits',
-      resource: 'traffic_egress',
+      resource: 'storage_egress',
     })
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()

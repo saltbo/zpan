@@ -42,11 +42,20 @@ const validStorage = {
   secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
 }
 
-async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db'], opts: { metered?: boolean } = {}) {
   const now = Date.now()
+  const metered = opts.metered ? 1 : 0
   await db.run(sql`
-    INSERT INTO storages (id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
-    VALUES (${validStorage.id}, ${validStorage.title}, ${validStorage.mode}, ${validStorage.bucket}, ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey}, '', '', 0, 0, 'active', ${now}, ${now})
+    INSERT INTO storages (
+      id, title, mode, bucket, endpoint, region, access_key, secret_key, file_path, custom_host,
+      capacity, used, status, egress_credit_billing_enabled, egress_credit_unit_bytes,
+      egress_credit_per_unit, created_at, updated_at
+    )
+    VALUES (
+      ${validStorage.id}, ${validStorage.title}, ${validStorage.mode}, ${validStorage.bucket},
+      ${validStorage.endpoint}, ${validStorage.region}, ${validStorage.accessKey}, ${validStorage.secretKey},
+      '', '', 0, 0, 'active', ${metered}, ${100 * 1024 ** 2}, 1, ${now}, ${now}
+    )
   `)
 }
 
@@ -151,7 +160,7 @@ describe('Objects API', () => {
   it('GET /api/objects lists active objects in root', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
-    await insertStorage(db)
+    await insertStorage(db, { metered: true })
     const orgId = await getOrgId(db)
 
     await insertFolder(db, orgId, { id: 'f1', name: 'Folder A' })
@@ -702,7 +711,7 @@ describe('Objects API', () => {
   it('GET /api/objects/:id reports Cloud traffic for bound instances before returning the URL', async () => {
     const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
     const headers = await authedHeaders(app)
-    await insertStorage(db)
+    await insertStorage(db, { metered: true })
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'doc.txt' })
     await createLicenseBinding(db, {

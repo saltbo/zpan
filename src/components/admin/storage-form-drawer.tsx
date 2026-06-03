@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { createStorage, updateStorage } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 
@@ -37,6 +38,10 @@ const storageFormSchema = z.object({
   customHost: z.string().optional(),
   capacityValue: z.coerce.number<number>().min(0),
   capacityUnit: z.enum(['MB', 'GB', 'TB']),
+  egressCreditBillingEnabled: z.boolean(),
+  egressCreditUnitValue: z.coerce.number<number>().min(1),
+  egressCreditUnit: z.enum(['MB', 'GB', 'TB']),
+  egressCreditPerUnit: z.coerce.number<number>().int().min(1),
 })
 
 type StorageFormValues = z.infer<typeof storageFormSchema>
@@ -52,6 +57,10 @@ const DEFAULT_VALUES: StorageFormValues = {
   customHost: '',
   capacityValue: 0,
   capacityUnit: 'GB',
+  egressCreditBillingEnabled: false,
+  egressCreditUnitValue: 100,
+  egressCreditUnit: 'MB',
+  egressCreditPerUnit: 1,
 }
 
 interface StorageFormDrawerProps {
@@ -75,6 +84,7 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
     if (!open) return
     if (storage) {
       const { value, unit } = bytesToDisplay(storage.capacity ?? 0)
+      const egressUnit = bytesToDisplay(storage.egressCreditUnitBytes ?? UNITS.MB * 100)
       form.reset({
         title: storage.title,
         mode: storage.mode,
@@ -86,6 +96,10 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
         customHost: storage.customHost || '',
         capacityValue: value,
         capacityUnit: unit,
+        egressCreditBillingEnabled: storage.egressCreditBillingEnabled ?? false,
+        egressCreditUnitValue: egressUnit.value,
+        egressCreditUnit: egressUnit.unit,
+        egressCreditPerUnit: storage.egressCreditPerUnit ?? 1,
       })
     } else {
       form.reset(DEFAULT_VALUES)
@@ -94,9 +108,18 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
   }, [open, storage, form])
 
   const mutation = useMutation({
-    mutationFn: ({ capacityValue, capacityUnit, ...rest }: StorageFormValues) => {
+    mutationFn: ({
+      capacityValue,
+      capacityUnit,
+      egressCreditUnitValue,
+      egressCreditUnit,
+      ...rest
+    }: StorageFormValues) => {
       const capacity = capacityValue * UNITS[capacityUnit]
-      return isEditing ? updateStorage(storage.id, { ...rest, capacity }) : createStorage({ ...rest, capacity })
+      const egressCreditUnitBytes = egressCreditUnitValue * UNITS[egressCreditUnit]
+      return isEditing
+        ? updateStorage(storage.id, { ...rest, capacity, egressCreditUnitBytes })
+        : createStorage({ ...rest, capacity, egressCreditUnitBytes })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
@@ -194,6 +217,57 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
                 </div>
                 <p className="text-xs text-muted-foreground">{t('admin.storages.capacityHint')}</p>
               </FormField>
+
+              <div className="rounded-md border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <Label htmlFor="egressCreditBillingEnabled">{t('admin.storages.egressBilling')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('admin.storages.egressBillingHint')}</p>
+                  </div>
+                  <Switch
+                    id="egressCreditBillingEnabled"
+                    checked={form.watch('egressCreditBillingEnabled')}
+                    onCheckedChange={(checked) => form.setValue('egressCreditBillingEnabled', checked)}
+                  />
+                </div>
+                {form.watch('egressCreditBillingEnabled') && (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      label={t('admin.storages.egressBillingUnit')}
+                      error={form.formState.errors.egressCreditUnitValue?.message}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          className="w-28"
+                          {...form.register('egressCreditUnitValue')}
+                        />
+                        <Select
+                          value={form.watch('egressCreditUnit')}
+                          onValueChange={(v) => form.setValue('egressCreditUnit', v as Unit)}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MB">MB</SelectItem>
+                            <SelectItem value="GB">GB</SelectItem>
+                            <SelectItem value="TB">TB</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </FormField>
+                    <FormField
+                      label={t('admin.storages.egressBillingCredits')}
+                      error={form.formState.errors.egressCreditPerUnit?.message}
+                    >
+                      <Input type="number" min={1} step={1} {...form.register('egressCreditPerUnit')} />
+                    </FormField>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

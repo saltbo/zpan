@@ -35,6 +35,10 @@ export async function reportTrafficEgress(params: {
   platform: Platform
   orgId: string
   bytes: number
+  storageId?: string | null
+  egressCreditBillingEnabled?: boolean
+  egressCreditUnitBytes?: number | null
+  egressCreditPerUnit?: number | null
   source: TrafficReportSource
   sourceId: string
   eventId?: string
@@ -42,18 +46,43 @@ export async function reportTrafficEgress(params: {
 }): Promise<{ status: ReportStatus; eventId: string; duplicate: boolean }> {
   const { platform, orgId, bytes, source, sourceId, now = new Date() } = params
   if (bytes <= 0) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
+  if (!params.egressCreditBillingEnabled) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
+  if (!params.storageId || !params.egressCreditUnitBytes || !params.egressCreditPerUnit) {
+    throw new Error('storage_egress_pricing_missing')
+  }
 
   const eventId = params.eventId ?? `traffic_${nanoid()}`
   const existing = await loadTrafficReport(platform.db, eventId)
   const period = existing?.period ?? currentTrafficPeriod(now)
   if (existing) {
-    assertSameReport(existing, { orgId, period, source, sourceId, bytes })
+    assertSameReport(existing, {
+      orgId,
+      period,
+      source,
+      sourceId,
+      bytes,
+      storageId: params.storageId,
+      unitBytes: params.egressCreditUnitBytes,
+      creditsPerUnit: params.egressCreditPerUnit,
+    })
     if (existing.status !== 'blocked') {
       return { status: existing.status as ReportStatus, eventId, duplicate: true }
     }
     if (existing.status === 'blocked') throw new CloudTrafficBlockedError()
   } else {
-    await insertTrafficReport(platform, { orgId, period, source, sourceId, eventId, bytes, status: 'pending', now })
+    await insertTrafficReport(platform, {
+      orgId,
+      period,
+      source,
+      sourceId,
+      eventId,
+      bytes,
+      storageId: params.storageId,
+      unitBytes: params.egressCreditUnitBytes,
+      creditsPerUnit: params.egressCreditPerUnit,
+      status: 'pending',
+      now,
+    })
   }
 
   const binding = await loadActiveLicenseBinding(platform.db)
@@ -116,17 +145,31 @@ async function syncTrafficReport(params: {
 }): Promise<'reported' | 'blocked' | 'failed'> {
   const { db, cloudBaseUrl, refreshToken, storeId, report, now } = params
   try {
+    const isStorageEgress = Boolean(report.storageId && report.unitBytes && report.creditsPerUnit)
     const data = await postBoundCloudJson(
       cloudBaseUrl,
       `/api/stores/${encodeURIComponent(storeId)}/billing/usage-events`,
       refreshToken,
-      {
-        resource: 'traffic_egress',
-        bytes: report.bytes,
-        eventId: report.eventId,
-        idempotencyKey: report.eventId,
-        customerId: report.orgId,
-      },
+      isStorageEgress
+        ? {
+            resource: 'storage_egress',
+            unit: 'byte',
+            bytes: report.bytes,
+            eventId: report.eventId,
+            idempotencyKey: report.eventId,
+            customerId: report.orgId,
+            source: report.source,
+            sourceId: report.sourceId,
+            usageContext: { storageId: report.storageId },
+            pricing: { unitQuantity: report.unitBytes!, creditsPerUnit: report.creditsPerUnit! },
+          }
+        : {
+            resource: 'traffic_egress',
+            bytes: report.bytes,
+            eventId: report.eventId,
+            idempotencyKey: report.eventId,
+            customerId: report.orgId,
+          },
     )
     const response = usageResponseSchema.parse(data)
     if (!response.accepted || response.eventId !== report.eventId) throw new Error('cloud_usage_report_rejected')
@@ -150,14 +193,26 @@ async function loadTrafficReport(db: Database, eventId: string) {
 
 function assertSameReport(
   report: TrafficReport,
-  params: { orgId: string; period: string; source: TrafficReportSource; sourceId: string; bytes: number },
+  params: {
+    orgId: string
+    period: string
+    source: TrafficReportSource
+    sourceId: string
+    bytes: number
+    storageId: string
+    unitBytes: number
+    creditsPerUnit: number
+  },
 ) {
   if (
     report.orgId !== params.orgId ||
     report.period !== params.period ||
     report.source !== params.source ||
     report.sourceId !== params.sourceId ||
-    report.bytes !== params.bytes
+    report.bytes !== params.bytes ||
+    report.storageId !== params.storageId ||
+    report.unitBytes !== params.unitBytes ||
+    report.creditsPerUnit !== params.creditsPerUnit
   ) {
     throw new Error('traffic_report_idempotency_conflict')
   }
@@ -172,6 +227,9 @@ async function insertTrafficReport(
     sourceId: string
     eventId: string
     bytes: number
+    storageId: string
+    unitBytes: number
+    creditsPerUnit: number
     status: ReportStatus
     now: Date
   },
@@ -184,6 +242,9 @@ async function insertTrafficReport(
     sourceId: params.sourceId,
     eventId: params.eventId,
     bytes: params.bytes,
+    storageId: params.storageId,
+    unitBytes: params.unitBytes,
+    creditsPerUnit: params.creditsPerUnit,
     status: params.status,
     error: null,
     createdAt: params.now,

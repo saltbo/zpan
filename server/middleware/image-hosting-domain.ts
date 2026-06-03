@@ -79,6 +79,7 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
   const trafficReportError = await reportTrafficForDownload(c, {
     orgId: image.orgId,
     bytes: image.size,
+    storage,
     source: 'custom_domain_image',
     sourceId: image.id,
   })
