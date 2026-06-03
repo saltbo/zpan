@@ -33,6 +33,7 @@ type DownloadTask struct {
 	TargetFolder         string              `json:"targetFolder"`
 	Status               string              `json:"status"`
 	DownloadedBytes      int64               `json:"downloadedBytes"`
+	UploadedBytes        int64               `json:"uploadedBytes"`
 	TotalBytes           *int64              `json:"totalBytes"`
 	DownloadBps          int64               `json:"downloadBps"`
 	UploadBps            int64               `json:"uploadBps"`
@@ -100,6 +101,7 @@ type Heartbeat struct {
 type TaskPatch struct {
 	Status          string              `json:"status,omitempty"`
 	DownloadedBytes *int64              `json:"downloadedBytes,omitempty"`
+	UploadedBytes   *int64              `json:"uploadedBytes,omitempty"`
 	TotalBytes      *int64              `json:"totalBytes,omitempty"`
 	DownloadBps     *int64              `json:"downloadBps,omitempty"`
 	UploadBps       *int64              `json:"uploadBps,omitempty"`
@@ -114,6 +116,11 @@ type ObjectDraft struct {
 	UploadURL          string `json:"uploadUrl"`
 	ContentDisposition string `json:"contentDisposition,omitempty"`
 }
+
+const (
+	dirTypeFile       = 0
+	dirTypeUserFolder = 1
+)
 
 type DeviceCode struct {
 	DeviceCode              string `json:"device_code"`
@@ -285,6 +292,22 @@ func (c *Client) UpdateTask(ctx context.Context, id string, patch TaskPatch) (Do
 }
 
 func (c *Client) CreateObject(ctx context.Context, token string, name string, size int64, parent string) (ObjectDraft, error) {
+	return c.createMatter(ctx, token, name, "application/octet-stream", size, parent, dirTypeFile)
+}
+
+func (c *Client) CreateFolder(ctx context.Context, token string, name string, parent string) (ObjectDraft, error) {
+	return c.createMatter(ctx, token, name, "folder", 0, parent, dirTypeUserFolder)
+}
+
+func (c *Client) createMatter(
+	ctx context.Context,
+	token string,
+	name string,
+	contentType string,
+	size int64,
+	parent string,
+	dirtype int,
+) (ObjectDraft, error) {
 	body, err := jsonBody(struct {
 		Name    string `json:"name"`
 		Type    string `json:"type"`
@@ -293,10 +316,10 @@ func (c *Client) CreateObject(ctx context.Context, token string, name string, si
 		Dirtype int    `json:"dirtype"`
 	}{
 		Name:    name,
-		Type:    "application/octet-stream",
+		Type:    contentType,
 		Size:    size,
 		Parent:  parent,
-		Dirtype: 0,
+		Dirtype: dirtype,
 	})
 	if err != nil {
 		return ObjectDraft{}, err

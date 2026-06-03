@@ -284,6 +284,7 @@ export async function updateDownloadTask(
     const onlyCancel =
       input.status === 'canceled' &&
       input.downloadedBytes === undefined &&
+      input.uploadedBytes === undefined &&
       input.totalBytes === undefined &&
       input.downloadBps === undefined &&
       input.uploadBps === undefined &&
@@ -303,6 +304,10 @@ export async function updateDownloadTask(
     actor.downloaderId && input.downloadedBytes !== undefined
       ? Math.max(input.downloadedBytes, task.downloadedBytes)
       : (input.downloadedBytes ?? task.downloadedBytes)
+  const uploadedBytes =
+    actor.downloaderId && input.uploadedBytes !== undefined
+      ? Math.max(input.uploadedBytes, task.uploadedBytes)
+      : (input.uploadedBytes ?? task.uploadedBytes)
 
   if (actor.downloaderId && downloadedBytes > task.downloadedBytes) {
     const downloader = await loadDownloaderRow(platform, actor.downloaderId)
@@ -342,6 +347,7 @@ export async function updateDownloadTask(
     .set({
       status,
       downloadedBytes,
+      uploadedBytes,
       totalBytes: input.totalBytes === undefined ? task.totalBytes : input.totalBytes,
       authorizedBytes,
       billedBytes,
@@ -504,6 +510,7 @@ function toDownloadTask(row: DownloadTaskRow): DownloadTask {
     assignedDownloaderId: row.assignedDownloaderId,
     status: row.status as DownloadTask['status'],
     downloadedBytes: row.downloadedBytes,
+    uploadedBytes: row.uploadedBytes,
     totalBytes: row.totalBytes,
     authorizedBytes: row.authorizedBytes,
     billedBytes: row.billedBytes,

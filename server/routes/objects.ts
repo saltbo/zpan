@@ -65,6 +65,21 @@ function conflictBody(err: NameConflictError) {
   }
 }
 
+function normalizeMatterPath(path: string): string {
+  return path
+    .split('/')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('/')
+}
+
+function isWithinDownloadTarget(parent: string, targetFolder: string): boolean {
+  const normalizedParent = normalizeMatterPath(parent)
+  const normalizedTarget = normalizeMatterPath(targetFolder)
+  if (!normalizedTarget) return true
+  return normalizedParent === normalizedTarget || normalizedParent.startsWith(`${normalizedTarget}/`)
+}
+
 const ROLE_LEVELS: Record<string, number> = { owner: 3, editor: 2, viewer: 1, member: 1 }
 
 const requireObjectCreateAccess = createMiddleware<Env>(async (c, next) => {
@@ -127,8 +142,7 @@ const app = new Hono<Env>()
     const { name, type, size, parent, dirtype, onConflict } = c.req.valid('json')
     const isFolder = dirtype !== DirType.FILE
     if (principal?.kind === 'download-task-upload') {
-      if (isFolder) return c.json({ error: 'Download task upload cannot create folders' }, 403)
-      if (parent !== principal.targetFolder)
+      if (!isWithinDownloadTarget(parent, principal.targetFolder))
         return c.json({ error: 'Target folder is outside task authorization' }, 403)
       await assertTaskUploadAllowed(c.get('platform'), {
         taskId: principal.taskId,
@@ -262,7 +276,8 @@ const app = new Hono<Env>()
         if (!storage) throw new ObjectUploadSessionError('not_found')
         const principal = c.get('principal')
         if (principal?.kind === 'download-task-upload') {
-          if (matter.parent !== principal.targetFolder) throw new ObjectUploadSessionError('invalid_state')
+          if (!isWithinDownloadTarget(matter.parent, principal.targetFolder))
+            throw new ObjectUploadSessionError('invalid_state')
           await assertTaskUploadAllowed(c.get('platform'), {
             taskId: principal.taskId,
             downloaderId: principal.downloaderId,
@@ -372,7 +387,8 @@ const app = new Hono<Env>()
       if (body.action !== 'confirm')
         return c.json({ error: 'Download task upload token can only confirm uploads' }, 403)
       const matter = await getMatter(db, c.req.param('id'), orgId)
-      if (!matter || matter.parent !== principal.targetFolder) return c.json({ error: 'Forbidden' }, 403)
+      if (!matter || !isWithinDownloadTarget(matter.parent, principal.targetFolder))
+        return c.json({ error: 'Forbidden' }, 403)
       await assertTaskUploadAllowed(c.get('platform'), {
         taskId: principal.taskId,
         downloaderId: principal.downloaderId,

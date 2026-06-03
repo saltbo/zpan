@@ -224,6 +224,56 @@ describe('Download tasks API integration', () => {
     expect(runningTask.detail.infoHash).toBe('abc123')
     expect(runningTask.detail.trackers[0].url).toBe('udp://tracker.example/announce')
 
+    const createFolderRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: uploadHeaders,
+      body: JSON.stringify({
+        name: 'fixture-dir',
+        type: 'folder',
+        dirtype: 1,
+        parent: 'Remote Downloads',
+      }),
+    })
+    expect(createFolderRes.status).toBe(201)
+    const folder = (await createFolderRes.json()) as { id: string; name: string; status: string; dirtype: number }
+    expect(folder.status).toBe('active')
+    expect(folder.name).toBe('fixture-dir')
+    expect(folder.dirtype).toBe(1)
+
+    const createNestedObjectRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: uploadHeaders,
+      body: JSON.stringify({
+        name: 'nested.txt',
+        type: 'text/plain',
+        size: 0,
+        parent: 'Remote Downloads/fixture-dir',
+      }),
+    })
+    expect(createNestedObjectRes.status).toBe(201)
+    const nestedObject = (await createNestedObjectRes.json()) as { id: string; status: string; uploadUrl: string }
+    expect(nestedObject.status).toBe('draft')
+    expect(nestedObject.uploadUrl).toBe('https://presigned-upload.example.com')
+
+    const nestedConfirmRes = await app.request(`/api/objects/${nestedObject.id}`, {
+      method: 'PATCH',
+      headers: uploadHeaders,
+      body: JSON.stringify({ action: 'confirm', onConflict: 'fail' }),
+    })
+    expect(nestedConfirmRes.status).toBe(200)
+
+    const outsideFolderRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: uploadHeaders,
+      body: JSON.stringify({
+        name: 'outside',
+        type: 'folder',
+        dirtype: 1,
+        parent: 'Other Folder',
+      }),
+    })
+    expect(outsideFolderRes.status).toBe(403)
+
     const createObjectRes = await app.request('/api/objects', {
       method: 'POST',
       headers: uploadHeaders,
@@ -280,6 +330,7 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({
         status: 'completed',
         downloadedBytes: 10 * 1024 * 1024,
+        uploadedBytes: 10 * 1024 * 1024,
         totalBytes: 10 * 1024 * 1024,
         resultObjectId: object.id,
       }),
@@ -288,9 +339,15 @@ describe('Download tasks API integration', () => {
 
     const taskRes = await app.request(`/api/download-tasks/${createdTask.id}`, { headers: user })
     expect(taskRes.status).toBe(200)
-    const task = (await taskRes.json()) as { status: string; resultObjectId: string; downloadedBytes: number }
+    const task = (await taskRes.json()) as {
+      status: string
+      resultObjectId: string
+      downloadedBytes: number
+      uploadedBytes: number
+    }
     expect(task.status).toBe('completed')
     expect(task.resultObjectId).toBe(object.id)
     expect(task.downloadedBytes).toBe(10 * 1024 * 1024)
+    expect(task.uploadedBytes).toBe(10 * 1024 * 1024)
   })
 })

@@ -428,6 +428,7 @@ const APP_SCHEMA_SQL = `
     assigned_downloader_id TEXT,
     status TEXT NOT NULL,
     downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+    uploaded_bytes INTEGER NOT NULL DEFAULT 0,
     total_bytes INTEGER,
     authorized_bytes INTEGER NOT NULL DEFAULT 0,
     billed_bytes INTEGER NOT NULL DEFAULT 0,

@@ -1,0 +1,1 @@
+ALTER TABLE `download_tasks` ADD `uploaded_bytes` integer DEFAULT 0 NOT NULL;

@@ -44,7 +44,8 @@ const objectDraftSchema = z
   .object({
     id: z.string(),
     name: z.string(),
-    uploadUrl: z.string(),
+    uploadUrl: z.string().optional(),
+    contentDisposition: z.string().optional(),
   })
   .openapi('ObjectDraft')
 

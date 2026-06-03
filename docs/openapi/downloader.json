@@ -116,12 +116,14 @@
           },
           "uploadUrl": {
             "type": "string"
+          },
+          "contentDisposition": {
+            "type": "string"
           }
         },
         "required": [
           "id",
-          "name",
-          "uploadUrl"
+          "name"
         ]
       },
       "ConfirmObjectRequest": {
@@ -305,6 +307,10 @@
                             ]
                           },
                           "downloadedBytes": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "uploadedBytes": {
                             "type": "integer",
                             "format": "int64"
                           },
@@ -497,6 +503,7 @@
                           "targetFolder",
                           "status",
                           "downloadedBytes",
+                          "uploadedBytes",
                           "totalBytes",
                           "downloadBps",
                           "uploadBps"
@@ -635,6 +642,10 @@
                       "type": "integer",
                       "format": "int64"
                     },
+                    "uploadedBytes": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
                     "totalBytes": {
                       "type": "integer",
                       "format": "int64",
@@ -824,6 +835,7 @@
                     "targetFolder",
                     "status",
                     "downloadedBytes",
+                    "uploadedBytes",
                     "totalBytes",
                     "downloadBps",
                     "uploadBps"
@@ -946,6 +958,10 @@
                       "type": "integer",
                       "format": "int64"
                     },
+                    "uploadedBytes": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
                     "totalBytes": {
                       "type": "integer",
                       "format": "int64",
@@ -1135,6 +1151,7 @@
                     "targetFolder",
                     "status",
                     "downloadedBytes",
+                    "uploadedBytes",
                     "totalBytes",
                     "downloadBps",
                     "uploadBps"
@@ -1195,6 +1212,10 @@
                     ]
                   },
                   "downloadedBytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "uploadedBytes": {
                     "type": "integer",
                     "minimum": 0
                   },
@@ -1423,6 +1444,10 @@
                       "type": "integer",
                       "format": "int64"
                     },
+                    "uploadedBytes": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
                     "totalBytes": {
                       "type": "integer",
                       "format": "int64",
@@ -1612,6 +1637,7 @@
                     "targetFolder",
                     "status",
                     "downloadedBytes",
+                    "uploadedBytes",
                     "totalBytes",
                     "downloadBps",
                     "uploadBps"

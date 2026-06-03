@@ -28,6 +28,7 @@ func TestUploadFileSendsContentLength(t *testing.T) {
 	path := writeTempFile(t, "hello world")
 	var contentLength string
 	var contentDisposition string
+	var uploaded int64
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentLength = r.Header.Get("Content-Length")
@@ -39,7 +40,10 @@ func TestUploadFileSendsContentLength(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if err := uploadFile(context.Background(), server.URL, path, `attachment; filename="hello.txt"`); err != nil {
+	if err := uploadFile(context.Background(), server.URL, path, `attachment; filename="hello.txt"`, func(written int64) error {
+		uploaded += written
+		return nil
+	}); err != nil {
 		t.Fatalf("uploadFile returned error: %v", err)
 	}
 	if contentLength != "11" {
@@ -47,6 +51,9 @@ func TestUploadFileSendsContentLength(t *testing.T) {
 	}
 	if contentDisposition != `attachment; filename="hello.txt"` {
 		t.Fatalf("expected Content-Disposition header, got %q", contentDisposition)
+	}
+	if uploaded != 11 {
+		t.Fatalf("expected uploaded bytes 11, got %d", uploaded)
 	}
 }
 
@@ -57,7 +64,7 @@ func TestUploadFileIncludesErrorBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := uploadFile(context.Background(), server.URL, path, "")
+	err := uploadFile(context.Background(), server.URL, path, "", nil)
 	if err == nil {
 		t.Fatal("expected uploadFile error")
 	}

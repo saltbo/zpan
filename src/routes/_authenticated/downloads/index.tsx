@@ -364,8 +364,7 @@ function TaskRow({
   onCancel: (id: string) => void
 }) {
   const { t } = useTranslation()
-  const total = task.totalBytes ?? task.downloadedBytes
-  const progress = total > 0 ? Math.min(100, Math.round((task.downloadedBytes / total) * 100)) : 0
+  const progress = transferProgress(task)
   const active = ACTIVE_STATUSES.has(task.status)
   const detail = task.detail
 
@@ -391,8 +390,8 @@ function TaskRow({
       </TableCell>
       <TableCell className="min-w-48 py-1">
         <div className="flex items-center gap-2">
-          <Progress value={progress} className="h-1.5" />
-          <span className="w-8 text-right text-[11px] tabular-nums text-muted-foreground">{progress}%</span>
+          <TransferProgress task={task} className="h-1.5" />
+          <span className="w-8 text-right text-[11px] tabular-nums text-muted-foreground">{progress.overall}%</span>
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-[11px] tabular-nums">
           <span>{formatBytes(task.downloadBps)}/s ↓</span>
@@ -425,6 +424,33 @@ function TaskRow({
       </TableCell>
     </TableRow>
   )
+}
+
+function TransferProgress({ task, className }: { task: DownloadTask; className?: string }) {
+  const progress = transferProgress(task)
+  return (
+    <div
+      className={cn('relative w-full overflow-hidden rounded-full bg-muted', className)}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={progress.overall}
+    >
+      <div className="absolute inset-y-0 left-0 bg-sky-500 transition-all" style={{ width: `${progress.download}%` }} />
+      <div
+        className="absolute inset-y-0 left-0 bg-emerald-500 transition-all"
+        style={{ width: `${progress.upload}%` }}
+      />
+    </div>
+  )
+}
+
+function transferProgress(task: DownloadTask) {
+  const total = Math.max(task.totalBytes ?? task.downloadedBytes, task.downloadedBytes, task.uploadedBytes, 0)
+  if (total <= 0) return { download: 0, upload: 0, overall: task.status === 'completed' ? 100 : 0 }
+  const download = Math.min(100, Math.round((task.downloadedBytes / total) * 100))
+  const upload = task.status === 'completed' ? 100 : Math.min(100, Math.round((task.uploadedBytes / total) * 100))
+  return { download, upload, overall: task.status === 'uploading' || upload > 0 ? upload : download }
 }
 
 function DownloadInspector({
@@ -483,8 +509,7 @@ function DownloadInspector({
 function OverviewPanel({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
   const detail = task.detail
-  const total = task.totalBytes ?? task.downloadedBytes
-  const progress = total > 0 ? Math.min(100, Math.round((task.downloadedBytes / total) * 100)) : 0
+  const progress = transferProgress(task)
 
   return (
     <div className="space-y-3">
@@ -511,8 +536,21 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         />
       </div>
 
+      <div className="space-y-1.5">
+        <TransferProgress task={task} className="h-2" />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] tabular-nums text-muted-foreground">
+          <span>
+            {t('downloads.detail.downloaded')}: {formatBytes(task.downloadedBytes)}
+          </span>
+          <span>
+            {t('downloads.detail.uploaded')}: {formatBytes(task.uploadedBytes)}
+          </span>
+          <span>{progress.overall}%</span>
+        </div>
+      </div>
+
       <div className="grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
-        <InspectorField label={t('downloads.detail.progress')} value={`${progress}%`} />
+        <InspectorField label={t('downloads.detail.progress')} value={`${progress.overall}%`} />
         <InspectorField label={t('downloads.detail.engine')} value={detail?.engine || t('downloads.unknown')} />
         <InspectorField label={t('downloads.detail.phase')} value={detail?.phase || '-'} />
         <InspectorField
@@ -536,7 +574,7 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         <InspectorField label={t('downloads.detail.torrentName')} value={detail?.torrentName || '-'} />
         <InspectorField label={t('downloads.detail.seeders')} value={formatNumber(detail?.seeders)} />
         <InspectorField label={t('downloads.detail.leechers')} value={formatNumber(detail?.leechers)} />
-        <InspectorField label={t('downloads.detail.uploaded')} value={formatBytes(detail?.uploadedBytes ?? 0)} />
+        <InspectorField label={t('downloads.detail.uploaded')} value={formatBytes(task.uploadedBytes)} />
         <InspectorField label={t('downloads.detail.createdAt')} value={formatDate(task.createdAt)} />
         <InspectorField label={t('downloads.detail.startedAt')} value={formatDate(task.startedAt)} />
         <InspectorField label={t('downloads.detail.finishedAt')} value={formatDate(task.finishedAt)} />

@@ -40,6 +40,7 @@ const downloadTaskSchema = z.object({
   targetFolder: z.string(),
   status: z.enum(['queued', 'assigned', 'running', 'billing_paused', 'uploading', 'completed', 'failed', 'canceled']),
   downloadedBytes: int64Schema(),
+  uploadedBytes: int64Schema(),
   totalBytes: nullableInt64Schema(),
   downloadBps: int64Schema(),
   uploadBps: int64Schema(),

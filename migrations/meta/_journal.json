@@ -253,6 +253,13 @@
       "when": 1780499047848,
       "tag": "0036_add-download-task-detail",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1780502607046,
+      "tag": "0037_add-download-task-upload-progress",
+      "breakpoints": true
     }
   ]
 }

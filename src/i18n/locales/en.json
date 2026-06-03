@@ -176,6 +176,7 @@
   "downloads.detail.seeders": "Seeders",
   "downloads.detail.leechers": "Leechers",
   "downloads.detail.uploaded": "Uploaded",
+  "downloads.detail.downloaded": "Downloaded",
   "downloads.detail.trackers": "Trackers",
   "downloads.detail.noTrackers": "No tracker data yet",
   "downloads.detail.trackerUrl": "Tracker",

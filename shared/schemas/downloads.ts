@@ -96,6 +96,7 @@ export const createDownloadTaskSchema = z.object({
 export const updateDownloadTaskSchema = z.object({
   status: downloadTaskStatusSchema.optional(),
   downloadedBytes: z.number().int().min(0).optional(),
+  uploadedBytes: z.number().int().min(0).optional(),
   totalBytes: z.number().int().min(0).nullable().optional(),
   downloadBps: z.number().int().min(0).optional(),
   uploadBps: z.number().int().min(0).optional(),

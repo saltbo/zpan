@@ -749,9 +749,10 @@ type ErrorResponse struct {
 
 // ObjectDraft defines model for ObjectDraft.
 type ObjectDraft struct {
-	Id        string `json:"id"`
-	Name      string `json:"name"`
-	UploadUrl string `json:"uploadUrl"`
+	ContentDisposition *string `json:"contentDisposition,omitempty"`
+	Id                 string  `json:"id"`
+	Name               string  `json:"name"`
+	UploadUrl          *string `json:"uploadUrl,omitempty"`
 }
 
 // GetApiAdminDownloaders200JSONResponseBodyItemsHeartbeatEngine defines parameters for GetApiAdminDownloaders.
@@ -899,6 +900,7 @@ type PatchApiDownloadTasksIdJSONBody struct {
 	Status          *PatchApiDownloadTasksIdJSONBodyStatus `json:"status,omitempty"`
 	TotalBytes      *int                                   `json:"totalBytes,omitempty"`
 	UploadBps       *int                                   `json:"uploadBps,omitempty"`
+	UploadedBytes   *int                                   `json:"uploadedBytes,omitempty"`
 }
 
 // PatchApiDownloadTasksIdJSONBodyDetailEngine defines parameters for PatchApiDownloadTasksId.
@@ -2351,6 +2353,7 @@ type GetApiDownloadTasksResponse struct {
 			TotalBytes      *int64                                                `json:"totalBytes"`
 			UploadBps       int64                                                 `json:"uploadBps"`
 			UploadToken     *string                                               `json:"uploadToken,omitempty"`
+			UploadedBytes   int64                                                 `json:"uploadedBytes"`
 		} `json:"items"`
 		Page     int `json:"page"`
 		PageSize int `json:"pageSize"`
@@ -2437,6 +2440,7 @@ type PostApiDownloadTasksResponse struct {
 		TotalBytes      *int64                                            `json:"totalBytes"`
 		UploadBps       int64                                             `json:"uploadBps"`
 		UploadToken     *string                                           `json:"uploadToken,omitempty"`
+		UploadedBytes   int64                                             `json:"uploadedBytes"`
 	}
 	JSON401 *struct {
 		Error string `json:"error"`
@@ -2525,6 +2529,7 @@ type GetApiDownloadTasksIdResponse struct {
 		TotalBytes      *int64                                             `json:"totalBytes"`
 		UploadBps       int64                                              `json:"uploadBps"`
 		UploadToken     *string                                            `json:"uploadToken,omitempty"`
+		UploadedBytes   int64                                              `json:"uploadedBytes"`
 	}
 	JSON404 *struct {
 		Error string `json:"error"`
@@ -2607,6 +2612,7 @@ type PatchApiDownloadTasksIdResponse struct {
 		TotalBytes      *int64                                               `json:"totalBytes"`
 		UploadBps       int64                                                `json:"uploadBps"`
 		UploadToken     *string                                              `json:"uploadToken,omitempty"`
+		UploadedBytes   int64                                                `json:"uploadedBytes"`
 	}
 	JSON401 *struct {
 		Error string `json:"error"`
@@ -3278,6 +3284,7 @@ func ParseGetApiDownloadTasksResponse(rsp *http.Response) (*GetApiDownloadTasksR
 				TotalBytes      *int64                                                `json:"totalBytes"`
 				UploadBps       int64                                                 `json:"uploadBps"`
 				UploadToken     *string                                               `json:"uploadToken,omitempty"`
+				UploadedBytes   int64                                                 `json:"uploadedBytes"`
 			} `json:"items"`
 			Page     int `json:"page"`
 			PageSize int `json:"pageSize"`
@@ -3366,6 +3373,7 @@ func ParsePostApiDownloadTasksResponse(rsp *http.Response) (*PostApiDownloadTask
 			TotalBytes      *int64                                            `json:"totalBytes"`
 			UploadBps       int64                                             `json:"uploadBps"`
 			UploadToken     *string                                           `json:"uploadToken,omitempty"`
+			UploadedBytes   int64                                             `json:"uploadedBytes"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -3468,6 +3476,7 @@ func ParseGetApiDownloadTasksIdResponse(rsp *http.Response) (*GetApiDownloadTask
 			TotalBytes      *int64                                             `json:"totalBytes"`
 			UploadBps       int64                                              `json:"uploadBps"`
 			UploadToken     *string                                            `json:"uploadToken,omitempty"`
+			UploadedBytes   int64                                              `json:"uploadedBytes"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -3552,6 +3561,7 @@ func ParsePatchApiDownloadTasksIdResponse(rsp *http.Response) (*PatchApiDownload
 			TotalBytes      *int64                                               `json:"totalBytes"`
 			UploadBps       int64                                                `json:"uploadBps"`
 			UploadToken     *string                                              `json:"uploadToken,omitempty"`
+			UploadedBytes   int64                                                `json:"uploadedBytes"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

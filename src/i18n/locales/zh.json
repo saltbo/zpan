@@ -176,6 +176,7 @@
   "downloads.detail.seeders": "做种",
   "downloads.detail.leechers": "下载者",
   "downloads.detail.uploaded": "已上传",
+  "downloads.detail.downloaded": "已下载",
   "downloads.detail.trackers": "Trackers",
   "downloads.detail.noTrackers": "暂无 tracker 信息",
   "downloads.detail.trackerUrl": "Tracker",

@@ -158,7 +158,7 @@ func TestAria2DetailIncludesPeerSamples(t *testing.T) {
 	}
 }
 
-func TestResultFromPathZipsDirectory(t *testing.T) {
+func TestResultFromPathReturnsDirectory(t *testing.T) {
 	dir := t.TempDir()
 	taskDir := filepath.Join(dir, "task-1")
 	if err := os.MkdirAll(filepath.Join(taskDir, "folder"), 0o755); err != nil {
@@ -175,13 +175,19 @@ func TestResultFromPathZipsDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Name != "bundle.zip" {
-		t.Fatalf("expected bundle.zip, got %s", result.Name)
+	if !result.IsDir {
+		t.Fatal("expected directory result")
 	}
-	if result.Size <= 0 {
-		t.Fatalf("expected zip size > 0, got %d", result.Size)
+	if result.Name != "bundle" {
+		t.Fatalf("expected bundle, got %s", result.Name)
 	}
-	if _, err := os.Stat(result.Path); err != nil {
+	if result.Size != 2 {
+		t.Fatalf("expected directory size 2, got %d", result.Size)
+	}
+	if result.Path != taskDir {
+		t.Fatalf("expected task dir path, got %s", result.Path)
+	}
+	if _, err := os.Stat(filepath.Join(result.Path, "folder", "a.txt")); err != nil {
 		t.Fatal(err)
 	}
 }

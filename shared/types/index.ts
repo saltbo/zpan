@@ -252,6 +252,7 @@ export interface DownloadTask {
   assignedDownloaderId: string | null
   status: DownloadTaskStatus
   downloadedBytes: number
+  uploadedBytes: number
   totalBytes: number | null
   authorizedBytes: number
   billedBytes: number

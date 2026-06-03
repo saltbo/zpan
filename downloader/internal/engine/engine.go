@@ -19,9 +19,10 @@ import (
 )
 
 type Result struct {
-	Path string
-	Name string
-	Size int64
+	Path  string
+	Name  string
+	Size  int64
+	IsDir bool
 }
 
 type Progress func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error
@@ -661,16 +662,14 @@ func resultFromPath(task client.DownloadTask, path string, fallbackName string) 
 	if len(visible) == 1 && !visible[0].IsDir() {
 		return resultFromFile(task, filepath.Join(path, visible[0].Name()))
 	}
-	zipName := outputName(task, fallbackName)
-	if !strings.HasSuffix(strings.ToLower(zipName), ".zip") {
-		zipName += ".zip"
+	if len(visible) == 1 && visible[0].IsDir() && strings.TrimSpace(task.Name) == "" {
+		return resultFromPath(task, filepath.Join(path, visible[0].Name()), visible[0].Name())
 	}
-	zipPath := filepath.Join(filepath.Dir(path), zipName)
-	size, err := ZipDirectory(path, zipPath)
+	size, err := directorySize(path)
 	if err != nil {
 		return Result{}, err
 	}
-	return Result{Path: zipPath, Name: zipName, Size: size}, nil
+	return Result{Path: path, Name: outputName(task, fallbackName), Size: size, IsDir: true}, nil
 }
 
 func isAria2MetadataPath(path string) bool {
@@ -683,6 +682,25 @@ func resultFromFile(task client.DownloadTask, path string) (Result, error) {
 		return Result{}, err
 	}
 	return Result{Path: path, Name: outputName(task, filepath.Base(path)), Size: info.Size()}, nil
+}
+
+func directorySize(path string) (int64, error) {
+	var total int64
+	err := filepath.WalkDir(path, func(entryPath string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		total += info.Size()
+		return nil
+	})
+	return total, err
 }
 
 func cleanDownloadedPath(baseDir string, path string) string {

@@ -10,7 +10,10 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -122,7 +125,11 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	}
 
 	var lastProgressLog time.Time
+	currentDetail := task.Detail
 	result, err := w.engine.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error {
+		if detail != nil {
+			currentDetail = detail
+		}
 		_, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
 			DownloadedBytes: &downloaded,
 			TotalBytes:      total,
@@ -160,42 +167,214 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "uploading"}); err != nil {
 		log.Error("failed to mark task uploading", "error", err)
 	}
-	log.Info("creating remote object", "name", result.Name, "size", result.Size, "target_folder", task.TargetFolder)
-	draft, err := w.api.CreateObject(ctx, task.UploadToken, result.Name, result.Size, task.TargetFolder)
+	task.Detail = currentDetail
+	resultObjectID, err := w.uploadResult(ctx, log, task, result)
 	if err != nil {
 		msg := taskErrorMessage(err)
-		log.Error("failed to create remote object", "error", err)
+		log.Error("failed to upload result", "error", err)
 		if _, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
 		}
 		return
 	}
-	log.Info("uploading file to object storage", "object_id", draft.ID, "path", result.Path)
-	if err := uploadFile(ctx, draft.UploadURL, result.Path, draft.ContentDisposition); err != nil {
-		msg := taskErrorMessage(err)
-		log.Error("failed to upload file to object storage", "object_id", draft.ID, "error", err)
-		if _, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
-			log.Error("failed to mark task failed", "error", updateErr)
-		}
+	zero := int64(0)
+	uploadedBytes := result.Size
+	completedDetail := task.Detail
+	if completedDetail == nil {
+		completedDetail = &client.DownloadTaskDetail{}
+	}
+	completedDetail.Phase = "completed"
+	completedDetail.UploadedBytes = &uploadedBytes
+	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
+		Status:         "completed",
+		ResultObjectID: &resultObjectID,
+		UploadedBytes:  &uploadedBytes,
+		UploadBps:      &zero,
+		Detail:         completedDetail,
+	}); err != nil {
+		log.Error("failed to mark task completed", "object_id", resultObjectID, "error", err)
 		return
+	}
+	log.Debug("task completed", "object_id", resultObjectID)
+	if err := os.RemoveAll(result.Path); err != nil {
+		log.Warn("failed to remove local downloaded result", "path", result.Path, "error", err)
+	}
+}
+
+type uploadProgress struct {
+	totalBytes int64
+	uploaded   int64
+	lastAt     time.Time
+	lastBytes  int64
+}
+
+func (w *Worker) uploadResult(
+	ctx context.Context,
+	log *slog.Logger,
+	task client.DownloadTask,
+	result engine.Result,
+) (string, error) {
+	if !result.IsDir {
+		progress := &uploadProgress{totalBytes: result.Size, lastAt: time.Now()}
+		return w.uploadSingleFile(ctx, log, task, result.Path, result.Name, result.Size, task.TargetFolder, progress)
+	}
+
+	progress := &uploadProgress{totalBytes: result.Size, lastAt: time.Now()}
+	log.Info("creating remote folder", "name", result.Name, "size", result.Size, "target_folder", task.TargetFolder)
+	root, err := w.api.CreateFolder(ctx, task.UploadToken, result.Name, task.TargetFolder)
+	if err != nil {
+		return "", fmt.Errorf("create remote folder: %w", err)
+	}
+	rootPath := joinObjectPath(task.TargetFolder, root.Name)
+	entries, err := collectDirectoryEntries(result.Path)
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		parent := joinObjectPath(rootPath, path.Dir(entry.relativePath))
+		if entry.isDir {
+			log.Debug("creating remote subfolder", "name", entry.name, "parent", parent)
+			if _, err := w.api.CreateFolder(ctx, task.UploadToken, entry.name, parent); err != nil {
+				return "", fmt.Errorf("create remote subfolder %s: %w", entry.relativePath, err)
+			}
+			continue
+		}
+		if _, err := w.uploadSingleFile(ctx, log, task, entry.path, entry.name, entry.size, parent, progress); err != nil {
+			return "", err
+		}
+	}
+	return root.ID, nil
+}
+
+func (w *Worker) uploadSingleFile(
+	ctx context.Context,
+	log *slog.Logger,
+	task client.DownloadTask,
+	path string,
+	name string,
+	size int64,
+	parent string,
+	progress *uploadProgress,
+) (string, error) {
+	log.Info("creating remote object", "name", name, "size", size, "target_folder", parent)
+	draft, err := w.api.CreateObject(ctx, task.UploadToken, name, size, parent)
+	if err != nil {
+		return "", fmt.Errorf("create remote object: %w", err)
+	}
+	log.Info("uploading file to object storage", "object_id", draft.ID, "path", path)
+	if err := uploadFile(ctx, draft.UploadURL, path, draft.ContentDisposition, func(written int64) error {
+		return w.reportUploadProgress(ctx, log, task, progress, written)
+	}); err != nil {
+		return "", fmt.Errorf("upload object %s: %w", draft.ID, err)
 	}
 	log.Info("confirming uploaded object", "object_id", draft.ID)
 	if err := w.api.ConfirmObject(ctx, task.UploadToken, draft.ID); err != nil {
-		msg := taskErrorMessage(err)
-		log.Error("failed to confirm uploaded object", "object_id", draft.ID, "error", err)
-		if _, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
-			log.Error("failed to mark task failed", "error", updateErr)
+		return "", fmt.Errorf("confirm object %s: %w", draft.ID, err)
+	}
+	return draft.ID, nil
+}
+
+func (w *Worker) reportUploadProgress(
+	ctx context.Context,
+	log *slog.Logger,
+	task client.DownloadTask,
+	progress *uploadProgress,
+	written int64,
+) error {
+	progress.uploaded += written
+	now := time.Now()
+	if progress.uploaded < progress.totalBytes && now.Sub(progress.lastAt) < time.Second {
+		return nil
+	}
+	elapsed := now.Sub(progress.lastAt).Seconds()
+	var bps int64
+	if elapsed > 0 {
+		bps = int64(float64(progress.uploaded-progress.lastBytes) / elapsed)
+	}
+	detail := task.Detail
+	if detail == nil {
+		detail = &client.DownloadTaskDetail{}
+	}
+	detail.Phase = "uploading"
+	detail.UploadedBytes = &progress.uploaded
+	_, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
+		Status:        "uploading",
+		UploadedBytes: &progress.uploaded,
+		UploadBps:     &bps,
+		Detail:        detail,
+	})
+	if err != nil {
+		log.Error("failed to report upload progress", "uploaded_bytes", progress.uploaded, "total_bytes", progress.totalBytes, "bps", bps, "error", err)
+		return err
+	}
+	log.Debug("task upload progress", "uploaded_bytes", progress.uploaded, "total_bytes", progress.totalBytes, "bps", bps)
+	progress.lastAt = now
+	progress.lastBytes = progress.uploaded
+	return nil
+}
+
+type directoryEntry struct {
+	path         string
+	relativePath string
+	name         string
+	size         int64
+	isDir        bool
+}
+
+func collectDirectoryEntries(root string) ([]directoryEntry, error) {
+	var entries []directoryEntry
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		return
+		if path == root {
+			return nil
+		}
+		if strings.HasPrefix(entry.Name(), ".") {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		relativePath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		item := directoryEntry{
+			path:         path,
+			relativePath: filepath.ToSlash(relativePath),
+			name:         entry.Name(),
+			isDir:        entry.IsDir(),
+		}
+		if !entry.IsDir() {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			item.size = info.Size()
+		}
+		entries = append(entries, item)
+		return nil
+	})
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].isDir != entries[j].isDir {
+			return entries[i].isDir
+		}
+		return entries[i].relativePath < entries[j].relativePath
+	})
+	return entries, err
+}
+
+func joinObjectPath(parent string, name string) string {
+	name = strings.Trim(filepath.ToSlash(name), "/")
+	if name == "" || name == "." {
+		return strings.Trim(parent, "/")
 	}
-	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "completed", ResultObjectID: &draft.ID}); err != nil {
-		log.Error("failed to mark task completed", "object_id", draft.ID, "error", err)
-		return
+	parent = strings.Trim(parent, "/")
+	if parent == "" {
+		return name
 	}
-	log.Debug("task completed", "object_id", draft.ID)
-	if err := os.Remove(result.Path); err != nil {
-		log.Warn("failed to remove local downloaded file", "path", result.Path, "error", err)
-	}
+	return parent + "/" + name
 }
 
 func (w *Worker) canStart(taskID string) bool {
@@ -530,7 +709,7 @@ func capabilities(name string) []string {
 	}
 }
 
-func uploadFile(ctx context.Context, url, path string, contentDisposition string) error {
+func uploadFile(ctx context.Context, url, path string, contentDisposition string, progress func(written int64) error) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -540,7 +719,11 @@ func uploadFile(ctx context.Context, url, path string, contentDisposition string
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, file)
+	reader := io.Reader(file)
+	if progress != nil {
+		reader = &uploadProgressReader{reader: file, progress: progress}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, reader)
 	if err != nil {
 		return err
 	}
@@ -562,6 +745,21 @@ func uploadFile(ctx context.Context, url, path string, contentDisposition string
 		return fmt.Errorf("upload failed: %s", res.Status)
 	}
 	return nil
+}
+
+type uploadProgressReader struct {
+	reader   io.Reader
+	progress func(written int64) error
+}
+
+func (r *uploadProgressReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	if n > 0 {
+		if progressErr := r.progress(int64(n)); progressErr != nil {
+			return n, progressErr
+		}
+	}
+	return n, err
 }
 
 func taskErrorMessage(err error) string {
