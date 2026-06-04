@@ -275,6 +275,8 @@ export interface ListDownloadTasksOptions {
   assignedTo?: 'me'
   category?: string
   tag?: string
+  sortBy?: 'createdAt' | 'source' | 'category' | 'tags' | 'status' | 'progress' | 'eta'
+  sortDir?: 'asc' | 'desc'
   page?: number
   pageSize?: number
 }
@@ -288,6 +290,8 @@ export function listDownloadTasks(opts: ListDownloadTasksOptions = {}) {
   if (opts.assignedTo) query.assignedTo = opts.assignedTo
   if (opts.category) query.category = opts.category
   if (opts.tag) query.tag = opts.tag
+  if (opts.sortBy) query.sortBy = opts.sortBy
+  if (opts.sortDir) query.sortDir = opts.sortDir
   return unwrap<PaginatedResponse<DownloadTask>>(downloadTasksApi.index.$get({ query }))
 }
 
@@ -305,10 +309,14 @@ export function runDownloadTaskAction(id: string, action: DownloadTaskActionInpu
   return unwrap<DownloadTaskActionResult>(downloadTasksApi[':id'].actions.$post({ param: { id }, json: { action } }))
 }
 
-export function downloadTaskEventsUrl(opts: Pick<ListDownloadTasksOptions, 'category' | 'tag'> = {}) {
+export function downloadTaskEventsUrl(
+  opts: Pick<ListDownloadTasksOptions, 'category' | 'tag' | 'sortBy' | 'sortDir'> = {},
+) {
   const query: Record<string, string> = { page: '1', pageSize: '50' }
   if (opts.category) query.category = opts.category
   if (opts.tag) query.tag = opts.tag
+  if (opts.sortBy) query.sortBy = opts.sortBy
+  if (opts.sortDir) query.sortDir = opts.sortDir
   return downloadTasksUrlApi.events.$url({ query })
 }
 

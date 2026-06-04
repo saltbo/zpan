@@ -452,6 +452,8 @@ const APP_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS download_tasks_org_created_idx ON download_tasks(org_id, created_at);
   CREATE INDEX IF NOT EXISTS download_tasks_org_status_idx ON download_tasks(org_id, status);
+  CREATE INDEX IF NOT EXISTS download_tasks_org_category_idx ON download_tasks(org_id, category);
+  CREATE INDEX IF NOT EXISTS download_tasks_org_tags_idx ON download_tasks(org_id, tags);
   CREATE INDEX IF NOT EXISTS download_tasks_downloader_idx ON download_tasks(assigned_downloader_id, status);
   CREATE TABLE IF NOT EXISTS object_upload_sessions (
     id TEXT PRIMARY KEY,

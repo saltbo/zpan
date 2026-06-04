@@ -110,6 +110,44 @@ func TestQBittorrentHTTPDelegatesToBuiltin(t *testing.T) {
 	}
 }
 
+func TestQBittorrentAddOptionsPassThroughTaskClassification(t *testing.T) {
+	options := qbittorrentAddOptions(
+		client.DownloadTask{
+			ID:       "task-1",
+			Name:     "fixture",
+			Category: "movies",
+			Tags:     []string{"4k", "private"},
+		},
+		"/tmp/zpan/task-1",
+		qbittorrentTrackingTag("task-1"),
+	)
+
+	if options["category"] != "movies" {
+		t.Fatalf("expected task category, got %q", options["category"])
+	}
+	if options["tags"] != "ztid=task-1,4k,private" {
+		t.Fatalf("expected tracking and task tags, got %q", options["tags"])
+	}
+	if options["rename"] != "fixture" {
+		t.Fatalf("expected rename option, got %q", options["rename"])
+	}
+}
+
+func TestQBittorrentAddOptionsDefaultsCategory(t *testing.T) {
+	options := qbittorrentAddOptions(
+		client.DownloadTask{ID: "task-1"},
+		"/tmp/zpan/task-1",
+		qbittorrentTrackingTag("task-1"),
+	)
+
+	if options["category"] != "zpan" {
+		t.Fatalf("expected default category, got %q", options["category"])
+	}
+	if options["tags"] != "ztid=task-1" {
+		t.Fatalf("expected tracking tag, got %q", options["tags"])
+	}
+}
+
 func TestIsAria2RPCDisconnected(t *testing.T) {
 	for _, err := range []error{
 		rpc2.ErrShutdown,

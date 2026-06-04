@@ -3,7 +3,20 @@ import type { DownloadTask, DownloadTaskAction, DownloadTaskStatus, StorageObjec
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
+  type ColumnDef,
+  type ColumnOrderState,
+  flexRender,
+  getCoreRowModel,
+  type Header,
+  type Row,
+  type RowSelectionState,
+  type SortingState,
+  useReactTable,
+} from '@tanstack/react-table'
+import {
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
   Ban,
   Check,
   CheckCircle2,
@@ -33,6 +46,7 @@ import {
 import {
   type FormEvent,
   type KeyboardEvent,
+  type DragEvent as ReactDragEvent,
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -46,7 +60,22 @@ import { useFilesQuery } from '@/components/files/hooks/use-files-query'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -62,11 +91,13 @@ export const Route = createFileRoute('/_authenticated/downloads/')({
 })
 
 const QUERY_KEY = ['download-tasks']
-const ACTIVE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'running', 'billing_paused', 'uploading'])
+const PAUSABLE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'running'])
+const DEFAULT_COLUMN_ORDER = ['select', 'source', 'status', 'progress', 'eta', 'category', 'tags']
 type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
 type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['detail']>['phase']>
 type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'log'
 type PanelDragState = { startY: number; startDetailHeight: number; containerHeight: number }
+type PendingTaskAction = { tasks: DownloadTask[]; action: DownloadTaskAction }
 
 const LIST_MIN_HEIGHT = 180
 const DETAIL_MIN_HEIGHT = 224
@@ -94,32 +125,50 @@ function DownloadsPage() {
   const [filterTag, setFilterTag] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(DEFAULT_COLUMN_ORDER)
+  const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null)
+  const [pendingTaskAction, setPendingTaskAction] = useState<PendingTaskAction | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('overview')
   const [detailHeight, setDetailHeight] = useState(DETAIL_DEFAULT_HEIGHT)
   const [panelDrag, setPanelDrag] = useState<PanelDragState | null>(null)
   const panelsRef = useRef<HTMLDivElement>(null)
   const categoryFilterValue = filterCategory.trim() || undefined
   const tagFilterValue = filterTag.trim() || undefined
+  const sortBy = toDownloadTaskSortBy(sorting[0]?.id)
+  const sortDir = sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : 'desc'
   const queryKey = useMemo(
-    () => [...QUERY_KEY, categoryFilterValue ?? '', tagFilterValue ?? ''],
-    [categoryFilterValue, tagFilterValue],
+    () => [...QUERY_KEY, categoryFilterValue ?? '', tagFilterValue ?? '', sortBy, sortDir],
+    [categoryFilterValue, sortBy, sortDir, tagFilterValue],
   )
 
   const tasksQuery = useQuery({
     queryKey,
-    queryFn: () => listDownloadTasks({ page: 1, pageSize: 50, category: categoryFilterValue, tag: tagFilterValue }),
+    queryFn: () =>
+      listDownloadTasks({
+        page: 1,
+        pageSize: 50,
+        category: categoryFilterValue,
+        tag: tagFilterValue,
+        sortBy,
+        sortDir,
+      }),
   })
 
   useEffect(() => {
-    const events = new EventSource(downloadTaskEventsUrl({ category: categoryFilterValue, tag: tagFilterValue }), {
-      withCredentials: true,
-    })
+    const events = new EventSource(
+      downloadTaskEventsUrl({ category: categoryFilterValue, tag: tagFilterValue, sortBy, sortDir }),
+      {
+        withCredentials: true,
+      },
+    )
     events.addEventListener('snapshot', (event) => {
       const data = JSON.parse((event as MessageEvent<string>).data)
       queryClient.setQueryData(queryKey, data)
     })
     return () => events.close()
-  }, [categoryFilterValue, queryClient, queryKey, tagFilterValue])
+  }, [categoryFilterValue, queryClient, queryKey, sortBy, sortDir, tagFilterValue])
 
   useEffect(() => {
     if (!panelDrag) return
@@ -160,8 +209,13 @@ function DownloadsPage() {
   })
 
   const actionMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: DownloadTaskAction }) => runDownloadTaskAction(id, action),
-    onSuccess: () => {
+    mutationFn: async ({ tasks, action }: { tasks: DownloadTask[]; action: DownloadTaskAction }) => {
+      const actionable = tasks.filter((task) => taskActions(task).includes(action))
+      await Promise.all(actionable.map((task) => runDownloadTaskAction(task.id, action)))
+      return { action, count: actionable.length }
+    },
+    onSuccess: ({ action }) => {
+      if (action === 'delete') setRowSelection({})
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       toast.success(t('downloads.actionSuccess'))
     },
@@ -179,9 +233,63 @@ function DownloadsPage() {
     })
   }
 
+  function handleTaskAction(task: DownloadTask, action: DownloadTaskAction) {
+    requestTaskAction({ tasks: [task], action })
+  }
+
+  function handleBulkAction(action: DownloadTaskAction) {
+    requestTaskAction({ tasks: selectedTasks, action })
+  }
+
+  function handlePrimaryTaskAction(task: DownloadTask) {
+    const action = primaryTaskAction(task)
+    if (action) handleTaskAction(task, action)
+  }
+
+  function handleColumnDrop(targetColumnId: string) {
+    if (!draggedColumnId || draggedColumnId === targetColumnId) {
+      setDraggedColumnId(null)
+      return
+    }
+    if (!isReorderableColumn(draggedColumnId) || !isReorderableColumn(targetColumnId)) {
+      setDraggedColumnId(null)
+      return
+    }
+    setColumnOrder((current) => reorderColumn(current, draggedColumnId, targetColumnId))
+    setDraggedColumnId(null)
+  }
+
+  function requestTaskAction(action: PendingTaskAction) {
+    if (action.action === 'cancel' || action.action === 'delete') {
+      setPendingTaskAction(action)
+      return
+    }
+    actionMutation.mutate(action)
+  }
+
+  function confirmPendingTaskAction() {
+    if (!pendingTaskAction) return
+    actionMutation.mutate(pendingTaskAction)
+    setPendingTaskAction(null)
+  }
+
   const tasks = tasksQuery.data?.items ?? []
+  const columns = useMemo(() => getDownloadColumns(t), [t])
+  const table = useReactTable({
+    data: tasks,
+    columns,
+    state: { sorting, rowSelection, columnOrder },
+    onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    onColumnOrderChange: setColumnOrder,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (task) => task.id,
+    enableRowSelection: true,
+    manualSorting: true,
+  })
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null
   const activeSelectedTaskId = selectedTask?.id ?? null
+  const selectedTasks = table.getSelectedRowModel().rows.map((row) => row.original)
 
   function handlePanelResizeStart(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault()
@@ -205,6 +313,14 @@ function DownloadsPage() {
         items={[{ label: t('downloads.title'), icon: <Download className="size-4 text-muted-foreground" /> }]}
         actions={
           <div className="flex items-center gap-2">
+            {selectedTasks.length > 0 && (
+              <BulkTaskActions
+                tasks={selectedTasks}
+                pending={actionMutation.isPending}
+                onAction={handleBulkAction}
+                onClear={() => setRowSelection({})}
+              />
+            )}
             <DownloadFilters
               category={filterCategory}
               tag={filterTag}
@@ -321,6 +437,36 @@ function DownloadsPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!pendingTaskAction} onOpenChange={(open) => !open && setPendingTaskAction(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingTaskAction?.action === 'delete'
+                ? t('downloads.confirm.deleteTitle')
+                : t('downloads.confirm.cancelTitle')}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingTaskAction?.action === 'delete'
+                ? t('downloads.confirm.deleteDescription', { count: pendingTaskAction.tasks.length })
+                : t('downloads.confirm.cancelDescription', { count: pendingTaskAction?.tasks.length ?? 0 })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPendingTaskAction(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={actionMutation.isPending}
+              onClick={confirmPendingTaskAction}
+            >
+              {t('common.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div
         ref={panelsRef}
         className="grid min-h-0 flex-1 overflow-hidden"
@@ -330,33 +476,42 @@ function DownloadsPage() {
       >
         <section className="min-h-0 overflow-hidden rounded-md border bg-background">
           <div className="h-full overflow-auto">
-            <Table className="text-xs">
+            <Table className="min-w-[920px] table-fixed text-xs">
               <TableHeader>
-                <TableRow>
-                  <TableHead className="h-8">{t('downloads.table.source')}</TableHead>
-                  <TableHead className="h-8">{t('downloads.table.status')}</TableHead>
-                  <TableHead className="h-8">{t('downloads.table.progress')}</TableHead>
-                  <TableHead className="h-8">{t('downloads.table.size')}</TableHead>
-                  <TableHead className="h-8">{t('downloads.table.eta')}</TableHead>
-                  <TableHead className="h-8 text-right">{t('common.actions')}</TableHead>
-                </TableRow>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id} className="bg-muted/40 hover:bg-muted/40">
+                    {headerGroup.headers.map((header) => (
+                      <DownloadTableHead
+                        key={header.id}
+                        header={header}
+                        draggedColumnId={draggedColumnId}
+                        onDragStart={setDraggedColumnId}
+                        onDrop={handleColumnDrop}
+                      />
+                    ))}
+                  </TableRow>
+                ))}
               </TableHeader>
               <TableBody>
                 {tasks.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-28 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={table.getAllColumns().length}
+                      className="h-28 text-center text-muted-foreground"
+                    >
                       {tasksQuery.isLoading ? t('common.loading') : t('downloads.empty')}
                     </TableCell>
                   </TableRow>
                 )}
-                {tasks.map((task) => (
+                {table.getRowModel().rows.map((row) => (
                   <TaskRow
-                    key={task.id}
-                    task={task}
-                    selected={task.id === activeSelectedTaskId}
-                    onSelect={() => setSelectedTaskId(task.id)}
-                    actionPending={actionMutation.isPending && actionMutation.variables?.id === task.id}
-                    onAction={(id, action) => actionMutation.mutate({ id, action })}
+                    key={row.id}
+                    row={row}
+                    selected={row.original.id === activeSelectedTaskId}
+                    actionPending={actionMutation.isPending}
+                    onSelect={() => setSelectedTaskId(row.original.id)}
+                    onPrimaryAction={() => handlePrimaryTaskAction(row.original)}
+                    onAction={(action) => handleTaskAction(row.original, action)}
                   />
                 ))}
               </TableBody>
@@ -451,6 +606,261 @@ function DownloadFilters({
   )
 }
 
+function SortIndicator({ direction }: { direction: false | 'asc' | 'desc' }) {
+  if (!direction) return null
+  return direction === 'asc' ? (
+    <ArrowUp className="size-3 shrink-0 text-muted-foreground" />
+  ) : (
+    <ArrowDown className="size-3 shrink-0 text-muted-foreground" />
+  )
+}
+
+function DownloadTableHead({
+  header,
+  draggedColumnId,
+  onDragStart,
+  onDrop,
+}: {
+  header: Header<DownloadTask, unknown>
+  draggedColumnId: string | null
+  onDragStart: (columnId: string | null) => void
+  onDrop: (columnId: string) => void
+}) {
+  const reorderable = isReorderableColumn(header.column.id)
+
+  function handleDrop(event: ReactDragEvent<HTMLTableCellElement>) {
+    event.preventDefault()
+    onDrop(header.column.id)
+  }
+
+  return (
+    <TableHead
+      draggable={reorderable}
+      className={cn(
+        'h-8 overflow-hidden px-2',
+        header.column.columnDef.meta?.className,
+        header.column.getCanSort() && 'cursor-pointer select-none',
+        reorderable && 'cursor-grab active:cursor-grabbing',
+        draggedColumnId === header.column.id && 'opacity-50',
+      )}
+      style={header.column.columnDef.meta?.flex ? undefined : { width: header.column.getSize() }}
+      onClick={header.column.getToggleSortingHandler()}
+      onDragStart={(event) => {
+        if (!reorderable) return
+        onDragStart(header.column.id)
+        event.dataTransfer.effectAllowed = 'move'
+      }}
+      onDragOver={(event) => {
+        if (reorderable && draggedColumnId) event.preventDefault()
+      }}
+      onDrop={handleDrop}
+      onDragEnd={() => onDragStart(null)}
+    >
+      <div className="flex min-w-0 items-center gap-1">
+        <span className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</span>
+        {header.column.getCanSort() && <SortIndicator direction={header.column.getIsSorted()} />}
+      </div>
+    </TableHead>
+  )
+}
+
+function getDownloadColumns(t: ReturnType<typeof useTranslation>['t']): ColumnDef<DownloadTask>[] {
+  return [
+    {
+      id: 'select',
+      size: 34,
+      enableSorting: false,
+      meta: { className: 'w-8 px-2' },
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() ? 'indeterminate' : false)}
+          aria-label={t('downloads.selectAll')}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          onClick={(event) => event.stopPropagation()}
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          aria-label={t('downloads.selectTask')}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onClick={(event) => event.stopPropagation()}
+        />
+      ),
+    },
+    {
+      id: 'source',
+      accessorFn: (task) => `${getTaskTitle(task)} ${task.sourceUri}`,
+      header: () => t('downloads.table.source'),
+      size: 300,
+      meta: { className: 'w-[300px] max-w-[300px]' },
+      cell: ({ row }) => (
+        <div className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden">
+          <SourceIcon type={row.original.sourceType} />
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="truncate text-xs font-medium">{getTaskTitle(row.original)}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{row.original.sourceUri}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'category',
+      accessorFn: (task) => task.category ?? '',
+      header: () => t('downloads.table.category'),
+      size: 110,
+      cell: ({ row }) => <CategoryCell category={row.original.category} />,
+    },
+    {
+      id: 'tags',
+      accessorFn: (task) => task.tags.join(', '),
+      header: () => t('downloads.table.tags'),
+      size: 160,
+      cell: ({ row }) => <TagsCell tags={row.original.tags} />,
+    },
+    {
+      id: 'status',
+      accessorFn: (task) => displayStatus(task),
+      header: () => t('downloads.table.status'),
+      size: 118,
+      cell: ({ row }) => <StatusBadge status={displayStatus(row.original)} />,
+    },
+    {
+      id: 'progress',
+      accessorFn: (task) => transferProgress(task).overall,
+      header: () => t('downloads.table.progress'),
+      size: 260,
+      cell: ({ row }) => <ProgressCell task={row.original} />,
+    },
+    {
+      id: 'eta',
+      accessorFn: (task) => task.detail?.etaSeconds ?? Number.MAX_SAFE_INTEGER,
+      header: () => t('downloads.table.eta'),
+      size: 92,
+      cell: ({ row }) => (
+        <span className="text-[11px] tabular-nums text-muted-foreground">
+          {formatDuration(row.original.detail?.etaSeconds)}
+        </span>
+      ),
+    },
+  ]
+}
+
+function CategoryCell({ category }: { category: string | null }) {
+  if (!category) return <span className="text-xs text-muted-foreground">-</span>
+  return <span className="block max-w-28 truncate text-xs text-muted-foreground">{category}</span>
+}
+
+function TagsCell({ tags }: { tags: string[] }) {
+  if (tags.length === 0) return <span className="text-xs text-muted-foreground">-</span>
+  return (
+    <div className="flex max-w-40 items-center gap-1 overflow-hidden">
+      {tags.slice(0, 2).map((tag) => (
+        <Badge key={tag} variant="outline" className="h-5 max-w-20 shrink px-1.5 text-[11px] font-normal">
+          <span className="truncate">{tag}</span>
+        </Badge>
+      ))}
+      {tags.length > 2 && <span className="text-[11px] text-muted-foreground">+{tags.length - 2}</span>}
+    </div>
+  )
+}
+
+function ProgressCell({ task }: { task: DownloadTask }) {
+  const { t } = useTranslation()
+  const progress = transferProgress(task)
+  const sizeText = `${formatBytes(task.downloadedBytes)} / ${task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}`
+
+  return (
+    <div className="min-w-0 space-y-1">
+      <div className="flex items-center gap-2">
+        <TransferProgress task={task} className="h-1.5 flex-1" />
+        <span className="w-9 shrink-0 text-right text-[11px] font-medium tabular-nums">{progress.overall}%</span>
+      </div>
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-[11px] tabular-nums text-muted-foreground">
+        <span className="truncate">{sizeText}</span>
+        <span className="whitespace-nowrap">
+          <span className="text-foreground/80">{formatBytes(task.downloadBps)}/s</span>
+          <span className="mx-1 text-muted-foreground/70">↓</span>
+          <span>{formatBytes(task.storageUploadBps)}/s</span>
+          <span className="ml-1 text-muted-foreground/70">↑</span>
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function BulkTaskActions({
+  tasks,
+  pending,
+  onAction,
+  onClear,
+}: {
+  tasks: DownloadTask[]
+  pending: boolean
+  onAction: (action: DownloadTaskAction) => void
+  onClear: () => void
+}) {
+  const { t } = useTranslation()
+  const actions = availableBulkActions(tasks)
+  const primaryActions = actions.filter((action) => action !== 'cancel' && action !== 'delete')
+  const destructiveActions = actions.filter((action) => action === 'cancel' || action === 'delete')
+
+  return (
+    <div className="flex h-9 items-center gap-1 rounded-md border bg-background px-2 shadow-xs">
+      <span className="mr-1 whitespace-nowrap text-xs font-medium text-foreground">
+        {t('downloads.selectedCount', { count: tasks.length })}
+      </span>
+      {primaryActions.map((action) => (
+        <BulkActionButton key={action} action={action} pending={pending} onAction={onAction} />
+      ))}
+      {destructiveActions.length > 0 && <span className="mx-1 h-4 w-px bg-border" />}
+      {destructiveActions.map((action) => (
+        <BulkActionButton key={action} action={action} pending={pending} onAction={onAction} destructive />
+      ))}
+      <span className="mx-1 h-4 w-px bg-border" />
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs text-muted-foreground"
+        onClick={onClear}
+      >
+        {t('common.clear')}
+      </Button>
+    </div>
+  )
+}
+
+function BulkActionButton({
+  action,
+  pending,
+  destructive,
+  onAction,
+}: {
+  action: DownloadTaskAction
+  pending: boolean
+  destructive?: boolean
+  onAction: (action: DownloadTaskAction) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      disabled={pending}
+      className={cn(
+        'h-7 gap-1.5 px-2 text-xs',
+        destructive ? 'text-muted-foreground hover:text-destructive' : 'text-muted-foreground hover:text-foreground',
+      )}
+      onClick={() => onAction(action)}
+    >
+      <TaskActionIcon action={action} />
+      {t(`downloads.actions.${action}`)}
+    </Button>
+  )
+}
+
 function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
 }
@@ -468,6 +878,30 @@ function parseTagsInput(value: string): string[] {
         .filter(Boolean),
     ),
   ]
+}
+
+function isReorderableColumn(columnId: string) {
+  return columnId !== 'select' && columnId !== 'source'
+}
+
+function reorderColumn(columnOrder: ColumnOrderState, movingColumnId: string, targetColumnId: string) {
+  const nextOrder = [...columnOrder]
+  const movingIndex = nextOrder.indexOf(movingColumnId)
+  const targetIndex = nextOrder.indexOf(targetColumnId)
+  if (movingIndex < 0 || targetIndex < 0) return columnOrder
+  nextOrder.splice(movingIndex, 1)
+  nextOrder.splice(targetIndex, 0, movingColumnId)
+  return nextOrder
+}
+
+function toDownloadTaskSortBy(columnId: string | undefined) {
+  if (columnId === 'source') return 'source'
+  if (columnId === 'category') return 'category'
+  if (columnId === 'tags') return 'tags'
+  if (columnId === 'status') return 'status'
+  if (columnId === 'progress') return 'progress'
+  if (columnId === 'eta') return 'eta'
+  return 'createdAt'
 }
 
 function FolderPicker({ value, onChange }: { value: string; onChange: (path: string) => void }) {
@@ -579,93 +1013,127 @@ function FolderPicker({ value, onChange }: { value: string; onChange: (path: str
 }
 
 function TaskRow({
-  task,
+  row,
   selected,
-  onSelect,
   actionPending,
+  onSelect,
+  onPrimaryAction,
+  onAction,
+}: {
+  row: Row<DownloadTask>
+  selected: boolean
+  actionPending: boolean
+  onSelect: () => void
+  onPrimaryAction: () => void
+  onAction: (action: DownloadTaskAction) => void
+}) {
+  const task = row.original
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <TableRow
+          data-state={row.getIsSelected() ? 'selected' : undefined}
+          className={cn('h-9 cursor-pointer hover:bg-muted/50', selected && 'bg-primary/5 hover:bg-primary/10')}
+          onClick={onSelect}
+          onContextMenu={onSelect}
+          onDoubleClick={onPrimaryAction}
+        >
+          {row.getVisibleCells().map((cell) => (
+            <TableCell key={cell.id} className={cn('py-1', cell.column.columnDef.meta?.className)}>
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
+          ))}
+        </TableRow>
+      </ContextMenuTrigger>
+      <TaskContextMenu task={task} pending={actionPending} onAction={onAction} />
+    </ContextMenu>
+  )
+}
+
+function TaskContextMenu({
+  task,
+  pending,
   onAction,
 }: {
   task: DownloadTask
-  selected: boolean
-  onSelect: () => void
-  actionPending: boolean
-  onAction: (id: string, action: DownloadTaskAction) => void
+  pending: boolean
+  onAction: (action: DownloadTaskAction) => void
 }) {
   const { t } = useTranslation()
-  const progress = transferProgress(task)
   const actions = taskActions(task)
+  const primaryAction = primaryTaskAction(task)
 
   return (
-    <TableRow
-      className={cn('h-9 cursor-pointer hover:bg-muted/50', selected && 'bg-primary/5 hover:bg-primary/10')}
-      onClick={onSelect}
-    >
-      <TableCell className="max-w-[28rem] py-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <SourceIcon type={task.sourceType} />
-          <div className="min-w-0">
-            <div className="truncate text-xs font-medium">{getTaskTitle(task)}</div>
-            <div className="truncate text-[11px] text-muted-foreground">{task.sourceUri}</div>
-          </div>
-        </div>
-      </TableCell>
-      <TableCell className="py-1">
-        <StatusBadge status={displayStatus(task)} />
-      </TableCell>
-      <TableCell className="min-w-48 py-1">
-        <div className="flex items-center gap-2">
-          <TransferProgress task={task} className="h-1.5" />
-          <span className="w-8 text-right text-[11px] tabular-nums text-muted-foreground">{progress.overall}%</span>
-        </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[11px] tabular-nums">
-          <span>{formatBytes(task.downloadBps)}/s ↓</span>
-          <span className="text-muted-foreground">{formatBytes(task.storageUploadBps)}/s ↑</span>
-        </div>
-      </TableCell>
-      <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
-        {formatBytes(task.downloadedBytes)} / {task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}
-      </TableCell>
-      <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
-        {formatDuration(task.detail?.etaSeconds)}
-      </TableCell>
-      <TableCell className="py-1">
-        {actions.length > 0 ? (
-          <div className="flex justify-end gap-1">
-            {actions.map((action) => (
-              <Button
-                key={action}
-                variant="ghost"
-                size="icon-xs"
-                className={cn(
-                  'text-muted-foreground',
-                  (action === 'cancel' || action === 'delete') && 'hover:text-destructive',
-                )}
-                title={t(`downloads.actions.${action}`)}
-                disabled={actionPending}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onAction(task.id, action)
-                }}
-              >
-                <TaskActionIcon action={action} />
-                <span className="sr-only">{t(`downloads.actions.${action}`)}</span>
-              </Button>
-            ))}
-          </div>
-        ) : (
-          <div className="text-right text-xs text-muted-foreground">-</div>
-        )}
-      </TableCell>
-    </TableRow>
+    <ContextMenuContent className="w-44">
+      {actions.length === 0 && <ContextMenuItem disabled>{t('downloads.actions.none')}</ContextMenuItem>}
+      {primaryAction && (
+        <ContextMenuItem disabled={pending} onClick={() => onAction(primaryAction)}>
+          <TaskActionIcon action={primaryAction} />
+          {t(`downloads.actions.${primaryAction}`)}
+        </ContextMenuItem>
+      )}
+      {actions
+        .filter((action) => action !== primaryAction)
+        .map((action, index) => (
+          <TaskMenuItem
+            key={action}
+            action={action}
+            pending={pending}
+            separated={index === 0 && Boolean(primaryAction)}
+            onAction={onAction}
+          />
+        ))}
+    </ContextMenuContent>
+  )
+}
+
+function TaskMenuItem({
+  action,
+  pending,
+  separated,
+  onAction,
+}: {
+  action: DownloadTaskAction
+  pending: boolean
+  separated: boolean
+  onAction: (action: DownloadTaskAction) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <>
+      {separated && <ContextMenuSeparator />}
+      <ContextMenuItem
+        disabled={pending}
+        variant={action === 'cancel' || action === 'delete' ? 'destructive' : 'default'}
+        onClick={() => onAction(action)}
+      >
+        <TaskActionIcon action={action} />
+        {t(`downloads.actions.${action}`)}
+      </ContextMenuItem>
+    </>
   )
 }
 
 function taskActions(task: DownloadTask): DownloadTaskAction[] {
-  if (ACTIVE_STATUSES.has(task.status)) return ['pause', 'cancel']
+  if (PAUSABLE_STATUSES.has(task.status)) return ['pause', 'cancel']
   if (task.status === 'paused') return ['resume', 'cancel']
+  if (task.status === 'billing_paused' || task.status === 'uploading' || task.status === 'pausing') return ['cancel']
   if (task.status === 'failed' || task.status === 'canceled') return ['retry', 'delete']
   if (task.status === 'completed') return ['delete']
   return []
+}
+
+function availableBulkActions(tasks: DownloadTask[]): DownloadTaskAction[] {
+  const orderedActions: DownloadTaskAction[] = ['pause', 'resume', 'cancel', 'retry', 'delete']
+  return orderedActions.filter((action) => tasks.some((task) => taskActions(task).includes(action)))
+}
+
+function primaryTaskAction(task: DownloadTask): DownloadTaskAction | null {
+  if (PAUSABLE_STATUSES.has(task.status)) return 'pause'
+  if (task.status === 'paused') return 'resume'
+  if (task.status === 'failed' || task.status === 'canceled') return 'retry'
+  return null
 }
 
 function TaskActionIcon({ action }: { action: DownloadTaskAction }) {
@@ -687,10 +1155,12 @@ function TransferProgress({ task, className }: { task: DownloadTask; className?:
       aria-valuenow={progress.overall}
     >
       <div className="absolute inset-y-0 left-0 bg-sky-500 transition-all" style={{ width: `${progress.download}%` }} />
-      <div
-        className="absolute inset-y-0 left-0 bg-emerald-500 transition-all"
-        style={{ width: `${progress.upload}%` }}
-      />
+      {progress.upload > 0 && (
+        <div
+          className="absolute right-0 bottom-0 left-0 h-0.5 bg-emerald-500/80 transition-all"
+          style={{ width: `${progress.upload}%` }}
+        />
+      )}
     </div>
   )
 }
@@ -1088,6 +1558,11 @@ function StatusBadge({ status }: { status: DownloadTaskDisplayStatus }) {
         'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
       icon: <PauseCircle />,
     },
+    pausing: {
+      className:
+        'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+      icon: <LoaderCircle className="animate-spin" />,
+    },
     paused: {
       className:
         'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300',
@@ -1096,6 +1571,10 @@ function StatusBadge({ status }: { status: DownloadTaskDisplayStatus }) {
     uploading: {
       className: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-300',
       icon: <Upload />,
+    },
+    canceling: {
+      className: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-400',
+      icon: <LoaderCircle className="animate-spin" />,
     },
     completed: {
       className:

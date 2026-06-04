@@ -7,7 +7,7 @@ import type {
   UpdateDownloadTaskInput,
 } from '@shared/schemas'
 import type { Downloader, DownloadTask } from '@shared/types'
-import { and, asc, count, desc, eq, inArray, like } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, like, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { downloaders, downloadTasks } from '../db/schema'
 import type { Platform } from '../platform/interface'
@@ -16,7 +16,16 @@ import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './r
 
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
 const UPLOAD_TOKEN_TTL_SECONDS = 24 * 60 * 60
-const ACTIVE_TASK_STATUSES = ['queued', 'assigned', 'running', 'billing_paused', 'uploading'] as const
+const PAUSABLE_TASK_STATUSES = ['queued', 'assigned', 'running'] as const
+const CANCELABLE_TASK_STATUSES = [
+  'queued',
+  'assigned',
+  'running',
+  'billing_paused',
+  'paused',
+  'uploading',
+  'pausing',
+] as const
 const TERMINAL_TASK_STATUSES = ['completed', 'failed', 'canceled'] as const
 
 export class DownloadError extends Error {
@@ -142,7 +151,16 @@ export async function deleteDownloader(platform: Platform, id: string): Promise<
     .where(
       and(
         eq(downloadTasks.assignedDownloaderId, id),
-        inArray(downloadTasks.status, [...ACTIVE_TASK_STATUSES, 'paused']),
+        inArray(downloadTasks.status, [
+          'queued',
+          'assigned',
+          'running',
+          'billing_paused',
+          'pausing',
+          'paused',
+          'uploading',
+          'canceling',
+        ]),
       ),
     )
   await platform.db.delete(downloaders).where(eq(downloaders.id, id))
@@ -232,6 +250,8 @@ export async function listDownloadTasks(
     status?: string
     category?: string
     tag?: string
+    sortBy?: 'createdAt' | 'source' | 'category' | 'tags' | 'status' | 'progress' | 'eta'
+    sortDir?: 'asc' | 'desc'
     page: number
     pageSize: number
     includeUploadToken?: boolean
@@ -250,7 +270,7 @@ export async function listDownloadTasks(
       .select()
       .from(downloadTasks)
       .where(where)
-      .orderBy(desc(downloadTasks.createdAt))
+      .orderBy(downloadTaskOrderBy(opts.sortBy ?? 'createdAt', opts.sortDir ?? 'desc'))
       .limit(opts.pageSize)
       .offset(offset),
     platform.db.select({ count: count() }).from(downloadTasks).where(where),
@@ -267,6 +287,29 @@ export async function listDownloadTasks(
     ),
     total: totalRows[0]?.count ?? 0,
   }
+}
+
+function downloadTaskOrderBy(
+  sortBy: 'createdAt' | 'source' | 'category' | 'tags' | 'status' | 'progress' | 'eta',
+  sortDir: 'asc' | 'desc',
+) {
+  const direction = sortDir === 'asc' ? asc : desc
+  if (sortBy === 'source') return direction(downloadTasks.sourceUri)
+  if (sortBy === 'category') return direction(downloadTasks.category)
+  if (sortBy === 'tags') return direction(downloadTasks.tags)
+  if (sortBy === 'status') return direction(downloadTasks.status)
+  if (sortBy === 'progress') {
+    return direction(sql<number>`
+      case
+        when ${downloadTasks.totalBytes} is null or ${downloadTasks.totalBytes} = 0 then 0
+        else (${downloadTasks.downloadedBytes} * 1000000 / ${downloadTasks.totalBytes})
+      end
+    `)
+  }
+  if (sortBy === 'eta') {
+    return direction(sql<number>`coalesce(json_extract(${downloadTasks.detail}, '$.etaSeconds'), 9223372036854775807)`)
+  }
+  return direction(downloadTasks.createdAt)
 }
 
 export async function getDownloadTask(platform: Platform, orgId: string, id: string): Promise<DownloadTask> {
@@ -290,6 +333,25 @@ export async function updateDownloadTask(
   if (!task) throw new DownloadError('not_found')
   if (actor.orgId && task.orgId !== actor.orgId) throw new DownloadError('not_found')
   if (actor.downloaderId && task.assignedDownloaderId !== actor.downloaderId) throw new DownloadError('forbidden')
+  if (actor.downloaderId && task.status === 'pausing' && input.status === 'paused') {
+    const now = new Date()
+    await platform.db
+      .update(downloadTasks)
+      .set({ status: 'paused', downloadBps: 0, uploadBps: 0, updatedAt: now })
+      .where(eq(downloadTasks.id, id))
+    return getDownloadTask(platform, task.orgId, id)
+  }
+  if (actor.downloaderId && task.status === 'canceling' && input.status === 'canceled') {
+    const now = new Date()
+    await platform.db
+      .update(downloadTasks)
+      .set({ status: 'canceled', downloadBps: 0, uploadBps: 0, finishedAt: task.finishedAt ?? now, updatedAt: now })
+      .where(eq(downloadTasks.id, id))
+    return getDownloadTask(platform, task.orgId, id)
+  }
+  if (actor.downloaderId && ['pausing', 'paused', 'canceling', 'canceled'].includes(task.status)) {
+    throw new DownloadError('invalid_state', `Task is ${task.status}`)
+  }
   if (actor.orgId && !actor.downloaderId) {
     const onlyCancel =
       input.status === 'canceled' &&
@@ -405,12 +467,13 @@ export async function performDownloadTaskAction(
   const now = new Date()
   if (action === 'pause') {
     if (task.status === 'paused') return toDownloadTask(task)
-    if (!ACTIVE_TASK_STATUSES.includes(task.status as (typeof ACTIVE_TASK_STATUSES)[number])) {
-      throw new DownloadError('invalid_state', 'Only active tasks can be paused')
+    if (!PAUSABLE_TASK_STATUSES.includes(task.status as (typeof PAUSABLE_TASK_STATUSES)[number])) {
+      throw new DownloadError('invalid_state', 'Only queued, assigned, or running tasks can be paused')
     }
+    const status = task.status === 'running' ? 'pausing' : 'paused'
     await platform.db
       .update(downloadTasks)
-      .set({ status: 'paused', downloadBps: 0, uploadBps: 0, updatedAt: now })
+      .set({ status, downloadBps: 0, uploadBps: 0, updatedAt: now })
       .where(eq(downloadTasks.id, id))
     return getDownloadTask(platform, orgId, id)
   }
@@ -420,26 +483,35 @@ export async function performDownloadTaskAction(
     await platform.db
       .update(downloadTasks)
       .set({
-        status: task.assignedDownloaderId ? 'assigned' : 'queued',
+        status: 'queued',
+        assignedDownloaderId: null,
+        uploadTokenHash: null,
+        uploadTokenJti: null,
+        uploadTokenExpiresAt: null,
+        assignedAt: null,
         downloadBps: 0,
         uploadBps: 0,
         updatedAt: now,
       })
       .where(eq(downloadTasks.id, id))
-    if (!task.assignedDownloaderId) await assignQueuedTasks(platform)
+    await assignQueuedTasks(platform)
     return getDownloadTask(platform, orgId, id)
   }
 
   if (action === 'cancel') {
     if (task.status === 'canceled') return toDownloadTask(task)
-    if (task.status === 'completed') throw new DownloadError('invalid_state', 'Completed tasks cannot be canceled')
+    if (!CANCELABLE_TASK_STATUSES.includes(task.status as (typeof CANCELABLE_TASK_STATUSES)[number])) {
+      throw new DownloadError('invalid_state', 'Only active or paused tasks can be canceled')
+    }
+    const status =
+      task.status === 'running' || task.status === 'uploading' || task.status === 'pausing' ? 'canceling' : 'canceled'
     await platform.db
       .update(downloadTasks)
       .set({
-        status: 'canceled',
+        status,
         downloadBps: 0,
         uploadBps: 0,
-        finishedAt: task.finishedAt ?? now,
+        finishedAt: status === 'canceled' ? (task.finishedAt ?? now) : task.finishedAt,
         updatedAt: now,
       })
       .where(eq(downloadTasks.id, id))

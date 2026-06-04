@@ -31,6 +31,8 @@ type DownloadTask struct {
 	SourceURI            string              `json:"sourceUri"`
 	Name                 string              `json:"name"`
 	TargetFolder         string              `json:"targetFolder"`
+	Category             string              `json:"category"`
+	Tags                 []string            `json:"tags"`
 	Status               string              `json:"status"`
 	DownloadedBytes      int64               `json:"downloadedBytes"`
 	StorageUploadedBytes int64               `json:"storageUploadedBytes"`
@@ -178,15 +180,24 @@ func (c *Client) Heartbeat(ctx context.Context, heartbeat Heartbeat) error {
 }
 
 func (c *Client) AssignedTasks(ctx context.Context) ([]DownloadTask, error) {
-	statuses := []openapi.GetApiDownloadTasksParamsStatus{
+	return c.assignedTasks(ctx, []openapi.GetApiDownloadTasksParamsStatus{
 		openapi.GetApiDownloadTasksParamsStatusAssigned,
-		openapi.GetApiDownloadTasksParamsStatusBillingPaused,
-	}
+	})
+}
+
+func (c *Client) AssignedControlTasks(ctx context.Context) ([]DownloadTask, error) {
+	return c.assignedTasks(ctx, []openapi.GetApiDownloadTasksParamsStatus{
+		openapi.GetApiDownloadTasksParamsStatus("pausing"),
+		openapi.GetApiDownloadTasksParamsStatus("canceling"),
+	})
+}
+
+func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.GetApiDownloadTasksParamsStatus) ([]DownloadTask, error) {
 	tasks := make([]DownloadTask, 0)
 	for _, status := range statuses {
 		page := 1
 		pageSize := 20
-		assignedTo := openapi.Me
+		assignedTo := openapi.GetApiDownloadTasksParamsAssignedToMe
 		res, err := c.api.GetApiDownloadTasksWithResponse(ctx, &openapi.GetApiDownloadTasksParams{
 			AssignedTo: &assignedTo,
 			Status:     &status,

@@ -1006,6 +1006,8 @@ describe('api', () => {
         assignedTo: 'me',
         category: 'movies',
         tag: '4k',
+        sortBy: 'progress',
+        sortDir: 'asc',
         page: 2,
         pageSize: 10,
       })
@@ -1017,6 +1019,8 @@ describe('api', () => {
       expect(url).toContain('assignedTo=me')
       expect(url).toContain('category=movies')
       expect(url).toContain('tag=4k')
+      expect(url).toContain('sortBy=progress')
+      expect(url).toContain('sortDir=asc')
       expect(url).toContain('page=2')
       expect(url).toContain('pageSize=10')
       expect(init.method).toBe('GET')
@@ -1075,10 +1079,12 @@ describe('api', () => {
     })
 
     it('builds the download task events URL from RPC client', () => {
-      const url = downloadTaskEventsUrl({ category: 'movies', tag: '4k' })
+      const url = downloadTaskEventsUrl({ category: 'movies', tag: '4k', sortBy: 'status', sortDir: 'desc' })
       expect(url.pathname).toBe('/api/download-tasks/events')
       expect(url.searchParams.get('category')).toBe('movies')
       expect(url.searchParams.get('tag')).toBe('4k')
+      expect(url.searchParams.get('sortBy')).toBe('status')
+      expect(url.searchParams.get('sortDir')).toBe('desc')
     })
 
     it('lists admin downloaders', async () => {

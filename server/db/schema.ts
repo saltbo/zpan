@@ -364,6 +364,8 @@ export const downloadTasks = sqliteTable(
   (t) => [
     index('download_tasks_org_created_idx').on(t.orgId, t.createdAt),
     index('download_tasks_org_status_idx').on(t.orgId, t.status),
+    index('download_tasks_org_category_idx').on(t.orgId, t.category),
+    index('download_tasks_org_tags_idx').on(t.orgId, t.tags),
     index('download_tasks_downloader_idx').on(t.assignedDownloaderId, t.status),
   ],
 )

@@ -405,6 +405,14 @@ describe('Download tasks API integration', () => {
     const pausedAssigned = (await pausedAssignedRes.json()) as { items: Array<{ id: string; status: string }> }
     expect(pausedAssigned.items.find((item) => item.id === createdTask.id)?.status).toBe('paused')
 
+    const pausedProgressRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ downloadedBytes: 1024, downloadBps: 512 }),
+    })
+    expect(pausedProgressRes.status).toBe(409)
+    await expect(pausedProgressRes.json()).resolves.toEqual({ error: 'Task is paused' })
+
     const resumeRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
       method: 'POST',
       headers: { ...user, 'Content-Type': 'application/json' },
@@ -428,6 +436,14 @@ describe('Download tasks API integration', () => {
     const canceledAssigned = (await canceledAssignedRes.json()) as { items: Array<{ id: string; status: string }> }
     expect(canceledAssigned.items.find((item) => item.id === createdTask.id)?.status).toBe('canceled')
 
+    const canceledCompleteRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'completed', downloadedBytes: 2048, storageUploadedBytes: 2048 }),
+    })
+    expect(canceledCompleteRes.status).toBe(409)
+    await expect(canceledCompleteRes.json()).resolves.toEqual({ error: 'Task is canceled' })
+
     const deleteRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
       method: 'POST',
       headers: { ...user, 'Content-Type': 'application/json' },
@@ -435,6 +451,156 @@ describe('Download tasks API integration', () => {
     })
     expect(deleteRes.status).toBe(200)
     await expect(deleteRes.json()).resolves.toEqual({ id: createdTask.id, deleted: true })
+  })
+
+  it('uses transitional states for running task pause and cancel actions', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'transition-downloader')
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 1 }),
+    })
+    expect(heartbeatRes.status).toBe(200)
+
+    const user = await authedHeaders(app, 'download-transition-actions-user@example.com')
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/transition.bin' },
+        targetFolder: '',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const createdTask = (await createTaskRes.json()) as { id: string; status: string }
+
+    const runningRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'running' }),
+    })
+    expect(runningRes.status).toBe(200)
+
+    const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'pause' }),
+    })
+    expect(pauseRes.status).toBe(200)
+    await expect(pauseRes.json()).resolves.toMatchObject({ status: 'pausing' })
+
+    const pausingProgressRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ downloadedBytes: 1024 }),
+    })
+    expect(pausingProgressRes.status).toBe(409)
+    await expect(pausingProgressRes.json()).resolves.toEqual({ error: 'Task is pausing' })
+
+    const pausedRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'paused' }),
+    })
+    expect(pausedRes.status).toBe(200)
+    await expect(pausedRes.json()).resolves.toMatchObject({ status: 'paused' })
+
+    const resumeRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'resume' }),
+    })
+    expect(resumeRes.status).toBe(200)
+    await expect(resumeRes.json()).resolves.toMatchObject({
+      status: 'assigned',
+      assignedDownloaderId: createdDownloader.downloader.id,
+    })
+
+    const rerunRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'running' }),
+    })
+    expect(rerunRes.status).toBe(200)
+
+    const cancelRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel' }),
+    })
+    expect(cancelRes.status).toBe(200)
+    await expect(cancelRes.json()).resolves.toMatchObject({ status: 'canceling' })
+
+    const canceledRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+    expect(canceledRes.status).toBe(200)
+    await expect(canceledRes.json()).resolves.toMatchObject({ status: 'canceled' })
+  })
+
+  it('rejects pause for billing-paused and uploading tasks', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'pause-rules-downloader')
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 1 }),
+    })
+    expect(heartbeatRes.status).toBe(200)
+
+    const user = await authedHeaders(app, 'download-pause-rules-user@example.com')
+    const createTask = async (uri: string) => {
+      const res = await app.request('/api/download-tasks', {
+        method: 'POST',
+        headers: { ...user, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: { type: 'http', uri }, targetFolder: '' }),
+      })
+      expect(res.status).toBe(201)
+      return (await res.json()) as { id: string }
+    }
+
+    const billingTask = await createTask('https://example.com/billing-paused.bin')
+    const billingUpdateRes = await app.request(`/api/download-tasks/${billingTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'billing_paused' }),
+    })
+    expect(billingUpdateRes.status).toBe(200)
+    const billingPauseRes = await app.request(`/api/download-tasks/${billingTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'pause' }),
+    })
+    expect(billingPauseRes.status).toBe(409)
+
+    const uploadingTask = await createTask('https://example.com/uploading.bin')
+    const uploadingUpdateRes = await app.request(`/api/download-tasks/${uploadingTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'uploading' }),
+    })
+    expect(uploadingUpdateRes.status).toBe(200)
+    const uploadingPauseRes = await app.request(`/api/download-tasks/${uploadingTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'pause' }),
+    })
+    expect(uploadingPauseRes.status).toBe(409)
   })
 
   it('rejects invalid task actions', async () => {
@@ -463,5 +629,46 @@ describe('Download tasks API integration', () => {
     await expect(deleteRes.json()).resolves.toMatchObject({
       error: 'Only completed, failed, or canceled tasks can be deleted',
     })
+  })
+
+  it('sorts and filters download tasks on the server', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const user = await authedHeaders(app, 'download-sort-user@example.com')
+
+    for (const body of [
+      {
+        source: { type: 'http', uri: 'https://example.com/b.bin' },
+        targetFolder: '',
+        category: 'video',
+        tags: ['bulk', 'movie'],
+      },
+      {
+        source: { type: 'http', uri: 'https://example.com/a.bin' },
+        targetFolder: '',
+        category: 'archive',
+        tags: ['bulk', 'backup'],
+      },
+    ]) {
+      const createTaskRes = await app.request('/api/download-tasks', {
+        method: 'POST',
+        headers: { ...user, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      expect(createTaskRes.status).toBe(201)
+    }
+
+    const categorySortRes = await app.request('/api/download-tasks?sortBy=category&sortDir=asc', { headers: user })
+    expect(categorySortRes.status).toBe(200)
+    const categorySorted = (await categorySortRes.json()) as { items: Array<{ category: string }> }
+    expect(categorySorted.items.map((item) => item.category)).toEqual(['archive', 'video'])
+
+    const tagFilterRes = await app.request('/api/download-tasks?tag=movie&sortBy=source&sortDir=desc', {
+      headers: user,
+    })
+    expect(tagFilterRes.status).toBe(200)
+    const tagFiltered = (await tagFilterRes.json()) as { items: Array<{ sourceUri: string; tags: string[] }> }
+    expect(tagFiltered.items).toHaveLength(1)
+    expect(tagFiltered.items[0]).toMatchObject({ sourceUri: 'https://example.com/b.bin', tags: ['bulk', 'movie'] })
   })
 })

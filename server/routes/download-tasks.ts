@@ -176,6 +176,8 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
         status: query.status,
         category: query.category,
         tag: query.tag,
+        sortBy: query.sortBy,
+        sortDir: query.sortDir,
         page: query.page,
         pageSize: query.pageSize,
         includeUploadToken: true,
@@ -190,6 +192,8 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
       status: query.status,
       category: query.category,
       tag: query.tag,
+      sortBy: query.sortBy,
+      sortDir: query.sortDir,
       page: query.page,
       pageSize: query.pageSize,
     })
@@ -233,6 +237,8 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
               status: query.status,
               category: query.category,
               tag: query.tag,
+              sortBy: query.sortBy,
+              sortDir: query.sortDir,
               page: query.page,
               pageSize: query.pageSize,
             })

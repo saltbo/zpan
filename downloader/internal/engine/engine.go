@@ -313,18 +313,8 @@ func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, pro
 		return Result{}, err
 	}
 
-	tag := "zpan-task-" + task.ID
-	options := (&qbittorrent.TorrentAddOptions{
-		SavePath:           taskDir,
-		Category:           "zpan",
-		Tags:               tag,
-		LimitRatio:         0,
-		LimitSeedTime:      0,
-		SequentialDownload: false,
-	}).Prepare()
-	if task.Name != "" {
-		options["rename"] = task.Name
-	}
+	tag := qbittorrentTrackingTag(task.ID)
+	options := qbittorrentAddOptions(task, taskDir, tag)
 	if _, err := qbt.AddTorrentFromUrlCtx(ctx, task.SourceURI, options); err != nil {
 		return Result{}, err
 	}
@@ -349,6 +339,30 @@ func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, pro
 	}
 	_ = qbt.DeleteTorrentsCtx(ctx, []string{torrent.Hash}, false)
 	return result, nil
+}
+
+func qbittorrentAddOptions(task client.DownloadTask, taskDir string, trackingTag string) map[string]string {
+	category := "zpan"
+	if task.Category != "" {
+		category = task.Category
+	}
+	tags := append([]string{trackingTag}, task.Tags...)
+	options := (&qbittorrent.TorrentAddOptions{
+		SavePath:           taskDir,
+		Category:           category,
+		Tags:               strings.Join(tags, ","),
+		LimitRatio:         0,
+		LimitSeedTime:      0,
+		SequentialDownload: false,
+	}).Prepare()
+	if task.Name != "" {
+		options["rename"] = task.Name
+	}
+	return options
+}
+
+func qbittorrentTrackingTag(taskID string) string {
+	return "ztid=" + taskID
 }
 
 func (q QBittorrent) cleanupSeed(hash string, localPath string) func(context.Context) error {

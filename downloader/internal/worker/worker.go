@@ -29,13 +29,15 @@ const maxTaskErrorMessageLength = 1000
 const retainedSeedReportInterval = 5 * time.Second
 
 var errBillingPaused = errors.New("billing paused")
+var errTaskPausing = errors.New("task pausing")
+var errTaskCanceling = errors.New("task canceling")
 
 type Worker struct {
 	cfg           config.Config
 	api           *client.Client
 	engine        engine.Engine
 	logger        *slog.Logger
-	running       map[string]struct{}
+	running       map[string]context.CancelCauseFunc
 	retainedSeeds []retainedSeed
 	started       []*exec.Cmd
 	mu            sync.Mutex
@@ -57,7 +59,7 @@ func New(cfg config.Config) *Worker {
 		cfg:     cfg,
 		api:     client.New(cfg.ServerURL, cfg.Token),
 		logger:  slog.Default(),
-		running: map[string]struct{}{},
+		running: map[string]context.CancelCauseFunc{},
 	}
 }
 
@@ -120,6 +122,13 @@ func (w *Worker) tick(ctx context.Context) error {
 	if err := w.api.Heartbeat(ctx, w.heartbeat()); err != nil {
 		return err
 	}
+	controlTasks, err := w.api.AssignedControlTasks(ctx)
+	if err != nil {
+		return err
+	}
+	for _, task := range controlTasks {
+		w.cancelRunning(task)
+	}
 	tasks, err := w.api.AssignedTasks(ctx)
 	if err != nil {
 		return err
@@ -131,11 +140,12 @@ func (w *Worker) tick(ctx context.Context) error {
 			taskLogger.Warn("assigned task skipped because upload token is missing")
 			continue
 		}
-		if !w.canStart(task.ID) {
+		taskCtx, ok := w.startTask(ctx, task.ID)
+		if !ok {
 			taskLogger.Debug("assigned task skipped because worker is already busy")
 			continue
 		}
-		go w.process(ctx, task)
+		go w.process(taskCtx, task)
 	}
 	return nil
 }
@@ -146,6 +156,9 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	log.Info("task started", "source_uri", task.SourceURI, "target_folder", task.TargetFolder)
 	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "running"}); err != nil {
 		log.Error("failed to mark task running", "error", err)
+		if w.resolveControlledTaskUpdate(ctx, task.ID, err, log) {
+			return
+		}
 	}
 
 	var lastProgressLog time.Time
@@ -175,6 +188,31 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 		return updateErr
 	})
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			if errors.Is(context.Cause(ctx), errTaskPausing) {
+				if _, updateErr := w.api.UpdateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "paused"}); updateErr != nil {
+					log.Error("failed to mark task paused", "error", updateErr)
+				}
+				log.Info("task paused by control action")
+				return
+			}
+			if errors.Is(context.Cause(ctx), errTaskCanceling) {
+				if _, updateErr := w.api.UpdateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
+					log.Error("failed to mark task canceled", "error", updateErr)
+				}
+				log.Info("task canceled by control action")
+				return
+			}
+			log.Info("task stopped by context cancellation")
+			return
+		}
+		if isControlledTaskUpdateError(err) {
+			if w.resolveControlledTaskUpdate(context.WithoutCancel(ctx), task.ID, err, log) {
+				return
+			}
+			log.Info("task stopped because server state no longer accepts progress", "error", err)
+			return
+		}
 		if errors.Is(err, errBillingPaused) {
 			log.Warn("task stopped because credits are insufficient")
 			return
@@ -562,23 +600,39 @@ func joinObjectPath(parent string, name string) string {
 	return parent + "/" + name
 }
 
-func (w *Worker) canStart(taskID string) bool {
+func (w *Worker) startTask(ctx context.Context, taskID string) (context.Context, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if _, exists := w.running[taskID]; exists {
-		return false
+		return nil, false
 	}
 	if len(w.running) >= w.cfg.MaxConcurrentTasks {
-		return false
+		return nil, false
 	}
-	w.running[taskID] = struct{}{}
-	return true
+	taskCtx, cancel := context.WithCancelCause(ctx)
+	w.running[taskID] = cancel
+	return taskCtx, true
 }
 
 func (w *Worker) finish(taskID string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	delete(w.running, taskID)
+}
+
+func (w *Worker) cancelRunning(task client.DownloadTask) {
+	w.mu.Lock()
+	cancel := w.running[task.ID]
+	w.mu.Unlock()
+	if cancel == nil {
+		return
+	}
+	w.taskLogger(task).Info("canceling running task from server state", "status", task.Status)
+	if task.Status == "pausing" {
+		cancel(errTaskPausing)
+		return
+	}
+	cancel(errTaskCanceling)
 }
 
 func (w *Worker) heartbeat() client.Heartbeat {
@@ -596,6 +650,31 @@ func (w *Worker) heartbeat() client.Heartbeat {
 		UploadBps:          0,
 		FreeDiskBytes:      0,
 	}
+}
+
+func (w *Worker) resolveControlledTaskUpdate(ctx context.Context, taskID string, err error, log *slog.Logger) bool {
+	message := err.Error()
+	if strings.Contains(message, "Task is pausing") {
+		if _, updateErr := w.api.UpdateTask(ctx, taskID, client.TaskPatch{Status: "paused"}); updateErr != nil {
+			log.Error("failed to mark task paused", "error", updateErr)
+		}
+		return true
+	}
+	if strings.Contains(message, "Task is canceling") {
+		if _, updateErr := w.api.UpdateTask(ctx, taskID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
+			log.Error("failed to mark task canceled", "error", updateErr)
+		}
+		return true
+	}
+	return strings.Contains(message, "Task is paused") || strings.Contains(message, "Task is canceled")
+}
+
+func isControlledTaskUpdateError(err error) bool {
+	message := err.Error()
+	return strings.Contains(message, "Task is pausing") ||
+		strings.Contains(message, "Task is paused") ||
+		strings.Contains(message, "Task is canceling") ||
+		strings.Contains(message, "Task is canceled")
 }
 
 func (w *Worker) currentTasks() int {

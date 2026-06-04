@@ -7,8 +7,10 @@ export const downloadTaskStatusSchema = z.enum([
   'assigned',
   'running',
   'billing_paused',
+  'pausing',
   'paused',
   'uploading',
+  'canceling',
   'completed',
   'failed',
   'canceled',
@@ -118,11 +120,15 @@ export const downloadTaskActionInputSchema = z.object({
   action: downloadTaskActionSchema,
 })
 
+export const downloadTaskSortBySchema = z.enum(['createdAt', 'source', 'category', 'tags', 'status', 'progress', 'eta'])
+
 export const listDownloadTasksQuerySchema = z.object({
   status: downloadTaskStatusSchema.optional(),
   assignedTo: z.enum(['me']).optional(),
   category: z.string().trim().min(1).max(120).optional(),
   tag: z.string().trim().min(1).max(80).optional(),
+  sortBy: downloadTaskSortBySchema.default('createdAt'),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 })
