@@ -152,12 +152,12 @@ describe('admin.storages locale keys — English values contract', () => {
     expect(enLocale['nav.adminPanel']).toBe('Admin Panel')
   })
 
-  it('admin.title is "Admin"', () => {
-    expect(enLocale['admin.title']).toBe('Admin')
+  it('admin.title is "Admin Console"', () => {
+    expect(enLocale['admin.title']).toBe('Admin Console')
   })
 
-  it('admin.backToFiles is "Back to Files"', () => {
-    expect(enLocale['admin.backToFiles']).toBe('Back to Files')
+  it('admin.backToFiles is "Back to App"', () => {
+    expect(enLocale['admin.backToFiles']).toBe('Back to App')
   })
 
   it('common.edit is "Edit"', () => {
@@ -298,25 +298,25 @@ describe('admin.storages locale keys — i18n runtime translation', () => {
   it('translates admin.title to English', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('en')
-    expect(i18n.t('admin.title')).toBe('Admin')
+    expect(i18n.t('admin.title')).toBe('Admin Console')
   })
 
   it('translates admin.title to Chinese', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.title')).toBe('管理后台')
+    expect(i18n.t('admin.title')).toBe('管理控制台')
   })
 
   it('translates admin.backToFiles to English', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('en')
-    expect(i18n.t('admin.backToFiles')).toBe('Back to Files')
+    expect(i18n.t('admin.backToFiles')).toBe('Back to App')
   })
 
   it('translates admin.backToFiles to Chinese', async () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.backToFiles')).toBe('返回文件')
+    expect(i18n.t('admin.backToFiles')).toBe('返回前台')
   })
 
   it('translates common.edit to English', async () => {
