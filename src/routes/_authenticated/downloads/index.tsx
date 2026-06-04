@@ -28,6 +28,7 @@ import {
   Folder,
   FolderInput,
   Gauge,
+  GripVertical,
   Home,
   LinkIcon,
   LoaderCircle,
@@ -91,7 +92,9 @@ export const Route = createFileRoute('/_authenticated/downloads/')({
 })
 
 const QUERY_KEY = ['download-tasks']
+const EMPTY_DOWNLOAD_TASKS: DownloadTask[] = []
 const PAUSABLE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'running'])
+const SORTABLE_COLUMN_IDS = new Set(['source', 'status', 'progress', 'eta', 'category', 'tags'])
 const DEFAULT_COLUMN_ORDER = ['select', 'source', 'status', 'progress', 'eta', 'category', 'tags']
 type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
 type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['detail']>['phase']>
@@ -139,7 +142,7 @@ function DownloadsPage() {
   const sortBy = toDownloadTaskSortBy(sorting[0]?.id)
   const sortDir = sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : 'desc'
   const queryKey = useMemo(
-    () => [...QUERY_KEY, categoryFilterValue ?? '', tagFilterValue ?? '', sortBy, sortDir],
+    () => [...QUERY_KEY, categoryFilterValue ?? '', tagFilterValue ?? '', sortBy, sortDir] as const,
     [categoryFilterValue, sortBy, sortDir, tagFilterValue],
   )
 
@@ -154,6 +157,7 @@ function DownloadsPage() {
         sortBy,
         sortDir,
       }),
+    placeholderData: (previousData) => previousData,
   })
 
   useEffect(() => {
@@ -273,23 +277,32 @@ function DownloadsPage() {
     setPendingTaskAction(null)
   }
 
-  const tasks = tasksQuery.data?.items ?? []
+  const tasks = tasksQuery.data?.items ?? EMPTY_DOWNLOAD_TASKS
   const columns = useMemo(() => getDownloadColumns(t), [t])
   const table = useReactTable({
     data: tasks,
     columns,
-    state: { sorting, rowSelection, columnOrder },
-    onSortingChange: setSorting,
+    defaultColumn: { enableSorting: false },
+    state: { rowSelection, columnOrder },
     onRowSelectionChange: setRowSelection,
     onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (task) => task.id,
     enableRowSelection: true,
-    manualSorting: true,
   })
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null
   const activeSelectedTaskId = selectedTask?.id ?? null
   const selectedTasks = table.getSelectedRowModel().rows.map((row) => row.original)
+
+  function handleSortColumn(columnId: string) {
+    if (!SORTABLE_COLUMN_IDS.has(columnId)) return
+    setSorting((current) => {
+      const active = current[0]
+      if (active?.id !== columnId) return [{ id: columnId, desc: false }]
+      if (!active.desc) return [{ id: columnId, desc: true }]
+      return []
+    })
+  }
 
   function handlePanelResizeStart(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault()
@@ -484,7 +497,9 @@ function DownloadsPage() {
                       <DownloadTableHead
                         key={header.id}
                         header={header}
+                        sorting={sorting}
                         draggedColumnId={draggedColumnId}
+                        onSort={handleSortColumn}
                         onDragStart={setDraggedColumnId}
                         onDrop={handleColumnDrop}
                       />
@@ -617,12 +632,16 @@ function SortIndicator({ direction }: { direction: false | 'asc' | 'desc' }) {
 
 function DownloadTableHead({
   header,
+  sorting,
   draggedColumnId,
+  onSort,
   onDragStart,
   onDrop,
 }: {
   header: Header<DownloadTask, unknown>
+  sorting: SortingState
   draggedColumnId: string | null
+  onSort: (columnId: string) => void
   onDragStart: (columnId: string | null) => void
   onDrop: (columnId: string) => void
 }) {
@@ -633,23 +652,18 @@ function DownloadTableHead({
     onDrop(header.column.id)
   }
 
+  const canSort = SORTABLE_COLUMN_IDS.has(header.column.id)
+  const activeSort = sorting[0]?.id === header.column.id ? (sorting[0].desc ? 'desc' : 'asc') : false
+
   return (
     <TableHead
-      draggable={reorderable}
       className={cn(
         'h-8 overflow-hidden px-2',
         header.column.columnDef.meta?.className,
-        header.column.getCanSort() && 'cursor-pointer select-none',
-        reorderable && 'cursor-grab active:cursor-grabbing',
+        canSort && 'select-none',
         draggedColumnId === header.column.id && 'opacity-50',
       )}
       style={header.column.columnDef.meta?.flex ? undefined : { width: header.column.getSize() }}
-      onClick={header.column.getToggleSortingHandler()}
-      onDragStart={(event) => {
-        if (!reorderable) return
-        onDragStart(header.column.id)
-        event.dataTransfer.effectAllowed = 'move'
-      }}
       onDragOver={(event) => {
         if (reorderable && draggedColumnId) event.preventDefault()
       }}
@@ -657,8 +671,35 @@ function DownloadTableHead({
       onDragEnd={() => onDragStart(null)}
     >
       <div className="flex min-w-0 items-center gap-1">
-        <span className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</span>
-        {header.column.getCanSort() && <SortIndicator direction={header.column.getIsSorted()} />}
+        {canSort ? (
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-1 text-left"
+            onClick={() => onSort(header.column.id)}
+          >
+            <span className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</span>
+            <SortIndicator direction={activeSort} />
+          </button>
+        ) : (
+          <span className="min-w-0 flex-1 truncate">
+            {flexRender(header.column.columnDef.header, header.getContext())}
+          </span>
+        )}
+        {reorderable && (
+          <button
+            type="button"
+            draggable
+            className="flex size-4 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground active:cursor-grabbing"
+            onClick={(event) => event.stopPropagation()}
+            onDragStart={(event) => {
+              onDragStart(header.column.id)
+              event.dataTransfer.effectAllowed = 'move'
+            }}
+            onDragEnd={() => onDragStart(null)}
+          >
+            <GripVertical className="size-3" />
+          </button>
+        )}
       </div>
     </TableHead>
   )
