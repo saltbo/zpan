@@ -55,6 +55,8 @@
   --zpan-theme-canvas: oklch(0.978 0.006 247);
   --zpan-theme-sidebar-accent: oklch(0.93 0.042 256);
   --zpan-theme-ring: oklch(0.587 0.201 258.4);
+  --zpan-scrollbar-thumb: oklch(0.66 0.028 252);
+  --zpan-scrollbar-thumb-hover: var(--zpan-theme-primary);
 }
 
 .dark {
@@ -99,14 +101,44 @@
   --color-sidebar-hover: oklch(0.32 0.005 250);
   --color-sidebar-border: oklch(0.34 0.005 250);
   --color-sidebar-ring: var(--zpan-theme-ring);
+  --zpan-scrollbar-thumb: oklch(0.52 0.018 252);
+  --zpan-scrollbar-thumb-hover: var(--zpan-theme-primary);
 }
 
 @layer base {
   * {
     @apply border-border;
+    scrollbar-color: var(--zpan-scrollbar-thumb) transparent;
+    scrollbar-width: thin;
   }
   body {
     @apply bg-background text-foreground;
     font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    min-height: 2rem;
+    min-width: 2rem;
+    background-color: var(--zpan-scrollbar-thumb);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--zpan-scrollbar-thumb-hover);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }

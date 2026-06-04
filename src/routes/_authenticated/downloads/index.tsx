@@ -5,6 +5,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   type ColumnDef,
   type ColumnOrderState,
+  type ColumnSizingState,
   flexRender,
   getCoreRowModel,
   type Header,
@@ -96,6 +97,16 @@ const EMPTY_DOWNLOAD_TASKS: DownloadTask[] = []
 const PAUSABLE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'running'])
 const SORTABLE_COLUMN_IDS = new Set(['source', 'status', 'progress', 'eta', 'category', 'tags'])
 const DEFAULT_COLUMN_ORDER = ['select', 'source', 'status', 'progress', 'eta', 'category', 'tags']
+const STATUS_FILTERS: Array<{ value: DownloadTaskStatus | 'all'; labelKey: string }> = [
+  { value: 'all', labelKey: 'downloads.statusFilter.all' },
+  { value: 'queued', labelKey: 'downloads.status.queued' },
+  { value: 'running', labelKey: 'downloads.status.running' },
+  { value: 'uploading', labelKey: 'downloads.status.uploading' },
+  { value: 'paused', labelKey: 'downloads.status.paused' },
+  { value: 'completed', labelKey: 'downloads.status.completed' },
+  { value: 'failed', labelKey: 'downloads.status.failed' },
+  { value: 'canceled', labelKey: 'downloads.status.canceled' },
+]
 type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
 type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['detail']>['phase']>
 type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'log'
@@ -104,7 +115,7 @@ type PendingTaskAction = { tasks: DownloadTask[]; action: DownloadTaskAction }
 
 const LIST_MIN_HEIGHT = 180
 const DETAIL_MIN_HEIGHT = 224
-const DETAIL_DEFAULT_HEIGHT = 320
+const DETAIL_DEFAULT_RATIO = 0.36
 const PANEL_RESIZER_HEIGHT = 8
 
 const DETAIL_TABS: Array<{ id: DetailTab; labelKey: string; icon: ReactNode }> = [
@@ -126,24 +137,36 @@ function DownloadsPage() {
   const [tagsInput, setTagsInput] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
   const [filterTag, setFilterTag] = useState('')
+  const [filterStatus, setFilterStatus] = useState<DownloadTaskStatus | 'all'>('all')
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(DEFAULT_COLUMN_ORDER)
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({})
   const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null)
   const [pendingTaskAction, setPendingTaskAction] = useState<PendingTaskAction | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('overview')
-  const [detailHeight, setDetailHeight] = useState(DETAIL_DEFAULT_HEIGHT)
+  const [detailHeight, setDetailHeight] = useState(DETAIL_MIN_HEIGHT)
+  const [detailHeightCustomized, setDetailHeightCustomized] = useState(false)
   const [panelDrag, setPanelDrag] = useState<PanelDragState | null>(null)
   const panelsRef = useRef<HTMLDivElement>(null)
   const categoryFilterValue = filterCategory.trim() || undefined
   const tagFilterValue = filterTag.trim() || undefined
+  const statusFilterValue = filterStatus === 'all' ? undefined : filterStatus
   const sortBy = toDownloadTaskSortBy(sorting[0]?.id)
   const sortDir = sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : 'desc'
   const queryKey = useMemo(
-    () => [...QUERY_KEY, categoryFilterValue ?? '', tagFilterValue ?? '', sortBy, sortDir] as const,
-    [categoryFilterValue, sortBy, sortDir, tagFilterValue],
+    () =>
+      [
+        ...QUERY_KEY,
+        statusFilterValue ?? '',
+        categoryFilterValue ?? '',
+        tagFilterValue ?? '',
+        sortBy,
+        sortDir,
+      ] as const,
+    [categoryFilterValue, sortBy, sortDir, statusFilterValue, tagFilterValue],
   )
 
   const tasksQuery = useQuery({
@@ -152,6 +175,7 @@ function DownloadsPage() {
       listDownloadTasks({
         page: 1,
         pageSize: 50,
+        status: statusFilterValue,
         category: categoryFilterValue,
         tag: tagFilterValue,
         sortBy,
@@ -161,8 +185,33 @@ function DownloadsPage() {
   })
 
   useEffect(() => {
+    const measuredContainer = panelsRef.current
+    if (!measuredContainer) return
+
+    function updateDetailHeight(container: HTMLDivElement) {
+      const containerHeight = container.getBoundingClientRect().height
+      if (detailHeightCustomized) {
+        setDetailHeight((current) => clamp(current, DETAIL_MIN_HEIGHT, maxDetailHeight(containerHeight)))
+        return
+      }
+      setDetailHeight(defaultDetailHeight(containerHeight))
+    }
+
+    updateDetailHeight(measuredContainer)
+    const observer = new ResizeObserver(() => updateDetailHeight(measuredContainer))
+    observer.observe(measuredContainer)
+    return () => observer.disconnect()
+  }, [detailHeightCustomized])
+
+  useEffect(() => {
     const events = new EventSource(
-      downloadTaskEventsUrl({ category: categoryFilterValue, tag: tagFilterValue, sortBy, sortDir }),
+      downloadTaskEventsUrl({
+        status: statusFilterValue,
+        category: categoryFilterValue,
+        tag: tagFilterValue,
+        sortBy,
+        sortDir,
+      }),
       {
         withCredentials: true,
       },
@@ -172,15 +221,20 @@ function DownloadsPage() {
       queryClient.setQueryData(queryKey, data)
     })
     return () => events.close()
-  }, [categoryFilterValue, queryClient, queryKey, sortBy, sortDir, tagFilterValue])
+  }, [categoryFilterValue, queryClient, queryKey, sortBy, sortDir, statusFilterValue, tagFilterValue])
 
   useEffect(() => {
     if (!panelDrag) return
     const drag = panelDrag
 
     function handlePointerMove(event: PointerEvent) {
-      const maxDetailHeight = Math.max(DETAIL_MIN_HEIGHT, drag.containerHeight - PANEL_RESIZER_HEIGHT - LIST_MIN_HEIGHT)
-      setDetailHeight(clamp(drag.startDetailHeight - (event.clientY - drag.startY), DETAIL_MIN_HEIGHT, maxDetailHeight))
+      setDetailHeight(
+        clamp(
+          drag.startDetailHeight - (event.clientY - drag.startY),
+          DETAIL_MIN_HEIGHT,
+          maxDetailHeight(drag.containerHeight),
+        ),
+      )
     }
 
     function handlePointerUp() {
@@ -282,13 +336,15 @@ function DownloadsPage() {
   const table = useReactTable({
     data: tasks,
     columns,
-    defaultColumn: { enableSorting: false },
-    state: { rowSelection, columnOrder },
+    defaultColumn: { enableSorting: false, minSize: 72, maxSize: 520 },
+    state: { rowSelection, columnOrder, columnSizing },
     onRowSelectionChange: setRowSelection,
     onColumnOrderChange: setColumnOrder,
+    onColumnSizingChange: setColumnSizing,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (task) => task.id,
     enableRowSelection: true,
+    columnResizeMode: 'onChange',
   })
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null
   const activeSelectedTaskId = selectedTask?.id ?? null
@@ -307,6 +363,7 @@ function DownloadsPage() {
   function handlePanelResizeStart(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault()
     const containerHeight = panelsRef.current?.getBoundingClientRect().height ?? 0
+    setDetailHeightCustomized(true)
     setPanelDrag({ startY: event.clientY, startDetailHeight: detailHeight, containerHeight })
   }
 
@@ -314,9 +371,9 @@ function DownloadsPage() {
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
     event.preventDefault()
     const containerHeight = panelsRef.current?.getBoundingClientRect().height ?? 0
-    const maxDetailHeight = Math.max(DETAIL_MIN_HEIGHT, containerHeight - PANEL_RESIZER_HEIGHT - LIST_MIN_HEIGHT)
+    setDetailHeightCustomized(true)
     setDetailHeight((current) =>
-      clamp(current + (event.key === 'ArrowUp' ? 24 : -24), DETAIL_MIN_HEIGHT, maxDetailHeight),
+      clamp(current + (event.key === 'ArrowUp' ? 24 : -24), DETAIL_MIN_HEIGHT, maxDetailHeight(containerHeight)),
     )
   }
 
@@ -325,7 +382,7 @@ function DownloadsPage() {
       <PageHeader
         items={[{ label: t('downloads.title'), icon: <Download className="size-4 text-muted-foreground" /> }]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {selectedTasks.length > 0 && (
               <BulkTaskActions
                 tasks={selectedTasks}
@@ -334,6 +391,7 @@ function DownloadsPage() {
                 onClear={() => setRowSelection({})}
               />
             )}
+            <StatusFilterBar value={filterStatus} onChange={setFilterStatus} />
             <DownloadFilters
               category={filterCategory}
               tag={filterTag}
@@ -488,50 +546,49 @@ function DownloadsPage() {
         }}
       >
         <section className="min-h-0 overflow-hidden rounded-md border bg-background">
-          <div className="h-full overflow-auto">
-            <Table className="min-w-[920px] table-fixed text-xs">
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id} className="bg-muted/40 hover:bg-muted/40">
-                    {headerGroup.headers.map((header) => (
-                      <DownloadTableHead
-                        key={header.id}
-                        header={header}
-                        sorting={sorting}
-                        draggedColumnId={draggedColumnId}
-                        onSort={handleSortColumn}
-                        onDragStart={setDraggedColumnId}
-                        onDrop={handleColumnDrop}
-                      />
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {tasks.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={table.getAllColumns().length}
-                      className="h-28 text-center text-muted-foreground"
-                    >
-                      {tasksQuery.isLoading ? t('common.loading') : t('downloads.empty')}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {table.getRowModel().rows.map((row) => (
-                  <TaskRow
-                    key={row.id}
-                    row={row}
-                    selected={row.original.id === activeSelectedTaskId}
-                    actionPending={actionMutation.isPending}
-                    onSelect={() => setSelectedTaskId(row.original.id)}
-                    onPrimaryAction={() => handlePrimaryTaskAction(row.original)}
-                    onAction={(action) => handleTaskAction(row.original, action)}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <Table
+            containerClassName="h-full overflow-auto"
+            className="table-fixed text-xs"
+            style={{ width: table.getTotalSize() }}
+          >
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="bg-muted/40 hover:bg-muted/40">
+                  {headerGroup.headers.map((header) => (
+                    <DownloadTableHead
+                      key={header.id}
+                      header={header}
+                      sorting={sorting}
+                      draggedColumnId={draggedColumnId}
+                      onSort={handleSortColumn}
+                      onDragStart={setDraggedColumnId}
+                      onDrop={handleColumnDrop}
+                    />
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {tasks.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={table.getAllColumns().length} className="h-28 text-center text-muted-foreground">
+                    {tasksQuery.isLoading ? t('common.loading') : t('downloads.empty')}
+                  </TableCell>
+                </TableRow>
+              )}
+              {table.getRowModel().rows.map((row) => (
+                <TaskRow
+                  key={row.id}
+                  row={row}
+                  selected={row.original.id === activeSelectedTaskId}
+                  actionPending={actionMutation.isPending}
+                  onSelect={() => setSelectedTaskId(row.original.id)}
+                  onPrimaryAction={() => handlePrimaryTaskAction(row.original)}
+                  onAction={(action) => handleTaskAction(row.original, action)}
+                />
+              ))}
+            </TableBody>
+          </Table>
         </section>
 
         <button
@@ -621,6 +678,38 @@ function DownloadFilters({
   )
 }
 
+function StatusFilterBar({
+  value,
+  onChange,
+}: {
+  value: DownloadTaskStatus | 'all'
+  onChange: (value: DownloadTaskStatus | 'all') => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="max-w-[min(58vw,38rem)] overflow-x-auto">
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        value={value}
+        onValueChange={(next) => next && onChange(next as DownloadTaskStatus | 'all')}
+        className="w-max gap-0 rounded-md border bg-background p-0.5"
+      >
+        {STATUS_FILTERS.map((item) => (
+          <ToggleGroupItem
+            key={item.value}
+            value={item.value}
+            className="h-7 rounded-sm border-0 px-2.5 text-xs data-[state=on]:bg-muted data-[state=on]:shadow-none"
+          >
+            {t(item.labelKey)}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
+  )
+}
+
 function SortIndicator({ direction }: { direction: false | 'asc' | 'desc' }) {
   if (!direction) return null
   return direction === 'asc' ? (
@@ -653,17 +742,18 @@ function DownloadTableHead({
   }
 
   const canSort = SORTABLE_COLUMN_IDS.has(header.column.id)
+  const canResize = header.column.getCanResize()
   const activeSort = sorting[0]?.id === header.column.id ? (sorting[0].desc ? 'desc' : 'asc') : false
 
   return (
     <TableHead
       className={cn(
-        'h-8 overflow-hidden px-2',
+        'sticky top-0 z-20 h-8 overflow-hidden bg-muted px-2',
         header.column.columnDef.meta?.className,
         canSort && 'select-none',
         draggedColumnId === header.column.id && 'opacity-50',
       )}
-      style={header.column.columnDef.meta?.flex ? undefined : { width: header.column.getSize() }}
+      style={{ width: header.column.getSize() }}
       onDragOver={(event) => {
         if (reorderable && draggedColumnId) event.preventDefault()
       }}
@@ -701,6 +791,16 @@ function DownloadTableHead({
           </button>
         )}
       </div>
+      {canResize && (
+        <button
+          type="button"
+          aria-label="Resize column"
+          className="absolute top-1 right-0 bottom-1 w-1 cursor-col-resize rounded-full bg-transparent hover:bg-primary/40 active:bg-primary/50"
+          onClick={(event) => event.stopPropagation()}
+          onMouseDown={header.getResizeHandler()}
+          onTouchStart={header.getResizeHandler()}
+        />
+      )}
     </TableHead>
   )
 }
@@ -710,7 +810,10 @@ function getDownloadColumns(t: ReturnType<typeof useTranslation>['t']): ColumnDe
     {
       id: 'select',
       size: 34,
+      minSize: 34,
+      maxSize: 34,
       enableSorting: false,
+      enableResizing: false,
       meta: { className: 'w-8 px-2' },
       header: ({ table }) => (
         <Checkbox
@@ -734,7 +837,8 @@ function getDownloadColumns(t: ReturnType<typeof useTranslation>['t']): ColumnDe
       accessorFn: (task) => `${getTaskTitle(task)} ${task.sourceUri}`,
       header: () => t('downloads.table.source'),
       size: 300,
-      meta: { className: 'w-[300px] max-w-[300px]' },
+      minSize: 180,
+      maxSize: 620,
       cell: ({ row }) => (
         <div className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden">
           <SourceIcon type={row.original.sourceType} />
@@ -750,13 +854,17 @@ function getDownloadColumns(t: ReturnType<typeof useTranslation>['t']): ColumnDe
       accessorFn: (task) => task.category ?? '',
       header: () => t('downloads.table.category'),
       size: 110,
+      minSize: 86,
+      maxSize: 240,
       cell: ({ row }) => <CategoryCell category={row.original.category} />,
     },
     {
       id: 'tags',
-      accessorFn: (task) => task.tags.join(', '),
+      accessorFn: (task) => task.tags.join(' / '),
       header: () => t('downloads.table.tags'),
       size: 160,
+      minSize: 100,
+      maxSize: 360,
       cell: ({ row }) => <TagsCell tags={row.original.tags} />,
     },
     {
@@ -789,21 +897,12 @@ function getDownloadColumns(t: ReturnType<typeof useTranslation>['t']): ColumnDe
 
 function CategoryCell({ category }: { category: string | null }) {
   if (!category) return <span className="text-xs text-muted-foreground">-</span>
-  return <span className="block max-w-28 truncate text-xs text-muted-foreground">{category}</span>
+  return <span className="block min-w-0 truncate text-xs text-muted-foreground">{category}</span>
 }
 
 function TagsCell({ tags }: { tags: string[] }) {
   if (tags.length === 0) return <span className="text-xs text-muted-foreground">-</span>
-  return (
-    <div className="flex max-w-40 items-center gap-1 overflow-hidden">
-      {tags.slice(0, 2).map((tag) => (
-        <Badge key={tag} variant="outline" className="h-5 max-w-20 shrink px-1.5 text-[11px] font-normal">
-          <span className="truncate">{tag}</span>
-        </Badge>
-      ))}
-      {tags.length > 2 && <span className="text-[11px] text-muted-foreground">+{tags.length - 2}</span>}
-    </div>
-  )
+  return <span className="block min-w-0 truncate text-xs text-muted-foreground">{tags.join(' / ')}</span>
 }
 
 function ProgressCell({ task }: { task: DownloadTask }) {
@@ -908,6 +1007,14 @@ function buildPath(parent: string, name: string): string {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
+}
+
+function maxDetailHeight(containerHeight: number) {
+  return Math.max(DETAIL_MIN_HEIGHT, containerHeight - PANEL_RESIZER_HEIGHT - LIST_MIN_HEIGHT)
+}
+
+function defaultDetailHeight(containerHeight: number) {
+  return clamp(Math.round(containerHeight * DETAIL_DEFAULT_RATIO), DETAIL_MIN_HEIGHT, maxDetailHeight(containerHeight))
 }
 
 function parseTagsInput(value: string): string[] {
@@ -1081,7 +1188,11 @@ function TaskRow({
           onDoubleClick={onPrimaryAction}
         >
           {row.getVisibleCells().map((cell) => (
-            <TableCell key={cell.id} className={cn('py-1', cell.column.columnDef.meta?.className)}>
+            <TableCell
+              key={cell.id}
+              className={cn('py-1', cell.column.columnDef.meta?.className)}
+              style={{ width: cell.column.getSize() }}
+            >
               {flexRender(cell.column.columnDef.cell, cell.getContext())}
             </TableCell>
           ))}
@@ -1198,7 +1309,7 @@ function TransferProgress({ task, className }: { task: DownloadTask; className?:
       <div className="absolute inset-y-0 left-0 bg-sky-500 transition-all" style={{ width: `${progress.download}%` }} />
       {progress.upload > 0 && (
         <div
-          className="absolute right-0 bottom-0 left-0 h-0.5 bg-emerald-500/80 transition-all"
+          className="absolute inset-y-0 left-0 bg-emerald-500 transition-all"
           style={{ width: `${progress.upload}%` }}
         />
       )}
@@ -1228,14 +1339,14 @@ function DownloadInspector({
 
   if (!task) {
     return (
-      <div className="flex h-full min-h-[18rem] items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-full min-h-0 items-center justify-center text-sm text-muted-foreground">
         {t('downloads.detail.noSelection')}
       </div>
     )
   }
 
   return (
-    <div className="flex h-full min-h-[18rem] flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex overflow-x-auto border-b bg-muted/20 px-1" role="tablist">
         {DETAIL_TABS.map((item) => (
           <button

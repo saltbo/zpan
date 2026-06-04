@@ -167,6 +167,7 @@
   "downloads.status.seeding": "做种中",
   "downloads.status.failed": "失败",
   "downloads.status.canceled": "已取消",
+  "downloads.statusFilter.all": "全部",
   "downloads.actions.pause": "暂停",
   "downloads.actions.resume": "继续",
   "downloads.actions.cancel": "取消",

@@ -310,9 +310,10 @@ export function runDownloadTaskAction(id: string, action: DownloadTaskActionInpu
 }
 
 export function downloadTaskEventsUrl(
-  opts: Pick<ListDownloadTasksOptions, 'category' | 'tag' | 'sortBy' | 'sortDir'> = {},
+  opts: Pick<ListDownloadTasksOptions, 'status' | 'category' | 'tag' | 'sortBy' | 'sortDir'> = {},
 ) {
   const query: Record<string, string> = { page: '1', pageSize: '50' }
+  if (opts.status) query.status = opts.status
   if (opts.category) query.category = opts.category
   if (opts.tag) query.tag = opts.tag
   if (opts.sortBy) query.sortBy = opts.sortBy

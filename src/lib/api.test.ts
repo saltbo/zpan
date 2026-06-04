@@ -1079,8 +1079,15 @@ describe('api', () => {
     })
 
     it('builds the download task events URL from RPC client', () => {
-      const url = downloadTaskEventsUrl({ category: 'movies', tag: '4k', sortBy: 'status', sortDir: 'desc' })
+      const url = downloadTaskEventsUrl({
+        status: 'running',
+        category: 'movies',
+        tag: '4k',
+        sortBy: 'status',
+        sortDir: 'desc',
+      })
       expect(url.pathname).toBe('/api/download-tasks/events')
+      expect(url.searchParams.get('status')).toBe('running')
       expect(url.searchParams.get('category')).toBe('movies')
       expect(url.searchParams.get('tag')).toBe('4k')
       expect(url.searchParams.get('sortBy')).toBe('status')

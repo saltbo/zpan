@@ -167,6 +167,7 @@
   "downloads.status.seeding": "Seeding",
   "downloads.status.failed": "Failed",
   "downloads.status.canceled": "Canceled",
+  "downloads.statusFilter.all": "All",
   "downloads.actions.pause": "Pause",
   "downloads.actions.resume": "Resume",
   "downloads.actions.cancel": "Cancel",
