@@ -85,6 +85,9 @@ func TestCollectDirectoryEntriesSkipsDownloadSidecars(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "fixture.torrent"), []byte("torrent"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(root, "movie.mkv.aria2"), []byte("control"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(root, "[METADATA]abc"), []byte("metadata"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +101,57 @@ func TestCollectDirectoryEntriesSkipsDownloadSidecars(t *testing.T) {
 	}
 	if entries[0].name != "movie.mkv" {
 		t.Fatalf("expected movie.mkv, got %s", entries[0].name)
+	}
+}
+
+func TestUploadETARoundsRemainingSeconds(t *testing.T) {
+	eta := uploadETA(&uploadProgress{uploaded: 25, totalBytes: 100}, 20)
+
+	if eta == nil || *eta != 4 {
+		t.Fatalf("expected ETA 4, got %#v", eta)
+	}
+}
+
+func TestWithDownloadETAAddsFallback(t *testing.T) {
+	total := int64(100)
+	detail := withDownloadETA(&client.DownloadTaskDetail{Engine: "builtin"}, 25, &total, 20)
+
+	if detail == nil || detail.ETASeconds == nil || *detail.ETASeconds != 4 {
+		t.Fatalf("expected fallback ETA 4, got %#v", detail)
+	}
+	if detail.Engine != "builtin" {
+		t.Fatalf("expected existing detail fields to be preserved, got %#v", detail)
+	}
+}
+
+func TestWithDownloadETAPreservesEngineETA(t *testing.T) {
+	total := int64(100)
+	existing := int64(9)
+	detail := withDownloadETA(&client.DownloadTaskDetail{ETASeconds: &existing}, 25, &total, 20)
+
+	if detail == nil || detail.ETASeconds == nil || *detail.ETASeconds != 9 {
+		t.Fatalf("expected engine ETA to be preserved, got %#v", detail)
+	}
+}
+
+func TestUploadETAOmitsUnusableValues(t *testing.T) {
+	cases := []struct {
+		name     string
+		progress *uploadProgress
+		bps      int64
+	}{
+		{name: "missing progress", progress: nil, bps: 1},
+		{name: "unknown total", progress: &uploadProgress{uploaded: 25}, bps: 1},
+		{name: "complete", progress: &uploadProgress{uploaded: 100, totalBytes: 100}, bps: 1},
+		{name: "stalled", progress: &uploadProgress{uploaded: 25, totalBytes: 100}, bps: 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if eta := uploadETA(tc.progress, tc.bps); eta != nil {
+				t.Fatalf("expected empty ETA, got %#v", eta)
+			}
+		})
 	}
 }
 

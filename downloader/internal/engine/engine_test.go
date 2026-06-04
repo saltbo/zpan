@@ -148,6 +148,18 @@ func TestQBittorrentAddOptionsDefaultsCategory(t *testing.T) {
 	}
 }
 
+func TestQBittorrentAddOptionsIgnoresTorrentTaskName(t *testing.T) {
+	options := qbittorrentAddOptions(
+		client.DownloadTask{ID: "task-1", SourceType: "magnet", Name: "movie.torrent"},
+		"/tmp/zpan/task-1",
+		qbittorrentTrackingTag("task-1"),
+	)
+
+	if _, ok := options["rename"]; ok {
+		t.Fatalf("expected torrent task name to be ignored, got rename=%q", options["rename"])
+	}
+}
+
 func TestIsAria2RPCDisconnected(t *testing.T) {
 	for _, err := range []error{
 		rpc2.ErrShutdown,
@@ -232,6 +244,9 @@ func TestResultFromPathReturnsDirectory(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(taskDir, "fixture.torrent"), []byte("torrent"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(taskDir, "folder.aria2"), []byte("control"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := resultFromPath(client.DownloadTask{ID: "task-1", Name: "bundle"}, taskDir, "bundle")
 	if err != nil {
@@ -251,5 +266,130 @@ func TestResultFromPathReturnsDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(result.Path, "a.txt")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestResultFromAria2FilesUsesSingleTopLevelDirectory(t *testing.T) {
+	dir := t.TempDir()
+	taskDir := filepath.Join(dir, "task-1")
+	if err := os.MkdirAll(filepath.Join(taskDir, "payload"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "payload", "a.txt"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "payload", "b.txt"), []byte("b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "payload.aria2"), []byte("control"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := resultFromAria2Files(
+		client.DownloadTask{ID: "task-1"},
+		taskDir,
+		"payload",
+		[]arigo.File{
+			{Path: filepath.Join(taskDir, "payload", "a.txt"), Length: 1, Selected: true},
+			{Path: filepath.Join(taskDir, "payload", "b.txt"), Length: 1, Selected: true},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Path != filepath.Join(taskDir, "payload") {
+		t.Fatalf("expected payload dir path, got %s", result.Path)
+	}
+	if result.Name != "payload" {
+		t.Fatalf("expected payload dir name, got %s", result.Name)
+	}
+	if result.Size != 2 {
+		t.Fatalf("expected payload size 2, got %d", result.Size)
+	}
+}
+
+func TestResultFromAria2FilesWrapsSingleFileBTTask(t *testing.T) {
+	dir := t.TempDir()
+	taskDir := filepath.Join(dir, "task-1")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "movie.mkv"), []byte("movie"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "movie.mkv.aria2"), []byte("control"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := resultFromAria2Files(
+		client.DownloadTask{ID: "task-1", SourceType: "magnet", Name: "movie.torrent"},
+		taskDir,
+		"Iron.Lung.2026.1080p.WEBRip.10Bit.DDP.5.1.x265-NeoNoir",
+		[]arigo.File{{Path: filepath.Join(taskDir, "movie.mkv"), Length: 5, Selected: true}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsDir {
+		t.Fatal("expected directory result")
+	}
+	if result.Path != taskDir {
+		t.Fatalf("expected task dir path, got %s", result.Path)
+	}
+	if result.Name != "Iron.Lung.2026.1080p.WEBRip.10Bit.DDP.5.1.x265-NeoNoir" {
+		t.Fatalf("expected torrent name wrapper dir, got %s", result.Name)
+	}
+	if result.Size != 5 {
+		t.Fatalf("expected payload-only size 5, got %d", result.Size)
+	}
+}
+
+func TestResultFromDownloadedFilesWrapsMultipleTopLevelEntries(t *testing.T) {
+	dir := t.TempDir()
+	taskDir := filepath.Join(dir, "task-1")
+	if err := os.MkdirAll(filepath.Join(taskDir, "folder"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "folder", "a.txt"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "root.txt"), []byte("b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := resultFromDownloadedFiles(client.DownloadTask{ID: "task-1", Name: "bundle"}, taskDir, "fallback", []downloadedFile{
+		{path: filepath.Join(taskDir, "folder", "a.txt"), relativePath: filepath.Join("folder", "a.txt")},
+		{path: filepath.Join(taskDir, "root.txt"), relativePath: "root.txt"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Path != taskDir {
+		t.Fatalf("expected task dir wrapper path, got %s", result.Path)
+	}
+	if result.Name != "bundle" {
+		t.Fatalf("expected bundle wrapper name, got %s", result.Name)
+	}
+}
+
+func TestOutputNameIgnoresTorrentTaskNameForBT(t *testing.T) {
+	name := outputName(
+		client.DownloadTask{ID: "task-1", SourceType: "magnet", Name: "movie.torrent"},
+		"movie.mkv",
+	)
+
+	if name != "movie.mkv" {
+		t.Fatalf("expected payload fallback name, got %s", name)
+	}
+}
+
+func TestOutputNameAllowsHTTPDownloadTorrentName(t *testing.T) {
+	name := outputName(
+		client.DownloadTask{ID: "task-1", SourceType: "http", Name: "movie.torrent"},
+		"download",
+	)
+
+	if name != "movie.torrent" {
+		t.Fatalf("expected HTTP task name to be preserved, got %s", name)
 	}
 }

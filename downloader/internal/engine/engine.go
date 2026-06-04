@@ -186,7 +186,7 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	if err != nil {
 		return Result{}, err
 	}
-	result, err := resultFromAria2Files(task, taskDir, files)
+	result, err := resultFromAria2Files(task, taskDir, status.BitTorrent.Info.Name, files)
 	if err != nil {
 		return Result{}, err
 	}
@@ -323,7 +323,7 @@ func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, pro
 	if err != nil {
 		return Result{}, err
 	}
-	result, err := resultFromPath(task, taskDir, torrent.Name)
+	result, err := resultFromQBittorrentFiles(ctx, qbt, task, taskDir, torrent)
 	if err != nil {
 		return Result{}, err
 	}
@@ -355,8 +355,8 @@ func qbittorrentAddOptions(task client.DownloadTask, taskDir string, trackingTag
 		LimitSeedTime:      0,
 		SequentialDownload: false,
 	}).Prepare()
-	if task.Name != "" {
-		options["rename"] = task.Name
+	if name := requestedOutputName(task); name != "" {
+		options["rename"] = name
 	}
 	return options
 }
@@ -831,17 +831,43 @@ func qbittorrentPeers(ctx context.Context, qbt *qbittorrent.Client, hash string)
 	return out
 }
 
-func resultFromAria2Files(task client.DownloadTask, taskDir string, files []arigo.File) (Result, error) {
-	paths := make([]string, 0, len(files))
+func resultFromAria2Files(task client.DownloadTask, taskDir string, fallbackName string, files []arigo.File) (Result, error) {
+	downloaded := make([]downloadedFile, 0, len(files))
 	for _, file := range files {
-		if file.Selected && file.Length > 0 && !isAria2MetadataPath(file.Path) {
-			paths = append(paths, cleanDownloadedPath(taskDir, file.Path))
+		if file.Selected && file.Length > 0 && !isDownloadSidecarPath(file.Path) {
+			abs, rel := downloadedPath(taskDir, file.Path)
+			downloaded = append(downloaded, downloadedFile{path: abs, relativePath: rel})
 		}
 	}
-	if len(paths) == 1 {
-		return resultFromFile(task, paths[0])
+	if len(downloaded) == 0 {
+		return resultFromPath(task, taskDir, fallbackName)
 	}
-	return resultFromPath(task, taskDir, task.Name)
+	return resultFromDownloadedFiles(task, taskDir, fallbackName, downloaded)
+}
+
+func resultFromQBittorrentFiles(
+	ctx context.Context,
+	qbt *qbittorrent.Client,
+	task client.DownloadTask,
+	taskDir string,
+	torrent qbittorrent.Torrent,
+) (Result, error) {
+	files, err := qbt.GetFilesInformationCtx(ctx, torrent.Hash)
+	if err != nil || files == nil {
+		return resultFromPath(task, taskDir, torrent.Name)
+	}
+	downloaded := make([]downloadedFile, 0, len(*files))
+	for _, file := range *files {
+		if file.Priority == 0 || file.Size <= 0 {
+			continue
+		}
+		abs, rel := downloadedPath(taskDir, file.Name)
+		downloaded = append(downloaded, downloadedFile{path: abs, relativePath: rel})
+	}
+	if len(downloaded) == 0 {
+		return resultFromPath(task, taskDir, torrent.Name)
+	}
+	return resultFromDownloadedFiles(task, taskDir, torrent.Name, downloaded)
 }
 
 func resultFromPath(task client.DownloadTask, path string, fallbackName string) (Result, error) {
@@ -885,13 +911,118 @@ func resultFromPath(task client.DownloadTask, path string, fallbackName string) 
 	return Result{Path: path, Name: outputName(task, fallbackName), Size: size, IsDir: true}, nil
 }
 
+type downloadedFile struct {
+	path         string
+	relativePath string
+}
+
+func resultFromDownloadedFiles(task client.DownloadTask, taskDir string, fallbackName string, files []downloadedFile) (Result, error) {
+	if len(files) == 1 && !hasPathSeparator(files[0].relativePath) {
+		if task.SourceType != "http" {
+			size, err := directorySize(taskDir)
+			if err != nil {
+				return Result{}, err
+			}
+			return Result{Path: taskDir, Name: singleFileTorrentFolderName(task, files[0].relativePath, fallbackName), Size: size, IsDir: true}, nil
+		}
+		return resultFromFile(task, files[0].path)
+	}
+	root, ok := singleTopLevelDirectory(files)
+	if ok {
+		path := filepath.Join(taskDir, root)
+		size, err := directorySize(path)
+		if err != nil {
+			return Result{}, err
+		}
+		return Result{Path: path, Name: outputName(task, root), Size: size, IsDir: true}, nil
+	}
+	size, err := directorySize(taskDir)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Path: taskDir, Name: outputName(task, fallbackName), Size: size, IsDir: true}, nil
+}
+
+func singleFileTorrentFolderName(task client.DownloadTask, filePath string, fallbackName string) string {
+	if name := requestedOutputName(task); name != "" {
+		return name
+	}
+	if name := payloadFallbackName(fallbackName); name != "" {
+		return name
+	}
+	base := filepath.Base(filePath)
+	if base != "" && base != "." && base != string(filepath.Separator) {
+		ext := filepath.Ext(base)
+		if ext != "" {
+			base = strings.TrimSuffix(base, ext)
+		}
+		if base != "" {
+			return base
+		}
+	}
+	return outputName(task, fallbackName)
+}
+
+func payloadFallbackName(fallbackName string) string {
+	name := strings.TrimSpace(fallbackName)
+	if name == "" || isDownloadSidecarPath(name) {
+		return ""
+	}
+	name = filepath.Base(name)
+	if name == "." || name == string(filepath.Separator) {
+		return ""
+	}
+	return name
+}
+
+func singleTopLevelDirectory(files []downloadedFile) (string, bool) {
+	var root string
+	for _, file := range files {
+		segments := splitRelativePath(file.relativePath)
+		if len(segments) < 2 {
+			return "", false
+		}
+		if root == "" {
+			root = segments[0]
+			continue
+		}
+		if segments[0] != root {
+			return "", false
+		}
+	}
+	return root, root != ""
+}
+
+func splitRelativePath(path string) []string {
+	normalized := filepath.ToSlash(filepath.Clean(path))
+	if normalized == "." || normalized == "/" {
+		return nil
+	}
+	parts := strings.Split(strings.Trim(normalized, "/"), "/")
+	out := parts[:0]
+	for _, part := range parts {
+		if part != "" && part != "." {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func hasPathSeparator(path string) bool {
+	return len(splitRelativePath(path)) > 1
+}
+
 func isAria2MetadataPath(path string) bool {
 	return strings.HasPrefix(path, "[MEMORY]") || strings.HasPrefix(path, "[METADATA]")
 }
 
 func isDownloadSidecarPath(path string) bool {
 	base := filepath.Base(path)
-	return isAria2MetadataPath(path) || isAria2MetadataPath(base) || strings.EqualFold(filepath.Ext(base), ".torrent")
+	ext := filepath.Ext(base)
+	return isAria2MetadataPath(path) ||
+		isAria2MetadataPath(base) ||
+		strings.EqualFold(ext, ".torrent") ||
+		strings.EqualFold(ext, ".aria2")
 }
 
 func resultFromFile(task client.DownloadTask, path string) (Result, error) {
@@ -933,20 +1064,44 @@ func directorySize(path string) (int64, error) {
 	return total, err
 }
 
-func cleanDownloadedPath(baseDir string, path string) string {
+func downloadedPath(baseDir string, path string) (string, string) {
 	if filepath.IsAbs(path) {
-		return filepath.Clean(path)
+		abs := filepath.Clean(path)
+		rel, err := filepath.Rel(baseDir, abs)
+		if err != nil || isUnsafeRelativePath(rel) {
+			return abs, filepath.Base(abs)
+		}
+		return abs, rel
 	}
-	return filepath.Join(baseDir, filepath.Clean(path))
+	rel := filepath.Clean(path)
+	if isUnsafeRelativePath(rel) {
+		return filepath.Join(baseDir, filepath.Base(rel)), filepath.Base(rel)
+	}
+	return filepath.Join(baseDir, rel), rel
+}
+
+func isUnsafeRelativePath(path string) bool {
+	return path == ".." || strings.HasPrefix(path, ".."+string(filepath.Separator)) || filepath.IsAbs(path)
 }
 
 func outputName(task client.DownloadTask, fallback string) string {
-	name := strings.TrimSpace(task.Name)
+	name := requestedOutputName(task)
 	if name == "" {
 		name = strings.TrimSpace(fallback)
 	}
 	if name == "" || name == "." || name == string(filepath.Separator) {
 		name = task.ID
+	}
+	return filepath.Base(name)
+}
+
+func requestedOutputName(task client.DownloadTask) string {
+	name := strings.TrimSpace(task.Name)
+	if name == "" {
+		return ""
+	}
+	if task.SourceType != "http" && isDownloadSidecarPath(name) {
+		return ""
 	}
 	return filepath.Base(name)
 }

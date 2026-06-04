@@ -215,6 +215,7 @@ describe('Download tasks API integration', () => {
           engine: 'aria2',
           phase: 'downloading',
           engineState: 'active',
+          etaSeconds: 42,
           infoHash: 'abc123',
           torrentName: 'fixture',
           connections: 8,
@@ -227,9 +228,10 @@ describe('Download tasks API integration', () => {
     })
     expect(runningRes.status).toBe(200)
     const runningTask = (await runningRes.json()) as {
-      detail: { engine: string; infoHash: string; trackers: Array<{ url: string }> }
+      detail: { engine: string; etaSeconds: number; infoHash: string; trackers: Array<{ url: string }> }
     }
     expect(runningTask.detail.engine).toBe('aria2')
+    expect(runningTask.detail.etaSeconds).toBe(42)
     expect(runningTask.detail.infoHash).toBe('abc123')
     expect(runningTask.detail.trackers[0].url).toBe('udp://tracker.example/announce')
 

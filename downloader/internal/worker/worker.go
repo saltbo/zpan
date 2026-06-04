@@ -164,6 +164,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	var lastProgressLog time.Time
 	currentDetail := task.Detail
 	result, err := w.engine.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error {
+		detail = withDownloadETA(detail, downloaded, total, bps)
 		if detail != nil {
 			currentDetail = detail
 		}
@@ -226,7 +227,8 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	}
 
 	log.Debug("task download completed", "path", result.Path, "name", result.Name, "size", result.Size)
-	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "uploading"}); err != nil {
+	zero := int64(0)
+	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "uploading", DownloadBps: &zero}); err != nil {
 		log.Error("failed to mark task uploading", "error", err)
 	}
 	task.Detail = currentDetail
@@ -239,7 +241,6 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 		}
 		return
 	}
-	zero := int64(0)
 	uploadedBytes := result.Size
 	completedDetail := task.Detail
 	if completedDetail == nil {
@@ -251,6 +252,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 		Status:               "completed",
 		ResultObjectID:       &resultObjectID,
 		StorageUploadedBytes: &uploadedBytes,
+		DownloadBps:          &zero,
 		StorageUploadBps:     &zero,
 		Detail:               completedDetail,
 	}); err != nil {
@@ -519,10 +521,13 @@ func (w *Worker) reportUploadProgress(
 		detail = &client.DownloadTaskDetail{}
 	}
 	detail.Phase = "uploading"
+	detail.ETASeconds = uploadETA(progress, bps)
 	detail.PeerUploadBps = nil
+	zero := int64(0)
 	_, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
 		Status:               "uploading",
 		StorageUploadedBytes: &progress.uploaded,
+		DownloadBps:          &zero,
 		StorageUploadBps:     &bps,
 		Detail:               detail,
 	})
@@ -534,6 +539,38 @@ func (w *Worker) reportUploadProgress(
 	progress.lastAt = now
 	progress.lastBytes = progress.uploaded
 	return nil
+}
+
+func withDownloadETA(detail *client.DownloadTaskDetail, downloaded int64, total *int64, bps int64) *client.DownloadTaskDetail {
+	eta := downloadETA(downloaded, total, bps)
+	if eta == nil {
+		return detail
+	}
+	if detail == nil {
+		return &client.DownloadTaskDetail{ETASeconds: eta}
+	}
+	if detail.ETASeconds == nil {
+		detail.ETASeconds = eta
+	}
+	return detail
+}
+
+func downloadETA(downloaded int64, total *int64, bps int64) *int64 {
+	if total == nil || *total <= 0 || downloaded >= *total || bps <= 0 {
+		return nil
+	}
+	remaining := *total - downloaded
+	eta := (remaining + bps - 1) / bps
+	return &eta
+}
+
+func uploadETA(progress *uploadProgress, bps int64) *int64 {
+	if progress == nil || progress.totalBytes <= 0 || progress.uploaded >= progress.totalBytes || bps <= 0 {
+		return nil
+	}
+	remaining := progress.totalBytes - progress.uploaded
+	eta := (remaining + bps - 1) / bps
+	return &eta
 }
 
 type directoryEntry struct {
@@ -593,11 +630,13 @@ func collectDirectoryEntries(root string) ([]directoryEntry, error) {
 
 func isDownloadSidecarPath(path string) bool {
 	base := filepath.Base(path)
+	ext := filepath.Ext(base)
 	return strings.HasPrefix(path, "[MEMORY]") ||
 		strings.HasPrefix(path, "[METADATA]") ||
 		strings.HasPrefix(base, "[MEMORY]") ||
 		strings.HasPrefix(base, "[METADATA]") ||
-		strings.EqualFold(filepath.Ext(base), ".torrent")
+		strings.EqualFold(ext, ".torrent") ||
+		strings.EqualFold(ext, ".aria2")
 }
 
 func joinObjectPath(parent string, name string) string {
