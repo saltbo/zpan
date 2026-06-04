@@ -544,6 +544,7 @@ func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskDe
 		Engine:            "aria2",
 		Phase:             aria2Phase(string(status.Status), status.FollowedBy),
 		EngineState:       string(status.Status),
+		ETASeconds:        aria2ETA(status),
 		Connections:       &connections,
 		InfoHash:          status.InfoHash,
 		TorrentName:       status.BitTorrent.Info.Name,
@@ -560,6 +561,18 @@ func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskDe
 		detail.Message = status.ErrorMessage
 	}
 	return detail
+}
+
+func aria2ETA(status arigo.Status) *int64 {
+	total := int64(status.TotalLength)
+	completed := int64(status.CompletedLength)
+	bps := int64(status.DownloadSpeed)
+	if total <= 0 || completed >= total || bps <= 0 {
+		return nil
+	}
+	remaining := total - completed
+	eta := (remaining + bps - 1) / bps
+	return &eta
 }
 
 func aria2Phase(state string, followedBy []string) string {

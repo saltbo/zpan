@@ -166,8 +166,11 @@ func TestIsAria2RPCDisconnected(t *testing.T) {
 func TestAria2DetailIncludesPeerSamples(t *testing.T) {
 	detail := aria2Detail(
 		arigo.Status{
-			Connections: 44,
-			NumSeeders:  4,
+			TotalLength:     1000,
+			CompletedLength: 250,
+			DownloadSpeed:   200,
+			Connections:     44,
+			NumSeeders:      4,
 			BitTorrent: arigo.BitTorrentStatus{
 				AnnounceList: [][]string{{"udp://tracker.example:1337/announce"}},
 				Info:         arigo.BitTorrentStatusInfo{Name: "fixture.torrent"},
@@ -193,6 +196,24 @@ func TestAria2DetailIncludesPeerSamples(t *testing.T) {
 	}
 	if len(detail.Trackers) != 1 || detail.Trackers[0].Status != "announce" || detail.Trackers[0].Message == "" {
 		t.Fatalf("expected aria2 tracker limitation marker, got %#v", detail.Trackers)
+	}
+	if detail.ETASeconds == nil || *detail.ETASeconds != 4 {
+		t.Fatalf("expected ETA seconds 4, got %#v", detail.ETASeconds)
+	}
+}
+
+func TestAria2DetailOmitsETAWithoutUsableSpeed(t *testing.T) {
+	detail := aria2Detail(
+		arigo.Status{
+			TotalLength:     1000,
+			CompletedLength: 250,
+			DownloadSpeed:   0,
+		},
+		nil,
+	)
+
+	if detail.ETASeconds != nil {
+		t.Fatalf("expected empty ETA without download speed, got %#v", detail.ETASeconds)
 	}
 }
 
