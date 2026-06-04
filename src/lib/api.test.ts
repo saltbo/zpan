@@ -26,6 +26,7 @@ import {
   createIhostImagePresign,
   createObject,
   createObjectUploadSession,
+  createRemoteDownloadApiKey,
   createShare,
   createSiteInvitation,
   createStorage,
@@ -87,6 +88,7 @@ import {
   listNotifications,
   listObjects,
   listQuotas,
+  listRemoteDownloadApiKeys,
   listShareObjects,
   listShares,
   listSiteInvitations,
@@ -107,6 +109,7 @@ import {
   restoreObject,
   retryBackgroundJob,
   revokeIhostApiKey,
+  revokeRemoteDownloadApiKey,
   revokeSiteInvitation,
   revokeWebDavAppPassword,
   saveBranding,
@@ -2546,7 +2549,7 @@ describe('api', () => {
       prefix: null,
       createdAt: '2024-01-01T00:00:00.000Z',
       lastRequest: null,
-      permissions: { 'image-hosting': ['upload'] },
+      permissions: { ihost: ['upload'] },
       referenceId: 'org-1',
       enabled: true,
     }
@@ -2561,7 +2564,7 @@ describe('api', () => {
       expect(url).toContain('organizationId=org-1')
     })
 
-    it('filters to image-hosting:upload permission only', async () => {
+    it('filters to ihost:upload permission only', async () => {
       const otherKey = {
         ...sampleKey,
         id: 'key-2',
@@ -2599,7 +2602,7 @@ describe('api', () => {
       prefix: null,
       createdAt: '2024-01-01T00:00:00.000Z',
       lastRequest: null,
-      permissions: { 'image-hosting': ['upload'] },
+      permissions: { ihost: ['upload'] },
       referenceId: 'org-1',
       enabled: true,
     }
@@ -2621,6 +2624,7 @@ describe('api', () => {
 
       const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       const body = JSON.parse(init.body as string)
+      expect(body.configId).toBe('ihost')
       expect(body.organizationId).toBe('org-1')
       expect(body.name).toBe('Test Key')
       expect(body.permissions).toBeUndefined()
@@ -2660,6 +2664,7 @@ describe('api', () => {
 
       const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       const body = JSON.parse(init.body as string)
+      expect(body.configId).toBe('ihost')
       expect(body.keyId).toBe('key-1')
     })
 
@@ -2735,6 +2740,70 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
 
       await expect(listWebDavAppPasswords()).rejects.toThrow('Unauthorized')
+    })
+  })
+
+  describe('Remote download API keys', () => {
+    const sampleKey = {
+      id: 'remote-key-1',
+      name: 'Remote Download',
+      start: 'zpan',
+      prefix: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      lastRequest: null,
+      permissions: { remoteDownload: ['read', 'create', 'cancel'] },
+      referenceId: 'org-1',
+      enabled: true,
+    }
+
+    it('lists only remote-download API keys', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({
+          apiKeys: [sampleKey, { ...sampleKey, id: 'other', permissions: { ihost: ['upload'] } }],
+        }),
+      )
+
+      const result = await listRemoteDownloadApiKeys('org-1')
+
+      expect(result).toEqual([sampleKey])
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/api-key/list?organizationId=org-1&configId=remote-download')
+      expect(init.method).toBe('GET')
+    })
+
+    it('creates a remote-download API key with configId', async () => {
+      const created = { ...sampleKey, key: 'remote-secret' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(created))
+
+      const result = await createRemoteDownloadApiKey('org-1', 'Remote Download')
+
+      expect(result).toEqual(created)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/api-key/create')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({
+        configId: 'remote-download',
+        name: 'Remote Download',
+        organizationId: 'org-1',
+      })
+    })
+
+    it('revokes a remote-download API key with configId', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+
+      const result = await revokeRemoteDownloadApiKey('remote-key-1')
+
+      expect(result).toEqual({ success: true })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/api-key/delete')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ configId: 'remote-download', keyId: 'remote-key-1' })
+    })
+
+    it('throws ApiError on remote-download API key failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
+
+      await expect(listRemoteDownloadApiKeys('org-1')).rejects.toThrow('Unauthorized')
     })
   })
 

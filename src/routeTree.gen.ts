@@ -37,7 +37,7 @@ import { Route as AuthenticatedSettingsWebdavRouteImport } from './routes/_authe
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
 import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedSettingsIhostRouteImport } from './routes/_authenticated/settings/ihost'
-import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
+import { Route as AuthenticatedSettingsApiKeysRouteImport } from './routes/_authenticated/settings/api-keys'
 import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authenticated/admin/licensing'
 import { Route as AuthenticatedAdminDownloadersRouteImport } from './routes/_authenticated/admin/downloaders'
 import { Route as AuthenticatedAdminCloudStoreRouteImport } from './routes/_authenticated/admin/cloud-store'
@@ -205,10 +205,10 @@ const AuthenticatedSettingsIhostRoute =
     path: '/ihost',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
-const AuthenticatedSettingsAppearanceRoute =
-  AuthenticatedSettingsAppearanceRouteImport.update({
-    id: '/appearance',
-    path: '/appearance',
+const AuthenticatedSettingsApiKeysRoute =
+  AuthenticatedSettingsApiKeysRouteImport.update({
+    id: '/api-keys',
+    path: '/api-keys',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
 const AuthenticatedAdminLicensingRoute =
@@ -325,7 +325,7 @@ export interface FileRoutesByFullPath {
   '/admin/cloud-store': typeof AuthenticatedAdminCloudStoreRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
@@ -368,7 +368,7 @@ export interface FileRoutesByTo {
   '/admin/cloud-store': typeof AuthenticatedAdminCloudStoreRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
@@ -416,7 +416,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/cloud-store': typeof AuthenticatedAdminCloudStoreRoute
   '/_authenticated/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/_authenticated/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/_authenticated/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
   '/_authenticated/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
@@ -464,7 +464,7 @@ export interface FileRouteTypes {
     | '/admin/cloud-store'
     | '/admin/downloaders'
     | '/admin/licensing'
-    | '/settings/appearance'
+    | '/settings/api-keys'
     | '/settings/ihost'
     | '/settings/password'
     | '/settings/profile'
@@ -507,7 +507,7 @@ export interface FileRouteTypes {
     | '/admin/cloud-store'
     | '/admin/downloaders'
     | '/admin/licensing'
-    | '/settings/appearance'
+    | '/settings/api-keys'
     | '/settings/ihost'
     | '/settings/password'
     | '/settings/profile'
@@ -554,7 +554,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/cloud-store'
     | '/_authenticated/admin/downloaders'
     | '/_authenticated/admin/licensing'
-    | '/_authenticated/settings/appearance'
+    | '/_authenticated/settings/api-keys'
     | '/_authenticated/settings/ihost'
     | '/_authenticated/settings/password'
     | '/_authenticated/settings/profile'
@@ -791,11 +791,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsIhostRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
-    '/_authenticated/settings/appearance': {
-      id: '/_authenticated/settings/appearance'
-      path: '/appearance'
-      fullPath: '/settings/appearance'
-      preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
+    '/_authenticated/settings/api-keys': {
+      id: '/_authenticated/settings/api-keys'
+      path: '/api-keys'
+      fullPath: '/settings/api-keys'
+      preLoaderRoute: typeof AuthenticatedSettingsApiKeysRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
     '/_authenticated/admin/licensing': {
@@ -950,7 +950,7 @@ const AuthenticatedAdminRouteRouteWithChildren =
   )
 
 interface AuthenticatedSettingsRouteRouteChildren {
-  AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
+  AuthenticatedSettingsApiKeysRoute: typeof AuthenticatedSettingsApiKeysRoute
   AuthenticatedSettingsIhostRoute: typeof AuthenticatedSettingsIhostRoute
   AuthenticatedSettingsPasswordRoute: typeof AuthenticatedSettingsPasswordRoute
   AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
@@ -960,7 +960,7 @@ interface AuthenticatedSettingsRouteRouteChildren {
 
 const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
   {
-    AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
+    AuthenticatedSettingsApiKeysRoute: AuthenticatedSettingsApiKeysRoute,
     AuthenticatedSettingsIhostRoute: AuthenticatedSettingsIhostRoute,
     AuthenticatedSettingsPasswordRoute: AuthenticatedSettingsPasswordRoute,
     AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,

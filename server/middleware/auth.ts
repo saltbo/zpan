@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { createMiddleware } from 'hono/factory'
+import { isOrgApiKey, verifyApiKey } from '../services/api-keys'
 import { resolveDownloaderToken, resolveTaskUploadToken } from '../services/download-tokens'
 import { findPersonalOrg, getMemberRole, isPersonalOrg } from '../services/org'
 import type { Env } from './platform'
@@ -38,6 +39,25 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       c.set('userId', null)
       c.set('userRole', null)
       c.set('orgId', null)
+      await next()
+      return
+    }
+    const apiKey = await verifyApiKey(c.get('auth'), platform.db, token)
+    if (apiKey) {
+      const orgId = isOrgApiKey(apiKey.configId) ? apiKey.referenceId : null
+      const userId = isOrgApiKey(apiKey.configId) ? null : apiKey.referenceId
+      c.set('principal', {
+        kind: 'api-key',
+        keyId: apiKey.id,
+        configId: apiKey.configId,
+        orgId,
+        userId,
+        permissions: apiKey.permissions,
+        authMethod: 'api-key',
+      })
+      c.set('userId', userId)
+      c.set('userRole', null)
+      c.set('orgId', orgId)
       await next()
       return
     }

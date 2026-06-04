@@ -27,10 +27,10 @@ function AuthenticatedLayout() {
   if (isAdmin) return <Outlet />
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh overflow-hidden">
       <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-14 min-w-0 shrink-0 items-center gap-3 border-b px-4">
+      <SidebarInset className="h-svh overflow-hidden">
+        <header className="z-30 flex h-14 min-w-0 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <SidebarTrigger className="-ml-1" />
           <GlobalSearchBar />
           <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -39,7 +39,7 @@ function AuthenticatedLayout() {
             <NotificationBell />
           </div>
         </header>
-        <div className="min-w-0 flex-1 bg-canvas p-4">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-canvas p-4">
           <SiteAnnouncements />
           <Outlet />
         </div>

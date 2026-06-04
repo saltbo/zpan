@@ -6,13 +6,13 @@ import { buildShareXConfig, buildShareXConfigString } from '@/lib/tool-configs'
 
 interface ShareXGeneratorProps {
   appHost: string
-  userKey: string
+  apiKey: string
 }
 
-export function ShareXGenerator({ appHost, userKey }: ShareXGeneratorProps) {
+export function ShareXGenerator({ appHost, apiKey }: ShareXGeneratorProps) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
-  const configStr = buildShareXConfigString({ appHost, userKey })
+  const configStr = buildShareXConfigString({ appHost, apiKey })
 
   function handleCopy() {
     navigator.clipboard.writeText(configStr).then(
@@ -26,7 +26,7 @@ export function ShareXGenerator({ appHost, userKey }: ShareXGeneratorProps) {
   }
 
   function handleDownload() {
-    const config = buildShareXConfig({ appHost, userKey })
+    const config = buildShareXConfig({ appHost, apiKey })
     const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')

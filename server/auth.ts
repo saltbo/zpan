@@ -6,6 +6,12 @@ import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
 import { customAlphabet, nanoid } from 'nanoid'
+import {
+  ApiKeyTemplate,
+  IHOST_API_KEY_PERMISSIONS,
+  REMOTE_DOWNLOAD_API_KEY_PERMISSIONS,
+  WEBDAV_API_KEY_PERMISSIONS,
+} from '../shared/api-key-templates'
 import { DEFAULT_ORG_QUOTA, DEFAULT_ORG_TRAFFIC_QUOTA, SignupMode } from '../shared/constants'
 import {
   BUILTIN_PROVIDER_IDS,
@@ -27,9 +33,6 @@ import { findPersonalOrg } from './services/org'
 import { getEffectiveSignupMode } from './services/signup-mode-guard'
 import { acceptSiteInvitation, validateSiteInvitation } from './services/site-invitations'
 import { checkTeamLimit } from './services/team-count-guard'
-
-export const IMAGE_HOSTING_API_KEY_PERMISSIONS = { 'image-hosting': ['upload'] }
-export const WEBDAV_API_KEY_PERMISSIONS = { webdav: ['read', 'write'] }
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
 // which blows past Cloudflare Workers' CPU budget and triggers error 1102.
@@ -285,7 +288,7 @@ export async function createAuth(
       }),
       apiKey([
         {
-          configId: 'default',
+          configId: ApiKeyTemplate.IHOST,
           references: 'organization',
           rateLimit: {
             enabled: true,
@@ -293,11 +296,11 @@ export async function createAuth(
             maxRequests: 60,
           },
           permissions: {
-            defaultPermissions: IMAGE_HOSTING_API_KEY_PERMISSIONS,
+            defaultPermissions: IHOST_API_KEY_PERMISSIONS,
           },
         },
         {
-          configId: 'webdav',
+          configId: ApiKeyTemplate.WEBDAV,
           references: 'user',
           rateLimit: {
             enabled: true,
@@ -306,6 +309,18 @@ export async function createAuth(
           },
           permissions: {
             defaultPermissions: WEBDAV_API_KEY_PERMISSIONS,
+          },
+        },
+        {
+          configId: ApiKeyTemplate.REMOTE_DOWNLOAD,
+          references: 'organization',
+          rateLimit: {
+            enabled: true,
+            timeWindow: 60_000,
+            maxRequests: 120,
+          },
+          permissions: {
+            defaultPermissions: REMOTE_DOWNLOAD_API_KEY_PERMISSIONS,
           },
         },
       ]),

@@ -96,7 +96,7 @@ async function apiKey(auth: TestApp['auth'], userId: string, permissions: Record
 async function imageHostingApiKey(auth: TestApp['auth'], orgId: string, userId: string) {
   // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
   const result = (await (auth.api as any).createApiKey({
-    body: { organizationId: orgId, userId },
+    body: { configId: 'ihost', organizationId: orgId, userId },
   })) as { key: string }
   return result.key
 }

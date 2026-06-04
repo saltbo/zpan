@@ -1,6 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
 import { and, eq } from 'drizzle-orm'
-import type { Context } from 'hono'
 import { Hono } from 'hono'
 import {
   ALLOWED_IMAGE_MIMES,
@@ -12,6 +11,7 @@ import {
 import type { Storage as S3Storage } from '../../shared/types'
 import { imageHostings } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
+import { requirePermission } from '../middleware/authz'
 import type { Env } from '../middleware/platform'
 import {
   buildImageUrl,
@@ -31,41 +31,6 @@ import { getStorage, selectStorage } from '../services/storage'
 import { PRESIGN_TTL_SECS } from './share-utils'
 
 const s3 = new S3Service()
-
-// resolveApiKeyOrgId extracts the Bearer token, verifies it via the
-// better-auth API-key plugin, and returns the orgId (= apikey.referenceId).
-// Returns null if no Bearer token is present, or an error object if invalid.
-// Invalid key and insufficient permissions both return 401 — the plugin does
-// not distinguish them in its response.
-async function resolveApiKeyOrgId(
-  c: Context<Env>,
-  resource: string,
-  action: string,
-): Promise<{ orgId: string } | { error: string; status: 401 } | null> {
-  const authHeader = c.req.raw.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) return null
-
-  const rawKey = authHeader.slice('Bearer '.length).trim()
-  if (!rawKey) return null
-
-  const auth = c.get('auth')
-  try {
-    // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
-    const result = (await (auth.api as any).verifyApiKey({
-      body: { key: rawKey, permissions: { [resource]: [action] } },
-    })) as {
-      valid: boolean
-      error: { message: string; code: string } | null
-      key: { referenceId: string } | null
-    }
-    if (!result?.valid || !result.key) {
-      return { error: result?.error?.message ?? 'Invalid or unauthorized API key', status: 401 }
-    }
-    return { orgId: result.key.referenceId }
-  } catch {
-    return { error: 'Invalid API key', status: 401 }
-  }
-}
 
 // Detect image MIME type from the first few bytes (magic numbers)
 function detectMimeFromBytes(bytes: Uint8Array): string | null {
@@ -96,25 +61,18 @@ function detectMimeFromBytes(bytes: Uint8Array): string | null {
 // Upload endpoint for external tools. Accepts two formats:
 // 1. multipart/form-data — PicGo, ShareX (file in form field)
 // 2. application/json — uPic (base64-encoded file in {"file": "..."})
-// Accepts session auth OR API key with image-hosting:upload permission.
+// Accepts session auth OR API key with ihost:upload permission.
 // requireAuth is intentionally omitted — unauthenticated requests fall through
 // to the API-key resolver below; 401 is returned there if neither auth method
 // succeeds.
 
 const app = new Hono<Env>()
-  .post('/images', async (c) => {
+  .post('/images', requirePermission('ihost', 'upload'), async (c) => {
     const db = c.get('platform').db
     const contentType = c.req.header('Content-Type') ?? ''
 
-    // Resolve principal: session takes priority; fall back to API key
-    let orgId = c.get('orgId')
-
-    if (!orgId) {
-      const apiKeyResult = await resolveApiKeyOrgId(c, 'image-hosting', 'upload')
-      if (apiKeyResult === null) return c.json({ error: 'Unauthorized' }, 401)
-      if ('error' in apiKeyResult) return c.json({ error: apiKeyResult.error }, apiKeyResult.status)
-      orgId = apiKeyResult.orgId
-    }
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
     const config = await getImageHostingConfig(db, orgId)
     if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)

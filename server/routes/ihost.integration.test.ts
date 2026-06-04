@@ -89,6 +89,7 @@ async function createTestApiKey(
   // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API not fully typed
   const result = (await (auth.api as any).createApiKey({
     body: {
+      configId: 'ihost',
       organizationId: orgId,
       userId,
       ...(permissions ? { permissions } : {}),
@@ -1236,7 +1237,7 @@ describe('POST /api/ihost/images — API key auth error paths', () => {
     })
     expect(res.status).toBe(401)
     const body = (await res.json()) as Record<string, unknown>
-    expect(String(body.error)).toContain('Insufficient permissions')
+    expect(body.error).toBe('Unauthorized')
   })
 
   it('returns 401 when API key verification throws an exception', async () => {
@@ -1261,7 +1262,7 @@ describe('POST /api/ihost/images — API key auth error paths', () => {
     })
     expect(res.status).toBe(401)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body.error).toBe('Invalid API key')
+    expect(body.error).toBe('Unauthorized')
   })
 
   it('returns 503 when no storage is configured for multipart upload via API key', async () => {

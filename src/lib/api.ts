@@ -1,3 +1,4 @@
+import { ApiKeyTemplate } from '@shared/api-key-templates'
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
   AllowedImageMime,
@@ -950,7 +951,7 @@ async function apiKeyFetch<T>(path: string, options: RequestInit): Promise<T> {
 export function listIhostApiKeys(organizationId: string) {
   return apiKeyFetch<{ apiKeys: IhostApiKey[] }>(`/api-key/list?organizationId=${encodeURIComponent(organizationId)}`, {
     method: 'GET',
-  }).then((res) => res.apiKeys.filter((k) => k.permissions?.['image-hosting']?.includes('upload')))
+  }).then((res) => res.apiKeys.filter((k) => k.permissions?.ihost?.includes('upload')))
 }
 
 export function createIhostApiKey(organizationId: string, name: string) {
@@ -958,6 +959,7 @@ export function createIhostApiKey(organizationId: string, name: string) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      configId: ApiKeyTemplate.IHOST,
       name,
       organizationId,
     }),
@@ -968,7 +970,7 @@ export function revokeIhostApiKey(keyId: string) {
   return apiKeyFetch<{ success: boolean }>('/api-key/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keyId }),
+    body: JSON.stringify({ configId: ApiKeyTemplate.IHOST, keyId }),
   })
 }
 
@@ -1002,6 +1004,43 @@ export function revokeWebDavAppPassword(keyId: string) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ configId: 'webdav', keyId }),
+  })
+}
+
+// Remote Download API Keys (via better-auth apiKey plugin)
+
+export type RemoteDownloadApiKey = IhostApiKey
+
+export interface CreateRemoteDownloadApiKeyResult extends RemoteDownloadApiKey {
+  key: string
+}
+
+export function listRemoteDownloadApiKeys(organizationId: string) {
+  return apiKeyFetch<{ apiKeys: RemoteDownloadApiKey[] }>(
+    `/api-key/list?organizationId=${encodeURIComponent(organizationId)}&configId=${ApiKeyTemplate.REMOTE_DOWNLOAD}`,
+    {
+      method: 'GET',
+    },
+  ).then((res) => res.apiKeys.filter((k) => k.permissions?.remoteDownload?.includes('create')))
+}
+
+export function createRemoteDownloadApiKey(organizationId: string, name: string) {
+  return apiKeyFetch<CreateRemoteDownloadApiKeyResult>('/api-key/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      configId: ApiKeyTemplate.REMOTE_DOWNLOAD,
+      name,
+      organizationId,
+    }),
+  })
+}
+
+export function revokeRemoteDownloadApiKey(keyId: string) {
+  return apiKeyFetch<{ success: boolean }>('/api-key/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ configId: ApiKeyTemplate.REMOTE_DOWNLOAD, keyId }),
   })
 }
 

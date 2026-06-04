@@ -4,12 +4,12 @@ import { CopyableField } from './copyable-field'
 
 interface PicGoGeneratorProps {
   appHost: string
-  userKey: string
+  apiKey: string
 }
 
-export function PicGoGenerator({ appHost, userKey }: PicGoGeneratorProps) {
+export function PicGoGenerator({ appHost, apiKey }: PicGoGeneratorProps) {
   const { t } = useTranslation()
-  const fields = buildPicGoFields({ appHost, userKey })
+  const fields = buildPicGoFields({ appHost, apiKey })
 
   return (
     <div className="space-y-3">

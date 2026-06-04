@@ -1,34 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ChevronRight,
-  ChevronsUpDown,
   Download,
   FileText,
   FolderOpen,
   Image,
   ListChecks,
-  LogOut,
   Music,
-  Settings,
   Share2,
-  ShieldCheck,
   Trash2,
-  Users,
   Video,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useBranding } from '@/components/branding/BrandingProvider'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -43,29 +30,18 @@ import {
 } from '@/components/ui/sidebar'
 import { useSiteOptions } from '@/hooks/use-site-options'
 import { getIhostConfig, listBackgroundJobs } from '@/lib/api'
-import { signOut, useActiveOrganization, useSession } from '@/lib/auth-client'
+import { useActiveOrganization, useSession } from '@/lib/auth-client'
 import { OrgSwitcher } from '../team/org-switcher'
 import { FolderTree } from './folder-tree'
 import { QuotaPanel } from './quota-panel'
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
+import { UserAccountMenu } from './user-account-menu'
 
 export function AppSidebar() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
   const { siteName } = useSiteOptions()
   const { branding } = useBranding()
-  const user = session?.user as { name: string; username?: string; role?: string; image?: string | null } | undefined
-  const isAdmin = user?.role === 'admin'
   const { data: ihostConfig } = useQuery({
     queryKey: ['ihost', 'config', activeOrg?.id],
     queryFn: getIhostConfig,
@@ -93,11 +69,6 @@ export function AppSidebar() {
   const activeDownloads = pathname.startsWith('/downloads')
   const activeTasks = pathname.startsWith('/tasks')
   const activeImageHost = pathname === '/image-host'
-
-  async function handleSignOut() {
-    await signOut()
-    navigate({ to: '/sign-in' })
-  }
 
   return (
     <Sidebar>
@@ -169,6 +140,15 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={activeRecycleBin}>
+                  <Link to="/trash">
+                    <Trash2 className="h-4 w-4" />
+                    <span>{t('nav.trash')}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarSeparator />
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={activeDownloads}>
                   <Link to="/downloads">
                     <Download className="h-4 w-4" />
@@ -189,26 +169,15 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={activeRecycleBin}>
-                  <Link to="/trash">
-                    <Trash2 className="h-4 w-4" />
-                    <span>{t('nav.trash')}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               {ihostConfig?.enabled && (
-                <>
-                  <SidebarSeparator />
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={activeImageHost}>
-                      <Link to="/image-host">
-                        <Image className="h-4 w-4" />
-                        <span>{t('nav.imageHost')}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={activeImageHost}>
+                    <Link to="/image-host">
+                      <Image className="h-4 w-4" />
+                      <span>{t('nav.imageHost')}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               )}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -232,47 +201,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center gap-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton className="flex-1 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-                    <Avatar size="sm">
-                      {user?.image && <AvatarImage src={user.image} alt={user.name || user.username || ''} />}
-                      <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
-                        {user ? getInitials(user.name || user.username || '?') : '?'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="flex-1 truncate text-left font-medium">{user?.name || user?.username}</span>
-                    <ChevronsUpDown className="ml-auto size-4 opacity-60" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="top" align="start" className="w-56">
-                  <DropdownMenuItem asChild>
-                    <Link to="/settings">
-                      <Settings className="mr-2 h-4 w-4" />
-                      {t('nav.settings')}
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/teams">
-                      <Users className="mr-2 h-4 w-4" />
-                      {t('nav.teams')}
-                    </Link>
-                  </DropdownMenuItem>
-                  {isAdmin && (
-                    <DropdownMenuItem asChild>
-                      <Link to="/admin/storages">
-                        <ShieldCheck className="mr-2 h-4 w-4" />
-                        {t('nav.adminPanel')}
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    {t('auth.signOut')}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <UserAccountMenu showAdminLink showFrontendLinks />
             </div>
           </SidebarMenuItem>
         </SidebarMenu>

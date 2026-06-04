@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { buildPicGoFields, buildShareXConfig, buildShareXConfigString, buildUPicFields } from './tool-configs'
 
-const paramsWithKey = { appHost: 'https://zpan.example.com', userKey: 'test-key-123' }
-const paramsNoKey = { appHost: 'https://zpan.example.com', userKey: '<userKey>' }
+const paramsWithKey = { appHost: 'https://zpan.example.com', apiKey: 'test-key-123' }
+const paramsNoKey = { appHost: 'https://zpan.example.com', apiKey: '<apiKey>' }
 
 describe('buildPicGoFields', () => {
   it('returns 4 fields for picgo-plugin-web-uploader GUI', () => {
@@ -25,7 +25,7 @@ describe('buildPicGoFields', () => {
     expect(urlField?.value).toBe('https://zpan.example.com/api/ihost/images')
   })
 
-  it('injects userKey into customHeader', () => {
+  it('injects apiKey into customHeader', () => {
     const fields = buildPicGoFields(paramsWithKey)
     const headerField = fields.find((f) => f.label.includes('customHeader'))
     expect(headerField?.value).toContain('test-key-123')
@@ -34,7 +34,7 @@ describe('buildPicGoFields', () => {
   it('uses placeholder when key is not set', () => {
     const fields = buildPicGoFields(paramsNoKey)
     const headerField = fields.find((f) => f.label.includes('customHeader'))
-    expect(headerField?.value).toContain('<userKey>')
+    expect(headerField?.value).toContain('<apiKey>')
   })
 })
 
@@ -70,7 +70,7 @@ describe('buildUPicFields', () => {
   it('uses placeholder when key is not set', () => {
     const fields = buildUPicFields(paramsNoKey)
     const headerValue = fields.find((f) => f.label.includes('Header Value'))
-    expect(headerValue?.value).toContain('<userKey>')
+    expect(headerValue?.value).toContain('<apiKey>')
   })
 })
 
@@ -107,6 +107,6 @@ describe('buildShareXConfig', () => {
 
   it('uses placeholder when key is not set', () => {
     const str = buildShareXConfigString(paramsNoKey)
-    expect(str).toContain('<userKey>')
+    expect(str).toContain('<apiKey>')
   })
 })

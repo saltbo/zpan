@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -39,7 +40,7 @@ export function ToolIntegrationPanel({ orgId }: ToolIntegrationPanelProps) {
   const [pastedKey, setPastedKey] = useState('')
   const [activeTool, setActiveTool] = useState<ToolId>('picgo')
 
-  const resolvedKey = pastedKey.trim() || '<userKey>'
+  const resolvedKey = pastedKey.trim() || '<apiKey>'
 
   return (
     <Card>
@@ -48,9 +49,7 @@ export function ToolIntegrationPanel({ orgId }: ToolIntegrationPanelProps) {
         <CardDescription>{t('settings.ihost.tools.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {apiKeys.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{t('settings.ihost.tools.noKeys')}</p>
-        ) : (
+        {apiKeys.length > 0 ? (
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="toolKeySelect">{t('settings.ihost.tools.keyLabel')}</Label>
@@ -82,7 +81,7 @@ export function ToolIntegrationPanel({ orgId }: ToolIntegrationPanelProps) {
               <p className="text-xs text-muted-foreground">{t('settings.ihost.tools.pasteKeyHint')}</p>
             </div>
           </div>
-        )}
+        ) : null}
 
         <div className="space-y-3">
           <div className="flex gap-1 flex-wrap">
@@ -98,9 +97,16 @@ export function ToolIntegrationPanel({ orgId }: ToolIntegrationPanelProps) {
             ))}
           </div>
 
-          {activeTool === 'picgo' && <PicGoGenerator appHost={appHost} userKey={resolvedKey} />}
-          {activeTool === 'upic' && <UPicGenerator appHost={appHost} userKey={resolvedKey} />}
-          {activeTool === 'sharex' && <ShareXGenerator appHost={appHost} userKey={resolvedKey} />}
+          {activeTool === 'picgo' && <PicGoGenerator appHost={appHost} apiKey={resolvedKey} />}
+          {activeTool === 'upic' && <UPicGenerator appHost={appHost} apiKey={resolvedKey} />}
+          {activeTool === 'sharex' && <ShareXGenerator appHost={appHost} apiKey={resolvedKey} />}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t pt-3 text-xs text-muted-foreground">
+          <span>{t('settings.ihost.tools.apiKeyHint')}</span>
+          <Link to="/settings/api-keys" className="text-primary underline-offset-4 hover:underline">
+            {t('settings.apiKeys.manage')}
+          </Link>
         </div>
       </CardContent>
     </Card>

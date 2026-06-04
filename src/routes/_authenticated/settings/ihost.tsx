@@ -4,7 +4,6 @@ import { Lock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { EnableFeatureEmpty } from '@/components/image-host/enable-feature-empty'
-import { ApiKeysPanel } from '@/components/image-host-settings/api-keys-panel'
 import { CustomDomainPanel } from '@/components/image-host-settings/custom-domain-panel'
 import { DisableFeaturePanel } from '@/components/image-host-settings/disable-feature-panel'
 import { RefererAllowlistPanel } from '@/components/image-host-settings/referer-allowlist-panel'
@@ -87,7 +86,6 @@ function ImageHostSettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <ApiKeysPanel orgId={orgId} />
       <ToolIntegrationPanel orgId={orgId} />
       <CustomDomainPanel orgId={orgId} config={config} />
       <RefererAllowlistPanel orgId={orgId} config={config} />

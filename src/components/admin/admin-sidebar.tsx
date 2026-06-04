@@ -14,6 +14,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { UserAccountMenu } from '@/components/layout/user-account-menu'
 import { Button } from '@/components/ui/button'
 import {
   Sidebar,
@@ -78,6 +79,11 @@ export function AdminSidebar() {
             {t('admin.backToFiles')}
           </Link>
         </Button>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <UserAccountMenu />
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )

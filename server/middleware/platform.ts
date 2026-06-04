@@ -22,6 +22,15 @@ export type AuthPrincipal =
       authMethod: 'cookie' | 'bearer'
     }
   | {
+      kind: 'api-key'
+      keyId: string
+      configId: string
+      orgId: string | null
+      userId: string | null
+      permissions: Record<string, string[]> | null
+      authMethod: 'api-key'
+    }
+  | {
       kind: 'downloader'
       downloaderId: string
       authMethod: 'bearer'

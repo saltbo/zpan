@@ -4,7 +4,7 @@
 
 export interface ToolConfigParams {
   appHost: string
-  userKey: string
+  apiKey: string
 }
 
 // Each field maps to a GUI input in the tool's settings panel.
@@ -14,36 +14,36 @@ export interface ToolConfigField {
 }
 
 export function buildPicGoFields(params: ToolConfigParams): ToolConfigField[] {
-  const { appHost, userKey } = params
+  const { appHost, apiKey } = params
   return [
     { label: 'API地址 (URL)', value: `${appHost}/api/ihost/images` },
     { label: 'POST参数名 (paramName)', value: 'file' },
     { label: 'JSON路径 (jsonPath)', value: 'data.url' },
-    { label: '自定义请求头 (customHeader)', value: JSON.stringify({ Authorization: `Bearer ${userKey}` }) },
+    { label: '自定义请求头 (customHeader)', value: JSON.stringify({ Authorization: `Bearer ${apiKey}` }) },
   ]
 }
 
 export function buildUPicFields(params: ToolConfigParams): ToolConfigField[] {
-  const { appHost, userKey } = params
+  const { appHost, apiKey } = params
   return [
     { label: 'API 地址 (URL)', value: `${appHost}/api/ihost/images` },
     { label: '请求方式 (Method)', value: 'POST' },
     { label: '文件字段名 (File Field)', value: 'file' },
     { label: '请求头 (Header Name)', value: 'Authorization' },
-    { label: '请求头 (Header Value)', value: `Bearer ${userKey}` },
+    { label: '请求头 (Header Value)', value: `Bearer ${apiKey}` },
     { label: 'URL 路径 (Response URL Path)', value: '["data", "url"]' },
   ]
 }
 
 export function buildShareXConfig(params: ToolConfigParams): object {
-  const { appHost, userKey } = params
+  const { appHost, apiKey } = params
   return {
     Version: '15.0.0',
     Name: 'ZPan Image Host',
     DestinationType: 'ImageUploader, FileUploader',
     RequestMethod: 'POST',
     RequestURL: `${appHost}/api/ihost/images`,
-    Headers: { Authorization: `Bearer ${userKey}` },
+    Headers: { Authorization: `Bearer ${apiKey}` },
     Body: 'MultipartFormData',
     FileFormName: 'file',
     URL: '{json:data.url}',

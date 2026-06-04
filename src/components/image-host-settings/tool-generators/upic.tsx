@@ -4,12 +4,12 @@ import { CopyableField } from './copyable-field'
 
 interface UPicGeneratorProps {
   appHost: string
-  userKey: string
+  apiKey: string
 }
 
-export function UPicGenerator({ appHost, userKey }: UPicGeneratorProps) {
+export function UPicGenerator({ appHost, apiKey }: UPicGeneratorProps) {
   const { t } = useTranslation()
-  const fields = buildUPicFields({ appHost, userKey })
+  const fields = buildUPicFields({ appHost, apiKey })
 
   return (
     <div className="space-y-3">

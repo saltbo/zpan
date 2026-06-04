@@ -6,7 +6,7 @@ import {
   updateDownloadTaskSchema,
 } from '@shared/schemas'
 import type { Context } from 'hono'
-import { requireAuth, requireTeamRole } from '../middleware/auth'
+import { requirePermission } from '../middleware/authz'
 import type { Env } from '../middleware/platform'
 import {
   createDownloadTask,
@@ -68,6 +68,7 @@ function jsonResponse(schema: z.ZodType, description: string) {
 const listRoute = createRoute({
   method: 'get',
   path: '/',
+  middleware: [requirePermission('remoteDownload', 'read', { allowDownloader: true })] as const,
   request: { query: listDownloadTasksQuerySchema },
   responses: {
     200: jsonResponse(downloadTaskPageSchema, 'Download tasks'),
@@ -78,7 +79,7 @@ const listRoute = createRoute({
 const createRouteDoc = createRoute({
   method: 'post',
   path: '/',
-  middleware: [requireAuth, requireTeamRole('editor')] as const,
+  middleware: [requirePermission('remoteDownload', 'create', { minTeamRole: 'editor' })] as const,
   request: { body: { content: { 'application/json': { schema: createDownloadTaskSchema } }, required: true } },
   responses: {
     201: jsonResponse(downloadTaskSchema, 'Created download task'),
@@ -91,7 +92,7 @@ const createRouteDoc = createRoute({
 const eventsRoute = createRoute({
   method: 'get',
   path: '/events',
-  middleware: [requireAuth] as const,
+  middleware: [requirePermission('remoteDownload', 'read')] as const,
   responses: {
     200: {
       content: { 'text/event-stream': { schema: z.string() } },
@@ -104,7 +105,7 @@ const eventsRoute = createRoute({
 const getRoute = createRoute({
   method: 'get',
   path: '/{id}',
-  middleware: [requireAuth] as const,
+  middleware: [requirePermission('remoteDownload', 'read')] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
     200: jsonResponse(downloadTaskSchema, 'Download task'),
@@ -115,6 +116,7 @@ const getRoute = createRoute({
 const updateRoute = createRoute({
   method: 'patch',
   path: '/{id}',
+  middleware: [requirePermission('remoteDownload', 'cancel', { allowDownloader: true })] as const,
   request: {
     params: z.object({ id: z.string() }),
     body: { content: { 'application/json': { schema: updateDownloadTaskSchema } }, required: true },
@@ -155,16 +157,17 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     return c.json({ ...result, page: query.page, pageSize: query.pageSize })
   }) as never)
   .openapi(createRouteDoc, (async (c: OpenAPIContext) => {
+    const principal = c.get('principal')
     const orgId = c.get('orgId')
-    const userId = c.get('userId')
-    if (!orgId || !userId) return c.json({ error: 'Unauthorized' }, 401)
+    if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
+    const actorId = principal?.kind === 'api-key' ? `api-key:${principal.keyId}` : (c.get('userId') as string)
     return downloadTaskResponse(
       c,
       async () =>
         createDownloadTask(
           c.get('platform'),
           orgId,
-          userId,
+          actorId,
           c.req.valid('json') as z.infer<typeof createDownloadTaskSchema>,
         ),
       201,
