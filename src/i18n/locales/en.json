@@ -131,6 +131,7 @@
   "downloads.createSuccess": "Download task created",
   "downloads.cancelSuccess": "Download task canceled",
   "downloads.cancel": "Cancel",
+  "downloads.resizePanel": "Resize download list and detail panel",
   "downloads.empty": "No remote download tasks",
   "downloads.unknown": "Unknown",
   "downloads.billingPaused": "Paused until credits recover",

@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   AlertCircle,
+  Ban,
   Check,
+  CheckCircle2,
   ChevronRight,
   Clock,
   Download,
@@ -14,15 +16,24 @@ import {
   Gauge,
   Home,
   LinkIcon,
+  LoaderCircle,
   Magnet,
   PauseCircle,
   Plus,
   RadioTower,
-  RotateCw,
   Upload,
   Users,
+  XCircle,
 } from 'lucide-react'
-import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useFilesQuery } from '@/components/files/hooks/use-files-query'
@@ -49,6 +60,12 @@ const ACTIVE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'runn
 type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
 type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['detail']>['phase']>
 type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'log'
+type PanelDragState = { startY: number; startDetailHeight: number; containerHeight: number }
+
+const LIST_MIN_HEIGHT = 180
+const DETAIL_MIN_HEIGHT = 224
+const DETAIL_DEFAULT_HEIGHT = 320
+const PANEL_RESIZER_HEIGHT = 8
 
 const DETAIL_TABS: Array<{ id: DetailTab; labelKey: string; icon: ReactNode }> = [
   { id: 'overview', labelKey: 'downloads.detail.tabs.overview', icon: <Gauge className="size-4" /> },
@@ -68,6 +85,9 @@ function DownloadsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('overview')
+  const [detailHeight, setDetailHeight] = useState(DETAIL_DEFAULT_HEIGHT)
+  const [panelDrag, setPanelDrag] = useState<PanelDragState | null>(null)
+  const panelsRef = useRef<HTMLDivElement>(null)
 
   const tasksQuery = useQuery({
     queryKey: QUERY_KEY,
@@ -82,6 +102,29 @@ function DownloadsPage() {
     })
     return () => events.close()
   }, [queryClient])
+
+  useEffect(() => {
+    if (!panelDrag) return
+    const drag = panelDrag
+
+    function handlePointerMove(event: PointerEvent) {
+      const maxDetailHeight = Math.max(DETAIL_MIN_HEIGHT, drag.containerHeight - PANEL_RESIZER_HEIGHT - LIST_MIN_HEIGHT)
+      setDetailHeight(clamp(drag.startDetailHeight - (event.clientY - drag.startY), DETAIL_MIN_HEIGHT, maxDetailHeight))
+    }
+
+    function handlePointerUp() {
+      setPanelDrag(null)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp, { once: true })
+    window.addEventListener('pointercancel', handlePointerUp, { once: true })
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [panelDrag])
 
   const createMutation = useMutation({
     mutationFn: createDownloadTask,
@@ -118,8 +161,24 @@ function DownloadsPage() {
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null
   const activeSelectedTaskId = selectedTask?.id ?? null
 
+  function handlePanelResizeStart(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    const containerHeight = panelsRef.current?.getBoundingClientRect().height ?? 0
+    setPanelDrag({ startY: event.clientY, startDetailHeight: detailHeight, containerHeight })
+  }
+
+  function handlePanelResizeKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    const containerHeight = panelsRef.current?.getBoundingClientRect().height ?? 0
+    const maxDetailHeight = Math.max(DETAIL_MIN_HEIGHT, containerHeight - PANEL_RESIZER_HEIGHT - LIST_MIN_HEIGHT)
+    setDetailHeight((current) =>
+      clamp(current + (event.key === 'ArrowUp' ? 24 : -24), DETAIL_MIN_HEIGHT, maxDetailHeight),
+    )
+  }
+
   return (
-    <div className="flex min-h-[calc(100dvh-7rem)] flex-col gap-2">
+    <div className="flex h-[calc(100svh-5.5rem)] flex-col gap-2 overflow-hidden">
       <PageHeader
         items={[{ label: t('downloads.title'), icon: <Download className="size-4 text-muted-foreground" /> }]}
         actions={
@@ -208,50 +267,75 @@ function DownloadsPage() {
         </DialogContent>
       </Dialog>
 
-      <section className="min-h-0 flex-1 overflow-hidden rounded-md border bg-background">
-        <div className="max-h-[52dvh] overflow-auto">
-          <Table className="text-xs">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="h-8">{t('downloads.table.source')}</TableHead>
-                <TableHead className="h-8">{t('downloads.table.status')}</TableHead>
-                <TableHead className="h-8">{t('downloads.table.progress')}</TableHead>
-                <TableHead className="h-8">{t('downloads.table.size')}</TableHead>
-                <TableHead className="h-8">{t('downloads.table.eta')}</TableHead>
-                <TableHead className="h-8 text-right">{t('common.actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tasks.length === 0 && (
+      <div
+        ref={panelsRef}
+        className="grid min-h-0 flex-1 overflow-hidden"
+        style={{
+          gridTemplateRows: `minmax(${LIST_MIN_HEIGHT}px, 1fr) ${PANEL_RESIZER_HEIGHT}px minmax(${DETAIL_MIN_HEIGHT}px, ${detailHeight}px)`,
+        }}
+      >
+        <section className="min-h-0 overflow-hidden rounded-md border bg-background">
+          <div className="h-full overflow-auto">
+            <Table className="text-xs">
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="h-28 text-center text-muted-foreground">
-                    {tasksQuery.isLoading ? t('common.loading') : t('downloads.empty')}
-                  </TableCell>
+                  <TableHead className="h-8">{t('downloads.table.source')}</TableHead>
+                  <TableHead className="h-8">{t('downloads.table.status')}</TableHead>
+                  <TableHead className="h-8">{t('downloads.table.progress')}</TableHead>
+                  <TableHead className="h-8">{t('downloads.table.size')}</TableHead>
+                  <TableHead className="h-8">{t('downloads.table.eta')}</TableHead>
+                  <TableHead className="h-8 text-right">{t('common.actions')}</TableHead>
                 </TableRow>
-              )}
-              {tasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  selected={task.id === activeSelectedTaskId}
-                  onSelect={() => setSelectedTaskId(task.id)}
-                  onCancel={(id) => pauseMutation.mutate(id)}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </section>
+              </TableHeader>
+              <TableBody>
+                {tasks.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-28 text-center text-muted-foreground">
+                      {tasksQuery.isLoading ? t('common.loading') : t('downloads.empty')}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {tasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    selected={task.id === activeSelectedTaskId}
+                    onSelect={() => setSelectedTaskId(task.id)}
+                    onCancel={(id) => pauseMutation.mutate(id)}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
 
-      <section className="min-h-[18rem] overflow-hidden rounded-md border bg-background">
-        <DownloadInspector task={selectedTask} tab={detailTab} onTabChange={setDetailTab} />
-      </section>
+        <button
+          type="button"
+          aria-label={t('downloads.resizePanel')}
+          className={cn(
+            'group flex cursor-row-resize touch-none items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            panelDrag && 'bg-primary/5',
+          )}
+          onPointerDown={handlePanelResizeStart}
+          onKeyDown={handlePanelResizeKeyDown}
+        >
+          <span className="h-1 w-12 rounded-full bg-border transition-colors group-hover:bg-primary/50 group-focus-visible:bg-primary/60" />
+        </button>
+
+        <section className="min-h-0 overflow-hidden rounded-md border bg-background">
+          <DownloadInspector task={selectedTask} tab={detailTab} onTabChange={setDetailTab} />
+        </section>
+      </div>
     </div>
   )
 }
 
 function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
 }
 
 function FolderPicker({ value, onChange }: { value: string; onChange: (path: string) => void }) {
@@ -415,17 +499,17 @@ function TaskRow({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs"
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
             onClick={(event) => {
               event.stopPropagation()
               onCancel(task.id)
             }}
           >
-            <PauseCircle className="size-4" />
+            <XCircle className="size-4" />
             {t('downloads.cancel')}
           </Button>
         ) : (
-          <RotateCw className="ml-auto size-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">-</span>
         )}
       </TableCell>
     </TableRow>
@@ -822,13 +906,55 @@ function displayStatus(task: DownloadTask): DownloadTaskDisplayStatus {
 
 function StatusBadge({ status }: { status: DownloadTaskDisplayStatus }) {
   const { t } = useTranslation()
-  const variant =
-    status === 'completed' || status === 'seeding'
-      ? 'default'
-      : status === 'failed' || status === 'canceled'
-        ? 'destructive'
-        : 'secondary'
-  return <Badge variant={variant}>{t(`downloads.status.${status}`)}</Badge>
+  const statusTone: Record<DownloadTaskDisplayStatus, { className: string; icon: ReactNode }> = {
+    queued: {
+      className:
+        'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300',
+      icon: <Clock />,
+    },
+    assigned: {
+      className:
+        'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
+      icon: <RadioTower />,
+    },
+    running: {
+      className: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
+      icon: <LoaderCircle className="animate-spin" />,
+    },
+    billing_paused: {
+      className:
+        'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+      icon: <PauseCircle />,
+    },
+    uploading: {
+      className: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-300',
+      icon: <Upload />,
+    },
+    completed: {
+      className:
+        'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+      icon: <CheckCircle2 />,
+    },
+    seeding: {
+      className: 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300',
+      icon: <Users />,
+    },
+    failed: {
+      className: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300',
+      icon: <XCircle />,
+    },
+    canceled: {
+      className: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-400',
+      icon: <Ban />,
+    },
+  }
+  const tone = statusTone[status]
+  return (
+    <Badge variant="outline" className={cn('font-medium', tone.className)}>
+      {tone.icon}
+      {t(`downloads.status.${status}`)}
+    </Badge>
+  )
 }
 
 function formatPhase(phase: DownloadTaskPhase | undefined, t: ReturnType<typeof useTranslation>['t']) {

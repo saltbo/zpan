@@ -131,6 +131,7 @@
   "downloads.createSuccess": "下载任务已创建",
   "downloads.cancelSuccess": "下载任务已取消",
   "downloads.cancel": "取消",
+  "downloads.resizePanel": "调整下载列表和详情面板高度",
   "downloads.empty": "暂无远程下载任务",
   "downloads.unknown": "未知",
   "downloads.billingPaused": "Credits 恢复后继续",
