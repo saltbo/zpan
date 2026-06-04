@@ -141,9 +141,9 @@ func TestLiveDownloadThreeSourceTypes(t *testing.T) {
 		Name:       "torrent-url-fixture.txt",
 	})
 
-	assertSameContent(t, httpResult.Path, fixtureBytes)
-	assertSameContent(t, magnetResult.Path, fixtureBytes)
-	assertSameContent(t, torrentResult.Path, fixtureBytes)
+	assertSameContent(t, httpResult.Path, fixtureName, fixtureBytes)
+	assertSameContent(t, magnetResult.Path, fixtureName, fixtureBytes)
+	assertSameContent(t, torrentResult.Path, fixtureName, fixtureBytes)
 	t.Logf("HTTP result: %s (%d bytes)", httpResult.Path, httpResult.Size)
 	t.Logf("magnet result: %s (%d bytes)", magnetResult.Path, magnetResult.Size)
 	t.Logf("torrent_url result: %s (%d bytes)", torrentResult.Path, torrentResult.Size)
@@ -239,7 +239,7 @@ func TestLiveQBittorrentDownloadTorrentURL(t *testing.T) {
 		Name:       "qbit-fixture.txt",
 	})
 
-	assertSameContent(t, result.Path, fixtureBytes)
+	assertSameContent(t, result.Path, fixtureName, fixtureBytes)
 	t.Logf("qBittorrent torrent_url result: %s (%d bytes)", result.Path, result.Size)
 }
 
@@ -433,8 +433,15 @@ func compactPeer(host string, port int) []byte {
 	return []byte{ip[0], ip[1], ip[2], ip[3], byte(port >> 8), byte(port)}
 }
 
-func assertSameContent(t *testing.T, path string, expected []byte) {
+func assertSameContent(t *testing.T, path string, filename string, expected []byte) {
 	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.IsDir() {
+		path = filepath.Join(path, filename)
+	}
 	actual, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
