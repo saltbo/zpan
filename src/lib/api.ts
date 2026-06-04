@@ -15,6 +15,7 @@ import type {
   CreateShareRequest,
   CreateStorageInput,
   DownloaderHeartbeatInput,
+  DownloadTaskActionInput,
   GiftCardStatus,
   PatchObjectUploadSessionInput,
   PresignObjectUploadPartsInput,
@@ -272,6 +273,8 @@ export function patchObjectUploadSession(id: string, uploadSessionId: string, da
 export interface ListDownloadTasksOptions {
   status?: string
   assignedTo?: 'me'
+  category?: string
+  tag?: string
   page?: number
   pageSize?: number
 }
@@ -283,6 +286,8 @@ export function listDownloadTasks(opts: ListDownloadTasksOptions = {}) {
   }
   if (opts.status) query.status = opts.status
   if (opts.assignedTo) query.assignedTo = opts.assignedTo
+  if (opts.category) query.category = opts.category
+  if (opts.tag) query.tag = opts.tag
   return unwrap<PaginatedResponse<DownloadTask>>(downloadTasksApi.index.$get({ query }))
 }
 
@@ -294,8 +299,17 @@ export function updateDownloadTask(id: string, data: UpdateDownloadTaskInput) {
   return unwrap<DownloadTask>(downloadTasksApi[':id'].$patch({ param: { id }, json: data }))
 }
 
-export function downloadTaskEventsUrl() {
-  return downloadTasksUrlApi.events.$url()
+export type DownloadTaskActionResult = DownloadTask | { id: string; deleted: true }
+
+export function runDownloadTaskAction(id: string, action: DownloadTaskActionInput['action']) {
+  return unwrap<DownloadTaskActionResult>(downloadTasksApi[':id'].actions.$post({ param: { id }, json: { action } }))
+}
+
+export function downloadTaskEventsUrl(opts: Pick<ListDownloadTasksOptions, 'category' | 'tag'> = {}) {
+  const query: Record<string, string> = { page: '1', pageSize: '50' }
+  if (opts.category) query.category = opts.category
+  if (opts.tag) query.tag = opts.tag
+  return downloadTasksUrlApi.events.$url({ query })
 }
 
 export function listDownloaders() {

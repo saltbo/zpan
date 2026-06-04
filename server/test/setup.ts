@@ -425,6 +425,8 @@ const APP_SCHEMA_SQL = `
     source_uri TEXT NOT NULL,
     name TEXT,
     target_folder TEXT NOT NULL DEFAULT '',
+    category TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
     assigned_downloader_id TEXT,
     status TEXT NOT NULL,
     downloaded_bytes INTEGER NOT NULL DEFAULT 0,

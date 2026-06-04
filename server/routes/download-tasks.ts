@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   createDownloadTaskSchema,
+  downloadTaskActionInputSchema,
   downloadTaskDetailSchema,
   listDownloadTasksQuerySchema,
   updateDownloadTaskSchema,
@@ -13,6 +14,7 @@ import {
   DownloadError,
   getDownloadTask,
   listDownloadTasks,
+  performDownloadTaskAction,
   updateDownloadTask,
 } from '../services/downloads'
 
@@ -38,7 +40,19 @@ const downloadTaskSchema = z.object({
   sourceUri: z.string(),
   name: z.string(),
   targetFolder: z.string(),
-  status: z.enum(['queued', 'assigned', 'running', 'billing_paused', 'uploading', 'completed', 'failed', 'canceled']),
+  category: z.string().nullable(),
+  tags: z.array(z.string()),
+  status: z.enum([
+    'queued',
+    'assigned',
+    'running',
+    'billing_paused',
+    'paused',
+    'uploading',
+    'completed',
+    'failed',
+    'canceled',
+  ]),
   downloadedBytes: int64Schema(),
   storageUploadedBytes: int64Schema(),
   totalBytes: nullableInt64Schema(),
@@ -93,6 +107,7 @@ const eventsRoute = createRoute({
   method: 'get',
   path: '/events',
   middleware: [requirePermission('remoteDownload', 'read')] as const,
+  request: { query: listDownloadTasksQuerySchema },
   responses: {
     200: {
       content: { 'text/event-stream': { schema: z.string() } },
@@ -130,6 +145,26 @@ const updateRoute = createRoute({
   },
 })
 
+const actionRoute = createRoute({
+  method: 'post',
+  path: '/{id}/actions',
+  middleware: [requirePermission('remoteDownload', 'cancel')] as const,
+  request: {
+    params: z.object({ id: z.string() }),
+    body: { content: { 'application/json': { schema: downloadTaskActionInputSchema } }, required: true },
+  },
+  responses: {
+    200: jsonResponse(
+      z.union([downloadTaskSchema, z.object({ id: z.string(), deleted: z.literal(true) })]),
+      'Task action result',
+    ),
+    401: jsonResponse(errorSchema, 'Unauthorized'),
+    403: jsonResponse(errorSchema, 'Forbidden'),
+    404: jsonResponse(errorSchema, 'Not found'),
+    409: jsonResponse(errorSchema, 'Invalid task state'),
+  },
+})
+
 const downloadTasksRoute = new OpenAPIHono<Env>()
   .openapi(listRoute, (async (c: OpenAPIContext) => {
     const principal = c.get('principal')
@@ -139,6 +174,8 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
       const result = await listDownloadTasks(c.get('platform'), {
         downloaderId: principal.downloaderId,
         status: query.status,
+        category: query.category,
+        tag: query.tag,
         page: query.page,
         pageSize: query.pageSize,
         includeUploadToken: true,
@@ -151,6 +188,8 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const result = await listDownloadTasks(c.get('platform'), {
       orgId,
       status: query.status,
+      category: query.category,
+      tag: query.tag,
       page: query.page,
       pageSize: query.pageSize,
     })
@@ -176,6 +215,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
   .openapi(eventsRoute, (async (c: OpenAPIContext) => {
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
+    const query = c.req.valid('query') as z.infer<typeof listDownloadTasksQuerySchema>
     const signal = c.req.raw.signal
     let closed = false
     let lastFingerprint = ''
@@ -188,11 +228,18 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
         const tick = async () => {
           if (closed) return
           try {
-            const result = await listDownloadTasks(c.get('platform'), { orgId, page: 1, pageSize: 50 })
+            const result = await listDownloadTasks(c.get('platform'), {
+              orgId,
+              status: query.status,
+              category: query.category,
+              tag: query.tag,
+              page: query.page,
+              pageSize: query.pageSize,
+            })
             const fingerprint = result.items.map((task) => `${task.id}:${task.updatedAt}`).join('|')
             if (fingerprint !== lastFingerprint) {
               lastFingerprint = fingerprint
-              send('snapshot', { items: result.items, total: result.total, page: 1, pageSize: 50 })
+              send('snapshot', { items: result.items, total: result.total, page: query.page, pageSize: query.pageSize })
             } else {
               send('heartbeat', { at: new Date().toISOString() })
             }
@@ -224,6 +271,13 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
     const id = c.req.param('id') as string
     return downloadTaskResponse(c, async () => getDownloadTask(c.get('platform'), orgId, id))
+  }) as never)
+  .openapi(actionRoute, (async (c: OpenAPIContext) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
+    const id = c.req.param('id') as string
+    const { action } = c.req.valid('json') as z.infer<typeof downloadTaskActionInputSchema>
+    return downloadTaskResponse(c, async () => performDownloadTaskAction(c.get('platform'), orgId, id, action))
   }) as never)
   .openapi(updateRoute, (async (c: OpenAPIContext) => {
     const principal = c.get('principal')

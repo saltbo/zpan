@@ -112,6 +112,7 @@ import {
   revokeRemoteDownloadApiKey,
   revokeSiteInvitation,
   revokeWebDavAppPassword,
+  runDownloadTaskAction,
   saveBranding,
   saveEmailConfig,
   saveShareToDrive,
@@ -1000,13 +1001,22 @@ describe('api', () => {
       const payload = { items: [], total: 0, page: 2, pageSize: 10 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await listDownloadTasks({ status: 'running', assignedTo: 'me', page: 2, pageSize: 10 })
+      const result = await listDownloadTasks({
+        status: 'running',
+        assignedTo: 'me',
+        category: 'movies',
+        tag: '4k',
+        page: 2,
+        pageSize: 10,
+      })
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/download-tasks?')
       expect(url).toContain('status=running')
       expect(url).toContain('assignedTo=me')
+      expect(url).toContain('category=movies')
+      expect(url).toContain('tag=4k')
       expect(url).toContain('page=2')
       expect(url).toContain('pageSize=10')
       expect(init.method).toBe('GET')
@@ -1014,7 +1024,12 @@ describe('api', () => {
 
     it('creates a download task', async () => {
       const payload = { id: 'task-1', status: 'queued' }
-      const body = { source: { type: 'http' as const, uri: 'https://example.com/file.zip' }, targetFolder: 'root' }
+      const body = {
+        source: { type: 'http' as const, uri: 'https://example.com/file.zip' },
+        targetFolder: 'root',
+        category: 'archives',
+        tags: ['backup', '2026'],
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await createDownloadTask(body)
@@ -1040,8 +1055,30 @@ describe('api', () => {
       expect(init.body).toBe(JSON.stringify(body))
     })
 
+    it('runs a download task action', async () => {
+      const payload = { id: 'task-1', status: 'paused' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await runDownloadTaskAction('task-1', 'pause')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/download-tasks/task-1/actions')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ action: 'pause' }))
+    })
+
+    it('throws ApiError on download task action failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Only active tasks can be paused' }, false, 409))
+
+      await expect(runDownloadTaskAction('task-1', 'pause')).rejects.toThrow('Only active tasks can be paused')
+    })
+
     it('builds the download task events URL from RPC client', () => {
-      expect(downloadTaskEventsUrl().pathname).toBe('/api/download-tasks/events')
+      const url = downloadTaskEventsUrl({ category: 'movies', tag: '4k' })
+      expect(url.pathname).toBe('/api/download-tasks/events')
+      expect(url.searchParams.get('category')).toBe('movies')
+      expect(url.searchParams.get('tag')).toBe('4k')
     })
 
     it('lists admin downloaders', async () => {

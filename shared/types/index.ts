@@ -236,10 +236,13 @@ export type DownloadTaskStatus =
   | 'assigned'
   | 'running'
   | 'billing_paused'
+  | 'paused'
   | 'uploading'
   | 'completed'
   | 'failed'
   | 'canceled'
+
+export type DownloadTaskAction = 'pause' | 'resume' | 'cancel' | 'retry' | 'delete'
 
 export interface DownloadTask {
   id: string
@@ -249,6 +252,8 @@ export interface DownloadTask {
   sourceUri: string
   name: string | null
   targetFolder: string
+  category: string | null
+  tags: string[]
   assignedDownloaderId: string | null
   status: DownloadTaskStatus
   downloadedBytes: number

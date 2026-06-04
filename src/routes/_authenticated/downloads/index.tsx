@@ -1,5 +1,5 @@
 import { DirType } from '@shared/constants'
-import type { DownloadTask, DownloadTaskStatus, StorageObject } from '@shared/types'
+import type { DownloadTask, DownloadTaskAction, DownloadTaskStatus, StorageObject } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
@@ -11,6 +11,7 @@ import {
   Clock,
   Download,
   FileDown,
+  Filter,
   Folder,
   FolderInput,
   Gauge,
@@ -19,8 +20,12 @@ import {
   LoaderCircle,
   Magnet,
   PauseCircle,
+  PlayCircle,
   Plus,
   RadioTower,
+  RotateCcw,
+  Tag,
+  Trash2,
   Upload,
   Users,
   XCircle,
@@ -31,6 +36,7 @@ import {
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -48,7 +54,7 @@ import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { createDownloadTask, downloadTaskEventsUrl, listDownloadTasks, updateDownloadTask } from '@/lib/api'
+import { createDownloadTask, downloadTaskEventsUrl, listDownloadTasks, runDownloadTaskAction } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/downloads/')({
@@ -82,26 +88,38 @@ function DownloadsPage() {
   const [uri, setUri] = useState('')
   const [targetFolder, setTargetFolder] = useState('')
   const [name, setName] = useState('')
+  const [category, setCategory] = useState('')
+  const [tagsInput, setTagsInput] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [filterTag, setFilterTag] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('overview')
   const [detailHeight, setDetailHeight] = useState(DETAIL_DEFAULT_HEIGHT)
   const [panelDrag, setPanelDrag] = useState<PanelDragState | null>(null)
   const panelsRef = useRef<HTMLDivElement>(null)
+  const categoryFilterValue = filterCategory.trim() || undefined
+  const tagFilterValue = filterTag.trim() || undefined
+  const queryKey = useMemo(
+    () => [...QUERY_KEY, categoryFilterValue ?? '', tagFilterValue ?? ''],
+    [categoryFilterValue, tagFilterValue],
+  )
 
   const tasksQuery = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => listDownloadTasks({ page: 1, pageSize: 50 }),
+    queryKey,
+    queryFn: () => listDownloadTasks({ page: 1, pageSize: 50, category: categoryFilterValue, tag: tagFilterValue }),
   })
 
   useEffect(() => {
-    const events = new EventSource(downloadTaskEventsUrl(), { withCredentials: true })
+    const events = new EventSource(downloadTaskEventsUrl({ category: categoryFilterValue, tag: tagFilterValue }), {
+      withCredentials: true,
+    })
     events.addEventListener('snapshot', (event) => {
       const data = JSON.parse((event as MessageEvent<string>).data)
-      queryClient.setQueryData(QUERY_KEY, data)
+      queryClient.setQueryData(queryKey, data)
     })
     return () => events.close()
-  }, [queryClient])
+  }, [categoryFilterValue, queryClient, queryKey, tagFilterValue])
 
   useEffect(() => {
     if (!panelDrag) return
@@ -132,6 +150,8 @@ function DownloadsPage() {
       setUri('')
       setName('')
       setTargetFolder('')
+      setCategory('')
+      setTagsInput('')
       setCreateOpen(false)
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       toast.success(t('downloads.createSuccess'))
@@ -139,11 +159,11 @@ function DownloadsPage() {
     onError: (err) => toast.error(err.message),
   })
 
-  const pauseMutation = useMutation({
-    mutationFn: (id: string) => updateDownloadTask(id, { status: 'canceled' }),
+  const actionMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: DownloadTaskAction }) => runDownloadTaskAction(id, action),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      toast.success(t('downloads.cancelSuccess'))
+      toast.success(t('downloads.actionSuccess'))
     },
     onError: (err) => toast.error(err.message),
   })
@@ -154,6 +174,8 @@ function DownloadsPage() {
       source: { type: sourceType, uri: uri.trim() },
       targetFolder: targetFolder.trim(),
       name: name.trim() || undefined,
+      category: category.trim() || undefined,
+      tags: parseTagsInput(tagsInput),
     })
   }
 
@@ -182,10 +204,18 @@ function DownloadsPage() {
       <PageHeader
         items={[{ label: t('downloads.title'), icon: <Download className="size-4 text-muted-foreground" /> }]}
         actions={
-          <Button type="button" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            {t('downloads.create')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <DownloadFilters
+              category={filterCategory}
+              tag={filterTag}
+              onCategoryChange={setFilterCategory}
+              onTagChange={setFilterTag}
+            />
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" />
+              {t('downloads.create')}
+            </Button>
+          </div>
         }
       />
 
@@ -252,6 +282,30 @@ function DownloadsPage() {
                   placeholder={t('downloads.namePlaceholder')}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="download-category" className="flex items-center gap-2">
+                  <Tag className="size-4 text-muted-foreground" />
+                  {t('downloads.category')}
+                </Label>
+                <Input
+                  id="download-category"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                  placeholder={t('downloads.categoryPlaceholder')}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="download-tags" className="flex items-center gap-2">
+                  <Tag className="size-4 text-muted-foreground" />
+                  {t('downloads.tags')}
+                </Label>
+                <Input
+                  id="download-tags"
+                  value={tagsInput}
+                  onChange={(event) => setTagsInput(event.target.value)}
+                  placeholder={t('downloads.tagsPlaceholder')}
+                />
+              </div>
             </div>
 
             <DialogFooter>
@@ -301,7 +355,8 @@ function DownloadsPage() {
                     task={task}
                     selected={task.id === activeSelectedTaskId}
                     onSelect={() => setSelectedTaskId(task.id)}
-                    onCancel={(id) => pauseMutation.mutate(id)}
+                    actionPending={actionMutation.isPending && actionMutation.variables?.id === task.id}
+                    onAction={(id, action) => actionMutation.mutate({ id, action })}
                   />
                 ))}
               </TableBody>
@@ -330,12 +385,89 @@ function DownloadsPage() {
   )
 }
 
+function DownloadFilters({
+  category,
+  tag,
+  onCategoryChange,
+  onTagChange,
+}: {
+  category: string
+  tag: string
+  onCategoryChange: (value: string) => void
+  onTagChange: (value: string) => void
+}) {
+  const { t } = useTranslation()
+  const active = Boolean(category || tag)
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant={active ? 'secondary' : 'outline'} size="icon" title={t('downloads.filters')}>
+          <Filter className="size-4" />
+          <span className="sr-only">{t('downloads.filters')}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="z-[60] w-72 space-y-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="download-filter-category" className="text-xs">
+            {t('downloads.category')}
+          </Label>
+          <Input
+            id="download-filter-category"
+            value={category}
+            onChange={(event) => onCategoryChange(event.target.value)}
+            placeholder={t('downloads.filterCategory')}
+            className="h-8"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="download-filter-tag" className="text-xs">
+            {t('downloads.tags')}
+          </Label>
+          <Input
+            id="download-filter-tag"
+            value={tag}
+            onChange={(event) => onTagChange(event.target.value)}
+            placeholder={t('downloads.filterTag')}
+            className="h-8"
+          />
+        </div>
+        {active && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              onCategoryChange('')
+              onTagChange('')
+            }}
+          >
+            {t('common.clear')}
+          </Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
 }
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
+}
+
+function parseTagsInput(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ]
 }
 
 function FolderPicker({ value, onChange }: { value: string; onChange: (path: string) => void }) {
@@ -450,16 +582,18 @@ function TaskRow({
   task,
   selected,
   onSelect,
-  onCancel,
+  actionPending,
+  onAction,
 }: {
   task: DownloadTask
   selected: boolean
   onSelect: () => void
-  onCancel: (id: string) => void
+  actionPending: boolean
+  onAction: (id: string, action: DownloadTaskAction) => void
 }) {
   const { t } = useTranslation()
   const progress = transferProgress(task)
-  const active = ACTIVE_STATUSES.has(task.status)
+  const actions = taskActions(task)
 
   return (
     <TableRow
@@ -494,26 +628,52 @@ function TaskRow({
       <TableCell className="whitespace-nowrap py-1 text-[11px] tabular-nums text-muted-foreground">
         {formatDuration(task.detail?.etaSeconds)}
       </TableCell>
-      <TableCell className="py-1 text-right">
-        {active ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-            onClick={(event) => {
-              event.stopPropagation()
-              onCancel(task.id)
-            }}
-          >
-            <XCircle className="size-4" />
-            {t('downloads.cancel')}
-          </Button>
+      <TableCell className="py-1">
+        {actions.length > 0 ? (
+          <div className="flex justify-end gap-1">
+            {actions.map((action) => (
+              <Button
+                key={action}
+                variant="ghost"
+                size="icon-xs"
+                className={cn(
+                  'text-muted-foreground',
+                  (action === 'cancel' || action === 'delete') && 'hover:text-destructive',
+                )}
+                title={t(`downloads.actions.${action}`)}
+                disabled={actionPending}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onAction(task.id, action)
+                }}
+              >
+                <TaskActionIcon action={action} />
+                <span className="sr-only">{t(`downloads.actions.${action}`)}</span>
+              </Button>
+            ))}
+          </div>
         ) : (
-          <span className="text-xs text-muted-foreground">-</span>
+          <div className="text-right text-xs text-muted-foreground">-</div>
         )}
       </TableCell>
     </TableRow>
   )
+}
+
+function taskActions(task: DownloadTask): DownloadTaskAction[] {
+  if (ACTIVE_STATUSES.has(task.status)) return ['pause', 'cancel']
+  if (task.status === 'paused') return ['resume', 'cancel']
+  if (task.status === 'failed' || task.status === 'canceled') return ['retry', 'delete']
+  if (task.status === 'completed') return ['delete']
+  return []
+}
+
+function TaskActionIcon({ action }: { action: DownloadTaskAction }) {
+  if (action === 'pause') return <PauseCircle />
+  if (action === 'resume') return <PlayCircle />
+  if (action === 'retry') return <RotateCcw />
+  if (action === 'delete') return <Trash2 />
+  return <XCircle />
 }
 
 function TransferProgress({ task, className }: { task: DownloadTask; className?: string }) {
@@ -649,6 +809,8 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
           label={t('downloads.detail.target')}
           value={task.targetFolder || t('downloads.targetFolderRoot')}
         />
+        <InspectorField label={t('downloads.detail.category')} value={task.category || '-'} />
+        <InspectorField label={t('downloads.detail.tags')} value={task.tags.length ? task.tags.join(', ') : '-'} />
         <InspectorField
           label={t('downloads.detail.sourceType')}
           value={t(`downloads.sourceTypes.${sourceTypeKey(task)}`)}
@@ -924,6 +1086,11 @@ function StatusBadge({ status }: { status: DownloadTaskDisplayStatus }) {
     billing_paused: {
       className:
         'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+      icon: <PauseCircle />,
+    },
+    paused: {
+      className:
+        'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300',
       icon: <PauseCircle />,
     },
     uploading: {

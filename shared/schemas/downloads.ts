@@ -7,11 +7,13 @@ export const downloadTaskStatusSchema = z.enum([
   'assigned',
   'running',
   'billing_paused',
+  'paused',
   'uploading',
   'completed',
   'failed',
   'canceled',
 ])
+export const downloadTaskActionSchema = z.enum(['pause', 'resume', 'cancel', 'retry', 'delete'])
 export const downloadSourceTypeSchema = z.enum(['http', 'magnet', 'torrent_url'])
 export const downloadTaskPhaseSchema = z.enum(['metadata', 'downloading', 'uploading', 'seeding', 'completed', 'error'])
 
@@ -86,6 +88,8 @@ export const createDownloaderSchema = z.object({
 })
 
 const downloadUriSchema = z.string().min(1).max(4096)
+const downloadTaskCategorySchema = z.string().trim().min(1).max(120)
+const downloadTaskTagsSchema = z.array(z.string().trim().min(1).max(80)).max(20)
 
 export const createDownloadTaskSchema = z.object({
   source: z.object({
@@ -94,6 +98,8 @@ export const createDownloadTaskSchema = z.object({
   }),
   targetFolder: z.string(),
   name: z.string().min(1).max(255).optional(),
+  category: downloadTaskCategorySchema.optional(),
+  tags: downloadTaskTagsSchema.optional(),
 })
 
 export const updateDownloadTaskSchema = z.object({
@@ -108,9 +114,15 @@ export const updateDownloadTaskSchema = z.object({
   detail: downloadTaskDetailSchema.nullable().optional(),
 })
 
+export const downloadTaskActionInputSchema = z.object({
+  action: downloadTaskActionSchema,
+})
+
 export const listDownloadTasksQuerySchema = z.object({
   status: downloadTaskStatusSchema.optional(),
   assignedTo: z.enum(['me']).optional(),
+  category: z.string().trim().min(1).max(120).optional(),
+  tag: z.string().trim().min(1).max(80).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 })
@@ -152,6 +164,7 @@ export type UpdateDownloaderInput = z.infer<typeof updateDownloaderSchema>
 export type CreateDownloaderInput = z.infer<typeof createDownloaderSchema>
 export type CreateDownloadTaskInput = z.infer<typeof createDownloadTaskSchema>
 export type UpdateDownloadTaskInput = z.infer<typeof updateDownloadTaskSchema>
+export type DownloadTaskActionInput = z.infer<typeof downloadTaskActionInputSchema>
 export type ListDownloadTasksQuery = z.infer<typeof listDownloadTasksQuerySchema>
 export type DownloadTaskDetail = z.infer<typeof downloadTaskDetailSchema>
 export type CreateObjectUploadSessionInput = z.infer<typeof createObjectUploadSessionSchema>

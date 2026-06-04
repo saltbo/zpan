@@ -167,6 +167,8 @@ describe('Download tasks API integration', () => {
         source: { type: 'http', uri: 'https://example.com/fixture.txt' },
         targetFolder: 'Remote Downloads',
         name: 'fixture.txt',
+        category: 'fixtures',
+        tags: ['sample', 'http'],
       }),
     })
     expect(createTaskRes.status).toBe(201)
@@ -174,21 +176,27 @@ describe('Download tasks API integration', () => {
       id: string
       assignedDownloaderId: string
       status: string
+      category: string
+      tags: string[]
       uploadToken?: string
     }
     expect(createdTask.status).toBe('assigned')
     expect(createdTask.assignedDownloaderId).toBe(createdDownloader.downloader.id)
+    expect(createdTask.category).toBe('fixtures')
+    expect(createdTask.tags).toEqual(['sample', 'http'])
     expect(createdTask.uploadToken).toBeUndefined()
 
-    const assignedRes = await app.request('/api/download-tasks?assignedTo=me', {
+    const assignedRes = await app.request('/api/download-tasks?assignedTo=me&category=fixtures&tag=http', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(assignedRes.status).toBe(200)
     const assigned = (await assignedRes.json()) as {
-      items: Array<{ id: string; uploadToken?: string; status: string }>
+      items: Array<{ id: string; uploadToken?: string; status: string; category: string; tags: string[] }>
     }
     const assignedTask = assigned.items.find((item) => item.id === createdTask.id)
     expect(assignedTask?.status).toBe('assigned')
+    expect(assignedTask?.category).toBe('fixtures')
+    expect(assignedTask?.tags).toEqual(['sample', 'http'])
     expect(assignedTask?.uploadToken).toBeTruthy()
     const uploadHeaders = {
       Authorization: `Bearer ${assignedTask?.uploadToken}`,
@@ -350,5 +358,110 @@ describe('Download tasks API integration', () => {
     expect(task.resultObjectId).toBe(object.id)
     expect(task.downloadedBytes).toBe(10 * 1024 * 1024)
     expect(task.storageUploadedBytes).toBe(10 * 1024 * 1024)
+  })
+
+  it('submits user task actions through downloader polling state', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'action-downloader')
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+    })
+    expect(heartbeatRes.status).toBe(200)
+
+    const user = await authedHeaders(app, 'download-actions-user@example.com')
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/actions.bin' },
+        targetFolder: '',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const createdTask = (await createTaskRes.json()) as { id: string; status: string; assignedDownloaderId: string }
+    expect(createdTask.status).toBe('assigned')
+    expect(createdTask.assignedDownloaderId).toBe(createdDownloader.downloader.id)
+
+    const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'pause' }),
+    })
+    expect(pauseRes.status).toBe(200)
+    await expect(pauseRes.json()).resolves.toMatchObject({ status: 'paused' })
+
+    const pausedAssignedRes = await app.request('/api/download-tasks?assignedTo=me', {
+      headers: { Authorization: `Bearer ${createdDownloader.token}` },
+    })
+    expect(pausedAssignedRes.status).toBe(200)
+    const pausedAssigned = (await pausedAssignedRes.json()) as { items: Array<{ id: string; status: string }> }
+    expect(pausedAssigned.items.find((item) => item.id === createdTask.id)?.status).toBe('paused')
+
+    const resumeRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'resume' }),
+    })
+    expect(resumeRes.status).toBe(200)
+    await expect(resumeRes.json()).resolves.toMatchObject({ status: 'assigned' })
+
+    const cancelRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel' }),
+    })
+    expect(cancelRes.status).toBe(200)
+    await expect(cancelRes.json()).resolves.toMatchObject({ status: 'canceled' })
+
+    const canceledAssignedRes = await app.request('/api/download-tasks?assignedTo=me', {
+      headers: { Authorization: `Bearer ${createdDownloader.token}` },
+    })
+    expect(canceledAssignedRes.status).toBe(200)
+    const canceledAssigned = (await canceledAssignedRes.json()) as { items: Array<{ id: string; status: string }> }
+    expect(canceledAssigned.items.find((item) => item.id === createdTask.id)?.status).toBe('canceled')
+
+    const deleteRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete' }),
+    })
+    expect(deleteRes.status).toBe(200)
+    await expect(deleteRes.json()).resolves.toEqual({ id: createdTask.id, deleted: true })
+  })
+
+  it('rejects invalid task actions', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const user = await authedHeaders(app, 'invalid-download-actions-user@example.com')
+
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/no-downloader.bin' },
+        targetFolder: '',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const createdTask = (await createTaskRes.json()) as { id: string; status: string }
+    expect(createdTask.status).toBe('queued')
+
+    const deleteRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete' }),
+    })
+    expect(deleteRes.status).toBe(409)
+    await expect(deleteRes.json()).resolves.toMatchObject({
+      error: 'Only completed, failed, or canceled tasks can be deleted',
+    })
   })
 })
