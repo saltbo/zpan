@@ -61,10 +61,10 @@ test.describe
       const testId = Date.now()
       const packageName = `E2E Cloud Plan ${testId}`
       const creditPackageName = `E2E Credits ${testId}`
-      await createStoragePlan(page, packageName)
+      const storagePlan = await createStoragePlan(page, packageName)
       const product = await createCreditPackage(page, creditPackageName)
       const giftCard = await createGiftCard(page)
-      await expectAdminProductVisibleInApi(page, packageName)
+      await expectAdminProductVisibleInApi(page, storagePlan.id, packageName)
       await expectAdminGiftCardVisibleInApi(page, giftCard.code)
 
       await page.goto('/storage')
@@ -101,11 +101,11 @@ test.describe
       const testId = Date.now()
       const packageName = `E2E UI Plan ${testId}`
       const creditPackageName = `E2E UI Credits ${testId}`
-      await createStoragePlanThroughUi(page, packageName)
-      await createCreditPackageThroughUi(page, creditPackageName)
+      const storagePlan = await createStoragePlanThroughUi(page, packageName)
+      const creditPackage = await createCreditPackageThroughUi(page, creditPackageName)
 
-      await expectAdminProductVisibleInApi(page, packageName)
-      await expectAdminCreditProductVisibleInApi(page, creditPackageName)
+      await expectAdminProductVisibleInApi(page, storagePlan.id, packageName)
+      await expectAdminCreditProductVisibleInApi(page, creditPackage.id, creditPackageName)
 
       const giftCardCode = await createGiftCardThroughUi(page)
       await expectAdminGiftCardVisibleInApi(page, giftCardCode)
@@ -312,8 +312,10 @@ async function createStoragePlanThroughUi(page: Page, packageName: string) {
     (item) => item.url().includes('/api/admin/store/packages') && item.request().method() === 'POST',
   )
   await dialog.getByRole('button', { name: 'Save' }).click()
-  expect((await response).status()).toBe(201)
+  const result = await response
+  expect(result.status()).toBe(201)
   await expect(dialog).not.toBeVisible({ timeout: 20_000 })
+  return result.json() as Promise<CloudProduct>
 }
 
 async function createCreditPackageThroughUi(page: Page, packageName: string) {
@@ -329,8 +331,10 @@ async function createCreditPackageThroughUi(page: Page, packageName: string) {
     (item) => item.url().includes('/api/admin/store/packages') && item.request().method() === 'POST',
   )
   await dialog.getByRole('button', { name: 'Save' }).click()
-  expect((await response).status()).toBe(201)
+  const result = await response
+  expect(result.status()).toBe(201)
   await expect(dialog).not.toBeVisible({ timeout: 20_000 })
+  return result.json() as Promise<CloudProduct>
 }
 
 async function createGiftCardThroughUi(page: Page) {
@@ -368,28 +372,28 @@ async function gotoAdminCloudStore(page: Page) {
   }
 }
 
-async function expectAdminProductVisibleInApi(page: Page, packageName: string) {
+async function expectAdminProductVisibleInApi(page: Page, packageId: string, packageName: string) {
   await expect
     .poll(
       async () => {
-        const products = await getJson<{ items: CloudProduct[] }>(page, '/api/admin/store/packages')
-        return products.items.map((item) => item.name)
+        const product = await getJson<CloudProduct>(page, `/api/admin/store/packages/${packageId}`)
+        return product.name
       },
       { timeout: 60_000 },
     )
-    .toContain(packageName)
+    .toBe(packageName)
 }
 
-async function expectAdminCreditProductVisibleInApi(page: Page, packageName: string) {
+async function expectAdminCreditProductVisibleInApi(page: Page, packageId: string, packageName: string) {
   await expect
     .poll(
       async () => {
-        const products = await getJson<{ items: CloudProduct[] }>(page, '/api/admin/store/credits/products')
-        return products.items.map((item) => item.name)
+        const product = await getJson<CloudProduct>(page, `/api/admin/store/packages/${packageId}`)
+        return product.name
       },
       { timeout: 60_000 },
     )
-    .toContain(packageName)
+    .toBe(packageName)
 }
 
 async function expectAdminGiftCardVisibleInApi(page: Page, code: string) {
