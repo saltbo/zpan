@@ -322,17 +322,19 @@ func (c *Client) createMatter(
 	dirtype int,
 ) (ObjectDraft, error) {
 	body, err := jsonBody(struct {
-		Name    string `json:"name"`
-		Type    string `json:"type"`
-		Size    int64  `json:"size"`
-		Parent  string `json:"parent"`
-		Dirtype int    `json:"dirtype"`
+		Name       string `json:"name"`
+		Type       string `json:"type"`
+		Size       int64  `json:"size"`
+		Parent     string `json:"parent"`
+		Dirtype    int    `json:"dirtype"`
+		OnConflict string `json:"onConflict"`
 	}{
-		Name:    name,
-		Type:    contentType,
-		Size:    size,
-		Parent:  parent,
-		Dirtype: dirtype,
+		Name:       name,
+		Type:       contentType,
+		Size:       size,
+		Parent:     parent,
+		Dirtype:    dirtype,
+		OnConflict: "rename",
 	})
 	if err != nil {
 		return ObjectDraft{}, err
@@ -353,8 +355,9 @@ func (c *Client) createMatter(
 
 func (c *Client) ConfirmObject(ctx context.Context, token string, id string) error {
 	body, err := jsonBody(struct {
-		Action string `json:"action"`
-	}{Action: "confirm"})
+		Action     string `json:"action"`
+		OnConflict string `json:"onConflict"`
+	}{Action: "confirm", OnConflict: "rename"})
 	if err != nil {
 		return err
 	}

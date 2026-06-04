@@ -563,6 +563,9 @@ func collectDirectoryEntries(root string) ([]directoryEntry, error) {
 		if err != nil {
 			return err
 		}
+		if !entry.IsDir() && isDownloadSidecarPath(relativePath) {
+			return nil
+		}
 		item := directoryEntry{
 			path:         path,
 			relativePath: filepath.ToSlash(relativePath),
@@ -586,6 +589,15 @@ func collectDirectoryEntries(root string) ([]directoryEntry, error) {
 		return entries[i].relativePath < entries[j].relativePath
 	})
 	return entries, err
+}
+
+func isDownloadSidecarPath(path string) bool {
+	base := filepath.Base(path)
+	return strings.HasPrefix(path, "[MEMORY]") ||
+		strings.HasPrefix(path, "[METADATA]") ||
+		strings.HasPrefix(base, "[MEMORY]") ||
+		strings.HasPrefix(base, "[METADATA]") ||
+		strings.EqualFold(filepath.Ext(base), ".torrent")
 }
 
 func joinObjectPath(parent string, name string) string {

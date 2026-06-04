@@ -77,6 +77,30 @@ func TestUploadFileIncludesErrorBody(t *testing.T) {
 	}
 }
 
+func TestCollectDirectoryEntriesSkipsDownloadSidecars(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "movie.mkv"), []byte("movie"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "fixture.torrent"), []byte("torrent"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "[METADATA]abc"), []byte("metadata"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := collectDirectoryEntries(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected one uploaded entry, got %#v", entries)
+	}
+	if entries[0].name != "movie.mkv" {
+		t.Fatalf("expected movie.mkv, got %s", entries[0].name)
+	}
+}
+
 func TestTaskErrorMessageTruncatesToSchemaLimit(t *testing.T) {
 	err := errors.New(strings.Repeat("x", maxTaskErrorMessageLength+100))
 

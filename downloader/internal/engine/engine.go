@@ -864,14 +864,18 @@ func resultFromPath(task client.DownloadTask, path string, fallbackName string) 
 	}
 	visible := make([]os.DirEntry, 0, len(entries))
 	for _, entry := range entries {
-		if !strings.HasPrefix(entry.Name(), ".") {
-			visible = append(visible, entry)
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
 		}
+		if !entry.IsDir() && isDownloadSidecarPath(entry.Name()) {
+			continue
+		}
+		visible = append(visible, entry)
 	}
 	if len(visible) == 1 && !visible[0].IsDir() {
 		return resultFromFile(task, filepath.Join(path, visible[0].Name()))
 	}
-	if len(visible) == 1 && visible[0].IsDir() && strings.TrimSpace(task.Name) == "" {
+	if len(visible) == 1 && visible[0].IsDir() {
 		return resultFromPath(task, filepath.Join(path, visible[0].Name()), visible[0].Name())
 	}
 	size, err := directorySize(path)
@@ -883,6 +887,11 @@ func resultFromPath(task client.DownloadTask, path string, fallbackName string) 
 
 func isAria2MetadataPath(path string) bool {
 	return strings.HasPrefix(path, "[MEMORY]") || strings.HasPrefix(path, "[METADATA]")
+}
+
+func isDownloadSidecarPath(path string) bool {
+	base := filepath.Base(path)
+	return isAria2MetadataPath(path) || isAria2MetadataPath(base) || strings.EqualFold(filepath.Ext(base), ".torrent")
 }
 
 func resultFromFile(task client.DownloadTask, path string) (Result, error) {
@@ -899,7 +908,19 @@ func directorySize(path string) (int64, error) {
 		if err != nil {
 			return err
 		}
+		if entryPath == path {
+			return nil
+		}
+		if strings.HasPrefix(entry.Name(), ".") {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if entry.IsDir() {
+			return nil
+		}
+		if isDownloadSidecarPath(entry.Name()) {
 			return nil
 		}
 		info, err := entry.Info()

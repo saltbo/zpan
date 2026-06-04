@@ -229,6 +229,9 @@ func TestResultFromPathReturnsDirectory(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(taskDir, "folder", "b.txt"), []byte("b"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(taskDir, "fixture.torrent"), []byte("torrent"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := resultFromPath(client.DownloadTask{ID: "task-1", Name: "bundle"}, taskDir, "bundle")
 	if err != nil {
@@ -243,10 +246,10 @@ func TestResultFromPathReturnsDirectory(t *testing.T) {
 	if result.Size != 2 {
 		t.Fatalf("expected directory size 2, got %d", result.Size)
 	}
-	if result.Path != taskDir {
-		t.Fatalf("expected task dir path, got %s", result.Path)
+	if result.Path != filepath.Join(taskDir, "folder") {
+		t.Fatalf("expected content dir path, got %s", result.Path)
 	}
-	if _, err := os.Stat(filepath.Join(result.Path, "folder", "a.txt")); err != nil {
+	if _, err := os.Stat(filepath.Join(result.Path, "a.txt")); err != nil {
 		t.Fatal(err)
 	}
 }
