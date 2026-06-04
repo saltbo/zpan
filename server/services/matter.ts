@@ -150,6 +150,11 @@ function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
 }
 
+function descendantParentCondition(folderPath: string): SQL {
+  const prefix = `${folderPath}/`
+  return sql`SUBSTR(${matters.parent}, 1, LENGTH(${prefix})) = ${prefix}`
+}
+
 export async function updateMatter(
   db: Database,
   id: string,
@@ -238,14 +243,14 @@ async function cascadeParentPath(db: Database, orgId: string, oldPath: string, n
     .set({ parent: newPath, updatedAt: new Date() })
     .where(and(eq(matters.orgId, orgId), eq(matters.parent, oldPath)))
 
-  // Deeper descendants: parent LIKE 'oldPath/%' → replace prefix
+  // Deeper descendants: parent starts with 'oldPath/' → replace prefix.
   await db
     .update(matters)
     .set({
-      parent: sql`${newPath} || SUBSTR(${matters.parent}, ${oldPath.length + 1})`,
+      parent: sql`${newPath} || SUBSTR(${matters.parent}, LENGTH(${oldPath}) + 1)`,
       updatedAt: new Date(),
     })
-    .where(and(eq(matters.orgId, orgId), like(matters.parent, `${oldPath}/%`)))
+    .where(and(eq(matters.orgId, orgId), descendantParentCondition(oldPath)))
 }
 
 export async function confirmUpload(
@@ -492,7 +497,7 @@ function getDescendants(db: Database, orgId: string, folderPath: string): Promis
   return db
     .select()
     .from(matters)
-    .where(and(eq(matters.orgId, orgId), like(matters.parent, `${folderPath}/%`)))
+    .where(and(eq(matters.orgId, orgId), descendantParentCondition(folderPath)))
 }
 
 function getDirectChildren(db: Database, orgId: string, folderPath: string): Promise<Matter[]> {

@@ -385,6 +385,31 @@ describe('Objects API', () => {
     expect(check.status).toBe(404)
   })
 
+  it('DELETE /api/objects/:id permanently deletes a trashed folder with spaces and bracketed tags', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const folderName = 'Project Hail Mary (2026) [IMAX] [1080p] [WEBRip] [5.1] [YTS.BZ]'
+    await insertFolder(db, orgId, { id: 'movie-folder', name: folderName })
+    await insertFile(db, orgId, { id: 'movie-file', name: 'movie.mkv', parent: folderName })
+
+    const trashRes = await app.request('/api/objects/movie-folder', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'trash' }),
+    })
+    expect(trashRes.status).toBe(200)
+
+    const res = await app.request('/api/objects/movie-folder', { method: 'DELETE', headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body).toMatchObject({ id: 'movie-folder', deleted: true, purged: 2 })
+
+    expect(await getMatter(db, 'movie-folder', orgId)).toBeNull()
+    expect(await getMatter(db, 'movie-file', orgId)).toBeNull()
+  })
+
   it('PATCH /api/objects/:id (action: trash) trashes a file', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
