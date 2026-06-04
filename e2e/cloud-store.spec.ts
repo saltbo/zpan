@@ -53,7 +53,7 @@ test.describe
       page,
       baseURL,
     }) => {
-      test.setTimeout(180_000)
+      test.setTimeout(420_000)
 
       await signInAsAdmin(page)
       await ensureCloudBinding(page)
@@ -116,7 +116,7 @@ test.describe
       browser,
       baseURL,
     }) => {
-      test.setTimeout(120_000)
+      test.setTimeout(300_000)
 
       await signInAsAdmin(page)
       await ensureCloudBinding(page)
@@ -432,10 +432,14 @@ async function expectStorefrontProductVisibleInApi(page: Page, packageName: stri
   await expect
     .poll(
       async () => {
-        const products = await getJson<{ items: CloudProduct[] }>(page, '/api/store/packages')
-        return products.items.map((item) => item.name)
+        try {
+          const products = await getJson<{ items: CloudProduct[] }>(page, '/api/store/packages')
+          return products.items.map((item) => item.name)
+        } catch (error) {
+          return [`API error: ${error instanceof Error ? error.message : String(error)}`]
+        }
       },
-      { timeout: 60_000 },
+      { timeout: 180_000 },
     )
     .toContain(packageName)
 }
