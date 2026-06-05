@@ -116,8 +116,11 @@ export class S3Service {
       headers: { 'Content-Type': 'application/xml' },
       body: multipartCompleteXml(sortedParts),
     })
+    const body = await response.text()
     if (!response.ok) {
-      const body = await response.text()
+      throw new Error(`S3 multipart upload complete failed: ${response.status}: ${body.trim()}`)
+    }
+    if (xmlTag(body, 'Error') !== null || xmlTag(body, 'Code') !== null) {
       throw new Error(`S3 multipart upload complete failed: ${response.status}: ${body.trim()}`)
     }
   }

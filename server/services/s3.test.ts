@@ -289,6 +289,21 @@ describe('S3Service', () => {
       expect(mockSend).not.toHaveBeenCalled()
     })
 
+    it('rejects embedded S3 complete errors returned with HTTP 200', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            new Response('<Error><Code>InvalidPart</Code><Message>part does not exist</Message></Error>'),
+          ),
+      )
+
+      await expect(
+        service.completeMultipartUpload(storage, 'video.mp4', 'upload-1', [{ partNumber: 1, etag: '"etag-1"' }]),
+      ).rejects.toThrow('InvalidPart')
+    })
+
     it('aborts multipart uploads through a presigned DELETE', async () => {
       const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 204 }))
       vi.stubGlobal('fetch', fetchMock)

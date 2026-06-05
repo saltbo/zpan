@@ -114,13 +114,27 @@ export async function patchObjectUploadSession(
   if (row.status !== 'active') throw new ObjectUploadSessionError('invalid_state')
   const now = new Date()
   if (params.input.action === 'complete') {
-    await s3.completeMultipartUpload(params.storage, row.storageKey, row.uploadId, params.input.parts)
+    try {
+      await s3.completeMultipartUpload(params.storage, row.storageKey, row.uploadId, params.input.parts)
+    } catch (error) {
+      throw new ObjectUploadSessionError(
+        'storage_failure',
+        `Storage multipart upload complete failed: ${(error as Error).message}`,
+      )
+    }
     await db
       .update(objectUploadSessions)
       .set({ status: 'completed', updatedAt: now })
       .where(eq(objectUploadSessions.id, row.id))
   } else {
-    await s3.abortMultipartUpload(params.storage, row.storageKey, row.uploadId)
+    try {
+      await s3.abortMultipartUpload(params.storage, row.storageKey, row.uploadId)
+    } catch (error) {
+      throw new ObjectUploadSessionError(
+        'storage_failure',
+        `Storage multipart upload abort failed: ${(error as Error).message}`,
+      )
+    }
     await db
       .update(objectUploadSessions)
       .set({ status: 'aborted', updatedAt: now })

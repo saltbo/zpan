@@ -423,6 +423,48 @@ describe('Download tasks API integration', () => {
     })
   })
 
+  it('returns storage failure details when multipart upload completion fails', async () => {
+    vi.mocked(S3Service.prototype.completeMultipartUpload).mockRejectedValueOnce(new Error('InvalidPart: part missing'))
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = {
+      ...(await authedHeaders(app, 'multipart-complete-user@example.com')),
+      'Content-Type': 'application/json',
+    }
+
+    const createObjectRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        name: 'fixture.bin',
+        type: 'application/octet-stream',
+        size: 6 * 1024 * 1024 * 1024,
+        parent: '',
+      }),
+    })
+    expect(createObjectRes.status).toBe(201)
+    const object = (await createObjectRes.json()) as { id: string }
+
+    const sessionRes = await app.request(`/api/objects/${object.id}/uploads`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ partSize: 64 * 1024 * 1024 }),
+    })
+    expect(sessionRes.status).toBe(201)
+    const session = (await sessionRes.json()) as { id: string }
+
+    const completeRes = await app.request(`/api/objects/${object.id}/uploads/${session.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ action: 'complete', parts: [{ partNumber: 1, etag: '"etag-1"' }] }),
+    })
+
+    expect(completeRes.status).toBe(502)
+    await expect(completeRes.json()).resolves.toEqual({
+      error: 'Storage multipart upload complete failed: InvalidPart: part missing',
+    })
+  })
+
   it('submits user task actions through downloader polling state', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
