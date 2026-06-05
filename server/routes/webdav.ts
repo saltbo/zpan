@@ -32,12 +32,13 @@ import {
 } from '../services/webdav-path'
 import {
   activeLocks,
+  activeLocksForResources,
   applyDeadPropertyUpdate,
   conflictingLocks,
   copyDeadProperties,
   createLock,
   deleteWebDavState,
-  listDeadProperties,
+  listDeadPropertiesForResources,
   moveWebDavState,
   refreshLock,
   removeLock,
@@ -560,18 +561,44 @@ async function ifTaggedTarget(c: DavContext, auth: DavAuth, tag: string): Promis
   }
 }
 
-async function davEntry(c: DavContext, target: WebDavTarget): Promise<DavEntry> {
+async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEntry[]> {
+  const entries: DavEntry[] = []
+  const byWorkspace = new Map<string, { workspace: NonNullable<WebDavTarget['workspace']>; targets: WebDavTarget[] }>()
+
+  for (const target of targets) {
+    if (target.mountRoot) {
+      entries.push(mountRootEntry())
+      continue
+    }
+    const workspace = requireWorkspace(target)
+    const group = byWorkspace.get(workspace.id)
+    if (group) {
+      group.targets.push(target)
+    } else {
+      byWorkspace.set(workspace.id, { workspace, targets: [target] })
+    }
+  }
+
   const db = c.get('platform').db
-  if (target.mountRoot) return mountRootEntry()
-  const workspace = requireWorkspace(target)
-  const path = resourcePath(target)
-  const [deadProperties, locks] = await Promise.all([
-    listDeadProperties(db, workspace.id, path),
-    activeLocks(db, workspace.id, path),
-  ])
-  return target.matter
-    ? matterEntry(workspace, target.matter, deadProperties, locks)
-    : workspaceEntry(workspace, deadProperties, locks)
+  for (const { workspace, targets: workspaceTargets } of byWorkspace.values()) {
+    const paths = workspaceTargets.map(resourcePath)
+    const [deadPropertiesByPath, locksByPath] = await Promise.all([
+      listDeadPropertiesForResources(db, workspace.id, paths),
+      activeLocksForResources(db, workspace.id, paths),
+    ])
+    for (const target of workspaceTargets) {
+      const path = resourcePath(target)
+      const deadProperties = deadPropertiesByPath.get(path) ?? []
+      const locks = locksByPath.get(path) ?? []
+      entries.push(
+        target.matter
+          ? matterEntry(workspace, target.matter, deadProperties, locks)
+          : workspaceEntry(workspace, deadProperties, locks),
+      )
+    }
+  }
+
+  return entries
 }
 
 async function listDescendants(db: Env['Variables']['platform']['db'], orgId: string, rootPath: string) {
@@ -648,40 +675,37 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
       return xmlResponse(errorXml('propfind-finite-depth', 'Depth infinity is not supported for PROPFIND.'), 403)
     }
     const request = parsePropfindXml(await c.req.text())
-    const entries: DavEntry[] = []
+    const targets: WebDavTarget[] = []
 
     if (target.mountRoot) {
-      entries.push(mountRootEntry())
+      targets.push(target)
       if (depth !== '0') {
         for (const workspace of await listUserWorkspaces(db, auth.userId)) {
           const workspaceTarget = { workspace, mountRoot: false, parent: '', name: '', matter: null }
-          entries.push(await davEntry(c, workspaceTarget))
+          targets.push(workspaceTarget)
         }
       }
     } else if (!target.matter) {
       if (target.name) throw new WebDavPathError('Not found', 404)
       const workspace = requireWorkspace(target)
-      entries.push(await davEntry(c, target))
+      targets.push(target)
       if (depth !== '0') {
         for (const matter of await listChildren(db, workspace.id, '')) {
-          entries.push(
-            await davEntry(c, { workspace, mountRoot: false, parent: matter.parent, name: matter.name, matter }),
-          )
+          targets.push({ workspace, mountRoot: false, parent: matter.parent, name: matter.name, matter })
         }
       }
     } else {
       const workspace = requireWorkspace(target)
-      entries.push(await davEntry(c, target))
+      targets.push(target)
       if (depth !== '0' && target.matter.dirtype !== DirType.FILE) {
         const parent = joinMatterPath(target.matter.parent, target.matter.name)
         for (const matter of await listChildren(db, workspace.id, parent)) {
-          entries.push(
-            await davEntry(c, { workspace, mountRoot: false, parent: matter.parent, name: matter.name, matter }),
-          )
+          targets.push({ workspace, mountRoot: false, parent: matter.parent, name: matter.name, matter })
         }
       }
     }
 
+    const entries = await davEntries(c, targets)
     return xmlResponse(multistatus(entries, request), 207)
   } catch (e) {
     if (e instanceof Error && (e.message.includes('XML') || e.message.includes('PROPFIND'))) {

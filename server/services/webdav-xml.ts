@@ -278,10 +278,23 @@ function activeLockXml(lock: DavLock): string {
           <D:locktype><D:write/></D:locktype>
           <D:lockscope><D:exclusive/></D:lockscope>
           <D:depth>${escapeXml(lock.depth)}</D:depth>
-          <D:owner>${lock.owner}</D:owner>
+          <D:owner>${ownerXml(lock.owner)}</D:owner>
           <D:timeout>Second-${Math.max(0, Math.ceil((lock.expiresAt.getTime() - Date.now()) / 1000))}</D:timeout>
           <D:locktoken><D:href>${escapeXml(lock.token)}</D:href></D:locktoken>
         </D:activelock>`
+}
+
+function ownerXml(owner: string): string {
+  return /<\s*[A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?[\s>/]/.test(owner) ? owner : escapeXml(unescapeXml(owner))
+}
+
+function unescapeXml(value: string): string {
+  return value
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&amp;', '&')
 }
 
 function emptyPropertyXml(property: DavPropertyName): string {

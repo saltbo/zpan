@@ -1,4 +1,4 @@
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { webdavDeadProperties, webdavLocks } from '../db/schema'
 import type { Database } from '../platform/interface'
@@ -39,6 +39,31 @@ export async function listDeadProperties(
     .from(webdavDeadProperties)
     .where(and(eq(webdavDeadProperties.orgId, orgId), eq(webdavDeadProperties.resourcePath, resourcePath)))
   return rows
+}
+
+export async function listDeadPropertiesForResources(
+  db: Database,
+  orgId: string,
+  resourcePaths: string[],
+): Promise<Map<string, DavDeadProperty[]>> {
+  const uniquePaths = [...new Set(resourcePaths)]
+  const result = new Map(uniquePaths.map((path) => [path, [] as DavDeadProperty[]]))
+  if (uniquePaths.length === 0) return result
+
+  const rows = await db
+    .select({
+      resourcePath: webdavDeadProperties.resourcePath,
+      namespace: webdavDeadProperties.namespace,
+      name: webdavDeadProperties.name,
+      value: webdavDeadProperties.value,
+    })
+    .from(webdavDeadProperties)
+    .where(and(eq(webdavDeadProperties.orgId, orgId), inArray(webdavDeadProperties.resourcePath, uniquePaths)))
+
+  for (const row of rows) {
+    result.get(row.resourcePath)?.push({ namespace: row.namespace, name: row.name, value: row.value })
+  }
+  return result
 }
 
 export async function applyDeadPropertyUpdate(
@@ -198,6 +223,31 @@ export async function activeLocks(db: Database, orgId: string, resourcePath: str
     .from(webdavLocks)
     .where(and(eq(webdavLocks.orgId, orgId), sql`${webdavLocks.expiresAt} > ${now}`))
   return rows.filter((lock) => lockAppliesToResource(lock, resourcePath))
+}
+
+export async function activeLocksForResources(
+  db: Database,
+  orgId: string,
+  resourcePaths: string[],
+): Promise<Map<string, DavLock[]>> {
+  const uniquePaths = [...new Set(resourcePaths)]
+  const result = new Map(uniquePaths.map((path) => [path, [] as DavLock[]]))
+  if (uniquePaths.length === 0) return result
+
+  await purgeExpiredLocks(db)
+  const now = Date.now()
+  const rows = await db
+    .select()
+    .from(webdavLocks)
+    .where(and(eq(webdavLocks.orgId, orgId), sql`${webdavLocks.expiresAt} > ${now}`))
+
+  for (const path of uniquePaths) {
+    result.set(
+      path,
+      rows.filter((lock) => lockAppliesToResource(lock, path)),
+    )
+  }
+  return result
 }
 
 export async function conflictingLocks(db: Database, orgId: string, resourcePath: string): Promise<DavLock[]> {

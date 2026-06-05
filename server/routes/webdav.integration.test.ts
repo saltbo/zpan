@@ -172,6 +172,7 @@ describe('WebDAV API', () => {
     const key = await apiKey(auth, account.id, { webdav: ['read'] })
     await folder(db, workspace.id, { id: 'docs', name: 'Docs' })
     await file(db, workspace.id, { id: 'readme', name: 'readme.txt', parent: 'Docs' })
+    await file(db, workspace.id, { id: 'special', name: 'Miss Americana & The Heartbreak Prince.txt', parent: 'Docs' })
 
     const root = await app.request('/dav/', { method: 'PROPFIND', headers: basicHeaders(account.email, key) })
     expect(root.status).toBe(207)
@@ -192,6 +193,8 @@ describe('WebDAV API', () => {
     const xml = await docs.text()
     expect(xml).toContain(`/dav/${workspace.slug}/Docs/`)
     expect(xml).toContain(`/dav/${workspace.slug}/Docs/readme.txt`)
+    expect(xml).toContain(`/dav/${workspace.slug}/Docs/Miss%20Americana%20%26%20The%20Heartbreak%20Prince.txt`)
+    expect(xml).toContain('<D:displayname>Miss Americana &amp; The Heartbreak Prince.txt</D:displayname>')
 
     const doubledMountSlash = await app.request(`/dav//${workspace.slug}/Docs`, {
       method: 'PROPFIND',
@@ -1732,7 +1735,7 @@ describe('WebDAV API', () => {
     const locked = await app.request(`/dav/${workspace.slug}/DiscoveryScope`, {
       method: 'LOCK',
       headers: basicHeaders(account.email, key, { 'Content-Type': 'application/xml' }),
-      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype><owner>tester</owner></lockinfo>',
+      body: '<lockinfo xmlns="DAV:"><lockscope><exclusive/></lockscope><locktype><write/></locktype><owner>tester &amp; maintainer</owner></lockinfo>',
     })
     expect(locked.status).toBe(200)
     const token = locked.headers.get('Lock-Token') ?? ''
@@ -1746,6 +1749,7 @@ describe('WebDAV API', () => {
     const xml = await childProps.text()
     expect(xml).toContain(token.slice(1, -1))
     expect(xml).toContain('<D:depth>infinity</D:depth>')
+    expect(xml).toContain('<D:owner>tester &amp; maintainer</D:owner>')
   })
 
   it('returns WebDAV path errors for missing GET and DELETE targets', async () => {
