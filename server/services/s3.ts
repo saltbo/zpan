@@ -107,7 +107,6 @@ export class S3Service {
         Bucket: storage.bucket,
         Key: key,
         UploadId: uploadId,
-        MultipartUpload: { Parts: sortedParts },
       }),
       { expiresIn: DEFAULT_EXPIRES_IN },
     )

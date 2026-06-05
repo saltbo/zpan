@@ -271,6 +271,7 @@ describe('S3Service', () => {
     })
 
     it('completes multipart uploads through a presigned POST XML body', async () => {
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       const fetchMock = vi.fn().mockResolvedValueOnce(new Response('<CompleteMultipartUploadResult />'))
       vi.stubGlobal('fetch', fetchMock)
 
@@ -286,6 +287,13 @@ describe('S3Service', () => {
         headers: { 'Content-Type': 'application/xml' },
         body: '<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>&quot;etag-1&quot;</ETag></Part><Part><PartNumber>2</PartNumber><ETag>&quot;etag&amp;2&quot;</ETag></Part></CompleteMultipartUpload>',
       })
+      expect(getSignedUrl).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          input: { Bucket: 'my-bucket', Key: 'video.mp4', UploadId: 'upload-1' },
+        }),
+        expect.anything(),
+      )
       expect(mockSend).not.toHaveBeenCalled()
     })
 
