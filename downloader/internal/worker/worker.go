@@ -4,17 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,12 +21,6 @@ import (
 
 const Version = "0.1.0"
 const maxTaskErrorMessageLength = 1000
-const retainedSeedReportInterval = 5 * time.Second
-const maxSingleUploadSize = 5 * 1024 * 1024 * 1024
-const defaultMultipartPartSize = 64 * 1024 * 1024
-const maxMultipartPartSize = 512 * 1024 * 1024
-const maxMultipartParts = 10_000
-const presignMultipartPartsBatchSize = 100
 
 var errBillingPaused = errors.New("billing paused")
 var errTaskPausing = errors.New("task pausing")
@@ -39,7 +28,7 @@ var errTaskCanceling = errors.New("task canceling")
 
 type Worker struct {
 	cfg           config.Config
-	api           *client.Client
+	api           apiClient
 	engine        engine.Engine
 	logger        *slog.Logger
 	running       map[string]context.CancelCauseFunc
@@ -48,21 +37,32 @@ type Worker struct {
 	mu            sync.Mutex
 }
 
-type retainedSeed struct {
-	taskID     string
-	engine     string
-	seedID     string
-	path       string
-	retainedAt time.Time
-	expiresAt  time.Time
-	snapshot   func(context.Context) (engine.SeedSnapshot, error)
-	cleanup    func(context.Context) error
+type apiClient interface {
+	Heartbeat(context.Context, client.Heartbeat) error
+	AssignedControlTasks(context.Context) ([]client.DownloadTask, error)
+	AssignedTasks(context.Context) ([]client.DownloadTask, error)
+	UpdateTask(context.Context, string, client.TaskPatch) (client.DownloadTask, error)
+	CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error)
+	CreateObject(context.Context, string, string, int64, string) (client.ObjectDraft, error)
+	ConfirmObject(context.Context, string, string) error
+	CreateObjectUploadSession(context.Context, string, string, int64) (client.ObjectUploadSession, error)
+	PresignObjectUploadParts(context.Context, string, string, string, []int) ([]client.PresignedObjectUploadPart, error)
+	CompleteObjectUploadSession(context.Context, string, string, string, []client.CompletedObjectUploadPart) error
+	AbortObjectUploadSession(context.Context, string, string, string) error
 }
 
-func New(cfg config.Config) *Worker {
+func New(cfg config.Config) (*Worker, error) {
+	api, err := client.New(cfg.ServerURL, cfg.Token)
+	if err != nil {
+		return nil, err
+	}
+	return NewWithAPI(cfg, api), nil
+}
+
+func NewWithAPI(cfg config.Config, api apiClient) *Worker {
 	return &Worker{
 		cfg:     cfg,
-		api:     client.New(cfg.ServerURL, cfg.Token),
+		api:     api,
 		logger:  slog.Default(),
 		running: map[string]context.CancelCauseFunc{},
 	}
@@ -124,10 +124,17 @@ func (w *Worker) Run(ctx context.Context) error {
 }
 
 func (w *Worker) tick(ctx context.Context) error {
-	if err := w.api.Heartbeat(ctx, w.heartbeat()); err != nil {
+	if err := w.callAPI(ctx, "heartbeat", func(ctx context.Context) error {
+		return w.api.Heartbeat(ctx, w.heartbeat())
+	}); err != nil {
 		return err
 	}
-	controlTasks, err := w.api.AssignedControlTasks(ctx)
+	var controlTasks []client.DownloadTask
+	err := w.callAPI(ctx, "assigned control tasks", func(ctx context.Context) error {
+		var err error
+		controlTasks, err = w.api.AssignedControlTasks(ctx)
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -137,7 +144,12 @@ func (w *Worker) tick(ctx context.Context) error {
 		}
 		w.ackStoppedControlTask(ctx, task)
 	}
-	tasks, err := w.api.AssignedTasks(ctx)
+	var tasks []client.DownloadTask
+	err = w.callAPI(ctx, "assigned tasks", func(ctx context.Context) error {
+		var err error
+		tasks, err = w.api.AssignedTasks(ctx)
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -162,7 +174,26 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	defer w.finish(task.ID)
 	log := w.taskLogger(task)
 	log.Info("task started", "source_uri", task.SourceURI, "target_folder", task.TargetFolder)
-	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "running"}); err != nil {
+	currentDetail := task.Detail
+	if task.Status == "uploading" {
+		result, recovered, err := w.engine.Recover(ctx, task)
+		if err != nil {
+			msg := taskErrorMessage(err)
+			log.Error("failed to recover uploading task", "error", err)
+			if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+				log.Error("failed to mark task failed", "error", updateErr)
+			}
+			return
+		}
+		if recovered {
+			log.Info("recovered completed download result", "path", result.Path, "name", result.Name, "size", result.Size)
+			w.uploadAndComplete(ctx, log, task, result, currentDetail)
+			return
+		}
+		log.Warn("uploading task has no recoverable local result; restarting download")
+	}
+
+	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "running"}); err != nil {
 		log.Error("failed to mark task running", "error", err)
 		if w.resolveControlledTaskUpdate(ctx, task.ID, err, log) {
 			return
@@ -170,13 +201,12 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	}
 
 	var lastProgressLog time.Time
-	currentDetail := task.Detail
 	result, err := w.engine.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error {
 		detail = withDownloadETA(detail, downloaded, total, bps)
 		if detail != nil {
 			currentDetail = detail
 		}
-		_, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
+		_, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{
 			DownloadedBytes: &downloaded,
 			TotalBytes:      total,
 			DownloadBps:     &bps,
@@ -199,14 +229,14 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			if errors.Is(context.Cause(ctx), errTaskPausing) {
-				if _, updateErr := w.api.UpdateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "paused"}); updateErr != nil {
+				if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "paused"}); updateErr != nil {
 					log.Error("failed to mark task paused", "error", updateErr)
 				}
 				log.Info("task paused by control action")
 				return
 			}
 			if errors.Is(context.Cause(ctx), errTaskCanceling) {
-				if _, updateErr := w.api.UpdateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
+				if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
 					log.Error("failed to mark task canceled", "error", updateErr)
 				}
 				log.Info("task canceled by control action")
@@ -228,15 +258,25 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 		}
 		msg := taskErrorMessage(err)
 		log.Error("task download failed", "error", err)
-		if _, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
 		}
 		return
 	}
 
 	log.Debug("task download completed", "path", result.Path, "name", result.Name, "size", result.Size)
+	w.uploadAndComplete(ctx, log, task, result, currentDetail)
+}
+
+func (w *Worker) uploadAndComplete(
+	ctx context.Context,
+	log *slog.Logger,
+	task client.DownloadTask,
+	result engine.Result,
+	currentDetail *client.DownloadTaskDetail,
+) {
 	zero := int64(0)
-	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "uploading", DownloadBps: &zero}); err != nil {
+	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "uploading", DownloadBps: &zero}); err != nil {
 		log.Error("failed to mark task uploading", "error", err)
 	}
 	task.Detail = currentDetail
@@ -244,7 +284,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	if err != nil {
 		msg := taskErrorMessage(err)
 		log.Error("failed to upload result", "error", err)
-		if _, updateErr := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
 		}
 		return
@@ -256,7 +296,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	}
 	completedDetail.Phase = "completed"
 	completedDetail.PeerUploadBps = nil
-	if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
+	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{
 		Status:               "completed",
 		ResultObjectID:       &resultObjectID,
 		StorageUploadedBytes: &uploadedBytes,
@@ -276,367 +316,6 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	if err := cleanupDownloadedResult(ctx, result); err != nil {
 		log.Warn("failed to remove local downloaded result", "path", result.Path, "error", err)
 	}
-}
-
-func cleanupDownloadedResult(ctx context.Context, result engine.Result) error {
-	if result.Seed != nil && result.Seed.Cleanup != nil {
-		return result.Seed.Cleanup(ctx)
-	}
-	return os.RemoveAll(result.Path)
-}
-
-func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log *slog.Logger) bool {
-	if !w.cfg.SeedEnabled || result.Seed == nil || result.Seed.Cleanup == nil || result.Seed.Snapshot == nil {
-		return false
-	}
-	now := time.Now()
-	seed := retainedSeed{
-		taskID:     task.ID,
-		engine:     result.Seed.Engine,
-		seedID:     result.Seed.ID,
-		path:       result.Seed.Path,
-		retainedAt: now,
-		snapshot:   result.Seed.Snapshot,
-		cleanup:    result.Seed.Cleanup,
-	}
-	if w.cfg.SeedDuration > 0 {
-		seed.expiresAt = now.Add(w.cfg.SeedDuration)
-	}
-	w.mu.Lock()
-	w.retainedSeeds = append(w.retainedSeeds, seed)
-	count := len(w.retainedSeeds)
-	w.mu.Unlock()
-
-	log.Info("retaining completed bt task for seeding",
-		"engine", seed.engine,
-		"seed_id", seed.seedID,
-		"path", seed.path,
-		"expires_at", optionalTime(seed.expiresAt),
-		"retained_seeds", count,
-	)
-	return true
-}
-
-func (w *Worker) reportRetainedSeeds(ctx context.Context) {
-	for _, seed := range w.retainedSeedSnapshot() {
-		log := w.logger.With("task_id", seed.taskID, "engine", seed.engine, "seed_id", seed.seedID)
-		snapshot, err := seed.snapshot(ctx)
-		if err != nil {
-			log.Warn("failed to inspect retained bt seed", "error", err)
-			continue
-		}
-		if snapshot.Detail == nil {
-			continue
-		}
-		snapshot.Detail.Phase = "seeding"
-		zero := int64(0)
-		_, err = w.api.UpdateTask(ctx, seed.taskID, client.TaskPatch{
-			DownloadedBytes:  &snapshot.Downloaded,
-			TotalBytes:       snapshot.Total,
-			DownloadBps:      &snapshot.Bps,
-			StorageUploadBps: &zero,
-			Detail:           snapshot.Detail,
-		})
-		if err != nil {
-			log.Warn("failed to report retained bt seed", "error", err)
-			continue
-		}
-		log.Debug("reported retained bt seed", "downloaded_bytes", snapshot.Downloaded, "bps", snapshot.Bps)
-	}
-}
-
-func (w *Worker) cleanupRetainedSeeds(ctx context.Context) {
-	seeds := w.retainedSeedSnapshot()
-	if len(seeds) == 0 {
-		return
-	}
-
-	reasons := map[string]string{}
-	now := time.Now()
-	for _, seed := range seeds {
-		if !seed.expiresAt.IsZero() && !now.Before(seed.expiresAt) {
-			reasons[seed.taskID] = "expired"
-		}
-	}
-
-	if w.cfg.SeedCacheLimit > 0 {
-		type seedSize struct {
-			seed retainedSeed
-			size int64
-		}
-		sized := make([]seedSize, 0, len(seeds))
-		var total int64
-		for _, seed := range seeds {
-			if reasons[seed.taskID] != "" {
-				continue
-			}
-			size, err := directorySize(seed.path)
-			if err != nil {
-				w.logger.Warn("failed to inspect retained seed size", "task_id", seed.taskID, "path", seed.path, "error", err)
-				continue
-			}
-			total += size
-			sized = append(sized, seedSize{seed: seed, size: size})
-		}
-		sort.Slice(sized, func(i, j int) bool {
-			return sized[i].seed.retainedAt.Before(sized[j].seed.retainedAt)
-		})
-		for _, item := range sized {
-			if total <= w.cfg.SeedCacheLimit {
-				break
-			}
-			reasons[item.seed.taskID] = "cache_limit"
-			total -= item.size
-		}
-	}
-
-	for _, seed := range seeds {
-		reason := reasons[seed.taskID]
-		if reason == "" {
-			continue
-		}
-		w.cleanupRetainedSeed(ctx, seed, reason)
-	}
-}
-
-func (w *Worker) retainedSeedSnapshot() []retainedSeed {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return append([]retainedSeed(nil), w.retainedSeeds...)
-}
-
-func (w *Worker) cleanupRetainedSeed(ctx context.Context, seed retainedSeed, reason string) {
-	w.logger.Info("cleaning retained bt seed",
-		"task_id", seed.taskID,
-		"engine", seed.engine,
-		"seed_id", seed.seedID,
-		"path", seed.path,
-		"reason", reason,
-	)
-	if err := seed.cleanup(ctx); err != nil {
-		w.logger.Warn("failed to clean retained bt seed",
-			"task_id", seed.taskID,
-			"engine", seed.engine,
-			"seed_id", seed.seedID,
-			"path", seed.path,
-			"error", err,
-		)
-		return
-	}
-	w.mu.Lock()
-	next := w.retainedSeeds[:0]
-	for _, retained := range w.retainedSeeds {
-		if retained.taskID != seed.taskID {
-			next = append(next, retained)
-		}
-	}
-	w.retainedSeeds = next
-	w.mu.Unlock()
-}
-
-type uploadProgress struct {
-	totalBytes int64
-	uploaded   int64
-	lastAt     time.Time
-	lastBytes  int64
-}
-
-func (w *Worker) uploadResult(
-	ctx context.Context,
-	log *slog.Logger,
-	task client.DownloadTask,
-	result engine.Result,
-) (string, error) {
-	if !result.IsDir {
-		progress := &uploadProgress{totalBytes: result.Size, lastAt: time.Now()}
-		return w.uploadSingleFile(ctx, log, task, result.Path, result.Name, result.Size, task.TargetFolder, progress)
-	}
-
-	progress := &uploadProgress{totalBytes: result.Size, lastAt: time.Now()}
-	log.Info("creating remote folder", "name", result.Name, "size", result.Size, "target_folder", task.TargetFolder)
-	root, err := w.api.CreateFolder(ctx, task.UploadToken, result.Name, task.TargetFolder)
-	if err != nil {
-		return "", fmt.Errorf("create remote folder: %w", err)
-	}
-	rootPath := joinObjectPath(task.TargetFolder, root.Name)
-	entries, err := collectDirectoryEntries(result.Path)
-	if err != nil {
-		return "", err
-	}
-	for _, entry := range entries {
-		parent := joinObjectPath(rootPath, path.Dir(entry.relativePath))
-		if entry.isDir {
-			log.Debug("creating remote subfolder", "name", entry.name, "parent", parent)
-			if _, err := w.api.CreateFolder(ctx, task.UploadToken, entry.name, parent); err != nil {
-				return "", fmt.Errorf("create remote subfolder %s: %w", entry.relativePath, err)
-			}
-			continue
-		}
-		if _, err := w.uploadSingleFile(ctx, log, task, entry.path, entry.name, entry.size, parent, progress); err != nil {
-			return "", err
-		}
-	}
-	return root.ID, nil
-}
-
-func (w *Worker) uploadSingleFile(
-	ctx context.Context,
-	log *slog.Logger,
-	task client.DownloadTask,
-	path string,
-	name string,
-	size int64,
-	parent string,
-	progress *uploadProgress,
-) (string, error) {
-	log.Info("creating remote object", "name", name, "size", size, "target_folder", parent)
-	draft, err := w.api.CreateObject(ctx, task.UploadToken, name, size, parent)
-	if err != nil {
-		return "", fmt.Errorf("create remote object: %w", err)
-	}
-	log.Info("uploading file to object storage", "object_id", draft.ID, "path", path)
-	if size > maxSingleUploadSize {
-		if err := w.uploadMultipartFile(ctx, log, task, draft.ID, path, size, progress); err != nil {
-			return "", fmt.Errorf("upload object %s: %w", draft.ID, err)
-		}
-	} else {
-		if err := uploadFile(ctx, draft.UploadURL, path, draft.ContentDisposition, func(written int64) error {
-			return w.reportUploadProgress(ctx, log, task, progress, written)
-		}); err != nil {
-			return "", fmt.Errorf("upload object %s: %w", draft.ID, err)
-		}
-	}
-	log.Info("confirming uploaded object", "object_id", draft.ID)
-	if err := w.api.ConfirmObject(ctx, task.UploadToken, draft.ID); err != nil {
-		return "", fmt.Errorf("confirm object %s: %w", draft.ID, err)
-	}
-	return draft.ID, nil
-}
-
-func (w *Worker) uploadMultipartFile(
-	ctx context.Context,
-	log *slog.Logger,
-	task client.DownloadTask,
-	objectID string,
-	filePath string,
-	size int64,
-	progress *uploadProgress,
-) error {
-	partSize := multipartPartSize(size)
-	log.Info("creating multipart upload session", "object_id", objectID, "part_size", partSize)
-	session, err := w.api.CreateObjectUploadSession(ctx, task.UploadToken, objectID, partSize)
-	if err != nil {
-		return fmt.Errorf("create multipart upload session: %w", err)
-	}
-	if session.PartSize <= 0 {
-		return fmt.Errorf("create multipart upload session: invalid part size %d", session.PartSize)
-	}
-	completed := false
-	defer func() {
-		if completed {
-			return
-		}
-		abortCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-		defer cancel()
-		if abortErr := w.api.AbortObjectUploadSession(abortCtx, task.UploadToken, objectID, session.ID); abortErr != nil {
-			log.Warn("failed to abort multipart upload session", "object_id", objectID, "upload_session_id", session.ID, "error", abortErr)
-		}
-	}()
-
-	file, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	totalParts := int((size + session.PartSize - 1) / session.PartSize)
-	parts := make([]client.CompletedObjectUploadPart, 0, totalParts)
-	for firstPart := 1; firstPart <= totalParts; firstPart += presignMultipartPartsBatchSize {
-		lastPart := firstPart + presignMultipartPartsBatchSize - 1
-		if lastPart > totalParts {
-			lastPart = totalParts
-		}
-		partNumbers := make([]int, 0, lastPart-firstPart+1)
-		for partNumber := firstPart; partNumber <= lastPart; partNumber++ {
-			partNumbers = append(partNumbers, partNumber)
-		}
-		presignedParts, err := w.api.PresignObjectUploadParts(ctx, task.UploadToken, objectID, session.ID, partNumbers)
-		if err != nil {
-			return fmt.Errorf("presign multipart upload parts: %w", err)
-		}
-		byNumber := make(map[int]string, len(presignedParts))
-		for _, part := range presignedParts {
-			byNumber[part.PartNumber] = part.URL
-		}
-		for _, partNumber := range partNumbers {
-			url, ok := byNumber[partNumber]
-			if !ok {
-				return fmt.Errorf("presign multipart upload part %d: missing upload URL", partNumber)
-			}
-			offset := int64(partNumber-1) * session.PartSize
-			length := session.PartSize
-			if remaining := size - offset; remaining < length {
-				length = remaining
-			}
-			etag, err := uploadFilePart(ctx, url, file, offset, length, func(written int64) error {
-				return w.reportUploadProgress(ctx, log, task, progress, written)
-			})
-			if err != nil {
-				return fmt.Errorf("upload part %d: %w", partNumber, err)
-			}
-			if etag == "" {
-				return fmt.Errorf("upload part %d: missing ETag", partNumber)
-			}
-			parts = append(parts, client.CompletedObjectUploadPart{PartNumber: partNumber, ETag: etag})
-		}
-	}
-	if err := w.api.CompleteObjectUploadSession(ctx, task.UploadToken, objectID, session.ID, parts); err != nil {
-		return fmt.Errorf("complete multipart upload session: %w", err)
-	}
-	completed = true
-	return nil
-}
-
-func (w *Worker) reportUploadProgress(
-	ctx context.Context,
-	log *slog.Logger,
-	task client.DownloadTask,
-	progress *uploadProgress,
-	written int64,
-) error {
-	progress.uploaded += written
-	now := time.Now()
-	if progress.uploaded < progress.totalBytes && now.Sub(progress.lastAt) < time.Second {
-		return nil
-	}
-	elapsed := now.Sub(progress.lastAt).Seconds()
-	var bps int64
-	if elapsed > 0 {
-		bps = int64(float64(progress.uploaded-progress.lastBytes) / elapsed)
-	}
-	detail := task.Detail
-	if detail == nil {
-		detail = &client.DownloadTaskDetail{}
-	}
-	detail.Phase = "uploading"
-	detail.ETASeconds = uploadETA(progress, bps)
-	detail.PeerUploadBps = nil
-	zero := int64(0)
-	_, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{
-		Status:               "uploading",
-		StorageUploadedBytes: &progress.uploaded,
-		DownloadBps:          &zero,
-		StorageUploadBps:     &bps,
-		Detail:               detail,
-	})
-	if err != nil {
-		log.Error("failed to report upload progress", "uploaded_bytes", progress.uploaded, "total_bytes", progress.totalBytes, "bps", bps, "error", err)
-		return err
-	}
-	log.Debug("task upload progress", "uploaded_bytes", progress.uploaded, "total_bytes", progress.totalBytes, "bps", bps)
-	progress.lastAt = now
-	progress.lastBytes = progress.uploaded
-	return nil
 }
 
 func withDownloadETA(detail *client.DownloadTaskDetail, downloaded int64, total *int64, bps int64) *client.DownloadTaskDetail {
@@ -804,7 +483,7 @@ func (w *Worker) cancelRunning(task client.DownloadTask) bool {
 func (w *Worker) ackStoppedControlTask(ctx context.Context, task client.DownloadTask) {
 	log := w.taskLogger(task)
 	if task.Status == "pausing" {
-		if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "paused"}); err != nil {
+		if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "paused"}); err != nil {
 			log.Error("failed to acknowledge paused task without local process", "error", err)
 			return
 		}
@@ -812,7 +491,7 @@ func (w *Worker) ackStoppedControlTask(ctx context.Context, task client.Download
 		return
 	}
 	if task.Status == "canceling" {
-		if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "canceled"}); err != nil {
+		if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "canceled"}); err != nil {
 			log.Error("failed to acknowledge canceled task without local process", "error", err)
 			return
 		}
@@ -822,13 +501,19 @@ func (w *Worker) ackStoppedControlTask(ctx context.Context, task client.Download
 
 func (w *Worker) heartbeat() client.Heartbeat {
 	hostname, _ := os.Hostname()
+	engineName := w.cfg.Engine
+	capabilities := []string{"http"}
+	if w.engine != nil {
+		engineName = w.engine.Name()
+		capabilities = w.engine.Capabilities()
+	}
 	return client.Heartbeat{
 		Version:            Version,
 		Hostname:           hostname,
 		Platform:           runtime.GOOS,
 		Arch:               runtime.GOARCH,
-		Engine:             w.cfg.Engine,
-		Capabilities:       capabilities(w.cfg.Engine),
+		Engine:             engineName,
+		Capabilities:       capabilities,
 		MaxConcurrentTasks: w.cfg.MaxConcurrentTasks,
 		CurrentTasks:       w.currentTasks(),
 		DownloadBps:        0,
@@ -840,13 +525,13 @@ func (w *Worker) heartbeat() client.Heartbeat {
 func (w *Worker) resolveControlledTaskUpdate(ctx context.Context, taskID string, err error, log *slog.Logger) bool {
 	message := err.Error()
 	if strings.Contains(message, "Task is pausing") {
-		if _, updateErr := w.api.UpdateTask(ctx, taskID, client.TaskPatch{Status: "paused"}); updateErr != nil {
+		if _, updateErr := w.updateTask(ctx, taskID, client.TaskPatch{Status: "paused"}); updateErr != nil {
 			log.Error("failed to mark task paused", "error", updateErr)
 		}
 		return true
 	}
 	if strings.Contains(message, "Task is canceling") {
-		if _, updateErr := w.api.UpdateTask(ctx, taskID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
+		if _, updateErr := w.updateTask(ctx, taskID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
 			log.Error("failed to mark task canceled", "error", updateErr)
 		}
 		return true
@@ -866,376 +551,6 @@ func (w *Worker) currentTasks() int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return len(w.running)
-}
-
-type engineCandidate struct {
-	name    string
-	binary  []string
-	engine  func(config.Config) engine.Engine
-	start   func(context.Context, config.Config) (*exec.Cmd, error)
-	canAuto bool
-}
-
-func (w *Worker) resolveEngine(ctx context.Context) error {
-	if w.cfg.Engine == "" || w.cfg.Engine == "auto" {
-		return w.resolveAutoEngine(ctx)
-	}
-	candidate, ok := engineCandidateByName(w.cfg.Engine)
-	if !ok {
-		return fmt.Errorf("unsupported downloader engine %q; expected auto, builtin, aria2, or qbittorrent", w.cfg.Engine)
-	}
-	w.logger.Info("checking configured downloader engine", "engine", candidate.name)
-	if w.checkCandidate(ctx, candidate) == nil {
-		w.useCandidate(candidate, "configured engine is already running")
-		return nil
-	}
-	if !candidate.canAuto {
-		w.useCandidate(candidate, "configured built-in engine")
-		return nil
-	}
-	if err := w.startCandidate(ctx, candidate); err != nil {
-		w.logger.Warn("configured downloader engine could not be started", "engine", candidate.name, "error", err)
-		w.engine = candidate.engine(w.cfg)
-		return nil
-	}
-	w.useCandidate(candidate, "configured engine started")
-	return nil
-}
-
-func (w *Worker) resolveAutoEngine(ctx context.Context) error {
-	candidates := externalEngineCandidates()
-	w.logger.Info("auto selecting downloader engine", "priority", "aria2,qbittorrent,builtin")
-	for _, candidate := range candidates {
-		w.logger.Info("checking downloader engine availability", "engine", candidate.name)
-		if err := w.checkCandidate(ctx, candidate); err == nil {
-			w.useCandidate(candidate, "engine is already running")
-			return nil
-		} else {
-			w.logger.Info("downloader engine is not running", "engine", candidate.name, "error", err)
-		}
-	}
-	for _, candidate := range candidates {
-		w.logger.Info("checking downloader engine binary", "engine", candidate.name, "binaries", strings.Join(candidate.binary, ","))
-		if err := w.startCandidate(ctx, candidate); err != nil {
-			w.logger.Info("downloader engine is not available for auto start", "engine", candidate.name, "error", err)
-			continue
-		}
-		w.useCandidate(candidate, "engine binary found and started")
-		return nil
-	}
-	w.cfg.Engine = "builtin"
-	w.engine = engine.HTTP{Dir: w.cfg.DownloadDir}
-	w.logger.Info("using built-in downloader engine", "reason", "no external downloader engine is running or installed")
-	return nil
-}
-
-func (w *Worker) useCandidate(candidate engineCandidate, reason string) {
-	w.cfg.Engine = candidate.name
-	w.engine = candidate.engine(w.cfg)
-	w.logger.Info("selected downloader engine", "engine", candidate.name, "reason", reason)
-}
-
-func (w *Worker) checkCandidate(ctx context.Context, candidate engineCandidate) error {
-	checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	return candidate.engine(w.cfg).Check(checkCtx)
-}
-
-func (w *Worker) startCandidate(ctx context.Context, candidate engineCandidate) error {
-	if candidate.start == nil {
-		return fmt.Errorf("%s cannot be auto started", candidate.name)
-	}
-	w.logger.Info("starting downloader engine", "engine", candidate.name)
-	cmd, err := candidate.start(ctx, w.cfg)
-	if err != nil {
-		return err
-	}
-	if cmd.Process != nil {
-		w.logger.Info("downloader engine process started", "engine", candidate.name, "pid", cmd.Process.Pid)
-	}
-	w.started = append(w.started, cmd)
-	if err := waitForEngine(ctx, candidate.engine(w.cfg)); err != nil {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		return err
-	}
-	return nil
-}
-
-func (w *Worker) stopStartedEngines() {
-	for _, cmd := range w.started {
-		if cmd.Process == nil {
-			continue
-		}
-		w.logger.Info("stopping auto-started downloader engine", "pid", cmd.Process.Pid)
-		_ = cmd.Process.Kill()
-	}
-}
-
-func engineCandidateByName(name string) (engineCandidate, bool) {
-	candidates := append(externalEngineCandidates(), builtinEngineCandidate())
-	for _, candidate := range candidates {
-		if candidate.name == name {
-			return candidate, true
-		}
-	}
-	return engineCandidate{}, false
-}
-
-func externalEngineCandidates() []engineCandidate {
-	return []engineCandidate{
-		{
-			name:   "aria2",
-			binary: []string{"aria2c"},
-			engine: func(cfg config.Config) engine.Engine {
-				return engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled}
-			},
-			start:   startAria2,
-			canAuto: true,
-		},
-		{
-			name:   "qbittorrent",
-			binary: []string{"qbittorrent-nox", "qbittorrent"},
-			engine: func(cfg config.Config) engine.Engine {
-				return engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled}
-			},
-			start:   startQBittorrent,
-			canAuto: true,
-		},
-	}
-}
-
-func builtinEngineCandidate() engineCandidate {
-	return engineCandidate{
-		name:   "builtin",
-		engine: func(cfg config.Config) engine.Engine { return engine.HTTP{Dir: cfg.DownloadDir} },
-	}
-}
-
-func selectEngine(cfg config.Config) engine.Engine {
-	switch cfg.Engine {
-	case "aria2":
-		return engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled}
-	case "qbittorrent":
-		return engine.QBittorrent{
-			URL:        cfg.QBittorrentURL,
-			Username:   cfg.QBittorrentUser,
-			Password:   cfg.QBittorrentPass,
-			Dir:        cfg.DownloadDir,
-			RetainSeed: cfg.SeedEnabled,
-		}
-	default:
-		return engine.HTTP{Dir: cfg.DownloadDir}
-	}
-}
-
-func waitForEngine(ctx context.Context, downloader engine.Engine) error {
-	deadline := time.Now().Add(8 * time.Second)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		checkCtx, cancel := context.WithTimeout(ctx, time.Second)
-		err := downloader.Check(checkCtx)
-		cancel()
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
-	}
-	return lastErr
-}
-
-func startAria2(ctx context.Context, cfg config.Config) (*exec.Cmd, error) {
-	path, err := exec.LookPath("aria2c")
-	if err != nil {
-		return nil, err
-	}
-	rpcURL, err := parseLocalEngineURL(cfg.Aria2URL, "6800")
-	if err != nil {
-		return nil, err
-	}
-	args := []string{
-		"--enable-rpc=true",
-		"--rpc-listen-all=false",
-		"--rpc-listen-port=" + rpcURL.port,
-		"--dir=" + cfg.DownloadDir,
-		"--continue=true",
-		"--allow-overwrite=true",
-		"--auto-file-renaming=false",
-	}
-	if cfg.Aria2Secret != "" {
-		args = append(args, "--rpc-secret="+cfg.Aria2Secret)
-	}
-	cmd := exec.CommandContext(ctx, path, args...)
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	go func() { _ = cmd.Wait() }()
-	return cmd, nil
-}
-
-func startQBittorrent(ctx context.Context, cfg config.Config) (*exec.Cmd, error) {
-	path, err := lookPathAny("qbittorrent-nox", "qbittorrent")
-	if err != nil {
-		return nil, err
-	}
-	webURL, err := parseLocalEngineURL(cfg.QBittorrentURL, "8080")
-	if err != nil {
-		return nil, err
-	}
-	args := []string{}
-	if strings.Contains(filepathBase(path), "qbittorrent-nox") {
-		args = append(args, "--webui-port="+webURL.port)
-	}
-	cmd := exec.CommandContext(ctx, path, args...)
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	go func() { _ = cmd.Wait() }()
-	return cmd, nil
-}
-
-func lookPathAny(names ...string) (string, error) {
-	var lastErr error
-	for _, name := range names {
-		path, err := exec.LookPath(name)
-		if err == nil {
-			return path, nil
-		}
-		lastErr = err
-	}
-	return "", lastErr
-}
-
-type localEngineURL struct {
-	port string
-}
-
-func parseLocalEngineURL(raw string, defaultPort string) (localEngineURL, error) {
-	normalized := raw
-	if strings.HasPrefix(normalized, "ws://") {
-		normalized = "http://" + strings.TrimPrefix(normalized, "ws://")
-	}
-	if strings.HasPrefix(normalized, "wss://") {
-		normalized = "https://" + strings.TrimPrefix(normalized, "wss://")
-	}
-	parsed, err := url.Parse(normalized)
-	if err != nil {
-		return localEngineURL{}, err
-	}
-	host := parsed.Hostname()
-	if host != "" && host != "127.0.0.1" && host != "localhost" && host != "::1" {
-		return localEngineURL{}, fmt.Errorf("auto start only supports local engine URLs, got %s", host)
-	}
-	port := parsed.Port()
-	if port == "" {
-		port = defaultPort
-	}
-	if _, err := strconv.Atoi(port); err != nil {
-		return localEngineURL{}, fmt.Errorf("invalid engine port %q", port)
-	}
-	return localEngineURL{port: port}, nil
-}
-
-func filepathBase(path string) string {
-	parts := strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' })
-	if len(parts) == 0 {
-		return path
-	}
-	return parts[len(parts)-1]
-}
-
-func capabilities(name string) []string {
-	switch name {
-	case "aria2", "qbittorrent":
-		return []string{"http", "magnet", "torrent"}
-	default:
-		return []string{"http"}
-	}
-}
-
-func uploadFile(ctx context.Context, url, path string, contentDisposition string, progress func(written int64) error) error {
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	stat, err := file.Stat()
-	if err != nil {
-		return err
-	}
-	reader := io.Reader(file)
-	if progress != nil {
-		reader = &uploadProgressReader{reader: file, progress: progress}
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, reader)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/octet-stream")
-	if contentDisposition != "" {
-		req.Header.Set("Content-Disposition", contentDisposition)
-	}
-	req.ContentLength = stat.Size()
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		if len(body) > 0 {
-			return fmt.Errorf("upload failed: %s: %s", res.Status, strings.TrimSpace(string(body)))
-		}
-		return fmt.Errorf("upload failed: %s", res.Status)
-	}
-	return nil
-}
-
-func uploadFilePart(ctx context.Context, url string, file *os.File, offset int64, length int64, progress func(written int64) error) (string, error) {
-	reader := io.NewSectionReader(file, offset, length)
-	var body io.Reader = reader
-	if progress != nil {
-		body = &uploadProgressReader{reader: reader, progress: progress}
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, body)
-	if err != nil {
-		return "", err
-	}
-	req.ContentLength = length
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer res.Body.Close()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		if len(body) > 0 {
-			return "", fmt.Errorf("upload failed: %s: %s", res.Status, strings.TrimSpace(string(body)))
-		}
-		return "", fmt.Errorf("upload failed: %s", res.Status)
-	}
-	return res.Header.Get("ETag"), nil
-}
-
-type uploadProgressReader struct {
-	reader   io.Reader
-	progress func(written int64) error
-}
-
-func (r *uploadProgressReader) Read(p []byte) (int, error) {
-	n, err := r.reader.Read(p)
-	if n > 0 {
-		if progressErr := r.progress(int64(n)); progressErr != nil {
-			return n, progressErr
-		}
-	}
-	return n, err
 }
 
 func taskErrorMessage(err error) string {

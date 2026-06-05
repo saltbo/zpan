@@ -2,7 +2,8 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   createDownloadTaskSchema,
   downloadTaskActionInputSchema,
-  downloadTaskDetailSchema,
+  downloadTaskPageSchema,
+  downloadTaskSchema,
   listDownloadTasksQuerySchema,
   updateDownloadTaskSchema,
 } from '@shared/schemas'
@@ -19,13 +20,6 @@ import {
 } from '../services/downloads'
 
 const errorSchema = z.object({ error: z.string() })
-const int64Schema = () => z.number().int().openapi({ type: 'integer', format: 'int64' })
-const nullableInt64Schema = () =>
-  z
-    .number()
-    .int()
-    .nullable()
-    .openapi({ type: 'integer', format: 'int64', nullable: true } as never)
 
 type OpenAPIContext = Context<Env> & {
   req: Context<Env>['req'] & {
@@ -33,46 +27,6 @@ type OpenAPIContext = Context<Env> & {
     param(name: string): string
   }
 }
-
-const downloadTaskSchema = z.object({
-  id: z.string(),
-  sourceType: z.enum(['http', 'magnet', 'torrent_url']),
-  sourceUri: z.string(),
-  name: z.string(),
-  targetFolder: z.string(),
-  category: z.string().nullable(),
-  tags: z.array(z.string()),
-  status: z.enum([
-    'queued',
-    'assigned',
-    'running',
-    'billing_paused',
-    'pausing',
-    'paused',
-    'uploading',
-    'canceling',
-    'completed',
-    'failed',
-    'canceled',
-  ]),
-  downloadedBytes: int64Schema(),
-  storageUploadedBytes: int64Schema(),
-  totalBytes: nullableInt64Schema(),
-  downloadBps: int64Schema(),
-  storageUploadBps: int64Schema(),
-  errorMessage: z.string().nullable().optional(),
-  resultObjectId: z.string().nullable().optional(),
-  detail: downloadTaskDetailSchema.nullable().optional(),
-  uploadToken: z.string().optional(),
-  assignedDownloaderId: z.string().nullable().optional(),
-})
-
-const downloadTaskPageSchema = z.object({
-  items: z.array(downloadTaskSchema),
-  total: z.number().int(),
-  page: z.number().int(),
-  pageSize: z.number().int(),
-})
 
 const sseEncoder = new TextEncoder()
 const downloadTaskEventIntervalMs = 2000

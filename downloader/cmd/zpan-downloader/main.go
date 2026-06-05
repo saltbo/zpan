@@ -90,7 +90,11 @@ func runCommand(v *viper.Viper) *cobra.Command {
 			)
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			return worker.New(cfg).Run(ctx)
+			downloader, err := worker.New(cfg)
+			if err != nil {
+				return err
+			}
+			return downloader.Run(ctx)
 		},
 	}
 }
@@ -123,7 +127,10 @@ func loginCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 				}
 			}
 
-			api := client.New(serverURL, "")
+			api, err := client.New(serverURL, "")
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 			code, err := api.RequestDeviceCode(ctx)
 			if err != nil {

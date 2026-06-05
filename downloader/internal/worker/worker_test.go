@@ -18,7 +18,7 @@ import (
 )
 
 func TestResolveEngineRejectsUnknownConfiguredEngine(t *testing.T) {
-	w := New(config.Config{Engine: "bad-engine"})
+	w := NewWithAPI(config.Config{Engine: "bad-engine"}, nil)
 
 	err := w.resolveEngine(context.Background())
 	if err == nil {
@@ -215,7 +215,7 @@ func TestTaskErrorMessageTruncatesToSchemaLimit(t *testing.T) {
 func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 	dir := t.TempDir()
 	cleaned := false
-	w := New(config.Config{SeedEnabled: true, SeedDuration: time.Hour})
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, nil)
 
 	retained := w.retainSeed(
 		clientTask("task-1"),
@@ -250,7 +250,7 @@ func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 
 func TestCleanupRetainedSeedsRemovesExpiredSeed(t *testing.T) {
 	dir := t.TempDir()
-	w := New(config.Config{SeedEnabled: true, SeedDuration: time.Hour})
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, nil)
 	cleaned := false
 	w.retainedSeeds = []retainedSeed{{
 		taskID:    "task-1",
@@ -295,7 +295,7 @@ func TestCleanupRetainedSeedsRemovesOldestWhenCacheLimitExceeded(t *testing.T) {
 	}
 
 	var cleaned []string
-	w := New(config.Config{SeedEnabled: true, SeedCacheLimit: 3})
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedCacheLimit: 3}, nil)
 	w.retainedSeeds = []retainedSeed{
 		{
 			taskID:     "old",

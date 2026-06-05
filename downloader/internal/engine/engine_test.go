@@ -72,6 +72,49 @@ func TestHTTPRejectsMagnet(t *testing.T) {
 	}
 }
 
+func TestHTTPDownloadResumesExistingFile(t *testing.T) {
+	var rangeHeader string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rangeHeader = r.Header.Get("Range")
+		if rangeHeader != "bytes=5-" {
+			t.Fatalf("expected resume range bytes=5-, got %q", rangeHeader)
+		}
+		w.Header().Set("Content-Length", "6")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte(" world"))
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	taskDir := filepath.Join(dir, "task-1")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(taskDir, "file.txt")
+	if err := os.WriteFile(path, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := (HTTP{Dir: dir}).Download(
+		context.Background(),
+		client.DownloadTask{ID: "task-1", SourceType: "http", SourceURI: server.URL + "/file.txt"},
+		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error { return nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "hello world" {
+		t.Fatalf("expected resumed content, got %q", string(data))
+	}
+	if result.Size != 11 {
+		t.Fatalf("expected size 11, got %d", result.Size)
+	}
+}
+
 func TestQBittorrentCheckUsesWebAPIVersion(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v2/app/version" {

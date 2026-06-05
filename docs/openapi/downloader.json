@@ -104,215 +104,6 @@
           "device_code",
           "client_id"
         ]
-      },
-      "ObjectDraft": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "uploadUrl": {
-            "type": "string"
-          },
-          "contentDisposition": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name"
-        ]
-      },
-      "ConfirmObjectRequest": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string",
-            "enum": [
-              "confirm"
-            ]
-          },
-          "onConflict": {
-            "type": "string",
-            "enum": [
-              "fail",
-              "rename"
-            ]
-          }
-        },
-        "required": [
-          "action"
-        ]
-      },
-      "ObjectUploadSession": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "objectId": {
-            "type": "string"
-          },
-          "uploadId": {
-            "type": "string"
-          },
-          "partSize": {
-            "type": "integer"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "completed",
-              "aborted"
-            ]
-          },
-          "expiresAt": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "objectId",
-          "uploadId",
-          "partSize",
-          "status",
-          "expiresAt",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CreateObjectUploadSessionRequest": {
-        "type": "object",
-        "properties": {
-          "partSize": {
-            "type": "integer",
-            "minimum": 5242880,
-            "maximum": 536870912
-          }
-        }
-      },
-      "PresignObjectUploadPartsResponse": {
-        "type": "object",
-        "properties": {
-          "uploadId": {
-            "type": "string"
-          },
-          "partSize": {
-            "type": "integer"
-          },
-          "parts": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PresignedObjectUploadPart"
-            }
-          }
-        },
-        "required": [
-          "uploadId",
-          "partSize",
-          "parts"
-        ]
-      },
-      "PresignedObjectUploadPart": {
-        "type": "object",
-        "properties": {
-          "partNumber": {
-            "type": "integer"
-          },
-          "url": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "partNumber",
-          "url"
-        ]
-      },
-      "PresignObjectUploadPartsRequest": {
-        "type": "object",
-        "properties": {
-          "partNumbers": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 10000
-            },
-            "minItems": 1,
-            "maxItems": 100
-          }
-        },
-        "required": [
-          "partNumbers"
-        ]
-      },
-      "PatchObjectUploadSessionRequest": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/CompleteObjectUploadSessionRequest"
-          },
-          {
-            "$ref": "#/components/schemas/AbortObjectUploadSessionRequest"
-          }
-        ]
-      },
-      "CompleteObjectUploadSessionRequest": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string",
-            "enum": [
-              "complete"
-            ]
-          },
-          "parts": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "partNumber": {
-                  "type": "integer"
-                },
-                "etag": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "partNumber",
-                "etag"
-              ]
-            },
-            "minItems": 1
-          }
-        },
-        "required": [
-          "action",
-          "parts"
-        ]
-      },
-      "AbortObjectUploadSessionRequest": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string",
-            "enum": [
-              "abort"
-            ]
-          }
-        },
-        "required": [
-          "action"
-        ]
       }
     },
     "parameters": {}
@@ -638,11 +429,11 @@
                               },
                               "peerUploadedBytes": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "peerUploadBps": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "trackers": {
                                 "type": "array",
@@ -700,11 +491,11 @@
                                     },
                                     "downloadBps": {
                                       "type": "integer",
-                                      "minimum": 0
+                                      "format": "int64"
                                     },
                                     "uploadBps": {
                                       "type": "integer",
-                                      "minimum": 0
+                                      "format": "int64"
                                     }
                                   },
                                   "required": [
@@ -724,11 +515,11 @@
                                     },
                                     "size": {
                                       "type": "integer",
-                                      "minimum": 0
+                                      "format": "int64"
                                     },
                                     "completedBytes": {
                                       "type": "integer",
-                                      "minimum": 0
+                                      "format": "int64"
                                     },
                                     "selected": {
                                       "type": "boolean"
@@ -839,7 +630,8 @@
                     ]
                   },
                   "targetFolder": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 1024
                   },
                   "name": {
                     "type": "string",
@@ -1014,11 +806,11 @@
                         },
                         "peerUploadedBytes": {
                           "type": "integer",
-                          "minimum": 0
+                          "format": "int64"
                         },
                         "peerUploadBps": {
                           "type": "integer",
-                          "minimum": 0
+                          "format": "int64"
                         },
                         "trackers": {
                           "type": "array",
@@ -1076,11 +868,11 @@
                               },
                               "downloadBps": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "uploadBps": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               }
                             },
                             "required": [
@@ -1100,11 +892,11 @@
                               },
                               "size": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "completedBytes": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "selected": {
                                 "type": "boolean"
@@ -1500,11 +1292,11 @@
                         },
                         "peerUploadedBytes": {
                           "type": "integer",
-                          "minimum": 0
+                          "format": "int64"
                         },
                         "peerUploadBps": {
                           "type": "integer",
-                          "minimum": 0
+                          "format": "int64"
                         },
                         "trackers": {
                           "type": "array",
@@ -1562,11 +1354,11 @@
                               },
                               "downloadBps": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "uploadBps": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               }
                             },
                             "required": [
@@ -1586,11 +1378,11 @@
                               },
                               "size": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "completedBytes": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "selected": {
                                 "type": "boolean"
@@ -1688,24 +1480,24 @@
                   },
                   "downloadedBytes": {
                     "type": "integer",
-                    "minimum": 0
+                    "format": "int64"
                   },
                   "storageUploadedBytes": {
                     "type": "integer",
-                    "minimum": 0
+                    "format": "int64"
                   },
                   "totalBytes": {
                     "type": "integer",
-                    "nullable": true,
-                    "minimum": 0
+                    "format": "int64",
+                    "nullable": true
                   },
                   "downloadBps": {
                     "type": "integer",
-                    "minimum": 0
+                    "format": "int64"
                   },
                   "storageUploadBps": {
                     "type": "integer",
-                    "minimum": 0
+                    "format": "int64"
                   },
                   "errorMessage": {
                     "type": "string",
@@ -1779,11 +1571,11 @@
                       },
                       "peerUploadedBytes": {
                         "type": "integer",
-                        "minimum": 0
+                        "format": "int64"
                       },
                       "peerUploadBps": {
                         "type": "integer",
-                        "minimum": 0
+                        "format": "int64"
                       },
                       "trackers": {
                         "type": "array",
@@ -1841,11 +1633,11 @@
                             },
                             "downloadBps": {
                               "type": "integer",
-                              "minimum": 0
+                              "format": "int64"
                             },
                             "uploadBps": {
                               "type": "integer",
-                              "minimum": 0
+                              "format": "int64"
                             }
                           },
                           "required": [
@@ -1865,11 +1657,11 @@
                             },
                             "size": {
                               "type": "integer",
-                              "minimum": 0
+                              "format": "int64"
                             },
                             "completedBytes": {
                               "type": "integer",
-                              "minimum": 0
+                              "format": "int64"
                             },
                             "selected": {
                               "type": "boolean"
@@ -2034,11 +1826,11 @@
                         },
                         "peerUploadedBytes": {
                           "type": "integer",
-                          "minimum": 0
+                          "format": "int64"
                         },
                         "peerUploadBps": {
                           "type": "integer",
-                          "minimum": 0
+                          "format": "int64"
                         },
                         "trackers": {
                           "type": "array",
@@ -2096,11 +1888,11 @@
                               },
                               "downloadBps": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "uploadBps": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               }
                             },
                             "required": [
@@ -2120,11 +1912,11 @@
                               },
                               "size": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "completedBytes": {
                                 "type": "integer",
-                                "minimum": 0
+                                "format": "int64"
                               },
                               "selected": {
                                 "type": "boolean"
@@ -2425,11 +2217,11 @@
                             },
                             "peerUploadedBytes": {
                               "type": "integer",
-                              "minimum": 0
+                              "format": "int64"
                             },
                             "peerUploadBps": {
                               "type": "integer",
-                              "minimum": 0
+                              "format": "int64"
                             },
                             "trackers": {
                               "type": "array",
@@ -2487,11 +2279,11 @@
                                   },
                                   "downloadBps": {
                                     "type": "integer",
-                                    "minimum": 0
+                                    "format": "int64"
                                   },
                                   "uploadBps": {
                                     "type": "integer",
-                                    "minimum": 0
+                                    "format": "int64"
                                   }
                                 },
                                 "required": [
@@ -2511,11 +2303,11 @@
                                   },
                                   "size": {
                                     "type": "integer",
-                                    "minimum": 0
+                                    "format": "int64"
                                   },
                                   "completedBytes": {
                                     "type": "integer",
-                                    "minimum": 0
+                                    "format": "int64"
                                   },
                                   "selected": {
                                     "type": "boolean"
@@ -2710,18 +2502,15 @@
                   },
                   "downloadBps": {
                     "type": "integer",
-                    "minimum": 0,
-                    "default": 0
+                    "format": "int64"
                   },
                   "uploadBps": {
                     "type": "integer",
-                    "minimum": 0,
-                    "default": 0
+                    "format": "int64"
                   },
                   "freeDiskBytes": {
                     "type": "integer",
-                    "minimum": 0,
-                    "default": 0
+                    "format": "int64"
                   }
                 },
                 "required": [
@@ -3051,18 +2840,15 @@
                       },
                       "downloadBps": {
                         "type": "integer",
-                        "minimum": 0,
-                        "default": 0
+                        "format": "int64"
                       },
                       "uploadBps": {
                         "type": "integer",
-                        "minimum": 0,
-                        "default": 0
+                        "format": "int64"
                       },
                       "freeDiskBytes": {
                         "type": "integer",
-                        "minimum": 0,
-                        "default": 0
+                        "format": "int64"
                       }
                     },
                     "required": [
@@ -3446,14 +3232,15 @@
                     "minLength": 1
                   },
                   "size": {
-                    "type": "number"
+                    "type": "integer",
+                    "minimum": 0
                   },
                   "parent": {
                     "type": "string",
                     "default": ""
                   },
                   "dirtype": {
-                    "type": "number",
+                    "type": "integer",
                     "default": 0
                   },
                   "onConflict": {
@@ -3479,7 +3266,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ObjectDraft"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "contentDisposition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               }
             }
@@ -3489,7 +3294,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ObjectDraft"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "contentDisposition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               }
             }
@@ -3534,7 +3357,26 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ConfirmObjectRequest"
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "confirm"
+                    ]
+                  },
+                  "onConflict": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "rename",
+                      "replace"
+                    ]
+                  }
+                },
+                "required": [
+                  "action"
+                ]
               }
             }
           }
@@ -3545,7 +3387,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ObjectDraft"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "contentDisposition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               }
             }
@@ -3590,7 +3450,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateObjectUploadSessionRequest"
+                "type": "object",
+                "properties": {
+                  "partSize": {
+                    "type": "integer",
+                    "minimum": 5242880,
+                    "maximum": 536870912
+                  }
+                }
               }
             }
           }
@@ -3601,7 +3468,48 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ObjectUploadSession"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "objectId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "partSize": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "completed",
+                        "aborted"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "objectId",
+                    "uploadId",
+                    "partSize",
+                    "status",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
                 }
               }
             }
@@ -3664,7 +3572,22 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PresignObjectUploadPartsRequest"
+                "type": "object",
+                "properties": {
+                  "partNumbers": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "partNumbers"
+                ]
               }
             }
           }
@@ -3675,7 +3598,38 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PresignObjectUploadPartsResponse"
+                  "type": "object",
+                  "properties": {
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "partSize": {
+                      "type": "integer"
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "partNumber": {
+                            "type": "integer"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "partNumber",
+                          "url"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "uploadId",
+                    "partSize",
+                    "parts"
+                  ]
                 }
               }
             }
@@ -3738,7 +3692,59 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PatchObjectUploadSessionRequest"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "complete"
+                        ]
+                      },
+                      "parts": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "partNumber": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10000
+                            },
+                            "etag": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "partNumber",
+                            "etag"
+                          ]
+                        },
+                        "minItems": 1
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "parts"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "abort"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ]
+                  }
+                ]
               }
             }
           }
@@ -3749,7 +3755,48 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ObjectUploadSession"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "objectId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "partSize": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "completed",
+                        "aborted"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "objectId",
+                    "uploadId",
+                    "partSize",
+                    "status",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
                 }
               }
             }

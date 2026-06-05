@@ -16,90 +16,6 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
-// Defines values for AbortObjectUploadSessionRequestAction.
-const (
-	Abort AbortObjectUploadSessionRequestAction = "abort"
-)
-
-// Valid indicates whether the value is a known member of the AbortObjectUploadSessionRequestAction enum.
-func (e AbortObjectUploadSessionRequestAction) Valid() bool {
-	switch e {
-	case Abort:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CompleteObjectUploadSessionRequestAction.
-const (
-	Complete CompleteObjectUploadSessionRequestAction = "complete"
-)
-
-// Valid indicates whether the value is a known member of the CompleteObjectUploadSessionRequestAction enum.
-func (e CompleteObjectUploadSessionRequestAction) Valid() bool {
-	switch e {
-	case Complete:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ConfirmObjectRequestAction.
-const (
-	Confirm ConfirmObjectRequestAction = "confirm"
-)
-
-// Valid indicates whether the value is a known member of the ConfirmObjectRequestAction enum.
-func (e ConfirmObjectRequestAction) Valid() bool {
-	switch e {
-	case Confirm:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ConfirmObjectRequestOnConflict.
-const (
-	ConfirmObjectRequestOnConflictFail   ConfirmObjectRequestOnConflict = "fail"
-	ConfirmObjectRequestOnConflictRename ConfirmObjectRequestOnConflict = "rename"
-)
-
-// Valid indicates whether the value is a known member of the ConfirmObjectRequestOnConflict enum.
-func (e ConfirmObjectRequestOnConflict) Valid() bool {
-	switch e {
-	case ConfirmObjectRequestOnConflictFail:
-		return true
-	case ConfirmObjectRequestOnConflictRename:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ObjectUploadSessionStatus.
-const (
-	ObjectUploadSessionStatusAborted   ObjectUploadSessionStatus = "aborted"
-	ObjectUploadSessionStatusActive    ObjectUploadSessionStatus = "active"
-	ObjectUploadSessionStatusCompleted ObjectUploadSessionStatus = "completed"
-)
-
-// Valid indicates whether the value is a known member of the ObjectUploadSessionStatus enum.
-func (e ObjectUploadSessionStatus) Valid() bool {
-	switch e {
-	case ObjectUploadSessionStatusAborted:
-		return true
-	case ObjectUploadSessionStatusActive:
-		return true
-	case ObjectUploadSessionStatusCompleted:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for GetApiAdminDownloaders200JSONResponseBodyItemsHeartbeatEngine.
 const (
 	GetApiAdminDownloaders200JSONResponseBodyItemsHeartbeatEngineAria2       GetApiAdminDownloaders200JSONResponseBodyItemsHeartbeatEngine = "aria2"
@@ -1155,43 +1071,43 @@ func (e PostApiDownloadTasksIdActions200JSONResponseBody0SourceType) Valid() boo
 
 // Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0Status.
 const (
-	Assigned      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "assigned"
-	BillingPaused PostApiDownloadTasksIdActions200JSONResponseBody0Status = "billing_paused"
-	Canceled      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceled"
-	Canceling     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceling"
-	Completed     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "completed"
-	Failed        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "failed"
-	Paused        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "paused"
-	Pausing       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "pausing"
-	Queued        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "queued"
-	Running       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "running"
-	Uploading     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "uploading"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusAssigned      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "assigned"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingPaused PostApiDownloadTasksIdActions200JSONResponseBody0Status = "billing_paused"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceled      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceled"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceling"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "completed"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "failed"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "paused"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPausing       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "pausing"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "queued"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRunning       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "running"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusUploading     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0Status enum.
 func (e PostApiDownloadTasksIdActions200JSONResponseBody0Status) Valid() bool {
 	switch e {
-	case Assigned:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusAssigned:
 		return true
-	case BillingPaused:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingPaused:
 		return true
-	case Canceled:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceled:
 		return true
-	case Canceling:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling:
 		return true
-	case Completed:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted:
 		return true
-	case Failed:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed:
 		return true
-	case Paused:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused:
 		return true
-	case Pausing:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusPausing:
 		return true
-	case Queued:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued:
 		return true
-	case Running:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRunning:
 		return true
-	case Uploading:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusUploading:
 		return true
 	default:
 		return false
@@ -1297,41 +1213,112 @@ func (e PostApiObjectsJSONBodyOnConflict) Valid() bool {
 	}
 }
 
-// AbortObjectUploadSessionRequest defines model for AbortObjectUploadSessionRequest.
-type AbortObjectUploadSessionRequest struct {
-	Action AbortObjectUploadSessionRequestAction `json:"action"`
+// Defines values for PatchApiObjectsIdJSONBodyAction.
+const (
+	Confirm PatchApiObjectsIdJSONBodyAction = "confirm"
+)
+
+// Valid indicates whether the value is a known member of the PatchApiObjectsIdJSONBodyAction enum.
+func (e PatchApiObjectsIdJSONBodyAction) Valid() bool {
+	switch e {
+	case Confirm:
+		return true
+	default:
+		return false
+	}
 }
 
-// AbortObjectUploadSessionRequestAction defines model for AbortObjectUploadSessionRequest.Action.
-type AbortObjectUploadSessionRequestAction string
+// Defines values for PatchApiObjectsIdJSONBodyOnConflict.
+const (
+	PatchApiObjectsIdJSONBodyOnConflictFail    PatchApiObjectsIdJSONBodyOnConflict = "fail"
+	PatchApiObjectsIdJSONBodyOnConflictRename  PatchApiObjectsIdJSONBodyOnConflict = "rename"
+	PatchApiObjectsIdJSONBodyOnConflictReplace PatchApiObjectsIdJSONBodyOnConflict = "replace"
+)
 
-// CompleteObjectUploadSessionRequest defines model for CompleteObjectUploadSessionRequest.
-type CompleteObjectUploadSessionRequest struct {
-	Action CompleteObjectUploadSessionRequestAction `json:"action"`
-	Parts  []struct {
-		Etag       string `json:"etag"`
-		PartNumber int    `json:"partNumber"`
-	} `json:"parts"`
+// Valid indicates whether the value is a known member of the PatchApiObjectsIdJSONBodyOnConflict enum.
+func (e PatchApiObjectsIdJSONBodyOnConflict) Valid() bool {
+	switch e {
+	case PatchApiObjectsIdJSONBodyOnConflictFail:
+		return true
+	case PatchApiObjectsIdJSONBodyOnConflictRename:
+		return true
+	case PatchApiObjectsIdJSONBodyOnConflictReplace:
+		return true
+	default:
+		return false
+	}
 }
 
-// CompleteObjectUploadSessionRequestAction defines model for CompleteObjectUploadSessionRequest.Action.
-type CompleteObjectUploadSessionRequestAction string
+// Defines values for PostApiObjectsIdUploads201JSONResponseBodyStatus.
+const (
+	PostApiObjectsIdUploads201JSONResponseBodyStatusAborted   PostApiObjectsIdUploads201JSONResponseBodyStatus = "aborted"
+	PostApiObjectsIdUploads201JSONResponseBodyStatusActive    PostApiObjectsIdUploads201JSONResponseBodyStatus = "active"
+	PostApiObjectsIdUploads201JSONResponseBodyStatusCompleted PostApiObjectsIdUploads201JSONResponseBodyStatus = "completed"
+)
 
-// ConfirmObjectRequest defines model for ConfirmObjectRequest.
-type ConfirmObjectRequest struct {
-	Action     ConfirmObjectRequestAction      `json:"action"`
-	OnConflict *ConfirmObjectRequestOnConflict `json:"onConflict,omitempty"`
+// Valid indicates whether the value is a known member of the PostApiObjectsIdUploads201JSONResponseBodyStatus enum.
+func (e PostApiObjectsIdUploads201JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case PostApiObjectsIdUploads201JSONResponseBodyStatusAborted:
+		return true
+	case PostApiObjectsIdUploads201JSONResponseBodyStatusActive:
+		return true
+	case PostApiObjectsIdUploads201JSONResponseBodyStatusCompleted:
+		return true
+	default:
+		return false
+	}
 }
 
-// ConfirmObjectRequestAction defines model for ConfirmObjectRequest.Action.
-type ConfirmObjectRequestAction string
+// Defines values for PatchApiObjectsIdUploadsUploadSessionIdJSONBody0Action.
+const (
+	Complete PatchApiObjectsIdUploadsUploadSessionIdJSONBody0Action = "complete"
+)
 
-// ConfirmObjectRequestOnConflict defines model for ConfirmObjectRequest.OnConflict.
-type ConfirmObjectRequestOnConflict string
+// Valid indicates whether the value is a known member of the PatchApiObjectsIdUploadsUploadSessionIdJSONBody0Action enum.
+func (e PatchApiObjectsIdUploadsUploadSessionIdJSONBody0Action) Valid() bool {
+	switch e {
+	case Complete:
+		return true
+	default:
+		return false
+	}
+}
 
-// CreateObjectUploadSessionRequest defines model for CreateObjectUploadSessionRequest.
-type CreateObjectUploadSessionRequest struct {
-	PartSize *int `json:"partSize,omitempty"`
+// Defines values for PatchApiObjectsIdUploadsUploadSessionIdJSONBody1Action.
+const (
+	Abort PatchApiObjectsIdUploadsUploadSessionIdJSONBody1Action = "abort"
+)
+
+// Valid indicates whether the value is a known member of the PatchApiObjectsIdUploadsUploadSessionIdJSONBody1Action enum.
+func (e PatchApiObjectsIdUploadsUploadSessionIdJSONBody1Action) Valid() bool {
+	switch e {
+	case Abort:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus.
+const (
+	PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusAborted   PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus = "aborted"
+	PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusActive    PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus = "active"
+	PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusCompleted PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus = "completed"
+)
+
+// Valid indicates whether the value is a known member of the PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus enum.
+func (e PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusAborted:
+		return true
+	case PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusActive:
+		return true
+	case PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusCompleted:
+		return true
+	default:
+		return false
+	}
 }
 
 // DeviceCode defines model for DeviceCode.
@@ -1370,52 +1357,6 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-// ObjectDraft defines model for ObjectDraft.
-type ObjectDraft struct {
-	ContentDisposition *string `json:"contentDisposition,omitempty"`
-	Id                 string  `json:"id"`
-	Name               string  `json:"name"`
-	UploadUrl          *string `json:"uploadUrl,omitempty"`
-}
-
-// ObjectUploadSession defines model for ObjectUploadSession.
-type ObjectUploadSession struct {
-	CreatedAt string                    `json:"createdAt"`
-	ExpiresAt string                    `json:"expiresAt"`
-	Id        string                    `json:"id"`
-	ObjectId  string                    `json:"objectId"`
-	PartSize  int                       `json:"partSize"`
-	Status    ObjectUploadSessionStatus `json:"status"`
-	UpdatedAt string                    `json:"updatedAt"`
-	UploadId  string                    `json:"uploadId"`
-}
-
-// ObjectUploadSessionStatus defines model for ObjectUploadSession.Status.
-type ObjectUploadSessionStatus string
-
-// PatchObjectUploadSessionRequest defines model for PatchObjectUploadSessionRequest.
-type PatchObjectUploadSessionRequest struct {
-	union json.RawMessage
-}
-
-// PresignObjectUploadPartsRequest defines model for PresignObjectUploadPartsRequest.
-type PresignObjectUploadPartsRequest struct {
-	PartNumbers []int `json:"partNumbers"`
-}
-
-// PresignObjectUploadPartsResponse defines model for PresignObjectUploadPartsResponse.
-type PresignObjectUploadPartsResponse struct {
-	PartSize int                         `json:"partSize"`
-	Parts    []PresignedObjectUploadPart `json:"parts"`
-	UploadId string                      `json:"uploadId"`
-}
-
-// PresignedObjectUploadPart defines model for PresignedObjectUploadPart.
-type PresignedObjectUploadPart struct {
-	PartNumber int    `json:"partNumber"`
-	Url        string `json:"url"`
-}
-
 // GetApiAdminDownloaders200JSONResponseBodyItemsHeartbeatEngine defines parameters for GetApiAdminDownloaders.
 type GetApiAdminDownloaders200JSONResponseBodyItemsHeartbeatEngine string
 
@@ -1428,13 +1369,13 @@ type PostApiAdminDownloadersJSONBody struct {
 		Arch               string                                         `json:"arch"`
 		Capabilities       []string                                       `json:"capabilities"`
 		CurrentTasks       int                                            `json:"currentTasks"`
-		DownloadBps        *int                                           `json:"downloadBps,omitempty"`
+		DownloadBps        *int64                                         `json:"downloadBps,omitempty"`
 		Engine             PostApiAdminDownloadersJSONBodyHeartbeatEngine `json:"engine"`
-		FreeDiskBytes      *int                                           `json:"freeDiskBytes,omitempty"`
+		FreeDiskBytes      *int64                                         `json:"freeDiskBytes,omitempty"`
 		Hostname           string                                         `json:"hostname"`
 		MaxConcurrentTasks int                                            `json:"maxConcurrentTasks"`
 		Platform           string                                         `json:"platform"`
-		UploadBps          *int                                           `json:"uploadBps,omitempty"`
+		UploadBps          *int64                                         `json:"uploadBps,omitempty"`
 		Version            string                                         `json:"version"`
 	} `json:"heartbeat"`
 	Name string `json:"name"`
@@ -1571,10 +1512,10 @@ type PatchApiDownloadTasksIdJSONBody struct {
 		EngineState *string                                      `json:"engineState,omitempty"`
 		EtaSeconds  *int                                         `json:"etaSeconds,omitempty"`
 		Files       *[]struct {
-			CompletedBytes *int   `json:"completedBytes,omitempty"`
+			CompletedBytes *int64 `json:"completedBytes,omitempty"`
 			Path           string `json:"path"`
 			Selected       *bool  `json:"selected,omitempty"`
-			Size           int    `json:"size"`
+			Size           int64  `json:"size"`
 		} `json:"files,omitempty"`
 		InfoHash    *string `json:"infoHash,omitempty"`
 		Leechers    *int    `json:"leechers,omitempty"`
@@ -1582,12 +1523,12 @@ type PatchApiDownloadTasksIdJSONBody struct {
 		PeerSamples *[]struct {
 			Address     string   `json:"address"`
 			Client      *string  `json:"client,omitempty"`
-			DownloadBps *int     `json:"downloadBps,omitempty"`
+			DownloadBps *int64   `json:"downloadBps,omitempty"`
 			Progress    *float32 `json:"progress,omitempty"`
-			UploadBps   *int     `json:"uploadBps,omitempty"`
+			UploadBps   *int64   `json:"uploadBps,omitempty"`
 		} `json:"peerSamples,omitempty"`
-		PeerUploadBps     *int                                        `json:"peerUploadBps,omitempty"`
-		PeerUploadedBytes *int                                        `json:"peerUploadedBytes,omitempty"`
+		PeerUploadBps     *int64                                      `json:"peerUploadBps,omitempty"`
+		PeerUploadedBytes *int64                                      `json:"peerUploadedBytes,omitempty"`
 		Peers             *int                                        `json:"peers,omitempty"`
 		Phase             *PatchApiDownloadTasksIdJSONBodyDetailPhase `json:"phase,omitempty"`
 		Seeders           *int                                        `json:"seeders,omitempty"`
@@ -1601,14 +1542,14 @@ type PatchApiDownloadTasksIdJSONBody struct {
 			Url      string  `json:"url"`
 		} `json:"trackers,omitempty"`
 	} `json:"detail,omitempty"`
-	DownloadBps          *int                                   `json:"downloadBps,omitempty"`
-	DownloadedBytes      *int                                   `json:"downloadedBytes,omitempty"`
+	DownloadBps          *int64                                 `json:"downloadBps,omitempty"`
+	DownloadedBytes      *int64                                 `json:"downloadedBytes,omitempty"`
 	ErrorMessage         *string                                `json:"errorMessage,omitempty"`
 	ResultObjectId       *string                                `json:"resultObjectId,omitempty"`
 	Status               *PatchApiDownloadTasksIdJSONBodyStatus `json:"status,omitempty"`
-	StorageUploadBps     *int                                   `json:"storageUploadBps,omitempty"`
-	StorageUploadedBytes *int                                   `json:"storageUploadedBytes,omitempty"`
-	TotalBytes           *int                                   `json:"totalBytes,omitempty"`
+	StorageUploadBps     *int64                                 `json:"storageUploadBps,omitempty"`
+	StorageUploadedBytes *int64                                 `json:"storageUploadedBytes,omitempty"`
+	TotalBytes           *int64                                 `json:"totalBytes,omitempty"`
 }
 
 // PatchApiDownloadTasksIdJSONBodyDetailEngine defines parameters for PatchApiDownloadTasksId.
@@ -1650,10 +1591,10 @@ type PostApiDownloadTasksIdActions200JSONResponseBody0 struct {
 		EngineState *string                                                        `json:"engineState,omitempty"`
 		EtaSeconds  *int                                                           `json:"etaSeconds,omitempty"`
 		Files       *[]struct {
-			CompletedBytes *int   `json:"completedBytes,omitempty"`
+			CompletedBytes *int64 `json:"completedBytes,omitempty"`
 			Path           string `json:"path"`
 			Selected       *bool  `json:"selected,omitempty"`
-			Size           int    `json:"size"`
+			Size           int64  `json:"size"`
 		} `json:"files,omitempty"`
 		InfoHash    *string `json:"infoHash,omitempty"`
 		Leechers    *int    `json:"leechers,omitempty"`
@@ -1661,12 +1602,12 @@ type PostApiDownloadTasksIdActions200JSONResponseBody0 struct {
 		PeerSamples *[]struct {
 			Address     string   `json:"address"`
 			Client      *string  `json:"client,omitempty"`
-			DownloadBps *int     `json:"downloadBps,omitempty"`
+			DownloadBps *int64   `json:"downloadBps,omitempty"`
 			Progress    *float32 `json:"progress,omitempty"`
-			UploadBps   *int     `json:"uploadBps,omitempty"`
+			UploadBps   *int64   `json:"uploadBps,omitempty"`
 		} `json:"peerSamples,omitempty"`
-		PeerUploadBps     *int                                                          `json:"peerUploadBps,omitempty"`
-		PeerUploadedBytes *int                                                          `json:"peerUploadedBytes,omitempty"`
+		PeerUploadBps     *int64                                                        `json:"peerUploadBps,omitempty"`
+		PeerUploadedBytes *int64                                                        `json:"peerUploadedBytes,omitempty"`
 		Peers             *int                                                          `json:"peers,omitempty"`
 		Phase             *PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase `json:"phase,omitempty"`
 		Seeders           *int                                                          `json:"seeders,omitempty"`
@@ -1728,13 +1669,13 @@ type PostApiDownloaderHeartbeatJSONBody struct {
 	Arch               string                                   `json:"arch"`
 	Capabilities       []string                                 `json:"capabilities"`
 	CurrentTasks       int                                      `json:"currentTasks"`
-	DownloadBps        *int                                     `json:"downloadBps,omitempty"`
+	DownloadBps        *int64                                   `json:"downloadBps,omitempty"`
 	Engine             PostApiDownloaderHeartbeatJSONBodyEngine `json:"engine"`
-	FreeDiskBytes      *int                                     `json:"freeDiskBytes,omitempty"`
+	FreeDiskBytes      *int64                                   `json:"freeDiskBytes,omitempty"`
 	Hostname           string                                   `json:"hostname"`
 	MaxConcurrentTasks int                                      `json:"maxConcurrentTasks"`
 	Platform           string                                   `json:"platform"`
-	UploadBps          *int                                     `json:"uploadBps,omitempty"`
+	UploadBps          *int64                                   `json:"uploadBps,omitempty"`
 	Version            string                                   `json:"version"`
 }
 
@@ -1749,16 +1690,69 @@ type PostApiDownloaderHeartbeat200JSONResponseBodyStatus string
 
 // PostApiObjectsJSONBody defines parameters for PostApiObjects.
 type PostApiObjectsJSONBody struct {
-	Dirtype    *float32                          `json:"dirtype,omitempty"`
+	Dirtype    *int                              `json:"dirtype,omitempty"`
 	Name       string                            `json:"name"`
 	OnConflict *PostApiObjectsJSONBodyOnConflict `json:"onConflict,omitempty"`
 	Parent     *string                           `json:"parent,omitempty"`
-	Size       *float32                          `json:"size,omitempty"`
+	Size       *int                              `json:"size,omitempty"`
 	Type       string                            `json:"type"`
 }
 
 // PostApiObjectsJSONBodyOnConflict defines parameters for PostApiObjects.
 type PostApiObjectsJSONBodyOnConflict string
+
+// PatchApiObjectsIdJSONBody defines parameters for PatchApiObjectsId.
+type PatchApiObjectsIdJSONBody struct {
+	Action     PatchApiObjectsIdJSONBodyAction      `json:"action"`
+	OnConflict *PatchApiObjectsIdJSONBodyOnConflict `json:"onConflict,omitempty"`
+}
+
+// PatchApiObjectsIdJSONBodyAction defines parameters for PatchApiObjectsId.
+type PatchApiObjectsIdJSONBodyAction string
+
+// PatchApiObjectsIdJSONBodyOnConflict defines parameters for PatchApiObjectsId.
+type PatchApiObjectsIdJSONBodyOnConflict string
+
+// PostApiObjectsIdUploadsJSONBody defines parameters for PostApiObjectsIdUploads.
+type PostApiObjectsIdUploadsJSONBody struct {
+	PartSize *int `json:"partSize,omitempty"`
+}
+
+// PostApiObjectsIdUploads201JSONResponseBodyStatus defines parameters for PostApiObjectsIdUploads.
+type PostApiObjectsIdUploads201JSONResponseBodyStatus string
+
+// PatchApiObjectsIdUploadsUploadSessionIdJSONBody defines parameters for PatchApiObjectsIdUploadsUploadSessionId.
+type PatchApiObjectsIdUploadsUploadSessionIdJSONBody struct {
+	union json.RawMessage
+}
+
+// PatchApiObjectsIdUploadsUploadSessionIdJSONBody0 defines parameters for PatchApiObjectsIdUploadsUploadSessionId.
+type PatchApiObjectsIdUploadsUploadSessionIdJSONBody0 struct {
+	Action PatchApiObjectsIdUploadsUploadSessionIdJSONBody0Action `json:"action"`
+	Parts  []struct {
+		Etag       string `json:"etag"`
+		PartNumber int    `json:"partNumber"`
+	} `json:"parts"`
+}
+
+// PatchApiObjectsIdUploadsUploadSessionIdJSONBody0Action defines parameters for PatchApiObjectsIdUploadsUploadSessionId.
+type PatchApiObjectsIdUploadsUploadSessionIdJSONBody0Action string
+
+// PatchApiObjectsIdUploadsUploadSessionIdJSONBody1 defines parameters for PatchApiObjectsIdUploadsUploadSessionId.
+type PatchApiObjectsIdUploadsUploadSessionIdJSONBody1 struct {
+	Action PatchApiObjectsIdUploadsUploadSessionIdJSONBody1Action `json:"action"`
+}
+
+// PatchApiObjectsIdUploadsUploadSessionIdJSONBody1Action defines parameters for PatchApiObjectsIdUploadsUploadSessionId.
+type PatchApiObjectsIdUploadsUploadSessionIdJSONBody1Action string
+
+// PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus defines parameters for PatchApiObjectsIdUploadsUploadSessionId.
+type PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus string
+
+// PostApiObjectsIdUploadsUploadSessionIdPartsJSONBody defines parameters for PostApiObjectsIdUploadsUploadSessionIdParts.
+type PostApiObjectsIdUploadsUploadSessionIdPartsJSONBody struct {
+	PartNumbers []int `json:"partNumbers"`
+}
 
 // PostApiAdminDownloadersJSONRequestBody defines body for PostApiAdminDownloaders for application/json ContentType.
 type PostApiAdminDownloadersJSONRequestBody PostApiAdminDownloadersJSONBody
@@ -1788,78 +1782,16 @@ type PostApiDownloaderHeartbeatJSONRequestBody PostApiDownloaderHeartbeatJSONBod
 type PostApiObjectsJSONRequestBody PostApiObjectsJSONBody
 
 // PatchApiObjectsIdJSONRequestBody defines body for PatchApiObjectsId for application/json ContentType.
-type PatchApiObjectsIdJSONRequestBody = ConfirmObjectRequest
+type PatchApiObjectsIdJSONRequestBody PatchApiObjectsIdJSONBody
 
 // PostApiObjectsIdUploadsJSONRequestBody defines body for PostApiObjectsIdUploads for application/json ContentType.
-type PostApiObjectsIdUploadsJSONRequestBody = CreateObjectUploadSessionRequest
+type PostApiObjectsIdUploadsJSONRequestBody PostApiObjectsIdUploadsJSONBody
 
 // PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody defines body for PatchApiObjectsIdUploadsUploadSessionId for application/json ContentType.
-type PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody = PatchObjectUploadSessionRequest
+type PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody PatchApiObjectsIdUploadsUploadSessionIdJSONBody
 
 // PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody defines body for PostApiObjectsIdUploadsUploadSessionIdParts for application/json ContentType.
-type PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody = PresignObjectUploadPartsRequest
-
-// AsCompleteObjectUploadSessionRequest returns the union data inside the PatchObjectUploadSessionRequest as a CompleteObjectUploadSessionRequest
-func (t PatchObjectUploadSessionRequest) AsCompleteObjectUploadSessionRequest() (CompleteObjectUploadSessionRequest, error) {
-	var body CompleteObjectUploadSessionRequest
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCompleteObjectUploadSessionRequest overwrites any union data inside the PatchObjectUploadSessionRequest as the provided CompleteObjectUploadSessionRequest
-func (t *PatchObjectUploadSessionRequest) FromCompleteObjectUploadSessionRequest(v CompleteObjectUploadSessionRequest) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCompleteObjectUploadSessionRequest performs a merge with any union data inside the PatchObjectUploadSessionRequest, using the provided CompleteObjectUploadSessionRequest
-func (t *PatchObjectUploadSessionRequest) MergeCompleteObjectUploadSessionRequest(v CompleteObjectUploadSessionRequest) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAbortObjectUploadSessionRequest returns the union data inside the PatchObjectUploadSessionRequest as a AbortObjectUploadSessionRequest
-func (t PatchObjectUploadSessionRequest) AsAbortObjectUploadSessionRequest() (AbortObjectUploadSessionRequest, error) {
-	var body AbortObjectUploadSessionRequest
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAbortObjectUploadSessionRequest overwrites any union data inside the PatchObjectUploadSessionRequest as the provided AbortObjectUploadSessionRequest
-func (t *PatchObjectUploadSessionRequest) FromAbortObjectUploadSessionRequest(v AbortObjectUploadSessionRequest) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAbortObjectUploadSessionRequest performs a merge with any union data inside the PatchObjectUploadSessionRequest, using the provided AbortObjectUploadSessionRequest
-func (t *PatchObjectUploadSessionRequest) MergeAbortObjectUploadSessionRequest(v AbortObjectUploadSessionRequest) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t PatchObjectUploadSessionRequest) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *PatchObjectUploadSessionRequest) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
+type PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody PostApiObjectsIdUploadsUploadSessionIdPartsJSONBody
 
 // AsPostApiDownloadTasksIdActions200JSONResponseBody0 returns the union data inside the PostApiDownloadTasksIdActions200JSONResponseBody as a PostApiDownloadTasksIdActions200JSONResponseBody0
 func (t PostApiDownloadTasksIdActions200JSONResponseBody) AsPostApiDownloadTasksIdActions200JSONResponseBody0() (PostApiDownloadTasksIdActions200JSONResponseBody0, error) {
@@ -1919,6 +1851,68 @@ func (t PostApiDownloadTasksIdActions200JSONResponseBody) MarshalJSON() ([]byte,
 }
 
 func (t *PostApiDownloadTasksIdActions200JSONResponseBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPatchApiObjectsIdUploadsUploadSessionIdJSONBody0 returns the union data inside the PatchApiObjectsIdUploadsUploadSessionIdJSONBody as a PatchApiObjectsIdUploadsUploadSessionIdJSONBody0
+func (t PatchApiObjectsIdUploadsUploadSessionIdJSONBody) AsPatchApiObjectsIdUploadsUploadSessionIdJSONBody0() (PatchApiObjectsIdUploadsUploadSessionIdJSONBody0, error) {
+	var body PatchApiObjectsIdUploadsUploadSessionIdJSONBody0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPatchApiObjectsIdUploadsUploadSessionIdJSONBody0 overwrites any union data inside the PatchApiObjectsIdUploadsUploadSessionIdJSONBody as the provided PatchApiObjectsIdUploadsUploadSessionIdJSONBody0
+func (t *PatchApiObjectsIdUploadsUploadSessionIdJSONBody) FromPatchApiObjectsIdUploadsUploadSessionIdJSONBody0(v PatchApiObjectsIdUploadsUploadSessionIdJSONBody0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePatchApiObjectsIdUploadsUploadSessionIdJSONBody0 performs a merge with any union data inside the PatchApiObjectsIdUploadsUploadSessionIdJSONBody, using the provided PatchApiObjectsIdUploadsUploadSessionIdJSONBody0
+func (t *PatchApiObjectsIdUploadsUploadSessionIdJSONBody) MergePatchApiObjectsIdUploadsUploadSessionIdJSONBody0(v PatchApiObjectsIdUploadsUploadSessionIdJSONBody0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPatchApiObjectsIdUploadsUploadSessionIdJSONBody1 returns the union data inside the PatchApiObjectsIdUploadsUploadSessionIdJSONBody as a PatchApiObjectsIdUploadsUploadSessionIdJSONBody1
+func (t PatchApiObjectsIdUploadsUploadSessionIdJSONBody) AsPatchApiObjectsIdUploadsUploadSessionIdJSONBody1() (PatchApiObjectsIdUploadsUploadSessionIdJSONBody1, error) {
+	var body PatchApiObjectsIdUploadsUploadSessionIdJSONBody1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPatchApiObjectsIdUploadsUploadSessionIdJSONBody1 overwrites any union data inside the PatchApiObjectsIdUploadsUploadSessionIdJSONBody as the provided PatchApiObjectsIdUploadsUploadSessionIdJSONBody1
+func (t *PatchApiObjectsIdUploadsUploadSessionIdJSONBody) FromPatchApiObjectsIdUploadsUploadSessionIdJSONBody1(v PatchApiObjectsIdUploadsUploadSessionIdJSONBody1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePatchApiObjectsIdUploadsUploadSessionIdJSONBody1 performs a merge with any union data inside the PatchApiObjectsIdUploadsUploadSessionIdJSONBody, using the provided PatchApiObjectsIdUploadsUploadSessionIdJSONBody1
+func (t *PatchApiObjectsIdUploadsUploadSessionIdJSONBody) MergePatchApiObjectsIdUploadsUploadSessionIdJSONBody1(v PatchApiObjectsIdUploadsUploadSessionIdJSONBody1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PatchApiObjectsIdUploadsUploadSessionIdJSONBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PatchApiObjectsIdUploadsUploadSessionIdJSONBody) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -3796,10 +3790,10 @@ type GetApiDownloadTasksResponse struct {
 				EngineState *string                                                  `json:"engineState,omitempty"`
 				EtaSeconds  *int                                                     `json:"etaSeconds,omitempty"`
 				Files       *[]struct {
-					CompletedBytes *int   `json:"completedBytes,omitempty"`
+					CompletedBytes *int64 `json:"completedBytes,omitempty"`
 					Path           string `json:"path"`
 					Selected       *bool  `json:"selected,omitempty"`
-					Size           int    `json:"size"`
+					Size           int64  `json:"size"`
 				} `json:"files,omitempty"`
 				InfoHash    *string `json:"infoHash,omitempty"`
 				Leechers    *int    `json:"leechers,omitempty"`
@@ -3807,12 +3801,12 @@ type GetApiDownloadTasksResponse struct {
 				PeerSamples *[]struct {
 					Address     string   `json:"address"`
 					Client      *string  `json:"client,omitempty"`
-					DownloadBps *int     `json:"downloadBps,omitempty"`
+					DownloadBps *int64   `json:"downloadBps,omitempty"`
 					Progress    *float32 `json:"progress,omitempty"`
-					UploadBps   *int     `json:"uploadBps,omitempty"`
+					UploadBps   *int64   `json:"uploadBps,omitempty"`
 				} `json:"peerSamples,omitempty"`
-				PeerUploadBps     *int                                                    `json:"peerUploadBps,omitempty"`
-				PeerUploadedBytes *int                                                    `json:"peerUploadedBytes,omitempty"`
+				PeerUploadBps     *int64                                                  `json:"peerUploadBps,omitempty"`
+				PeerUploadedBytes *int64                                                  `json:"peerUploadedBytes,omitempty"`
 				Peers             *int                                                    `json:"peers,omitempty"`
 				Phase             *GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase `json:"phase,omitempty"`
 				Seeders           *int                                                    `json:"seeders,omitempty"`
@@ -3887,10 +3881,10 @@ type PostApiDownloadTasksResponse struct {
 			EngineState *string                                              `json:"engineState,omitempty"`
 			EtaSeconds  *int                                                 `json:"etaSeconds,omitempty"`
 			Files       *[]struct {
-				CompletedBytes *int   `json:"completedBytes,omitempty"`
+				CompletedBytes *int64 `json:"completedBytes,omitempty"`
 				Path           string `json:"path"`
 				Selected       *bool  `json:"selected,omitempty"`
-				Size           int    `json:"size"`
+				Size           int64  `json:"size"`
 			} `json:"files,omitempty"`
 			InfoHash    *string `json:"infoHash,omitempty"`
 			Leechers    *int    `json:"leechers,omitempty"`
@@ -3898,12 +3892,12 @@ type PostApiDownloadTasksResponse struct {
 			PeerSamples *[]struct {
 				Address     string   `json:"address"`
 				Client      *string  `json:"client,omitempty"`
-				DownloadBps *int     `json:"downloadBps,omitempty"`
+				DownloadBps *int64   `json:"downloadBps,omitempty"`
 				Progress    *float32 `json:"progress,omitempty"`
-				UploadBps   *int     `json:"uploadBps,omitempty"`
+				UploadBps   *int64   `json:"uploadBps,omitempty"`
 			} `json:"peerSamples,omitempty"`
-			PeerUploadBps     *int                                                `json:"peerUploadBps,omitempty"`
-			PeerUploadedBytes *int                                                `json:"peerUploadedBytes,omitempty"`
+			PeerUploadBps     *int64                                              `json:"peerUploadBps,omitempty"`
+			PeerUploadedBytes *int64                                              `json:"peerUploadedBytes,omitempty"`
 			Peers             *int                                                `json:"peers,omitempty"`
 			Phase             *PostApiDownloadTasks201JSONResponseBodyDetailPhase `json:"phase,omitempty"`
 			Seeders           *int                                                `json:"seeders,omitempty"`
@@ -4012,10 +4006,10 @@ type GetApiDownloadTasksIdResponse struct {
 			EngineState *string                                               `json:"engineState,omitempty"`
 			EtaSeconds  *int                                                  `json:"etaSeconds,omitempty"`
 			Files       *[]struct {
-				CompletedBytes *int   `json:"completedBytes,omitempty"`
+				CompletedBytes *int64 `json:"completedBytes,omitempty"`
 				Path           string `json:"path"`
 				Selected       *bool  `json:"selected,omitempty"`
-				Size           int    `json:"size"`
+				Size           int64  `json:"size"`
 			} `json:"files,omitempty"`
 			InfoHash    *string `json:"infoHash,omitempty"`
 			Leechers    *int    `json:"leechers,omitempty"`
@@ -4023,12 +4017,12 @@ type GetApiDownloadTasksIdResponse struct {
 			PeerSamples *[]struct {
 				Address     string   `json:"address"`
 				Client      *string  `json:"client,omitempty"`
-				DownloadBps *int     `json:"downloadBps,omitempty"`
+				DownloadBps *int64   `json:"downloadBps,omitempty"`
 				Progress    *float32 `json:"progress,omitempty"`
-				UploadBps   *int     `json:"uploadBps,omitempty"`
+				UploadBps   *int64   `json:"uploadBps,omitempty"`
 			} `json:"peerSamples,omitempty"`
-			PeerUploadBps     *int                                                 `json:"peerUploadBps,omitempty"`
-			PeerUploadedBytes *int                                                 `json:"peerUploadedBytes,omitempty"`
+			PeerUploadBps     *int64                                               `json:"peerUploadBps,omitempty"`
+			PeerUploadedBytes *int64                                               `json:"peerUploadedBytes,omitempty"`
 			Peers             *int                                                 `json:"peers,omitempty"`
 			Phase             *GetApiDownloadTasksId200JSONResponseBodyDetailPhase `json:"phase,omitempty"`
 			Seeders           *int                                                 `json:"seeders,omitempty"`
@@ -4099,10 +4093,10 @@ type PatchApiDownloadTasksIdResponse struct {
 			EngineState *string                                                 `json:"engineState,omitempty"`
 			EtaSeconds  *int                                                    `json:"etaSeconds,omitempty"`
 			Files       *[]struct {
-				CompletedBytes *int   `json:"completedBytes,omitempty"`
+				CompletedBytes *int64 `json:"completedBytes,omitempty"`
 				Path           string `json:"path"`
 				Selected       *bool  `json:"selected,omitempty"`
-				Size           int    `json:"size"`
+				Size           int64  `json:"size"`
 			} `json:"files,omitempty"`
 			InfoHash    *string `json:"infoHash,omitempty"`
 			Leechers    *int    `json:"leechers,omitempty"`
@@ -4110,12 +4104,12 @@ type PatchApiDownloadTasksIdResponse struct {
 			PeerSamples *[]struct {
 				Address     string   `json:"address"`
 				Client      *string  `json:"client,omitempty"`
-				DownloadBps *int     `json:"downloadBps,omitempty"`
+				DownloadBps *int64   `json:"downloadBps,omitempty"`
 				Progress    *float32 `json:"progress,omitempty"`
-				UploadBps   *int     `json:"uploadBps,omitempty"`
+				UploadBps   *int64   `json:"uploadBps,omitempty"`
 			} `json:"peerSamples,omitempty"`
-			PeerUploadBps     *int                                                   `json:"peerUploadBps,omitempty"`
-			PeerUploadedBytes *int                                                   `json:"peerUploadedBytes,omitempty"`
+			PeerUploadBps     *int64                                                 `json:"peerUploadBps,omitempty"`
+			PeerUploadedBytes *int64                                                 `json:"peerUploadedBytes,omitempty"`
 			Peers             *int                                                   `json:"peers,omitempty"`
 			Phase             *PatchApiDownloadTasksId200JSONResponseBodyDetailPhase `json:"phase,omitempty"`
 			Seeders           *int                                                   `json:"seeders,omitempty"`
@@ -4279,10 +4273,20 @@ func (r PostApiDownloaderHeartbeatResponse) ContentType() string {
 type PostApiObjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ObjectDraft
-	JSON201      *ObjectDraft
-	JSON403      *ErrorResponse
-	JSON409      *ErrorResponse
+	JSON200      *struct {
+		ContentDisposition *string `json:"contentDisposition,omitempty"`
+		Id                 string  `json:"id"`
+		Name               string  `json:"name"`
+		UploadUrl          *string `json:"uploadUrl,omitempty"`
+	}
+	JSON201 *struct {
+		ContentDisposition *string `json:"contentDisposition,omitempty"`
+		Id                 string  `json:"id"`
+		Name               string  `json:"name"`
+		UploadUrl          *string `json:"uploadUrl,omitempty"`
+	}
+	JSON403 *ErrorResponse
+	JSON409 *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -4312,9 +4316,14 @@ func (r PostApiObjectsResponse) ContentType() string {
 type PatchApiObjectsIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ObjectDraft
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON200      *struct {
+		ContentDisposition *string `json:"contentDisposition,omitempty"`
+		Id                 string  `json:"id"`
+		Name               string  `json:"name"`
+		UploadUrl          *string `json:"uploadUrl,omitempty"`
+	}
+	JSON403 *ErrorResponse
+	JSON404 *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -4344,10 +4353,19 @@ func (r PatchApiObjectsIdResponse) ContentType() string {
 type PostApiObjectsIdUploadsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ObjectUploadSession
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON201      *struct {
+		CreatedAt string                                           `json:"createdAt"`
+		ExpiresAt string                                           `json:"expiresAt"`
+		Id        string                                           `json:"id"`
+		ObjectId  string                                           `json:"objectId"`
+		PartSize  int                                              `json:"partSize"`
+		Status    PostApiObjectsIdUploads201JSONResponseBodyStatus `json:"status"`
+		UpdatedAt string                                           `json:"updatedAt"`
+		UploadId  string                                           `json:"uploadId"`
+	}
+	JSON400 *ErrorResponse
+	JSON403 *ErrorResponse
+	JSON404 *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -4377,10 +4395,19 @@ func (r PostApiObjectsIdUploadsResponse) ContentType() string {
 type PatchApiObjectsIdUploadsUploadSessionIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ObjectUploadSession
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON200      *struct {
+		CreatedAt string                                                           `json:"createdAt"`
+		ExpiresAt string                                                           `json:"expiresAt"`
+		Id        string                                                           `json:"id"`
+		ObjectId  string                                                           `json:"objectId"`
+		PartSize  int                                                              `json:"partSize"`
+		Status    PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus `json:"status"`
+		UpdatedAt string                                                           `json:"updatedAt"`
+		UploadId  string                                                           `json:"uploadId"`
+	}
+	JSON400 *ErrorResponse
+	JSON403 *ErrorResponse
+	JSON404 *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -4410,10 +4437,17 @@ func (r PatchApiObjectsIdUploadsUploadSessionIdResponse) ContentType() string {
 type PostApiObjectsIdUploadsUploadSessionIdPartsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *PresignObjectUploadPartsResponse
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
+	JSON200      *struct {
+		PartSize int `json:"partSize"`
+		Parts    []struct {
+			PartNumber int    `json:"partNumber"`
+			Url        string `json:"url"`
+		} `json:"parts"`
+		UploadId string `json:"uploadId"`
+	}
+	JSON400 *ErrorResponse
+	JSON403 *ErrorResponse
+	JSON404 *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -4993,10 +5027,10 @@ func ParseGetApiDownloadTasksResponse(rsp *http.Response) (*GetApiDownloadTasksR
 					EngineState *string                                                  `json:"engineState,omitempty"`
 					EtaSeconds  *int                                                     `json:"etaSeconds,omitempty"`
 					Files       *[]struct {
-						CompletedBytes *int   `json:"completedBytes,omitempty"`
+						CompletedBytes *int64 `json:"completedBytes,omitempty"`
 						Path           string `json:"path"`
 						Selected       *bool  `json:"selected,omitempty"`
-						Size           int    `json:"size"`
+						Size           int64  `json:"size"`
 					} `json:"files,omitempty"`
 					InfoHash    *string `json:"infoHash,omitempty"`
 					Leechers    *int    `json:"leechers,omitempty"`
@@ -5004,12 +5038,12 @@ func ParseGetApiDownloadTasksResponse(rsp *http.Response) (*GetApiDownloadTasksR
 					PeerSamples *[]struct {
 						Address     string   `json:"address"`
 						Client      *string  `json:"client,omitempty"`
-						DownloadBps *int     `json:"downloadBps,omitempty"`
+						DownloadBps *int64   `json:"downloadBps,omitempty"`
 						Progress    *float32 `json:"progress,omitempty"`
-						UploadBps   *int     `json:"uploadBps,omitempty"`
+						UploadBps   *int64   `json:"uploadBps,omitempty"`
 					} `json:"peerSamples,omitempty"`
-					PeerUploadBps     *int                                                    `json:"peerUploadBps,omitempty"`
-					PeerUploadedBytes *int                                                    `json:"peerUploadedBytes,omitempty"`
+					PeerUploadBps     *int64                                                  `json:"peerUploadBps,omitempty"`
+					PeerUploadedBytes *int64                                                  `json:"peerUploadedBytes,omitempty"`
 					Peers             *int                                                    `json:"peers,omitempty"`
 					Phase             *GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase `json:"phase,omitempty"`
 					Seeders           *int                                                    `json:"seeders,omitempty"`
@@ -5086,10 +5120,10 @@ func ParsePostApiDownloadTasksResponse(rsp *http.Response) (*PostApiDownloadTask
 				EngineState *string                                              `json:"engineState,omitempty"`
 				EtaSeconds  *int                                                 `json:"etaSeconds,omitempty"`
 				Files       *[]struct {
-					CompletedBytes *int   `json:"completedBytes,omitempty"`
+					CompletedBytes *int64 `json:"completedBytes,omitempty"`
 					Path           string `json:"path"`
 					Selected       *bool  `json:"selected,omitempty"`
-					Size           int    `json:"size"`
+					Size           int64  `json:"size"`
 				} `json:"files,omitempty"`
 				InfoHash    *string `json:"infoHash,omitempty"`
 				Leechers    *int    `json:"leechers,omitempty"`
@@ -5097,12 +5131,12 @@ func ParsePostApiDownloadTasksResponse(rsp *http.Response) (*PostApiDownloadTask
 				PeerSamples *[]struct {
 					Address     string   `json:"address"`
 					Client      *string  `json:"client,omitempty"`
-					DownloadBps *int     `json:"downloadBps,omitempty"`
+					DownloadBps *int64   `json:"downloadBps,omitempty"`
 					Progress    *float32 `json:"progress,omitempty"`
-					UploadBps   *int     `json:"uploadBps,omitempty"`
+					UploadBps   *int64   `json:"uploadBps,omitempty"`
 				} `json:"peerSamples,omitempty"`
-				PeerUploadBps     *int                                                `json:"peerUploadBps,omitempty"`
-				PeerUploadedBytes *int                                                `json:"peerUploadedBytes,omitempty"`
+				PeerUploadBps     *int64                                              `json:"peerUploadBps,omitempty"`
+				PeerUploadedBytes *int64                                              `json:"peerUploadedBytes,omitempty"`
 				Peers             *int                                                `json:"peers,omitempty"`
 				Phase             *PostApiDownloadTasks201JSONResponseBodyDetailPhase `json:"phase,omitempty"`
 				Seeders           *int                                                `json:"seeders,omitempty"`
@@ -5221,10 +5255,10 @@ func ParseGetApiDownloadTasksIdResponse(rsp *http.Response) (*GetApiDownloadTask
 				EngineState *string                                               `json:"engineState,omitempty"`
 				EtaSeconds  *int                                                  `json:"etaSeconds,omitempty"`
 				Files       *[]struct {
-					CompletedBytes *int   `json:"completedBytes,omitempty"`
+					CompletedBytes *int64 `json:"completedBytes,omitempty"`
 					Path           string `json:"path"`
 					Selected       *bool  `json:"selected,omitempty"`
-					Size           int    `json:"size"`
+					Size           int64  `json:"size"`
 				} `json:"files,omitempty"`
 				InfoHash    *string `json:"infoHash,omitempty"`
 				Leechers    *int    `json:"leechers,omitempty"`
@@ -5232,12 +5266,12 @@ func ParseGetApiDownloadTasksIdResponse(rsp *http.Response) (*GetApiDownloadTask
 				PeerSamples *[]struct {
 					Address     string   `json:"address"`
 					Client      *string  `json:"client,omitempty"`
-					DownloadBps *int     `json:"downloadBps,omitempty"`
+					DownloadBps *int64   `json:"downloadBps,omitempty"`
 					Progress    *float32 `json:"progress,omitempty"`
-					UploadBps   *int     `json:"uploadBps,omitempty"`
+					UploadBps   *int64   `json:"uploadBps,omitempty"`
 				} `json:"peerSamples,omitempty"`
-				PeerUploadBps     *int                                                 `json:"peerUploadBps,omitempty"`
-				PeerUploadedBytes *int                                                 `json:"peerUploadedBytes,omitempty"`
+				PeerUploadBps     *int64                                               `json:"peerUploadBps,omitempty"`
+				PeerUploadedBytes *int64                                               `json:"peerUploadedBytes,omitempty"`
 				Peers             *int                                                 `json:"peers,omitempty"`
 				Phase             *GetApiDownloadTasksId200JSONResponseBodyDetailPhase `json:"phase,omitempty"`
 				Seeders           *int                                                 `json:"seeders,omitempty"`
@@ -5310,10 +5344,10 @@ func ParsePatchApiDownloadTasksIdResponse(rsp *http.Response) (*PatchApiDownload
 				EngineState *string                                                 `json:"engineState,omitempty"`
 				EtaSeconds  *int                                                    `json:"etaSeconds,omitempty"`
 				Files       *[]struct {
-					CompletedBytes *int   `json:"completedBytes,omitempty"`
+					CompletedBytes *int64 `json:"completedBytes,omitempty"`
 					Path           string `json:"path"`
 					Selected       *bool  `json:"selected,omitempty"`
-					Size           int    `json:"size"`
+					Size           int64  `json:"size"`
 				} `json:"files,omitempty"`
 				InfoHash    *string `json:"infoHash,omitempty"`
 				Leechers    *int    `json:"leechers,omitempty"`
@@ -5321,12 +5355,12 @@ func ParsePatchApiDownloadTasksIdResponse(rsp *http.Response) (*PatchApiDownload
 				PeerSamples *[]struct {
 					Address     string   `json:"address"`
 					Client      *string  `json:"client,omitempty"`
-					DownloadBps *int     `json:"downloadBps,omitempty"`
+					DownloadBps *int64   `json:"downloadBps,omitempty"`
 					Progress    *float32 `json:"progress,omitempty"`
-					UploadBps   *int     `json:"uploadBps,omitempty"`
+					UploadBps   *int64   `json:"uploadBps,omitempty"`
 				} `json:"peerSamples,omitempty"`
-				PeerUploadBps     *int                                                   `json:"peerUploadBps,omitempty"`
-				PeerUploadedBytes *int                                                   `json:"peerUploadedBytes,omitempty"`
+				PeerUploadBps     *int64                                                 `json:"peerUploadBps,omitempty"`
+				PeerUploadedBytes *int64                                                 `json:"peerUploadedBytes,omitempty"`
 				Peers             *int                                                   `json:"peers,omitempty"`
 				Phase             *PatchApiDownloadTasksId200JSONResponseBodyDetailPhase `json:"phase,omitempty"`
 				Seeders           *int                                                   `json:"seeders,omitempty"`
@@ -5532,14 +5566,24 @@ func ParsePostApiObjectsResponse(rsp *http.Response) (*PostApiObjectsResponse, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObjectDraft
+		var dest struct {
+			ContentDisposition *string `json:"contentDisposition,omitempty"`
+			Id                 string  `json:"id"`
+			Name               string  `json:"name"`
+			UploadUrl          *string `json:"uploadUrl,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ObjectDraft
+		var dest struct {
+			ContentDisposition *string `json:"contentDisposition,omitempty"`
+			Id                 string  `json:"id"`
+			Name               string  `json:"name"`
+			UploadUrl          *string `json:"uploadUrl,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5579,7 +5623,12 @@ func ParsePatchApiObjectsIdResponse(rsp *http.Response) (*PatchApiObjectsIdRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObjectDraft
+		var dest struct {
+			ContentDisposition *string `json:"contentDisposition,omitempty"`
+			Id                 string  `json:"id"`
+			Name               string  `json:"name"`
+			UploadUrl          *string `json:"uploadUrl,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5619,7 +5668,16 @@ func ParsePostApiObjectsIdUploadsResponse(rsp *http.Response) (*PostApiObjectsId
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ObjectUploadSession
+		var dest struct {
+			CreatedAt string                                           `json:"createdAt"`
+			ExpiresAt string                                           `json:"expiresAt"`
+			Id        string                                           `json:"id"`
+			ObjectId  string                                           `json:"objectId"`
+			PartSize  int                                              `json:"partSize"`
+			Status    PostApiObjectsIdUploads201JSONResponseBodyStatus `json:"status"`
+			UpdatedAt string                                           `json:"updatedAt"`
+			UploadId  string                                           `json:"uploadId"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5666,7 +5724,16 @@ func ParsePatchApiObjectsIdUploadsUploadSessionIdResponse(rsp *http.Response) (*
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObjectUploadSession
+		var dest struct {
+			CreatedAt string                                                           `json:"createdAt"`
+			ExpiresAt string                                                           `json:"expiresAt"`
+			Id        string                                                           `json:"id"`
+			ObjectId  string                                                           `json:"objectId"`
+			PartSize  int                                                              `json:"partSize"`
+			Status    PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus `json:"status"`
+			UpdatedAt string                                                           `json:"updatedAt"`
+			UploadId  string                                                           `json:"uploadId"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5713,7 +5780,14 @@ func ParsePostApiObjectsIdUploadsUploadSessionIdPartsResponse(rsp *http.Response
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest PresignObjectUploadPartsResponse
+		var dest struct {
+			PartSize int `json:"partSize"`
+			Parts    []struct {
+				PartNumber int    `json:"partNumber"`
+				Url        string `json:"url"`
+			} `json:"parts"`
+			UploadId string `json:"uploadId"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

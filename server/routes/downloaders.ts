@@ -1,5 +1,13 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { createDownloaderSchema, downloaderHeartbeatSchema, updateDownloaderSchema } from '@shared/schemas'
+import {
+  createDownloaderResponseSchema,
+  createDownloaderSchema,
+  deleteDownloaderResponseSchema,
+  downloaderHeartbeatSchema,
+  downloaderListSchema,
+  downloaderSchema,
+  updateDownloaderSchema,
+} from '@shared/schemas'
 import type { Context } from 'hono'
 import { requireAdmin, requireDownloader } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -13,7 +21,6 @@ import {
 } from '../services/downloads'
 
 const errorSchema = z.object({ error: z.string() })
-const int64Schema = () => z.number().int().openapi({ type: 'integer', format: 'int64' })
 
 type OpenAPIContext = Context<Env> & {
   req: Context<Env>['req'] & {
@@ -21,43 +28,6 @@ type OpenAPIContext = Context<Env> & {
     param(name: string): string
   }
 }
-
-const downloaderHeartbeatResponseSchema = z.object({
-  version: z.string(),
-  hostname: z.string(),
-  platform: z.string(),
-  arch: z.string(),
-  engine: z.enum(['builtin', 'aria2', 'qbittorrent']),
-  capabilities: z.array(z.string()),
-  maxConcurrentTasks: z.number().int(),
-  currentTasks: z.number().int(),
-  downloadBps: int64Schema(),
-  uploadBps: int64Schema(),
-  freeDiskBytes: int64Schema(),
-})
-
-const downloaderSchema = z.object({
-  id: z.string(),
-  name: z.string().optional(),
-  status: z.enum(['online', 'offline', 'disabled']).optional(),
-  enabled: z.boolean().optional(),
-  heartbeat: downloaderHeartbeatResponseSchema.optional(),
-})
-
-const downloaderListSchema = z.object({
-  items: z.array(downloaderSchema),
-  total: z.number().int(),
-})
-
-const createDownloaderResponseSchema = z.object({
-  downloader: downloaderSchema,
-  token: z.string(),
-})
-
-const deleteDownloaderResponseSchema = z.object({
-  id: z.string(),
-  deleted: z.boolean(),
-})
 
 function jsonResponse(schema: z.ZodType, description: string) {
   return { content: { 'application/json': { schema } }, description }

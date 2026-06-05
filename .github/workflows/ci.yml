@@ -49,9 +49,14 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: downloader/go.mod
+          cache-dependency-path: downloader/go.sum
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm openapi:downloader:check
       - run: pnpm exec vitest run --project unit --coverage
       - uses: codecov/codecov-action@v5
         if: always()

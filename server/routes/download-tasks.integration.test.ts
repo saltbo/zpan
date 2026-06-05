@@ -235,6 +235,18 @@ describe('Download tasks API integration', () => {
     expect(runningTask.detail.infoHash).toBe('abc123')
     expect(runningTask.detail.trackers[0].url).toBe('udp://tracker.example/announce')
 
+    const recoverRunningRes = await app.request('/api/download-tasks?assignedTo=me&status=running', {
+      headers: { Authorization: `Bearer ${createdDownloader.token}` },
+    })
+    expect(recoverRunningRes.status).toBe(200)
+    const recoverRunning = (await recoverRunningRes.json()) as {
+      items: Array<{ id: string; uploadToken?: string; status: string }>
+    }
+    const recoverRunningTask = recoverRunning.items.find((item) => item.id === createdTask.id)
+    expect(recoverRunningTask?.status).toBe('running')
+    expect(recoverRunningTask?.uploadToken).toBeTruthy()
+    uploadHeaders.Authorization = `Bearer ${recoverRunningTask?.uploadToken}`
+
     const createFolderRes = await app.request('/api/objects', {
       method: 'POST',
       headers: uploadHeaders,
@@ -334,6 +346,23 @@ describe('Download tasks API integration', () => {
     expect(confirmRes.status).toBe(200)
     const confirmed = (await confirmRes.json()) as { id: string; status: string }
     expect(confirmed.status).toBe('active')
+
+    const uploadingRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'uploading', downloadedBytes: 10 * 1024 * 1024 }),
+    })
+    expect(uploadingRes.status).toBe(200)
+    const recoverUploadingRes = await app.request('/api/download-tasks?assignedTo=me&status=uploading', {
+      headers: { Authorization: `Bearer ${createdDownloader.token}` },
+    })
+    expect(recoverUploadingRes.status).toBe(200)
+    const recoverUploading = (await recoverUploadingRes.json()) as {
+      items: Array<{ id: string; uploadToken?: string; status: string }>
+    }
+    const recoverUploadingTask = recoverUploading.items.find((item) => item.id === createdTask.id)
+    expect(recoverUploadingTask?.status).toBe('uploading')
+    expect(recoverUploadingTask?.uploadToken).toBeTruthy()
 
     const completeTaskRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',

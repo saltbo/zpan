@@ -78,6 +78,7 @@ export type {
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
   DownloadTaskDetail,
+  DownloadTaskSchema,
   ListDownloadTasksQuery,
   PatchObjectUploadSessionInput,
   PresignObjectUploadPartsInput,
@@ -85,16 +86,23 @@ export type {
   UpdateDownloadTaskInput,
 } from './downloads'
 export {
+  createDownloaderResponseSchema,
   createDownloaderSchema,
   createDownloadTaskSchema,
   createObjectUploadSessionSchema,
+  deleteDownloaderResponseSchema,
   downloaderEngineSchema,
+  downloaderHeartbeatResponseSchema,
   downloaderHeartbeatSchema,
+  downloaderListSchema,
+  downloaderSchema,
   downloaderStatusSchema,
   downloadSourceTypeSchema,
   downloadTaskActionInputSchema,
   downloadTaskActionSchema,
   downloadTaskDetailSchema,
+  downloadTaskPageSchema,
+  downloadTaskSchema,
   downloadTaskStatusSchema,
   listDownloadTasksQuerySchema,
   patchObjectUploadSessionSchema,
@@ -132,9 +140,9 @@ export type ConflictStrategy = z.infer<typeof conflictStrategySchema>
 export const createMatterSchema = z.object({
   name: z.string().min(1),
   type: z.string().min(1),
-  size: z.number().optional(),
+  size: z.number().int().min(0).optional(),
   parent: z.string().default(''),
-  dirtype: z.number().default(0),
+  dirtype: z.number().int().default(0),
   onConflict: conflictStrategySchema.optional(),
 })
 
@@ -152,6 +160,35 @@ export type UpdateMatterInput = z.infer<typeof updateMatterSchema>
 export const confirmMatterSchema = z.object({
   action: z.literal('confirm'),
   onConflict: conflictStrategySchema.optional(),
+})
+
+export const objectDraftSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  uploadUrl: z.string().optional(),
+  contentDisposition: z.string().optional(),
+})
+
+export const objectUploadSessionSchema = z.object({
+  id: z.string(),
+  objectId: z.string(),
+  uploadId: z.string(),
+  partSize: z.number().int(),
+  status: z.enum(['active', 'completed', 'aborted']),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const presignedObjectUploadPartSchema = z.object({
+  partNumber: z.number().int(),
+  url: z.string(),
+})
+
+export const presignObjectUploadPartsResponseSchema = z.object({
+  uploadId: z.string(),
+  partSize: z.number().int(),
+  parts: z.array(presignedObjectUploadPartSchema),
 })
 
 export const trashMatterSchema = z.object({
