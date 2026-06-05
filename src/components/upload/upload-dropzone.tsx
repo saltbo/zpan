@@ -50,6 +50,10 @@ function isDirectorySelection(files: File[]) {
   return files.some((file) => relativePathParts(file).length > 1)
 }
 
+export function directoryFolderParts(file: File): string[] {
+  return relativePathParts(file).slice(0, -1)
+}
+
 async function createFolder(
   name: string,
   parent: string,
@@ -185,8 +189,7 @@ async function uploadDirectoryFile(
   showApplyToAll: boolean,
   ctx: UploadRunnerContext,
 ): Promise<boolean | 'cancelled'> {
-  const parts = relativePathParts(file)
-  const folderParts = parts.slice(0, -1)
+  const folderParts = directoryFolderParts(file)
   const parent = await ensureDirectoryPath(baseParent, folderParts, folders, prompt, showApplyToAll)
   if (parent === 'cancelled') return 'cancelled'
   return uploadFile(file, parent, prompt, showApplyToAll, ctx)

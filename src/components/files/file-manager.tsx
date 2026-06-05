@@ -9,7 +9,7 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { Clock3, FolderOpen, FolderPlus, FolderUp, Upload } from 'lucide-react'
+import { ChevronDown, Clock3, FolderOpen, FolderPlus, FolderUp, Upload } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -20,6 +20,7 @@ import type { PreviewFile } from '@/components/preview/file-preview-content'
 import { FilePreviewDialog } from '@/components/preview/file-preview-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
 import { createBackgroundJob, getObject, listObjectsByPath } from '@/lib/api'
@@ -207,6 +208,8 @@ export function FileManager({
   const [shareTarget, setShareTarget] = useState<StorageObject | null>(null)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [uploadMenuOpen, setUploadMenuOpen] = useState(false)
+  const uploadMenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const musicPlayer = useMusicPlayer()
 
   const query = useQuery({
@@ -247,6 +250,12 @@ export function FileManager({
   useEffect(() => {
     setRowSelection({})
   }, [currentPath])
+
+  useEffect(() => {
+    return () => {
+      if (uploadMenuCloseTimer.current) clearTimeout(uploadMenuCloseTimer.current)
+    }
+  }, [])
 
   const navigateToPath = useCallback(
     (path: string) => {
@@ -423,6 +432,30 @@ export function FileManager({
     }
   })
 
+  const openUploadMenu = () => {
+    if (uploadMenuCloseTimer.current) clearTimeout(uploadMenuCloseTimer.current)
+    setUploadMenuOpen(true)
+  }
+
+  const scheduleUploadMenuClose = () => {
+    if (uploadMenuCloseTimer.current) clearTimeout(uploadMenuCloseTimer.current)
+    uploadMenuCloseTimer.current = setTimeout(() => setUploadMenuOpen(false), 180)
+  }
+
+  const handleUploadMenuOpenChange = (open: boolean) => {
+    if (open) setUploadMenuOpen(true)
+  }
+
+  const handleUploadFile = () => {
+    setUploadMenuOpen(false)
+    dropzoneRef.current?.openFileDialog()
+  }
+
+  const handleUploadFolder = () => {
+    setUploadMenuOpen(false)
+    dropzoneRef.current?.openDirectoryDialog()
+  }
+
   const fileActions =
     resolvedCapabilities.createFolder || resolvedCapabilities.upload || extraHeaderActions ? (
       <>
@@ -434,18 +467,37 @@ export function FileManager({
           </Button>
         )}
         {resolvedCapabilities.upload && (
-          <>
-            {!dataSource && (
-              <Button variant="outline" size="sm" onClick={() => dropzoneRef.current?.openDirectoryDialog()}>
-                <FolderUp />
-                <span className="sr-only sm:not-sr-only">{t('files.uploadFolder')}</span>
+          <DropdownMenu modal={false} open={!dataSource && uploadMenuOpen} onOpenChange={handleUploadMenuOpenChange}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                onPointerEnter={openUploadMenu}
+                onPointerLeave={scheduleUploadMenuClose}
+                onClick={handleUploadFile}
+              >
+                <Upload />
+                <span className="sr-only sm:not-sr-only">{t('files.upload')}</span>
+                {!dataSource && <ChevronDown className="size-3.5" />}
               </Button>
+            </DropdownMenuTrigger>
+            {!dataSource && (
+              <DropdownMenuContent
+                align="end"
+                onPointerEnter={openUploadMenu}
+                onPointerLeave={scheduleUploadMenuClose}
+                onCloseAutoFocus={(event) => event.preventDefault()}
+              >
+                <DropdownMenuItem onSelect={handleUploadFile}>
+                  <Upload />
+                  {t('files.upload')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleUploadFolder}>
+                  <FolderUp />
+                  {t('files.uploadFolder')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
             )}
-            <Button size="sm" onClick={() => dropzoneRef.current?.openFileDialog()}>
-              <Upload />
-              <span className="sr-only sm:not-sr-only">{t('files.upload')}</span>
-            </Button>
-          </>
+          </DropdownMenu>
         )}
       </>
     ) : null

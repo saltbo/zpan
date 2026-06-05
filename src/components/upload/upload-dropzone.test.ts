@@ -44,7 +44,7 @@ vi.mock('react-dropzone', () => ({
 
 import { toast } from 'sonner'
 import { confirmUpload, createObject, uploadToS3 } from '@/lib/api'
-import { relativePathParts } from './upload-dropzone'
+import { directoryFolderParts, relativePathParts } from './upload-dropzone'
 
 // ---------------------------------------------------------------------------
 // Extracted pure logic: simulate the onDrop handler with uploadFn path
@@ -113,6 +113,13 @@ describe('UploadDropzone — directory path parsing', () => {
     const file = new File(['data'], 'photo.jpg', { type: 'image/jpeg' })
 
     expect(relativePathParts(file)).toEqual(['photo.jpg'])
+  })
+
+  it('keeps the selected root folder when planning directory folders', () => {
+    const file = new File(['data'], 'photo.jpg', { type: 'image/jpeg' }) as File & { webkitRelativePath: string }
+    Object.defineProperty(file, 'webkitRelativePath', { value: 'Album/Trips/photo.jpg' })
+
+    expect(directoryFolderParts(file)).toEqual(['Album', 'Trips'])
   })
 })
 
