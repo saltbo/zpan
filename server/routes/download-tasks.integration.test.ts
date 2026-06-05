@@ -429,14 +429,22 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ action: 'cancel' }),
     })
     expect(cancelRes.status).toBe(200)
-    await expect(cancelRes.json()).resolves.toMatchObject({ status: 'canceled' })
+    await expect(cancelRes.json()).resolves.toMatchObject({ status: 'canceling' })
 
     const canceledAssignedRes = await app.request('/api/download-tasks?assignedTo=me', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(canceledAssignedRes.status).toBe(200)
     const canceledAssigned = (await canceledAssignedRes.json()) as { items: Array<{ id: string; status: string }> }
-    expect(canceledAssigned.items.find((item) => item.id === createdTask.id)?.status).toBe('canceled')
+    expect(canceledAssigned.items.find((item) => item.id === createdTask.id)?.status).toBe('canceling')
+
+    const canceledAckRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+    expect(canceledAckRes.status).toBe(200)
+    await expect(canceledAckRes.json()).resolves.toMatchObject({ status: 'canceled' })
 
     const canceledCompleteRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',

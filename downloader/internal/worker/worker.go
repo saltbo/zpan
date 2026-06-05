@@ -127,7 +127,10 @@ func (w *Worker) tick(ctx context.Context) error {
 		return err
 	}
 	for _, task := range controlTasks {
-		w.cancelRunning(task)
+		if w.cancelRunning(task) {
+			continue
+		}
+		w.ackStoppedControlTask(ctx, task)
 	}
 	tasks, err := w.api.AssignedTasks(ctx)
 	if err != nil {
@@ -671,19 +674,39 @@ func (w *Worker) finish(taskID string) {
 	delete(w.running, taskID)
 }
 
-func (w *Worker) cancelRunning(task client.DownloadTask) {
+func (w *Worker) cancelRunning(task client.DownloadTask) bool {
 	w.mu.Lock()
 	cancel := w.running[task.ID]
 	w.mu.Unlock()
 	if cancel == nil {
-		return
+		return false
 	}
 	w.taskLogger(task).Info("canceling running task from server state", "status", task.Status)
 	if task.Status == "pausing" {
 		cancel(errTaskPausing)
-		return
+		return true
 	}
 	cancel(errTaskCanceling)
+	return true
+}
+
+func (w *Worker) ackStoppedControlTask(ctx context.Context, task client.DownloadTask) {
+	log := w.taskLogger(task)
+	if task.Status == "pausing" {
+		if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "paused"}); err != nil {
+			log.Error("failed to acknowledge paused task without local process", "error", err)
+			return
+		}
+		log.Info("acknowledged paused task without local process")
+		return
+	}
+	if task.Status == "canceling" {
+		if _, err := w.api.UpdateTask(ctx, task.ID, client.TaskPatch{Status: "canceled"}); err != nil {
+			log.Error("failed to acknowledge canceled task without local process", "error", err)
+			return
+		}
+		log.Info("acknowledged canceled task without local process")
+	}
 }
 
 func (w *Worker) heartbeat() client.Heartbeat {

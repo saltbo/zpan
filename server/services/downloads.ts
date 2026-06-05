@@ -504,7 +504,9 @@ export async function performDownloadTaskAction(
       throw new DownloadError('invalid_state', 'Only active or paused tasks can be canceled')
     }
     const status =
-      task.status === 'running' || task.status === 'uploading' || task.status === 'pausing' ? 'canceling' : 'canceled'
+      task.assignedDownloaderId && ['assigned', 'running', 'uploading', 'pausing'].includes(task.status)
+        ? 'canceling'
+        : 'canceled'
     await platform.db
       .update(downloadTasks)
       .set({
