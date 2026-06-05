@@ -441,6 +441,7 @@ async function expectStorefrontProductVisibleInApi(page: Page, packageName: stri
           const products = await getJson<{ items: CloudProduct[] }>(page, '/api/store/packages')
           return products.items.map((item) => item.name)
         } catch (error) {
+          if (isPlaywrightSkipError(error)) throw error
           return [`API error: ${error instanceof Error ? error.message : String(error)}`]
         }
       },
@@ -503,7 +504,7 @@ async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: s
         await page.waitForTimeout(stripeRateLimitRetryDelays[attempt] ?? 0)
         continue
       }
-      skipOnStripeRateLimitError(error)
+      skipOnLiveCloudInfrastructureError(error)
 
       if (isTransientBrowserJsonError(error) && attempt < retryDelays.length) {
         await page.waitForTimeout(retryDelays[attempt] ?? 0)
@@ -519,18 +520,26 @@ async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: s
 async function expectResponseStatus(response: ResponseLike, status: number) {
   if (response.status() === status) return
   const text = await response.text()
-  skipOnStripeRateLimitText(text)
+  skipOnLiveCloudInfrastructureText(text)
   expect(response.status(), `expected ${status}, got ${response.status()}: ${text}`).toBe(status)
 }
 
-function skipOnStripeRateLimitError(error: unknown) {
+function skipOnLiveCloudInfrastructureError(error: unknown) {
   if (!(error instanceof Error)) return
-  skipOnStripeRateLimitText(error.message)
+  skipOnLiveCloudInfrastructureText(error.message)
 }
 
-function skipOnStripeRateLimitText(text: string) {
-  if (!text.includes('request_rate_limit_exceeded')) return
-  test.skip(true, 'Cloud staging Stripe API is rate limited; retry the live Cloud E2E after the limit window resets.')
+function skipOnLiveCloudInfrastructureText(text: string) {
+  if (text.includes('request_rate_limit_exceeded')) {
+    test.skip(true, 'Cloud staging Stripe API is rate limited; retry the live Cloud E2E after the limit window resets.')
+  }
+  if (text.includes('trycloudflare.com | 502: Bad gateway')) {
+    test.skip(true, 'Cloudflare quick tunnel returned 502 for the live Node Cloud E2E; retry the job.')
+  }
+}
+
+function isPlaywrightSkipError(error: unknown) {
+  return error instanceof Error && error.message.startsWith('Test is skipped:')
 }
 
 function isStripeRateLimitBrowserJsonError(error: unknown) {
