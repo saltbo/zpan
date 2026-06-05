@@ -11,10 +11,10 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000
 
 export class ObjectUploadSessionError extends Error {
   constructor(
-    readonly code: 'not_found' | 'invalid_state',
-    message = code,
+    readonly code: 'not_found' | 'invalid_state' | 'storage_failure',
+    message?: string,
   ) {
-    super(message)
+    super(message ?? code)
     this.name = 'ObjectUploadSessionError'
   }
 }
@@ -35,7 +35,15 @@ export async function createObjectUploadSession(
   },
 ): Promise<ObjectUploadSession> {
   const now = new Date()
-  const uploadId = await s3.createMultipartUpload(params.storage, params.storageKey, params.contentType)
+  let uploadId: string
+  try {
+    uploadId = await s3.createMultipartUpload(params.storage, params.storageKey, params.contentType)
+  } catch (error) {
+    throw new ObjectUploadSessionError(
+      'storage_failure',
+      `Storage multipart upload failed: ${(error as Error).message}`,
+    )
+  }
   const row: typeof objectUploadSessions.$inferInsert = {
     id: nanoid(),
     orgId: params.orgId,

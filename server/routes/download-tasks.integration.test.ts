@@ -362,6 +362,67 @@ describe('Download tasks API integration', () => {
     expect(task.storageUploadedBytes).toBe(10 * 1024 * 1024)
   })
 
+  it('returns storage failure details when multipart upload session creation fails', async () => {
+    vi.mocked(S3Service.prototype.createMultipartUpload).mockRejectedValueOnce(
+      new Error('bucket does not support multipart'),
+    )
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'multipart-failure-downloader')
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+    })
+    expect(heartbeatRes.status).toBe(200)
+    const user = await authedHeaders(app, 'multipart-failure-user@example.com')
+
+    const taskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'magnet', uri: 'magnet:?xt=urn:btih:multipartfail' },
+        targetFolder: 'Remote Downloads',
+      }),
+    })
+    expect(taskRes.status).toBe(201)
+    const tasksRes = await app.request('/api/download-tasks?assignedTo=me&status=assigned', {
+      headers: { Authorization: `Bearer ${createdDownloader.token}` },
+    })
+    const tasks = (await tasksRes.json()) as { items: Array<{ uploadToken: string }> }
+    const uploadHeaders = {
+      Authorization: `Bearer ${tasks.items[0].uploadToken}`,
+      'Content-Type': 'application/json',
+    }
+    const createObjectRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: uploadHeaders,
+      body: JSON.stringify({
+        name: 'fixture.bin',
+        type: 'application/octet-stream',
+        size: 6 * 1024 * 1024 * 1024,
+        parent: 'Remote Downloads',
+      }),
+    })
+    expect(createObjectRes.status).toBe(201)
+    const object = (await createObjectRes.json()) as { id: string }
+
+    const sessionRes = await app.request(`/api/objects/${object.id}/uploads`, {
+      method: 'POST',
+      headers: uploadHeaders,
+      body: JSON.stringify({ partSize: 64 * 1024 * 1024 }),
+    })
+
+    expect(sessionRes.status).toBe(502)
+    await expect(sessionRes.json()).resolves.toEqual({
+      error: 'Storage multipart upload failed: bucket does not support multipart',
+    })
+  })
+
   it('submits user task actions through downloader polling state', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)

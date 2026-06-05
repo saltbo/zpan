@@ -52,8 +52,71 @@ const objectDraftSchema = z
 const confirmObjectRequestSchema = z
   .object({
     action: z.enum(['confirm']),
+    onConflict: z.enum(['fail', 'rename']).optional(),
   })
   .openapi('ConfirmObjectRequest')
+
+const createObjectUploadSessionRequestSchema = z
+  .object({
+    partSize: z
+      .number()
+      .int()
+      .min(5 * 1024 * 1024)
+      .max(512 * 1024 * 1024)
+      .optional(),
+  })
+  .openapi('CreateObjectUploadSessionRequest')
+
+const objectUploadSessionSchema = z
+  .object({
+    id: z.string(),
+    objectId: z.string(),
+    uploadId: z.string(),
+    partSize: z.number().int(),
+    status: z.enum(['active', 'completed', 'aborted']),
+    expiresAt: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('ObjectUploadSession')
+
+const presignObjectUploadPartsRequestSchema = z
+  .object({
+    partNumbers: z.array(z.number().int().min(1).max(10_000)).min(1).max(100),
+  })
+  .openapi('PresignObjectUploadPartsRequest')
+
+const presignedObjectUploadPartSchema = z
+  .object({
+    partNumber: z.number().int(),
+    url: z.string(),
+  })
+  .openapi('PresignedObjectUploadPart')
+
+const presignObjectUploadPartsResponseSchema = z
+  .object({
+    uploadId: z.string(),
+    partSize: z.number().int(),
+    parts: z.array(presignedObjectUploadPartSchema),
+  })
+  .openapi('PresignObjectUploadPartsResponse')
+
+const completeObjectUploadSessionRequestSchema = z
+  .object({
+    action: z.literal('complete'),
+    parts: z.array(z.object({ partNumber: z.number().int(), etag: z.string() })).min(1),
+  })
+  .openapi('CompleteObjectUploadSessionRequest')
+
+const abortObjectUploadSessionRequestSchema = z
+  .object({
+    action: z.literal('abort'),
+  })
+  .openapi('AbortObjectUploadSessionRequest')
+
+const patchObjectUploadSessionRequestSchema = z
+  .union([completeObjectUploadSessionRequestSchema, abortObjectUploadSessionRequestSchema])
+  .openapi('PatchObjectUploadSessionRequest')
 
 function jsonResponse(schema: z.ZodType, description: string) {
   return {
@@ -142,6 +205,69 @@ function mountObjectUploadRoutes(app: OpenAPIHono) {
       },
     }),
     (c) => c.json({} as z.infer<typeof objectDraftSchema>, 200),
+  )
+
+  app.openapi(
+    createRoute({
+      method: 'post',
+      path: '/api/objects/{id}/uploads',
+      request: {
+        params: z.object({ id: z.string() }),
+        body: {
+          content: { 'application/json': { schema: createObjectUploadSessionRequestSchema } },
+          required: true,
+        },
+      },
+      responses: {
+        201: jsonResponse(objectUploadSessionSchema, 'Object multipart upload session'),
+        400: jsonResponse(errorSchema, 'Invalid upload session'),
+        403: jsonResponse(errorSchema, 'Forbidden'),
+        404: jsonResponse(errorSchema, 'Not found'),
+      },
+    }),
+    (c) => c.json({} as z.infer<typeof objectUploadSessionSchema>, 201),
+  )
+
+  app.openapi(
+    createRoute({
+      method: 'post',
+      path: '/api/objects/{id}/uploads/{uploadSessionId}/parts',
+      request: {
+        params: z.object({ id: z.string(), uploadSessionId: z.string() }),
+        body: {
+          content: { 'application/json': { schema: presignObjectUploadPartsRequestSchema } },
+          required: true,
+        },
+      },
+      responses: {
+        200: jsonResponse(presignObjectUploadPartsResponseSchema, 'Presigned multipart upload parts'),
+        400: jsonResponse(errorSchema, 'Invalid upload session'),
+        403: jsonResponse(errorSchema, 'Forbidden'),
+        404: jsonResponse(errorSchema, 'Not found'),
+      },
+    }),
+    (c) => c.json({} as z.infer<typeof presignObjectUploadPartsResponseSchema>, 200),
+  )
+
+  app.openapi(
+    createRoute({
+      method: 'patch',
+      path: '/api/objects/{id}/uploads/{uploadSessionId}',
+      request: {
+        params: z.object({ id: z.string(), uploadSessionId: z.string() }),
+        body: {
+          content: { 'application/json': { schema: patchObjectUploadSessionRequestSchema } },
+          required: true,
+        },
+      },
+      responses: {
+        200: jsonResponse(objectUploadSessionSchema, 'Updated object multipart upload session'),
+        400: jsonResponse(errorSchema, 'Invalid upload session'),
+        403: jsonResponse(errorSchema, 'Forbidden'),
+        404: jsonResponse(errorSchema, 'Not found'),
+      },
+    }),
+    (c) => c.json({} as z.infer<typeof objectUploadSessionSchema>, 200),
   )
 }
 

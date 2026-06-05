@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -74,6 +75,50 @@ func TestUploadFileIncludesErrorBody(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "403 Forbidden") || !strings.Contains(err.Error(), "signature mismatch") {
 		t.Fatalf("expected status and response body in error, got %v", err)
+	}
+}
+
+func TestUploadFilePartSendsSectionAndReturnsETag(t *testing.T) {
+	path := writeTempFile(t, "hello multipart")
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	var contentLength string
+	var body string
+	var uploaded int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		contentLength = r.Header.Get("Content-Length")
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = string(data)
+		w.Header().Set("ETag", `"part-etag"`)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	etag, err := uploadFilePart(context.Background(), server.URL, file, 6, 9, func(written int64) error {
+		uploaded += written
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("uploadFilePart returned error: %v", err)
+	}
+	if contentLength != "9" {
+		t.Fatalf("expected Content-Length 9, got %q", contentLength)
+	}
+	if body != "multipart" {
+		t.Fatalf("expected section body, got %q", body)
+	}
+	if etag != `"part-etag"` {
+		t.Fatalf("expected ETag, got %q", etag)
+	}
+	if uploaded != 9 {
+		t.Fatalf("expected uploaded bytes 9, got %d", uploaded)
 	}
 }
 

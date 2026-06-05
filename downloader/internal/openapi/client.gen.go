@@ -16,6 +16,36 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for AbortObjectUploadSessionRequestAction.
+const (
+	Abort AbortObjectUploadSessionRequestAction = "abort"
+)
+
+// Valid indicates whether the value is a known member of the AbortObjectUploadSessionRequestAction enum.
+func (e AbortObjectUploadSessionRequestAction) Valid() bool {
+	switch e {
+	case Abort:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CompleteObjectUploadSessionRequestAction.
+const (
+	Complete CompleteObjectUploadSessionRequestAction = "complete"
+)
+
+// Valid indicates whether the value is a known member of the CompleteObjectUploadSessionRequestAction enum.
+func (e CompleteObjectUploadSessionRequestAction) Valid() bool {
+	switch e {
+	case Complete:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ConfirmObjectRequestAction.
 const (
 	Confirm ConfirmObjectRequestAction = "confirm"
@@ -25,6 +55,45 @@ const (
 func (e ConfirmObjectRequestAction) Valid() bool {
 	switch e {
 	case Confirm:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConfirmObjectRequestOnConflict.
+const (
+	ConfirmObjectRequestOnConflictFail   ConfirmObjectRequestOnConflict = "fail"
+	ConfirmObjectRequestOnConflictRename ConfirmObjectRequestOnConflict = "rename"
+)
+
+// Valid indicates whether the value is a known member of the ConfirmObjectRequestOnConflict enum.
+func (e ConfirmObjectRequestOnConflict) Valid() bool {
+	switch e {
+	case ConfirmObjectRequestOnConflictFail:
+		return true
+	case ConfirmObjectRequestOnConflictRename:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ObjectUploadSessionStatus.
+const (
+	ObjectUploadSessionStatusAborted   ObjectUploadSessionStatus = "aborted"
+	ObjectUploadSessionStatusActive    ObjectUploadSessionStatus = "active"
+	ObjectUploadSessionStatusCompleted ObjectUploadSessionStatus = "completed"
+)
+
+// Valid indicates whether the value is a known member of the ObjectUploadSessionStatus enum.
+func (e ObjectUploadSessionStatus) Valid() bool {
+	switch e {
+	case ObjectUploadSessionStatusAborted:
+		return true
+	case ObjectUploadSessionStatusActive:
+		return true
+	case ObjectUploadSessionStatusCompleted:
 		return true
 	default:
 		return false
@@ -1086,43 +1155,43 @@ func (e PostApiDownloadTasksIdActions200JSONResponseBody0SourceType) Valid() boo
 
 // Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0Status.
 const (
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusAssigned      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "assigned"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingPaused PostApiDownloadTasksIdActions200JSONResponseBody0Status = "billing_paused"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceled      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceled"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceling"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "completed"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "failed"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "paused"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPausing       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "pausing"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "queued"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRunning       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "running"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusUploading     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "uploading"
+	Assigned      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "assigned"
+	BillingPaused PostApiDownloadTasksIdActions200JSONResponseBody0Status = "billing_paused"
+	Canceled      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceled"
+	Canceling     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceling"
+	Completed     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "completed"
+	Failed        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "failed"
+	Paused        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "paused"
+	Pausing       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "pausing"
+	Queued        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "queued"
+	Running       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "running"
+	Uploading     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0Status enum.
 func (e PostApiDownloadTasksIdActions200JSONResponseBody0Status) Valid() bool {
 	switch e {
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusAssigned:
+	case Assigned:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingPaused:
+	case BillingPaused:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceled:
+	case Canceled:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling:
+	case Canceling:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted:
+	case Completed:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed:
+	case Failed:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused:
+	case Paused:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusPausing:
+	case Pausing:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued:
+	case Queued:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRunning:
+	case Running:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusUploading:
+	case Uploading:
 		return true
 	default:
 		return false
@@ -1209,32 +1278,61 @@ func (e PostApiDownloaderHeartbeat200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for PostApiObjectsJSONBodyOnConflict.
 const (
-	Fail    PostApiObjectsJSONBodyOnConflict = "fail"
-	Rename  PostApiObjectsJSONBodyOnConflict = "rename"
-	Replace PostApiObjectsJSONBodyOnConflict = "replace"
+	PostApiObjectsJSONBodyOnConflictFail    PostApiObjectsJSONBodyOnConflict = "fail"
+	PostApiObjectsJSONBodyOnConflictRename  PostApiObjectsJSONBodyOnConflict = "rename"
+	PostApiObjectsJSONBodyOnConflictReplace PostApiObjectsJSONBodyOnConflict = "replace"
 )
 
 // Valid indicates whether the value is a known member of the PostApiObjectsJSONBodyOnConflict enum.
 func (e PostApiObjectsJSONBodyOnConflict) Valid() bool {
 	switch e {
-	case Fail:
+	case PostApiObjectsJSONBodyOnConflictFail:
 		return true
-	case Rename:
+	case PostApiObjectsJSONBodyOnConflictRename:
 		return true
-	case Replace:
+	case PostApiObjectsJSONBodyOnConflictReplace:
 		return true
 	default:
 		return false
 	}
 }
 
+// AbortObjectUploadSessionRequest defines model for AbortObjectUploadSessionRequest.
+type AbortObjectUploadSessionRequest struct {
+	Action AbortObjectUploadSessionRequestAction `json:"action"`
+}
+
+// AbortObjectUploadSessionRequestAction defines model for AbortObjectUploadSessionRequest.Action.
+type AbortObjectUploadSessionRequestAction string
+
+// CompleteObjectUploadSessionRequest defines model for CompleteObjectUploadSessionRequest.
+type CompleteObjectUploadSessionRequest struct {
+	Action CompleteObjectUploadSessionRequestAction `json:"action"`
+	Parts  []struct {
+		Etag       string `json:"etag"`
+		PartNumber int    `json:"partNumber"`
+	} `json:"parts"`
+}
+
+// CompleteObjectUploadSessionRequestAction defines model for CompleteObjectUploadSessionRequest.Action.
+type CompleteObjectUploadSessionRequestAction string
+
 // ConfirmObjectRequest defines model for ConfirmObjectRequest.
 type ConfirmObjectRequest struct {
-	Action ConfirmObjectRequestAction `json:"action"`
+	Action     ConfirmObjectRequestAction      `json:"action"`
+	OnConflict *ConfirmObjectRequestOnConflict `json:"onConflict,omitempty"`
 }
 
 // ConfirmObjectRequestAction defines model for ConfirmObjectRequest.Action.
 type ConfirmObjectRequestAction string
+
+// ConfirmObjectRequestOnConflict defines model for ConfirmObjectRequest.OnConflict.
+type ConfirmObjectRequestOnConflict string
+
+// CreateObjectUploadSessionRequest defines model for CreateObjectUploadSessionRequest.
+type CreateObjectUploadSessionRequest struct {
+	PartSize *int `json:"partSize,omitempty"`
+}
 
 // DeviceCode defines model for DeviceCode.
 type DeviceCode struct {
@@ -1278,6 +1376,44 @@ type ObjectDraft struct {
 	Id                 string  `json:"id"`
 	Name               string  `json:"name"`
 	UploadUrl          *string `json:"uploadUrl,omitempty"`
+}
+
+// ObjectUploadSession defines model for ObjectUploadSession.
+type ObjectUploadSession struct {
+	CreatedAt string                    `json:"createdAt"`
+	ExpiresAt string                    `json:"expiresAt"`
+	Id        string                    `json:"id"`
+	ObjectId  string                    `json:"objectId"`
+	PartSize  int                       `json:"partSize"`
+	Status    ObjectUploadSessionStatus `json:"status"`
+	UpdatedAt string                    `json:"updatedAt"`
+	UploadId  string                    `json:"uploadId"`
+}
+
+// ObjectUploadSessionStatus defines model for ObjectUploadSession.Status.
+type ObjectUploadSessionStatus string
+
+// PatchObjectUploadSessionRequest defines model for PatchObjectUploadSessionRequest.
+type PatchObjectUploadSessionRequest struct {
+	union json.RawMessage
+}
+
+// PresignObjectUploadPartsRequest defines model for PresignObjectUploadPartsRequest.
+type PresignObjectUploadPartsRequest struct {
+	PartNumbers []int `json:"partNumbers"`
+}
+
+// PresignObjectUploadPartsResponse defines model for PresignObjectUploadPartsResponse.
+type PresignObjectUploadPartsResponse struct {
+	PartSize int                         `json:"partSize"`
+	Parts    []PresignedObjectUploadPart `json:"parts"`
+	UploadId string                      `json:"uploadId"`
+}
+
+// PresignedObjectUploadPart defines model for PresignedObjectUploadPart.
+type PresignedObjectUploadPart struct {
+	PartNumber int    `json:"partNumber"`
+	Url        string `json:"url"`
 }
 
 // GetApiAdminDownloaders200JSONResponseBodyItemsHeartbeatEngine defines parameters for GetApiAdminDownloaders.
@@ -1654,6 +1790,77 @@ type PostApiObjectsJSONRequestBody PostApiObjectsJSONBody
 // PatchApiObjectsIdJSONRequestBody defines body for PatchApiObjectsId for application/json ContentType.
 type PatchApiObjectsIdJSONRequestBody = ConfirmObjectRequest
 
+// PostApiObjectsIdUploadsJSONRequestBody defines body for PostApiObjectsIdUploads for application/json ContentType.
+type PostApiObjectsIdUploadsJSONRequestBody = CreateObjectUploadSessionRequest
+
+// PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody defines body for PatchApiObjectsIdUploadsUploadSessionId for application/json ContentType.
+type PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody = PatchObjectUploadSessionRequest
+
+// PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody defines body for PostApiObjectsIdUploadsUploadSessionIdParts for application/json ContentType.
+type PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody = PresignObjectUploadPartsRequest
+
+// AsCompleteObjectUploadSessionRequest returns the union data inside the PatchObjectUploadSessionRequest as a CompleteObjectUploadSessionRequest
+func (t PatchObjectUploadSessionRequest) AsCompleteObjectUploadSessionRequest() (CompleteObjectUploadSessionRequest, error) {
+	var body CompleteObjectUploadSessionRequest
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCompleteObjectUploadSessionRequest overwrites any union data inside the PatchObjectUploadSessionRequest as the provided CompleteObjectUploadSessionRequest
+func (t *PatchObjectUploadSessionRequest) FromCompleteObjectUploadSessionRequest(v CompleteObjectUploadSessionRequest) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCompleteObjectUploadSessionRequest performs a merge with any union data inside the PatchObjectUploadSessionRequest, using the provided CompleteObjectUploadSessionRequest
+func (t *PatchObjectUploadSessionRequest) MergeCompleteObjectUploadSessionRequest(v CompleteObjectUploadSessionRequest) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAbortObjectUploadSessionRequest returns the union data inside the PatchObjectUploadSessionRequest as a AbortObjectUploadSessionRequest
+func (t PatchObjectUploadSessionRequest) AsAbortObjectUploadSessionRequest() (AbortObjectUploadSessionRequest, error) {
+	var body AbortObjectUploadSessionRequest
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAbortObjectUploadSessionRequest overwrites any union data inside the PatchObjectUploadSessionRequest as the provided AbortObjectUploadSessionRequest
+func (t *PatchObjectUploadSessionRequest) FromAbortObjectUploadSessionRequest(v AbortObjectUploadSessionRequest) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAbortObjectUploadSessionRequest performs a merge with any union data inside the PatchObjectUploadSessionRequest, using the provided AbortObjectUploadSessionRequest
+func (t *PatchObjectUploadSessionRequest) MergeAbortObjectUploadSessionRequest(v AbortObjectUploadSessionRequest) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PatchObjectUploadSessionRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PatchObjectUploadSessionRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsPostApiDownloadTasksIdActions200JSONResponseBody0 returns the union data inside the PostApiDownloadTasksIdActions200JSONResponseBody as a PostApiDownloadTasksIdActions200JSONResponseBody0
 func (t PostApiDownloadTasksIdActions200JSONResponseBody) AsPostApiDownloadTasksIdActions200JSONResponseBody0() (PostApiDownloadTasksIdActions200JSONResponseBody0, error) {
 	var body PostApiDownloadTasksIdActions200JSONResponseBody0
@@ -1853,6 +2060,21 @@ type ClientInterface interface {
 	PatchApiObjectsIdWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PatchApiObjectsId(ctx context.Context, id string, body PatchApiObjectsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiObjectsIdUploadsWithBody request with any body
+	PostApiObjectsIdUploadsWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostApiObjectsIdUploads(ctx context.Context, id string, body PostApiObjectsIdUploadsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PatchApiObjectsIdUploadsUploadSessionIdWithBody request with any body
+	PatchApiObjectsIdUploadsUploadSessionIdWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PatchApiObjectsIdUploadsUploadSessionId(ctx context.Context, id string, uploadSessionId string, body PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiObjectsIdUploadsUploadSessionIdPartsWithBody request with any body
+	PostApiObjectsIdUploadsUploadSessionIdPartsWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostApiObjectsIdUploadsUploadSessionIdParts(ctx context.Context, id string, uploadSessionId string, body PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetApiAdminDownloaders(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -2145,6 +2367,78 @@ func (c *Client) PatchApiObjectsIdWithBody(ctx context.Context, id string, conte
 
 func (c *Client) PatchApiObjectsId(ctx context.Context, id string, body PatchApiObjectsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPatchApiObjectsIdRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiObjectsIdUploadsWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiObjectsIdUploadsRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiObjectsIdUploads(ctx context.Context, id string, body PostApiObjectsIdUploadsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiObjectsIdUploadsRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchApiObjectsIdUploadsUploadSessionIdWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchApiObjectsIdUploadsUploadSessionIdRequestWithBody(c.Server, id, uploadSessionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchApiObjectsIdUploadsUploadSessionId(ctx context.Context, id string, uploadSessionId string, body PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchApiObjectsIdUploadsUploadSessionIdRequest(c.Server, id, uploadSessionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiObjectsIdUploadsUploadSessionIdPartsWithBody(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiObjectsIdUploadsUploadSessionIdPartsRequestWithBody(c.Server, id, uploadSessionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiObjectsIdUploadsUploadSessionIdParts(ctx context.Context, id string, uploadSessionId string, body PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiObjectsIdUploadsUploadSessionIdPartsRequest(c.Server, id, uploadSessionId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2954,6 +3248,161 @@ func NewPatchApiObjectsIdRequestWithBody(server string, id string, contentType s
 	return req, nil
 }
 
+// NewPostApiObjectsIdUploadsRequest calls the generic PostApiObjectsIdUploads builder with application/json body
+func NewPostApiObjectsIdUploadsRequest(server string, id string, body PostApiObjectsIdUploadsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiObjectsIdUploadsRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPostApiObjectsIdUploadsRequestWithBody generates requests for PostApiObjectsIdUploads with any type of body
+func NewPostApiObjectsIdUploadsRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s/uploads", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPatchApiObjectsIdUploadsUploadSessionIdRequest calls the generic PatchApiObjectsIdUploadsUploadSessionId builder with application/json body
+func NewPatchApiObjectsIdUploadsUploadSessionIdRequest(server string, id string, uploadSessionId string, body PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPatchApiObjectsIdUploadsUploadSessionIdRequestWithBody(server, id, uploadSessionId, "application/json", bodyReader)
+}
+
+// NewPatchApiObjectsIdUploadsUploadSessionIdRequestWithBody generates requests for PatchApiObjectsIdUploadsUploadSessionId with any type of body
+func NewPatchApiObjectsIdUploadsUploadSessionIdRequestWithBody(server string, id string, uploadSessionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "uploadSessionId", uploadSessionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s/uploads/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostApiObjectsIdUploadsUploadSessionIdPartsRequest calls the generic PostApiObjectsIdUploadsUploadSessionIdParts builder with application/json body
+func NewPostApiObjectsIdUploadsUploadSessionIdPartsRequest(server string, id string, uploadSessionId string, body PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiObjectsIdUploadsUploadSessionIdPartsRequestWithBody(server, id, uploadSessionId, "application/json", bodyReader)
+}
+
+// NewPostApiObjectsIdUploadsUploadSessionIdPartsRequestWithBody generates requests for PostApiObjectsIdUploadsUploadSessionIdParts with any type of body
+func NewPostApiObjectsIdUploadsUploadSessionIdPartsRequestWithBody(server string, id string, uploadSessionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "uploadSessionId", uploadSessionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s/uploads/%s/parts", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -3061,6 +3510,21 @@ type ClientWithResponsesInterface interface {
 	PatchApiObjectsIdWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdResponse, error)
 
 	PatchApiObjectsIdWithResponse(ctx context.Context, id string, body PatchApiObjectsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdResponse, error)
+
+	// PostApiObjectsIdUploadsWithBodyWithResponse request with any body
+	PostApiObjectsIdUploadsWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsIdUploadsResponse, error)
+
+	PostApiObjectsIdUploadsWithResponse(ctx context.Context, id string, body PostApiObjectsIdUploadsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiObjectsIdUploadsResponse, error)
+
+	// PatchApiObjectsIdUploadsUploadSessionIdWithBodyWithResponse request with any body
+	PatchApiObjectsIdUploadsUploadSessionIdWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdUploadsUploadSessionIdResponse, error)
+
+	PatchApiObjectsIdUploadsUploadSessionIdWithResponse(ctx context.Context, id string, uploadSessionId string, body PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdUploadsUploadSessionIdResponse, error)
+
+	// PostApiObjectsIdUploadsUploadSessionIdPartsWithBodyWithResponse request with any body
+	PostApiObjectsIdUploadsUploadSessionIdPartsWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsIdUploadsUploadSessionIdPartsResponse, error)
+
+	PostApiObjectsIdUploadsUploadSessionIdPartsWithResponse(ctx context.Context, id string, uploadSessionId string, body PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiObjectsIdUploadsUploadSessionIdPartsResponse, error)
 }
 
 type GetApiAdminDownloadersResponse struct {
@@ -3877,6 +4341,105 @@ func (r PatchApiObjectsIdResponse) ContentType() string {
 	return ""
 }
 
+type PostApiObjectsIdUploadsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ObjectUploadSession
+	JSON400      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiObjectsIdUploadsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiObjectsIdUploadsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiObjectsIdUploadsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PatchApiObjectsIdUploadsUploadSessionIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObjectUploadSession
+	JSON400      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PatchApiObjectsIdUploadsUploadSessionIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PatchApiObjectsIdUploadsUploadSessionIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PatchApiObjectsIdUploadsUploadSessionIdResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiObjectsIdUploadsUploadSessionIdPartsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PresignObjectUploadPartsResponse
+	JSON400      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiObjectsIdUploadsUploadSessionIdPartsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiObjectsIdUploadsUploadSessionIdPartsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiObjectsIdUploadsUploadSessionIdPartsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // GetApiAdminDownloadersWithResponse request returning *GetApiAdminDownloadersResponse
 func (c *ClientWithResponses) GetApiAdminDownloadersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminDownloadersResponse, error) {
 	rsp, err := c.GetApiAdminDownloaders(ctx, reqEditors...)
@@ -4090,6 +4653,57 @@ func (c *ClientWithResponses) PatchApiObjectsIdWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParsePatchApiObjectsIdResponse(rsp)
+}
+
+// PostApiObjectsIdUploadsWithBodyWithResponse request with arbitrary body returning *PostApiObjectsIdUploadsResponse
+func (c *ClientWithResponses) PostApiObjectsIdUploadsWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsIdUploadsResponse, error) {
+	rsp, err := c.PostApiObjectsIdUploadsWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiObjectsIdUploadsResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostApiObjectsIdUploadsWithResponse(ctx context.Context, id string, body PostApiObjectsIdUploadsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiObjectsIdUploadsResponse, error) {
+	rsp, err := c.PostApiObjectsIdUploads(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiObjectsIdUploadsResponse(rsp)
+}
+
+// PatchApiObjectsIdUploadsUploadSessionIdWithBodyWithResponse request with arbitrary body returning *PatchApiObjectsIdUploadsUploadSessionIdResponse
+func (c *ClientWithResponses) PatchApiObjectsIdUploadsUploadSessionIdWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdUploadsUploadSessionIdResponse, error) {
+	rsp, err := c.PatchApiObjectsIdUploadsUploadSessionIdWithBody(ctx, id, uploadSessionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchApiObjectsIdUploadsUploadSessionIdResponse(rsp)
+}
+
+func (c *ClientWithResponses) PatchApiObjectsIdUploadsUploadSessionIdWithResponse(ctx context.Context, id string, uploadSessionId string, body PatchApiObjectsIdUploadsUploadSessionIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchApiObjectsIdUploadsUploadSessionIdResponse, error) {
+	rsp, err := c.PatchApiObjectsIdUploadsUploadSessionId(ctx, id, uploadSessionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchApiObjectsIdUploadsUploadSessionIdResponse(rsp)
+}
+
+// PostApiObjectsIdUploadsUploadSessionIdPartsWithBodyWithResponse request with arbitrary body returning *PostApiObjectsIdUploadsUploadSessionIdPartsResponse
+func (c *ClientWithResponses) PostApiObjectsIdUploadsUploadSessionIdPartsWithBodyWithResponse(ctx context.Context, id string, uploadSessionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiObjectsIdUploadsUploadSessionIdPartsResponse, error) {
+	rsp, err := c.PostApiObjectsIdUploadsUploadSessionIdPartsWithBody(ctx, id, uploadSessionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiObjectsIdUploadsUploadSessionIdPartsResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostApiObjectsIdUploadsUploadSessionIdPartsWithResponse(ctx context.Context, id string, uploadSessionId string, body PostApiObjectsIdUploadsUploadSessionIdPartsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiObjectsIdUploadsUploadSessionIdPartsResponse, error) {
+	rsp, err := c.PostApiObjectsIdUploadsUploadSessionIdParts(ctx, id, uploadSessionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiObjectsIdUploadsUploadSessionIdPartsResponse(rsp)
 }
 
 // ParseGetApiAdminDownloadersResponse parses an HTTP response from a GetApiAdminDownloadersWithResponse call
@@ -4970,6 +5584,147 @@ func ParsePatchApiObjectsIdResponse(rsp *http.Response) (*PatchApiObjectsIdRespo
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiObjectsIdUploadsResponse parses an HTTP response from a PostApiObjectsIdUploadsWithResponse call
+func ParsePostApiObjectsIdUploadsResponse(rsp *http.Response) (*PostApiObjectsIdUploadsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiObjectsIdUploadsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ObjectUploadSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePatchApiObjectsIdUploadsUploadSessionIdResponse parses an HTTP response from a PatchApiObjectsIdUploadsUploadSessionIdWithResponse call
+func ParsePatchApiObjectsIdUploadsUploadSessionIdResponse(rsp *http.Response) (*PatchApiObjectsIdUploadsUploadSessionIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PatchApiObjectsIdUploadsUploadSessionIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObjectUploadSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiObjectsIdUploadsUploadSessionIdPartsResponse parses an HTTP response from a PostApiObjectsIdUploadsUploadSessionIdPartsWithResponse call
+func ParsePostApiObjectsIdUploadsUploadSessionIdPartsResponse(rsp *http.Response) (*PostApiObjectsIdUploadsUploadSessionIdPartsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiObjectsIdUploadsUploadSessionIdPartsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PresignObjectUploadPartsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ErrorResponse

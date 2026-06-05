@@ -121,6 +121,23 @@ type ObjectDraft struct {
 	ContentDisposition string `json:"contentDisposition,omitempty"`
 }
 
+type ObjectUploadSession struct {
+	ID       string `json:"id"`
+	ObjectID string `json:"objectId"`
+	UploadID string `json:"uploadId"`
+	PartSize int64  `json:"partSize"`
+}
+
+type PresignedObjectUploadPart struct {
+	PartNumber int    `json:"partNumber"`
+	URL        string `json:"url"`
+}
+
+type CompletedObjectUploadPart struct {
+	PartNumber int    `json:"partNumber"`
+	ETag       string `json:"etag"`
+}
+
 const (
 	dirTypeFile       = 0
 	dirTypeUserFolder = 1
@@ -366,6 +383,85 @@ func (c *Client) ConfirmObject(ctx context.Context, token string, id string) err
 		return err
 	}
 	return expectStatus("PATCH", "/api/objects/"+id, res.StatusCode(), res.Body, http.StatusOK)
+}
+
+func (c *Client) CreateObjectUploadSession(ctx context.Context, token string, id string, partSize int64) (ObjectUploadSession, error) {
+	body, err := jsonBody(struct {
+		PartSize int64 `json:"partSize"`
+	}{PartSize: partSize})
+	if err != nil {
+		return ObjectUploadSession{}, err
+	}
+	res, err := c.api.PostApiObjectsIdUploadsWithBodyWithResponse(ctx, id, "application/json", body, bearer(token))
+	if err != nil {
+		return ObjectUploadSession{}, err
+	}
+	if err := expectStatus("POST", "/api/objects/"+id+"/uploads", res.StatusCode(), res.Body, http.StatusCreated); err != nil {
+		return ObjectUploadSession{}, err
+	}
+	if res.JSON201 == nil {
+		return ObjectUploadSession{}, fmt.Errorf("POST /api/objects/%s/uploads failed: empty response", id)
+	}
+	return ObjectUploadSession{
+		ID:       res.JSON201.Id,
+		ObjectID: res.JSON201.ObjectId,
+		UploadID: res.JSON201.UploadId,
+		PartSize: int64(res.JSON201.PartSize),
+	}, nil
+}
+
+func (c *Client) PresignObjectUploadParts(ctx context.Context, token string, id string, sessionID string, partNumbers []int) ([]PresignedObjectUploadPart, error) {
+	body, err := jsonBody(struct {
+		PartNumbers []int `json:"partNumbers"`
+	}{PartNumbers: partNumbers})
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.api.PostApiObjectsIdUploadsUploadSessionIdPartsWithBodyWithResponse(ctx, id, sessionID, "application/json", body, bearer(token))
+	if err != nil {
+		return nil, err
+	}
+	path := "/api/objects/" + id + "/uploads/" + sessionID + "/parts"
+	if err := expectStatus("POST", path, res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, fmt.Errorf("POST %s failed: empty response", path)
+	}
+	parts := make([]PresignedObjectUploadPart, 0, len(res.JSON200.Parts))
+	for _, part := range res.JSON200.Parts {
+		parts = append(parts, PresignedObjectUploadPart{PartNumber: part.PartNumber, URL: part.Url})
+	}
+	return parts, nil
+}
+
+func (c *Client) CompleteObjectUploadSession(ctx context.Context, token string, id string, sessionID string, parts []CompletedObjectUploadPart) error {
+	body, err := jsonBody(struct {
+		Action string                      `json:"action"`
+		Parts  []CompletedObjectUploadPart `json:"parts"`
+	}{Action: "complete", Parts: parts})
+	if err != nil {
+		return err
+	}
+	res, err := c.api.PatchApiObjectsIdUploadsUploadSessionIdWithBodyWithResponse(ctx, id, sessionID, "application/json", body, bearer(token))
+	if err != nil {
+		return err
+	}
+	return expectStatus("PATCH", "/api/objects/"+id+"/uploads/"+sessionID, res.StatusCode(), res.Body, http.StatusOK)
+}
+
+func (c *Client) AbortObjectUploadSession(ctx context.Context, token string, id string, sessionID string) error {
+	body, err := jsonBody(struct {
+		Action string `json:"action"`
+	}{Action: "abort"})
+	if err != nil {
+		return err
+	}
+	res, err := c.api.PatchApiObjectsIdUploadsUploadSessionIdWithBodyWithResponse(ctx, id, sessionID, "application/json", body, bearer(token))
+	if err != nil {
+		return err
+	}
+	return expectStatus("PATCH", "/api/objects/"+id+"/uploads/"+sessionID, res.StatusCode(), res.Body, http.StatusOK)
 }
 
 func jsonBody(value any) (*bytes.Reader, error) {

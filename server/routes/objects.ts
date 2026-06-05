@@ -533,6 +533,9 @@ async function objectUploadResponse(c: Context<Env>, action: () => Promise<unkno
     return c.json(await action(), status)
   } catch (error) {
     if (error instanceof ObjectUploadSessionError) {
+      if (error.code === 'storage_failure') {
+        return c.json({ error: error.message }, 502)
+      }
       return c.json(
         { error: error.code === 'not_found' ? 'Not found' : 'Invalid upload session state' },
         error.code === 'not_found' ? 404 : 409,
