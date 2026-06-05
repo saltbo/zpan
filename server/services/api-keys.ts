@@ -14,8 +14,18 @@ export type VerifiedApiKey = {
 
 type VerifyApiKeyResult = {
   valid: boolean
-  error: { message: string; code: string } | null
+  error: { message: string; code: string; details?: { tryAgainIn?: number } } | null
   key: VerifiedApiKey | null
+}
+
+export class ApiKeyRateLimitError extends Error {
+  constructor(
+    message: string,
+    public readonly retryAfterMs?: number,
+  ) {
+    super(message)
+    this.name = 'ApiKeyRateLimitError'
+  }
 }
 
 export async function verifyApiKeyForPermission(
@@ -34,6 +44,7 @@ export async function verifyApiKeyForPermission(
     key,
     permissions: { [resource]: [action] },
   })
+  throwIfRateLimited(result)
   if (result?.valid && result.key) return result.key
   return null
 }
@@ -48,6 +59,7 @@ export async function verifyApiKey(
   if (!resolvedConfigId) return null
   if (configId && resolvedConfigId !== configId) return null
   const result = await verify(auth, { configId: resolvedConfigId, key })
+  throwIfRateLimited(result)
   if (result?.valid && result.key) return result.key
   return null
 }
@@ -71,6 +83,11 @@ async function verify(auth: Auth, body: Record<string, unknown>): Promise<Verify
   } catch {
     return null
   }
+}
+
+function throwIfRateLimited(result: VerifyApiKeyResult | null) {
+  if (result?.error?.code !== 'RATE_LIMITED') return
+  throw new ApiKeyRateLimitError(result.error.message, result.error.details?.tryAgainIn)
 }
 
 async function resolveApiKeyConfigId(db: Database, rawKey: string): Promise<string | null> {

@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { createMiddleware } from 'hono/factory'
-import { isOrgApiKey, verifyApiKey } from '../services/api-keys'
+import { ApiKeyRateLimitError, isOrgApiKey, verifyApiKey } from '../services/api-keys'
 import { resolveDownloaderToken, resolveTaskUploadToken } from '../services/download-tokens'
 import { findPersonalOrg, getMemberRole, isPersonalOrg } from '../services/org'
 import type { Env } from './platform'
@@ -42,7 +42,18 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       await next()
       return
     }
-    const apiKey = await verifyApiKey(c.get('auth'), platform.db, token)
+    let apiKey: Awaited<ReturnType<typeof verifyApiKey>>
+    try {
+      apiKey = await verifyApiKey(c.get('auth'), platform.db, token)
+    } catch (error) {
+      if (error instanceof ApiKeyRateLimitError) {
+        const res = c.json({ error: error.message }, 429)
+        if (error.retryAfterMs !== undefined)
+          res.headers.set('Retry-After', String(Math.ceil(error.retryAfterMs / 1000)))
+        return res
+      }
+      throw error
+    }
     if (apiKey) {
       const orgId = isOrgApiKey(apiKey.configId) ? apiKey.referenceId : null
       const userId = isOrgApiKey(apiKey.configId) ? null : apiKey.referenceId

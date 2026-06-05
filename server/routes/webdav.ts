@@ -7,7 +7,7 @@ import type { Storage as S3Storage } from '../../shared/types'
 import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import type { Env } from '../middleware/platform'
-import { verifyApiKeyForPermission } from '../services/api-keys'
+import { ApiKeyRateLimitError, verifyApiKeyForPermission } from '../services/api-keys'
 import {
   copyMatter,
   createMatter,
@@ -90,13 +90,20 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
     if (!(await usernameMatches(db, key.referenceId, credentials.username))) return unauthorized()
     c.set('userId', key.referenceId)
     return { userId: key.referenceId }
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiKeyRateLimitError) return rateLimited(error)
     return unauthorized()
   }
 }
 
 function unauthorized(): Response {
   return new Response('Unauthorized', { status: 401, headers: { 'WWW-Authenticate': WEBDAV_REALM } })
+}
+
+function rateLimited(error: ApiKeyRateLimitError): Response {
+  const headers = new Headers()
+  if (error.retryAfterMs !== undefined) headers.set('Retry-After', String(Math.ceil(error.retryAfterMs / 1000)))
+  return new Response(error.message, { status: 429, headers })
 }
 
 function parseBasicAuth(header: string | null): { username: string; password: string } | null {
