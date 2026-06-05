@@ -3,11 +3,13 @@ package engine
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base32"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,6 +41,7 @@ var aria2StatusKeys = []string{
 	"following",
 	"belongsTo",
 	"errorMessage",
+	"infoHash",
 }
 
 func (a Aria2) Name() string {
@@ -107,7 +110,7 @@ func (a Aria2) Recover(ctx context.Context, task client.DownloadTask) (Result, b
 			if err != nil {
 				return Result{}, false, err
 			}
-			result, err := resultFromAria2Files(task, filepath.Join(a.Dir, task.ID), status.BitTorrent.Info.Name, files)
+			result, err := resultFromAria2Files(task, aria2StatusTaskDir(status, filepath.Join(a.Dir, task.ID)), status.BitTorrent.Info.Name, files)
 			return result, err == nil, err
 		}
 	}
@@ -135,6 +138,7 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 			if string(status.Status) == string(arigo.StatusPaused) {
 				_ = aria.Unpause(status.GID)
 			}
+			taskDir = aria2StatusTaskDir(status, taskDir)
 			return a.waitResult(ctx, &aria, task, taskDir, status.GID, progress)
 		}
 	}
@@ -166,9 +170,19 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 			return Result{}, fmt.Errorf("add aria2 uri: %w", err)
 		}
 		gid.GID = status.GID
+		taskDir = aria2StatusTaskDir(status, taskDir)
 	}
 	result, err := a.waitResult(ctx, &aria, task, taskDir, gid.GID, progress)
 	if err != nil {
+		if isAria2InfoHashAlreadyRegistered(err) {
+			status, ok, findErr := a.findTask(ctx, &aria, task)
+			if findErr != nil {
+				return Result{}, fmt.Errorf("find aria2 task after infohash conflict: %w", findErr)
+			}
+			if ok {
+				return a.waitResult(ctx, &aria, task, aria2StatusTaskDir(status, taskDir), status.GID, progress)
+			}
+		}
 		return Result{}, fmt.Errorf("wait aria2 result: %w", err)
 	}
 	return result, nil
@@ -273,8 +287,9 @@ func (a Aria2) findTask(ctx context.Context, aria **arigo.Client, task client.Do
 		return arigo.Status{}, false, fmt.Errorf("list aria2 tasks: %w", err)
 	}
 	taskDir := filepath.Clean(filepath.Join(a.Dir, task.ID))
+	infoHash := aria2TaskInfoHash(task)
 	for _, status := range statuses {
-		if aria2StatusMatchesTask(status, taskDir, gid) {
+		if aria2StatusMatchesTask(status, taskDir, gid, infoHash) {
 			return status, true, nil
 		}
 	}
@@ -315,12 +330,53 @@ func aria2TaskGID(taskID string) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
+func aria2TaskInfoHash(task client.DownloadTask) string {
+	if task.Detail != nil && task.Detail.InfoHash != "" {
+		return strings.ToLower(task.Detail.InfoHash)
+	}
+	if task.SourceType != "magnet" {
+		return ""
+	}
+	u, err := url.Parse(task.SourceURI)
+	if err != nil {
+		return ""
+	}
+	for _, xt := range u.Query()["xt"] {
+		lower := strings.ToLower(xt)
+		const prefix = "urn:btih:"
+		if !strings.HasPrefix(lower, prefix) {
+			continue
+		}
+		raw := strings.TrimPrefix(lower, prefix)
+		if len(raw) == 40 && isHex(raw) {
+			return raw
+		}
+		decoded, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(strings.ToUpper(raw))
+		if err == nil && len(decoded) == 20 {
+			return hex.EncodeToString(decoded)
+		}
+	}
+	return ""
+}
+
+func isHex(value string) bool {
+	for _, ch := range value {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') && (ch < 'A' || ch > 'F') {
+			return false
+		}
+	}
+	return true
+}
+
 func tellAria2Status(aria *arigo.Client, gid string) (arigo.Status, error) {
 	return aria.TellStatus(gid, aria2StatusKeys...)
 }
 
-func aria2StatusMatchesTask(status arigo.Status, taskDir string, gid string) bool {
+func aria2StatusMatchesTask(status arigo.Status, taskDir string, gid string, infoHash string) bool {
 	if status.GID == gid || status.Following == gid || status.BelongsTo == gid {
+		return true
+	}
+	if infoHash != "" && strings.EqualFold(status.InfoHash, infoHash) {
 		return true
 	}
 	if filepath.Clean(status.Dir) == taskDir {
@@ -336,6 +392,21 @@ func aria2StatusMatchesTask(status arigo.Status, taskDir string, gid string) boo
 		}
 	}
 	return false
+}
+
+func aria2StatusTaskDir(status arigo.Status, fallback string) string {
+	if status.Dir == "" {
+		return fallback
+	}
+	return filepath.Clean(status.Dir)
+}
+
+func isAria2InfoHashAlreadyRegistered(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "InfoHash") && strings.Contains(msg, "already registered")
 }
 
 func (a Aria2) seedSnapshot(gid string) func(context.Context) (SeedSnapshot, error) {

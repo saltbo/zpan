@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Braurbeki/arigo"
@@ -215,6 +216,46 @@ func TestIsAria2RPCDisconnected(t *testing.T) {
 	}
 	if isAria2RPCDisconnected(errors.New("aria2 download ended with status error")) {
 		t.Fatal("expected ordinary aria2 error to stay non-transient")
+	}
+}
+
+func TestAria2TaskInfoHash(t *testing.T) {
+	const infoHash = "0546769f209ec059284b47f68659791a6f75ca8e"
+
+	if got := aria2TaskInfoHash(client.DownloadTask{
+		SourceType: "magnet",
+		SourceURI:  "magnet:?xt=urn:btih:" + infoHash + "&dn=fixture",
+	}); got != infoHash {
+		t.Fatalf("expected magnet infohash %s, got %s", infoHash, got)
+	}
+	if got := aria2TaskInfoHash(client.DownloadTask{
+		Detail: &client.DownloadTaskDetail{InfoHash: "0546769F209EC059284B47F68659791A6F75CA8E"},
+	}); got != infoHash {
+		t.Fatalf("expected detail infohash %s, got %s", infoHash, got)
+	}
+	if got := aria2TaskInfoHash(client.DownloadTask{SourceType: "http", SourceURI: "https://example.com/file"}); got != "" {
+		t.Fatalf("expected no infohash for http task, got %s", got)
+	}
+}
+
+func TestAria2StatusMatchesTaskByInfoHash(t *testing.T) {
+	const infoHash = "0546769f209ec059284b47f68659791a6f75ca8e"
+
+	if !aria2StatusMatchesTask(arigo.Status{InfoHash: strings.ToUpper(infoHash)}, "/tmp/zpan/task-1", "taskgid", infoHash) {
+		t.Fatal("expected status to match by infohash")
+	}
+	if aria2StatusMatchesTask(arigo.Status{InfoHash: infoHash}, "/tmp/zpan/task-1", "taskgid", "") {
+		t.Fatal("expected empty requested infohash not to match")
+	}
+}
+
+func TestIsAria2InfoHashAlreadyRegistered(t *testing.T) {
+	err := errors.New("InfoHash 0546769f209ec059284b47f68659791a6f75ca8e is already registered.")
+	if !isAria2InfoHashAlreadyRegistered(err) {
+		t.Fatal("expected aria2 infohash conflict to be recoverable")
+	}
+	if isAria2InfoHashAlreadyRegistered(errors.New("aria2 download ended with status error")) {
+		t.Fatal("expected ordinary aria2 error to stay non-recoverable")
 	}
 }
 
