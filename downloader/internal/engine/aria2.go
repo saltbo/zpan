@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +24,21 @@ type Aria2 struct {
 	Secret     string
 	Dir        string
 	RetainSeed bool
+}
+
+var aria2StatusKeys = []string{
+	"gid",
+	"status",
+	"totalLength",
+	"completedLength",
+	"downloadSpeed",
+	"dir",
+	"files",
+	"bitTorrent",
+	"followedBy",
+	"following",
+	"belongsTo",
+	"errorMessage",
 }
 
 func (a Aria2) Name() string {
@@ -110,20 +126,21 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	}
 	defer aria.Close()
 
-	status, ok, err := a.findTask(ctx, &aria, task)
-	if err != nil {
-		return Result{}, err
-	}
-	if ok {
-		if string(status.Status) == string(arigo.StatusPaused) {
-			_ = aria.Unpause(status.GID)
+	if shouldRecoverExistingAria2Task(task) {
+		status, ok, err := a.findTask(ctx, &aria, task)
+		if err != nil {
+			return Result{}, fmt.Errorf("find aria2 task: %w", err)
 		}
-		return a.waitResult(ctx, &aria, task, taskDir, status.GID, progress)
+		if ok {
+			if string(status.Status) == string(arigo.StatusPaused) {
+				_ = aria.Unpause(status.GID)
+			}
+			return a.waitResult(ctx, &aria, task, taskDir, status.GID, progress)
+		}
 	}
 
 	options := &arigo.Options{
 		Dir:              taskDir,
-		GID:              aria2TaskGID(task.ID),
 		FollowTorrent:    true,
 		BTSaveMetadata:   true,
 		Continue:         true,
@@ -136,20 +153,52 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 		options.SeedTime = 1000000
 	}
 	if task.Name != "" && task.SourceType == "http" {
+		options.GID = aria2TaskGID(task.ID)
 		options.Out = task.Name
 	}
-	gid, err := aria.AddURI(arigo.URIs(task.SourceURI), options)
+	gid, err := addAria2Task(ctx, aria, task, options)
 	if err != nil {
 		status, ok, findErr := a.findTask(ctx, &aria, task)
 		if findErr != nil {
-			return Result{}, findErr
+			return Result{}, fmt.Errorf("find aria2 task after add failed: %w", findErr)
 		}
 		if !ok {
-			return Result{}, err
+			return Result{}, fmt.Errorf("add aria2 uri: %w", err)
 		}
 		gid.GID = status.GID
 	}
-	return a.waitResult(ctx, &aria, task, taskDir, gid.GID, progress)
+	result, err := a.waitResult(ctx, &aria, task, taskDir, gid.GID, progress)
+	if err != nil {
+		return Result{}, fmt.Errorf("wait aria2 result: %w", err)
+	}
+	return result, nil
+}
+
+func shouldRecoverExistingAria2Task(task client.DownloadTask) bool {
+	return task.Status == "running" || task.Status == "uploading"
+}
+
+func addAria2Task(ctx context.Context, aria *arigo.Client, task client.DownloadTask, options *arigo.Options) (arigo.GID, error) {
+	if task.SourceType != "torrent_url" {
+		return aria.AddURI(arigo.URIs(task.SourceURI), options)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, task.SourceURI, nil)
+	if err != nil {
+		return arigo.GID{}, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return arigo.GID{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return arigo.GID{}, fmt.Errorf("fetch torrent file failed: %s", res.Status)
+	}
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return arigo.GID{}, err
+	}
+	return aria.AddTorrent(data, []string{}, options)
 }
 
 func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.DownloadTask, taskDir string, gid string, progress Progress) (Result, error) {
@@ -157,39 +206,46 @@ func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.
 	if task.SourceType != "http" {
 		initialProgress = func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error { return nil }
 	}
-	status, err := a.waitAria2(ctx, aria, gid, initialProgress)
+	primaryGID := gid
+	status, err := a.waitAria2(ctx, aria, primaryGID, initialProgress)
 	if err != nil {
-		_ = (*aria).Remove(gid)
-		return Result{}, err
+		_ = (*aria).Remove(primaryGID)
+		return Result{}, fmt.Errorf("wait primary gid %s: %w", primaryGID, err)
 	}
+	resultGID := status.GID
 	if len(status.FollowedBy) > 0 {
 		childGID := status.FollowedBy[0]
 		status, err = a.waitAria2(ctx, aria, childGID, progress)
 		if err != nil {
 			_ = (*aria).Remove(childGID)
-			return Result{}, err
+			return Result{}, fmt.Errorf("wait followed gid %s: %w", childGID, err)
 		}
+		resultGID = status.GID
 	}
 	files, err := a.getAria2Files(ctx, aria, status.GID)
 	if err != nil {
-		return Result{}, err
+		return Result{}, fmt.Errorf("get files for gid %s: %w", status.GID, err)
 	}
 	result, err := resultFromAria2Files(task, taskDir, status.BitTorrent.Info.Name, files)
 	if err != nil {
-		return Result{}, err
+		return Result{}, fmt.Errorf("build result from aria2 files: %w", err)
 	}
 	if a.RetainSeed && task.SourceType != "http" {
 		result.Seed = &Seed{
 			Engine:   "aria2",
-			ID:       status.GID,
+			ID:       resultGID,
 			Path:     taskDir,
-			Snapshot: a.seedSnapshot(status.GID),
-			Cleanup:  a.cleanupSeed(status.GID, taskDir),
+			Snapshot: a.seedSnapshot(resultGID),
+			Cleanup:  a.cleanupSeed(resultGID, taskDir),
 		}
 		return result, nil
 	}
-	_ = (*aria).ForceRemove(status.GID)
-	_ = (*aria).RemoveDownloadResult(status.GID)
+	_ = (*aria).ForceRemove(resultGID)
+	_ = (*aria).RemoveDownloadResult(resultGID)
+	if primaryGID != resultGID {
+		_ = (*aria).ForceRemove(primaryGID)
+		_ = (*aria).RemoveDownloadResult(primaryGID)
+	}
 	return result, nil
 }
 
@@ -199,7 +255,7 @@ func (a Aria2) client(ctx context.Context) (*arigo.Client, error) {
 
 func (a Aria2) findTask(ctx context.Context, aria **arigo.Client, task client.DownloadTask) (arigo.Status, bool, error) {
 	gid := aria2TaskGID(task.ID)
-	status, err := (*aria).TellStatus(gid)
+	status, err := tellAria2Status(*aria, gid)
 	if err == nil {
 		return status, true, nil
 	}
@@ -207,14 +263,14 @@ func (a Aria2) findTask(ctx context.Context, aria **arigo.Client, task client.Do
 		if err := a.reconnect(ctx, aria); err != nil {
 			return arigo.Status{}, false, err
 		}
-		status, err = (*aria).TellStatus(gid)
+		status, err = tellAria2Status(*aria, gid)
 		if err == nil {
 			return status, true, nil
 		}
 	}
 	statuses, err := a.taskStatuses(ctx, aria)
 	if err != nil {
-		return arigo.Status{}, false, err
+		return arigo.Status{}, false, fmt.Errorf("list aria2 tasks: %w", err)
 	}
 	taskDir := filepath.Clean(filepath.Join(a.Dir, task.ID))
 	for _, status := range statuses {
@@ -226,26 +282,26 @@ func (a Aria2) findTask(ctx context.Context, aria **arigo.Client, task client.Do
 }
 
 func (a Aria2) taskStatuses(ctx context.Context, aria **arigo.Client) ([]arigo.Status, error) {
-	active, err := (*aria).TellActive()
+	active, err := (*aria).TellActive(aria2StatusKeys...)
 	if err != nil {
 		if !isAria2RPCDisconnected(err) {
-			return nil, err
+			return nil, fmt.Errorf("tell active: %w", err)
 		}
 		if err := a.reconnect(ctx, aria); err != nil {
 			return nil, err
 		}
-		active, err = (*aria).TellActive()
+		active, err = (*aria).TellActive(aria2StatusKeys...)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("tell active after reconnect: %w", err)
 		}
 	}
-	waiting, err := (*aria).TellWaiting(0, 1000)
+	waiting, err := (*aria).TellWaiting(0, 1000, aria2StatusKeys...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tell waiting: %w", err)
 	}
-	stopped, err := (*aria).TellStopped(0, 1000)
+	stopped, err := (*aria).TellStopped(0, 1000, aria2StatusKeys...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tell stopped: %w", err)
 	}
 	statuses := make([]arigo.Status, 0, len(active)+len(waiting)+len(stopped))
 	statuses = append(statuses, active...)
@@ -257,6 +313,10 @@ func (a Aria2) taskStatuses(ctx context.Context, aria **arigo.Client) ([]arigo.S
 func aria2TaskGID(taskID string) string {
 	sum := sha256.Sum256([]byte(taskID))
 	return hex.EncodeToString(sum[:])[:16]
+}
+
+func tellAria2Status(aria *arigo.Client, gid string) (arigo.Status, error) {
+	return aria.TellStatus(gid, aria2StatusKeys...)
 }
 
 func aria2StatusMatchesTask(status arigo.Status, taskDir string, gid string) bool {
@@ -285,7 +345,7 @@ func (a Aria2) seedSnapshot(gid string) func(context.Context) (SeedSnapshot, err
 			return SeedSnapshot{}, err
 		}
 		defer aria.Close()
-		status, err := aria.TellStatus(gid)
+		status, err := tellAria2Status(aria, gid)
 		if err != nil {
 			return SeedSnapshot{}, err
 		}
@@ -332,7 +392,7 @@ func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, gid string, p
 		case <-ctx.Done():
 			return arigo.Status{}, ctx.Err()
 		case <-ticker.C:
-			status, err := (*aria).TellStatus(gid)
+			status, err := tellAria2Status(*aria, gid)
 			if err != nil {
 				if isAria2RPCDisconnected(err) {
 					if err := a.reconnect(ctx, aria); err != nil {
