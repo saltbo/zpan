@@ -63,11 +63,17 @@ export class S3Service {
 
   async createMultipartUpload(storage: Storage, key: string, contentType: string): Promise<string> {
     const client = this.createClient(storage)
-    const created = await client.send(
+    const url = await getSignedUrl(
+      client,
       new CreateMultipartUploadCommand({ Bucket: storage.bucket, Key: key, ContentType: contentType }),
+      { expiresIn: DEFAULT_EXPIRES_IN },
     )
-    if (!created.UploadId) throw new Error('S3 multipart upload did not return an upload id')
-    return created.UploadId
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': contentType } })
+    const body = await response.text()
+    if (!response.ok) throw new Error(`S3 multipart upload create failed: ${response.status}: ${body.trim()}`)
+    const uploadId = xmlTag(body, 'UploadId')
+    if (!uploadId) throw new Error('S3 multipart upload did not return an upload id')
+    return uploadId
   }
 
   async presignUploadPart(
@@ -92,23 +98,42 @@ export class S3Service {
     parts: Array<{ etag: string; partNumber: number }>,
   ): Promise<void> {
     const client = this.createClient(storage)
-    await client.send(
+    const sortedParts = parts
+      .map((part) => ({ ETag: part.etag, PartNumber: part.partNumber }))
+      .sort((a, b) => a.PartNumber - b.PartNumber)
+    const url = await getSignedUrl(
+      client,
       new CompleteMultipartUploadCommand({
         Bucket: storage.bucket,
         Key: key,
         UploadId: uploadId,
-        MultipartUpload: {
-          Parts: parts
-            .map((part) => ({ ETag: part.etag, PartNumber: part.partNumber }))
-            .sort((a, b) => a.PartNumber - b.PartNumber),
-        },
+        MultipartUpload: { Parts: sortedParts },
       }),
+      { expiresIn: DEFAULT_EXPIRES_IN },
     )
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/xml' },
+      body: multipartCompleteXml(sortedParts),
+    })
+    if (!response.ok) {
+      const body = await response.text()
+      throw new Error(`S3 multipart upload complete failed: ${response.status}: ${body.trim()}`)
+    }
   }
 
   async abortMultipartUpload(storage: Storage, key: string, uploadId: string): Promise<void> {
     const client = this.createClient(storage)
-    await client.send(new AbortMultipartUploadCommand({ Bucket: storage.bucket, Key: key, UploadId: uploadId }))
+    const url = await getSignedUrl(
+      client,
+      new AbortMultipartUploadCommand({ Bucket: storage.bucket, Key: key, UploadId: uploadId }),
+      { expiresIn: DEFAULT_EXPIRES_IN },
+    )
+    const response = await fetch(url, { method: 'DELETE' })
+    if (!response.ok) {
+      const body = await response.text()
+      throw new Error(`S3 multipart upload abort failed: ${response.status}: ${body.trim()}`)
+    }
   }
 
   async presignDownload(
@@ -284,12 +309,8 @@ export class S3Service {
     body: ReadableStream,
     contentType: string,
   ): Promise<number> {
+    const uploadId = await this.createMultipartUpload(storage, key, contentType)
     const client = this.createClient(storage)
-    const created = await client.send(
-      new CreateMultipartUploadCommand({ Bucket: storage.bucket, Key: key, ContentType: contentType }),
-    )
-    const uploadId = created.UploadId
-    if (!uploadId) throw new Error('S3 multipart upload did not return an upload id')
 
     const reader = body.getReader()
     const parts: Array<{ ETag: string; PartNumber: number }> = []
@@ -315,7 +336,7 @@ export class S3Service {
       }
 
       if (parts.length === 0) {
-        await client.send(new AbortMultipartUploadCommand({ Bucket: storage.bucket, Key: key, UploadId: uploadId }))
+        await this.abortMultipartUpload(storage, key, uploadId)
         await client.send(
           new PutObjectCommand({
             Bucket: storage.bucket,
@@ -328,17 +349,15 @@ export class S3Service {
         return 0
       }
 
-      await client.send(
-        new CompleteMultipartUploadCommand({
-          Bucket: storage.bucket,
-          Key: key,
-          UploadId: uploadId,
-          MultipartUpload: { Parts: parts },
-        }),
+      await this.completeMultipartUpload(
+        storage,
+        key,
+        uploadId,
+        parts.map((part) => ({ etag: part.ETag, partNumber: part.PartNumber })),
       )
       return total
     } catch (e) {
-      await client.send(new AbortMultipartUploadCommand({ Bucket: storage.bucket, Key: key, UploadId: uploadId }))
+      await this.abortMultipartUpload(storage, key, uploadId)
       throw e
     }
   }
@@ -420,4 +439,34 @@ function concatBytes(
   merged.set(left)
   merged.set(right, left.byteLength)
   return merged
+}
+
+function multipartCompleteXml(parts: Array<{ ETag: string; PartNumber: number }>): string {
+  return `<CompleteMultipartUpload>${parts
+    .map((part) => `<Part><PartNumber>${part.PartNumber}</PartNumber><ETag>${xmlEscape(part.ETag)}</ETag></Part>`)
+    .join('')}</CompleteMultipartUpload>`
+}
+
+function xmlTag(xml: string, tag: string): string | null {
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = new RegExp(`<${escapedTag}>([\\s\\S]*?)</${escapedTag}>`).exec(xml)
+  return match ? xmlUnescape(match[1].trim()) : null
+}
+
+function xmlEscape(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function xmlUnescape(value: string): string {
+  return value
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&')
 }
