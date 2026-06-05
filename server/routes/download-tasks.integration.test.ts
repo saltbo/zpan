@@ -423,6 +423,30 @@ describe('Download tasks API integration', () => {
     })
   })
 
+  it('normalizes target folder paths when creating download tasks', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    await registerDownloaderThroughDeviceLogin(app, 'target-folder-downloader')
+    const user = await authedHeaders(app, 'target-folder-user@example.com')
+
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/fixture.txt' },
+        targetFolder: '/media//Movies/',
+      }),
+    })
+
+    expect(createTaskRes.status).toBe(201)
+    await expect(createTaskRes.json()).resolves.toMatchObject({ targetFolder: 'media/Movies' })
+
+    const rows = await db.all<{ target_folder: string }>(
+      sql`SELECT target_folder FROM download_tasks ORDER BY created_at DESC LIMIT 1`,
+    )
+    expect(rows[0].target_folder).toBe('media/Movies')
+  })
+
   it('returns storage failure details when multipart upload completion fails', async () => {
     vi.mocked(S3Service.prototype.completeMultipartUpload).mockRejectedValueOnce(new Error('InvalidPart: part missing'))
     const { app, db } = await createTestApp()

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   copyMatterSchema,
+  createDownloadTaskSchema,
   createMatterSchema,
   createStorageSchema,
   signInSchema,
@@ -122,5 +123,28 @@ describe('copyMatterSchema', () => {
   it('accepts copyFrom with explicit parent', () => {
     const result = copyMatterSchema.safeParse({ copyFrom: 'source-id', parent: 'folder-id' })
     expect(result.success).toBe(true)
+  })
+})
+
+describe('createDownloadTaskSchema', () => {
+  it('normalizes target folder paths', () => {
+    const result = createDownloadTaskSchema.safeParse({
+      source: { type: 'http', uri: 'https://example.com/file.zip' },
+      targetFolder: '/media//Movies\\2026/',
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.targetFolder).toBe('media/Movies/2026')
+    }
+  })
+
+  it('rejects parent directory target folder segments', () => {
+    const result = createDownloadTaskSchema.safeParse({
+      source: { type: 'http', uri: 'https://example.com/file.zip' },
+      targetFolder: 'media/../private',
+    })
+
+    expect(result.success).toBe(false)
   })
 })

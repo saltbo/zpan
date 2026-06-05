@@ -92,13 +92,25 @@ export const createDownloaderSchema = z.object({
 const downloadUriSchema = z.string().min(1).max(4096)
 const downloadTaskCategorySchema = z.string().trim().min(1).max(120)
 const downloadTaskTagsSchema = z.array(z.string().trim().min(1).max(80)).max(20)
+const targetFolderSchema = z
+  .string()
+  .max(1024)
+  .transform((value) =>
+    value
+      .replace(/\\/g, '/')
+      .split('/')
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0 && part !== '.')
+      .join('/'),
+  )
+  .refine((value) => !value.split('/').includes('..'), { message: 'Target folder cannot contain ..' })
 
 export const createDownloadTaskSchema = z.object({
   source: z.object({
     type: downloadSourceTypeSchema,
     uri: downloadUriSchema,
   }),
-  targetFolder: z.string(),
+  targetFolder: targetFolderSchema,
   name: z.string().min(1).max(255).optional(),
   category: downloadTaskCategorySchema.optional(),
   tags: downloadTaskTagsSchema.optional(),
