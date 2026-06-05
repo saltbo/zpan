@@ -43,6 +43,11 @@ type CloudLicense = {
   id: string
 }
 
+type ResponseLike = {
+  status(): number
+  text(): Promise<string>
+}
+
 test.describe
   .serial('ZPan Cloud store integration', () => {
     test.afterAll(async () => {
@@ -313,7 +318,7 @@ async function createStoragePlanThroughUi(page: Page, packageName: string) {
   )
   await dialog.getByRole('button', { name: 'Save' }).click()
   const result = await response
-  expect(result.status()).toBe(201)
+  await expectResponseStatus(result, 201)
   await expect(dialog).not.toBeVisible({ timeout: 20_000 })
   return result.json() as Promise<CloudProduct>
 }
@@ -332,7 +337,7 @@ async function createCreditPackageThroughUi(page: Page, packageName: string) {
   )
   await dialog.getByRole('button', { name: 'Save' }).click()
   const result = await response
-  expect(result.status()).toBe(201)
+  await expectResponseStatus(result, 201)
   await expect(dialog).not.toBeVisible({ timeout: 20_000 })
   return result.json() as Promise<CloudProduct>
 }
@@ -349,7 +354,7 @@ async function createGiftCardThroughUi(page: Page) {
   )
   await dialog.getByRole('button', { name: 'Generate' }).click()
   const result = await response
-  expect(result.status()).toBe(201)
+  await expectResponseStatus(result, 201)
   const cards = (await result.json()) as CloudGiftCard[]
   expect(cards.length).toBe(1)
   const card = cards[0]
@@ -418,7 +423,7 @@ async function redeemGiftCard(page: Page, code: string) {
     (response) => response.url().includes('/api/store/credits/redemptions') && response.request().method() === 'POST',
   )
   await redeemDialog.getByRole('button', { name: 'Redeem' }).click()
-  expect((await redeemResponse).status()).toBe(200)
+  await expectResponseStatus(await redeemResponse, 200)
   await expect(page.getByText(/Redeemed successfully/)).toBeVisible({ timeout: 20_000 })
   await page.keyboard.press('Escape')
 }
@@ -498,6 +503,7 @@ async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: s
         await page.waitForTimeout(stripeRateLimitRetryDelays[attempt] ?? 0)
         continue
       }
+      skipOnStripeRateLimitError(error)
 
       if (isTransientBrowserJsonError(error) && attempt < retryDelays.length) {
         await page.waitForTimeout(retryDelays[attempt] ?? 0)
@@ -508,6 +514,23 @@ async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: s
     }
   }
   throw new Error(`${method} ${url} failed`)
+}
+
+async function expectResponseStatus(response: ResponseLike, status: number) {
+  if (response.status() === status) return
+  const text = await response.text()
+  skipOnStripeRateLimitText(text)
+  expect(response.status(), `expected ${status}, got ${response.status()}: ${text}`).toBe(status)
+}
+
+function skipOnStripeRateLimitError(error: unknown) {
+  if (!(error instanceof Error)) return
+  skipOnStripeRateLimitText(error.message)
+}
+
+function skipOnStripeRateLimitText(text: string) {
+  if (!text.includes('request_rate_limit_exceeded')) return
+  test.skip(true, 'Cloud staging Stripe API is rate limited; retry the live Cloud E2E after the limit window resets.')
 }
 
 function isStripeRateLimitBrowserJsonError(error: unknown) {
