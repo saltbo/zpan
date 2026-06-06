@@ -25,6 +25,7 @@ type Aria2 struct {
 	URL        string
 	Secret     string
 	Dir        string
+	StateDir   string
 	RetainSeed bool
 }
 
@@ -70,6 +71,22 @@ func (a Aria2) Start(ctx context.Context) (*exec.Cmd, error) {
 		"--allow-overwrite=true",
 		"--auto-file-renaming=false",
 	}
+	if a.StateDir != "" {
+		sessionPath := filepath.Join(a.StateDir, "aria2.session")
+		if err := os.MkdirAll(a.StateDir, 0o755); err != nil {
+			return nil, err
+		}
+		file, err := os.OpenFile(sessionPath, os.O_CREATE, 0o644)
+		if err != nil {
+			return nil, err
+		}
+		_ = file.Close()
+		args = append(args,
+			"--input-file="+sessionPath,
+			"--save-session="+sessionPath,
+			"--save-session-interval=30",
+		)
+	}
 	if a.Secret != "" {
 		args = append(args, "--rpc-secret="+a.Secret)
 	}
@@ -95,6 +112,46 @@ func (a Aria2) Check(ctx context.Context) error {
 		return errors.New("aria2 rpc did not return a version")
 	}
 	return nil
+}
+
+func (a Aria2) SaveSession(ctx context.Context) error {
+	client, err := a.client(ctx)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return client.SaveSession()
+}
+
+func (a Aria2) RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error) {
+	aria, err := a.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer aria.Close()
+
+	status, ok, err := a.findSeed(ctx, &aria, ref)
+	if err != nil || !ok {
+		return nil, err
+	}
+	if int64(status.TotalLength) <= 0 || int64(status.CompletedLength) < int64(status.TotalLength) {
+		return nil, nil
+	}
+	if string(status.Status) == string(arigo.StatusWaiting) {
+		_ = aria.Unpause(status.GID)
+	}
+	path := ref.Path
+	if path == "" {
+		path = aria2StatusTaskDir(status, filepath.Join(a.Dir, ref.TaskID))
+	}
+	return &Seed{
+		Engine:   "aria2",
+		ID:       status.GID,
+		InfoHash: strings.ToLower(status.InfoHash),
+		Path:     path,
+		Snapshot: a.seedSnapshot(status.GID),
+		Cleanup:  a.cleanupSeed(status.GID, path),
+	}, nil
 }
 
 func (a Aria2) Recover(ctx context.Context, task client.DownloadTask) (Result, bool, error) {
@@ -248,6 +305,7 @@ func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.
 		result.Seed = &Seed{
 			Engine:   "aria2",
 			ID:       resultGID,
+			InfoHash: strings.ToLower(status.InfoHash),
 			Path:     taskDir,
 			Snapshot: a.seedSnapshot(resultGID),
 			Cleanup:  a.cleanupSeed(resultGID, taskDir),
@@ -261,6 +319,42 @@ func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.
 		_ = (*aria).RemoveDownloadResult(primaryGID)
 	}
 	return result, nil
+}
+
+func (a Aria2) findSeed(ctx context.Context, aria **arigo.Client, ref SeedRef) (arigo.Status, bool, error) {
+	if ref.ID != "" {
+		status, err := tellAria2Status(*aria, ref.ID)
+		if err == nil {
+			return status, true, nil
+		}
+		if isAria2RPCDisconnected(err) {
+			if err := a.reconnect(ctx, aria); err != nil {
+				return arigo.Status{}, false, err
+			}
+			status, err = tellAria2Status(*aria, ref.ID)
+			if err == nil {
+				return status, true, nil
+			}
+		}
+	}
+	statuses, err := a.taskStatuses(ctx, aria)
+	if err != nil {
+		return arigo.Status{}, false, err
+	}
+	infoHash := strings.ToLower(ref.InfoHash)
+	taskDir := filepath.Clean(ref.Path)
+	if taskDir == "." || taskDir == string(filepath.Separator) {
+		taskDir = filepath.Clean(filepath.Join(a.Dir, ref.TaskID))
+	}
+	for _, status := range statuses {
+		if infoHash != "" && strings.EqualFold(status.InfoHash, infoHash) {
+			return status, true, nil
+		}
+		if taskDir != "" && filepath.Clean(status.Dir) == taskDir {
+			return status, true, nil
+		}
+	}
+	return arigo.Status{}, false, nil
 }
 
 func (a Aria2) client(ctx context.Context) (*arigo.Client, error) {

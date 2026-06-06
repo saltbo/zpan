@@ -76,6 +76,44 @@ func (q QBittorrent) Check(ctx context.Context) error {
 	return nil
 }
 
+func (q QBittorrent) RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error) {
+	qbt, err := q.login(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hash := ref.InfoHash
+	if hash == "" {
+		hash = ref.ID
+	}
+	if hash == "" {
+		return nil, nil
+	}
+	torrents, err := qbt.GetTorrentsCtx(ctx, qbittorrent.TorrentFilterOptions{Hashes: []string{hash}})
+	if err != nil {
+		return nil, err
+	}
+	if len(torrents) == 0 {
+		return nil, nil
+	}
+	torrent := torrents[0]
+	if torrent.Progress < 1 && !(torrent.AmountLeft == 0 && torrent.TotalSize > 0) {
+		return nil, nil
+	}
+	path := ref.Path
+	if path == "" {
+		path = filepath.Join(q.Dir, ref.TaskID)
+	}
+	_ = qbt.StartCtx(ctx, []string{torrent.Hash})
+	return &Seed{
+		Engine:   "qbittorrent",
+		ID:       torrent.Hash,
+		InfoHash: torrent.Hash,
+		Path:     path,
+		Snapshot: q.seedSnapshot(torrent.Hash),
+		Cleanup:  q.cleanupSeed(torrent.Hash, path),
+	}, nil
+}
+
 func (q QBittorrent) Recover(ctx context.Context, task client.DownloadTask) (Result, bool, error) {
 	if task.SourceType == "http" {
 		return HTTP{Dir: q.Dir}.Recover(ctx, task)
@@ -170,6 +208,7 @@ func (q QBittorrent) resultFromTorrent(
 		result.Seed = &Seed{
 			Engine:   "qbittorrent",
 			ID:       torrent.Hash,
+			InfoHash: torrent.Hash,
 			Path:     taskDir,
 			Snapshot: q.seedSnapshot(torrent.Hash),
 			Cleanup:  q.cleanupSeed(torrent.Hash, taskDir),

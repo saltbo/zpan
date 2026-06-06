@@ -16,6 +16,7 @@ type Config struct {
 	Token              string
 	Engine             string
 	DownloadDir        string
+	StateDir           string
 	PollInterval       time.Duration
 	MaxConcurrentTasks int
 	Aria2URL           string
@@ -26,6 +27,7 @@ type Config struct {
 	SeedEnabled        bool
 	SeedDuration       time.Duration
 	SeedCacheLimit     int64
+	SeedRatio          float64
 }
 
 func Defaults(v *viper.Viper) {
@@ -33,6 +35,7 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("server_url", "http://localhost:5173")
 	v.SetDefault("engine", "auto")
 	v.SetDefault("download_dir", filepath.Join(home, "Downloads", "zpan"))
+	v.SetDefault("state_dir", defaultStateDir(home))
 	v.SetDefault("poll_interval", "5s")
 	v.SetDefault("max_concurrent_tasks", 2)
 	v.SetDefault("aria2.url", "ws://127.0.0.1:6800/jsonrpc")
@@ -40,6 +43,7 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("seed.enabled", true)
 	v.SetDefault("seed.duration", "1h")
 	v.SetDefault("seed.cache_limit", "10GB")
+	v.SetDefault("seed.ratio", 0)
 }
 
 func Load(v *viper.Viper) (Config, error) {
@@ -73,6 +77,7 @@ func Load(v *viper.Viper) (Config, error) {
 		Token:              v.GetString("token"),
 		Engine:             v.GetString("engine"),
 		DownloadDir:        v.GetString("download_dir"),
+		StateDir:           v.GetString("state_dir"),
 		PollInterval:       interval,
 		MaxConcurrentTasks: v.GetInt("max_concurrent_tasks"),
 		Aria2URL:           v.GetString("aria2.url"),
@@ -83,6 +88,7 @@ func Load(v *viper.Viper) (Config, error) {
 		SeedEnabled:        v.GetBool("seed.enabled"),
 		SeedDuration:       seedDuration,
 		SeedCacheLimit:     seedCacheLimit,
+		SeedRatio:          v.GetFloat64("seed.ratio"),
 	}
 	if cfg.ServerURL == "" {
 		return Config{}, errors.New("server_url is required")
@@ -93,11 +99,17 @@ func Load(v *viper.Viper) (Config, error) {
 	if cfg.MaxConcurrentTasks < 1 {
 		return Config{}, errors.New("max_concurrent_tasks must be at least 1")
 	}
+	if cfg.StateDir == "" {
+		return Config{}, errors.New("state_dir is required")
+	}
 	if cfg.SeedDuration < 0 {
 		return Config{}, errors.New("seed.duration must not be negative")
 	}
 	if cfg.SeedCacheLimit < 0 {
 		return Config{}, errors.New("seed.cache_limit must not be negative")
+	}
+	if cfg.SeedRatio < 0 {
+		return Config{}, errors.New("seed.ratio must not be negative")
 	}
 	return cfg, nil
 }
@@ -120,4 +132,11 @@ func DefaultConfigPath() string {
 		return "zpan-downloader.yaml"
 	}
 	return filepath.Join(home, ".config", "zpan-downloader", "config.yaml")
+}
+
+func defaultStateDir(home string) string {
+	if home == "" {
+		return ".zpan-downloader"
+	}
+	return filepath.Join(home, ".local", "state", "zpan-downloader")
 }

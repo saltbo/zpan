@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/saltbo/zpan/downloader/internal/client"
@@ -17,7 +18,11 @@ type retainedSeed struct {
 	taskID     string
 	engine     string
 	seedID     string
+	infoHash   string
 	path       string
+	size       int64
+	downloaded int64
+	uploadBase int64
 	retainedAt time.Time
 	expiresAt  time.Time
 	snapshot   func(context.Context) (engine.SeedSnapshot, error)
@@ -40,7 +45,10 @@ func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log 
 		taskID:     task.ID,
 		engine:     result.Seed.Engine,
 		seedID:     result.Seed.ID,
+		infoHash:   strings.ToLower(result.Seed.InfoHash),
 		path:       result.Seed.Path,
+		size:       result.Size,
+		downloaded: result.Size,
 		retainedAt: now,
 		snapshot:   result.Seed.Snapshot,
 		cleanup:    result.Seed.Cleanup,
@@ -48,10 +56,18 @@ func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log 
 	if w.cfg.SeedDuration > 0 {
 		seed.expiresAt = now.Add(w.cfg.SeedDuration)
 	}
+	if snapshot, err := result.Seed.Snapshot(context.Background()); err == nil && snapshot.Detail != nil && snapshot.Detail.PeerUploadedBytes != nil {
+		seed.uploadBase = *snapshot.Detail.PeerUploadedBytes
+	} else if err != nil {
+		log.Warn("failed to record retained bt seed upload baseline", "error", err)
+	}
 	w.mu.Lock()
 	w.retainedSeeds = append(w.retainedSeeds, seed)
 	count := len(w.retainedSeeds)
 	w.mu.Unlock()
+	if err := w.upsertSeedLedger(seed, result.Size); err != nil {
+		log.Warn("failed to persist retained bt seed", "error", err)
+	}
 
 	log.Info("retaining completed bt task for seeding",
 		"engine", seed.engine,
@@ -61,6 +77,80 @@ func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log 
 		"retained_seeds", count,
 	)
 	return true
+}
+
+func (w *Worker) restoreRetainedSeeds(ctx context.Context) {
+	if !w.cfg.SeedEnabled || w.cfg.StateDir == "" {
+		return
+	}
+	restorer, ok := w.engine.(engine.SeedRestorer)
+	if !ok {
+		return
+	}
+	ledger, err := loadSeedLedger(w.cfg.StateDir)
+	if err != nil {
+		w.logger.Warn("failed to load retained seed ledger", "error", err)
+		return
+	}
+	if len(ledger.Seeds) == 0 {
+		return
+	}
+	var restored []retainedSeed
+	var kept []seedLedgerEntry
+	now := time.Now()
+	for _, entry := range ledger.Seeds {
+		if !entry.ExpiresAt.IsZero() && !now.Before(entry.ExpiresAt) {
+			_ = os.RemoveAll(entry.Path)
+			continue
+		}
+		seed, err := restorer.RestoreSeed(ctx, engine.SeedRef{
+			TaskID:   entry.TaskID,
+			Engine:   entry.Engine,
+			ID:       entry.SeedID,
+			InfoHash: entry.InfoHash,
+			Path:     entry.Path,
+		})
+		if err != nil {
+			w.logger.Warn("failed to restore retained bt seed", "task_id", entry.TaskID, "engine", entry.Engine, "seed_id", entry.SeedID, "error", err)
+			kept = append(kept, entry)
+			continue
+		}
+		if seed == nil {
+			if _, statErr := os.Stat(entry.Path); statErr == nil {
+				w.logger.Info("retained bt seed runtime is missing; keeping local ledger entry", "task_id", entry.TaskID, "engine", entry.Engine, "path", entry.Path)
+				kept = append(kept, entry)
+			}
+			continue
+		}
+		restored = append(restored, retainedSeed{
+			taskID:     entry.TaskID,
+			engine:     seed.Engine,
+			seedID:     seed.ID,
+			infoHash:   seed.InfoHash,
+			path:       seed.Path,
+			size:       entry.Size,
+			downloaded: entry.Downloaded,
+			uploadBase: entry.UploadBase,
+			retainedAt: entry.RetainedAt,
+			expiresAt:  entry.ExpiresAt,
+			snapshot:   seed.Snapshot,
+			cleanup:    seed.Cleanup,
+		})
+		entry.SeedID = seed.ID
+		entry.InfoHash = strings.ToLower(seed.InfoHash)
+		entry.Path = seed.Path
+		kept = append(kept, entry)
+	}
+	if len(restored) > 0 {
+		w.mu.Lock()
+		w.retainedSeeds = append(w.retainedSeeds, restored...)
+		count := len(w.retainedSeeds)
+		w.mu.Unlock()
+		w.logger.Info("restored retained bt seeds", "count", len(restored), "retained_seeds", count)
+	}
+	if err := saveSeedLedger(w.cfg.StateDir, seedLedger{Seeds: kept}); err != nil {
+		w.logger.Warn("failed to save retained seed ledger", "error", err)
+	}
 }
 
 func (w *Worker) reportRetainedSeeds(ctx context.Context) {
@@ -102,6 +192,25 @@ func (w *Worker) cleanupRetainedSeeds(ctx context.Context) {
 	for _, seed := range seeds {
 		if !seed.expiresAt.IsZero() && !now.Before(seed.expiresAt) {
 			reasons[seed.taskID] = "expired"
+		}
+	}
+	if w.cfg.SeedRatio > 0 {
+		for _, seed := range seeds {
+			if reasons[seed.taskID] != "" || seed.downloaded <= 0 {
+				continue
+			}
+			snapshot, err := seed.snapshot(ctx)
+			if err != nil {
+				w.logger.Warn("failed to inspect retained seed ratio", "task_id", seed.taskID, "path", seed.path, "error", err)
+				continue
+			}
+			if snapshot.Detail == nil || snapshot.Detail.PeerUploadedBytes == nil {
+				continue
+			}
+			uploaded := *snapshot.Detail.PeerUploadedBytes - seed.uploadBase
+			if uploaded >= int64(float64(seed.downloaded)*w.cfg.SeedRatio) {
+				reasons[seed.taskID] = "ratio"
+			}
 		}
 	}
 
@@ -178,4 +287,61 @@ func (w *Worker) cleanupRetainedSeed(ctx context.Context, seed retainedSeed, rea
 	}
 	w.retainedSeeds = next
 	w.mu.Unlock()
+	if err := w.removeSeedLedger(seed.taskID); err != nil {
+		w.logger.Warn("failed to remove retained seed ledger entry", "task_id", seed.taskID, "error", err)
+	}
+}
+
+func (w *Worker) upsertSeedLedger(seed retainedSeed, size int64) error {
+	if w.cfg.StateDir == "" {
+		return nil
+	}
+	ledger, err := loadSeedLedger(w.cfg.StateDir)
+	if err != nil {
+		return err
+	}
+	entry := seedLedgerEntry{
+		TaskID:       seed.taskID,
+		Engine:       seed.engine,
+		SeedID:       seed.seedID,
+		InfoHash:     strings.ToLower(seed.infoHash),
+		Path:         seed.path,
+		Size:         size,
+		RetainedAt:   seed.retainedAt,
+		ExpiresAt:    seed.expiresAt,
+		Downloaded:   size,
+		UploadBase:   seed.uploadBase,
+		SeedDuration: w.cfg.SeedDuration.String(),
+		SeedRatio:    w.cfg.SeedRatio,
+	}
+	replaced := false
+	for i := range ledger.Seeds {
+		if ledger.Seeds[i].TaskID == seed.taskID {
+			ledger.Seeds[i] = entry
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		ledger.Seeds = append(ledger.Seeds, entry)
+	}
+	return saveSeedLedger(w.cfg.StateDir, ledger)
+}
+
+func (w *Worker) removeSeedLedger(taskID string) error {
+	if w.cfg.StateDir == "" {
+		return nil
+	}
+	ledger, err := loadSeedLedger(w.cfg.StateDir)
+	if err != nil {
+		return err
+	}
+	next := ledger.Seeds[:0]
+	for _, entry := range ledger.Seeds {
+		if entry.TaskID != taskID {
+			next = append(next, entry)
+		}
+	}
+	ledger.Seeds = next
+	return saveSeedLedger(w.cfg.StateDir, ledger)
 }

@@ -83,11 +83,13 @@ func (w *Worker) Run(ctx context.Context) error {
 		"server_url", w.cfg.ServerURL,
 		"engine", w.cfg.Engine,
 		"download_dir", w.cfg.DownloadDir,
+		"state_dir", w.cfg.StateDir,
 		"poll_interval", w.cfg.PollInterval.String(),
 		"max_concurrent_tasks", w.cfg.MaxConcurrentTasks,
 		"seed_enabled", w.cfg.SeedEnabled,
 		"seed_duration", w.cfg.SeedDuration.String(),
 		"seed_cache_limit", w.cfg.SeedCacheLimit,
+		"seed_ratio", w.cfg.SeedRatio,
 	)
 	if err := w.resolveEngine(ctx); err != nil {
 		return err
@@ -103,6 +105,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	}
 	w.logger.Info("downloader engine check passed", "engine", w.cfg.Engine)
 	w.logger.Info("downloader started", "engine", w.cfg.Engine)
+	w.restoreRetainedSeeds(ctx)
 	ticker := time.NewTicker(w.cfg.PollInterval)
 	defer ticker.Stop()
 	seedCleanupTicker := time.NewTicker(time.Minute)

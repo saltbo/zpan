@@ -379,17 +379,20 @@ func TestResumeStage(t *testing.T) {
 
 func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 	dir := t.TempDir()
+	stateDir := t.TempDir()
 	cleaned := false
-	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, nil)
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour, StateDir: stateDir}, nil)
 
 	retained := w.retainSeed(
 		clientTask("task-1"),
 		engine.Result{
 			Path: filepath.Join(dir, "result"),
+			Size: 123,
 			Seed: &engine.Seed{
-				Engine: "aria2",
-				ID:     "gid",
-				Path:   dir,
+				Engine:   "aria2",
+				ID:       "gid",
+				InfoHash: "infohash",
+				Path:     dir,
 				Snapshot: func(context.Context) (engine.SeedSnapshot, error) {
 					return engine.SeedSnapshot{}, nil
 				},
@@ -410,6 +413,58 @@ func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 	}
 	if len(w.retainedSeedSnapshot()) != 1 {
 		t.Fatalf("expected one retained seed, got %d", len(w.retainedSeedSnapshot()))
+	}
+	ledger, err := loadSeedLedger(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ledger.Seeds) != 1 || ledger.Seeds[0].TaskID != "task-1" || ledger.Seeds[0].InfoHash != "infohash" {
+		t.Fatalf("expected retained seed ledger entry, got %#v", ledger.Seeds)
+	}
+}
+
+func TestRestoreRetainedSeedsLoadsLedger(t *testing.T) {
+	stateDir := t.TempDir()
+	seedPath := t.TempDir()
+	retainedAt := time.Now().Add(-time.Minute)
+	if err := saveSeedLedger(stateDir, seedLedger{Seeds: []seedLedgerEntry{{
+		TaskID:     "task-1",
+		Engine:     "aria2",
+		SeedID:     "old-gid",
+		InfoHash:   "abc123",
+		Path:       seedPath,
+		Size:       456,
+		RetainedAt: retainedAt,
+		ExpiresAt:  time.Now().Add(time.Hour),
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	eng := &recordingEngine{restoreSeed: &engine.Seed{
+		Engine:   "aria2",
+		ID:       "new-gid",
+		InfoHash: "abc123",
+		Path:     seedPath,
+		Snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+			return engine.SeedSnapshot{}, nil
+		},
+		Cleanup: func(context.Context) error {
+			return nil
+		},
+	}}
+	w := NewWithAPI(config.Config{SeedEnabled: true, StateDir: stateDir}, nil)
+	w.engine = eng
+
+	w.restoreRetainedSeeds(context.Background())
+
+	seeds := w.retainedSeedSnapshot()
+	if len(seeds) != 1 {
+		t.Fatalf("expected one restored seed, got %#v", seeds)
+	}
+	if seeds[0].seedID != "new-gid" || seeds[0].path != seedPath || !seeds[0].retainedAt.Equal(retainedAt) {
+		t.Fatalf("unexpected restored seed: %#v", seeds[0])
+	}
+	if eng.restoreCalls != 1 {
+		t.Fatalf("expected one restore call, got %d", eng.restoreCalls)
 	}
 }
 
@@ -436,6 +491,36 @@ func TestCleanupRetainedSeedsRemovesExpiredSeed(t *testing.T) {
 
 	if !cleaned {
 		t.Fatal("expected expired seed to be cleaned")
+	}
+	if len(w.retainedSeedSnapshot()) != 0 {
+		t.Fatalf("expected retained seed to be removed, got %d", len(w.retainedSeedSnapshot()))
+	}
+}
+
+func TestCleanupRetainedSeedsRemovesSeedAfterRatio(t *testing.T) {
+	dir := t.TempDir()
+	w := NewWithAPI(config.Config{SeedEnabled: true, SeedRatio: 1.5}, nil)
+	cleaned := false
+	uploaded := int64(151)
+	w.retainedSeeds = []retainedSeed{{
+		taskID:     "task-1",
+		engine:     "aria2",
+		seedID:     "gid",
+		path:       dir,
+		downloaded: 100,
+		snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+			return engine.SeedSnapshot{Detail: &client.DownloadTaskDetail{PeerUploadedBytes: &uploaded}}, nil
+		},
+		cleanup: func(context.Context) error {
+			cleaned = true
+			return nil
+		},
+	}}
+
+	w.cleanupRetainedSeeds(context.Background())
+
+	if !cleaned {
+		t.Fatal("expected ratio seed to be cleaned")
 	}
 	if len(w.retainedSeedSnapshot()) != 0 {
 		t.Fatalf("expected retained seed to be removed, got %d", len(w.retainedSeedSnapshot()))
@@ -537,8 +622,10 @@ type recordingEngine struct {
 	downloadResult engine.Result
 	recoverResult  engine.Result
 	recovered      bool
+	restoreSeed    *engine.Seed
 	downloadCalls  int
 	recoverCalls   int
+	restoreCalls   int
 }
 
 func (e *recordingEngine) Name() string {
@@ -556,6 +643,11 @@ func (e *recordingEngine) Check(context.Context) error {
 func (e *recordingEngine) Recover(context.Context, client.DownloadTask) (engine.Result, bool, error) {
 	e.recoverCalls++
 	return e.recoverResult, e.recovered, nil
+}
+
+func (e *recordingEngine) RestoreSeed(context.Context, engine.SeedRef) (*engine.Seed, error) {
+	e.restoreCalls++
+	return e.restoreSeed, nil
 }
 
 func (e *recordingEngine) Download(context.Context, client.DownloadTask, engine.Progress) (engine.Result, error) {

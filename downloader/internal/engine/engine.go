@@ -22,9 +22,18 @@ type Result struct {
 type Seed struct {
 	Engine   string
 	ID       string
+	InfoHash string
 	Path     string
 	Snapshot func(context.Context) (SeedSnapshot, error)
 	Cleanup  func(context.Context) error
+}
+
+type SeedRef struct {
+	TaskID   string
+	Engine   string
+	ID       string
+	InfoHash string
+	Path     string
 }
 
 type SeedSnapshot struct {
@@ -42,6 +51,14 @@ type Engine interface {
 	Check(ctx context.Context) error
 	Recover(ctx context.Context, task client.DownloadTask) (Result, bool, error)
 	Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error)
+}
+
+type SeedRestorer interface {
+	RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error)
+}
+
+type SessionSaver interface {
+	SaveSession(ctx context.Context) error
 }
 
 type progressWriter struct {

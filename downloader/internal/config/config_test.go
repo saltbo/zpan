@@ -14,6 +14,7 @@ func TestLoadParsesSeedPolicy(t *testing.T) {
 	v.Set("seed.enabled", true)
 	v.Set("seed.duration", "30m")
 	v.Set("seed.cache_limit", "10GB")
+	v.Set("seed.ratio", 1.5)
 
 	cfg, err := Load(v)
 	if err != nil {
@@ -27,6 +28,9 @@ func TestLoadParsesSeedPolicy(t *testing.T) {
 	}
 	if cfg.SeedCacheLimit != 10_000_000_000 {
 		t.Fatalf("expected seed cache limit 10GB, got %d", cfg.SeedCacheLimit)
+	}
+	if cfg.SeedRatio != 1.5 {
+		t.Fatalf("expected seed ratio 1.5, got %f", cfg.SeedRatio)
 	}
 }
 
@@ -58,6 +62,7 @@ func TestLoadRejectsInvalidSeedPolicy(t *testing.T) {
 	}{
 		{name: "duration", key: "seed.duration", value: "-1s"},
 		{name: "cache limit", key: "seed.cache_limit", value: "-1GB"},
+		{name: "ratio", key: "seed.ratio", value: "-1"},
 	}
 
 	for _, tt := range tests {

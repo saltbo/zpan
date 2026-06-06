@@ -98,6 +98,15 @@ func (w *Worker) startEngine(ctx context.Context, downloader engine.Engine) erro
 }
 
 func (w *Worker) stopStartedEngines() {
+	if len(w.started) > 0 {
+		if saver, ok := w.engine.(engine.SessionSaver); ok {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := saver.SaveSession(ctx); err != nil {
+				w.logger.Warn("failed to save downloader engine session", "engine", w.engine.Name(), "error", err)
+			}
+			cancel()
+		}
+	}
 	for _, cmd := range w.started {
 		if cmd.Process == nil {
 			continue
@@ -118,7 +127,7 @@ func configuredEngine(cfg config.Config) (engine.Engine, error) {
 
 func externalEngines(cfg config.Config) []engine.Engine {
 	return []engine.Engine{
-		engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled},
+		engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, StateDir: cfg.StateDir, RetainSeed: cfg.SeedEnabled},
 		engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled},
 	}
 }
