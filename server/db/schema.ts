@@ -354,6 +354,7 @@ export const downloadTasks = sqliteTable(
     detail: text('detail'),
     uploadTokenHash: text('upload_token_hash'),
     uploadTokenJti: text('upload_token_jti'),
+    uploadTokenIssuedAt: integer('upload_token_issued_at', { mode: 'timestamp_ms' }),
     uploadTokenExpiresAt: integer('upload_token_expires_at', { mode: 'timestamp_ms' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),

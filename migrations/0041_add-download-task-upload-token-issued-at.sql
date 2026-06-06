@@ -1,0 +1,1 @@
+ALTER TABLE `download_tasks` ADD `upload_token_issued_at` integer;

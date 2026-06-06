@@ -281,6 +281,13 @@
       "when": 1780710456844,
       "tag": "0040_rename-download-task-states",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1780711176957,
+      "tag": "0041_add-download-task-upload-token-issued-at",
+      "breakpoints": true
     }
   ]
 }

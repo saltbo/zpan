@@ -443,6 +443,7 @@ const APP_SCHEMA_SQL = `
     detail TEXT,
     upload_token_hash TEXT,
     upload_token_jti TEXT,
+    upload_token_issued_at INTEGER,
     upload_token_expires_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,

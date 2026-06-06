@@ -17,7 +17,7 @@ import { parseCapabilities, toDownloader, toDownloadTask } from './mappers'
 import { DownloadError, type DownloaderRow, type DownloadTaskRow } from './types'
 
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
-const UPLOAD_TOKEN_TTL_SECONDS = 24 * 60 * 60
+const UPLOAD_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 const PAUSABLE_TASK_STATUSES = ['queued', 'assigned', 'downloading'] as const
 const CANCELABLE_TASK_STATUSES = [
   'queued',
@@ -139,6 +139,7 @@ export async function deleteDownloader(platform: Platform, id: string): Promise<
       assignedDownloaderId: null,
       uploadTokenHash: null,
       uploadTokenJti: null,
+      uploadTokenIssuedAt: null,
       uploadTokenExpiresAt: null,
       assignedAt: null,
       updatedAt: now,
@@ -230,6 +231,7 @@ export async function createDownloadTask(
     status: assigned ? 'assigned' : 'queued',
     uploadTokenHash: uploadToken?.hash ?? null,
     uploadTokenJti: uploadToken?.jti ?? null,
+    uploadTokenIssuedAt: uploadToken?.issuedAt ?? null,
     uploadTokenExpiresAt: uploadToken?.expiresAt ?? null,
     createdAt: now,
     updatedAt: now,
@@ -486,6 +488,7 @@ export async function performDownloadTaskAction(
         assignedDownloaderId: null,
         uploadTokenHash: null,
         uploadTokenJti: null,
+        uploadTokenIssuedAt: null,
         uploadTokenExpiresAt: null,
         assignedAt: null,
         downloadBps: 0,
@@ -531,6 +534,7 @@ export async function performDownloadTaskAction(
         assignedDownloaderId: null,
         uploadTokenHash: null,
         uploadTokenJti: null,
+        uploadTokenIssuedAt: null,
         uploadTokenExpiresAt: null,
         downloadBps: 0,
         uploadBps: 0,
@@ -557,6 +561,7 @@ export async function performDownloadTaskAction(
         assignedDownloaderId: null,
         uploadTokenHash: null,
         uploadTokenJti: null,
+        uploadTokenIssuedAt: null,
         uploadTokenExpiresAt: null,
         downloadedBytes: 0,
         uploadedBytes: 0,
@@ -616,6 +621,7 @@ async function assignQueuedTasks(platform: Platform): Promise<void> {
         assignedDownloaderId: downloader.id,
         uploadTokenHash: token.hash,
         uploadTokenJti: token.jti,
+        uploadTokenIssuedAt: token.issuedAt,
         uploadTokenExpiresAt: token.expiresAt,
         assignedAt: now,
         updatedAt: now,
@@ -643,9 +649,18 @@ async function createTaskUploadToken(
   platform: Platform,
   params: { taskId: string; downloaderId: string; orgId: string; targetFolder: string; createdByUserId: string },
 ) {
-  const now = Math.floor(Date.now() / 1000)
+  const issuedAt = Math.floor(Date.now() / 1000)
   const jti = nanoid()
-  const expiresAt = new Date((now + UPLOAD_TOKEN_TTL_SECONDS) * 1000)
+  const expiresAt = new Date((issuedAt + UPLOAD_TOKEN_TTL_SECONDS) * 1000)
+  return buildTaskUploadToken(platform, params, { jti, issuedAt, expiresAt })
+}
+
+async function buildTaskUploadToken(
+  platform: Platform,
+  params: { taskId: string; downloaderId: string; orgId: string; targetFolder: string; createdByUserId: string },
+  tokenState: { jti: string; issuedAt: number; expiresAt: Date },
+) {
+  const exp = Math.floor(tokenState.expiresAt.getTime() / 1000)
   const token = await signDownloadToken(platform, {
     v: 1,
     typ: 'download-task-upload',
@@ -655,30 +670,64 @@ async function createTaskUploadToken(
     targetFolder: params.targetFolder,
     createdByUserId: params.createdByUserId,
     scopes: ['objects:create', 'objects:upload', 'objects:confirm'],
-    jti,
-    iat: now,
-    exp: now + UPLOAD_TOKEN_TTL_SECONDS,
+    jti: tokenState.jti,
+    iat: tokenState.issuedAt,
+    exp,
   })
-  return { token, hash: await hashDownloadToken(platform, token), jti, expiresAt }
+  return {
+    token,
+    hash: await hashDownloadToken(platform, token),
+    jti: tokenState.jti,
+    issuedAt: new Date(tokenState.issuedAt * 1000),
+    expiresAt: tokenState.expiresAt,
+  }
 }
 
 async function toDownloadTaskWithToken(platform: Platform, row: DownloadTaskRow, includeUploadToken: boolean) {
   const task = toDownloadTask(row)
   if (includeUploadToken && row.assignedDownloaderId) {
-    const token = await createTaskUploadToken(platform, {
+    const tokenParams = {
       taskId: row.id,
       downloaderId: row.assignedDownloaderId,
       orgId: row.orgId,
       targetFolder: row.targetFolder,
       createdByUserId: row.createdByUserId,
-    })
-    await platform.db
-      .update(downloadTasks)
-      .set({ uploadTokenHash: token.hash, uploadTokenJti: token.jti, uploadTokenExpiresAt: token.expiresAt })
-      .where(eq(downloadTasks.id, row.id))
+    }
+    const existingToken = await restoreTaskUploadToken(platform, row, tokenParams)
+    const token = existingToken ?? (await createTaskUploadToken(platform, tokenParams))
+    if (!existingToken) {
+      await platform.db
+        .update(downloadTasks)
+        .set({
+          uploadTokenHash: token.hash,
+          uploadTokenJti: token.jti,
+          uploadTokenIssuedAt: token.issuedAt,
+          uploadTokenExpiresAt: token.expiresAt,
+        })
+        .where(eq(downloadTasks.id, row.id))
+    }
     task.uploadToken = token.token
   }
   return task
+}
+
+async function restoreTaskUploadToken(
+  platform: Platform,
+  row: DownloadTaskRow,
+  params: { taskId: string; downloaderId: string; orgId: string; targetFolder: string; createdByUserId: string },
+) {
+  if (!row.uploadTokenHash || !row.uploadTokenJti || !row.uploadTokenExpiresAt) return null
+  if (row.uploadTokenExpiresAt.getTime() <= Date.now()) return null
+
+  const issuedAt = row.uploadTokenIssuedAt
+    ? Math.floor(row.uploadTokenIssuedAt.getTime() / 1000)
+    : Math.floor(row.uploadTokenExpiresAt.getTime() / 1000) - 24 * 60 * 60
+  const token = await buildTaskUploadToken(platform, params, {
+    jti: row.uploadTokenJti,
+    issuedAt,
+    expiresAt: row.uploadTokenExpiresAt,
+  })
+  return token.hash === row.uploadTokenHash ? token : null
 }
 
 async function loadDownloaderRow(platform: Platform, id: string): Promise<DownloaderRow> {

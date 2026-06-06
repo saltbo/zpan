@@ -245,7 +245,7 @@ describe('Download tasks API integration', () => {
     const recoverDownloadingTask = recoverDownloading.items.find((item) => item.id === createdTask.id)
     expect(recoverDownloadingTask?.status).toBe('downloading')
     expect(recoverDownloadingTask?.uploadToken).toBeTruthy()
-    uploadHeaders.Authorization = `Bearer ${recoverDownloadingTask?.uploadToken}`
+    expect(recoverDownloadingTask?.uploadToken).toBe(assignedTask?.uploadToken)
 
     const createFolderRes = await app.request('/api/objects', {
       method: 'POST',
