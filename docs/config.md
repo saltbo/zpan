@@ -30,3 +30,13 @@ database:
 | mysql  | user:pass@tcp(127.0.0.1:3306)/zpan?charset=utf8mb4&parseTime=True&loc=Local |
 | postgres  | user=zpan password=zpan dbname=zpan port=9920 sslmode=disable TimeZone=Asia/Shanghai |
 | mssql  | sqlserver://zpan:LoremIpsum86@localhost:9930?database=zpan |
+
+## security
+这里定义了ZPan的安全配置
+```yaml
+security:
+  jwt_secret: your-random-secret
+```
+
+### jwt_secret
+用于签发和校验登录令牌。安装和升级时会自动生成随机值，请不要与其他实例共用。
