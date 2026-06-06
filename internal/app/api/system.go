@@ -5,7 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
-	"github.com/saltbo/gopkg/jwtutil"
 	"github.com/saltbo/gopkg/strutil"
 	"github.com/spf13/viper"
 
@@ -18,8 +17,6 @@ import (
 )
 
 type Option struct {
-	jwtutil.JWTUtil
-
 	sOption *service.Option
 }
 
@@ -59,6 +56,11 @@ func (rs *Option) setupDatabase(c *gin.Context) {
 	}
 
 	if err := dao.NewOption().Init(); err != nil {
+		ginutil.JSONServerError(c, err)
+		return
+	}
+
+	if err := service.EnsureJWTSecret(); err != nil {
 		ginutil.JSONServerError(c, err)
 		return
 	}

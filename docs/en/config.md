@@ -79,6 +79,16 @@ The dsn corresponding to different drivers is also different, here we give the d
 | postgres  | user=zpan password=zpan dbname=zpan port=9920 sslmode=disable TimeZone=Asia/Shanghai |
 | mssql  | sqlserver://zpan:LoremIpsum86@localhost:9930?database=zpan |
 
+# security
+Configure security settings
+```yaml
+security:
+  jwt_secret: your-random-secret
+```
+
+### jwt_secret
+Used to sign and verify login tokens. ZPan generates a random value during installation and upgrade. Do not share it across instances.
+
 # provider
 Currently we support all S3-based cloud storage platforms, such as Alibaba Cloud OSS, Tencent Cloud COS, Qiniu Cloud KODO.
 ```yaml

@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/spf13/cobra"
-
 	"github.com/spf13/viper"
 )
 
@@ -73,5 +73,15 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 		viper.Set("installed", true)
+		if viper.GetString("security.jwt_secret") == "" {
+			if err := service.EnsureJWTSecret(); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if err := viper.WriteConfig(); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		}
 	}
 }

@@ -8,12 +8,12 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
-	"github.com/saltbo/gopkg/jwtutil"
 	"github.com/saltbo/gopkg/strutil"
 	"gorm.io/gorm"
 
 	"github.com/saltbo/zpan/internal/app/dao"
 	"github.com/saltbo/zpan/internal/app/model"
+	"github.com/saltbo/zpan/internal/app/service"
 	"github.com/saltbo/zpan/internal/pkg/authed"
 	"github.com/saltbo/zpan/internal/pkg/bind"
 )
@@ -21,8 +21,6 @@ import (
 const ShareCookieTokenKey = "share-token"
 
 type ShareResource struct {
-	jwtutil.JWTUtil
-
 	dShare  *dao.Share
 	dMatter *dao.Matter
 }
@@ -170,7 +168,7 @@ func (rs *ShareResource) draw(c *gin.Context) {
 		NotBefore: time.Now().Unix(),
 		Subject:   share.Alias,
 	}
-	token, err := rs.JWTUtil.Issue(claims)
+	token, err := service.NewJWTUtil().Issue(claims)
 	if err != nil {
 		ginutil.JSONServerError(c, err)
 		return
@@ -250,7 +248,7 @@ func (rs *ShareResource) shareTokenVerify(c *gin.Context, share *model.Share) er
 		return err
 	}
 
-	if token, err := rs.JWTUtil.Parse(tokenStr, &jwt.StandardClaims{}); err != nil {
+	if token, err := service.NewJWTUtil().Parse(tokenStr, &jwt.StandardClaims{}); err != nil {
 		return err
 	} else if token.Claims.(*jwt.StandardClaims).Subject != share.Alias {
 		return fmt.Errorf("unmatched token")

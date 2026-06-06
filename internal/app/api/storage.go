@@ -3,15 +3,13 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/saltbo/gopkg/ginutil"
-	"github.com/saltbo/gopkg/jwtutil"
 
 	"github.com/saltbo/zpan/internal/app/dao"
-	"github.com/saltbo/zpan/internal/pkg/bind"
 	"github.com/saltbo/zpan/internal/app/service"
+	"github.com/saltbo/zpan/internal/pkg/bind"
 )
 
 type Storage struct {
-	jwtutil.JWTUtil
 }
 
 func NewStorageResource() *Storage {
