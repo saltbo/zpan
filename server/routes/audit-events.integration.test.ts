@@ -201,49 +201,25 @@ describe('Object lifecycle audit events', () => {
     assertNoSecrets(evt?.metadata ?? null)
   })
 
-  it('records batch_trash when batch trashing items', async () => {
+  it('records delete when moving an item to trash', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
 
-    await insertFile(db, orgId, { id: 'bt-file1', name: 'file1.txt' })
-    await insertFile(db, orgId, { id: 'bt-file2', name: 'file2.txt' })
+    await insertFile(db, orgId, { id: 'trash-file', name: 'file1.txt' })
 
-    const res = await app.request('/api/objects/batch', {
+    const res = await app.request('/api/objects/trash-file', {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trash', ids: ['bt-file1', 'bt-file2'] }),
+      body: JSON.stringify({ action: 'trash' }),
     })
     expect(res.status).toBe(200)
 
-    const evt = await getLatestActivity(db, 'batch_trash')
+    const evt = await getLatestActivity(db, 'delete')
     expect(evt).toBeDefined()
     expect(evt?.orgId).toBe(orgId)
-    const meta = JSON.parse(evt?.metadata ?? '{}') as { count: number }
-    expect(meta.count).toBeGreaterThan(0)
-    assertNoSecrets(evt?.metadata ?? null)
-  })
-
-  it('records batch_purge when batch permanently deleting', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    await insertStorage(db)
-    const orgId = await getPersonalOrgId(db)
-
-    await insertFile(db, orgId, { id: 'bp-file1', name: 'file1.txt', status: 'trashed' })
-    await insertFile(db, orgId, { id: 'bp-file2', name: 'file2.txt', status: 'trashed' })
-
-    const res = await app.request('/api/objects/batch', {
-      method: 'DELETE',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ['bp-file1', 'bp-file2'] }),
-    })
-    expect(res.status).toBe(200)
-
-    const evt = await getLatestActivity(db, 'batch_purge')
-    expect(evt).toBeDefined()
-    expect(evt?.orgId).toBe(orgId)
+    expect(evt?.targetName).toBe('file1.txt')
     assertNoSecrets(evt?.metadata ?? null)
   })
 

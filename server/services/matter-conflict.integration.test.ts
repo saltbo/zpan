@@ -1,14 +1,14 @@
 /**
  * Integration tests for name-conflict resolution across all matter service
  * entry points: createMatter, updateMatter, confirmUpload, copyMatter,
- * batchMove, restoreMatter.
+ * restoreMatter.
  */
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { ObjectStatus } from '../../shared/constants'
 import { createTestApp } from '../test/setup.js'
-import { batchMove, confirmUpload, copyMatter, createMatter, restoreMatter, updateMatter } from './matter.js'
+import { confirmUpload, copyMatter, createMatter, restoreMatter, updateMatter } from './matter.js'
 import { NameConflictError } from './matter-name-conflict.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -272,9 +272,9 @@ describe('updateMatter — name conflict on move', () => {
   })
 })
 
-// ─── batchMove ─────────────────────────────────────────────────────────────────
+// ─── move ─────────────────────────────────────────────────────────────────────
 
-describe('batchMove — name conflict', () => {
+describe('move — name conflict', () => {
   it('throws NameConflictError when moving into a parent with a name collision (default fail)', async () => {
     const { db } = await createTestApp()
     await insertStorage(db)
@@ -282,19 +282,19 @@ describe('batchMove — name conflict', () => {
     const id = await makeFile(db, orgId, 'report.txt')
     await makeFile(db, orgId, 'report.txt', { parent: 'Dest' })
 
-    await expect(batchMove(db, orgId, [id], 'Dest', undefined, 'fail')).rejects.toThrow(NameConflictError)
+    await expect(updateMatter(db, id, orgId, { parent: 'Dest', onConflict: 'fail' })).rejects.toThrow(NameConflictError)
   })
 
-  it('renames per-item when onConflict: rename during batchMove', async () => {
+  it('renames when onConflict: rename during move', async () => {
     const { db } = await createTestApp()
     await insertStorage(db)
     const orgId = nanoid()
     const id = await makeFile(db, orgId, 'report.txt')
     await makeFile(db, orgId, 'report.txt', { parent: 'Dest' })
 
-    const results = await batchMove(db, orgId, [id], 'Dest', undefined, 'rename')
-    expect(results[0].name).toBe('report (1).txt')
-    expect(results[0].parent).toBe('Dest')
+    const result = await updateMatter(db, id, orgId, { parent: 'Dest', onConflict: 'rename' })
+    expect(result?.name).toBe('report (1).txt')
+    expect(result?.parent).toBe('Dest')
   })
 
   it('does not apply conflict resolution for in-place moves (same parent)', async () => {
@@ -304,9 +304,9 @@ describe('batchMove — name conflict', () => {
     const id = await makeFile(db, orgId, 'file.txt', { parent: 'SameFolder' })
 
     // Moving to the same parent should not trigger conflict even if fail strategy
-    const results = await batchMove(db, orgId, [id], 'SameFolder', undefined, 'fail')
-    expect(results[0].name).toBe('file.txt')
-    expect(results[0].parent).toBe('SameFolder')
+    const result = await updateMatter(db, id, orgId, { parent: 'SameFolder', onConflict: 'fail' })
+    expect(result?.name).toBe('file.txt')
+    expect(result?.parent).toBe('SameFolder')
   })
 })
 

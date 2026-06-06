@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { batchMoveObjects, batchTrashObjects, copyObject, createObject, updateObject } from '@/lib/api'
+import { copyObject, createObject, updateObject } from '@/lib/api'
 
 // useFileMutations is a React hook (useMutation wrappers) that cannot be invoked
 // outside a React render. We test the API functions it delegates to, verifying
@@ -10,8 +10,6 @@ import { batchMoveObjects, batchTrashObjects, copyObject, createObject, updateOb
 vi.mock('@/lib/api', () => ({
   updateObject: vi.fn(),
   createObject: vi.fn(),
-  batchTrashObjects: vi.fn(),
-  batchMoveObjects: vi.fn(),
   copyObject: vi.fn(),
 }))
 
@@ -69,43 +67,6 @@ describe('useFileMutations — mutationFn API contracts', () => {
 
       const [payload] = vi.mocked(createObject).mock.calls[0] as [{ dirtype: number }]
       expect(payload.dirtype).toBe(1)
-    })
-  })
-
-  describe('trashMutation mutationFn → batchTrashObjects', () => {
-    it('calls batchTrashObjects with the provided ids array', async () => {
-      vi.mocked(batchTrashObjects).mockResolvedValueOnce({ trashed: 2 })
-
-      await batchTrashObjects(['id1', 'id2'])
-
-      expect(batchTrashObjects).toHaveBeenCalledWith(['id1', 'id2'])
-    })
-
-    it('accepts a single-element ids array', async () => {
-      vi.mocked(batchTrashObjects).mockResolvedValueOnce({ trashed: 1 })
-
-      await batchTrashObjects(['solo'])
-
-      expect(batchTrashObjects).toHaveBeenCalledWith(['solo'])
-    })
-  })
-
-  describe('moveMutation mutationFn → batchMoveObjects', () => {
-    it('calls batchMoveObjects with ids and parent', async () => {
-      vi.mocked(batchMoveObjects).mockResolvedValueOnce({ moved: 3 })
-
-      await batchMoveObjects(['a', 'b', 'c'], 'dest-folder')
-
-      expect(batchMoveObjects).toHaveBeenCalledWith(['a', 'b', 'c'], 'dest-folder')
-    })
-
-    it('passes the destination parent folder correctly', async () => {
-      vi.mocked(batchMoveObjects).mockResolvedValueOnce({ moved: 1 })
-
-      await batchMoveObjects(['id1'], 'target')
-
-      const [, parent] = vi.mocked(batchMoveObjects).mock.calls[0] as [string[], string]
-      expect(parent).toBe('target')
     })
   })
 

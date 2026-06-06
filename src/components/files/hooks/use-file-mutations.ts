@@ -3,7 +3,7 @@ import type { ConflictStrategy } from '@shared/schemas'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { batchMoveObjects, batchTrashObjects, copyObject, createObject, updateObject } from '@/lib/api'
+import { copyObject, createObject, updateObject } from '@/lib/api'
 
 export function useFileMutations(currentPath: string) {
   const { t } = useTranslation()
@@ -36,24 +36,6 @@ export function useFileMutations(currentPath: string) {
     },
   })
 
-  const trashMutation = useMutation({
-    mutationFn: (ids: string[]) => batchTrashObjects(ids),
-    onSuccess: () => {
-      invalidate()
-      toast.success(t('files.trashSuccess'))
-    },
-    onError: (err) => toast.error(err.message),
-  })
-
-  const moveMutation = useMutation({
-    mutationFn: ({ ids, parent, onConflict }: { ids: string[]; parent: string; onConflict?: ConflictStrategy }) =>
-      batchMoveObjects(ids, parent, onConflict),
-    onSuccess: () => {
-      invalidate()
-      toast.success(t('files.moveSuccess'))
-    },
-  })
-
   const copyMutation = useMutation({
     mutationFn: ({ id, parent, onConflict }: { id: string; parent: string; onConflict?: ConflictStrategy }) =>
       copyObject(id, parent, onConflict),
@@ -64,5 +46,5 @@ export function useFileMutations(currentPath: string) {
     onError: (err) => toast.error(err.message),
   })
 
-  return { renameMutation, createFolderMutation, trashMutation, moveMutation, copyMutation, invalidate }
+  return { renameMutation, createFolderMutation, copyMutation, invalidate }
 }

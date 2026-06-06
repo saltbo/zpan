@@ -1,10 +1,7 @@
 // Tests for src/lib/api.ts — covers all public API helper functions
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  batchDeleteObjects,
   batchDeleteUsers,
-  batchMoveObjects,
-  batchTrashObjects,
   batchUpdateUserStatus,
   buildShareObjectUrl,
   cancelBackgroundJob,
@@ -1793,91 +1790,6 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
 
       await expect(trashObject('missing')).rejects.toThrow('not found')
-    })
-  })
-
-  describe('batchTrashObjects', () => {
-    it('patches batch endpoint with action: trash and returns trashed count', async () => {
-      const payload = { trashed: 3 }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await batchTrashObjects(['id1', 'id2', 'id3'])
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/batch')
-      expect(init.method).toBe('PATCH')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'trash', ids: ['id1', 'id2', 'id3'] })
-    })
-
-    it('posts an empty ids array without error', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ trashed: 0 }))
-
-      const result = await batchTrashObjects([])
-
-      expect(result).toEqual({ trashed: 0 })
-      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'trash', ids: [] })
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
-
-      await expect(batchTrashObjects(['id1'])).rejects.toThrow('forbidden')
-    })
-  })
-
-  describe('batchMoveObjects', () => {
-    it('patches batch endpoint with action: move and returns moved count', async () => {
-      const payload = { moved: 2 }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await batchMoveObjects(['id1', 'id2'], 'folder1')
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/batch')
-      expect(init.method).toBe('PATCH')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ action: 'move', ids: ['id1', 'id2'], parent: 'folder1' })
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
-
-      await expect(batchMoveObjects(['id1'], 'missing-folder')).rejects.toThrow('not found')
-    })
-  })
-
-  describe('batchDeleteObjects', () => {
-    it('sends DELETE to batch endpoint and returns deleted count', async () => {
-      const payload = { deleted: 2 }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
-
-      const result = await batchDeleteObjects(['id1', 'id2'])
-
-      expect(result).toEqual(payload)
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/objects/batch')
-      expect(init.method).toBe('DELETE')
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
-      expect(body).toMatchObject({ ids: ['id1', 'id2'] })
-    })
-
-    it('posts an empty ids array without error', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ deleted: 0 }))
-
-      const result = await batchDeleteObjects([])
-
-      expect(result).toEqual({ deleted: 0 })
-    })
-
-    it('throws on error response', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'server error' }, false, 500))
-
-      await expect(batchDeleteObjects(['id1'])).rejects.toThrow('server error')
     })
   })
 

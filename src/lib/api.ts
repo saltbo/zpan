@@ -228,18 +228,6 @@ export function restoreObject(id: string, onConflict?: ConflictStrategy) {
   )
 }
 
-export function batchMoveObjects(ids: string[], parent: string, onConflict?: ConflictStrategy) {
-  return unwrap<{ moved: number }>(objects.batch.$patch({ json: { action: 'move' as const, ids, parent, onConflict } }))
-}
-
-export function batchTrashObjects(ids: string[]) {
-  return unwrap<{ trashed: number }>(objects.batch.$patch({ json: { action: 'trash' as const, ids } }))
-}
-
-export function batchDeleteObjects(ids: string[]) {
-  return unwrap<{ deleted: number }>(objects.batch.$delete({ json: { ids } }))
-}
-
 export function emptyTrash() {
   return unwrap<{ purged: number }>(trash.index.$delete())
 }

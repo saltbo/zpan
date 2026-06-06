@@ -231,23 +231,6 @@ export const copyMatterSchema = z.object({
   onConflict: conflictStrategySchema.optional(),
 })
 
-export const batchPatchSchema = z.discriminatedUnion('action', [
-  z.object({
-    action: z.literal('move'),
-    ids: z.array(z.string().min(1)).min(1),
-    parent: z.string().default(''),
-    onConflict: conflictStrategySchema.optional(),
-  }),
-  z.object({
-    action: z.literal('trash'),
-    ids: z.array(z.string().min(1)).min(1),
-  }),
-])
-
-export const batchDeleteSchema = z.object({
-  ids: z.array(z.string().min(1)).min(1),
-})
-
 // ─── Image Hosting Config ─────────────────────────────────────────────────────
 
 // Valid hostname regex: lowercase labels separated by dots, max 253 chars total,

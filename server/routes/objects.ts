@@ -4,8 +4,6 @@ import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { DirType } from '../../shared/constants'
 import {
-  batchDeleteSchema,
-  batchPatchSchema,
   copyMatterSchema,
   createMatterSchema,
   createObjectUploadSessionSchema,
@@ -20,15 +18,12 @@ import { recordActivity } from '../services/activity'
 import { assertTaskUploadAllowed } from '../services/downloads'
 import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import {
-  batchMove,
-  batchTrash,
   cancelDraftMatter,
   collectForPurge,
   confirmUpload,
   copyMatter,
   createMatter,
   getMatter,
-  getMatters,
   listMatters,
   restoreMatter,
   trashMatter,
@@ -188,78 +183,6 @@ const app = new Hono<Env>()
     } catch (e) {
       if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
       throw e
-    }
-  })
-  .patch('/batch', requireTeamRole('editor'), zValidator('json', batchPatchSchema), async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
-
-    const body = c.req.valid('json')
-    const db = c.get('platform').db
-
-    switch (body.action) {
-      case 'move': {
-        const userId = c.get('userId')!
-        try {
-          const moved = await batchMove(db, orgId, body.ids, body.parent, userId, body.onConflict ?? 'fail')
-          return c.json({ moved: moved.length })
-        } catch (e) {
-          if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
-          return c.json({ error: (e as Error).message }, 400)
-        }
-      }
-      case 'trash': {
-        const userId = c.get('userId')!
-        try {
-          const trashed = await batchTrash(db, orgId, body.ids)
-          await recordActivity(db, {
-            orgId,
-            userId,
-            action: 'batch_trash',
-            targetType: 'file',
-            targetName: `${trashed.length} items`,
-            metadata: { count: trashed.length, ids: body.ids },
-          })
-          return c.json({ trashed: trashed.length })
-        } catch (e) {
-          return c.json({ error: (e as Error).message }, 400)
-        }
-      }
-    }
-  })
-  .delete('/batch', requireTeamRole('editor'), zValidator('json', batchDeleteSchema), async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'No active organization' }, 400)
-
-    const userId = c.get('userId')!
-    const { ids } = c.req.valid('json')
-    const db = c.get('platform').db
-    try {
-      const uniqueIds = [...new Set(ids)]
-      const items = await getMatters(db, orgId, uniqueIds)
-      if (items.length !== uniqueIds.length) {
-        return c.json({ error: 'Some IDs do not belong to this organization' }, 400)
-      }
-      if (items.some((m) => m.status !== 'trashed')) {
-        return c.json({ error: 'Only trashed items can be permanently deleted' }, 400)
-      }
-
-      let purged = 0
-      for (const item of items) {
-        const ms = await collectForPurge(db, orgId, item)
-        purged += await purgeRecursively(db, orgId, ms)
-      }
-      await recordActivity(db, {
-        orgId,
-        userId,
-        action: 'batch_purge',
-        targetType: 'file',
-        targetName: `${purged} items`,
-        metadata: { count: purged, ids: uniqueIds },
-      })
-      return c.json({ deleted: purged })
-    } catch (e) {
-      return c.json({ error: (e as Error).message }, 400)
     }
   })
   .post('/:id/uploads', requireObjectCreateAccess, zValidator('json', createObjectUploadSessionSchema), async (c) =>

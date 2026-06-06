@@ -426,76 +426,6 @@ export async function getMatters(db: Database, orgId: string, ids: string[]): Pr
     .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
 }
 
-export async function batchMove(
-  db: Database,
-  orgId: string,
-  ids: string[],
-  newParent: string,
-  userId?: string,
-  onConflict: ConflictStrategy = 'fail',
-): Promise<Matter[]> {
-  const uniqueIds = [...new Set(ids)]
-  const items = await getMatters(db, orgId, uniqueIds)
-  if (items.length !== uniqueIds.length) {
-    throw new Error('Some IDs do not belong to this organization')
-  }
-
-  for (const item of items) {
-    if (item.dirtype !== DirType.FILE) {
-      const folderPath = buildPath(item.parent, item.name)
-      if (newParent === folderPath || newParent.startsWith(`${folderPath}/`)) {
-        throw new Error(`Cannot move folder '${item.name}' into itself or its subfolder`)
-      }
-    }
-  }
-
-  const now = new Date()
-  const moved: Matter[] = []
-  for (const item of items) {
-    const isFolder = item.dirtype !== DirType.FILE
-    // If the move is in-place (same parent), no conflict check needed.
-    const inPlace = item.parent === newParent
-    const finalName = inPlace
-      ? item.name
-      : await applyConflictResolution(db, orgId, newParent, item.name, onConflict, {
-          excludeId: item.id,
-          isFolder,
-          userId,
-        })
-
-    if (isFolder) {
-      const oldPath = buildPath(item.parent, item.name)
-      const newPath = buildPath(newParent, finalName)
-      await cascadeParentPath(db, orgId, oldPath, newPath)
-    }
-
-    await db
-      .update(matters)
-      .set({ name: finalName, parent: newParent, updatedAt: now })
-      .where(and(eq(matters.id, item.id), eq(matters.orgId, orgId)))
-
-    moved.push({ ...item, name: finalName, parent: newParent, updatedAt: now })
-  }
-
-  if (userId) {
-    for (const item of moved) {
-      const original = items.find((m) => m.id === item.id)
-      if (!original) continue
-      await recordActivity(db, {
-        orgId,
-        userId,
-        action: 'move',
-        targetType: item.dirtype !== DirType.FILE ? 'folder' : 'file',
-        targetId: item.id,
-        targetName: item.name,
-        metadata: { from: original.parent, to: newParent },
-      })
-    }
-  }
-
-  return moved
-}
-
 function getDescendants(db: Database, orgId: string, folderPath: string): Promise<Matter[]> {
   return db
     .select()
@@ -508,55 +438,6 @@ function getDirectChildren(db: Database, orgId: string, folderPath: string): Pro
     .select()
     .from(matters)
     .where(and(eq(matters.orgId, orgId), eq(matters.parent, folderPath)))
-}
-
-export async function batchTrash(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
-  const uniqueIds = [...new Set(ids)]
-  const items = await getMatters(db, orgId, uniqueIds)
-  if (items.length !== uniqueIds.length) {
-    throw new Error('Some IDs do not belong to this organization')
-  }
-
-  const allMatters = [...items]
-  for (const item of items) {
-    if (item.dirtype !== DirType.FILE) {
-      const path = buildPath(item.parent, item.name)
-      const children = await getDirectChildren(db, orgId, path)
-      const descendants = await getDescendants(db, orgId, path)
-      allMatters.push(...children, ...descendants)
-    }
-  }
-
-  const now = new Date()
-  const nowTs = now.getTime()
-  const allIds = [...new Set(allMatters.map((m) => m.id))]
-  for (const targetId of allIds) {
-    await db
-      .update(matters)
-      .set({ status: 'trashed', trashedAt: nowTs, updatedAt: now })
-      .where(and(eq(matters.id, targetId), eq(matters.orgId, orgId)))
-  }
-
-  return allMatters.map((m) => ({ ...m, status: 'trashed', trashedAt: nowTs, updatedAt: now }))
-}
-
-export async function batchDelete(db: Database, orgId: string, ids: string[]): Promise<Matter[]> {
-  const uniqueIds = [...new Set(ids)]
-  const items = await getMatters(db, orgId, uniqueIds)
-  if (items.length !== uniqueIds.length) {
-    throw new Error('Some IDs do not belong to this organization')
-  }
-
-  const nonTrashed = items.filter((m) => m.status !== 'trashed')
-  if (nonTrashed.length > 0) {
-    throw new Error('Only trashed items can be permanently deleted')
-  }
-
-  for (const matter of items) {
-    await db.delete(matters).where(and(eq(matters.id, matter.id), eq(matters.orgId, orgId)))
-  }
-
-  return items
 }
 
 // ─── Recycle Bin ─────────────────────────────────────────────────────────────

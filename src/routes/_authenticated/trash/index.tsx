@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { deleteObject, emptyTrash, listObjects, restoreObject } from '@/lib/api'
+import { runSequentialOperation } from '@/lib/sequential-operation'
 
 export const Route = createFileRoute('/_authenticated/trash/')({
   component: TrashPage,
@@ -44,10 +45,13 @@ function TrashPage() {
   async function runRestore(ids: string[]) {
     conflict.reset()
     const showApplyToAll = ids.length > 1
-    // Each item may collide with a different sibling in its original parent, so
-    // resolve per-id. The sticky "apply to all" lets one decision cover the batch.
-    for (const id of ids) {
-      await withConflictRetry(conflict.prompt, 'file', (strategy) => restoreObject(id, strategy), { showApplyToAll })
+    const result = await runSequentialOperation({
+      items: ids,
+      runItem: (id) =>
+        withConflictRetry(conflict.prompt, 'file', (strategy) => restoreObject(id, strategy), { showApplyToAll }),
+    })
+    if (result.failed.length > 0) {
+      throw new Error(t('files.operationFailedSummary', { failed: result.failed.length, total: ids.length }))
     }
   }
 
@@ -65,7 +69,10 @@ function TrashPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      await Promise.all(ids.map((id) => deleteObject(id)))
+      const result = await runSequentialOperation({ items: ids, runItem: (id) => deleteObject(id) })
+      if (result.failed.length > 0) {
+        throw new Error(t('files.operationFailedSummary', { failed: result.failed.length, total: ids.length }))
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })

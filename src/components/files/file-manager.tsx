@@ -23,8 +23,10 @@ import { Card } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
-import { createBackgroundJob, getObject, listObjectsByPath } from '@/lib/api'
+import { createBackgroundJob, getObject, listObjectsByPath, trashObject, updateObject } from '@/lib/api'
+import { runSequentialOperation } from '@/lib/sequential-operation'
 import { cn } from '@/lib/utils'
+import { Progress } from '../ui/progress'
 import { getColumns } from './columns'
 import { NameConflictDialog } from './dialogs/name-conflict-dialog'
 import { DndWrapper } from './dnd-wrapper'
@@ -38,6 +40,14 @@ import { useViewMode } from './hooks/use-view-mode'
 import type { BreadcrumbItem, FileActionHandlers } from './types'
 
 const FILES_PAGE_SIZE = 500
+
+interface FileOperationState {
+  title: string
+  total: number
+  completed: number
+  currentName: string
+  cancelRequested: boolean
+}
 
 export interface FileManagerHeaderMeta {
   label: string
@@ -223,6 +233,8 @@ export function FileManager({
   const mutations = useFileMutations(currentPath)
   const conflict = useConflictResolver()
   const items = query.data?.items ?? []
+  const operationCancelRef = useRef(false)
+  const [operationState, setOperationState] = useState<FileOperationState | null>(null)
   const archiveMutation = useMutation({
     mutationFn: (
       input: { type: 'archive_compress'; matterIds: string[] } | { type: 'archive_extract'; matterId: string },
@@ -393,10 +405,62 @@ export function FileManager({
     archiveMutation.mutate({ type: 'archive_compress', matterIds: selectedIds })
   }, [archiveMutation, selectedIds])
 
+  const runFileOperation = useCallback(
+    async (
+      title: string,
+      ids: string[],
+      action: (id: string) => Promise<unknown>,
+      successMessage: string,
+      invalidation: () => void = mutations.invalidate,
+    ) => {
+      operationCancelRef.current = false
+      const namesById = new Map(items.map((item) => [item.id, item.name]))
+      setOperationState({ title, total: ids.length, completed: 0, currentName: '', cancelRequested: false })
+
+      const result = await runSequentialOperation({
+        items: ids,
+        shouldCancel: () => operationCancelRef.current,
+        onItemStart: (id) => {
+          setOperationState((state) => (state ? { ...state, currentName: namesById.get(id) ?? id } : state))
+        },
+        onItemComplete: (_id, index) => {
+          setOperationState((state) => (state ? { ...state, completed: index + 1 } : state))
+        },
+        runItem: action,
+      })
+
+      invalidation()
+      setOperationState(null)
+      if (result.failed.length > 0) {
+        toast.error(t('files.operationFailedSummary', { failed: result.failed.length, total: ids.length }))
+        return result
+      }
+      if (result.cancelled) {
+        toast.info(t('files.operationCancelled', { completed: result.completed, total: ids.length }))
+        return result
+      }
+      toast.success(successMessage)
+      return result
+    },
+    [items, mutations.invalidate, t],
+  )
+
+  function requestOperationCancel() {
+    operationCancelRef.current = true
+    setOperationState((state) => (state ? { ...state, cancelRequested: true } : state))
+  }
+
   function handleDndDrop(fileIds: string[], targetFolderId: string) {
     conflict.reset()
-    withConflictRetry(conflict.prompt, 'file', (strategy) =>
-      mutations.moveMutation.mutateAsync({ ids: fileIds, parent: targetFolderId, onConflict: strategy }),
+    runFileOperation(
+      t('files.moveTo'),
+      fileIds,
+      async (id) => {
+        await withConflictRetry(conflict.prompt, 'file', (strategy) =>
+          updateObject(id, { parent: targetFolderId, onConflict: strategy }),
+        )
+      },
+      t('files.moveSuccess'),
     ).catch((err) => toast.error(err.message))
   }
 
@@ -510,6 +574,35 @@ export function FileManager({
         headerMeta={headerMeta}
         headerActions={fileActions}
       >
+        {operationState && (
+          <div className="border-b bg-muted/30 px-4 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 space-y-1">
+                <div className="text-sm font-medium">{operationState.title}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {t('files.operationProgress', {
+                    completed: operationState.completed,
+                    total: operationState.total,
+                    name: operationState.currentName || '-',
+                  })}
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={requestOperationCancel}
+                disabled={operationState.cancelRequested}
+              >
+                {operationState.cancelRequested ? t('files.operationCanceling') : t('common.cancel')}
+              </Button>
+            </div>
+            <Progress
+              className="mt-3"
+              value={operationState.total > 0 ? Math.round((operationState.completed / operationState.total) * 100) : 0}
+            />
+          </div>
+        )}
+
         <FilesToolbar
           viewMode={viewMode}
           onViewModeChange={setViewMode}
@@ -585,28 +678,32 @@ export function FileManager({
             deleteTargetIds={deleteTargetIds}
             onDeleteClose={() => setDeleteTargetIds([])}
             onDeleteConfirm={() => {
-              mutations.trashMutation.mutate(deleteTargetIds, {
-                onSuccess: () => {
+              const ids = [...deleteTargetIds]
+              runFileOperation(t('files.moveToTrash'), ids, (id) => trashObject(id), t('files.trashSuccess'))
+                .then(() => {
                   setDeleteTargetIds([])
                   setRowSelection({})
-                },
-              })
+                })
+                .catch((err) => toast.error(err.message))
             }}
-            deletePending={mutations.trashMutation.isPending}
+            deletePending={!!operationState}
             moveTargetIds={moveTargetIds}
             onMoveClose={() => setMoveTargetIds([])}
             onMoveConfirm={(targetFolderId) => {
               conflict.reset()
-              withConflictRetry(
-                conflict.prompt,
-                'file',
-                (strategy) =>
-                  mutations.moveMutation.mutateAsync({
-                    ids: moveTargetIds,
-                    parent: targetFolderId,
-                    onConflict: strategy,
-                  }),
-                { showApplyToAll: moveTargetIds.length > 1 },
+              const ids = [...moveTargetIds]
+              runFileOperation(
+                t('files.moveTo'),
+                ids,
+                async (id) => {
+                  await withConflictRetry(
+                    conflict.prompt,
+                    'file',
+                    (strategy) => updateObject(id, { parent: targetFolderId, onConflict: strategy }),
+                    { showApplyToAll: ids.length > 1 },
+                  )
+                },
+                t('files.moveSuccess'),
               )
                 .then(() => {
                   setMoveTargetIds([])
@@ -614,7 +711,7 @@ export function FileManager({
                 })
                 .catch((err) => toast.error(err.message))
             }}
-            movePending={mutations.moveMutation.isPending}
+            movePending={!!operationState}
             shareTarget={shareTarget}
             onShareClose={() => setShareTarget(null)}
           />
