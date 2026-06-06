@@ -1,0 +1,1 @@
+ALTER TABLE `download_tasks` ADD `attempt` integer DEFAULT 1 NOT NULL;

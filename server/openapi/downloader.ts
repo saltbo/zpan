@@ -1,5 +1,14 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { createMatterSchema } from '@shared/schemas'
+import {
+  confirmMatterSchema,
+  createMatterSchema,
+  createObjectUploadSessionSchema,
+  objectDraftSchema,
+  objectUploadSessionSchema,
+  patchObjectUploadSessionSchema,
+  presignObjectUploadPartsResponseSchema,
+  presignObjectUploadPartsSchema,
+} from '@shared/schemas'
 import downloadTasks from '../routes/download-tasks'
 import downloaders, { downloaderSelfRoute } from '../routes/downloaders'
 
@@ -39,84 +48,6 @@ const deviceTokenSchema = z
     scope: z.string(),
   })
   .openapi('DeviceToken')
-
-const objectDraftSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    uploadUrl: z.string().optional(),
-    contentDisposition: z.string().optional(),
-  })
-  .openapi('ObjectDraft')
-
-const confirmObjectRequestSchema = z
-  .object({
-    action: z.enum(['confirm']),
-    onConflict: z.enum(['fail', 'rename']).optional(),
-  })
-  .openapi('ConfirmObjectRequest')
-
-const createObjectUploadSessionRequestSchema = z
-  .object({
-    partSize: z
-      .number()
-      .int()
-      .min(5 * 1024 * 1024)
-      .max(512 * 1024 * 1024)
-      .optional(),
-  })
-  .openapi('CreateObjectUploadSessionRequest')
-
-const objectUploadSessionSchema = z
-  .object({
-    id: z.string(),
-    objectId: z.string(),
-    uploadId: z.string(),
-    partSize: z.number().int(),
-    status: z.enum(['active', 'completed', 'aborted']),
-    expiresAt: z.string(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })
-  .openapi('ObjectUploadSession')
-
-const presignObjectUploadPartsRequestSchema = z
-  .object({
-    partNumbers: z.array(z.number().int().min(1).max(10_000)).min(1).max(100),
-  })
-  .openapi('PresignObjectUploadPartsRequest')
-
-const presignedObjectUploadPartSchema = z
-  .object({
-    partNumber: z.number().int(),
-    url: z.string(),
-  })
-  .openapi('PresignedObjectUploadPart')
-
-const presignObjectUploadPartsResponseSchema = z
-  .object({
-    uploadId: z.string(),
-    partSize: z.number().int(),
-    parts: z.array(presignedObjectUploadPartSchema),
-  })
-  .openapi('PresignObjectUploadPartsResponse')
-
-const completeObjectUploadSessionRequestSchema = z
-  .object({
-    action: z.literal('complete'),
-    parts: z.array(z.object({ partNumber: z.number().int(), etag: z.string() })).min(1),
-  })
-  .openapi('CompleteObjectUploadSessionRequest')
-
-const abortObjectUploadSessionRequestSchema = z
-  .object({
-    action: z.literal('abort'),
-  })
-  .openapi('AbortObjectUploadSessionRequest')
-
-const patchObjectUploadSessionRequestSchema = z
-  .union([completeObjectUploadSessionRequestSchema, abortObjectUploadSessionRequestSchema])
-  .openapi('PatchObjectUploadSessionRequest')
 
 function jsonResponse(schema: z.ZodType, description: string) {
   return {
@@ -194,7 +125,7 @@ function mountObjectUploadRoutes(app: OpenAPIHono) {
       request: {
         params: z.object({ id: z.string() }),
         body: {
-          content: { 'application/json': { schema: confirmObjectRequestSchema } },
+          content: { 'application/json': { schema: confirmMatterSchema } },
           required: true,
         },
       },
@@ -214,7 +145,7 @@ function mountObjectUploadRoutes(app: OpenAPIHono) {
       request: {
         params: z.object({ id: z.string() }),
         body: {
-          content: { 'application/json': { schema: createObjectUploadSessionRequestSchema } },
+          content: { 'application/json': { schema: createObjectUploadSessionSchema } },
           required: true,
         },
       },
@@ -235,7 +166,7 @@ function mountObjectUploadRoutes(app: OpenAPIHono) {
       request: {
         params: z.object({ id: z.string(), uploadSessionId: z.string() }),
         body: {
-          content: { 'application/json': { schema: presignObjectUploadPartsRequestSchema } },
+          content: { 'application/json': { schema: presignObjectUploadPartsSchema } },
           required: true,
         },
       },
@@ -256,7 +187,7 @@ function mountObjectUploadRoutes(app: OpenAPIHono) {
       request: {
         params: z.object({ id: z.string(), uploadSessionId: z.string() }),
         body: {
-          content: { 'application/json': { schema: patchObjectUploadSessionRequestSchema } },
+          content: { 'application/json': { schema: patchObjectUploadSessionSchema } },
           required: true,
         },
       },

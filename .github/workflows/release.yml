@@ -18,9 +18,14 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cmd/go.mod
+          cache-dependency-path: cmd/go.sum
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm openapi:downloader:check
       - run: pnpm test
       - run: mkdir -p dist # required by vitest cloudflare config
       - run: pnpm test:cf
@@ -51,6 +56,16 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest
 
+      - uses: docker/metadata-action@v5
+        id: cli-meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}-cli
+            type=semver,pattern={{major}}.{{minor}}-cli
+            type=semver,pattern={{major}}-cli
+            type=raw,value=latest-cli
+
       - uses: docker/setup-buildx-action@v4
 
       - uses: docker/build-push-action@v7
@@ -60,6 +75,17 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: cli
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.cli-meta.outputs.tags }}
+          labels: ${{ steps.cli-meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -91,5 +117,6 @@ jobs:
             ### Docker
             ```bash
             docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}-cli
             ```
           generate_release_notes: false

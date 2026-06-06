@@ -274,6 +274,41 @@
       "when": 1780597526882,
       "tag": "0039_index-download-task-classification",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1780710456844,
+      "tag": "0040_rename-download-task-states",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1780711176957,
+      "tag": "0041_add-download-task-upload-token-issued-at",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1780718094640,
+      "tag": "0042_download-task-status-model",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1780719304552,
+      "tag": "0043_normalize-download-task-runtime",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1780721031283,
+      "tag": "0044_add-download-task-attempt",
+      "breakpoints": true
     }
   ]
 }
