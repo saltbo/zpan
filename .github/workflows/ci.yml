@@ -93,10 +93,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Install cloudflared
+        if: env.E2E_CLOUD_PRO_EMAIL_NODE != '' && env.E2E_CLOUD_PRO_PASSWORD_NODE != ''
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cloudflared
-      - run: CLOUDFLARED_BIN=./cloudflared pnpm e2e:cloud -- --runtime node
+      - name: Run cloud E2E
+        if: env.E2E_CLOUD_PRO_EMAIL_NODE != '' && env.E2E_CLOUD_PRO_PASSWORD_NODE != ''
+        run: CLOUDFLARED_BIN=./cloudflared pnpm e2e:cloud -- --runtime node
+      - name: Skip cloud E2E
+        if: env.E2E_CLOUD_PRO_EMAIL_NODE == '' || env.E2E_CLOUD_PRO_PASSWORD_NODE == ''
+        run: echo "Skipping Node cloud E2E because credentials are not configured."
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -120,10 +126,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Install cloudflared
+        if: env.E2E_CLOUD_PRO_EMAIL_CF != '' && env.E2E_CLOUD_PRO_PASSWORD_CF != ''
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cloudflared
-      - run: CLOUDFLARED_BIN=./cloudflared pnpm e2e:cloud:cf
+      - name: Run cloud E2E
+        if: env.E2E_CLOUD_PRO_EMAIL_CF != '' && env.E2E_CLOUD_PRO_PASSWORD_CF != ''
+        run: CLOUDFLARED_BIN=./cloudflared pnpm e2e:cloud:cf
+      - name: Skip cloud E2E
+        if: env.E2E_CLOUD_PRO_EMAIL_CF == '' || env.E2E_CLOUD_PRO_PASSWORD_CF == ''
+        run: echo "Skipping CF cloud E2E because credentials are not configured."
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
