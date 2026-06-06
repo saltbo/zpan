@@ -29,10 +29,24 @@ func TestValidateConfiguredEngineRejectsUnknownEngine(t *testing.T) {
 	}
 }
 
-func TestRootCommandDoesNotExposeLoginCommand(t *testing.T) {
+func TestRootCommandExposesDownloaderSubcommands(t *testing.T) {
+	root := rootCommand()
+	if root.Name() != "zpan" {
+		t.Fatalf("expected root command zpan, got %q", root.Name())
+	}
 	for _, command := range rootCommand().Commands() {
 		if command.Name() == "login" {
 			t.Fatal("login command should not be exposed")
 		}
+		if command.Name() == "run" {
+			t.Fatal("run command should not be exposed at root")
+		}
+	}
+	downloader, _, err := root.Find([]string{"downloader", "up"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if downloader.Name() != "up" {
+		t.Fatalf("expected downloader up command, got %q", downloader.Name())
 	}
 }

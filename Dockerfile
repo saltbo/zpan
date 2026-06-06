@@ -20,7 +20,22 @@ WORKDIR /app/downloader
 COPY downloader/go.mod downloader/go.sum ./
 RUN go mod download
 COPY downloader ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/zpan-downloader ./cmd/zpan-downloader
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/zpan ./cmd/zpan
+
+FROM debian:bookworm-slim AS cli
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends aria2 ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && addgroup --system zpan \
+ && adduser --system --ingroup zpan --home /home/zpan zpan
+COPY --from=downloader-builder /out/zpan /usr/local/bin/zpan
+RUN mkdir -p /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /downloads \
+ && chown -R zpan:zpan /home/zpan /downloads
+USER zpan
+ENV HOME=/home/zpan
+WORKDIR /downloads
+ENTRYPOINT ["zpan"]
+CMD ["downloader", "up"]
 
 FROM node:24-slim
 WORKDIR /app
@@ -37,9 +52,9 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
-COPY --from=downloader-builder /out/zpan-downloader /usr/local/bin/zpan-downloader
+COPY --from=downloader-builder /out/zpan /usr/local/bin/zpan
 
-RUN mkdir -p /data /home/zpan/.config/zpan-downloader /home/zpan/.local/state/zpan-downloader \
+RUN mkdir -p /data /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader \
  && chown -R zpan:zpan /data /home/zpan
 
 USER zpan

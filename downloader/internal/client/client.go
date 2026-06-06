@@ -350,7 +350,7 @@ func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.GetApiDow
 
 func (c *Client) RequestDeviceCode(ctx context.Context) (DeviceCode, error) {
 	res, err := c.api.PostApiAuthDeviceCodeWithResponse(ctx, openapi.DeviceCodeRequest{
-		ClientId: "zpan-downloader",
+		ClientId: "zpan-cli",
 		Scope:    "downloader:register",
 	})
 	if err != nil {
@@ -376,7 +376,7 @@ func (c *Client) PollDeviceToken(ctx context.Context, deviceCode string) (Device
 	res, err := c.api.PostApiAuthDeviceTokenWithResponse(ctx, openapi.DeviceTokenRequest{
 		GrantType:  "urn:ietf:params:oauth:grant-type:device_code",
 		DeviceCode: deviceCode,
-		ClientId:   "zpan-downloader",
+		ClientId:   "zpan-cli",
 	})
 	if err != nil {
 		return DeviceToken{}, err

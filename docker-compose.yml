@@ -16,14 +16,16 @@ services:
     restart: unless-stopped
 
   downloader:
-    build: .
-    command: ["zpan-downloader", "run"]
+    build:
+      context: .
+      target: cli
+    command: ["downloader", "up"]
     environment:
-      - ZPAN_DOWNLOADER_SERVER_URL=http://zpan:8222
+      - ZPAN_SERVER_URL=http://zpan:8222
       - ZPAN_DOWNLOADER_DOWNLOAD_DIR=/downloads
     volumes:
-      - zpan-downloader-config:/home/zpan/.config/zpan-downloader
-      - zpan-downloader-state:/home/zpan/.local/state/zpan-downloader
+      - zpan-config:/home/zpan/.config/zpan
+      - zpan-downloader-state:/home/zpan/.local/state/zpan/downloader
       - zpan-downloads:/downloads
     depends_on:
       zpan:
@@ -32,6 +34,6 @@ services:
 
 volumes:
   zpan-data:
-  zpan-downloader-config:
+  zpan-config:
   zpan-downloader-state:
   zpan-downloads:

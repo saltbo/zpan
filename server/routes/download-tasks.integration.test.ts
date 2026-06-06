@@ -85,7 +85,7 @@ async function registerDownloaderThroughDeviceLogin(
   const codeRes = await app.request('/api/auth/device/code', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: 'zpan-downloader', scope: 'downloader:register' }),
+    body: JSON.stringify({ client_id: 'zpan-cli', scope: 'downloader:register' }),
   })
   expect(codeRes.status).toBe(200)
   const code = (await codeRes.json()) as { device_code: string; user_code: string }
@@ -109,7 +109,7 @@ async function registerDownloaderThroughDeviceLogin(
     body: JSON.stringify({
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
       device_code: code.device_code,
-      client_id: 'zpan-downloader',
+      client_id: 'zpan-cli',
     }),
   })
   expect(tokenRes.status).toBe(200)

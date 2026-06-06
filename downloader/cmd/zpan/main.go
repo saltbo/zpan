@@ -33,8 +33,8 @@ func rootCommand() *cobra.Command {
 	var logLevel string
 
 	root := &cobra.Command{
-		Use:   "zpan-downloader",
-		Short: "Remote downloader for ZPan",
+		Use:   "zpan",
+		Short: "Command line tools for ZPan",
 	}
 	root.PersistentFlags().StringVar(&cfgFile, "config", config.DefaultConfigPath(), "config file")
 	root.PersistentFlags().StringVar(&logLevel, "log-level", "info", "log level: debug, info, warn, error")
@@ -43,9 +43,18 @@ func rootCommand() *cobra.Command {
 		v.SetConfigFile(cfgFile)
 	}
 
-	root.AddCommand(runCommand(v, &cfgFile))
-	root.AddCommand(configCommand(v, &cfgFile))
+	root.AddCommand(downloaderCommand(v, &cfgFile))
 	return root
+}
+
+func downloaderCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "downloader",
+		Short: "Manage the ZPan remote downloader",
+	}
+	cmd.AddCommand(upCommand(v, cfgFile))
+	cmd.AddCommand(downloaderConfigCommand(v, cfgFile))
+	return cmd
 }
 
 func setLogLevel(level string) {
@@ -66,9 +75,9 @@ func setLogLevel(level string) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: parsed})))
 }
 
-func runCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
+func upCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 	return &cobra.Command{
-		Use:   "run",
+		Use:   "up",
 		Short: "Start the downloader worker",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slog.Info("loading downloader config")
@@ -107,7 +116,7 @@ func runCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 	}
 }
 
-func configCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
+func downloaderConfigCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage downloader configuration",
@@ -171,7 +180,7 @@ func registerDownloaderWithDeviceLogin(
 
 func saveRegisteredDownloaderConfig(v *viper.Viper, cfg config.Config, cfgFile string, token string) error {
 	v.Set("server_url", cfg.ServerURL)
-	v.Set("token", token)
+	v.Set("downloader.token", token)
 	if err := os.MkdirAll(filepath.Dir(cfgFile), 0o755); err != nil {
 		return err
 	}
@@ -186,7 +195,7 @@ func downloaderName() string {
 	if hostname != "" {
 		return hostname
 	}
-	return "zpan-downloader"
+	return "zpan"
 }
 
 func pollDeviceToken(ctx context.Context, api *client.Client, code client.DeviceCode) (client.DeviceToken, error) {

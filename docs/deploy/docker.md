@@ -25,7 +25,7 @@ volumes:
   zpan-data:
 ```
 
-Migrations run automatically at startup. The compose files in this repository also include an optional downloader service. On first start, `zpan-downloader run` prints a device authorization URL in the container logs and waits. Open that URL as an admin user; after approval the downloader registers itself, saves its token under `/home/zpan/.config/zpan-downloader`, and continues running.
+Migrations run automatically at startup. The compose files in this repository also include an optional downloader service using the CLI-only tag (`ghcr.io/saltbo/zpan:latest-cli`). On first start, `zpan downloader up` prints a device authorization URL in the container logs and waits. Open that URL as an admin user; after approval the downloader registers itself, saves its token under `/home/zpan/.config/zpan/config.yaml`, and continues running.
 
 ## Turso (libSQL) opt-in
 

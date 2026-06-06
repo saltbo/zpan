@@ -10,11 +10,11 @@ import (
 func TestLoadParsesSeedPolicy(t *testing.T) {
 	v := viper.New()
 	v.Set("server_url", "http://localhost:5173")
-	v.Set("token", "token")
-	v.Set("seed.enabled", true)
-	v.Set("seed.duration", "30m")
-	v.Set("seed.cache_limit", "10GB")
-	v.Set("seed.ratio", 1.5)
+	v.Set("downloader.token", "token")
+	v.Set("downloader.seed.enabled", true)
+	v.Set("downloader.seed.duration", "30m")
+	v.Set("downloader.seed.cache_limit", "10GB")
+	v.Set("downloader.seed.ratio", 1.5)
 
 	cfg, err := Load(v)
 	if err != nil {
@@ -75,7 +75,7 @@ func TestLoadDoesNotTreatDefaultRuntimeURLsAsConfigured(t *testing.T) {
 func TestLoadTreatsExternalRuntimeOverridesAsConfigured(t *testing.T) {
 	v := viper.New()
 	v.Set("server_url", "http://localhost:5173")
-	v.Set("aria2.url", "ws://aria2:6800/jsonrpc")
+	v.Set("downloader.aria2.url", "ws://aria2:6800/jsonrpc")
 
 	cfg, err := Load(v)
 	if err != nil {
@@ -92,16 +92,16 @@ func TestLoadRejectsInvalidSeedPolicy(t *testing.T) {
 		key   string
 		value string
 	}{
-		{name: "duration", key: "seed.duration", value: "-1s"},
-		{name: "cache limit", key: "seed.cache_limit", value: "-1GB"},
-		{name: "ratio", key: "seed.ratio", value: "-1"},
+		{name: "duration", key: "downloader.seed.duration", value: "-1s"},
+		{name: "cache limit", key: "downloader.seed.cache_limit", value: "-1GB"},
+		{name: "ratio", key: "downloader.seed.ratio", value: "-1"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := viper.New()
 			v.Set("server_url", "http://localhost:5173")
-			v.Set("token", "token")
+			v.Set("downloader.token", "token")
 			v.Set(tt.key, tt.value)
 
 			if _, err := Load(v); err == nil {
