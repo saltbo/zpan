@@ -171,6 +171,7 @@ const (
 	GetApiDownloadTasksParamsStatusCanceling     GetApiDownloadTasksParamsStatus = "canceling"
 	GetApiDownloadTasksParamsStatusCompleted     GetApiDownloadTasksParamsStatus = "completed"
 	GetApiDownloadTasksParamsStatusFailed        GetApiDownloadTasksParamsStatus = "failed"
+	GetApiDownloadTasksParamsStatusInterrupted   GetApiDownloadTasksParamsStatus = "interrupted"
 	GetApiDownloadTasksParamsStatusPaused        GetApiDownloadTasksParamsStatus = "paused"
 	GetApiDownloadTasksParamsStatusPausing       GetApiDownloadTasksParamsStatus = "pausing"
 	GetApiDownloadTasksParamsStatusQueued        GetApiDownloadTasksParamsStatus = "queued"
@@ -192,6 +193,8 @@ func (e GetApiDownloadTasksParamsStatus) Valid() bool {
 	case GetApiDownloadTasksParamsStatusCompleted:
 		return true
 	case GetApiDownloadTasksParamsStatusFailed:
+		return true
+	case GetApiDownloadTasksParamsStatusInterrupted:
 		return true
 	case GetApiDownloadTasksParamsStatusPaused:
 		return true
@@ -354,6 +357,7 @@ const (
 	GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceling     GetApiDownloadTasks200JSONResponseBodyItemsStatus = "canceling"
 	GetApiDownloadTasks200JSONResponseBodyItemsStatusCompleted     GetApiDownloadTasks200JSONResponseBodyItemsStatus = "completed"
 	GetApiDownloadTasks200JSONResponseBodyItemsStatusFailed        GetApiDownloadTasks200JSONResponseBodyItemsStatus = "failed"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusInterrupted   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "interrupted"
 	GetApiDownloadTasks200JSONResponseBodyItemsStatusPaused        GetApiDownloadTasks200JSONResponseBodyItemsStatus = "paused"
 	GetApiDownloadTasks200JSONResponseBodyItemsStatusPausing       GetApiDownloadTasks200JSONResponseBodyItemsStatus = "pausing"
 	GetApiDownloadTasks200JSONResponseBodyItemsStatusQueued        GetApiDownloadTasks200JSONResponseBodyItemsStatus = "queued"
@@ -375,6 +379,8 @@ func (e GetApiDownloadTasks200JSONResponseBodyItemsStatus) Valid() bool {
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusCompleted:
 		return true
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusFailed:
+		return true
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusInterrupted:
 		return true
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusPaused:
 		return true
@@ -492,6 +498,7 @@ const (
 	PostApiDownloadTasks201JSONResponseBodyStatusCanceling     PostApiDownloadTasks201JSONResponseBodyStatus = "canceling"
 	PostApiDownloadTasks201JSONResponseBodyStatusCompleted     PostApiDownloadTasks201JSONResponseBodyStatus = "completed"
 	PostApiDownloadTasks201JSONResponseBodyStatusFailed        PostApiDownloadTasks201JSONResponseBodyStatus = "failed"
+	PostApiDownloadTasks201JSONResponseBodyStatusInterrupted   PostApiDownloadTasks201JSONResponseBodyStatus = "interrupted"
 	PostApiDownloadTasks201JSONResponseBodyStatusPaused        PostApiDownloadTasks201JSONResponseBodyStatus = "paused"
 	PostApiDownloadTasks201JSONResponseBodyStatusPausing       PostApiDownloadTasks201JSONResponseBodyStatus = "pausing"
 	PostApiDownloadTasks201JSONResponseBodyStatusQueued        PostApiDownloadTasks201JSONResponseBodyStatus = "queued"
@@ -513,6 +520,8 @@ func (e PostApiDownloadTasks201JSONResponseBodyStatus) Valid() bool {
 	case PostApiDownloadTasks201JSONResponseBodyStatusCompleted:
 		return true
 	case PostApiDownloadTasks201JSONResponseBodyStatusFailed:
+		return true
+	case PostApiDownloadTasks201JSONResponseBodyStatusInterrupted:
 		return true
 	case PostApiDownloadTasks201JSONResponseBodyStatusPaused:
 		return true
@@ -537,6 +546,7 @@ const (
 	GetApiDownloadTasksEventsParamsStatusCanceling     GetApiDownloadTasksEventsParamsStatus = "canceling"
 	GetApiDownloadTasksEventsParamsStatusCompleted     GetApiDownloadTasksEventsParamsStatus = "completed"
 	GetApiDownloadTasksEventsParamsStatusFailed        GetApiDownloadTasksEventsParamsStatus = "failed"
+	GetApiDownloadTasksEventsParamsStatusInterrupted   GetApiDownloadTasksEventsParamsStatus = "interrupted"
 	GetApiDownloadTasksEventsParamsStatusPaused        GetApiDownloadTasksEventsParamsStatus = "paused"
 	GetApiDownloadTasksEventsParamsStatusPausing       GetApiDownloadTasksEventsParamsStatus = "pausing"
 	GetApiDownloadTasksEventsParamsStatusQueued        GetApiDownloadTasksEventsParamsStatus = "queued"
@@ -558,6 +568,8 @@ func (e GetApiDownloadTasksEventsParamsStatus) Valid() bool {
 	case GetApiDownloadTasksEventsParamsStatusCompleted:
 		return true
 	case GetApiDownloadTasksEventsParamsStatusFailed:
+		return true
+	case GetApiDownloadTasksEventsParamsStatusInterrupted:
 		return true
 	case GetApiDownloadTasksEventsParamsStatusPaused:
 		return true
@@ -720,6 +732,7 @@ const (
 	GetApiDownloadTasksId200JSONResponseBodyStatusCanceling     GetApiDownloadTasksId200JSONResponseBodyStatus = "canceling"
 	GetApiDownloadTasksId200JSONResponseBodyStatusCompleted     GetApiDownloadTasksId200JSONResponseBodyStatus = "completed"
 	GetApiDownloadTasksId200JSONResponseBodyStatusFailed        GetApiDownloadTasksId200JSONResponseBodyStatus = "failed"
+	GetApiDownloadTasksId200JSONResponseBodyStatusInterrupted   GetApiDownloadTasksId200JSONResponseBodyStatus = "interrupted"
 	GetApiDownloadTasksId200JSONResponseBodyStatusPaused        GetApiDownloadTasksId200JSONResponseBodyStatus = "paused"
 	GetApiDownloadTasksId200JSONResponseBodyStatusPausing       GetApiDownloadTasksId200JSONResponseBodyStatus = "pausing"
 	GetApiDownloadTasksId200JSONResponseBodyStatusQueued        GetApiDownloadTasksId200JSONResponseBodyStatus = "queued"
@@ -741,6 +754,8 @@ func (e GetApiDownloadTasksId200JSONResponseBodyStatus) Valid() bool {
 	case GetApiDownloadTasksId200JSONResponseBodyStatusCompleted:
 		return true
 	case GetApiDownloadTasksId200JSONResponseBodyStatusFailed:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusInterrupted:
 		return true
 	case GetApiDownloadTasksId200JSONResponseBodyStatusPaused:
 		return true
@@ -816,6 +831,7 @@ const (
 	PatchApiDownloadTasksIdJSONBodyStatusCanceling     PatchApiDownloadTasksIdJSONBodyStatus = "canceling"
 	PatchApiDownloadTasksIdJSONBodyStatusCompleted     PatchApiDownloadTasksIdJSONBodyStatus = "completed"
 	PatchApiDownloadTasksIdJSONBodyStatusFailed        PatchApiDownloadTasksIdJSONBodyStatus = "failed"
+	PatchApiDownloadTasksIdJSONBodyStatusInterrupted   PatchApiDownloadTasksIdJSONBodyStatus = "interrupted"
 	PatchApiDownloadTasksIdJSONBodyStatusPaused        PatchApiDownloadTasksIdJSONBodyStatus = "paused"
 	PatchApiDownloadTasksIdJSONBodyStatusPausing       PatchApiDownloadTasksIdJSONBodyStatus = "pausing"
 	PatchApiDownloadTasksIdJSONBodyStatusQueued        PatchApiDownloadTasksIdJSONBodyStatus = "queued"
@@ -837,6 +853,8 @@ func (e PatchApiDownloadTasksIdJSONBodyStatus) Valid() bool {
 	case PatchApiDownloadTasksIdJSONBodyStatusCompleted:
 		return true
 	case PatchApiDownloadTasksIdJSONBodyStatusFailed:
+		return true
+	case PatchApiDownloadTasksIdJSONBodyStatusInterrupted:
 		return true
 	case PatchApiDownloadTasksIdJSONBodyStatusPaused:
 		return true
@@ -933,6 +951,7 @@ const (
 	PatchApiDownloadTasksId200JSONResponseBodyStatusCanceling     PatchApiDownloadTasksId200JSONResponseBodyStatus = "canceling"
 	PatchApiDownloadTasksId200JSONResponseBodyStatusCompleted     PatchApiDownloadTasksId200JSONResponseBodyStatus = "completed"
 	PatchApiDownloadTasksId200JSONResponseBodyStatusFailed        PatchApiDownloadTasksId200JSONResponseBodyStatus = "failed"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusInterrupted   PatchApiDownloadTasksId200JSONResponseBodyStatus = "interrupted"
 	PatchApiDownloadTasksId200JSONResponseBodyStatusPaused        PatchApiDownloadTasksId200JSONResponseBodyStatus = "paused"
 	PatchApiDownloadTasksId200JSONResponseBodyStatusPausing       PatchApiDownloadTasksId200JSONResponseBodyStatus = "pausing"
 	PatchApiDownloadTasksId200JSONResponseBodyStatusQueued        PatchApiDownloadTasksId200JSONResponseBodyStatus = "queued"
@@ -954,6 +973,8 @@ func (e PatchApiDownloadTasksId200JSONResponseBodyStatus) Valid() bool {
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusCompleted:
 		return true
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusFailed:
+		return true
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusInterrupted:
 		return true
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusPaused:
 		return true
@@ -1077,6 +1098,7 @@ const (
 	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceling"
 	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "completed"
 	PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "failed"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusInterrupted   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "interrupted"
 	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "paused"
 	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPausing       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "pausing"
 	PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "queued"
@@ -1098,6 +1120,8 @@ func (e PostApiDownloadTasksIdActions200JSONResponseBody0Status) Valid() bool {
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted:
 		return true
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed:
+		return true
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusInterrupted:
 		return true
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused:
 		return true

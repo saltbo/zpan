@@ -103,6 +103,7 @@ const STATUS_FILTERS: Array<{ value: DownloadTaskStatus | 'all'; labelKey: strin
   { value: 'running', labelKey: 'downloads.status.running' },
   { value: 'uploading', labelKey: 'downloads.status.uploading' },
   { value: 'paused', labelKey: 'downloads.status.paused' },
+  { value: 'interrupted', labelKey: 'downloads.status.interrupted' },
   { value: 'completed', labelKey: 'downloads.status.completed' },
   { value: 'failed', labelKey: 'downloads.status.failed' },
   { value: 'canceled', labelKey: 'downloads.status.canceled' },
@@ -1269,7 +1270,7 @@ function TaskMenuItem({
 
 function taskActions(task: DownloadTask): DownloadTaskAction[] {
   if (PAUSABLE_STATUSES.has(task.status)) return ['pause', 'cancel']
-  if (task.status === 'paused') return ['resume', 'cancel']
+  if (task.status === 'paused' || task.status === 'interrupted') return ['resume', 'cancel']
   if (task.status === 'billing_paused' || task.status === 'uploading' || task.status === 'pausing') return ['cancel']
   if (task.status === 'failed' || task.status === 'canceled') return ['retry', 'delete']
   if (task.status === 'completed') return ['delete']
@@ -1283,7 +1284,7 @@ function availableBulkActions(tasks: DownloadTask[]): DownloadTaskAction[] {
 
 function primaryTaskAction(task: DownloadTask): DownloadTaskAction | null {
   if (PAUSABLE_STATUSES.has(task.status)) return 'pause'
-  if (task.status === 'paused') return 'resume'
+  if (task.status === 'paused' || task.status === 'interrupted') return 'resume'
   if (task.status === 'failed' || task.status === 'canceled') return 'retry'
   return null
 }
@@ -1719,6 +1720,11 @@ function StatusBadge({ status }: { status: DownloadTaskDisplayStatus }) {
       className:
         'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300',
       icon: <PauseCircle />,
+    },
+    interrupted: {
+      className:
+        'border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300',
+      icon: <AlertCircle />,
     },
     uploading: {
       className: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-300',

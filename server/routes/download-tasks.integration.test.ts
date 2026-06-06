@@ -619,6 +619,96 @@ describe('Download tasks API integration', () => {
     await expect(deleteRes.json()).resolves.toEqual({ id: createdTask.id, deleted: true })
   })
 
+  it('lets the assigned downloader recover interrupted tasks without resuming user-paused tasks', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'interrupted-downloader')
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+    })
+    expect(heartbeatRes.status).toBe(200)
+
+    const user = await authedHeaders(app, 'download-interrupted-user@example.com')
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/interrupted.bin' },
+        targetFolder: '',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const createdTask = (await createTaskRes.json()) as { id: string; status: string; assignedDownloaderId: string }
+    expect(createdTask.status).toBe('assigned')
+    expect(createdTask.assignedDownloaderId).toBe(createdDownloader.downloader.id)
+
+    const interruptedRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        status: 'interrupted',
+        downloadedBytes: 1024,
+        totalBytes: 4096,
+        detail: { phase: 'downloading', message: 'Interrupted because the downloader stopped' },
+      }),
+    })
+    expect(interruptedRes.status).toBe(200)
+    await expect(interruptedRes.json()).resolves.toMatchObject({
+      status: 'interrupted',
+      downloadedBytes: 1024,
+      totalBytes: 4096,
+    })
+
+    const interruptedAssignedRes = await app.request('/api/download-tasks?assignedTo=me&status=interrupted', {
+      headers: { Authorization: `Bearer ${createdDownloader.token}` },
+    })
+    expect(interruptedAssignedRes.status).toBe(200)
+    const interruptedAssigned = (await interruptedAssignedRes.json()) as {
+      items: Array<{ id: string; status: string; uploadToken?: string }>
+    }
+    const interruptedTask = interruptedAssigned.items.find((item) => item.id === createdTask.id)
+    expect(interruptedTask).toMatchObject({ status: 'interrupted' })
+    expect(interruptedTask?.uploadToken).toBeTruthy()
+
+    const resumedProgressRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'running', downloadedBytes: 2048, downloadBps: 256 }),
+    })
+    expect(resumedProgressRes.status).toBe(200)
+    await expect(resumedProgressRes.json()).resolves.toMatchObject({ status: 'running', downloadedBytes: 2048 })
+
+    const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'pause' }),
+    })
+    expect(pauseRes.status).toBe(200)
+    await expect(pauseRes.json()).resolves.toMatchObject({ status: 'pausing' })
+
+    const pausedRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'paused' }),
+    })
+    expect(pausedRes.status).toBe(200)
+
+    const pausedProgressRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'running', downloadedBytes: 3072 }),
+    })
+    expect(pausedProgressRes.status).toBe(409)
+    await expect(pausedProgressRes.json()).resolves.toEqual({ error: 'Task is paused' })
+  })
+
   it('preserves the completed download checkpoint when retrying an upload failure', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)

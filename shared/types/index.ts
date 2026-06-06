@@ -238,6 +238,7 @@ export type DownloadTaskStatus =
   | 'billing_paused'
   | 'pausing'
   | 'paused'
+  | 'interrupted'
   | 'uploading'
   | 'canceling'
   | 'completed'

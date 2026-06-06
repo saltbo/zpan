@@ -161,6 +161,7 @@
   "downloads.status.billing_paused": "计费暂停",
   "downloads.status.pausing": "暂停中",
   "downloads.status.paused": "已暂停",
+  "downloads.status.interrupted": "已中断",
   "downloads.status.uploading": "上传中",
   "downloads.status.canceling": "取消中",
   "downloads.status.completed": "已完成",

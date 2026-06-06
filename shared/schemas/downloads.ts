@@ -9,6 +9,7 @@ export const downloadTaskStatusSchema = z.enum([
   'billing_paused',
   'pausing',
   'paused',
+  'interrupted',
   'uploading',
   'canceling',
   'completed',

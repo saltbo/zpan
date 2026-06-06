@@ -256,12 +256,12 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 			}
 			zero := int64(0)
 			if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
-				Status:           "paused",
+				Status:           "interrupted",
 				DownloadBps:      &zero,
 				StorageUploadBps: &zero,
-				Detail:           shutdownPauseDetail(currentDetail),
+				Detail:           interruptedDetail(currentDetail),
 			}); updateErr != nil {
-				log.Error("failed to mark task paused after shutdown", "error", updateErr)
+				log.Error("failed to mark task interrupted after shutdown", "error", updateErr)
 			}
 			log.Info("task stopped by context cancellation")
 			return
@@ -331,14 +331,14 @@ func (w *Worker) uploadAndComplete(
 			uploadingDetail.Phase = "uploading"
 			uploadingDetail.PeerUploadBps = nil
 			if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
-				Status:           "paused",
+				Status:           "interrupted",
 				DownloadedBytes:  &downloadedBytes,
 				TotalBytes:       &downloadedBytes,
 				DownloadBps:      &zero,
 				StorageUploadBps: &zero,
-				Detail:           shutdownPauseDetail(uploadingDetail),
+				Detail:           interruptedDetail(uploadingDetail),
 			}); updateErr != nil {
-				log.Error("failed to mark task paused after upload shutdown", "error", updateErr)
+				log.Error("failed to mark task interrupted after upload shutdown", "error", updateErr)
 			}
 			log.Info("task upload stopped by context cancellation")
 			return
@@ -407,11 +407,11 @@ func withDownloadETA(detail *client.DownloadTaskDetail, downloaded int64, total 
 	return detail
 }
 
-func shutdownPauseDetail(detail *client.DownloadTaskDetail) *client.DownloadTaskDetail {
+func interruptedDetail(detail *client.DownloadTaskDetail) *client.DownloadTaskDetail {
 	if detail == nil {
 		detail = &client.DownloadTaskDetail{}
 	}
-	detail.Message = "Paused because the downloader stopped"
+	detail.Message = "Interrupted because the downloader stopped"
 	return detail
 }
 

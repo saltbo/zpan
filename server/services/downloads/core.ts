@@ -25,11 +25,12 @@ const CANCELABLE_TASK_STATUSES = [
   'running',
   'billing_paused',
   'paused',
+  'interrupted',
   'uploading',
   'pausing',
 ] as const
 const TERMINAL_TASK_STATUSES = ['completed', 'failed', 'canceled'] as const
-const DOWNLOADER_TOKEN_TASK_STATUSES = ['assigned', 'running', 'uploading', 'billing_paused'] as const
+const DOWNLOADER_TOKEN_TASK_STATUSES = ['assigned', 'running', 'uploading', 'interrupted', 'billing_paused'] as const
 
 export async function createDownloader(
   platform: Platform,
@@ -142,6 +143,7 @@ export async function deleteDownloader(platform: Platform, id: string): Promise<
           'billing_paused',
           'pausing',
           'paused',
+          'interrupted',
           'uploading',
           'canceling',
         ]),
@@ -464,7 +466,9 @@ export async function performDownloadTaskAction(
   }
 
   if (action === 'resume') {
-    if (task.status !== 'paused') throw new DownloadError('invalid_state', 'Only paused tasks can be resumed')
+    if (!['paused', 'interrupted'].includes(task.status)) {
+      throw new DownloadError('invalid_state', 'Only paused or interrupted tasks can be resumed')
+    }
     await platform.db
       .update(downloadTasks)
       .set({
@@ -486,10 +490,10 @@ export async function performDownloadTaskAction(
   if (action === 'cancel') {
     if (task.status === 'canceled') return toDownloadTask(task)
     if (!CANCELABLE_TASK_STATUSES.includes(task.status as (typeof CANCELABLE_TASK_STATUSES)[number])) {
-      throw new DownloadError('invalid_state', 'Only active or paused tasks can be canceled')
+      throw new DownloadError('invalid_state', 'Only active, interrupted, or paused tasks can be canceled')
     }
     const status =
-      task.assignedDownloaderId && ['assigned', 'running', 'uploading', 'pausing'].includes(task.status)
+      task.assignedDownloaderId && ['assigned', 'running', 'uploading', 'pausing', 'interrupted'].includes(task.status)
         ? 'canceling'
         : 'canceled'
     await platform.db

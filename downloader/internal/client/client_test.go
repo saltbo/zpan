@@ -53,12 +53,12 @@ func TestAssignedTasksFetchesRecoverableStatuses(t *testing.T) {
 		t.Fatal(err)
 	}
 	sort.Strings(statuses)
-	expected := []string{"assigned", "running", "uploading"}
+	expected := []string{"assigned", "interrupted", "running", "uploading"}
 	if !reflect.DeepEqual(statuses, expected) {
 		t.Fatalf("expected recoverable statuses %v, got %v", expected, statuses)
 	}
-	if len(tasks) != 3 {
-		t.Fatalf("expected three tasks, got %d", len(tasks))
+	if len(tasks) != 4 {
+		t.Fatalf("expected four tasks, got %d", len(tasks))
 	}
 }
 

@@ -161,6 +161,7 @@
   "downloads.status.billing_paused": "Billing paused",
   "downloads.status.pausing": "Pausing",
   "downloads.status.paused": "Paused",
+  "downloads.status.interrupted": "Interrupted",
   "downloads.status.uploading": "Uploading",
   "downloads.status.canceling": "Canceling",
   "downloads.status.completed": "Completed",

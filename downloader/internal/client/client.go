@@ -196,6 +196,7 @@ func (c *Client) AssignedTasks(ctx context.Context) ([]DownloadTask, error) {
 	return c.assignedTasks(ctx, []openapi.GetApiDownloadTasksParamsStatus{
 		openapi.GetApiDownloadTasksParamsStatusAssigned,
 		openapi.GetApiDownloadTasksParamsStatusRunning,
+		openapi.GetApiDownloadTasksParamsStatusInterrupted,
 		openapi.GetApiDownloadTasksParamsStatusUploading,
 	})
 }
