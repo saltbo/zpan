@@ -951,7 +951,8 @@ function TagsCell({ tags }: { tags: string[] }) {
 function ProgressCell({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
   const progress = transferProgress(task)
-  const sizeText = `${formatBytes(task.status.progress.download.bytes)} / ${task.status.progress.download.totalBytes ? formatBytes(task.status.progress.download.totalBytes) : t('downloads.unknown')}`
+  const activeTransfer = currentTransferProgress(task)
+  const sizeText = `${formatBytes(activeTransfer.bytes)} / ${activeTransfer.totalBytes ? formatBytes(activeTransfer.totalBytes) : t('downloads.unknown')}`
 
   return (
     <div className="min-w-0 space-y-1">
@@ -1373,19 +1374,19 @@ function TransferProgress({ task, className }: { task: DownloadTask; className?:
 }
 
 function transferProgress(task: DownloadTask) {
-  const total = Math.max(
-    task.status.progress.download.totalBytes ?? task.status.progress.download.bytes,
-    task.status.progress.download.bytes,
-    task.status.progress.upload.bytes,
-    0,
-  )
-  if (total <= 0) return { download: 0, upload: 0, overall: task.status.state === 'completed' ? 100 : 0 }
-  const download = Math.min(100, Math.round((task.status.progress.download.bytes / total) * 100))
-  const upload =
-    task.status.state === 'completed'
-      ? 100
-      : Math.min(100, Math.round((task.status.progress.upload.bytes / total) * 100))
+  const download = transferPercent(task.status.progress.download, task.status.state === 'completed')
+  const upload = transferPercent(task.status.progress.upload, task.status.state === 'completed')
   return { download, upload, overall: task.status.state === 'uploading' || upload > 0 ? upload : download }
+}
+
+function currentTransferProgress(task: DownloadTask) {
+  return task.status.state === 'uploading' ? task.status.progress.upload : task.status.progress.download
+}
+
+function transferPercent(progress: DownloadTask['status']['progress']['download'], complete: boolean) {
+  if (complete) return 100
+  if (!progress.totalBytes || progress.totalBytes <= 0) return 0
+  return Math.min(100, Math.round((progress.bytes / progress.totalBytes) * 100))
 }
 
 function DownloadInspector({
@@ -1445,6 +1446,7 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
   const detail = task.status.runtime
   const progress = transferProgress(task)
+  const activeTransfer = currentTransferProgress(task)
 
   return (
     <div className="space-y-3">
@@ -1507,7 +1509,7 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         <InspectorField label={t('downloads.detail.source')} value={sourceUri(task)} />
         <InspectorField
           label={t('downloads.detail.size')}
-          value={`${formatBytes(task.status.progress.download.bytes)} / ${task.status.progress.download.totalBytes ? formatBytes(task.status.progress.download.totalBytes) : t('downloads.unknown')}`}
+          value={`${formatBytes(activeTransfer.bytes)} / ${activeTransfer.totalBytes ? formatBytes(activeTransfer.totalBytes) : t('downloads.unknown')}`}
         />
         <InspectorField
           label={t('downloads.detail.billing')}
