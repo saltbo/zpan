@@ -90,6 +90,7 @@
   "files.operationCanceling": "正在取消...",
   "files.operationCancelled": "已取消，完成 {{completed}} / {{total}} 项",
   "files.operationFailedSummary": "{{failed}} / {{total}} 项失败",
+  "files.operationFailuresTitle": "{{count}} 个失败项目",
   "files.uploadBatchCancelled": "已取消剩余 {{count}} 个上传",
   "tasks.title": "任务",
   "tasks.count": "{{count}} 个任务",

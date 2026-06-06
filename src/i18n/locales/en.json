@@ -90,6 +90,7 @@
   "files.operationCanceling": "Canceling...",
   "files.operationCancelled": "Canceled after {{completed}} / {{total}} item(s)",
   "files.operationFailedSummary": "{{failed}} / {{total}} item(s) failed",
+  "files.operationFailuresTitle": "{{count}} failed item(s)",
   "files.uploadBatchCancelled": "{{count}} remaining upload(s) cancelled",
   "tasks.title": "Tasks",
   "tasks.count": "{{count}} tasks",

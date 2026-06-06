@@ -16,6 +16,7 @@ interface MoveDialogProps {
   excludeIds: string[]
   operation?: OperationProgressState | null
   onCancelOperation?: () => void
+  onDismissOperation?: () => void
 }
 
 function buildPath(parent: string, name: string): string {
@@ -30,6 +31,7 @@ export function MoveDialog({
   excludeIds,
   operation,
   onCancelOperation,
+  onDismissOperation,
 }: MoveDialogProps) {
   const { t } = useTranslation()
   const [browsingPath, setBrowsingPath] = useState('')
@@ -84,7 +86,11 @@ export function MoveDialog({
         </DialogHeader>
 
         {operation ? (
-          <OperationProgress operation={operation} onCancel={onCancelOperation ?? (() => {})} />
+          <OperationProgress
+            operation={operation}
+            onCancel={onCancelOperation ?? (() => {})}
+            onClose={onDismissOperation}
+          />
         ) : (
           <>
             <nav className="flex items-center gap-1 text-sm text-muted-foreground">

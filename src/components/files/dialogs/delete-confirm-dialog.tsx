@@ -18,6 +18,7 @@ interface DeleteConfirmDialogProps {
   isPending: boolean
   operation?: OperationProgressState | null
   onCancelOperation?: () => void
+  onDismissOperation?: () => void
 }
 
 export function DeleteConfirmDialog({
@@ -28,6 +29,7 @@ export function DeleteConfirmDialog({
   isPending,
   operation,
   onCancelOperation,
+  onDismissOperation,
 }: DeleteConfirmDialogProps) {
   const { t } = useTranslation()
   const running = !!operation
@@ -49,7 +51,11 @@ export function DeleteConfirmDialog({
           {!running && <DialogDescription>{t('files.trashConfirmDescription', { count })}</DialogDescription>}
         </DialogHeader>
         {operation ? (
-          <OperationProgress operation={operation} onCancel={onCancelOperation ?? (() => {})} />
+          <OperationProgress
+            operation={operation}
+            onCancel={onCancelOperation ?? (() => {})}
+            onClose={onDismissOperation}
+          />
         ) : (
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -22,6 +22,7 @@ interface FileManagerDialogsProps {
   deleteTargetIds: string[]
   operation: OperationProgressState | null
   onOperationCancel: () => void
+  onOperationDismiss: () => void
   onDeleteClose: () => void
   onDeleteConfirm: () => void
   deletePending: boolean
@@ -62,6 +63,7 @@ export function FileManagerDialogs(props: FileManagerDialogsProps) {
         count={props.deleteTargetIds.length}
         operation={props.deleteTargetIds.length > 0 ? props.operation : null}
         onCancelOperation={props.onOperationCancel}
+        onDismissOperation={props.onOperationDismiss}
         onOpenChange={(open) => {
           if (!open) props.onDeleteClose()
         }}
@@ -79,6 +81,7 @@ export function FileManagerDialogs(props: FileManagerDialogsProps) {
         excludeIds={props.moveTargetIds}
         operation={props.moveTargetIds.length > 0 ? props.operation : null}
         onCancelOperation={props.onOperationCancel}
+        onDismissOperation={props.onOperationDismiss}
       />
 
       <Dialog open={!!props.operation && props.deleteTargetIds.length === 0 && props.moveTargetIds.length === 0}>
@@ -86,7 +89,13 @@ export function FileManagerDialogs(props: FileManagerDialogsProps) {
           <DialogHeader>
             <DialogTitle>{props.operation?.title}</DialogTitle>
           </DialogHeader>
-          {props.operation && <OperationProgress operation={props.operation} onCancel={props.onOperationCancel} />}
+          {props.operation && (
+            <OperationProgress
+              operation={props.operation}
+              onCancel={props.onOperationCancel}
+              onClose={props.onOperationDismiss}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

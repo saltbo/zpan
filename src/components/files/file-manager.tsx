@@ -406,7 +406,15 @@ export function FileManager({
     ) => {
       operationCancelRef.current = false
       const namesById = new Map(items.map((item) => [item.id, item.name]))
-      setOperationState({ title, total: ids.length, completed: 0, currentName: '', cancelRequested: false })
+      setOperationState({
+        title,
+        total: ids.length,
+        completed: 0,
+        currentName: '',
+        cancelRequested: false,
+        finished: false,
+        failures: [],
+      })
 
       const result = await runSequentialOperation({
         items: ids,
@@ -417,18 +425,30 @@ export function FileManager({
         onItemComplete: (_id, index) => {
           setOperationState((state) => (state ? { ...state, completed: index + 1 } : state))
         },
-        onItemFailure: (_id, _error, index) => {
-          setOperationState((state) => (state ? { ...state, completed: index + 1 } : state))
+        onItemFailure: (id, error, index) => {
+          setOperationState((state) =>
+            state
+              ? {
+                  ...state,
+                  completed: index + 1,
+                  failures: [
+                    ...state.failures,
+                    { name: namesById.get(id) ?? id, message: error.message || t('common.error') },
+                  ],
+                }
+              : state,
+          )
         },
         runItem: action,
       })
 
       invalidation()
-      setOperationState(null)
       if (result.failed.length > 0) {
+        setOperationState((state) => (state ? { ...state, finished: true, currentName: '' } : state))
         toast.error(t('files.operationFailedSummary', { failed: result.failed.length, total: ids.length }))
         return result
       }
+      setOperationState(null)
       if (result.cancelled) {
         toast.info(t('files.operationCancelled', { completed: result.completed, total: ids.length }))
         return result
@@ -442,6 +462,13 @@ export function FileManager({
   function requestOperationCancel() {
     operationCancelRef.current = true
     setOperationState((state) => (state ? { ...state, cancelRequested: true } : state))
+  }
+
+  function dismissOperation() {
+    setOperationState(null)
+    if (deleteTargetIds.length > 0) setDeleteTargetIds([])
+    if (moveTargetIds.length > 0) setMoveTargetIds([])
+    setRowSelection({})
   }
 
   function handleDndDrop(fileIds: string[], targetFolderId: string) {
@@ -642,6 +669,7 @@ export function FileManager({
           deleteTargetIds={deleteTargetIds}
           operation={operationState}
           onOperationCancel={requestOperationCancel}
+          onOperationDismiss={dismissOperation}
           onDeleteClose={() => setDeleteTargetIds([])}
           onDeleteConfirm={() => {
             const ids = [...deleteTargetIds]

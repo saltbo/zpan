@@ -52,7 +52,15 @@ function TrashPage() {
   ): Promise<void> {
     operationCancelRef.current = false
     const namesById = new Map(items.map((item) => [item.id, item.name]))
-    setOperationState({ title, total: ids.length, completed: 0, currentName: '', cancelRequested: false })
+    setOperationState({
+      title,
+      total: ids.length,
+      completed: 0,
+      currentName: '',
+      cancelRequested: false,
+      finished: false,
+      failures: [],
+    })
 
     const result = await runSequentialOperation({
       items: ids,
@@ -63,16 +71,28 @@ function TrashPage() {
       onItemComplete: (_id, index) => {
         setOperationState((state) => (state ? { ...state, completed: index + 1 } : state))
       },
-      onItemFailure: (_id, _error, index) => {
-        setOperationState((state) => (state ? { ...state, completed: index + 1 } : state))
+      onItemFailure: (id, error, index) => {
+        setOperationState((state) =>
+          state
+            ? {
+                ...state,
+                completed: index + 1,
+                failures: [
+                  ...state.failures,
+                  { name: namesById.get(id) ?? id, message: error.message || t('common.error') },
+                ],
+              }
+            : state,
+        )
       },
       runItem,
     })
 
-    setOperationState(null)
     if (result.failed.length > 0) {
+      setOperationState((state) => (state ? { ...state, finished: true, currentName: '' } : state))
       throw new Error(t('files.operationFailedSummary', { failed: result.failed.length, total: ids.length }))
     }
+    setOperationState(null)
     if (result.cancelled) {
       toast.info(t('files.operationCancelled', { completed: result.completed, total: ids.length }))
     }
@@ -81,6 +101,13 @@ function TrashPage() {
   function requestOperationCancel() {
     operationCancelRef.current = true
     setOperationState((state) => (state ? { ...state, cancelRequested: true } : state))
+  }
+
+  function dismissOperation() {
+    setOperationState(null)
+    setConfirmDialog(null)
+    setPendingDeleteIds([])
+    setSelectedIds(new Set())
   }
 
   async function runRestore(ids: string[]) {
@@ -254,7 +281,11 @@ function TrashPage() {
             )}
           </DialogHeader>
           {operationState ? (
-            <OperationProgress operation={operationState} onCancel={requestOperationCancel} />
+            <OperationProgress
+              operation={operationState}
+              onCancel={requestOperationCancel}
+              onClose={dismissOperation}
+            />
           ) : (
             <DialogFooter>
               <Button variant="outline" onClick={() => setConfirmDialog(null)}>
@@ -277,7 +308,13 @@ function TrashPage() {
           <DialogHeader>
             <DialogTitle>{operationState?.title}</DialogTitle>
           </DialogHeader>
-          {operationState && <OperationProgress operation={operationState} onCancel={requestOperationCancel} />}
+          {operationState && (
+            <OperationProgress
+              operation={operationState}
+              onCancel={requestOperationCancel}
+              onClose={dismissOperation}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
