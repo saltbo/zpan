@@ -772,6 +772,51 @@ func TestReportRetainedSeedsSendsCompleteSeedingSnapshot(t *testing.T) {
 	}
 }
 
+func TestReportRetainedSeedsStoppedClearsSeedingPhase(t *testing.T) {
+	api := &recordingAPI{}
+	w := NewWithAPI(config.Config{SeedEnabled: true}, api)
+	total := int64(100)
+	uploaded := int64(40)
+	active := true
+	w.retainedSeeds = []retainedSeed{{
+		taskID:     "task-1",
+		engine:     "aria2",
+		seedID:     "gid",
+		size:       total,
+		downloaded: total,
+		snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+			return engine.SeedSnapshot{
+				Downloaded: total,
+				Total:      &total,
+				Runtime: &client.DownloadTaskRuntime{
+					Engine:  "aria2",
+					Phase:   "seeding",
+					Seeding: &client.DownloadTaskSeedingRuntime{Active: &active, UploadedBytes: &uploaded},
+				},
+			}, nil
+		},
+		cleanup: func(context.Context) error { return nil },
+	}}
+
+	w.reportRetainedSeedsStopped(context.Background())
+
+	patch := api.patches[len(api.patches)-1]
+	if patch.Runtime == nil || patch.Runtime.Phase != "completed" {
+		t.Fatalf("expected completed runtime, got %#v", patch.Runtime)
+	}
+	if patch.Runtime.Seeding == nil || patch.Runtime.Seeding.Active == nil || *patch.Runtime.Seeding.Active {
+		t.Fatalf("expected inactive seeding detail, got %#v", patch.Runtime.Seeding)
+	}
+	if patch.Runtime.Seeding.UploadBytesPerSecond == nil || *patch.Runtime.Seeding.UploadBytesPerSecond != 0 {
+		t.Fatalf("expected zero seeding upload speed, got %#v", patch.Runtime.Seeding)
+	}
+	if patch.Runtime.Progress == nil ||
+		patch.Runtime.Progress.Download.Bytes != total ||
+		patch.Runtime.Progress.Upload.Bytes != total {
+		t.Fatalf("expected complete transfer progress, got %#v", patch.Runtime.Progress)
+	}
+}
+
 func TestRestoreRetainedSeedsLoadsLedger(t *testing.T) {
 	stateDir := t.TempDir()
 	seedPath := t.TempDir()

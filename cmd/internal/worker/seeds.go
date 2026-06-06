@@ -205,6 +205,70 @@ func (w *Worker) reportRetainedSeeds(ctx context.Context) {
 	}
 }
 
+func (w *Worker) reportRetainedSeedsStopped(ctx context.Context) {
+	seeds := w.retainedSeedSnapshot()
+	if len(seeds) == 0 {
+		return
+	}
+	reportCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	for _, seed := range seeds {
+		log := w.logger.With("task_id", seed.taskID, "engine", seed.engine, "seed_id", seed.seedID)
+		runtime := &client.DownloadTaskRuntime{
+			Engine: seed.engine,
+			Phase:  "completed",
+		}
+		downloaded := seed.downloaded
+		if downloaded <= 0 {
+			downloaded = seed.size
+		}
+		total := seed.size
+		if total <= 0 {
+			total = downloaded
+		}
+		totalPtr := &total
+		snapshot, err := seed.snapshot(reportCtx)
+		if err != nil {
+			if isMissingRetainedSeedError(err) {
+				w.cleanupRetainedSeed(reportCtx, seed, "missing")
+				continue
+			}
+			log.Warn("failed to inspect retained bt seed before shutdown", "error", err)
+		} else {
+			downloaded = snapshot.Downloaded
+			if snapshot.Total != nil {
+				totalPtr = snapshot.Total
+			}
+			if snapshot.Runtime != nil {
+				runtime = snapshot.Runtime
+			}
+		}
+		runtime.Phase = "completed"
+		runtime.ETASeconds = nil
+		if runtime.Seeding == nil {
+			runtime.Seeding = &client.DownloadTaskSeedingRuntime{}
+		}
+		active := false
+		zero := int64(0)
+		runtime.Seeding.Active = &active
+		runtime.Seeding.UploadBytesPerSecond = &zero
+		runtime.Progress = &client.DownloadTaskProgress{
+			Download: *transferProgress(downloaded, totalPtr, 0),
+			Upload:   *transferProgress(seed.size, &seed.size, 0),
+		}
+		_, err = w.updateTask(reportCtx, seed.taskID, client.TaskPatch{
+			Progress: &client.DownloadTaskProgressPatch{
+				Download: transferProgress(downloaded, totalPtr, 0),
+				Upload:   transferProgress(seed.size, &seed.size, 0),
+			},
+			Runtime: runtime,
+		})
+		if err != nil {
+			log.Warn("failed to report retained bt seed stopped", "error", err)
+		}
+	}
+}
+
 func isMissingRetainedSeedError(err error) bool {
 	if err == nil {
 		return false

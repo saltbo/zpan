@@ -138,6 +138,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			w.logger.Info("downloader stopped", "reason", ctx.Err())
+			w.reportRetainedSeedsStopped(context.WithoutCancel(ctx))
 			w.waitForTasks()
 			return nil
 		case <-ticker.C:
