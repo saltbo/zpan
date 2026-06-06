@@ -482,6 +482,31 @@ describe('Objects API', () => {
     expect(childBody.status).toBe('active')
   })
 
+  it('GET /api/objects?status=trashed returns trashed folder roots nested under active parents', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFolder(db, orgId, { id: 'media', name: 'Media' })
+    await insertFolder(db, orgId, { id: 'music', name: 'Music', parent: 'Media' })
+    await insertFolder(db, orgId, { id: 'album', name: 'Album', parent: 'Media/Music' })
+    await insertFile(db, orgId, { id: 'track', name: 'track.flac', parent: 'Media/Music/Album' })
+
+    const trashRes = await app.request('/api/objects/batch', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'trash', ids: ['album'] }),
+    })
+    expect(trashRes.status).toBe(200)
+
+    const res = await app.request('/api/objects?status=trashed', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
+
+    expect(body.total).toBe(1)
+    expect(body.items.map((item) => item.id)).toEqual(['album'])
+  })
+
   it('DELETE /api/trash purges all trashed items', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)

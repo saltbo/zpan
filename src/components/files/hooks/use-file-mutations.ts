@@ -10,6 +10,7 @@ export function useFileMutations(currentPath: string) {
   const queryClient = useQueryClient()
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['objects', 'active', 'path', currentPath] })
+    queryClient.invalidateQueries({ queryKey: ['objects', 'trashed'] })
     queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
   }
 

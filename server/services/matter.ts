@@ -112,6 +112,16 @@ export async function listMatters(
   filters: ListFilters,
 ): Promise<{ items: Matter[]; total: number; page: number; pageSize: number }> {
   const offset = (filters.page - 1) * filters.pageSize
+  if (filters.status === 'trashed' && !filters.search && !filters.typeFilter) {
+    const roots = await listTrashedRoots(db, orgId)
+    return {
+      items: roots.slice(offset, offset + filters.pageSize),
+      total: roots.length,
+      page: filters.page,
+      pageSize: filters.pageSize,
+    }
+  }
+
   const conditions = [eq(matters.orgId, orgId), eq(matters.status, filters.status)]
   const typeCond = filters.typeFilter ? typeFilterCondition(filters.typeFilter) : undefined
   if (filters.search) {
@@ -689,5 +699,12 @@ export async function listTrashedRoots(db: Database, orgId: string): Promise<Mat
     .where(and(eq(matters.orgId, orgId), eq(matters.status, 'trashed')))
 
   const trashedPaths = new Set(all.map((m) => buildPath(m.parent, m.name)))
-  return all.filter((m) => !trashedPaths.has(m.parent))
+  return all
+    .filter((m) => !trashedPaths.has(m.parent))
+    .sort((a, b) => {
+      const aTrashedAt = a.trashedAt ?? 0
+      const bTrashedAt = b.trashedAt ?? 0
+      if (aTrashedAt !== bTrashedAt) return bTrashedAt - aTrashedAt
+      return b.createdAt.getTime() - a.createdAt.getTime()
+    })
 }
