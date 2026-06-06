@@ -150,6 +150,49 @@ func TestAria2StartArgsForceSaveCompletedSeeds(t *testing.T) {
 	}
 }
 
+func TestAria2ResetOperations(t *testing.T) {
+	tests := []struct {
+		name             string
+		status           arigo.DownloadStatus
+		wantRemoveActive bool
+		wantRemoveResult bool
+	}{
+		{name: "active", status: arigo.StatusActive, wantRemoveActive: true, wantRemoveResult: true},
+		{name: "waiting", status: arigo.StatusWaiting, wantRemoveActive: true, wantRemoveResult: true},
+		{name: "paused", status: arigo.StatusPaused, wantRemoveActive: true, wantRemoveResult: true},
+		{name: "completed", status: arigo.StatusCompleted, wantRemoveActive: false, wantRemoveResult: true},
+		{name: "error", status: arigo.StatusError, wantRemoveActive: false, wantRemoveResult: true},
+		{name: "removed", status: arigo.StatusRemoved, wantRemoveActive: false, wantRemoveResult: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			removeActive, removeResult := aria2ResetOperations(arigo.Status{Status: tt.status})
+			if removeActive != tt.wantRemoveActive || removeResult != tt.wantRemoveResult {
+				t.Fatalf(
+					"expected removeActive=%v removeResult=%v, got removeActive=%v removeResult=%v",
+					tt.wantRemoveActive,
+					tt.wantRemoveResult,
+					removeActive,
+					removeResult,
+				)
+			}
+		})
+	}
+}
+
+func TestIsAria2DownloadNotFound(t *testing.T) {
+	if !isAria2DownloadNotFound(errors.New("Active Download not found for GID#b384ccaa7eae88da")) {
+		t.Fatal("expected aria2 active download not found to be ignored during reset")
+	}
+	if !isAria2DownloadNotFound(errors.New("Download result not found for GID#b384ccaa7eae88da")) {
+		t.Fatal("expected aria2 download result not found to be ignored during reset")
+	}
+	if isAria2DownloadNotFound(errors.New("aria2 download ended with status error")) {
+		t.Fatal("expected ordinary aria2 download errors to stay visible")
+	}
+}
+
 func TestHTTPDownloadResumesExistingFile(t *testing.T) {
 	var rangeHeader string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

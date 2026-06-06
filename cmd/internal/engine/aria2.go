@@ -144,17 +144,43 @@ func (a Aria2) ResetTask(ctx context.Context, task client.DownloadTask) error {
 		if !aria2StatusBelongsToTask(status, taskDir, aria2TaskGID(task.ID)) {
 			continue
 		}
-		if err := aria.ForceRemove(status.GID); err != nil {
-			resetErrs = append(resetErrs, fmt.Errorf("force remove aria2 gid %s: %w", status.GID, err))
+		removeActive, removeResult := aria2ResetOperations(status)
+		if removeActive {
+			err := aria.ForceRemove(status.GID)
+			if err != nil && !isAria2DownloadNotFound(err) {
+				resetErrs = append(resetErrs, fmt.Errorf("force remove aria2 gid %s: %w", status.GID, err))
+			}
 		}
-		if err := aria.RemoveDownloadResult(status.GID); err != nil {
-			resetErrs = append(resetErrs, fmt.Errorf("remove aria2 result %s: %w", status.GID, err))
+		if removeResult {
+			err := aria.RemoveDownloadResult(status.GID)
+			if err != nil && !isAria2DownloadNotFound(err) {
+				resetErrs = append(resetErrs, fmt.Errorf("remove aria2 result %s: %w", status.GID, err))
+			}
 		}
 	}
 	if err := os.RemoveAll(taskDir); err != nil {
 		resetErrs = append(resetErrs, fmt.Errorf("remove task dir %s: %w", taskDir, err))
 	}
 	return errors.Join(resetErrs...)
+}
+
+func aria2ResetOperations(status arigo.Status) (removeActive bool, removeResult bool) {
+	switch string(status.Status) {
+	case string(arigo.StatusCompleted), string(arigo.StatusError), string(arigo.StatusRemoved), "complete":
+		return false, true
+	case string(arigo.StatusActive), string(arigo.StatusWaiting), string(arigo.StatusPaused):
+		return true, true
+	default:
+		return true, true
+	}
+}
+
+func isAria2DownloadNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "download") && strings.Contains(msg, "not found")
 }
 
 func (a Aria2) SaveSession(ctx context.Context) error {
