@@ -295,6 +295,13 @@
       "when": 1780718094640,
       "tag": "0042_download-task-status-model",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1780719304552,
+      "tag": "0043_normalize-download-task-runtime",
+      "breakpoints": true
     }
   ]
 }
