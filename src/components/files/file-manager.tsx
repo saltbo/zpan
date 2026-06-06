@@ -26,9 +26,8 @@ import type { UploadRunnerContext } from '@/components/upload/upload-queue'
 import { createBackgroundJob, getObject, listObjectsByPath, trashObject, updateObject } from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
 import { cn } from '@/lib/utils'
-import { Progress } from '../ui/progress'
 import { getColumns } from './columns'
-import { NameConflictDialog } from './dialogs/name-conflict-dialog'
+import type { OperationProgressState } from './dialogs/operation-progress'
 import { DndWrapper } from './dnd-wrapper'
 import { FileManagerDialogs } from './file-manager-dialogs'
 import { FilesGrid } from './files-grid'
@@ -40,14 +39,6 @@ import { useViewMode } from './hooks/use-view-mode'
 import type { BreadcrumbItem, FileActionHandlers } from './types'
 
 const FILES_PAGE_SIZE = 500
-
-interface FileOperationState {
-  title: string
-  total: number
-  completed: number
-  currentName: string
-  cancelRequested: boolean
-}
 
 export interface FileManagerHeaderMeta {
   label: string
@@ -234,7 +225,7 @@ export function FileManager({
   const conflict = useConflictResolver()
   const items = query.data?.items ?? []
   const operationCancelRef = useRef(false)
-  const [operationState, setOperationState] = useState<FileOperationState | null>(null)
+  const [operationState, setOperationState] = useState<OperationProgressState | null>(null)
   const archiveMutation = useMutation({
     mutationFn: (
       input: { type: 'archive_compress'; matterIds: string[] } | { type: 'archive_extract'; matterId: string },
@@ -426,6 +417,9 @@ export function FileManager({
         onItemComplete: (_id, index) => {
           setOperationState((state) => (state ? { ...state, completed: index + 1 } : state))
         },
+        onItemFailure: (_id, _error, index) => {
+          setOperationState((state) => (state ? { ...state, completed: index + 1 } : state))
+        },
         runItem: action,
       })
 
@@ -574,35 +568,6 @@ export function FileManager({
         headerMeta={headerMeta}
         headerActions={fileActions}
       >
-        {operationState && (
-          <div className="border-b bg-muted/30 px-4 py-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 space-y-1">
-                <div className="text-sm font-medium">{operationState.title}</div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {t('files.operationProgress', {
-                    completed: operationState.completed,
-                    total: operationState.total,
-                    name: operationState.currentName || '-',
-                  })}
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={requestOperationCancel}
-                disabled={operationState.cancelRequested}
-              >
-                {operationState.cancelRequested ? t('files.operationCanceling') : t('common.cancel')}
-              </Button>
-            </div>
-            <Progress
-              className="mt-3"
-              value={operationState.total > 0 ? Math.round((operationState.completed / operationState.total) * 100) : 0}
-            />
-          </div>
-        )}
-
         <FilesToolbar
           viewMode={viewMode}
           onViewModeChange={setViewMode}
@@ -649,75 +614,74 @@ export function FileManager({
       resolvedCapabilities.trash ||
       resolvedCapabilities.move ||
       resolvedCapabilities.share ? (
-        <>
-          <FileManagerDialogs
-            renameTarget={renameTarget}
-            onRenameClose={() => setRenameTarget(null)}
-            onRenameConfirm={(name) => {
-              if (!renameTarget) return
-              const kind = renameTarget.dirtype === DirType.FILE ? 'file' : 'folder'
-              conflict.reset()
-              withConflictRetry(conflict.prompt, kind, (strategy) =>
-                mutations.renameMutation.mutateAsync({ id: renameTarget.id, name, onConflict: strategy }),
-              )
-                .then(() => setRenameTarget(null))
-                .catch((err) => toast.error(err.message))
-            }}
-            renamePending={mutations.renameMutation.isPending}
-            showNewFolder={showNewFolder}
-            onNewFolderClose={() => setShowNewFolder(false)}
-            onNewFolderConfirm={(name) => {
-              conflict.reset()
-              withConflictRetry(conflict.prompt, 'folder', (strategy) =>
-                mutations.createFolderMutation.mutateAsync({ name, onConflict: strategy }),
-              )
-                .then(() => setShowNewFolder(false))
-                .catch((err) => toast.error(err.message))
-            }}
-            newFolderPending={mutations.createFolderMutation.isPending}
-            deleteTargetIds={deleteTargetIds}
-            onDeleteClose={() => setDeleteTargetIds([])}
-            onDeleteConfirm={() => {
-              const ids = [...deleteTargetIds]
-              runFileOperation(t('files.moveToTrash'), ids, (id) => trashObject(id), t('files.trashSuccess'))
-                .then(() => {
-                  setDeleteTargetIds([])
-                  setRowSelection({})
-                })
-                .catch((err) => toast.error(err.message))
-            }}
-            deletePending={!!operationState}
-            moveTargetIds={moveTargetIds}
-            onMoveClose={() => setMoveTargetIds([])}
-            onMoveConfirm={(targetFolderId) => {
-              conflict.reset()
-              const ids = [...moveTargetIds]
-              runFileOperation(
-                t('files.moveTo'),
-                ids,
-                async (id) => {
-                  await withConflictRetry(
-                    conflict.prompt,
-                    'file',
-                    (strategy) => updateObject(id, { parent: targetFolderId, onConflict: strategy }),
-                    { showApplyToAll: ids.length > 1 },
-                  )
-                },
-                t('files.moveSuccess'),
-              )
-                .then(() => {
-                  setMoveTargetIds([])
-                  setRowSelection({})
-                })
-                .catch((err) => toast.error(err.message))
-            }}
-            movePending={!!operationState}
-            shareTarget={shareTarget}
-            onShareClose={() => setShareTarget(null)}
-          />
-
-          <NameConflictDialog {...conflict.dialogState} />
-        </>
+        <FileManagerDialogs
+          renameTarget={renameTarget}
+          onRenameClose={() => setRenameTarget(null)}
+          onRenameConfirm={(name) => {
+            if (!renameTarget) return
+            const kind = renameTarget.dirtype === DirType.FILE ? 'file' : 'folder'
+            conflict.reset()
+            withConflictRetry(conflict.prompt, kind, (strategy) =>
+              mutations.renameMutation.mutateAsync({ id: renameTarget.id, name, onConflict: strategy }),
+            )
+              .then(() => setRenameTarget(null))
+              .catch((err) => toast.error(err.message))
+          }}
+          renamePending={mutations.renameMutation.isPending}
+          showNewFolder={showNewFolder}
+          onNewFolderClose={() => setShowNewFolder(false)}
+          onNewFolderConfirm={(name) => {
+            conflict.reset()
+            withConflictRetry(conflict.prompt, 'folder', (strategy) =>
+              mutations.createFolderMutation.mutateAsync({ name, onConflict: strategy }),
+            )
+              .then(() => setShowNewFolder(false))
+              .catch((err) => toast.error(err.message))
+          }}
+          newFolderPending={mutations.createFolderMutation.isPending}
+          deleteTargetIds={deleteTargetIds}
+          operation={operationState}
+          onOperationCancel={requestOperationCancel}
+          onDeleteClose={() => setDeleteTargetIds([])}
+          onDeleteConfirm={() => {
+            const ids = [...deleteTargetIds]
+            runFileOperation(t('files.moveToTrash'), ids, (id) => trashObject(id), t('files.trashSuccess'))
+              .then(() => {
+                setDeleteTargetIds([])
+                setRowSelection({})
+              })
+              .catch((err) => toast.error(err.message))
+          }}
+          deletePending={!!operationState}
+          moveTargetIds={moveTargetIds}
+          onMoveClose={() => setMoveTargetIds([])}
+          onMoveConfirm={(targetFolderId) => {
+            conflict.reset()
+            const ids = [...moveTargetIds]
+            runFileOperation(
+              t('files.moveTo'),
+              ids,
+              async (id) => {
+                await withConflictRetry(
+                  conflict.prompt,
+                  'file',
+                  (strategy) => updateObject(id, { parent: targetFolderId, onConflict: strategy }),
+                  { showApplyToAll: ids.length > 1 },
+                )
+              },
+              t('files.moveSuccess'),
+            )
+              .then(() => {
+                setMoveTargetIds([])
+                setRowSelection({})
+              })
+              .catch((err) => toast.error(err.message))
+          }}
+          movePending={!!operationState}
+          shareTarget={shareTarget}
+          onShareClose={() => setShareTarget(null)}
+          conflictDialogState={conflict.dialogState}
+        />
       ) : null}
 
       <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />

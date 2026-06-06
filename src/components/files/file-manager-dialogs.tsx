@@ -1,8 +1,12 @@
 import type { StorageObject } from '@shared/types'
 import { useNavigate } from '@tanstack/react-router'
+import type { ComponentProps } from 'react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DeleteConfirmDialog } from './dialogs/delete-confirm-dialog'
 import { MoveDialog } from './dialogs/move-dialog'
+import { NameConflictDialog } from './dialogs/name-conflict-dialog'
 import { NewFolderDialog } from './dialogs/new-folder-dialog'
+import { OperationProgress, type OperationProgressState } from './dialogs/operation-progress'
 import { RenameDialog } from './dialogs/rename-dialog'
 import { ShareDialog } from './dialogs/share-dialog'
 
@@ -16,6 +20,8 @@ interface FileManagerDialogsProps {
   onNewFolderConfirm: (name: string) => void
   newFolderPending: boolean
   deleteTargetIds: string[]
+  operation: OperationProgressState | null
+  onOperationCancel: () => void
   onDeleteClose: () => void
   onDeleteConfirm: () => void
   deletePending: boolean
@@ -25,6 +31,7 @@ interface FileManagerDialogsProps {
   movePending: boolean
   shareTarget: StorageObject | null
   onShareClose: () => void
+  conflictDialogState: ComponentProps<typeof NameConflictDialog>
 }
 
 export function FileManagerDialogs(props: FileManagerDialogsProps) {
@@ -53,6 +60,8 @@ export function FileManagerDialogs(props: FileManagerDialogsProps) {
       <DeleteConfirmDialog
         open={props.deleteTargetIds.length > 0}
         count={props.deleteTargetIds.length}
+        operation={props.deleteTargetIds.length > 0 ? props.operation : null}
+        onCancelOperation={props.onOperationCancel}
         onOpenChange={(open) => {
           if (!open) props.onDeleteClose()
         }}
@@ -68,7 +77,20 @@ export function FileManagerDialogs(props: FileManagerDialogsProps) {
         onConfirm={props.onMoveConfirm}
         isPending={props.movePending}
         excludeIds={props.moveTargetIds}
+        operation={props.moveTargetIds.length > 0 ? props.operation : null}
+        onCancelOperation={props.onOperationCancel}
       />
+
+      <Dialog open={!!props.operation && props.deleteTargetIds.length === 0 && props.moveTargetIds.length === 0}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{props.operation?.title}</DialogTitle>
+          </DialogHeader>
+          {props.operation && <OperationProgress operation={props.operation} onCancel={props.onOperationCancel} />}
+        </DialogContent>
+      </Dialog>
+
+      <NameConflictDialog {...props.conflictDialogState} />
 
       <ShareDialog
         open={!!props.shareTarget}
