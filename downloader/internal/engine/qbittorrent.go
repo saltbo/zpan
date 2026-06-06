@@ -77,6 +77,47 @@ func (q QBittorrent) Check(ctx context.Context) error {
 	return nil
 }
 
+func (q QBittorrent) ResetTask(ctx context.Context, task client.DownloadTask) error {
+	if task.SourceType() == "http" {
+		return HTTP{Dir: q.Dir}.ResetTask(ctx, task)
+	}
+	qbt, err := q.login(ctx)
+	if err != nil {
+		return err
+	}
+	taskDir := filepath.Clean(filepath.Join(q.Dir, task.ID))
+	tag := qbittorrentTrackingTag(task.ID)
+	tagged, err := qbt.GetTorrentsCtx(ctx, qbittorrent.TorrentFilterOptions{Tag: tag})
+	if err != nil {
+		return err
+	}
+	all, err := qbt.GetTorrentsCtx(ctx, qbittorrent.TorrentFilterOptions{})
+	if err != nil {
+		return err
+	}
+	seen := map[string]struct{}{}
+	hashes := make([]string, 0, len(tagged))
+	for _, torrent := range append(tagged, all...) {
+		if torrent.Hash == "" {
+			continue
+		}
+		if _, ok := seen[torrent.Hash]; ok {
+			continue
+		}
+		if filepath.Clean(torrent.SavePath) != taskDir && !torrentHasTag(torrent.Tags, tag) {
+			continue
+		}
+		seen[torrent.Hash] = struct{}{}
+		hashes = append(hashes, torrent.Hash)
+	}
+	if len(hashes) > 0 {
+		if err := qbt.DeleteTorrentsCtx(ctx, hashes, false); err != nil {
+			return err
+		}
+	}
+	return os.RemoveAll(taskDir)
+}
+
 func (q QBittorrent) RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error) {
 	qbt, err := q.login(ctx)
 	if err != nil {
@@ -309,6 +350,15 @@ func qbittorrentAddOptions(task client.DownloadTask, taskDir string, trackingTag
 
 func qbittorrentTrackingTag(taskID string) string {
 	return "ztid=" + taskID
+}
+
+func torrentHasTag(tags string, want string) bool {
+	for _, tag := range strings.Split(tags, ",") {
+		if strings.TrimSpace(tag) == want {
+			return true
+		}
+	}
+	return false
 }
 
 func (q QBittorrent) cleanupSeed(hash string, localPath string) func(context.Context) error {

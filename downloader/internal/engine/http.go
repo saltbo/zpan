@@ -42,6 +42,13 @@ func (h HTTP) Check(ctx context.Context) error {
 	return os.Remove(path)
 }
 
+func (h HTTP) ResetTask(ctx context.Context, task client.DownloadTask) error {
+	if task.SourceType() != "http" {
+		return nil
+	}
+	return os.RemoveAll(filepath.Join(h.Dir, task.ID))
+}
+
 func (h HTTP) InspectTask(ctx context.Context, task client.DownloadTask) (TaskSnapshot, bool, error) {
 	if task.SourceType() != "http" {
 		return TaskSnapshot{}, false, nil

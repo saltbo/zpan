@@ -120,6 +120,7 @@ export const downloadTaskSchema = z.object({
   }),
   status: z.object({
     state: downloadTaskStatusSchema,
+    attempt: z.number().int().min(1),
     assignment: z
       .object({
         downloaderId: z.string(),

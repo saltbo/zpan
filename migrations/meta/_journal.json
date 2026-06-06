@@ -302,6 +302,13 @@
       "when": 1780719304552,
       "tag": "0043_normalize-download-task-runtime",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1780721031283,
+      "tag": "0044_add-download-task-attempt",
+      "breakpoints": true
     }
   ]
 }

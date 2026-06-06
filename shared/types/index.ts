@@ -275,6 +275,7 @@ export interface DownloadTaskSpec {
 
 export interface DownloadTaskExecutionStatus {
   state: DownloadTaskStatus
+  attempt: number
   assignment: DownloadTaskAssignment | null
   progress: DownloadTaskProgress
   billing: DownloadTaskBilling

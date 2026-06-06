@@ -566,6 +566,68 @@ func TestNextTaskWorkStage(t *testing.T) {
 	}
 }
 
+func TestResetTaskForRestartAttemptResetsRuntimeAndRecordsAttempt(t *testing.T) {
+	stateDir := t.TempDir()
+	seedPath := t.TempDir()
+	if err := saveSeedLedger(stateDir, seedLedger{Seeds: []seedLedgerEntry{{
+		TaskID:     "task-1",
+		Engine:     "aria2",
+		SeedID:     "gid",
+		InfoHash:   "abc123",
+		Path:       seedPath,
+		RetainedAt: time.Now().Add(-time.Minute),
+		ExpiresAt:  time.Now().Add(time.Hour),
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	task := clientTaskWithStatus("task-1", "assigned")
+	task.Status.Attempt = 2
+	eng := &recordingEngine{}
+	w := NewWithAPI(config.Config{StateDir: stateDir}, nil)
+	w.engine = eng
+
+	if err := w.resetTaskForAttempt(context.Background(), task, w.logger); err != nil {
+		t.Fatal(err)
+	}
+
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected reset once, got %d", eng.resetCalls)
+	}
+	attempts, err := loadAttemptLedger(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempts.Attempts["task-1"] != 2 {
+		t.Fatalf("expected attempt 2 to be recorded, got %#v", attempts.Attempts)
+	}
+	seedLedger, err := loadSeedLedger(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(seedLedger.Seeds) != 0 {
+		t.Fatalf("expected restart to remove retained seed ledger, got %#v", seedLedger.Seeds)
+	}
+}
+
+func TestResetTaskForRestartAttemptSkipsAlreadyRecordedAttempt(t *testing.T) {
+	stateDir := t.TempDir()
+	if err := saveAttemptLedger(stateDir, attemptLedger{Attempts: map[string]int{"task-1": 2}}); err != nil {
+		t.Fatal(err)
+	}
+	task := clientTaskWithStatus("task-1", "assigned")
+	task.Status.Attempt = 2
+	eng := &recordingEngine{}
+	w := NewWithAPI(config.Config{StateDir: stateDir}, nil)
+	w.engine = eng
+
+	if err := w.resetTaskForAttempt(context.Background(), task, w.logger); err != nil {
+		t.Fatal(err)
+	}
+	if eng.resetCalls != 0 {
+		t.Fatalf("expected no reset for recorded attempt, got %d", eng.resetCalls)
+	}
+}
+
 func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 	dir := t.TempDir()
 	stateDir := t.TempDir()
@@ -844,7 +906,7 @@ func clientTask(id string) client.DownloadTask {
 			Source: client.DownloadTaskSource{Type: "magnet"},
 			Labels: client.DownloadTaskLabels{Tags: []string{}},
 		},
-		Status: client.DownloadTaskStatus{},
+		Status: client.DownloadTaskStatus{Attempt: 1},
 	}
 }
 
@@ -898,12 +960,14 @@ func findPatchWithStatus(patches []client.TaskPatch, status string) (client.Task
 type recordingEngine struct {
 	downloadResult engine.Result
 	downloadErr    error
+	resetErr       error
 	taskSnapshot   engine.TaskSnapshot
 	inspectErr     error
 	inspectPanic   any
 	taskFound      bool
 	restoreSeed    *engine.Seed
 	downloadCalls  int
+	resetCalls     int
 	inspectCalls   int
 	restoreCalls   int
 }
@@ -934,6 +998,11 @@ func (e *recordingEngine) InspectTask(context.Context, client.DownloadTask) (eng
 func (e *recordingEngine) RestoreSeed(context.Context, engine.SeedRef) (*engine.Seed, error) {
 	e.restoreCalls++
 	return e.restoreSeed, nil
+}
+
+func (e *recordingEngine) ResetTask(context.Context, client.DownloadTask) error {
+	e.resetCalls++
+	return e.resetErr
 }
 
 func (e *recordingEngine) Download(context.Context, client.DownloadTask, engine.Progress) (engine.Result, error) {

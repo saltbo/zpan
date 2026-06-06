@@ -387,6 +387,10 @@
                                   "canceled"
                                 ]
                               },
+                              "attempt": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
                               "assignment": {
                                 "type": "object",
                                 "nullable": true,
@@ -796,6 +800,7 @@
                             },
                             "required": [
                               "state",
+                              "attempt",
                               "assignment",
                               "progress",
                               "billing",
@@ -1022,6 +1027,10 @@
                             "failed",
                             "canceled"
                           ]
+                        },
+                        "attempt": {
+                          "type": "integer",
+                          "minimum": 1
                         },
                         "assignment": {
                           "type": "object",
@@ -1432,6 +1441,7 @@
                       },
                       "required": [
                         "state",
+                        "attempt",
                         "assignment",
                         "progress",
                         "billing",
@@ -1769,6 +1779,10 @@
                             "canceled"
                           ]
                         },
+                        "attempt": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
                         "assignment": {
                           "type": "object",
                           "nullable": true,
@@ -2178,6 +2192,7 @@
                       },
                       "required": [
                         "state",
+                        "attempt",
                         "assignment",
                         "progress",
                         "billing",
@@ -2685,6 +2700,10 @@
                             "canceled"
                           ]
                         },
+                        "attempt": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
                         "assignment": {
                           "type": "object",
                           "nullable": true,
@@ -3094,6 +3113,7 @@
                       },
                       "required": [
                         "state",
+                        "attempt",
                         "assignment",
                         "progress",
                         "billing",
@@ -3335,6 +3355,10 @@
                                 "failed",
                                 "canceled"
                               ]
+                            },
+                            "attempt": {
+                              "type": "integer",
+                              "minimum": 1
                             },
                             "assignment": {
                               "type": "object",
@@ -3745,6 +3769,7 @@
                           },
                           "required": [
                             "state",
+                            "attempt",
                             "assignment",
                             "progress",
                             "billing",

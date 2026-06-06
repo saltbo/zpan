@@ -306,6 +306,18 @@ func (w *Worker) cleanupRetainedSeed(ctx context.Context, seed retainedSeed, rea
 	}
 }
 
+func (w *Worker) cleanupRetainedSeedForTask(ctx context.Context, taskID string, reason string) {
+	for _, seed := range w.retainedSeedSnapshot() {
+		if seed.taskID == taskID {
+			w.cleanupRetainedSeed(ctx, seed, reason)
+			break
+		}
+	}
+	if err := w.removeSeedLedger(taskID); err != nil {
+		w.logger.Warn("failed to remove retained seed ledger entry", "task_id", taskID, "error", err)
+	}
+}
+
 func (w *Worker) upsertSeedLedger(seed retainedSeed, size int64) error {
 	if w.cfg.StateDir == "" {
 		return nil

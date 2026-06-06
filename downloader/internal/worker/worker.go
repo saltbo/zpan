@@ -41,6 +41,7 @@ type Worker struct {
 	logger        *slog.Logger
 	running       map[string]context.CancelCauseFunc
 	retainedSeeds []retainedSeed
+	attempts      map[string]int
 	started       []*exec.Cmd
 	wg            sync.WaitGroup
 	mu            sync.Mutex
@@ -70,10 +71,11 @@ func New(cfg config.Config) (*Worker, error) {
 
 func NewWithAPI(cfg config.Config, api apiClient) *Worker {
 	return &Worker{
-		cfg:     cfg,
-		api:     api,
-		logger:  slog.Default(),
-		running: map[string]context.CancelCauseFunc{},
+		cfg:      cfg,
+		api:      api,
+		logger:   slog.Default(),
+		running:  map[string]context.CancelCauseFunc{},
+		attempts: map[string]int{},
 	}
 }
 
@@ -189,6 +191,14 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	log := w.taskLogger(task)
 	defer w.recoverTaskPanic(ctx, task.ID, log)
 	log.Info("task started", "source_uri", task.SourceURI(), "target_folder", task.TargetFolder())
+	if err := w.resetTaskForAttempt(ctx, task, log); err != nil {
+		msg := taskErrorMessage(err)
+		log.Error("failed to reset task for restart", "attempt", task.Attempt(), "error", err)
+		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+			log.Error("failed to mark task failed", "error", updateErr)
+		}
+		return
+	}
 	currentDetail := task.Runtime()
 	if nextTaskWorkStage(task) == taskWorkStageUploadExistingResult {
 		w.uploadExistingResult(ctx, log, task, currentDetail)
@@ -357,6 +367,72 @@ func nextTaskWorkStage(task client.DownloadTask) taskWorkStage {
 		return taskWorkStageUploadExistingResult
 	}
 	return taskWorkStageDownload
+}
+
+func (w *Worker) resetTaskForAttempt(ctx context.Context, task client.DownloadTask, log *slog.Logger) error {
+	attempt := task.Attempt()
+	if attempt <= 0 {
+		return fmt.Errorf("download task has invalid attempt %d", attempt)
+	}
+	if w.cfg.StateDir == "" {
+		seen := w.memoryAttempt(task.ID)
+		if seen == attempt {
+			return nil
+		}
+		if attempt > 1 {
+			if err := w.resetRuntimeTask(ctx, task, log); err != nil {
+				return err
+			}
+		}
+		w.setMemoryAttempt(task.ID, attempt)
+		return nil
+	}
+	ledger, err := loadAttemptLedger(w.cfg.StateDir)
+	if err != nil {
+		return fmt.Errorf("load attempt ledger: %w", err)
+	}
+	seen := ledger.Attempts[task.ID]
+	if seen == attempt {
+		return nil
+	}
+	if attempt > 1 {
+		if err := w.resetRuntimeTask(ctx, task, log); err != nil {
+			return err
+		}
+	}
+	ledger.Attempts[task.ID] = attempt
+	if err := saveAttemptLedger(w.cfg.StateDir, ledger); err != nil {
+		return fmt.Errorf("save attempt ledger: %w", err)
+	}
+	return nil
+}
+
+func (w *Worker) memoryAttempt(taskID string) int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.attempts[taskID]
+}
+
+func (w *Worker) setMemoryAttempt(taskID string, attempt int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.attempts == nil {
+		w.attempts = map[string]int{}
+	}
+	w.attempts[taskID] = attempt
+}
+
+func (w *Worker) resetRuntimeTask(ctx context.Context, task client.DownloadTask, log *slog.Logger) error {
+	resetter, ok := w.engine.(engine.TaskResetter)
+	if !ok {
+		return fmt.Errorf("engine %s does not support task reset", w.engine.Name())
+	}
+	w.cleanupRetainedSeedForTask(ctx, task.ID, "restart")
+	log.Info("resetting downloader runtime task", "attempt", task.Attempt())
+	if err := resetter.ResetTask(ctx, task); err != nil {
+		return fmt.Errorf("reset downloader runtime task: %w", err)
+	}
+	return nil
 }
 
 func (w *Worker) uploadAndComplete(

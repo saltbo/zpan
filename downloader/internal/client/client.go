@@ -59,6 +59,10 @@ func (t DownloadTask) State() string {
 	return t.Status.State
 }
 
+func (t DownloadTask) Attempt() int {
+	return t.Status.Attempt
+}
+
 func (t DownloadTask) Runtime() *DownloadTaskRuntime {
 	return t.Status.Runtime
 }
@@ -93,6 +97,7 @@ type DownloadTaskLabels struct {
 
 type DownloadTaskStatus struct {
 	State      string                  `json:"state"`
+	Attempt    int                     `json:"attempt"`
 	Assignment *DownloadTaskAssignment `json:"assignment"`
 	Progress   DownloadTaskProgress    `json:"progress"`
 	Runtime    *DownloadTaskRuntime    `json:"runtime"`

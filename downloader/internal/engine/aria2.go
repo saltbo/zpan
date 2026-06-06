@@ -124,6 +124,35 @@ func (a Aria2) Check(ctx context.Context) error {
 	return nil
 }
 
+func (a Aria2) ResetTask(ctx context.Context, task client.DownloadTask) error {
+	aria, err := a.client(ctx)
+	if err != nil {
+		return err
+	}
+	defer aria.Close()
+	taskDir := filepath.Clean(filepath.Join(a.Dir, task.ID))
+	statuses, err := a.taskStatuses(ctx, &aria)
+	if err != nil {
+		return err
+	}
+	var resetErrs []error
+	for _, status := range statuses {
+		if !aria2StatusBelongsToTask(status, taskDir, aria2TaskGID(task.ID)) {
+			continue
+		}
+		if err := aria.ForceRemove(status.GID); err != nil {
+			resetErrs = append(resetErrs, fmt.Errorf("force remove aria2 gid %s: %w", status.GID, err))
+		}
+		if err := aria.RemoveDownloadResult(status.GID); err != nil {
+			resetErrs = append(resetErrs, fmt.Errorf("remove aria2 result %s: %w", status.GID, err))
+		}
+	}
+	if err := os.RemoveAll(taskDir); err != nil {
+		resetErrs = append(resetErrs, fmt.Errorf("remove task dir %s: %w", taskDir, err))
+	}
+	return errors.Join(resetErrs...)
+}
+
 func (a Aria2) SaveSession(ctx context.Context) error {
 	client, err := a.client(ctx)
 	if err != nil {
@@ -569,6 +598,25 @@ func aria2StatusMatchesTask(status arigo.Status, taskDir string, gid string, inf
 		return true
 	}
 	if infoHash != "" && strings.EqualFold(status.InfoHash, infoHash) {
+		return true
+	}
+	if filepath.Clean(status.Dir) == taskDir {
+		return true
+	}
+	for _, file := range status.Files {
+		if file.Path == "" {
+			continue
+		}
+		abs, _ := downloadedPath(taskDir, file.Path)
+		if strings.HasPrefix(filepath.Clean(abs), taskDir+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func aria2StatusBelongsToTask(status arigo.Status, taskDir string, gid string) bool {
+	if status.GID == gid || status.Following == gid || status.BelongsTo == gid {
 		return true
 	}
 	if filepath.Clean(status.Dir) == taskDir {

@@ -51,6 +51,7 @@ export function toDownloadTask(row: DownloadTaskRow): DownloadTask {
     },
     status: {
       state: row.status as DownloadTask['status']['state'],
+      attempt: row.attempt,
       assignment: row.assignedDownloaderId
         ? { downloaderId: row.assignedDownloaderId, assignedAt: row.assignedAt?.toISOString() ?? null }
         : null,

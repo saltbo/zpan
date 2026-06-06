@@ -533,6 +533,7 @@ export async function performDownloadTaskAction(
       .set({
         status: 'queued',
         assignedDownloaderId: null,
+        attempt: task.attempt + 1,
         billingAuthorizedBytes: 0,
         billingChargedBytes: 0,
         billingChargedCredits: 0,

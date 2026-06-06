@@ -71,6 +71,10 @@ type Engine interface {
 	Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error)
 }
 
+type TaskResetter interface {
+	ResetTask(ctx context.Context, task client.DownloadTask) error
+}
+
 type SeedRestorer interface {
 	RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error)
 }

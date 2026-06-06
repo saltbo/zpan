@@ -340,6 +340,7 @@ export const downloadTasks = sqliteTable(
     tags: text('tags').notNull().default('[]'),
     assignedDownloaderId: text('assigned_downloader_id'),
     status: text('status').notNull(),
+    attempt: integer('attempt').notNull().default(1),
     billingAuthorizedBytes: integer('billing_authorized_bytes').notNull().default(0),
     billingChargedBytes: integer('billing_charged_bytes').notNull().default(0),
     billingChargedCredits: integer('billing_charged_credits').notNull().default(0),

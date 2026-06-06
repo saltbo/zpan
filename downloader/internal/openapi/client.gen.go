@@ -1782,6 +1782,7 @@ type PostApiDownloadTasksIdActions200JSONResponseBody0 struct {
 			DownloaderId string  `json:"downloaderId"`
 			UploadToken  *string `json:"uploadToken,omitempty"`
 		} `json:"assignment"`
+		Attempt int `json:"attempt"`
 		Billing struct {
 			AuthorizedBytes int64                                                               `json:"authorizedBytes"`
 			ChargedBytes    int64                                                               `json:"chargedBytes"`
@@ -4045,6 +4046,7 @@ type GetApiDownloadTasksResponse struct {
 					DownloaderId string  `json:"downloaderId"`
 					UploadToken  *string `json:"uploadToken,omitempty"`
 				} `json:"assignment"`
+				Attempt int `json:"attempt"`
 				Billing struct {
 					AuthorizedBytes int64                                                         `json:"authorizedBytes"`
 					ChargedBytes    int64                                                         `json:"chargedBytes"`
@@ -4197,6 +4199,7 @@ type PostApiDownloadTasksResponse struct {
 				DownloaderId string  `json:"downloaderId"`
 				UploadToken  *string `json:"uploadToken,omitempty"`
 			} `json:"assignment"`
+			Attempt int `json:"attempt"`
 			Billing struct {
 				AuthorizedBytes int64                                                     `json:"authorizedBytes"`
 				ChargedBytes    int64                                                     `json:"chargedBytes"`
@@ -4383,6 +4386,7 @@ type GetApiDownloadTasksIdResponse struct {
 				DownloaderId string  `json:"downloaderId"`
 				UploadToken  *string `json:"uploadToken,omitempty"`
 			} `json:"assignment"`
+			Attempt int `json:"attempt"`
 			Billing struct {
 				AuthorizedBytes int64                                                      `json:"authorizedBytes"`
 				ChargedBytes    int64                                                      `json:"chargedBytes"`
@@ -4531,6 +4535,7 @@ type PatchApiDownloadTasksIdResponse struct {
 				DownloaderId string  `json:"downloaderId"`
 				UploadToken  *string `json:"uploadToken,omitempty"`
 			} `json:"assignment"`
+			Attempt int `json:"attempt"`
 			Billing struct {
 				AuthorizedBytes int64                                                        `json:"authorizedBytes"`
 				ChargedBytes    int64                                                        `json:"chargedBytes"`
@@ -5526,6 +5531,7 @@ func ParseGetApiDownloadTasksResponse(rsp *http.Response) (*GetApiDownloadTasksR
 						DownloaderId string  `json:"downloaderId"`
 						UploadToken  *string `json:"uploadToken,omitempty"`
 					} `json:"assignment"`
+					Attempt int `json:"attempt"`
 					Billing struct {
 						AuthorizedBytes int64                                                         `json:"authorizedBytes"`
 						ChargedBytes    int64                                                         `json:"chargedBytes"`
@@ -5680,6 +5686,7 @@ func ParsePostApiDownloadTasksResponse(rsp *http.Response) (*PostApiDownloadTask
 					DownloaderId string  `json:"downloaderId"`
 					UploadToken  *string `json:"uploadToken,omitempty"`
 				} `json:"assignment"`
+				Attempt int `json:"attempt"`
 				Billing struct {
 					AuthorizedBytes int64                                                     `json:"authorizedBytes"`
 					ChargedBytes    int64                                                     `json:"chargedBytes"`
@@ -5876,6 +5883,7 @@ func ParseGetApiDownloadTasksIdResponse(rsp *http.Response) (*GetApiDownloadTask
 					DownloaderId string  `json:"downloaderId"`
 					UploadToken  *string `json:"uploadToken,omitempty"`
 				} `json:"assignment"`
+				Attempt int `json:"attempt"`
 				Billing struct {
 					AuthorizedBytes int64                                                      `json:"authorizedBytes"`
 					ChargedBytes    int64                                                      `json:"chargedBytes"`
@@ -6026,6 +6034,7 @@ func ParsePatchApiDownloadTasksIdResponse(rsp *http.Response) (*PatchApiDownload
 					DownloaderId string  `json:"downloaderId"`
 					UploadToken  *string `json:"uploadToken,omitempty"`
 				} `json:"assignment"`
+				Attempt int `json:"attempt"`
 				Billing struct {
 					AuthorizedBytes int64                                                        `json:"authorizedBytes"`
 					ChargedBytes    int64                                                        `json:"chargedBytes"`

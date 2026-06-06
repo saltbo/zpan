@@ -429,6 +429,7 @@ const APP_SCHEMA_SQL = `
     tags TEXT NOT NULL DEFAULT '[]',
     assigned_downloader_id TEXT,
     status TEXT NOT NULL,
+    attempt INTEGER NOT NULL DEFAULT 1,
     billing_authorized_bytes INTEGER NOT NULL DEFAULT 0,
     billing_charged_bytes INTEGER NOT NULL DEFAULT 0,
     billing_charged_credits INTEGER NOT NULL DEFAULT 0,

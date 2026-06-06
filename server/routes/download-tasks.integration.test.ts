@@ -843,6 +843,7 @@ describe('Download tasks API integration', () => {
     await expect(restartRes.json()).resolves.toMatchObject({
       status: {
         state: 'assigned',
+        attempt: 2,
         assignment: { downloaderId: createdDownloader.downloader.id },
         progress: {
           download: { bytes: 0, totalBytes: null },
