@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 
 COPY . .
 RUN pnpm build:node \
- && pnpm prune --prod
+ && pnpm prune --prod --ignore-scripts
 
 FROM golang:1.25 AS cli-builder
 WORKDIR /app/cmd

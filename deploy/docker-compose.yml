@@ -13,6 +13,12 @@ services:
       - DATABASE_URL=/data/zpan.db
     volumes:
       - zpan-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8222/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
     restart: unless-stopped
 
   downloader:
@@ -27,7 +33,7 @@ services:
       - zpan-downloads:/downloads
     depends_on:
       zpan:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

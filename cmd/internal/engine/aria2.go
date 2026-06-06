@@ -125,6 +125,9 @@ func (a Aria2) Check(ctx context.Context) error {
 }
 
 func (a Aria2) ResetTask(ctx context.Context, task client.DownloadTask) error {
+	if task.SourceType() == "http" {
+		return HTTP{Dir: a.Dir}.ResetTask(ctx, task)
+	}
 	aria, err := a.client(ctx)
 	if err != nil {
 		return err
@@ -194,6 +197,9 @@ func (a Aria2) RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error) {
 }
 
 func (a Aria2) InspectTask(ctx context.Context, task client.DownloadTask) (TaskSnapshot, bool, error) {
+	if task.SourceType() == "http" {
+		return HTTP{Dir: a.Dir}.InspectTask(ctx, task)
+	}
 	aria, err := a.client(ctx)
 	if err != nil {
 		return TaskSnapshot{}, false, err
@@ -207,6 +213,9 @@ func (a Aria2) InspectTask(ctx context.Context, task client.DownloadTask) (TaskS
 }
 
 func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {
+	if task.SourceType() == "http" {
+		return HTTP{Dir: a.Dir}.Download(ctx, task, progress)
+	}
 	taskDir := filepath.Join(a.Dir, task.ID)
 	if err := os.MkdirAll(taskDir, 0o755); err != nil {
 		return Result{}, err

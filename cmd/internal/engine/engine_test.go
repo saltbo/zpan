@@ -98,6 +98,39 @@ func TestHTTPRejectsMagnet(t *testing.T) {
 	}
 }
 
+func TestAria2DelegatesHTTPToBuiltin(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "11")
+		_, _ = w.Write([]byte("hello world"))
+	}))
+	defer server.Close()
+
+	result, err := (Aria2{
+		URL: "ws://127.0.0.1:1/jsonrpc",
+		Dir: t.TempDir(),
+	}).Download(
+		context.Background(),
+		downloadTask("task-1", "http", server.URL+"/file.txt"),
+		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error {
+			if detail != nil && detail.Engine != "builtin" {
+				t.Fatalf("expected builtin HTTP runtime detail, got %#v", detail)
+			}
+			return nil
+		},
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "hello world" {
+		t.Fatalf("unexpected file content: %q", string(data))
+	}
+}
+
 func TestAria2StartArgsForceSaveCompletedSeeds(t *testing.T) {
 	stateDir := t.TempDir()
 	args, err := (Aria2{Dir: t.TempDir(), StateDir: stateDir}).startArgs("6800")
