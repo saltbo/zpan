@@ -277,120 +277,141 @@ func (e GetApiDownloadTasksParamsSortDir) Valid() bool {
 	}
 }
 
-// Defines values for GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine.
+// Defines values for GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType.
 const (
-	GetApiDownloadTasks200JSONResponseBodyItemsDetailEngineAria2       GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine = "aria2"
-	GetApiDownloadTasks200JSONResponseBodyItemsDetailEngineBuiltin     GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine = "builtin"
-	GetApiDownloadTasks200JSONResponseBodyItemsDetailEngineQbittorrent GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine = "qbittorrent"
+	GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceTypeHttp       GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType = "http"
+	GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceTypeMagnet     GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType = "magnet"
+	GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceTypeTorrentUrl GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType = "torrent_url"
 )
 
-// Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine enum.
-func (e GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine) Valid() bool {
+// Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType enum.
+func (e GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType) Valid() bool {
 	switch e {
-	case GetApiDownloadTasks200JSONResponseBodyItemsDetailEngineAria2:
+	case GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceTypeHttp:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsDetailEngineBuiltin:
+	case GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceTypeMagnet:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsDetailEngineQbittorrent:
+	case GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceTypeTorrentUrl:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase.
+// Defines values for GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState.
 const (
-	GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseCompleted   GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase = "completed"
-	GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseDownloading GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase = "downloading"
-	GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseError       GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase = "error"
-	GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseMetadata    GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase = "metadata"
-	GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseSeeding     GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase = "seeding"
-	GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseUploading   GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase = "uploading"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingStateInsufficientCredits GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState = "insufficient_credits"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingStateNone                GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState = "none"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingStateOk                  GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState = "ok"
 )
 
-// Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase enum.
-func (e GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase) Valid() bool {
+// Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState enum.
+func (e GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState) Valid() bool {
 	switch e {
-	case GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseCompleted:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingStateInsufficientCredits:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseDownloading:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingStateNone:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseError:
-		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseMetadata:
-		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseSeeding:
-		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsDetailPhaseUploading:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingStateOk:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for GetApiDownloadTasks200JSONResponseBodyItemsSourceType.
+// Defines values for GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine.
 const (
-	GetApiDownloadTasks200JSONResponseBodyItemsSourceTypeHttp       GetApiDownloadTasks200JSONResponseBodyItemsSourceType = "http"
-	GetApiDownloadTasks200JSONResponseBodyItemsSourceTypeMagnet     GetApiDownloadTasks200JSONResponseBodyItemsSourceType = "magnet"
-	GetApiDownloadTasks200JSONResponseBodyItemsSourceTypeTorrentUrl GetApiDownloadTasks200JSONResponseBodyItemsSourceType = "torrent_url"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngineAria2       GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine = "aria2"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngineBuiltin     GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine = "builtin"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngineQbittorrent GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine = "qbittorrent"
 )
 
-// Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsSourceType enum.
-func (e GetApiDownloadTasks200JSONResponseBodyItemsSourceType) Valid() bool {
+// Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine enum.
+func (e GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine) Valid() bool {
 	switch e {
-	case GetApiDownloadTasks200JSONResponseBodyItemsSourceTypeHttp:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngineAria2:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsSourceTypeMagnet:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngineBuiltin:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsSourceTypeTorrentUrl:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngineQbittorrent:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for GetApiDownloadTasks200JSONResponseBodyItemsStatus.
+// Defines values for GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase.
 const (
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusAssigned    GetApiDownloadTasks200JSONResponseBodyItemsStatus = "assigned"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceled    GetApiDownloadTasks200JSONResponseBodyItemsStatus = "canceled"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceling   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "canceling"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusCompleted   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "completed"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusDownloading GetApiDownloadTasks200JSONResponseBodyItemsStatus = "downloading"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusFailed      GetApiDownloadTasks200JSONResponseBodyItemsStatus = "failed"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusInterrupted GetApiDownloadTasks200JSONResponseBodyItemsStatus = "interrupted"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusPaused      GetApiDownloadTasks200JSONResponseBodyItemsStatus = "paused"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusPausing     GetApiDownloadTasks200JSONResponseBodyItemsStatus = "pausing"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusQueued      GetApiDownloadTasks200JSONResponseBodyItemsStatus = "queued"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusSuspended   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "suspended"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusUploading   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "uploading"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseCompleted   GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase = "completed"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseDownloading GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase = "downloading"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseError       GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase = "error"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseMetadata    GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase = "metadata"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseSeeding     GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase = "seeding"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseUploading   GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase = "uploading"
 )
 
-// Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsStatus enum.
-func (e GetApiDownloadTasks200JSONResponseBodyItemsStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase enum.
+func (e GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase) Valid() bool {
 	switch e {
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusAssigned:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseCompleted:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceled:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseDownloading:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceling:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseError:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusCompleted:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseMetadata:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusDownloading:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseSeeding:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusFailed:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhaseUploading:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusInterrupted:
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiDownloadTasks200JSONResponseBodyItemsStatusState.
+const (
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateAssigned    GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "assigned"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateCanceled    GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "canceled"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateCanceling   GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "canceling"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateCompleted   GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "completed"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateDownloading GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "downloading"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateFailed      GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "failed"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateInterrupted GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "interrupted"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStatePaused      GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "paused"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStatePausing     GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "pausing"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateQueued      GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "queued"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateSuspended   GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "suspended"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusStateUploading   GetApiDownloadTasks200JSONResponseBodyItemsStatusState = "uploading"
+)
+
+// Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsStatusState enum.
+func (e GetApiDownloadTasks200JSONResponseBodyItemsStatusState) Valid() bool {
+	switch e {
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateAssigned:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusPaused:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateCanceled:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusPausing:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateCanceling:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusQueued:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateCompleted:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusSuspended:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateDownloading:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusUploading:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateFailed:
+		return true
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateInterrupted:
+		return true
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStatePaused:
+		return true
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStatePausing:
+		return true
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateQueued:
+		return true
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateSuspended:
+		return true
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusStateUploading:
 		return true
 	default:
 		return false
@@ -418,120 +439,141 @@ func (e PostApiDownloadTasksJSONBodySourceType) Valid() bool {
 	}
 }
 
-// Defines values for PostApiDownloadTasks201JSONResponseBodyDetailEngine.
+// Defines values for PostApiDownloadTasks201JSONResponseBodySpecSourceType.
 const (
-	PostApiDownloadTasks201JSONResponseBodyDetailEngineAria2       PostApiDownloadTasks201JSONResponseBodyDetailEngine = "aria2"
-	PostApiDownloadTasks201JSONResponseBodyDetailEngineBuiltin     PostApiDownloadTasks201JSONResponseBodyDetailEngine = "builtin"
-	PostApiDownloadTasks201JSONResponseBodyDetailEngineQbittorrent PostApiDownloadTasks201JSONResponseBodyDetailEngine = "qbittorrent"
+	PostApiDownloadTasks201JSONResponseBodySpecSourceTypeHttp       PostApiDownloadTasks201JSONResponseBodySpecSourceType = "http"
+	PostApiDownloadTasks201JSONResponseBodySpecSourceTypeMagnet     PostApiDownloadTasks201JSONResponseBodySpecSourceType = "magnet"
+	PostApiDownloadTasks201JSONResponseBodySpecSourceTypeTorrentUrl PostApiDownloadTasks201JSONResponseBodySpecSourceType = "torrent_url"
 )
 
-// Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodyDetailEngine enum.
-func (e PostApiDownloadTasks201JSONResponseBodyDetailEngine) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodySpecSourceType enum.
+func (e PostApiDownloadTasks201JSONResponseBodySpecSourceType) Valid() bool {
 	switch e {
-	case PostApiDownloadTasks201JSONResponseBodyDetailEngineAria2:
+	case PostApiDownloadTasks201JSONResponseBodySpecSourceTypeHttp:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyDetailEngineBuiltin:
+	case PostApiDownloadTasks201JSONResponseBodySpecSourceTypeMagnet:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyDetailEngineQbittorrent:
+	case PostApiDownloadTasks201JSONResponseBodySpecSourceTypeTorrentUrl:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiDownloadTasks201JSONResponseBodyDetailPhase.
+// Defines values for PostApiDownloadTasks201JSONResponseBodyStatusBillingState.
 const (
-	PostApiDownloadTasks201JSONResponseBodyDetailPhaseCompleted   PostApiDownloadTasks201JSONResponseBodyDetailPhase = "completed"
-	PostApiDownloadTasks201JSONResponseBodyDetailPhaseDownloading PostApiDownloadTasks201JSONResponseBodyDetailPhase = "downloading"
-	PostApiDownloadTasks201JSONResponseBodyDetailPhaseError       PostApiDownloadTasks201JSONResponseBodyDetailPhase = "error"
-	PostApiDownloadTasks201JSONResponseBodyDetailPhaseMetadata    PostApiDownloadTasks201JSONResponseBodyDetailPhase = "metadata"
-	PostApiDownloadTasks201JSONResponseBodyDetailPhaseSeeding     PostApiDownloadTasks201JSONResponseBodyDetailPhase = "seeding"
-	PostApiDownloadTasks201JSONResponseBodyDetailPhaseUploading   PostApiDownloadTasks201JSONResponseBodyDetailPhase = "uploading"
+	PostApiDownloadTasks201JSONResponseBodyStatusBillingStateInsufficientCredits PostApiDownloadTasks201JSONResponseBodyStatusBillingState = "insufficient_credits"
+	PostApiDownloadTasks201JSONResponseBodyStatusBillingStateNone                PostApiDownloadTasks201JSONResponseBodyStatusBillingState = "none"
+	PostApiDownloadTasks201JSONResponseBodyStatusBillingStateOk                  PostApiDownloadTasks201JSONResponseBodyStatusBillingState = "ok"
 )
 
-// Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodyDetailPhase enum.
-func (e PostApiDownloadTasks201JSONResponseBodyDetailPhase) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodyStatusBillingState enum.
+func (e PostApiDownloadTasks201JSONResponseBodyStatusBillingState) Valid() bool {
 	switch e {
-	case PostApiDownloadTasks201JSONResponseBodyDetailPhaseCompleted:
+	case PostApiDownloadTasks201JSONResponseBodyStatusBillingStateInsufficientCredits:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyDetailPhaseDownloading:
+	case PostApiDownloadTasks201JSONResponseBodyStatusBillingStateNone:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyDetailPhaseError:
-		return true
-	case PostApiDownloadTasks201JSONResponseBodyDetailPhaseMetadata:
-		return true
-	case PostApiDownloadTasks201JSONResponseBodyDetailPhaseSeeding:
-		return true
-	case PostApiDownloadTasks201JSONResponseBodyDetailPhaseUploading:
+	case PostApiDownloadTasks201JSONResponseBodyStatusBillingStateOk:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiDownloadTasks201JSONResponseBodySourceType.
+// Defines values for PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine.
 const (
-	PostApiDownloadTasks201JSONResponseBodySourceTypeHttp       PostApiDownloadTasks201JSONResponseBodySourceType = "http"
-	PostApiDownloadTasks201JSONResponseBodySourceTypeMagnet     PostApiDownloadTasks201JSONResponseBodySourceType = "magnet"
-	PostApiDownloadTasks201JSONResponseBodySourceTypeTorrentUrl PostApiDownloadTasks201JSONResponseBodySourceType = "torrent_url"
+	PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngineAria2       PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine = "aria2"
+	PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngineBuiltin     PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine = "builtin"
+	PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngineQbittorrent PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine = "qbittorrent"
 )
 
-// Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodySourceType enum.
-func (e PostApiDownloadTasks201JSONResponseBodySourceType) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine enum.
+func (e PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine) Valid() bool {
 	switch e {
-	case PostApiDownloadTasks201JSONResponseBodySourceTypeHttp:
+	case PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngineAria2:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodySourceTypeMagnet:
+	case PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngineBuiltin:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodySourceTypeTorrentUrl:
+	case PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngineQbittorrent:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiDownloadTasks201JSONResponseBodyStatus.
+// Defines values for PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase.
 const (
-	PostApiDownloadTasks201JSONResponseBodyStatusAssigned    PostApiDownloadTasks201JSONResponseBodyStatus = "assigned"
-	PostApiDownloadTasks201JSONResponseBodyStatusCanceled    PostApiDownloadTasks201JSONResponseBodyStatus = "canceled"
-	PostApiDownloadTasks201JSONResponseBodyStatusCanceling   PostApiDownloadTasks201JSONResponseBodyStatus = "canceling"
-	PostApiDownloadTasks201JSONResponseBodyStatusCompleted   PostApiDownloadTasks201JSONResponseBodyStatus = "completed"
-	PostApiDownloadTasks201JSONResponseBodyStatusDownloading PostApiDownloadTasks201JSONResponseBodyStatus = "downloading"
-	PostApiDownloadTasks201JSONResponseBodyStatusFailed      PostApiDownloadTasks201JSONResponseBodyStatus = "failed"
-	PostApiDownloadTasks201JSONResponseBodyStatusInterrupted PostApiDownloadTasks201JSONResponseBodyStatus = "interrupted"
-	PostApiDownloadTasks201JSONResponseBodyStatusPaused      PostApiDownloadTasks201JSONResponseBodyStatus = "paused"
-	PostApiDownloadTasks201JSONResponseBodyStatusPausing     PostApiDownloadTasks201JSONResponseBodyStatus = "pausing"
-	PostApiDownloadTasks201JSONResponseBodyStatusQueued      PostApiDownloadTasks201JSONResponseBodyStatus = "queued"
-	PostApiDownloadTasks201JSONResponseBodyStatusSuspended   PostApiDownloadTasks201JSONResponseBodyStatus = "suspended"
-	PostApiDownloadTasks201JSONResponseBodyStatusUploading   PostApiDownloadTasks201JSONResponseBodyStatus = "uploading"
+	PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseCompleted   PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase = "completed"
+	PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseDownloading PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase = "downloading"
+	PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseError       PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase = "error"
+	PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseMetadata    PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase = "metadata"
+	PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseSeeding     PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase = "seeding"
+	PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseUploading   PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase = "uploading"
 )
 
-// Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodyStatus enum.
-func (e PostApiDownloadTasks201JSONResponseBodyStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase enum.
+func (e PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase) Valid() bool {
 	switch e {
-	case PostApiDownloadTasks201JSONResponseBodyStatusAssigned:
+	case PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseCompleted:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusCanceled:
+	case PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseDownloading:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusCanceling:
+	case PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseError:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusCompleted:
+	case PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseMetadata:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusDownloading:
+	case PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseSeeding:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusFailed:
+	case PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhaseUploading:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusInterrupted:
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiDownloadTasks201JSONResponseBodyStatusState.
+const (
+	PostApiDownloadTasks201JSONResponseBodyStatusStateAssigned    PostApiDownloadTasks201JSONResponseBodyStatusState = "assigned"
+	PostApiDownloadTasks201JSONResponseBodyStatusStateCanceled    PostApiDownloadTasks201JSONResponseBodyStatusState = "canceled"
+	PostApiDownloadTasks201JSONResponseBodyStatusStateCanceling   PostApiDownloadTasks201JSONResponseBodyStatusState = "canceling"
+	PostApiDownloadTasks201JSONResponseBodyStatusStateCompleted   PostApiDownloadTasks201JSONResponseBodyStatusState = "completed"
+	PostApiDownloadTasks201JSONResponseBodyStatusStateDownloading PostApiDownloadTasks201JSONResponseBodyStatusState = "downloading"
+	PostApiDownloadTasks201JSONResponseBodyStatusStateFailed      PostApiDownloadTasks201JSONResponseBodyStatusState = "failed"
+	PostApiDownloadTasks201JSONResponseBodyStatusStateInterrupted PostApiDownloadTasks201JSONResponseBodyStatusState = "interrupted"
+	PostApiDownloadTasks201JSONResponseBodyStatusStatePaused      PostApiDownloadTasks201JSONResponseBodyStatusState = "paused"
+	PostApiDownloadTasks201JSONResponseBodyStatusStatePausing     PostApiDownloadTasks201JSONResponseBodyStatusState = "pausing"
+	PostApiDownloadTasks201JSONResponseBodyStatusStateQueued      PostApiDownloadTasks201JSONResponseBodyStatusState = "queued"
+	PostApiDownloadTasks201JSONResponseBodyStatusStateSuspended   PostApiDownloadTasks201JSONResponseBodyStatusState = "suspended"
+	PostApiDownloadTasks201JSONResponseBodyStatusStateUploading   PostApiDownloadTasks201JSONResponseBodyStatusState = "uploading"
+)
+
+// Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodyStatusState enum.
+func (e PostApiDownloadTasks201JSONResponseBodyStatusState) Valid() bool {
+	switch e {
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateAssigned:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusPaused:
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateCanceled:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusPausing:
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateCanceling:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusQueued:
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateCompleted:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusSuspended:
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateDownloading:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusUploading:
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateFailed:
+		return true
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateInterrupted:
+		return true
+	case PostApiDownloadTasks201JSONResponseBodyStatusStatePaused:
+		return true
+	case PostApiDownloadTasks201JSONResponseBodyStatusStatePausing:
+		return true
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateQueued:
+		return true
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateSuspended:
+		return true
+	case PostApiDownloadTasks201JSONResponseBodyStatusStateUploading:
 		return true
 	default:
 		return false
@@ -652,171 +694,192 @@ func (e GetApiDownloadTasksEventsParamsSortDir) Valid() bool {
 	}
 }
 
-// Defines values for GetApiDownloadTasksId200JSONResponseBodyDetailEngine.
+// Defines values for GetApiDownloadTasksId200JSONResponseBodySpecSourceType.
 const (
-	GetApiDownloadTasksId200JSONResponseBodyDetailEngineAria2       GetApiDownloadTasksId200JSONResponseBodyDetailEngine = "aria2"
-	GetApiDownloadTasksId200JSONResponseBodyDetailEngineBuiltin     GetApiDownloadTasksId200JSONResponseBodyDetailEngine = "builtin"
-	GetApiDownloadTasksId200JSONResponseBodyDetailEngineQbittorrent GetApiDownloadTasksId200JSONResponseBodyDetailEngine = "qbittorrent"
+	GetApiDownloadTasksId200JSONResponseBodySpecSourceTypeHttp       GetApiDownloadTasksId200JSONResponseBodySpecSourceType = "http"
+	GetApiDownloadTasksId200JSONResponseBodySpecSourceTypeMagnet     GetApiDownloadTasksId200JSONResponseBodySpecSourceType = "magnet"
+	GetApiDownloadTasksId200JSONResponseBodySpecSourceTypeTorrentUrl GetApiDownloadTasksId200JSONResponseBodySpecSourceType = "torrent_url"
 )
 
-// Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodyDetailEngine enum.
-func (e GetApiDownloadTasksId200JSONResponseBodyDetailEngine) Valid() bool {
+// Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodySpecSourceType enum.
+func (e GetApiDownloadTasksId200JSONResponseBodySpecSourceType) Valid() bool {
 	switch e {
-	case GetApiDownloadTasksId200JSONResponseBodyDetailEngineAria2:
+	case GetApiDownloadTasksId200JSONResponseBodySpecSourceTypeHttp:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyDetailEngineBuiltin:
+	case GetApiDownloadTasksId200JSONResponseBodySpecSourceTypeMagnet:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyDetailEngineQbittorrent:
+	case GetApiDownloadTasksId200JSONResponseBodySpecSourceTypeTorrentUrl:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for GetApiDownloadTasksId200JSONResponseBodyDetailPhase.
+// Defines values for GetApiDownloadTasksId200JSONResponseBodyStatusBillingState.
 const (
-	GetApiDownloadTasksId200JSONResponseBodyDetailPhaseCompleted   GetApiDownloadTasksId200JSONResponseBodyDetailPhase = "completed"
-	GetApiDownloadTasksId200JSONResponseBodyDetailPhaseDownloading GetApiDownloadTasksId200JSONResponseBodyDetailPhase = "downloading"
-	GetApiDownloadTasksId200JSONResponseBodyDetailPhaseError       GetApiDownloadTasksId200JSONResponseBodyDetailPhase = "error"
-	GetApiDownloadTasksId200JSONResponseBodyDetailPhaseMetadata    GetApiDownloadTasksId200JSONResponseBodyDetailPhase = "metadata"
-	GetApiDownloadTasksId200JSONResponseBodyDetailPhaseSeeding     GetApiDownloadTasksId200JSONResponseBodyDetailPhase = "seeding"
-	GetApiDownloadTasksId200JSONResponseBodyDetailPhaseUploading   GetApiDownloadTasksId200JSONResponseBodyDetailPhase = "uploading"
+	GetApiDownloadTasksId200JSONResponseBodyStatusBillingStateInsufficientCredits GetApiDownloadTasksId200JSONResponseBodyStatusBillingState = "insufficient_credits"
+	GetApiDownloadTasksId200JSONResponseBodyStatusBillingStateNone                GetApiDownloadTasksId200JSONResponseBodyStatusBillingState = "none"
+	GetApiDownloadTasksId200JSONResponseBodyStatusBillingStateOk                  GetApiDownloadTasksId200JSONResponseBodyStatusBillingState = "ok"
 )
 
-// Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodyDetailPhase enum.
-func (e GetApiDownloadTasksId200JSONResponseBodyDetailPhase) Valid() bool {
+// Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodyStatusBillingState enum.
+func (e GetApiDownloadTasksId200JSONResponseBodyStatusBillingState) Valid() bool {
 	switch e {
-	case GetApiDownloadTasksId200JSONResponseBodyDetailPhaseCompleted:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusBillingStateInsufficientCredits:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyDetailPhaseDownloading:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusBillingStateNone:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyDetailPhaseError:
-		return true
-	case GetApiDownloadTasksId200JSONResponseBodyDetailPhaseMetadata:
-		return true
-	case GetApiDownloadTasksId200JSONResponseBodyDetailPhaseSeeding:
-		return true
-	case GetApiDownloadTasksId200JSONResponseBodyDetailPhaseUploading:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusBillingStateOk:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for GetApiDownloadTasksId200JSONResponseBodySourceType.
+// Defines values for GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine.
 const (
-	GetApiDownloadTasksId200JSONResponseBodySourceTypeHttp       GetApiDownloadTasksId200JSONResponseBodySourceType = "http"
-	GetApiDownloadTasksId200JSONResponseBodySourceTypeMagnet     GetApiDownloadTasksId200JSONResponseBodySourceType = "magnet"
-	GetApiDownloadTasksId200JSONResponseBodySourceTypeTorrentUrl GetApiDownloadTasksId200JSONResponseBodySourceType = "torrent_url"
+	GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineAria2       GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine = "aria2"
+	GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineBuiltin     GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine = "builtin"
+	GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineQbittorrent GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine = "qbittorrent"
 )
 
-// Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodySourceType enum.
-func (e GetApiDownloadTasksId200JSONResponseBodySourceType) Valid() bool {
+// Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine enum.
+func (e GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine) Valid() bool {
 	switch e {
-	case GetApiDownloadTasksId200JSONResponseBodySourceTypeHttp:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineAria2:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodySourceTypeMagnet:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineBuiltin:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodySourceTypeTorrentUrl:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineQbittorrent:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for GetApiDownloadTasksId200JSONResponseBodyStatus.
+// Defines values for GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase.
 const (
-	GetApiDownloadTasksId200JSONResponseBodyStatusAssigned    GetApiDownloadTasksId200JSONResponseBodyStatus = "assigned"
-	GetApiDownloadTasksId200JSONResponseBodyStatusCanceled    GetApiDownloadTasksId200JSONResponseBodyStatus = "canceled"
-	GetApiDownloadTasksId200JSONResponseBodyStatusCanceling   GetApiDownloadTasksId200JSONResponseBodyStatus = "canceling"
-	GetApiDownloadTasksId200JSONResponseBodyStatusCompleted   GetApiDownloadTasksId200JSONResponseBodyStatus = "completed"
-	GetApiDownloadTasksId200JSONResponseBodyStatusDownloading GetApiDownloadTasksId200JSONResponseBodyStatus = "downloading"
-	GetApiDownloadTasksId200JSONResponseBodyStatusFailed      GetApiDownloadTasksId200JSONResponseBodyStatus = "failed"
-	GetApiDownloadTasksId200JSONResponseBodyStatusInterrupted GetApiDownloadTasksId200JSONResponseBodyStatus = "interrupted"
-	GetApiDownloadTasksId200JSONResponseBodyStatusPaused      GetApiDownloadTasksId200JSONResponseBodyStatus = "paused"
-	GetApiDownloadTasksId200JSONResponseBodyStatusPausing     GetApiDownloadTasksId200JSONResponseBodyStatus = "pausing"
-	GetApiDownloadTasksId200JSONResponseBodyStatusQueued      GetApiDownloadTasksId200JSONResponseBodyStatus = "queued"
-	GetApiDownloadTasksId200JSONResponseBodyStatusSuspended   GetApiDownloadTasksId200JSONResponseBodyStatus = "suspended"
-	GetApiDownloadTasksId200JSONResponseBodyStatusUploading   GetApiDownloadTasksId200JSONResponseBodyStatus = "uploading"
+	GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseCompleted   GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "completed"
+	GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseDownloading GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "downloading"
+	GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseError       GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "error"
+	GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseMetadata    GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "metadata"
+	GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseSeeding     GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "seeding"
+	GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseUploading   GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "uploading"
 )
 
-// Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodyStatus enum.
-func (e GetApiDownloadTasksId200JSONResponseBodyStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase enum.
+func (e GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase) Valid() bool {
 	switch e {
-	case GetApiDownloadTasksId200JSONResponseBodyStatusAssigned:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseCompleted:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusCanceled:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseDownloading:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusCanceling:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseError:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusCompleted:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseMetadata:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusDownloading:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseSeeding:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusFailed:
-		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusInterrupted:
-		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusPaused:
-		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusPausing:
-		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusQueued:
-		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusSuspended:
-		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusUploading:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseUploading:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PatchApiDownloadTasksIdJSONBodyDetailEngine.
+// Defines values for GetApiDownloadTasksId200JSONResponseBodyStatusState.
 const (
-	PatchApiDownloadTasksIdJSONBodyDetailEngineAria2       PatchApiDownloadTasksIdJSONBodyDetailEngine = "aria2"
-	PatchApiDownloadTasksIdJSONBodyDetailEngineBuiltin     PatchApiDownloadTasksIdJSONBodyDetailEngine = "builtin"
-	PatchApiDownloadTasksIdJSONBodyDetailEngineQbittorrent PatchApiDownloadTasksIdJSONBodyDetailEngine = "qbittorrent"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateAssigned    GetApiDownloadTasksId200JSONResponseBodyStatusState = "assigned"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateCanceled    GetApiDownloadTasksId200JSONResponseBodyStatusState = "canceled"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateCanceling   GetApiDownloadTasksId200JSONResponseBodyStatusState = "canceling"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateCompleted   GetApiDownloadTasksId200JSONResponseBodyStatusState = "completed"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateDownloading GetApiDownloadTasksId200JSONResponseBodyStatusState = "downloading"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateFailed      GetApiDownloadTasksId200JSONResponseBodyStatusState = "failed"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateInterrupted GetApiDownloadTasksId200JSONResponseBodyStatusState = "interrupted"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStatePaused      GetApiDownloadTasksId200JSONResponseBodyStatusState = "paused"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStatePausing     GetApiDownloadTasksId200JSONResponseBodyStatusState = "pausing"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateQueued      GetApiDownloadTasksId200JSONResponseBodyStatusState = "queued"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateSuspended   GetApiDownloadTasksId200JSONResponseBodyStatusState = "suspended"
+	GetApiDownloadTasksId200JSONResponseBodyStatusStateUploading   GetApiDownloadTasksId200JSONResponseBodyStatusState = "uploading"
 )
 
-// Valid indicates whether the value is a known member of the PatchApiDownloadTasksIdJSONBodyDetailEngine enum.
-func (e PatchApiDownloadTasksIdJSONBodyDetailEngine) Valid() bool {
+// Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodyStatusState enum.
+func (e GetApiDownloadTasksId200JSONResponseBodyStatusState) Valid() bool {
 	switch e {
-	case PatchApiDownloadTasksIdJSONBodyDetailEngineAria2:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateAssigned:
 		return true
-	case PatchApiDownloadTasksIdJSONBodyDetailEngineBuiltin:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateCanceled:
 		return true
-	case PatchApiDownloadTasksIdJSONBodyDetailEngineQbittorrent:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateCanceling:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateCompleted:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateDownloading:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateFailed:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateInterrupted:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStatePaused:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStatePausing:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateQueued:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateSuspended:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusStateUploading:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PatchApiDownloadTasksIdJSONBodyDetailPhase.
+// Defines values for PatchApiDownloadTasksIdJSONBodyRuntimeEngine.
 const (
-	PatchApiDownloadTasksIdJSONBodyDetailPhaseCompleted   PatchApiDownloadTasksIdJSONBodyDetailPhase = "completed"
-	PatchApiDownloadTasksIdJSONBodyDetailPhaseDownloading PatchApiDownloadTasksIdJSONBodyDetailPhase = "downloading"
-	PatchApiDownloadTasksIdJSONBodyDetailPhaseError       PatchApiDownloadTasksIdJSONBodyDetailPhase = "error"
-	PatchApiDownloadTasksIdJSONBodyDetailPhaseMetadata    PatchApiDownloadTasksIdJSONBodyDetailPhase = "metadata"
-	PatchApiDownloadTasksIdJSONBodyDetailPhaseSeeding     PatchApiDownloadTasksIdJSONBodyDetailPhase = "seeding"
-	PatchApiDownloadTasksIdJSONBodyDetailPhaseUploading   PatchApiDownloadTasksIdJSONBodyDetailPhase = "uploading"
+	PatchApiDownloadTasksIdJSONBodyRuntimeEngineAria2       PatchApiDownloadTasksIdJSONBodyRuntimeEngine = "aria2"
+	PatchApiDownloadTasksIdJSONBodyRuntimeEngineBuiltin     PatchApiDownloadTasksIdJSONBodyRuntimeEngine = "builtin"
+	PatchApiDownloadTasksIdJSONBodyRuntimeEngineQbittorrent PatchApiDownloadTasksIdJSONBodyRuntimeEngine = "qbittorrent"
 )
 
-// Valid indicates whether the value is a known member of the PatchApiDownloadTasksIdJSONBodyDetailPhase enum.
-func (e PatchApiDownloadTasksIdJSONBodyDetailPhase) Valid() bool {
+// Valid indicates whether the value is a known member of the PatchApiDownloadTasksIdJSONBodyRuntimeEngine enum.
+func (e PatchApiDownloadTasksIdJSONBodyRuntimeEngine) Valid() bool {
 	switch e {
-	case PatchApiDownloadTasksIdJSONBodyDetailPhaseCompleted:
+	case PatchApiDownloadTasksIdJSONBodyRuntimeEngineAria2:
 		return true
-	case PatchApiDownloadTasksIdJSONBodyDetailPhaseDownloading:
+	case PatchApiDownloadTasksIdJSONBodyRuntimeEngineBuiltin:
 		return true
-	case PatchApiDownloadTasksIdJSONBodyDetailPhaseError:
+	case PatchApiDownloadTasksIdJSONBodyRuntimeEngineQbittorrent:
 		return true
-	case PatchApiDownloadTasksIdJSONBodyDetailPhaseMetadata:
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchApiDownloadTasksIdJSONBodyRuntimePhase.
+const (
+	PatchApiDownloadTasksIdJSONBodyRuntimePhaseCompleted   PatchApiDownloadTasksIdJSONBodyRuntimePhase = "completed"
+	PatchApiDownloadTasksIdJSONBodyRuntimePhaseDownloading PatchApiDownloadTasksIdJSONBodyRuntimePhase = "downloading"
+	PatchApiDownloadTasksIdJSONBodyRuntimePhaseError       PatchApiDownloadTasksIdJSONBodyRuntimePhase = "error"
+	PatchApiDownloadTasksIdJSONBodyRuntimePhaseMetadata    PatchApiDownloadTasksIdJSONBodyRuntimePhase = "metadata"
+	PatchApiDownloadTasksIdJSONBodyRuntimePhaseSeeding     PatchApiDownloadTasksIdJSONBodyRuntimePhase = "seeding"
+	PatchApiDownloadTasksIdJSONBodyRuntimePhaseUploading   PatchApiDownloadTasksIdJSONBodyRuntimePhase = "uploading"
+)
+
+// Valid indicates whether the value is a known member of the PatchApiDownloadTasksIdJSONBodyRuntimePhase enum.
+func (e PatchApiDownloadTasksIdJSONBodyRuntimePhase) Valid() bool {
+	switch e {
+	case PatchApiDownloadTasksIdJSONBodyRuntimePhaseCompleted:
 		return true
-	case PatchApiDownloadTasksIdJSONBodyDetailPhaseSeeding:
+	case PatchApiDownloadTasksIdJSONBodyRuntimePhaseDownloading:
 		return true
-	case PatchApiDownloadTasksIdJSONBodyDetailPhaseUploading:
+	case PatchApiDownloadTasksIdJSONBodyRuntimePhaseError:
+		return true
+	case PatchApiDownloadTasksIdJSONBodyRuntimePhaseMetadata:
+		return true
+	case PatchApiDownloadTasksIdJSONBodyRuntimePhaseSeeding:
+		return true
+	case PatchApiDownloadTasksIdJSONBodyRuntimePhaseUploading:
 		return true
 	default:
 		return false
@@ -871,120 +934,141 @@ func (e PatchApiDownloadTasksIdJSONBodyStatus) Valid() bool {
 	}
 }
 
-// Defines values for PatchApiDownloadTasksId200JSONResponseBodyDetailEngine.
+// Defines values for PatchApiDownloadTasksId200JSONResponseBodySpecSourceType.
 const (
-	PatchApiDownloadTasksId200JSONResponseBodyDetailEngineAria2       PatchApiDownloadTasksId200JSONResponseBodyDetailEngine = "aria2"
-	PatchApiDownloadTasksId200JSONResponseBodyDetailEngineBuiltin     PatchApiDownloadTasksId200JSONResponseBodyDetailEngine = "builtin"
-	PatchApiDownloadTasksId200JSONResponseBodyDetailEngineQbittorrent PatchApiDownloadTasksId200JSONResponseBodyDetailEngine = "qbittorrent"
+	PatchApiDownloadTasksId200JSONResponseBodySpecSourceTypeHttp       PatchApiDownloadTasksId200JSONResponseBodySpecSourceType = "http"
+	PatchApiDownloadTasksId200JSONResponseBodySpecSourceTypeMagnet     PatchApiDownloadTasksId200JSONResponseBodySpecSourceType = "magnet"
+	PatchApiDownloadTasksId200JSONResponseBodySpecSourceTypeTorrentUrl PatchApiDownloadTasksId200JSONResponseBodySpecSourceType = "torrent_url"
 )
 
-// Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodyDetailEngine enum.
-func (e PatchApiDownloadTasksId200JSONResponseBodyDetailEngine) Valid() bool {
+// Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodySpecSourceType enum.
+func (e PatchApiDownloadTasksId200JSONResponseBodySpecSourceType) Valid() bool {
 	switch e {
-	case PatchApiDownloadTasksId200JSONResponseBodyDetailEngineAria2:
+	case PatchApiDownloadTasksId200JSONResponseBodySpecSourceTypeHttp:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyDetailEngineBuiltin:
+	case PatchApiDownloadTasksId200JSONResponseBodySpecSourceTypeMagnet:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyDetailEngineQbittorrent:
+	case PatchApiDownloadTasksId200JSONResponseBodySpecSourceTypeTorrentUrl:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PatchApiDownloadTasksId200JSONResponseBodyDetailPhase.
+// Defines values for PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState.
 const (
-	PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseCompleted   PatchApiDownloadTasksId200JSONResponseBodyDetailPhase = "completed"
-	PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseDownloading PatchApiDownloadTasksId200JSONResponseBodyDetailPhase = "downloading"
-	PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseError       PatchApiDownloadTasksId200JSONResponseBodyDetailPhase = "error"
-	PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseMetadata    PatchApiDownloadTasksId200JSONResponseBodyDetailPhase = "metadata"
-	PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseSeeding     PatchApiDownloadTasksId200JSONResponseBodyDetailPhase = "seeding"
-	PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseUploading   PatchApiDownloadTasksId200JSONResponseBodyDetailPhase = "uploading"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusBillingStateInsufficientCredits PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState = "insufficient_credits"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusBillingStateNone                PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState = "none"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusBillingStateOk                  PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState = "ok"
 )
 
-// Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodyDetailPhase enum.
-func (e PatchApiDownloadTasksId200JSONResponseBodyDetailPhase) Valid() bool {
+// Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState enum.
+func (e PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState) Valid() bool {
 	switch e {
-	case PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseCompleted:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusBillingStateInsufficientCredits:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseDownloading:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusBillingStateNone:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseError:
-		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseMetadata:
-		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseSeeding:
-		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyDetailPhaseUploading:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusBillingStateOk:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PatchApiDownloadTasksId200JSONResponseBodySourceType.
+// Defines values for PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine.
 const (
-	PatchApiDownloadTasksId200JSONResponseBodySourceTypeHttp       PatchApiDownloadTasksId200JSONResponseBodySourceType = "http"
-	PatchApiDownloadTasksId200JSONResponseBodySourceTypeMagnet     PatchApiDownloadTasksId200JSONResponseBodySourceType = "magnet"
-	PatchApiDownloadTasksId200JSONResponseBodySourceTypeTorrentUrl PatchApiDownloadTasksId200JSONResponseBodySourceType = "torrent_url"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineAria2       PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine = "aria2"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineBuiltin     PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine = "builtin"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineQbittorrent PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine = "qbittorrent"
 )
 
-// Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodySourceType enum.
-func (e PatchApiDownloadTasksId200JSONResponseBodySourceType) Valid() bool {
+// Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine enum.
+func (e PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine) Valid() bool {
 	switch e {
-	case PatchApiDownloadTasksId200JSONResponseBodySourceTypeHttp:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineAria2:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodySourceTypeMagnet:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineBuiltin:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodySourceTypeTorrentUrl:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngineQbittorrent:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PatchApiDownloadTasksId200JSONResponseBodyStatus.
+// Defines values for PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase.
 const (
-	PatchApiDownloadTasksId200JSONResponseBodyStatusAssigned    PatchApiDownloadTasksId200JSONResponseBodyStatus = "assigned"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusCanceled    PatchApiDownloadTasksId200JSONResponseBodyStatus = "canceled"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusCanceling   PatchApiDownloadTasksId200JSONResponseBodyStatus = "canceling"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusCompleted   PatchApiDownloadTasksId200JSONResponseBodyStatus = "completed"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusDownloading PatchApiDownloadTasksId200JSONResponseBodyStatus = "downloading"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusFailed      PatchApiDownloadTasksId200JSONResponseBodyStatus = "failed"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusInterrupted PatchApiDownloadTasksId200JSONResponseBodyStatus = "interrupted"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusPaused      PatchApiDownloadTasksId200JSONResponseBodyStatus = "paused"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusPausing     PatchApiDownloadTasksId200JSONResponseBodyStatus = "pausing"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusQueued      PatchApiDownloadTasksId200JSONResponseBodyStatus = "queued"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusSuspended   PatchApiDownloadTasksId200JSONResponseBodyStatus = "suspended"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusUploading   PatchApiDownloadTasksId200JSONResponseBodyStatus = "uploading"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseCompleted   PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "completed"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseDownloading PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "downloading"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseError       PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "error"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseMetadata    PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "metadata"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseSeeding     PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "seeding"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseUploading   PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase = "uploading"
 )
 
-// Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodyStatus enum.
-func (e PatchApiDownloadTasksId200JSONResponseBodyStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase enum.
+func (e PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase) Valid() bool {
 	switch e {
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusAssigned:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseCompleted:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusCanceled:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseDownloading:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusCanceling:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseError:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusCompleted:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseMetadata:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusDownloading:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseSeeding:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusFailed:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhaseUploading:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusInterrupted:
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchApiDownloadTasksId200JSONResponseBodyStatusState.
+const (
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateAssigned    PatchApiDownloadTasksId200JSONResponseBodyStatusState = "assigned"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateCanceled    PatchApiDownloadTasksId200JSONResponseBodyStatusState = "canceled"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateCanceling   PatchApiDownloadTasksId200JSONResponseBodyStatusState = "canceling"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateCompleted   PatchApiDownloadTasksId200JSONResponseBodyStatusState = "completed"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateDownloading PatchApiDownloadTasksId200JSONResponseBodyStatusState = "downloading"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateFailed      PatchApiDownloadTasksId200JSONResponseBodyStatusState = "failed"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateInterrupted PatchApiDownloadTasksId200JSONResponseBodyStatusState = "interrupted"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStatePaused      PatchApiDownloadTasksId200JSONResponseBodyStatusState = "paused"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStatePausing     PatchApiDownloadTasksId200JSONResponseBodyStatusState = "pausing"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateQueued      PatchApiDownloadTasksId200JSONResponseBodyStatusState = "queued"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateSuspended   PatchApiDownloadTasksId200JSONResponseBodyStatusState = "suspended"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusStateUploading   PatchApiDownloadTasksId200JSONResponseBodyStatusState = "uploading"
+)
+
+// Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodyStatusState enum.
+func (e PatchApiDownloadTasksId200JSONResponseBodyStatusState) Valid() bool {
+	switch e {
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateAssigned:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusPaused:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateCanceled:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusPausing:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateCanceling:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusQueued:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateCompleted:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusSuspended:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateDownloading:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusUploading:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateFailed:
+		return true
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateInterrupted:
+		return true
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStatePaused:
+		return true
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStatePausing:
+		return true
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateQueued:
+		return true
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateSuspended:
+		return true
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusStateUploading:
 		return true
 	default:
 		return false
@@ -1021,120 +1105,141 @@ func (e PostApiDownloadTasksIdActionsJSONBodyAction) Valid() bool {
 	}
 }
 
-// Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngine.
+// Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceType.
 const (
-	PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngineAria2       PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngine = "aria2"
-	PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngineBuiltin     PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngine = "builtin"
-	PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngineQbittorrent PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngine = "qbittorrent"
+	PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceTypeHttp       PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceType = "http"
+	PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceTypeMagnet     PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceType = "magnet"
+	PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceTypeTorrentUrl PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceType = "torrent_url"
 )
 
-// Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngine enum.
-func (e PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngine) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceType enum.
+func (e PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceType) Valid() bool {
 	switch e {
-	case PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngineAria2:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceTypeHttp:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngineBuiltin:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceTypeMagnet:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngineQbittorrent:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceTypeTorrentUrl:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase.
+// Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingState.
 const (
-	PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseCompleted   PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase = "completed"
-	PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseDownloading PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase = "downloading"
-	PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseError       PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase = "error"
-	PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseMetadata    PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase = "metadata"
-	PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseSeeding     PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase = "seeding"
-	PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseUploading   PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase = "uploading"
+	InsufficientCredits PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingState = "insufficient_credits"
+	None                PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingState = "none"
+	Ok                  PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingState = "ok"
 )
 
-// Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase enum.
-func (e PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingState enum.
+func (e PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingState) Valid() bool {
 	switch e {
-	case PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseCompleted:
+	case InsufficientCredits:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseDownloading:
+	case None:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseError:
-		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseMetadata:
-		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseSeeding:
-		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhaseUploading:
+	case Ok:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0SourceType.
+// Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngine.
 const (
-	PostApiDownloadTasksIdActions200JSONResponseBody0SourceTypeHttp       PostApiDownloadTasksIdActions200JSONResponseBody0SourceType = "http"
-	PostApiDownloadTasksIdActions200JSONResponseBody0SourceTypeMagnet     PostApiDownloadTasksIdActions200JSONResponseBody0SourceType = "magnet"
-	PostApiDownloadTasksIdActions200JSONResponseBody0SourceTypeTorrentUrl PostApiDownloadTasksIdActions200JSONResponseBody0SourceType = "torrent_url"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngineAria2       PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngine = "aria2"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngineBuiltin     PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngine = "builtin"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngineQbittorrent PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngine = "qbittorrent"
 )
 
-// Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0SourceType enum.
-func (e PostApiDownloadTasksIdActions200JSONResponseBody0SourceType) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngine enum.
+func (e PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngine) Valid() bool {
 	switch e {
-	case PostApiDownloadTasksIdActions200JSONResponseBody0SourceTypeHttp:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngineAria2:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0SourceTypeMagnet:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngineBuiltin:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0SourceTypeTorrentUrl:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngineQbittorrent:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0Status.
+// Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase.
 const (
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusAssigned    PostApiDownloadTasksIdActions200JSONResponseBody0Status = "assigned"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceled    PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceled"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceling"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "completed"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusDownloading PostApiDownloadTasksIdActions200JSONResponseBody0Status = "downloading"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "failed"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusInterrupted PostApiDownloadTasksIdActions200JSONResponseBody0Status = "interrupted"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "paused"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPausing     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "pausing"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "queued"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusSuspended   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "suspended"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusUploading   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "uploading"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseCompleted   PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase = "completed"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseDownloading PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase = "downloading"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseError       PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase = "error"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseMetadata    PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase = "metadata"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseSeeding     PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase = "seeding"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseUploading   PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase = "uploading"
 )
 
-// Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0Status enum.
-func (e PostApiDownloadTasksIdActions200JSONResponseBody0Status) Valid() bool {
+// Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase enum.
+func (e PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase) Valid() bool {
 	switch e {
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusAssigned:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseCompleted:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceled:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseDownloading:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseError:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseMetadata:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusDownloading:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseSeeding:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhaseUploading:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusInterrupted:
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0StatusState.
+const (
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateAssigned    PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "assigned"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateCanceled    PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "canceled"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateCanceling   PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "canceling"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateCompleted   PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "completed"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateDownloading PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "downloading"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateFailed      PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "failed"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateInterrupted PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "interrupted"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStatePaused      PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "paused"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStatePausing     PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "pausing"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateQueued      PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "queued"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateSuspended   PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "suspended"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateUploading   PostApiDownloadTasksIdActions200JSONResponseBody0StatusState = "uploading"
+)
+
+// Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0StatusState enum.
+func (e PostApiDownloadTasksIdActions200JSONResponseBody0StatusState) Valid() bool {
+	switch e {
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateAssigned:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateCanceled:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusPausing:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateCanceling:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateCompleted:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusSuspended:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateDownloading:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusUploading:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateFailed:
+		return true
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateInterrupted:
+		return true
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStatePaused:
+		return true
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStatePausing:
+		return true
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateQueued:
+		return true
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateSuspended:
+		return true
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusStateUploading:
 		return true
 	default:
 		return false
@@ -1456,17 +1561,20 @@ type GetApiDownloadTasksParamsSortBy string
 // GetApiDownloadTasksParamsSortDir defines parameters for GetApiDownloadTasks.
 type GetApiDownloadTasksParamsSortDir string
 
-// GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine defines parameters for GetApiDownloadTasks.
-type GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine string
+// GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType defines parameters for GetApiDownloadTasks.
+type GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType string
 
-// GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase defines parameters for GetApiDownloadTasks.
-type GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase string
+// GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState defines parameters for GetApiDownloadTasks.
+type GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState string
 
-// GetApiDownloadTasks200JSONResponseBodyItemsSourceType defines parameters for GetApiDownloadTasks.
-type GetApiDownloadTasks200JSONResponseBodyItemsSourceType string
+// GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine defines parameters for GetApiDownloadTasks.
+type GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine string
 
-// GetApiDownloadTasks200JSONResponseBodyItemsStatus defines parameters for GetApiDownloadTasks.
-type GetApiDownloadTasks200JSONResponseBodyItemsStatus string
+// GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase defines parameters for GetApiDownloadTasks.
+type GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase string
+
+// GetApiDownloadTasks200JSONResponseBodyItemsStatusState defines parameters for GetApiDownloadTasks.
+type GetApiDownloadTasks200JSONResponseBodyItemsStatusState string
 
 // PostApiDownloadTasksJSONBody defines parameters for PostApiDownloadTasks.
 type PostApiDownloadTasksJSONBody struct {
@@ -1483,17 +1591,20 @@ type PostApiDownloadTasksJSONBody struct {
 // PostApiDownloadTasksJSONBodySourceType defines parameters for PostApiDownloadTasks.
 type PostApiDownloadTasksJSONBodySourceType string
 
-// PostApiDownloadTasks201JSONResponseBodyDetailEngine defines parameters for PostApiDownloadTasks.
-type PostApiDownloadTasks201JSONResponseBodyDetailEngine string
+// PostApiDownloadTasks201JSONResponseBodySpecSourceType defines parameters for PostApiDownloadTasks.
+type PostApiDownloadTasks201JSONResponseBodySpecSourceType string
 
-// PostApiDownloadTasks201JSONResponseBodyDetailPhase defines parameters for PostApiDownloadTasks.
-type PostApiDownloadTasks201JSONResponseBodyDetailPhase string
+// PostApiDownloadTasks201JSONResponseBodyStatusBillingState defines parameters for PostApiDownloadTasks.
+type PostApiDownloadTasks201JSONResponseBodyStatusBillingState string
 
-// PostApiDownloadTasks201JSONResponseBodySourceType defines parameters for PostApiDownloadTasks.
-type PostApiDownloadTasks201JSONResponseBodySourceType string
+// PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine defines parameters for PostApiDownloadTasks.
+type PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine string
 
-// PostApiDownloadTasks201JSONResponseBodyStatus defines parameters for PostApiDownloadTasks.
-type PostApiDownloadTasks201JSONResponseBodyStatus string
+// PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase defines parameters for PostApiDownloadTasks.
+type PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase string
+
+// PostApiDownloadTasks201JSONResponseBodyStatusState defines parameters for PostApiDownloadTasks.
+type PostApiDownloadTasks201JSONResponseBodyStatusState string
 
 // GetApiDownloadTasksEventsParams defines parameters for GetApiDownloadTasksEvents.
 type GetApiDownloadTasksEventsParams struct {
@@ -1519,48 +1630,88 @@ type GetApiDownloadTasksEventsParamsSortBy string
 // GetApiDownloadTasksEventsParamsSortDir defines parameters for GetApiDownloadTasksEvents.
 type GetApiDownloadTasksEventsParamsSortDir string
 
-// GetApiDownloadTasksId200JSONResponseBodyDetailEngine defines parameters for GetApiDownloadTasksId.
-type GetApiDownloadTasksId200JSONResponseBodyDetailEngine string
+// GetApiDownloadTasksId200JSONResponseBodySpecSourceType defines parameters for GetApiDownloadTasksId.
+type GetApiDownloadTasksId200JSONResponseBodySpecSourceType string
 
-// GetApiDownloadTasksId200JSONResponseBodyDetailPhase defines parameters for GetApiDownloadTasksId.
-type GetApiDownloadTasksId200JSONResponseBodyDetailPhase string
+// GetApiDownloadTasksId200JSONResponseBodyStatusBillingState defines parameters for GetApiDownloadTasksId.
+type GetApiDownloadTasksId200JSONResponseBodyStatusBillingState string
 
-// GetApiDownloadTasksId200JSONResponseBodySourceType defines parameters for GetApiDownloadTasksId.
-type GetApiDownloadTasksId200JSONResponseBodySourceType string
+// GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine defines parameters for GetApiDownloadTasksId.
+type GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine string
 
-// GetApiDownloadTasksId200JSONResponseBodyStatus defines parameters for GetApiDownloadTasksId.
-type GetApiDownloadTasksId200JSONResponseBodyStatus string
+// GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase defines parameters for GetApiDownloadTasksId.
+type GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase string
+
+// GetApiDownloadTasksId200JSONResponseBodyStatusState defines parameters for GetApiDownloadTasksId.
+type GetApiDownloadTasksId200JSONResponseBodyStatusState string
 
 // PatchApiDownloadTasksIdJSONBody defines parameters for PatchApiDownloadTasksId.
 type PatchApiDownloadTasksIdJSONBody struct {
-	Detail *struct {
-		Connections *int                                         `json:"connections,omitempty"`
-		Engine      *PatchApiDownloadTasksIdJSONBodyDetailEngine `json:"engine,omitempty"`
-		EngineState *string                                      `json:"engineState,omitempty"`
-		EtaSeconds  *int                                         `json:"etaSeconds,omitempty"`
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	Progress     *struct {
+		Download *struct {
+			Bytes          int64  `json:"bytes"`
+			BytesPerSecond int64  `json:"bytesPerSecond"`
+			TotalBytes     *int64 `json:"totalBytes,omitempty"`
+		} `json:"download,omitempty"`
+		Upload *struct {
+			Bytes          int64  `json:"bytes"`
+			BytesPerSecond int64  `json:"bytesPerSecond"`
+			TotalBytes     *int64 `json:"totalBytes,omitempty"`
+		} `json:"upload,omitempty"`
+	} `json:"progress,omitempty"`
+	ResultObjectId *string `json:"resultObjectId,omitempty"`
+	Runtime        *struct {
+		Connections *int                                          `json:"connections,omitempty"`
+		Engine      *PatchApiDownloadTasksIdJSONBodyRuntimeEngine `json:"engine,omitempty"`
+		EtaSeconds  *int                                          `json:"etaSeconds,omitempty"`
 		Files       *[]struct {
 			CompletedBytes *int64 `json:"completedBytes,omitempty"`
 			Path           string `json:"path"`
 			Selected       *bool  `json:"selected,omitempty"`
 			Size           int64  `json:"size"`
 		} `json:"files,omitempty"`
-		InfoHash    *string `json:"infoHash,omitempty"`
-		Leechers    *int    `json:"leechers,omitempty"`
-		Message     *string `json:"message,omitempty"`
-		PeerSamples *[]struct {
+		Message *string `json:"message,omitempty"`
+		Peers   *[]struct {
 			Address     string   `json:"address"`
 			Client      *string  `json:"client,omitempty"`
+			CountryCode *string  `json:"countryCode,omitempty"`
 			DownloadBps *int64   `json:"downloadBps,omitempty"`
 			Progress    *float32 `json:"progress,omitempty"`
+			RegionCode  *string  `json:"regionCode,omitempty"`
 			UploadBps   *int64   `json:"uploadBps,omitempty"`
-		} `json:"peerSamples,omitempty"`
-		PeerUploadBps     *int64                                      `json:"peerUploadBps,omitempty"`
-		PeerUploadedBytes *int64                                      `json:"peerUploadedBytes,omitempty"`
-		Peers             *int                                        `json:"peers,omitempty"`
-		Phase             *PatchApiDownloadTasksIdJSONBodyDetailPhase `json:"phase,omitempty"`
-		Seeders           *int                                        `json:"seeders,omitempty"`
-		TorrentName       *string                                     `json:"torrentName,omitempty"`
-		Trackers          *[]struct {
+		} `json:"peers,omitempty"`
+		Phase    *PatchApiDownloadTasksIdJSONBodyRuntimePhase `json:"phase,omitempty"`
+		Progress *struct {
+			Download struct {
+				Bytes          int64  `json:"bytes"`
+				BytesPerSecond int64  `json:"bytesPerSecond"`
+				TotalBytes     *int64 `json:"totalBytes,omitempty"`
+			} `json:"download"`
+			Upload struct {
+				Bytes          int64  `json:"bytes"`
+				BytesPerSecond int64  `json:"bytesPerSecond"`
+				TotalBytes     *int64 `json:"totalBytes,omitempty"`
+			} `json:"upload"`
+		} `json:"progress,omitempty"`
+		Seeding *struct {
+			Active               *bool    `json:"active,omitempty"`
+			Enabled              *bool    `json:"enabled,omitempty"`
+			ExpiresAt            *string  `json:"expiresAt,omitempty"`
+			Ratio                *float32 `json:"ratio,omitempty"`
+			StartedAt            *string  `json:"startedAt,omitempty"`
+			UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+			UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+		} `json:"seeding,omitempty"`
+		State   *string `json:"state,omitempty"`
+		Torrent *struct {
+			InfoHash *string `json:"infoHash,omitempty"`
+			Leechers *int    `json:"leechers,omitempty"`
+			Name     *string `json:"name,omitempty"`
+			Peers    *int    `json:"peers,omitempty"`
+			Seeders  *int    `json:"seeders,omitempty"`
+		} `json:"torrent,omitempty"`
+		Trackers *[]struct {
 			Leechers *int    `json:"leechers,omitempty"`
 			Message  *string `json:"message,omitempty"`
 			Peers    *int    `json:"peers,omitempty"`
@@ -1568,37 +1719,34 @@ type PatchApiDownloadTasksIdJSONBody struct {
 			Status   *string `json:"status,omitempty"`
 			Url      string  `json:"url"`
 		} `json:"trackers,omitempty"`
-	} `json:"detail,omitempty"`
-	DownloadBps          *int64                                 `json:"downloadBps,omitempty"`
-	DownloadedBytes      *int64                                 `json:"downloadedBytes,omitempty"`
-	ErrorMessage         *string                                `json:"errorMessage,omitempty"`
-	ResultObjectId       *string                                `json:"resultObjectId,omitempty"`
-	Status               *PatchApiDownloadTasksIdJSONBodyStatus `json:"status,omitempty"`
-	StorageUploadBps     *int64                                 `json:"storageUploadBps,omitempty"`
-	StorageUploadedBytes *int64                                 `json:"storageUploadedBytes,omitempty"`
-	TotalBytes           *int64                                 `json:"totalBytes,omitempty"`
+		UpdatedAt *string `json:"updatedAt,omitempty"`
+	} `json:"runtime,omitempty"`
+	Status *PatchApiDownloadTasksIdJSONBodyStatus `json:"status,omitempty"`
 }
 
-// PatchApiDownloadTasksIdJSONBodyDetailEngine defines parameters for PatchApiDownloadTasksId.
-type PatchApiDownloadTasksIdJSONBodyDetailEngine string
+// PatchApiDownloadTasksIdJSONBodyRuntimeEngine defines parameters for PatchApiDownloadTasksId.
+type PatchApiDownloadTasksIdJSONBodyRuntimeEngine string
 
-// PatchApiDownloadTasksIdJSONBodyDetailPhase defines parameters for PatchApiDownloadTasksId.
-type PatchApiDownloadTasksIdJSONBodyDetailPhase string
+// PatchApiDownloadTasksIdJSONBodyRuntimePhase defines parameters for PatchApiDownloadTasksId.
+type PatchApiDownloadTasksIdJSONBodyRuntimePhase string
 
 // PatchApiDownloadTasksIdJSONBodyStatus defines parameters for PatchApiDownloadTasksId.
 type PatchApiDownloadTasksIdJSONBodyStatus string
 
-// PatchApiDownloadTasksId200JSONResponseBodyDetailEngine defines parameters for PatchApiDownloadTasksId.
-type PatchApiDownloadTasksId200JSONResponseBodyDetailEngine string
+// PatchApiDownloadTasksId200JSONResponseBodySpecSourceType defines parameters for PatchApiDownloadTasksId.
+type PatchApiDownloadTasksId200JSONResponseBodySpecSourceType string
 
-// PatchApiDownloadTasksId200JSONResponseBodyDetailPhase defines parameters for PatchApiDownloadTasksId.
-type PatchApiDownloadTasksId200JSONResponseBodyDetailPhase string
+// PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState defines parameters for PatchApiDownloadTasksId.
+type PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState string
 
-// PatchApiDownloadTasksId200JSONResponseBodySourceType defines parameters for PatchApiDownloadTasksId.
-type PatchApiDownloadTasksId200JSONResponseBodySourceType string
+// PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine defines parameters for PatchApiDownloadTasksId.
+type PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine string
 
-// PatchApiDownloadTasksId200JSONResponseBodyStatus defines parameters for PatchApiDownloadTasksId.
-type PatchApiDownloadTasksId200JSONResponseBodyStatus string
+// PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase defines parameters for PatchApiDownloadTasksId.
+type PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase string
+
+// PatchApiDownloadTasksId200JSONResponseBodyStatusState defines parameters for PatchApiDownloadTasksId.
+type PatchApiDownloadTasksId200JSONResponseBodyStatusState string
 
 // PostApiDownloadTasksIdActionsJSONBody defines parameters for PostApiDownloadTasksIdActions.
 type PostApiDownloadTasksIdActionsJSONBody struct {
@@ -1610,72 +1758,136 @@ type PostApiDownloadTasksIdActionsJSONBodyAction string
 
 // PostApiDownloadTasksIdActions200JSONResponseBody0 defines parameters for PostApiDownloadTasksIdActions.
 type PostApiDownloadTasksIdActions200JSONResponseBody0 struct {
-	AssignedDownloaderId *string `json:"assignedDownloaderId,omitempty"`
-	Category             *string `json:"category"`
-	Detail               *struct {
-		Connections *int                                                           `json:"connections,omitempty"`
-		Engine      *PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngine `json:"engine,omitempty"`
-		EngineState *string                                                        `json:"engineState,omitempty"`
-		EtaSeconds  *int                                                           `json:"etaSeconds,omitempty"`
-		Files       *[]struct {
-			CompletedBytes *int64 `json:"completedBytes,omitempty"`
-			Path           string `json:"path"`
-			Selected       *bool  `json:"selected,omitempty"`
-			Size           int64  `json:"size"`
-		} `json:"files,omitempty"`
-		InfoHash    *string `json:"infoHash,omitempty"`
-		Leechers    *int    `json:"leechers,omitempty"`
-		Message     *string `json:"message,omitempty"`
-		PeerSamples *[]struct {
-			Address     string   `json:"address"`
-			Client      *string  `json:"client,omitempty"`
-			DownloadBps *int64   `json:"downloadBps,omitempty"`
-			Progress    *float32 `json:"progress,omitempty"`
-			UploadBps   *int64   `json:"uploadBps,omitempty"`
-		} `json:"peerSamples,omitempty"`
-		PeerUploadBps     *int64                                                        `json:"peerUploadBps,omitempty"`
-		PeerUploadedBytes *int64                                                        `json:"peerUploadedBytes,omitempty"`
-		Peers             *int                                                          `json:"peers,omitempty"`
-		Phase             *PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase `json:"phase,omitempty"`
-		Seeders           *int                                                          `json:"seeders,omitempty"`
-		TorrentName       *string                                                       `json:"torrentName,omitempty"`
-		Trackers          *[]struct {
-			Leechers *int    `json:"leechers,omitempty"`
-			Message  *string `json:"message,omitempty"`
-			Peers    *int    `json:"peers,omitempty"`
-			Seeds    *int    `json:"seeds,omitempty"`
-			Status   *string `json:"status,omitempty"`
-			Url      string  `json:"url"`
-		} `json:"trackers,omitempty"`
-	} `json:"detail,omitempty"`
-	DownloadBps          int64                                                       `json:"downloadBps"`
-	DownloadedBytes      int64                                                       `json:"downloadedBytes"`
-	ErrorMessage         *string                                                     `json:"errorMessage,omitempty"`
-	Id                   string                                                      `json:"id"`
-	Name                 string                                                      `json:"name"`
-	ResultObjectId       *string                                                     `json:"resultObjectId,omitempty"`
-	SourceType           PostApiDownloadTasksIdActions200JSONResponseBody0SourceType `json:"sourceType"`
-	SourceUri            string                                                      `json:"sourceUri"`
-	Status               PostApiDownloadTasksIdActions200JSONResponseBody0Status     `json:"status"`
-	StorageUploadBps     int64                                                       `json:"storageUploadBps"`
-	StorageUploadedBytes int64                                                       `json:"storageUploadedBytes"`
-	Tags                 []string                                                    `json:"tags"`
-	TargetFolder         string                                                      `json:"targetFolder"`
-	TotalBytes           *int64                                                      `json:"totalBytes"`
-	UploadToken          *string                                                     `json:"uploadToken,omitempty"`
+	CreatedAt string  `json:"createdAt"`
+	CreatedBy *string `json:"createdBy,omitempty"`
+	Id        string  `json:"id"`
+	OrgId     *string `json:"orgId,omitempty"`
+	Spec      struct {
+		Destination struct {
+			Folder string  `json:"folder"`
+			Name   *string `json:"name"`
+		} `json:"destination"`
+		Labels struct {
+			Category *string  `json:"category"`
+			Tags     []string `json:"tags"`
+		} `json:"labels"`
+		Source struct {
+			Type PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceType `json:"type"`
+			Uri  string                                                          `json:"uri"`
+		} `json:"source"`
+	} `json:"spec"`
+	Status struct {
+		Assignment *struct {
+			AssignedAt   *string `json:"assignedAt,omitempty"`
+			DownloaderId string  `json:"downloaderId"`
+			UploadToken  *string `json:"uploadToken,omitempty"`
+		} `json:"assignment"`
+		Billing struct {
+			AuthorizedBytes int64                                                               `json:"authorizedBytes"`
+			ChargedBytes    int64                                                               `json:"chargedBytes"`
+			ChargedCredits  int64                                                               `json:"chargedCredits"`
+			State           PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingState `json:"state"`
+		} `json:"billing"`
+		Error *struct {
+			Code    *string `json:"code,omitempty"`
+			Message *string `json:"message"`
+		} `json:"error"`
+		FinishedAt *string `json:"finishedAt"`
+		Output     *struct {
+			ObjectId string `json:"objectId"`
+		} `json:"output"`
+		Progress struct {
+			Download struct {
+				Bytes          int64  `json:"bytes"`
+				BytesPerSecond int64  `json:"bytesPerSecond"`
+				TotalBytes     *int64 `json:"totalBytes,omitempty"`
+			} `json:"download"`
+			Upload struct {
+				Bytes          int64  `json:"bytes"`
+				BytesPerSecond int64  `json:"bytesPerSecond"`
+				TotalBytes     *int64 `json:"totalBytes,omitempty"`
+			} `json:"upload"`
+		} `json:"progress"`
+		Runtime *struct {
+			Connections *int                                                                  `json:"connections,omitempty"`
+			Engine      *PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngine `json:"engine,omitempty"`
+			EtaSeconds  *int                                                                  `json:"etaSeconds,omitempty"`
+			Files       *[]struct {
+				CompletedBytes *int64 `json:"completedBytes,omitempty"`
+				Path           string `json:"path"`
+				Selected       *bool  `json:"selected,omitempty"`
+				Size           int64  `json:"size"`
+			} `json:"files,omitempty"`
+			Message *string `json:"message,omitempty"`
+			Peers   *[]struct {
+				Address     string   `json:"address"`
+				Client      *string  `json:"client,omitempty"`
+				CountryCode *string  `json:"countryCode,omitempty"`
+				DownloadBps *int64   `json:"downloadBps,omitempty"`
+				Progress    *float32 `json:"progress,omitempty"`
+				RegionCode  *string  `json:"regionCode,omitempty"`
+				UploadBps   *int64   `json:"uploadBps,omitempty"`
+			} `json:"peers,omitempty"`
+			Phase    *PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase `json:"phase,omitempty"`
+			Progress *struct {
+				Download struct {
+					Bytes          int64  `json:"bytes"`
+					BytesPerSecond int64  `json:"bytesPerSecond"`
+					TotalBytes     *int64 `json:"totalBytes,omitempty"`
+				} `json:"download"`
+				Upload struct {
+					Bytes          int64  `json:"bytes"`
+					BytesPerSecond int64  `json:"bytesPerSecond"`
+					TotalBytes     *int64 `json:"totalBytes,omitempty"`
+				} `json:"upload"`
+			} `json:"progress,omitempty"`
+			Seeding *struct {
+				Active               *bool    `json:"active,omitempty"`
+				Enabled              *bool    `json:"enabled,omitempty"`
+				ExpiresAt            *string  `json:"expiresAt,omitempty"`
+				Ratio                *float32 `json:"ratio,omitempty"`
+				StartedAt            *string  `json:"startedAt,omitempty"`
+				UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+				UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+			} `json:"seeding,omitempty"`
+			State   *string `json:"state,omitempty"`
+			Torrent *struct {
+				InfoHash *string `json:"infoHash,omitempty"`
+				Leechers *int    `json:"leechers,omitempty"`
+				Name     *string `json:"name,omitempty"`
+				Peers    *int    `json:"peers,omitempty"`
+				Seeders  *int    `json:"seeders,omitempty"`
+			} `json:"torrent,omitempty"`
+			Trackers *[]struct {
+				Leechers *int    `json:"leechers,omitempty"`
+				Message  *string `json:"message,omitempty"`
+				Peers    *int    `json:"peers,omitempty"`
+				Seeds    *int    `json:"seeds,omitempty"`
+				Status   *string `json:"status,omitempty"`
+				Url      string  `json:"url"`
+			} `json:"trackers,omitempty"`
+			UpdatedAt *string `json:"updatedAt,omitempty"`
+		} `json:"runtime"`
+		StartedAt *string                                                      `json:"startedAt"`
+		State     PostApiDownloadTasksIdActions200JSONResponseBody0StatusState `json:"state"`
+		UpdatedAt string                                                       `json:"updatedAt"`
+	} `json:"status"`
 }
 
-// PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngine defines parameters for PostApiDownloadTasksIdActions.
-type PostApiDownloadTasksIdActions200JSONResponseBody0DetailEngine string
+// PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceType defines parameters for PostApiDownloadTasksIdActions.
+type PostApiDownloadTasksIdActions200JSONResponseBody0SpecSourceType string
 
-// PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase defines parameters for PostApiDownloadTasksIdActions.
-type PostApiDownloadTasksIdActions200JSONResponseBody0DetailPhase string
+// PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingState defines parameters for PostApiDownloadTasksIdActions.
+type PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingState string
 
-// PostApiDownloadTasksIdActions200JSONResponseBody0SourceType defines parameters for PostApiDownloadTasksIdActions.
-type PostApiDownloadTasksIdActions200JSONResponseBody0SourceType string
+// PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngine defines parameters for PostApiDownloadTasksIdActions.
+type PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimeEngine string
 
-// PostApiDownloadTasksIdActions200JSONResponseBody0Status defines parameters for PostApiDownloadTasksIdActions.
-type PostApiDownloadTasksIdActions200JSONResponseBody0Status string
+// PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase defines parameters for PostApiDownloadTasksIdActions.
+type PostApiDownloadTasksIdActions200JSONResponseBody0StatusRuntimePhase string
+
+// PostApiDownloadTasksIdActions200JSONResponseBody0StatusState defines parameters for PostApiDownloadTasksIdActions.
+type PostApiDownloadTasksIdActions200JSONResponseBody0StatusState string
 
 // PostApiDownloadTasksIdActions200JSONResponseBody1 defines parameters for PostApiDownloadTasksIdActions.
 type PostApiDownloadTasksIdActions200JSONResponseBody1 struct {
@@ -3809,59 +4021,120 @@ type GetApiDownloadTasksResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *struct {
 		Items []struct {
-			AssignedDownloaderId *string `json:"assignedDownloaderId,omitempty"`
-			Category             *string `json:"category"`
-			Detail               *struct {
-				Connections *int                                                     `json:"connections,omitempty"`
-				Engine      *GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine `json:"engine,omitempty"`
-				EngineState *string                                                  `json:"engineState,omitempty"`
-				EtaSeconds  *int                                                     `json:"etaSeconds,omitempty"`
-				Files       *[]struct {
-					CompletedBytes *int64 `json:"completedBytes,omitempty"`
-					Path           string `json:"path"`
-					Selected       *bool  `json:"selected,omitempty"`
-					Size           int64  `json:"size"`
-				} `json:"files,omitempty"`
-				InfoHash    *string `json:"infoHash,omitempty"`
-				Leechers    *int    `json:"leechers,omitempty"`
-				Message     *string `json:"message,omitempty"`
-				PeerSamples *[]struct {
-					Address     string   `json:"address"`
-					Client      *string  `json:"client,omitempty"`
-					DownloadBps *int64   `json:"downloadBps,omitempty"`
-					Progress    *float32 `json:"progress,omitempty"`
-					UploadBps   *int64   `json:"uploadBps,omitempty"`
-				} `json:"peerSamples,omitempty"`
-				PeerUploadBps     *int64                                                  `json:"peerUploadBps,omitempty"`
-				PeerUploadedBytes *int64                                                  `json:"peerUploadedBytes,omitempty"`
-				Peers             *int                                                    `json:"peers,omitempty"`
-				Phase             *GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase `json:"phase,omitempty"`
-				Seeders           *int                                                    `json:"seeders,omitempty"`
-				TorrentName       *string                                                 `json:"torrentName,omitempty"`
-				Trackers          *[]struct {
-					Leechers *int    `json:"leechers,omitempty"`
-					Message  *string `json:"message,omitempty"`
-					Peers    *int    `json:"peers,omitempty"`
-					Seeds    *int    `json:"seeds,omitempty"`
-					Status   *string `json:"status,omitempty"`
-					Url      string  `json:"url"`
-				} `json:"trackers,omitempty"`
-			} `json:"detail,omitempty"`
-			DownloadBps          int64                                                 `json:"downloadBps"`
-			DownloadedBytes      int64                                                 `json:"downloadedBytes"`
-			ErrorMessage         *string                                               `json:"errorMessage,omitempty"`
-			Id                   string                                                `json:"id"`
-			Name                 string                                                `json:"name"`
-			ResultObjectId       *string                                               `json:"resultObjectId,omitempty"`
-			SourceType           GetApiDownloadTasks200JSONResponseBodyItemsSourceType `json:"sourceType"`
-			SourceUri            string                                                `json:"sourceUri"`
-			Status               GetApiDownloadTasks200JSONResponseBodyItemsStatus     `json:"status"`
-			StorageUploadBps     int64                                                 `json:"storageUploadBps"`
-			StorageUploadedBytes int64                                                 `json:"storageUploadedBytes"`
-			Tags                 []string                                              `json:"tags"`
-			TargetFolder         string                                                `json:"targetFolder"`
-			TotalBytes           *int64                                                `json:"totalBytes"`
-			UploadToken          *string                                               `json:"uploadToken,omitempty"`
+			CreatedAt string  `json:"createdAt"`
+			CreatedBy *string `json:"createdBy,omitempty"`
+			Id        string  `json:"id"`
+			OrgId     *string `json:"orgId,omitempty"`
+			Spec      struct {
+				Destination struct {
+					Folder string  `json:"folder"`
+					Name   *string `json:"name"`
+				} `json:"destination"`
+				Labels struct {
+					Category *string  `json:"category"`
+					Tags     []string `json:"tags"`
+				} `json:"labels"`
+				Source struct {
+					Type GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType `json:"type"`
+					Uri  string                                                    `json:"uri"`
+				} `json:"source"`
+			} `json:"spec"`
+			Status struct {
+				Assignment *struct {
+					AssignedAt   *string `json:"assignedAt,omitempty"`
+					DownloaderId string  `json:"downloaderId"`
+					UploadToken  *string `json:"uploadToken,omitempty"`
+				} `json:"assignment"`
+				Billing struct {
+					AuthorizedBytes int64                                                         `json:"authorizedBytes"`
+					ChargedBytes    int64                                                         `json:"chargedBytes"`
+					ChargedCredits  int64                                                         `json:"chargedCredits"`
+					State           GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState `json:"state"`
+				} `json:"billing"`
+				Error *struct {
+					Code    *string `json:"code,omitempty"`
+					Message *string `json:"message"`
+				} `json:"error"`
+				FinishedAt *string `json:"finishedAt"`
+				Output     *struct {
+					ObjectId string `json:"objectId"`
+				} `json:"output"`
+				Progress struct {
+					Download struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"download"`
+					Upload struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"upload"`
+				} `json:"progress"`
+				Runtime *struct {
+					Connections *int                                                            `json:"connections,omitempty"`
+					Engine      *GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine `json:"engine,omitempty"`
+					EtaSeconds  *int                                                            `json:"etaSeconds,omitempty"`
+					Files       *[]struct {
+						CompletedBytes *int64 `json:"completedBytes,omitempty"`
+						Path           string `json:"path"`
+						Selected       *bool  `json:"selected,omitempty"`
+						Size           int64  `json:"size"`
+					} `json:"files,omitempty"`
+					Message *string `json:"message,omitempty"`
+					Peers   *[]struct {
+						Address     string   `json:"address"`
+						Client      *string  `json:"client,omitempty"`
+						CountryCode *string  `json:"countryCode,omitempty"`
+						DownloadBps *int64   `json:"downloadBps,omitempty"`
+						Progress    *float32 `json:"progress,omitempty"`
+						RegionCode  *string  `json:"regionCode,omitempty"`
+						UploadBps   *int64   `json:"uploadBps,omitempty"`
+					} `json:"peers,omitempty"`
+					Phase    *GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase `json:"phase,omitempty"`
+					Progress *struct {
+						Download struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"download"`
+						Upload struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"upload"`
+					} `json:"progress,omitempty"`
+					Seeding *struct {
+						Active               *bool    `json:"active,omitempty"`
+						Enabled              *bool    `json:"enabled,omitempty"`
+						ExpiresAt            *string  `json:"expiresAt,omitempty"`
+						Ratio                *float32 `json:"ratio,omitempty"`
+						StartedAt            *string  `json:"startedAt,omitempty"`
+						UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+						UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+					} `json:"seeding,omitempty"`
+					State   *string `json:"state,omitempty"`
+					Torrent *struct {
+						InfoHash *string `json:"infoHash,omitempty"`
+						Leechers *int    `json:"leechers,omitempty"`
+						Name     *string `json:"name,omitempty"`
+						Peers    *int    `json:"peers,omitempty"`
+						Seeders  *int    `json:"seeders,omitempty"`
+					} `json:"torrent,omitempty"`
+					Trackers *[]struct {
+						Leechers *int    `json:"leechers,omitempty"`
+						Message  *string `json:"message,omitempty"`
+						Peers    *int    `json:"peers,omitempty"`
+						Seeds    *int    `json:"seeds,omitempty"`
+						Status   *string `json:"status,omitempty"`
+						Url      string  `json:"url"`
+					} `json:"trackers,omitempty"`
+					UpdatedAt *string `json:"updatedAt,omitempty"`
+				} `json:"runtime"`
+				StartedAt *string                                                `json:"startedAt"`
+				State     GetApiDownloadTasks200JSONResponseBodyItemsStatusState `json:"state"`
+				UpdatedAt string                                                 `json:"updatedAt"`
+			} `json:"status"`
 		} `json:"items"`
 		Page     int `json:"page"`
 		PageSize int `json:"pageSize"`
@@ -3900,59 +4173,120 @@ type PostApiDownloadTasksResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *struct {
-		AssignedDownloaderId *string `json:"assignedDownloaderId,omitempty"`
-		Category             *string `json:"category"`
-		Detail               *struct {
-			Connections *int                                                 `json:"connections,omitempty"`
-			Engine      *PostApiDownloadTasks201JSONResponseBodyDetailEngine `json:"engine,omitempty"`
-			EngineState *string                                              `json:"engineState,omitempty"`
-			EtaSeconds  *int                                                 `json:"etaSeconds,omitempty"`
-			Files       *[]struct {
-				CompletedBytes *int64 `json:"completedBytes,omitempty"`
-				Path           string `json:"path"`
-				Selected       *bool  `json:"selected,omitempty"`
-				Size           int64  `json:"size"`
-			} `json:"files,omitempty"`
-			InfoHash    *string `json:"infoHash,omitempty"`
-			Leechers    *int    `json:"leechers,omitempty"`
-			Message     *string `json:"message,omitempty"`
-			PeerSamples *[]struct {
-				Address     string   `json:"address"`
-				Client      *string  `json:"client,omitempty"`
-				DownloadBps *int64   `json:"downloadBps,omitempty"`
-				Progress    *float32 `json:"progress,omitempty"`
-				UploadBps   *int64   `json:"uploadBps,omitempty"`
-			} `json:"peerSamples,omitempty"`
-			PeerUploadBps     *int64                                              `json:"peerUploadBps,omitempty"`
-			PeerUploadedBytes *int64                                              `json:"peerUploadedBytes,omitempty"`
-			Peers             *int                                                `json:"peers,omitempty"`
-			Phase             *PostApiDownloadTasks201JSONResponseBodyDetailPhase `json:"phase,omitempty"`
-			Seeders           *int                                                `json:"seeders,omitempty"`
-			TorrentName       *string                                             `json:"torrentName,omitempty"`
-			Trackers          *[]struct {
-				Leechers *int    `json:"leechers,omitempty"`
-				Message  *string `json:"message,omitempty"`
-				Peers    *int    `json:"peers,omitempty"`
-				Seeds    *int    `json:"seeds,omitempty"`
-				Status   *string `json:"status,omitempty"`
-				Url      string  `json:"url"`
-			} `json:"trackers,omitempty"`
-		} `json:"detail,omitempty"`
-		DownloadBps          int64                                             `json:"downloadBps"`
-		DownloadedBytes      int64                                             `json:"downloadedBytes"`
-		ErrorMessage         *string                                           `json:"errorMessage,omitempty"`
-		Id                   string                                            `json:"id"`
-		Name                 string                                            `json:"name"`
-		ResultObjectId       *string                                           `json:"resultObjectId,omitempty"`
-		SourceType           PostApiDownloadTasks201JSONResponseBodySourceType `json:"sourceType"`
-		SourceUri            string                                            `json:"sourceUri"`
-		Status               PostApiDownloadTasks201JSONResponseBodyStatus     `json:"status"`
-		StorageUploadBps     int64                                             `json:"storageUploadBps"`
-		StorageUploadedBytes int64                                             `json:"storageUploadedBytes"`
-		Tags                 []string                                          `json:"tags"`
-		TargetFolder         string                                            `json:"targetFolder"`
-		TotalBytes           *int64                                            `json:"totalBytes"`
-		UploadToken          *string                                           `json:"uploadToken,omitempty"`
+		CreatedAt string  `json:"createdAt"`
+		CreatedBy *string `json:"createdBy,omitempty"`
+		Id        string  `json:"id"`
+		OrgId     *string `json:"orgId,omitempty"`
+		Spec      struct {
+			Destination struct {
+				Folder string  `json:"folder"`
+				Name   *string `json:"name"`
+			} `json:"destination"`
+			Labels struct {
+				Category *string  `json:"category"`
+				Tags     []string `json:"tags"`
+			} `json:"labels"`
+			Source struct {
+				Type PostApiDownloadTasks201JSONResponseBodySpecSourceType `json:"type"`
+				Uri  string                                                `json:"uri"`
+			} `json:"source"`
+		} `json:"spec"`
+		Status struct {
+			Assignment *struct {
+				AssignedAt   *string `json:"assignedAt,omitempty"`
+				DownloaderId string  `json:"downloaderId"`
+				UploadToken  *string `json:"uploadToken,omitempty"`
+			} `json:"assignment"`
+			Billing struct {
+				AuthorizedBytes int64                                                     `json:"authorizedBytes"`
+				ChargedBytes    int64                                                     `json:"chargedBytes"`
+				ChargedCredits  int64                                                     `json:"chargedCredits"`
+				State           PostApiDownloadTasks201JSONResponseBodyStatusBillingState `json:"state"`
+			} `json:"billing"`
+			Error *struct {
+				Code    *string `json:"code,omitempty"`
+				Message *string `json:"message"`
+			} `json:"error"`
+			FinishedAt *string `json:"finishedAt"`
+			Output     *struct {
+				ObjectId string `json:"objectId"`
+			} `json:"output"`
+			Progress struct {
+				Download struct {
+					Bytes          int64  `json:"bytes"`
+					BytesPerSecond int64  `json:"bytesPerSecond"`
+					TotalBytes     *int64 `json:"totalBytes,omitempty"`
+				} `json:"download"`
+				Upload struct {
+					Bytes          int64  `json:"bytes"`
+					BytesPerSecond int64  `json:"bytesPerSecond"`
+					TotalBytes     *int64 `json:"totalBytes,omitempty"`
+				} `json:"upload"`
+			} `json:"progress"`
+			Runtime *struct {
+				Connections *int                                                        `json:"connections,omitempty"`
+				Engine      *PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine `json:"engine,omitempty"`
+				EtaSeconds  *int                                                        `json:"etaSeconds,omitempty"`
+				Files       *[]struct {
+					CompletedBytes *int64 `json:"completedBytes,omitempty"`
+					Path           string `json:"path"`
+					Selected       *bool  `json:"selected,omitempty"`
+					Size           int64  `json:"size"`
+				} `json:"files,omitempty"`
+				Message *string `json:"message,omitempty"`
+				Peers   *[]struct {
+					Address     string   `json:"address"`
+					Client      *string  `json:"client,omitempty"`
+					CountryCode *string  `json:"countryCode,omitempty"`
+					DownloadBps *int64   `json:"downloadBps,omitempty"`
+					Progress    *float32 `json:"progress,omitempty"`
+					RegionCode  *string  `json:"regionCode,omitempty"`
+					UploadBps   *int64   `json:"uploadBps,omitempty"`
+				} `json:"peers,omitempty"`
+				Phase    *PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase `json:"phase,omitempty"`
+				Progress *struct {
+					Download struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"download"`
+					Upload struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"upload"`
+				} `json:"progress,omitempty"`
+				Seeding *struct {
+					Active               *bool    `json:"active,omitempty"`
+					Enabled              *bool    `json:"enabled,omitempty"`
+					ExpiresAt            *string  `json:"expiresAt,omitempty"`
+					Ratio                *float32 `json:"ratio,omitempty"`
+					StartedAt            *string  `json:"startedAt,omitempty"`
+					UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+					UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+				} `json:"seeding,omitempty"`
+				State   *string `json:"state,omitempty"`
+				Torrent *struct {
+					InfoHash *string `json:"infoHash,omitempty"`
+					Leechers *int    `json:"leechers,omitempty"`
+					Name     *string `json:"name,omitempty"`
+					Peers    *int    `json:"peers,omitempty"`
+					Seeders  *int    `json:"seeders,omitempty"`
+				} `json:"torrent,omitempty"`
+				Trackers *[]struct {
+					Leechers *int    `json:"leechers,omitempty"`
+					Message  *string `json:"message,omitempty"`
+					Peers    *int    `json:"peers,omitempty"`
+					Seeds    *int    `json:"seeds,omitempty"`
+					Status   *string `json:"status,omitempty"`
+					Url      string  `json:"url"`
+				} `json:"trackers,omitempty"`
+				UpdatedAt *string `json:"updatedAt,omitempty"`
+			} `json:"runtime"`
+			StartedAt *string                                            `json:"startedAt"`
+			State     PostApiDownloadTasks201JSONResponseBodyStatusState `json:"state"`
+			UpdatedAt string                                             `json:"updatedAt"`
+		} `json:"status"`
 	}
 	JSON401 *struct {
 		Error string `json:"error"`
@@ -4025,59 +4359,120 @@ type GetApiDownloadTasksIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		AssignedDownloaderId *string `json:"assignedDownloaderId,omitempty"`
-		Category             *string `json:"category"`
-		Detail               *struct {
-			Connections *int                                                  `json:"connections,omitempty"`
-			Engine      *GetApiDownloadTasksId200JSONResponseBodyDetailEngine `json:"engine,omitempty"`
-			EngineState *string                                               `json:"engineState,omitempty"`
-			EtaSeconds  *int                                                  `json:"etaSeconds,omitempty"`
-			Files       *[]struct {
-				CompletedBytes *int64 `json:"completedBytes,omitempty"`
-				Path           string `json:"path"`
-				Selected       *bool  `json:"selected,omitempty"`
-				Size           int64  `json:"size"`
-			} `json:"files,omitempty"`
-			InfoHash    *string `json:"infoHash,omitempty"`
-			Leechers    *int    `json:"leechers,omitempty"`
-			Message     *string `json:"message,omitempty"`
-			PeerSamples *[]struct {
-				Address     string   `json:"address"`
-				Client      *string  `json:"client,omitempty"`
-				DownloadBps *int64   `json:"downloadBps,omitempty"`
-				Progress    *float32 `json:"progress,omitempty"`
-				UploadBps   *int64   `json:"uploadBps,omitempty"`
-			} `json:"peerSamples,omitempty"`
-			PeerUploadBps     *int64                                               `json:"peerUploadBps,omitempty"`
-			PeerUploadedBytes *int64                                               `json:"peerUploadedBytes,omitempty"`
-			Peers             *int                                                 `json:"peers,omitempty"`
-			Phase             *GetApiDownloadTasksId200JSONResponseBodyDetailPhase `json:"phase,omitempty"`
-			Seeders           *int                                                 `json:"seeders,omitempty"`
-			TorrentName       *string                                              `json:"torrentName,omitempty"`
-			Trackers          *[]struct {
-				Leechers *int    `json:"leechers,omitempty"`
-				Message  *string `json:"message,omitempty"`
-				Peers    *int    `json:"peers,omitempty"`
-				Seeds    *int    `json:"seeds,omitempty"`
-				Status   *string `json:"status,omitempty"`
-				Url      string  `json:"url"`
-			} `json:"trackers,omitempty"`
-		} `json:"detail,omitempty"`
-		DownloadBps          int64                                              `json:"downloadBps"`
-		DownloadedBytes      int64                                              `json:"downloadedBytes"`
-		ErrorMessage         *string                                            `json:"errorMessage,omitempty"`
-		Id                   string                                             `json:"id"`
-		Name                 string                                             `json:"name"`
-		ResultObjectId       *string                                            `json:"resultObjectId,omitempty"`
-		SourceType           GetApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
-		SourceUri            string                                             `json:"sourceUri"`
-		Status               GetApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
-		StorageUploadBps     int64                                              `json:"storageUploadBps"`
-		StorageUploadedBytes int64                                              `json:"storageUploadedBytes"`
-		Tags                 []string                                           `json:"tags"`
-		TargetFolder         string                                             `json:"targetFolder"`
-		TotalBytes           *int64                                             `json:"totalBytes"`
-		UploadToken          *string                                            `json:"uploadToken,omitempty"`
+		CreatedAt string  `json:"createdAt"`
+		CreatedBy *string `json:"createdBy,omitempty"`
+		Id        string  `json:"id"`
+		OrgId     *string `json:"orgId,omitempty"`
+		Spec      struct {
+			Destination struct {
+				Folder string  `json:"folder"`
+				Name   *string `json:"name"`
+			} `json:"destination"`
+			Labels struct {
+				Category *string  `json:"category"`
+				Tags     []string `json:"tags"`
+			} `json:"labels"`
+			Source struct {
+				Type GetApiDownloadTasksId200JSONResponseBodySpecSourceType `json:"type"`
+				Uri  string                                                 `json:"uri"`
+			} `json:"source"`
+		} `json:"spec"`
+		Status struct {
+			Assignment *struct {
+				AssignedAt   *string `json:"assignedAt,omitempty"`
+				DownloaderId string  `json:"downloaderId"`
+				UploadToken  *string `json:"uploadToken,omitempty"`
+			} `json:"assignment"`
+			Billing struct {
+				AuthorizedBytes int64                                                      `json:"authorizedBytes"`
+				ChargedBytes    int64                                                      `json:"chargedBytes"`
+				ChargedCredits  int64                                                      `json:"chargedCredits"`
+				State           GetApiDownloadTasksId200JSONResponseBodyStatusBillingState `json:"state"`
+			} `json:"billing"`
+			Error *struct {
+				Code    *string `json:"code,omitempty"`
+				Message *string `json:"message"`
+			} `json:"error"`
+			FinishedAt *string `json:"finishedAt"`
+			Output     *struct {
+				ObjectId string `json:"objectId"`
+			} `json:"output"`
+			Progress struct {
+				Download struct {
+					Bytes          int64  `json:"bytes"`
+					BytesPerSecond int64  `json:"bytesPerSecond"`
+					TotalBytes     *int64 `json:"totalBytes,omitempty"`
+				} `json:"download"`
+				Upload struct {
+					Bytes          int64  `json:"bytes"`
+					BytesPerSecond int64  `json:"bytesPerSecond"`
+					TotalBytes     *int64 `json:"totalBytes,omitempty"`
+				} `json:"upload"`
+			} `json:"progress"`
+			Runtime *struct {
+				Connections *int                                                         `json:"connections,omitempty"`
+				Engine      *GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine `json:"engine,omitempty"`
+				EtaSeconds  *int                                                         `json:"etaSeconds,omitempty"`
+				Files       *[]struct {
+					CompletedBytes *int64 `json:"completedBytes,omitempty"`
+					Path           string `json:"path"`
+					Selected       *bool  `json:"selected,omitempty"`
+					Size           int64  `json:"size"`
+				} `json:"files,omitempty"`
+				Message *string `json:"message,omitempty"`
+				Peers   *[]struct {
+					Address     string   `json:"address"`
+					Client      *string  `json:"client,omitempty"`
+					CountryCode *string  `json:"countryCode,omitempty"`
+					DownloadBps *int64   `json:"downloadBps,omitempty"`
+					Progress    *float32 `json:"progress,omitempty"`
+					RegionCode  *string  `json:"regionCode,omitempty"`
+					UploadBps   *int64   `json:"uploadBps,omitempty"`
+				} `json:"peers,omitempty"`
+				Phase    *GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase `json:"phase,omitempty"`
+				Progress *struct {
+					Download struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"download"`
+					Upload struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"upload"`
+				} `json:"progress,omitempty"`
+				Seeding *struct {
+					Active               *bool    `json:"active,omitempty"`
+					Enabled              *bool    `json:"enabled,omitempty"`
+					ExpiresAt            *string  `json:"expiresAt,omitempty"`
+					Ratio                *float32 `json:"ratio,omitempty"`
+					StartedAt            *string  `json:"startedAt,omitempty"`
+					UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+					UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+				} `json:"seeding,omitempty"`
+				State   *string `json:"state,omitempty"`
+				Torrent *struct {
+					InfoHash *string `json:"infoHash,omitempty"`
+					Leechers *int    `json:"leechers,omitempty"`
+					Name     *string `json:"name,omitempty"`
+					Peers    *int    `json:"peers,omitempty"`
+					Seeders  *int    `json:"seeders,omitempty"`
+				} `json:"torrent,omitempty"`
+				Trackers *[]struct {
+					Leechers *int    `json:"leechers,omitempty"`
+					Message  *string `json:"message,omitempty"`
+					Peers    *int    `json:"peers,omitempty"`
+					Seeds    *int    `json:"seeds,omitempty"`
+					Status   *string `json:"status,omitempty"`
+					Url      string  `json:"url"`
+				} `json:"trackers,omitempty"`
+				UpdatedAt *string `json:"updatedAt,omitempty"`
+			} `json:"runtime"`
+			StartedAt *string                                             `json:"startedAt"`
+			State     GetApiDownloadTasksId200JSONResponseBodyStatusState `json:"state"`
+			UpdatedAt string                                              `json:"updatedAt"`
+		} `json:"status"`
 	}
 	JSON404 *struct {
 		Error string `json:"error"`
@@ -4112,59 +4507,120 @@ type PatchApiDownloadTasksIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		AssignedDownloaderId *string `json:"assignedDownloaderId,omitempty"`
-		Category             *string `json:"category"`
-		Detail               *struct {
-			Connections *int                                                    `json:"connections,omitempty"`
-			Engine      *PatchApiDownloadTasksId200JSONResponseBodyDetailEngine `json:"engine,omitempty"`
-			EngineState *string                                                 `json:"engineState,omitempty"`
-			EtaSeconds  *int                                                    `json:"etaSeconds,omitempty"`
-			Files       *[]struct {
-				CompletedBytes *int64 `json:"completedBytes,omitempty"`
-				Path           string `json:"path"`
-				Selected       *bool  `json:"selected,omitempty"`
-				Size           int64  `json:"size"`
-			} `json:"files,omitempty"`
-			InfoHash    *string `json:"infoHash,omitempty"`
-			Leechers    *int    `json:"leechers,omitempty"`
-			Message     *string `json:"message,omitempty"`
-			PeerSamples *[]struct {
-				Address     string   `json:"address"`
-				Client      *string  `json:"client,omitempty"`
-				DownloadBps *int64   `json:"downloadBps,omitempty"`
-				Progress    *float32 `json:"progress,omitempty"`
-				UploadBps   *int64   `json:"uploadBps,omitempty"`
-			} `json:"peerSamples,omitempty"`
-			PeerUploadBps     *int64                                                 `json:"peerUploadBps,omitempty"`
-			PeerUploadedBytes *int64                                                 `json:"peerUploadedBytes,omitempty"`
-			Peers             *int                                                   `json:"peers,omitempty"`
-			Phase             *PatchApiDownloadTasksId200JSONResponseBodyDetailPhase `json:"phase,omitempty"`
-			Seeders           *int                                                   `json:"seeders,omitempty"`
-			TorrentName       *string                                                `json:"torrentName,omitempty"`
-			Trackers          *[]struct {
-				Leechers *int    `json:"leechers,omitempty"`
-				Message  *string `json:"message,omitempty"`
-				Peers    *int    `json:"peers,omitempty"`
-				Seeds    *int    `json:"seeds,omitempty"`
-				Status   *string `json:"status,omitempty"`
-				Url      string  `json:"url"`
-			} `json:"trackers,omitempty"`
-		} `json:"detail,omitempty"`
-		DownloadBps          int64                                                `json:"downloadBps"`
-		DownloadedBytes      int64                                                `json:"downloadedBytes"`
-		ErrorMessage         *string                                              `json:"errorMessage,omitempty"`
-		Id                   string                                               `json:"id"`
-		Name                 string                                               `json:"name"`
-		ResultObjectId       *string                                              `json:"resultObjectId,omitempty"`
-		SourceType           PatchApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
-		SourceUri            string                                               `json:"sourceUri"`
-		Status               PatchApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
-		StorageUploadBps     int64                                                `json:"storageUploadBps"`
-		StorageUploadedBytes int64                                                `json:"storageUploadedBytes"`
-		Tags                 []string                                             `json:"tags"`
-		TargetFolder         string                                               `json:"targetFolder"`
-		TotalBytes           *int64                                               `json:"totalBytes"`
-		UploadToken          *string                                              `json:"uploadToken,omitempty"`
+		CreatedAt string  `json:"createdAt"`
+		CreatedBy *string `json:"createdBy,omitempty"`
+		Id        string  `json:"id"`
+		OrgId     *string `json:"orgId,omitempty"`
+		Spec      struct {
+			Destination struct {
+				Folder string  `json:"folder"`
+				Name   *string `json:"name"`
+			} `json:"destination"`
+			Labels struct {
+				Category *string  `json:"category"`
+				Tags     []string `json:"tags"`
+			} `json:"labels"`
+			Source struct {
+				Type PatchApiDownloadTasksId200JSONResponseBodySpecSourceType `json:"type"`
+				Uri  string                                                   `json:"uri"`
+			} `json:"source"`
+		} `json:"spec"`
+		Status struct {
+			Assignment *struct {
+				AssignedAt   *string `json:"assignedAt,omitempty"`
+				DownloaderId string  `json:"downloaderId"`
+				UploadToken  *string `json:"uploadToken,omitempty"`
+			} `json:"assignment"`
+			Billing struct {
+				AuthorizedBytes int64                                                        `json:"authorizedBytes"`
+				ChargedBytes    int64                                                        `json:"chargedBytes"`
+				ChargedCredits  int64                                                        `json:"chargedCredits"`
+				State           PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState `json:"state"`
+			} `json:"billing"`
+			Error *struct {
+				Code    *string `json:"code,omitempty"`
+				Message *string `json:"message"`
+			} `json:"error"`
+			FinishedAt *string `json:"finishedAt"`
+			Output     *struct {
+				ObjectId string `json:"objectId"`
+			} `json:"output"`
+			Progress struct {
+				Download struct {
+					Bytes          int64  `json:"bytes"`
+					BytesPerSecond int64  `json:"bytesPerSecond"`
+					TotalBytes     *int64 `json:"totalBytes,omitempty"`
+				} `json:"download"`
+				Upload struct {
+					Bytes          int64  `json:"bytes"`
+					BytesPerSecond int64  `json:"bytesPerSecond"`
+					TotalBytes     *int64 `json:"totalBytes,omitempty"`
+				} `json:"upload"`
+			} `json:"progress"`
+			Runtime *struct {
+				Connections *int                                                           `json:"connections,omitempty"`
+				Engine      *PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine `json:"engine,omitempty"`
+				EtaSeconds  *int                                                           `json:"etaSeconds,omitempty"`
+				Files       *[]struct {
+					CompletedBytes *int64 `json:"completedBytes,omitempty"`
+					Path           string `json:"path"`
+					Selected       *bool  `json:"selected,omitempty"`
+					Size           int64  `json:"size"`
+				} `json:"files,omitempty"`
+				Message *string `json:"message,omitempty"`
+				Peers   *[]struct {
+					Address     string   `json:"address"`
+					Client      *string  `json:"client,omitempty"`
+					CountryCode *string  `json:"countryCode,omitempty"`
+					DownloadBps *int64   `json:"downloadBps,omitempty"`
+					Progress    *float32 `json:"progress,omitempty"`
+					RegionCode  *string  `json:"regionCode,omitempty"`
+					UploadBps   *int64   `json:"uploadBps,omitempty"`
+				} `json:"peers,omitempty"`
+				Phase    *PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase `json:"phase,omitempty"`
+				Progress *struct {
+					Download struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"download"`
+					Upload struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"upload"`
+				} `json:"progress,omitempty"`
+				Seeding *struct {
+					Active               *bool    `json:"active,omitempty"`
+					Enabled              *bool    `json:"enabled,omitempty"`
+					ExpiresAt            *string  `json:"expiresAt,omitempty"`
+					Ratio                *float32 `json:"ratio,omitempty"`
+					StartedAt            *string  `json:"startedAt,omitempty"`
+					UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+					UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+				} `json:"seeding,omitempty"`
+				State   *string `json:"state,omitempty"`
+				Torrent *struct {
+					InfoHash *string `json:"infoHash,omitempty"`
+					Leechers *int    `json:"leechers,omitempty"`
+					Name     *string `json:"name,omitempty"`
+					Peers    *int    `json:"peers,omitempty"`
+					Seeders  *int    `json:"seeders,omitempty"`
+				} `json:"torrent,omitempty"`
+				Trackers *[]struct {
+					Leechers *int    `json:"leechers,omitempty"`
+					Message  *string `json:"message,omitempty"`
+					Peers    *int    `json:"peers,omitempty"`
+					Seeds    *int    `json:"seeds,omitempty"`
+					Status   *string `json:"status,omitempty"`
+					Url      string  `json:"url"`
+				} `json:"trackers,omitempty"`
+				UpdatedAt *string `json:"updatedAt,omitempty"`
+			} `json:"runtime"`
+			StartedAt *string                                               `json:"startedAt"`
+			State     PatchApiDownloadTasksId200JSONResponseBodyStatusState `json:"state"`
+			UpdatedAt string                                                `json:"updatedAt"`
+		} `json:"status"`
 	}
 	JSON401 *struct {
 		Error string `json:"error"`
@@ -5046,59 +5502,120 @@ func ParseGetApiDownloadTasksResponse(rsp *http.Response) (*GetApiDownloadTasksR
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
 			Items []struct {
-				AssignedDownloaderId *string `json:"assignedDownloaderId,omitempty"`
-				Category             *string `json:"category"`
-				Detail               *struct {
-					Connections *int                                                     `json:"connections,omitempty"`
-					Engine      *GetApiDownloadTasks200JSONResponseBodyItemsDetailEngine `json:"engine,omitempty"`
-					EngineState *string                                                  `json:"engineState,omitempty"`
-					EtaSeconds  *int                                                     `json:"etaSeconds,omitempty"`
-					Files       *[]struct {
-						CompletedBytes *int64 `json:"completedBytes,omitempty"`
-						Path           string `json:"path"`
-						Selected       *bool  `json:"selected,omitempty"`
-						Size           int64  `json:"size"`
-					} `json:"files,omitempty"`
-					InfoHash    *string `json:"infoHash,omitempty"`
-					Leechers    *int    `json:"leechers,omitempty"`
-					Message     *string `json:"message,omitempty"`
-					PeerSamples *[]struct {
-						Address     string   `json:"address"`
-						Client      *string  `json:"client,omitempty"`
-						DownloadBps *int64   `json:"downloadBps,omitempty"`
-						Progress    *float32 `json:"progress,omitempty"`
-						UploadBps   *int64   `json:"uploadBps,omitempty"`
-					} `json:"peerSamples,omitempty"`
-					PeerUploadBps     *int64                                                  `json:"peerUploadBps,omitempty"`
-					PeerUploadedBytes *int64                                                  `json:"peerUploadedBytes,omitempty"`
-					Peers             *int                                                    `json:"peers,omitempty"`
-					Phase             *GetApiDownloadTasks200JSONResponseBodyItemsDetailPhase `json:"phase,omitempty"`
-					Seeders           *int                                                    `json:"seeders,omitempty"`
-					TorrentName       *string                                                 `json:"torrentName,omitempty"`
-					Trackers          *[]struct {
-						Leechers *int    `json:"leechers,omitempty"`
-						Message  *string `json:"message,omitempty"`
-						Peers    *int    `json:"peers,omitempty"`
-						Seeds    *int    `json:"seeds,omitempty"`
-						Status   *string `json:"status,omitempty"`
-						Url      string  `json:"url"`
-					} `json:"trackers,omitempty"`
-				} `json:"detail,omitempty"`
-				DownloadBps          int64                                                 `json:"downloadBps"`
-				DownloadedBytes      int64                                                 `json:"downloadedBytes"`
-				ErrorMessage         *string                                               `json:"errorMessage,omitempty"`
-				Id                   string                                                `json:"id"`
-				Name                 string                                                `json:"name"`
-				ResultObjectId       *string                                               `json:"resultObjectId,omitempty"`
-				SourceType           GetApiDownloadTasks200JSONResponseBodyItemsSourceType `json:"sourceType"`
-				SourceUri            string                                                `json:"sourceUri"`
-				Status               GetApiDownloadTasks200JSONResponseBodyItemsStatus     `json:"status"`
-				StorageUploadBps     int64                                                 `json:"storageUploadBps"`
-				StorageUploadedBytes int64                                                 `json:"storageUploadedBytes"`
-				Tags                 []string                                              `json:"tags"`
-				TargetFolder         string                                                `json:"targetFolder"`
-				TotalBytes           *int64                                                `json:"totalBytes"`
-				UploadToken          *string                                               `json:"uploadToken,omitempty"`
+				CreatedAt string  `json:"createdAt"`
+				CreatedBy *string `json:"createdBy,omitempty"`
+				Id        string  `json:"id"`
+				OrgId     *string `json:"orgId,omitempty"`
+				Spec      struct {
+					Destination struct {
+						Folder string  `json:"folder"`
+						Name   *string `json:"name"`
+					} `json:"destination"`
+					Labels struct {
+						Category *string  `json:"category"`
+						Tags     []string `json:"tags"`
+					} `json:"labels"`
+					Source struct {
+						Type GetApiDownloadTasks200JSONResponseBodyItemsSpecSourceType `json:"type"`
+						Uri  string                                                    `json:"uri"`
+					} `json:"source"`
+				} `json:"spec"`
+				Status struct {
+					Assignment *struct {
+						AssignedAt   *string `json:"assignedAt,omitempty"`
+						DownloaderId string  `json:"downloaderId"`
+						UploadToken  *string `json:"uploadToken,omitempty"`
+					} `json:"assignment"`
+					Billing struct {
+						AuthorizedBytes int64                                                         `json:"authorizedBytes"`
+						ChargedBytes    int64                                                         `json:"chargedBytes"`
+						ChargedCredits  int64                                                         `json:"chargedCredits"`
+						State           GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingState `json:"state"`
+					} `json:"billing"`
+					Error *struct {
+						Code    *string `json:"code,omitempty"`
+						Message *string `json:"message"`
+					} `json:"error"`
+					FinishedAt *string `json:"finishedAt"`
+					Output     *struct {
+						ObjectId string `json:"objectId"`
+					} `json:"output"`
+					Progress struct {
+						Download struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"download"`
+						Upload struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"upload"`
+					} `json:"progress"`
+					Runtime *struct {
+						Connections *int                                                            `json:"connections,omitempty"`
+						Engine      *GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimeEngine `json:"engine,omitempty"`
+						EtaSeconds  *int                                                            `json:"etaSeconds,omitempty"`
+						Files       *[]struct {
+							CompletedBytes *int64 `json:"completedBytes,omitempty"`
+							Path           string `json:"path"`
+							Selected       *bool  `json:"selected,omitempty"`
+							Size           int64  `json:"size"`
+						} `json:"files,omitempty"`
+						Message *string `json:"message,omitempty"`
+						Peers   *[]struct {
+							Address     string   `json:"address"`
+							Client      *string  `json:"client,omitempty"`
+							CountryCode *string  `json:"countryCode,omitempty"`
+							DownloadBps *int64   `json:"downloadBps,omitempty"`
+							Progress    *float32 `json:"progress,omitempty"`
+							RegionCode  *string  `json:"regionCode,omitempty"`
+							UploadBps   *int64   `json:"uploadBps,omitempty"`
+						} `json:"peers,omitempty"`
+						Phase    *GetApiDownloadTasks200JSONResponseBodyItemsStatusRuntimePhase `json:"phase,omitempty"`
+						Progress *struct {
+							Download struct {
+								Bytes          int64  `json:"bytes"`
+								BytesPerSecond int64  `json:"bytesPerSecond"`
+								TotalBytes     *int64 `json:"totalBytes,omitempty"`
+							} `json:"download"`
+							Upload struct {
+								Bytes          int64  `json:"bytes"`
+								BytesPerSecond int64  `json:"bytesPerSecond"`
+								TotalBytes     *int64 `json:"totalBytes,omitempty"`
+							} `json:"upload"`
+						} `json:"progress,omitempty"`
+						Seeding *struct {
+							Active               *bool    `json:"active,omitempty"`
+							Enabled              *bool    `json:"enabled,omitempty"`
+							ExpiresAt            *string  `json:"expiresAt,omitempty"`
+							Ratio                *float32 `json:"ratio,omitempty"`
+							StartedAt            *string  `json:"startedAt,omitempty"`
+							UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+							UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+						} `json:"seeding,omitempty"`
+						State   *string `json:"state,omitempty"`
+						Torrent *struct {
+							InfoHash *string `json:"infoHash,omitempty"`
+							Leechers *int    `json:"leechers,omitempty"`
+							Name     *string `json:"name,omitempty"`
+							Peers    *int    `json:"peers,omitempty"`
+							Seeders  *int    `json:"seeders,omitempty"`
+						} `json:"torrent,omitempty"`
+						Trackers *[]struct {
+							Leechers *int    `json:"leechers,omitempty"`
+							Message  *string `json:"message,omitempty"`
+							Peers    *int    `json:"peers,omitempty"`
+							Seeds    *int    `json:"seeds,omitempty"`
+							Status   *string `json:"status,omitempty"`
+							Url      string  `json:"url"`
+						} `json:"trackers,omitempty"`
+						UpdatedAt *string `json:"updatedAt,omitempty"`
+					} `json:"runtime"`
+					StartedAt *string                                                `json:"startedAt"`
+					State     GetApiDownloadTasks200JSONResponseBodyItemsStatusState `json:"state"`
+					UpdatedAt string                                                 `json:"updatedAt"`
+				} `json:"status"`
 			} `json:"items"`
 			Page     int `json:"page"`
 			PageSize int `json:"pageSize"`
@@ -5139,59 +5656,120 @@ func ParsePostApiDownloadTasksResponse(rsp *http.Response) (*PostApiDownloadTask
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest struct {
-			AssignedDownloaderId *string `json:"assignedDownloaderId,omitempty"`
-			Category             *string `json:"category"`
-			Detail               *struct {
-				Connections *int                                                 `json:"connections,omitempty"`
-				Engine      *PostApiDownloadTasks201JSONResponseBodyDetailEngine `json:"engine,omitempty"`
-				EngineState *string                                              `json:"engineState,omitempty"`
-				EtaSeconds  *int                                                 `json:"etaSeconds,omitempty"`
-				Files       *[]struct {
-					CompletedBytes *int64 `json:"completedBytes,omitempty"`
-					Path           string `json:"path"`
-					Selected       *bool  `json:"selected,omitempty"`
-					Size           int64  `json:"size"`
-				} `json:"files,omitempty"`
-				InfoHash    *string `json:"infoHash,omitempty"`
-				Leechers    *int    `json:"leechers,omitempty"`
-				Message     *string `json:"message,omitempty"`
-				PeerSamples *[]struct {
-					Address     string   `json:"address"`
-					Client      *string  `json:"client,omitempty"`
-					DownloadBps *int64   `json:"downloadBps,omitempty"`
-					Progress    *float32 `json:"progress,omitempty"`
-					UploadBps   *int64   `json:"uploadBps,omitempty"`
-				} `json:"peerSamples,omitempty"`
-				PeerUploadBps     *int64                                              `json:"peerUploadBps,omitempty"`
-				PeerUploadedBytes *int64                                              `json:"peerUploadedBytes,omitempty"`
-				Peers             *int                                                `json:"peers,omitempty"`
-				Phase             *PostApiDownloadTasks201JSONResponseBodyDetailPhase `json:"phase,omitempty"`
-				Seeders           *int                                                `json:"seeders,omitempty"`
-				TorrentName       *string                                             `json:"torrentName,omitempty"`
-				Trackers          *[]struct {
-					Leechers *int    `json:"leechers,omitempty"`
-					Message  *string `json:"message,omitempty"`
-					Peers    *int    `json:"peers,omitempty"`
-					Seeds    *int    `json:"seeds,omitempty"`
-					Status   *string `json:"status,omitempty"`
-					Url      string  `json:"url"`
-				} `json:"trackers,omitempty"`
-			} `json:"detail,omitempty"`
-			DownloadBps          int64                                             `json:"downloadBps"`
-			DownloadedBytes      int64                                             `json:"downloadedBytes"`
-			ErrorMessage         *string                                           `json:"errorMessage,omitempty"`
-			Id                   string                                            `json:"id"`
-			Name                 string                                            `json:"name"`
-			ResultObjectId       *string                                           `json:"resultObjectId,omitempty"`
-			SourceType           PostApiDownloadTasks201JSONResponseBodySourceType `json:"sourceType"`
-			SourceUri            string                                            `json:"sourceUri"`
-			Status               PostApiDownloadTasks201JSONResponseBodyStatus     `json:"status"`
-			StorageUploadBps     int64                                             `json:"storageUploadBps"`
-			StorageUploadedBytes int64                                             `json:"storageUploadedBytes"`
-			Tags                 []string                                          `json:"tags"`
-			TargetFolder         string                                            `json:"targetFolder"`
-			TotalBytes           *int64                                            `json:"totalBytes"`
-			UploadToken          *string                                           `json:"uploadToken,omitempty"`
+			CreatedAt string  `json:"createdAt"`
+			CreatedBy *string `json:"createdBy,omitempty"`
+			Id        string  `json:"id"`
+			OrgId     *string `json:"orgId,omitempty"`
+			Spec      struct {
+				Destination struct {
+					Folder string  `json:"folder"`
+					Name   *string `json:"name"`
+				} `json:"destination"`
+				Labels struct {
+					Category *string  `json:"category"`
+					Tags     []string `json:"tags"`
+				} `json:"labels"`
+				Source struct {
+					Type PostApiDownloadTasks201JSONResponseBodySpecSourceType `json:"type"`
+					Uri  string                                                `json:"uri"`
+				} `json:"source"`
+			} `json:"spec"`
+			Status struct {
+				Assignment *struct {
+					AssignedAt   *string `json:"assignedAt,omitempty"`
+					DownloaderId string  `json:"downloaderId"`
+					UploadToken  *string `json:"uploadToken,omitempty"`
+				} `json:"assignment"`
+				Billing struct {
+					AuthorizedBytes int64                                                     `json:"authorizedBytes"`
+					ChargedBytes    int64                                                     `json:"chargedBytes"`
+					ChargedCredits  int64                                                     `json:"chargedCredits"`
+					State           PostApiDownloadTasks201JSONResponseBodyStatusBillingState `json:"state"`
+				} `json:"billing"`
+				Error *struct {
+					Code    *string `json:"code,omitempty"`
+					Message *string `json:"message"`
+				} `json:"error"`
+				FinishedAt *string `json:"finishedAt"`
+				Output     *struct {
+					ObjectId string `json:"objectId"`
+				} `json:"output"`
+				Progress struct {
+					Download struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"download"`
+					Upload struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"upload"`
+				} `json:"progress"`
+				Runtime *struct {
+					Connections *int                                                        `json:"connections,omitempty"`
+					Engine      *PostApiDownloadTasks201JSONResponseBodyStatusRuntimeEngine `json:"engine,omitempty"`
+					EtaSeconds  *int                                                        `json:"etaSeconds,omitempty"`
+					Files       *[]struct {
+						CompletedBytes *int64 `json:"completedBytes,omitempty"`
+						Path           string `json:"path"`
+						Selected       *bool  `json:"selected,omitempty"`
+						Size           int64  `json:"size"`
+					} `json:"files,omitempty"`
+					Message *string `json:"message,omitempty"`
+					Peers   *[]struct {
+						Address     string   `json:"address"`
+						Client      *string  `json:"client,omitempty"`
+						CountryCode *string  `json:"countryCode,omitempty"`
+						DownloadBps *int64   `json:"downloadBps,omitempty"`
+						Progress    *float32 `json:"progress,omitempty"`
+						RegionCode  *string  `json:"regionCode,omitempty"`
+						UploadBps   *int64   `json:"uploadBps,omitempty"`
+					} `json:"peers,omitempty"`
+					Phase    *PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase `json:"phase,omitempty"`
+					Progress *struct {
+						Download struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"download"`
+						Upload struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"upload"`
+					} `json:"progress,omitempty"`
+					Seeding *struct {
+						Active               *bool    `json:"active,omitempty"`
+						Enabled              *bool    `json:"enabled,omitempty"`
+						ExpiresAt            *string  `json:"expiresAt,omitempty"`
+						Ratio                *float32 `json:"ratio,omitempty"`
+						StartedAt            *string  `json:"startedAt,omitempty"`
+						UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+						UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+					} `json:"seeding,omitempty"`
+					State   *string `json:"state,omitempty"`
+					Torrent *struct {
+						InfoHash *string `json:"infoHash,omitempty"`
+						Leechers *int    `json:"leechers,omitempty"`
+						Name     *string `json:"name,omitempty"`
+						Peers    *int    `json:"peers,omitempty"`
+						Seeders  *int    `json:"seeders,omitempty"`
+					} `json:"torrent,omitempty"`
+					Trackers *[]struct {
+						Leechers *int    `json:"leechers,omitempty"`
+						Message  *string `json:"message,omitempty"`
+						Peers    *int    `json:"peers,omitempty"`
+						Seeds    *int    `json:"seeds,omitempty"`
+						Status   *string `json:"status,omitempty"`
+						Url      string  `json:"url"`
+					} `json:"trackers,omitempty"`
+					UpdatedAt *string `json:"updatedAt,omitempty"`
+				} `json:"runtime"`
+				StartedAt *string                                            `json:"startedAt"`
+				State     PostApiDownloadTasks201JSONResponseBodyStatusState `json:"state"`
+				UpdatedAt string                                             `json:"updatedAt"`
+			} `json:"status"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -5274,59 +5852,120 @@ func ParseGetApiDownloadTasksIdResponse(rsp *http.Response) (*GetApiDownloadTask
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			AssignedDownloaderId *string `json:"assignedDownloaderId,omitempty"`
-			Category             *string `json:"category"`
-			Detail               *struct {
-				Connections *int                                                  `json:"connections,omitempty"`
-				Engine      *GetApiDownloadTasksId200JSONResponseBodyDetailEngine `json:"engine,omitempty"`
-				EngineState *string                                               `json:"engineState,omitempty"`
-				EtaSeconds  *int                                                  `json:"etaSeconds,omitempty"`
-				Files       *[]struct {
-					CompletedBytes *int64 `json:"completedBytes,omitempty"`
-					Path           string `json:"path"`
-					Selected       *bool  `json:"selected,omitempty"`
-					Size           int64  `json:"size"`
-				} `json:"files,omitempty"`
-				InfoHash    *string `json:"infoHash,omitempty"`
-				Leechers    *int    `json:"leechers,omitempty"`
-				Message     *string `json:"message,omitempty"`
-				PeerSamples *[]struct {
-					Address     string   `json:"address"`
-					Client      *string  `json:"client,omitempty"`
-					DownloadBps *int64   `json:"downloadBps,omitempty"`
-					Progress    *float32 `json:"progress,omitempty"`
-					UploadBps   *int64   `json:"uploadBps,omitempty"`
-				} `json:"peerSamples,omitempty"`
-				PeerUploadBps     *int64                                               `json:"peerUploadBps,omitempty"`
-				PeerUploadedBytes *int64                                               `json:"peerUploadedBytes,omitempty"`
-				Peers             *int                                                 `json:"peers,omitempty"`
-				Phase             *GetApiDownloadTasksId200JSONResponseBodyDetailPhase `json:"phase,omitempty"`
-				Seeders           *int                                                 `json:"seeders,omitempty"`
-				TorrentName       *string                                              `json:"torrentName,omitempty"`
-				Trackers          *[]struct {
-					Leechers *int    `json:"leechers,omitempty"`
-					Message  *string `json:"message,omitempty"`
-					Peers    *int    `json:"peers,omitempty"`
-					Seeds    *int    `json:"seeds,omitempty"`
-					Status   *string `json:"status,omitempty"`
-					Url      string  `json:"url"`
-				} `json:"trackers,omitempty"`
-			} `json:"detail,omitempty"`
-			DownloadBps          int64                                              `json:"downloadBps"`
-			DownloadedBytes      int64                                              `json:"downloadedBytes"`
-			ErrorMessage         *string                                            `json:"errorMessage,omitempty"`
-			Id                   string                                             `json:"id"`
-			Name                 string                                             `json:"name"`
-			ResultObjectId       *string                                            `json:"resultObjectId,omitempty"`
-			SourceType           GetApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
-			SourceUri            string                                             `json:"sourceUri"`
-			Status               GetApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
-			StorageUploadBps     int64                                              `json:"storageUploadBps"`
-			StorageUploadedBytes int64                                              `json:"storageUploadedBytes"`
-			Tags                 []string                                           `json:"tags"`
-			TargetFolder         string                                             `json:"targetFolder"`
-			TotalBytes           *int64                                             `json:"totalBytes"`
-			UploadToken          *string                                            `json:"uploadToken,omitempty"`
+			CreatedAt string  `json:"createdAt"`
+			CreatedBy *string `json:"createdBy,omitempty"`
+			Id        string  `json:"id"`
+			OrgId     *string `json:"orgId,omitempty"`
+			Spec      struct {
+				Destination struct {
+					Folder string  `json:"folder"`
+					Name   *string `json:"name"`
+				} `json:"destination"`
+				Labels struct {
+					Category *string  `json:"category"`
+					Tags     []string `json:"tags"`
+				} `json:"labels"`
+				Source struct {
+					Type GetApiDownloadTasksId200JSONResponseBodySpecSourceType `json:"type"`
+					Uri  string                                                 `json:"uri"`
+				} `json:"source"`
+			} `json:"spec"`
+			Status struct {
+				Assignment *struct {
+					AssignedAt   *string `json:"assignedAt,omitempty"`
+					DownloaderId string  `json:"downloaderId"`
+					UploadToken  *string `json:"uploadToken,omitempty"`
+				} `json:"assignment"`
+				Billing struct {
+					AuthorizedBytes int64                                                      `json:"authorizedBytes"`
+					ChargedBytes    int64                                                      `json:"chargedBytes"`
+					ChargedCredits  int64                                                      `json:"chargedCredits"`
+					State           GetApiDownloadTasksId200JSONResponseBodyStatusBillingState `json:"state"`
+				} `json:"billing"`
+				Error *struct {
+					Code    *string `json:"code,omitempty"`
+					Message *string `json:"message"`
+				} `json:"error"`
+				FinishedAt *string `json:"finishedAt"`
+				Output     *struct {
+					ObjectId string `json:"objectId"`
+				} `json:"output"`
+				Progress struct {
+					Download struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"download"`
+					Upload struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"upload"`
+				} `json:"progress"`
+				Runtime *struct {
+					Connections *int                                                         `json:"connections,omitempty"`
+					Engine      *GetApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine `json:"engine,omitempty"`
+					EtaSeconds  *int                                                         `json:"etaSeconds,omitempty"`
+					Files       *[]struct {
+						CompletedBytes *int64 `json:"completedBytes,omitempty"`
+						Path           string `json:"path"`
+						Selected       *bool  `json:"selected,omitempty"`
+						Size           int64  `json:"size"`
+					} `json:"files,omitempty"`
+					Message *string `json:"message,omitempty"`
+					Peers   *[]struct {
+						Address     string   `json:"address"`
+						Client      *string  `json:"client,omitempty"`
+						CountryCode *string  `json:"countryCode,omitempty"`
+						DownloadBps *int64   `json:"downloadBps,omitempty"`
+						Progress    *float32 `json:"progress,omitempty"`
+						RegionCode  *string  `json:"regionCode,omitempty"`
+						UploadBps   *int64   `json:"uploadBps,omitempty"`
+					} `json:"peers,omitempty"`
+					Phase    *GetApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase `json:"phase,omitempty"`
+					Progress *struct {
+						Download struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"download"`
+						Upload struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"upload"`
+					} `json:"progress,omitempty"`
+					Seeding *struct {
+						Active               *bool    `json:"active,omitempty"`
+						Enabled              *bool    `json:"enabled,omitempty"`
+						ExpiresAt            *string  `json:"expiresAt,omitempty"`
+						Ratio                *float32 `json:"ratio,omitempty"`
+						StartedAt            *string  `json:"startedAt,omitempty"`
+						UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+						UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+					} `json:"seeding,omitempty"`
+					State   *string `json:"state,omitempty"`
+					Torrent *struct {
+						InfoHash *string `json:"infoHash,omitempty"`
+						Leechers *int    `json:"leechers,omitempty"`
+						Name     *string `json:"name,omitempty"`
+						Peers    *int    `json:"peers,omitempty"`
+						Seeders  *int    `json:"seeders,omitempty"`
+					} `json:"torrent,omitempty"`
+					Trackers *[]struct {
+						Leechers *int    `json:"leechers,omitempty"`
+						Message  *string `json:"message,omitempty"`
+						Peers    *int    `json:"peers,omitempty"`
+						Seeds    *int    `json:"seeds,omitempty"`
+						Status   *string `json:"status,omitempty"`
+						Url      string  `json:"url"`
+					} `json:"trackers,omitempty"`
+					UpdatedAt *string `json:"updatedAt,omitempty"`
+				} `json:"runtime"`
+				StartedAt *string                                             `json:"startedAt"`
+				State     GetApiDownloadTasksId200JSONResponseBodyStatusState `json:"state"`
+				UpdatedAt string                                              `json:"updatedAt"`
+			} `json:"status"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -5363,59 +6002,120 @@ func ParsePatchApiDownloadTasksIdResponse(rsp *http.Response) (*PatchApiDownload
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			AssignedDownloaderId *string `json:"assignedDownloaderId,omitempty"`
-			Category             *string `json:"category"`
-			Detail               *struct {
-				Connections *int                                                    `json:"connections,omitempty"`
-				Engine      *PatchApiDownloadTasksId200JSONResponseBodyDetailEngine `json:"engine,omitempty"`
-				EngineState *string                                                 `json:"engineState,omitempty"`
-				EtaSeconds  *int                                                    `json:"etaSeconds,omitempty"`
-				Files       *[]struct {
-					CompletedBytes *int64 `json:"completedBytes,omitempty"`
-					Path           string `json:"path"`
-					Selected       *bool  `json:"selected,omitempty"`
-					Size           int64  `json:"size"`
-				} `json:"files,omitempty"`
-				InfoHash    *string `json:"infoHash,omitempty"`
-				Leechers    *int    `json:"leechers,omitempty"`
-				Message     *string `json:"message,omitempty"`
-				PeerSamples *[]struct {
-					Address     string   `json:"address"`
-					Client      *string  `json:"client,omitempty"`
-					DownloadBps *int64   `json:"downloadBps,omitempty"`
-					Progress    *float32 `json:"progress,omitempty"`
-					UploadBps   *int64   `json:"uploadBps,omitempty"`
-				} `json:"peerSamples,omitempty"`
-				PeerUploadBps     *int64                                                 `json:"peerUploadBps,omitempty"`
-				PeerUploadedBytes *int64                                                 `json:"peerUploadedBytes,omitempty"`
-				Peers             *int                                                   `json:"peers,omitempty"`
-				Phase             *PatchApiDownloadTasksId200JSONResponseBodyDetailPhase `json:"phase,omitempty"`
-				Seeders           *int                                                   `json:"seeders,omitempty"`
-				TorrentName       *string                                                `json:"torrentName,omitempty"`
-				Trackers          *[]struct {
-					Leechers *int    `json:"leechers,omitempty"`
-					Message  *string `json:"message,omitempty"`
-					Peers    *int    `json:"peers,omitempty"`
-					Seeds    *int    `json:"seeds,omitempty"`
-					Status   *string `json:"status,omitempty"`
-					Url      string  `json:"url"`
-				} `json:"trackers,omitempty"`
-			} `json:"detail,omitempty"`
-			DownloadBps          int64                                                `json:"downloadBps"`
-			DownloadedBytes      int64                                                `json:"downloadedBytes"`
-			ErrorMessage         *string                                              `json:"errorMessage,omitempty"`
-			Id                   string                                               `json:"id"`
-			Name                 string                                               `json:"name"`
-			ResultObjectId       *string                                              `json:"resultObjectId,omitempty"`
-			SourceType           PatchApiDownloadTasksId200JSONResponseBodySourceType `json:"sourceType"`
-			SourceUri            string                                               `json:"sourceUri"`
-			Status               PatchApiDownloadTasksId200JSONResponseBodyStatus     `json:"status"`
-			StorageUploadBps     int64                                                `json:"storageUploadBps"`
-			StorageUploadedBytes int64                                                `json:"storageUploadedBytes"`
-			Tags                 []string                                             `json:"tags"`
-			TargetFolder         string                                               `json:"targetFolder"`
-			TotalBytes           *int64                                               `json:"totalBytes"`
-			UploadToken          *string                                              `json:"uploadToken,omitempty"`
+			CreatedAt string  `json:"createdAt"`
+			CreatedBy *string `json:"createdBy,omitempty"`
+			Id        string  `json:"id"`
+			OrgId     *string `json:"orgId,omitempty"`
+			Spec      struct {
+				Destination struct {
+					Folder string  `json:"folder"`
+					Name   *string `json:"name"`
+				} `json:"destination"`
+				Labels struct {
+					Category *string  `json:"category"`
+					Tags     []string `json:"tags"`
+				} `json:"labels"`
+				Source struct {
+					Type PatchApiDownloadTasksId200JSONResponseBodySpecSourceType `json:"type"`
+					Uri  string                                                   `json:"uri"`
+				} `json:"source"`
+			} `json:"spec"`
+			Status struct {
+				Assignment *struct {
+					AssignedAt   *string `json:"assignedAt,omitempty"`
+					DownloaderId string  `json:"downloaderId"`
+					UploadToken  *string `json:"uploadToken,omitempty"`
+				} `json:"assignment"`
+				Billing struct {
+					AuthorizedBytes int64                                                        `json:"authorizedBytes"`
+					ChargedBytes    int64                                                        `json:"chargedBytes"`
+					ChargedCredits  int64                                                        `json:"chargedCredits"`
+					State           PatchApiDownloadTasksId200JSONResponseBodyStatusBillingState `json:"state"`
+				} `json:"billing"`
+				Error *struct {
+					Code    *string `json:"code,omitempty"`
+					Message *string `json:"message"`
+				} `json:"error"`
+				FinishedAt *string `json:"finishedAt"`
+				Output     *struct {
+					ObjectId string `json:"objectId"`
+				} `json:"output"`
+				Progress struct {
+					Download struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"download"`
+					Upload struct {
+						Bytes          int64  `json:"bytes"`
+						BytesPerSecond int64  `json:"bytesPerSecond"`
+						TotalBytes     *int64 `json:"totalBytes,omitempty"`
+					} `json:"upload"`
+				} `json:"progress"`
+				Runtime *struct {
+					Connections *int                                                           `json:"connections,omitempty"`
+					Engine      *PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimeEngine `json:"engine,omitempty"`
+					EtaSeconds  *int                                                           `json:"etaSeconds,omitempty"`
+					Files       *[]struct {
+						CompletedBytes *int64 `json:"completedBytes,omitempty"`
+						Path           string `json:"path"`
+						Selected       *bool  `json:"selected,omitempty"`
+						Size           int64  `json:"size"`
+					} `json:"files,omitempty"`
+					Message *string `json:"message,omitempty"`
+					Peers   *[]struct {
+						Address     string   `json:"address"`
+						Client      *string  `json:"client,omitempty"`
+						CountryCode *string  `json:"countryCode,omitempty"`
+						DownloadBps *int64   `json:"downloadBps,omitempty"`
+						Progress    *float32 `json:"progress,omitempty"`
+						RegionCode  *string  `json:"regionCode,omitempty"`
+						UploadBps   *int64   `json:"uploadBps,omitempty"`
+					} `json:"peers,omitempty"`
+					Phase    *PatchApiDownloadTasksId200JSONResponseBodyStatusRuntimePhase `json:"phase,omitempty"`
+					Progress *struct {
+						Download struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"download"`
+						Upload struct {
+							Bytes          int64  `json:"bytes"`
+							BytesPerSecond int64  `json:"bytesPerSecond"`
+							TotalBytes     *int64 `json:"totalBytes,omitempty"`
+						} `json:"upload"`
+					} `json:"progress,omitempty"`
+					Seeding *struct {
+						Active               *bool    `json:"active,omitempty"`
+						Enabled              *bool    `json:"enabled,omitempty"`
+						ExpiresAt            *string  `json:"expiresAt,omitempty"`
+						Ratio                *float32 `json:"ratio,omitempty"`
+						StartedAt            *string  `json:"startedAt,omitempty"`
+						UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+						UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+					} `json:"seeding,omitempty"`
+					State   *string `json:"state,omitempty"`
+					Torrent *struct {
+						InfoHash *string `json:"infoHash,omitempty"`
+						Leechers *int    `json:"leechers,omitempty"`
+						Name     *string `json:"name,omitempty"`
+						Peers    *int    `json:"peers,omitempty"`
+						Seeders  *int    `json:"seeders,omitempty"`
+					} `json:"torrent,omitempty"`
+					Trackers *[]struct {
+						Leechers *int    `json:"leechers,omitempty"`
+						Message  *string `json:"message,omitempty"`
+						Peers    *int    `json:"peers,omitempty"`
+						Seeds    *int    `json:"seeds,omitempty"`
+						Status   *string `json:"status,omitempty"`
+						Url      string  `json:"url"`
+					} `json:"trackers,omitempty"`
+					UpdatedAt *string `json:"updatedAt,omitempty"`
+				} `json:"runtime"`
+				StartedAt *string                                               `json:"startedAt"`
+				State     PatchApiDownloadTasksId200JSONResponseBodyStatusState `json:"state"`
+				UpdatedAt string                                                `json:"updatedAt"`
+			} `json:"status"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

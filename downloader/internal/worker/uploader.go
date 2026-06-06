@@ -36,16 +36,16 @@ func (w *Worker) uploadResult(
 ) (string, error) {
 	if !result.IsDir {
 		progress := &uploadProgress{totalBytes: result.Size, lastAt: time.Now()}
-		return w.uploadSingleFile(ctx, log, task, result.Path, result.Name, result.Size, task.TargetFolder, progress)
+		return w.uploadSingleFile(ctx, log, task, result.Path, result.Name, result.Size, task.TargetFolder(), progress)
 	}
 
 	progress := &uploadProgress{totalBytes: result.Size, lastAt: time.Now()}
-	log.Info("creating remote folder", "name", result.Name, "size", result.Size, "target_folder", task.TargetFolder)
-	root, err := w.createFolder(ctx, task.UploadToken, result.Name, task.TargetFolder)
+	log.Info("creating remote folder", "name", result.Name, "size", result.Size, "target_folder", task.TargetFolder())
+	root, err := w.createFolder(ctx, task.UploadToken(), result.Name, task.TargetFolder())
 	if err != nil {
 		return "", fmt.Errorf("create remote folder: %w", err)
 	}
-	rootPath := joinObjectPath(task.TargetFolder, root.Name)
+	rootPath := joinObjectPath(task.TargetFolder(), root.Name)
 	entries, err := collectDirectoryEntries(result.Path)
 	if err != nil {
 		return "", err
@@ -54,7 +54,7 @@ func (w *Worker) uploadResult(
 		parent := joinObjectPath(rootPath, path.Dir(entry.relativePath))
 		if entry.isDir {
 			log.Debug("creating remote subfolder", "name", entry.name, "parent", parent)
-			if _, err := w.createFolder(ctx, task.UploadToken, entry.name, parent); err != nil {
+			if _, err := w.createFolder(ctx, task.UploadToken(), entry.name, parent); err != nil {
 				return "", fmt.Errorf("create remote subfolder %s: %w", entry.relativePath, err)
 			}
 			continue
@@ -77,7 +77,7 @@ func (w *Worker) uploadSingleFile(
 	progress *uploadProgress,
 ) (string, error) {
 	log.Info("creating remote object", "name", name, "size", size, "target_folder", parent)
-	draft, err := w.createObject(ctx, task.UploadToken, name, size, parent)
+	draft, err := w.createObject(ctx, task.UploadToken(), name, size, parent)
 	if err != nil {
 		return "", fmt.Errorf("create remote object: %w", err)
 	}
@@ -94,7 +94,7 @@ func (w *Worker) uploadSingleFile(
 		}
 	}
 	log.Info("confirming uploaded object", "object_id", draft.ID)
-	if err := w.confirmObject(ctx, task.UploadToken, draft.ID); err != nil {
+	if err := w.confirmObject(ctx, task.UploadToken(), draft.ID); err != nil {
 		return "", fmt.Errorf("confirm object %s: %w", draft.ID, err)
 	}
 	return draft.ID, nil
@@ -111,7 +111,7 @@ func (w *Worker) uploadMultipartFile(
 ) error {
 	partSize := multipartPartSize(size)
 	log.Info("creating multipart upload session", "object_id", objectID, "part_size", partSize)
-	session, err := w.createObjectUploadSession(ctx, task.UploadToken, objectID, partSize)
+	session, err := w.createObjectUploadSession(ctx, task.UploadToken(), objectID, partSize)
 	if err != nil {
 		return fmt.Errorf("create multipart upload session: %w", err)
 	}
@@ -125,7 +125,7 @@ func (w *Worker) uploadMultipartFile(
 		}
 		abortCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
-		if abortErr := w.abortObjectUploadSession(abortCtx, task.UploadToken, objectID, session.ID); abortErr != nil {
+		if abortErr := w.abortObjectUploadSession(abortCtx, task.UploadToken(), objectID, session.ID); abortErr != nil {
 			log.Warn("failed to abort multipart upload session", "object_id", objectID, "upload_session_id", session.ID, "error", abortErr)
 		}
 	}()
@@ -147,7 +147,7 @@ func (w *Worker) uploadMultipartFile(
 		for partNumber := firstPart; partNumber <= lastPart; partNumber++ {
 			partNumbers = append(partNumbers, partNumber)
 		}
-		presignedParts, err := w.presignObjectUploadParts(ctx, task.UploadToken, objectID, session.ID, partNumbers)
+		presignedParts, err := w.presignObjectUploadParts(ctx, task.UploadToken(), objectID, session.ID, partNumbers)
 		if err != nil {
 			return fmt.Errorf("presign multipart upload parts: %w", err)
 		}
@@ -177,7 +177,7 @@ func (w *Worker) uploadMultipartFile(
 			parts = append(parts, client.CompletedObjectUploadPart{PartNumber: partNumber, ETag: etag})
 		}
 	}
-	if err := w.completeObjectUploadSession(ctx, task.UploadToken, objectID, session.ID, parts); err != nil {
+	if err := w.completeObjectUploadSession(ctx, task.UploadToken(), objectID, session.ID, parts); err != nil {
 		return fmt.Errorf("complete multipart upload session: %w", err)
 	}
 	completed = true
@@ -201,20 +201,17 @@ func (w *Worker) reportUploadProgress(
 	if elapsed > 0 {
 		bps = int64(float64(progress.uploaded-progress.lastBytes) / elapsed)
 	}
-	detail := task.Detail
+	detail := task.Runtime()
 	if detail == nil {
-		detail = &client.DownloadTaskDetail{}
+		detail = &client.DownloadTaskRuntime{}
 	}
 	detail.Phase = "uploading"
 	detail.ETASeconds = uploadETA(progress, bps)
-	detail.PeerUploadBps = nil
-	zero := int64(0)
+	detail.Seeding = nil
 	_, err := w.updateTask(ctx, task.ID, client.TaskPatch{
-		Status:               "uploading",
-		StorageUploadedBytes: &progress.uploaded,
-		DownloadBps:          &zero,
-		StorageUploadBps:     &bps,
-		Detail:               detail,
+		Status:   "uploading",
+		Progress: uploadProgressPatch(progress.uploaded, progress.totalBytes, bps),
+		Runtime:  detail,
 	})
 	if err != nil {
 		log.Error("failed to report upload progress", "uploaded_bytes", progress.uploaded, "total_bytes", progress.totalBytes, "bps", bps, "error", err)

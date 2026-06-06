@@ -91,7 +91,6 @@ export async function resolveTaskUploadToken(
 ): Promise<TaskUploadTokenClaims | null> {
   const claims = await verifyDownloadToken(platform, token)
   if (!claims || claims.typ !== 'download-task-upload') return null
-  const hash = await hashDownloadToken(platform, token)
   const rows = await db
     .select({
       id: downloadTasks.id,
@@ -99,9 +98,7 @@ export async function resolveTaskUploadToken(
       status: downloadTasks.status,
       orgId: downloadTasks.orgId,
       targetFolder: downloadTasks.targetFolder,
-      uploadTokenHash: downloadTasks.uploadTokenHash,
-      uploadTokenJti: downloadTasks.uploadTokenJti,
-      uploadTokenExpiresAt: downloadTasks.uploadTokenExpiresAt,
+      createdByUserId: downloadTasks.createdByUserId,
     })
     .from(downloadTasks)
     .where(eq(downloadTasks.id, claims.taskId))
@@ -109,9 +106,13 @@ export async function resolveTaskUploadToken(
   const task = rows[0]
   if (!task) return null
   if (task.assignedDownloaderId !== claims.downloaderId) return null
-  if (task.orgId !== claims.orgId || task.targetFolder !== claims.targetFolder) return null
-  if (task.uploadTokenHash !== hash || task.uploadTokenJti !== claims.jti) return null
-  if (task.uploadTokenExpiresAt && task.uploadTokenExpiresAt.getTime() <= Date.now()) return null
+  if (
+    task.orgId !== claims.orgId ||
+    task.targetFolder !== claims.targetFolder ||
+    task.createdByUserId !== claims.createdByUserId
+  ) {
+    return null
+  }
   if (!['assigned', 'downloading', 'uploading'].includes(task.status)) return null
   return claims
 }

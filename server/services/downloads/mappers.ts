@@ -1,3 +1,4 @@
+import { downloadTaskRuntimeSchema } from '@shared/schemas'
 import type { Downloader, DownloadTask } from '@shared/types'
 import type { DownloaderRow, DownloadTaskRow } from './types'
 
@@ -29,35 +30,45 @@ export function toDownloader(row: DownloaderRow): Downloader {
 }
 
 export function toDownloadTask(row: DownloadTaskRow): DownloadTask {
+  const runtime = parseTaskRuntime(row.runtime)
   return {
     id: row.id,
     orgId: row.orgId,
-    createdByUserId: row.createdByUserId,
-    sourceType: row.sourceType as DownloadTask['sourceType'],
-    sourceUri: row.sourceUri,
-    name: row.name,
-    targetFolder: row.targetFolder,
-    category: row.category,
-    tags: parseTaskTags(row.tags),
-    assignedDownloaderId: row.assignedDownloaderId,
-    status: row.status as DownloadTask['status'],
-    downloadedBytes: row.downloadedBytes,
-    storageUploadedBytes: row.uploadedBytes,
-    totalBytes: row.totalBytes,
-    authorizedBytes: row.authorizedBytes,
-    billedBytes: row.billedBytes,
-    billedCredits: row.billedCredits,
-    billingStatus: row.billingStatus,
-    downloadBps: row.downloadBps,
-    storageUploadBps: row.uploadBps,
-    errorMessage: row.errorMessage,
-    resultObjectId: row.resultObjectId,
-    detail: parseTaskDetail(row.detail),
+    createdBy: row.createdByUserId,
+    spec: {
+      source: {
+        type: row.sourceType as DownloadTask['spec']['source']['type'],
+        uri: row.sourceUri,
+      },
+      destination: {
+        folder: row.targetFolder,
+        name: row.displayName,
+      },
+      labels: {
+        category: row.category,
+        tags: parseTaskTags(row.tags),
+      },
+    },
+    status: {
+      state: row.status as DownloadTask['status']['state'],
+      assignment: row.assignedDownloaderId
+        ? { downloaderId: row.assignedDownloaderId, assignedAt: row.assignedAt?.toISOString() ?? null }
+        : null,
+      progress: runtime?.progress ?? emptyTaskProgress(),
+      billing: {
+        state: row.billingStatus as DownloadTask['status']['billing']['state'],
+        authorizedBytes: row.billingAuthorizedBytes,
+        chargedBytes: row.billingChargedBytes,
+        chargedCredits: row.billingChargedCredits,
+      },
+      output: row.resultObjectId ? { objectId: row.resultObjectId } : null,
+      runtime,
+      error: row.errorMessage ? { code: row.errorCode, message: row.errorMessage } : null,
+      startedAt: row.startedAt?.toISOString() ?? null,
+      finishedAt: row.finishedAt?.toISOString() ?? null,
+      updatedAt: row.updatedAt.toISOString(),
+    },
     createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    assignedAt: row.assignedAt?.toISOString() ?? null,
-    startedAt: row.startedAt?.toISOString() ?? null,
-    finishedAt: row.finishedAt?.toISOString() ?? null,
   }
 }
 
@@ -65,17 +76,15 @@ export function parseCapabilities(value: string): string[] {
   return parseStringArray(value)
 }
 
-function parseTaskDetail(value: string | null): DownloadTask['detail'] {
+function parseTaskRuntime(value: string | null): DownloadTask['status']['runtime'] {
   if (!value) return null
-  try {
-    const detail = JSON.parse(value) as DownloadTask['detail'] & { uploadedBytes?: number }
-    if (detail.peerUploadedBytes === undefined && detail.uploadedBytes !== undefined) {
-      detail.peerUploadedBytes = detail.uploadedBytes
-    }
-    delete detail.uploadedBytes
-    return detail
-  } catch {
-    return null
+  return downloadTaskRuntimeSchema.parse(JSON.parse(value))
+}
+
+function emptyTaskProgress(): DownloadTask['status']['progress'] {
+  return {
+    download: { bytes: 0, totalBytes: null, bytesPerSecond: 0 },
+    upload: { bytes: 0, totalBytes: null, bytesPerSecond: 0 },
   }
 }
 

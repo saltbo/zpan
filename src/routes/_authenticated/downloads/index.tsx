@@ -110,7 +110,7 @@ const STATUS_FILTERS: Array<{ value: DownloadTaskStatus | 'all'; labelKey: strin
   { value: 'canceled', labelKey: 'downloads.status.canceled' },
 ]
 type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
-type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['detail']>['phase']>
+type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['status']['runtime']>['phase']>
 type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'log'
 type PanelDragState = { startY: number; startDetailHeight: number; containerHeight: number }
 type PendingTaskAction = { tasks: DownloadTask[]; action: DownloadTaskAction }
@@ -836,38 +836,38 @@ function getDownloadColumns(t: ReturnType<typeof useTranslation>['t']): ColumnDe
     },
     {
       id: 'source',
-      accessorFn: (task) => `${getTaskTitle(task)} ${task.sourceUri}`,
+      accessorFn: (task) => `${getTaskTitle(task)} ${sourceUri(task)}`,
       header: () => t('downloads.table.source'),
       size: 300,
       minSize: 180,
       maxSize: 620,
       cell: ({ row }) => (
         <div className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden">
-          <SourceIcon type={row.original.sourceType} />
+          <SourceIcon type={sourceType(row.original)} />
           <div className="min-w-0 flex-1 overflow-hidden">
             <div className="truncate text-xs font-medium">{getTaskTitle(row.original)}</div>
-            <div className="truncate text-[11px] text-muted-foreground">{row.original.sourceUri}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{sourceUri(row.original)}</div>
           </div>
         </div>
       ),
     },
     {
       id: 'category',
-      accessorFn: (task) => task.category ?? '',
+      accessorFn: (task) => task.spec.labels.category ?? '',
       header: () => t('downloads.table.category'),
       size: 110,
       minSize: 86,
       maxSize: 240,
-      cell: ({ row }) => <CategoryCell category={row.original.category} />,
+      cell: ({ row }) => <CategoryCell category={row.original.spec.labels.category} />,
     },
     {
       id: 'tags',
-      accessorFn: (task) => task.tags.join(' / '),
+      accessorFn: (task) => task.spec.labels.tags.join(' / '),
       header: () => t('downloads.table.tags'),
       size: 160,
       minSize: 100,
       maxSize: 360,
-      cell: ({ row }) => <TagsCell tags={row.original.tags} />,
+      cell: ({ row }) => <TagsCell tags={row.original.spec.labels.tags} />,
     },
     {
       id: 'status',
@@ -885,12 +885,12 @@ function getDownloadColumns(t: ReturnType<typeof useTranslation>['t']): ColumnDe
     },
     {
       id: 'eta',
-      accessorFn: (task) => task.detail?.etaSeconds ?? Number.MAX_SAFE_INTEGER,
+      accessorFn: (task) => task.status.runtime?.etaSeconds ?? Number.MAX_SAFE_INTEGER,
       header: () => t('downloads.table.eta'),
       size: 92,
       cell: ({ row }) => (
         <span className="text-[11px] tabular-nums text-muted-foreground">
-          {formatDuration(row.original.detail?.etaSeconds)}
+          {formatDuration(row.original.status.runtime?.etaSeconds)}
         </span>
       ),
     },
@@ -910,7 +910,7 @@ function TagsCell({ tags }: { tags: string[] }) {
 function ProgressCell({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
   const progress = transferProgress(task)
-  const sizeText = `${formatBytes(task.downloadedBytes)} / ${task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}`
+  const sizeText = `${formatBytes(task.status.progress.download.bytes)} / ${task.status.progress.download.totalBytes ? formatBytes(task.status.progress.download.totalBytes) : t('downloads.unknown')}`
 
   return (
     <div className="min-w-0 space-y-1">
@@ -921,9 +921,9 @@ function ProgressCell({ task }: { task: DownloadTask }) {
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-[11px] tabular-nums text-muted-foreground">
         <span className="truncate">{sizeText}</span>
         <span className="whitespace-nowrap">
-          <span className="text-foreground/80">{formatBytes(task.downloadBps)}/s</span>
+          <span className="text-foreground/80">{formatBytes(task.status.progress.download.bytesPerSecond)}/s</span>
           <span className="mx-1 text-muted-foreground/70">↓</span>
-          <span>{formatBytes(task.storageUploadBps)}/s</span>
+          <span>{formatBytes(task.status.progress.upload.bytesPerSecond)}/s</span>
           <span className="ml-1 text-muted-foreground/70">↑</span>
         </span>
       </div>
@@ -1270,14 +1270,14 @@ function TaskMenuItem({
 }
 
 function taskActions(task: DownloadTask): DownloadTaskAction[] {
-  if (PAUSABLE_STATUSES.has(task.status)) return ['pause', 'cancel']
-  if (task.status === 'paused') return ['resume', 'restart', 'cancel']
-  if (task.status === 'suspended') return ['resume', 'restart', 'cancel']
-  if (task.status === 'interrupted') return ['restart', 'cancel']
-  if (task.status === 'uploading' || task.status === 'pausing') return ['cancel']
-  if (task.status === 'failed') return ['retry', 'restart', 'delete']
-  if (task.status === 'canceled') return ['restart', 'delete']
-  if (task.status === 'completed') return ['restart', 'delete']
+  if (PAUSABLE_STATUSES.has(task.status.state)) return ['pause', 'cancel']
+  if (task.status.state === 'paused') return ['resume', 'restart', 'cancel']
+  if (task.status.state === 'suspended') return ['resume', 'restart', 'cancel']
+  if (task.status.state === 'interrupted') return ['restart', 'cancel']
+  if (task.status.state === 'uploading' || task.status.state === 'pausing') return ['cancel']
+  if (task.status.state === 'failed') return ['retry', 'restart', 'delete']
+  if (task.status.state === 'canceled') return ['restart', 'delete']
+  if (task.status.state === 'completed') return ['restart', 'delete']
   return []
 }
 
@@ -1287,10 +1287,10 @@ function availableBulkActions(tasks: DownloadTask[]): DownloadTaskAction[] {
 }
 
 function primaryTaskAction(task: DownloadTask): DownloadTaskAction | null {
-  if (PAUSABLE_STATUSES.has(task.status)) return 'pause'
-  if (task.status === 'paused' || task.status === 'suspended') return 'resume'
-  if (task.status === 'interrupted') return 'restart'
-  if (task.status === 'failed' || task.status === 'canceled') return 'retry'
+  if (PAUSABLE_STATUSES.has(task.status.state)) return 'pause'
+  if (task.status.state === 'paused' || task.status.state === 'suspended') return 'resume'
+  if (task.status.state === 'interrupted') return 'restart'
+  if (task.status.state === 'failed' || task.status.state === 'canceled') return 'retry'
   return null
 }
 
@@ -1325,12 +1325,19 @@ function TransferProgress({ task, className }: { task: DownloadTask; className?:
 }
 
 function transferProgress(task: DownloadTask) {
-  const total = Math.max(task.totalBytes ?? task.downloadedBytes, task.downloadedBytes, task.storageUploadedBytes, 0)
-  if (total <= 0) return { download: 0, upload: 0, overall: task.status === 'completed' ? 100 : 0 }
-  const download = Math.min(100, Math.round((task.downloadedBytes / total) * 100))
+  const total = Math.max(
+    task.status.progress.download.totalBytes ?? task.status.progress.download.bytes,
+    task.status.progress.download.bytes,
+    task.status.progress.upload.bytes,
+    0,
+  )
+  if (total <= 0) return { download: 0, upload: 0, overall: task.status.state === 'completed' ? 100 : 0 }
+  const download = Math.min(100, Math.round((task.status.progress.download.bytes / total) * 100))
   const upload =
-    task.status === 'completed' ? 100 : Math.min(100, Math.round((task.storageUploadedBytes / total) * 100))
-  return { download, upload, overall: task.status === 'uploading' || upload > 0 ? upload : download }
+    task.status.state === 'completed'
+      ? 100
+      : Math.min(100, Math.round((task.status.progress.upload.bytes / total) * 100))
+  return { download, upload, overall: task.status.state === 'uploading' || upload > 0 ? upload : download }
 }
 
 function DownloadInspector({
@@ -1388,7 +1395,7 @@ function DownloadInspector({
 
 function OverviewPanel({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
-  const detail = task.detail
+  const detail = task.status.runtime
   const progress = transferProgress(task)
 
   return (
@@ -1397,12 +1404,12 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         <InspectorMetric
           icon={<Gauge className="size-4" />}
           label={t('downloads.detail.downloadSpeed')}
-          value={`${formatBytes(task.downloadBps)}/s`}
+          value={`${formatBytes(task.status.progress.download.bytesPerSecond)}/s`}
         />
         <InspectorMetric
           icon={<Upload className="size-4" />}
           label={t('downloads.detail.storageUploadSpeed')}
-          value={`${formatBytes(task.storageUploadBps)}/s`}
+          value={`${formatBytes(task.status.progress.upload.bytesPerSecond)}/s`}
         />
         <InspectorMetric
           icon={<Users className="size-4" />}
@@ -1420,10 +1427,10 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         <TransferProgress task={task} className="h-2" />
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] tabular-nums text-muted-foreground">
           <span>
-            {t('downloads.detail.downloaded')}: {formatBytes(task.downloadedBytes)}
+            {t('downloads.detail.downloaded')}: {formatBytes(task.status.progress.download.bytes)}
           </span>
           <span>
-            {t('downloads.detail.storageUploaded')}: {formatBytes(task.storageUploadedBytes)}
+            {t('downloads.detail.storageUploaded')}: {formatBytes(task.status.progress.upload.bytes)}
           </span>
           <span>{progress.overall}%</span>
         </div>
@@ -1433,49 +1440,55 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         <InspectorField label={t('downloads.detail.progress')} value={`${progress.overall}%`} />
         <InspectorField label={t('downloads.detail.engine')} value={detail?.engine || t('downloads.unknown')} />
         <InspectorField label={t('downloads.detail.phase')} value={formatPhase(detail?.phase, t)} />
-        <InspectorField label={t('downloads.detail.engineState')} value={detail?.engineState || '-'} />
+        <InspectorField label={t('downloads.detail.engineState')} value={detail?.state || '-'} />
         <InspectorField
           label={t('downloads.detail.target')}
-          value={task.targetFolder || t('downloads.targetFolderRoot')}
+          value={task.spec.destination.folder || t('downloads.targetFolderRoot')}
         />
-        <InspectorField label={t('downloads.detail.category')} value={task.category || '-'} />
-        <InspectorField label={t('downloads.detail.tags')} value={task.tags.length ? task.tags.join(', ') : '-'} />
+        <InspectorField label={t('downloads.detail.category')} value={task.spec.labels.category || '-'} />
+        <InspectorField
+          label={t('downloads.detail.tags')}
+          value={task.spec.labels.tags.length ? task.spec.labels.tags.join(', ') : '-'}
+        />
         <InspectorField
           label={t('downloads.detail.sourceType')}
           value={t(`downloads.sourceTypes.${sourceTypeKey(task)}`)}
         />
-        <InspectorField label={t('downloads.detail.source')} value={task.sourceUri} />
+        <InspectorField label={t('downloads.detail.source')} value={sourceUri(task)} />
         <InspectorField
           label={t('downloads.detail.size')}
-          value={`${formatBytes(task.downloadedBytes)} / ${task.totalBytes ? formatBytes(task.totalBytes) : t('downloads.unknown')}`}
+          value={`${formatBytes(task.status.progress.download.bytes)} / ${task.status.progress.download.totalBytes ? formatBytes(task.status.progress.download.totalBytes) : t('downloads.unknown')}`}
         />
         <InspectorField
           label={t('downloads.detail.billing')}
-          value={`${formatBytes(task.billedBytes)} / ${task.billedCredits} credits`}
+          value={`${formatBytes(task.status.billing.chargedBytes)} / ${task.status.billing.chargedCredits} credits`}
         />
-        <InspectorField label={t('downloads.detail.infoHash')} value={detail?.infoHash || '-'} />
-        <InspectorField label={t('downloads.detail.torrentName')} value={detail?.torrentName || '-'} />
-        <InspectorField label={t('downloads.detail.seeders')} value={formatNumber(detail?.seeders)} />
-        <InspectorField label={t('downloads.detail.leechers')} value={formatNumber(detail?.leechers)} />
+        <InspectorField label={t('downloads.detail.infoHash')} value={detail?.torrent?.infoHash || '-'} />
+        <InspectorField label={t('downloads.detail.torrentName')} value={detail?.torrent?.name || '-'} />
+        <InspectorField label={t('downloads.detail.seeders')} value={formatNumber(detail?.torrent?.seeders)} />
+        <InspectorField label={t('downloads.detail.leechers')} value={formatNumber(detail?.torrent?.leechers)} />
         <InspectorField
           label={t('downloads.detail.peerUploadSpeed')}
-          value={`${formatBytes(detail?.peerUploadBps ?? 0)}/s`}
+          value={`${formatBytes(detail?.seeding?.uploadBytesPerSecond ?? 0)}/s`}
         />
         <InspectorField
           label={t('downloads.detail.peerUploaded')}
-          value={formatBytes(detail?.peerUploadedBytes ?? 0)}
+          value={formatBytes(detail?.seeding?.uploadedBytes ?? 0)}
         />
-        <InspectorField label={t('downloads.detail.storageUploaded')} value={formatBytes(task.storageUploadedBytes)} />
+        <InspectorField
+          label={t('downloads.detail.storageUploaded')}
+          value={formatBytes(task.status.progress.upload.bytes)}
+        />
         <InspectorField label={t('downloads.detail.createdAt')} value={formatDate(task.createdAt)} />
-        <InspectorField label={t('downloads.detail.startedAt')} value={formatDate(task.startedAt)} />
-        <InspectorField label={t('downloads.detail.finishedAt')} value={formatDate(task.finishedAt)} />
+        <InspectorField label={t('downloads.detail.startedAt')} value={formatDate(task.status.startedAt)} />
+        <InspectorField label={t('downloads.detail.finishedAt')} value={formatDate(task.status.finishedAt)} />
       </div>
 
-      {(task.errorMessage || detail?.message) && (
+      {(task.status.error?.message || detail?.message) && (
         <div className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <div className="min-w-0 space-y-1 break-words">
-            {task.errorMessage && <div>{task.errorMessage}</div>}
+            {task.status.error?.message && <div>{task.status.error?.message}</div>}
             {detail?.message && <div>{detail.message}</div>}
           </div>
         </div>
@@ -1486,7 +1499,7 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
 
 function TrackersPanel({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
-  const trackers = task.detail?.trackers ?? []
+  const trackers = task.status.runtime?.trackers ?? []
 
   if (trackers.length === 0) return <EmptyPanel text={t('downloads.detail.noTrackers')} />
 
@@ -1518,7 +1531,7 @@ function TrackersPanel({ task }: { task: DownloadTask }) {
 
 function PeersPanel({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
-  const peers = task.detail?.peerSamples ?? []
+  const peers = task.status.runtime?.peers ?? []
 
   if (peers.length === 0) return <EmptyPanel text={t('downloads.detail.noPeers')} />
 
@@ -1550,7 +1563,7 @@ function PeersPanel({ task }: { task: DownloadTask }) {
 
 function FilesPanel({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
-  const files = task.detail?.files ?? []
+  const files = task.status.runtime?.files ?? []
 
   if (files.length === 0) return <EmptyPanel text={t('downloads.detail.noFiles')} />
 
@@ -1592,13 +1605,13 @@ function FilesPanel({ task }: { task: DownloadTask }) {
 
 function LogPanel({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
-  const detail = task.detail
+  const detail = task.status.runtime
   const messages = [
     detail?.message && { label: t('downloads.detail.statusMessage'), value: detail.message },
-    task.errorMessage && { label: t('downloads.detail.errorMessage'), value: task.errorMessage },
+    task.status.error?.message && { label: t('downloads.detail.errorMessage'), value: task.status.error?.message },
     { label: t('downloads.detail.createdAt'), value: formatDate(task.createdAt) },
-    { label: t('downloads.detail.startedAt'), value: formatDate(task.startedAt) },
-    { label: t('downloads.detail.finishedAt'), value: formatDate(task.finishedAt) },
+    { label: t('downloads.detail.startedAt'), value: formatDate(task.status.startedAt) },
+    { label: t('downloads.detail.finishedAt'), value: formatDate(task.status.finishedAt) },
   ].filter(Boolean) as Array<{ label: string; value: string }>
 
   return (
@@ -1614,10 +1627,18 @@ function LogPanel({ task }: { task: DownloadTask }) {
   )
 }
 
-function SourceIcon({ type }: { type: DownloadTask['sourceType'] }) {
+function SourceIcon({ type }: { type: DownloadTask['spec']['source']['type'] }) {
   if (type === 'magnet') return <Magnet className="size-4 shrink-0 text-amber-500" />
   if (type === 'torrent_url') return <FileDown className="size-4 shrink-0 text-violet-500" />
   return <LinkIcon className="size-4 shrink-0 text-blue-500" />
+}
+
+function sourceType(task: DownloadTask): DownloadTask['spec']['source']['type'] {
+  return task.spec.source.type
+}
+
+function sourceUri(task: DownloadTask): string {
+  return task.spec.source.uri
 }
 
 function InspectorMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
@@ -1650,7 +1671,12 @@ function EmptyPanel({ text }: { text: string }) {
 }
 
 function getTaskTitle(task: DownloadTask) {
-  return task.detail?.torrentName || task.name || filenameFromUri(task.sourceUri) || task.sourceUri
+  return (
+    task.status.runtime?.torrent?.name ||
+    task.spec.destination.name ||
+    filenameFromUri(sourceUri(task)) ||
+    sourceUri(task)
+  )
 }
 
 function filenameFromUri(uri: string) {
@@ -1668,8 +1694,8 @@ function filenameFromUri(uri: string) {
 }
 
 function sourceTypeKey(task: DownloadTask) {
-  if (task.sourceType === 'torrent_url') return 'torrentUrl'
-  return task.sourceType
+  if (sourceType(task) === 'torrent_url') return 'torrentUrl'
+  return sourceType(task)
 }
 
 function formatPercent(value: number | null | undefined) {
@@ -1691,8 +1717,8 @@ function formatDate(value: string | null | undefined) {
 }
 
 function displayStatus(task: DownloadTask): DownloadTaskDisplayStatus {
-  if (task.status === 'completed' && task.detail?.phase === 'seeding') return 'seeding'
-  return task.status
+  if (task.status.state === 'completed' && task.status.runtime?.phase === 'seeding') return 'seeding'
+  return task.status.state
 }
 
 function StatusBadge({ status }: { status: DownloadTaskDisplayStatus }) {

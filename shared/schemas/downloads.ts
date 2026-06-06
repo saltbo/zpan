@@ -44,6 +44,8 @@ const downloadTaskPeerSchema = z.object({
   progress: z.number().min(0).max(1).optional(),
   downloadBps: int64Schema().optional(),
   uploadBps: int64Schema().optional(),
+  countryCode: z.string().min(2).max(2).optional(),
+  regionCode: z.string().min(1).max(16).optional(),
 })
 
 const downloadTaskFileSchema = z.object({
@@ -53,44 +55,98 @@ const downloadTaskFileSchema = z.object({
   selected: z.boolean().optional(),
 })
 
-export const downloadTaskDetailSchema = z.object({
-  engine: downloaderEngineSchema.optional(),
-  phase: downloadTaskPhaseSchema.optional(),
-  engineState: z.string().max(80).optional(),
-  message: z.string().max(500).optional(),
-  etaSeconds: z.number().int().min(0).nullable().optional(),
-  connections: z.number().int().min(0).optional(),
+const downloadTaskTransferProgressSchema = z.object({
+  bytes: int64Schema(),
+  totalBytes: nullableInt64Schema().optional(),
+  bytesPerSecond: int64Schema(),
+})
+
+const downloadTaskProgressSchema = z.object({
+  download: downloadTaskTransferProgressSchema,
+  upload: downloadTaskTransferProgressSchema,
+})
+
+const downloadTaskTorrentRuntimeSchema = z.object({
   infoHash: z.string().max(120).optional(),
-  torrentName: z.string().max(255).optional(),
+  name: z.string().max(255).optional(),
   seeders: z.number().int().min(0).optional(),
   leechers: z.number().int().min(0).optional(),
   peers: z.number().int().min(0).optional(),
-  peerUploadedBytes: int64Schema().optional(),
-  peerUploadBps: int64Schema().optional(),
+})
+
+const downloadTaskSeedingRuntimeSchema = z.object({
+  enabled: z.boolean().optional(),
+  active: z.boolean().optional(),
+  uploadedBytes: int64Schema().optional(),
+  uploadBytesPerSecond: int64Schema().optional(),
+  ratio: z.number().min(0).optional(),
+  startedAt: z.string().nullable().optional(),
+  expiresAt: z.string().nullable().optional(),
+})
+
+export const downloadTaskRuntimeSchema = z.object({
+  engine: downloaderEngineSchema.optional(),
+  state: z.string().max(80).optional(),
+  phase: downloadTaskPhaseSchema.optional(),
+  message: z.string().max(500).optional(),
+  updatedAt: z.string().optional(),
+  progress: downloadTaskProgressSchema.optional(),
+  torrent: downloadTaskTorrentRuntimeSchema.optional(),
+  seeding: downloadTaskSeedingRuntimeSchema.optional(),
+  connections: z.number().int().min(0).optional(),
+  etaSeconds: z.number().int().min(0).nullable().optional(),
   trackers: z.array(downloadTaskTrackerSchema).max(20).optional(),
-  peerSamples: z.array(downloadTaskPeerSchema).max(20).optional(),
+  peers: z.array(downloadTaskPeerSchema).max(20).optional(),
   files: z.array(downloadTaskFileSchema).max(50).optional(),
 })
 
 export const downloadTaskSchema = z.object({
   id: z.string(),
-  sourceType: downloadSourceTypeSchema,
-  sourceUri: z.string(),
-  name: z.string(),
-  targetFolder: z.string(),
-  category: z.string().nullable(),
-  tags: z.array(z.string()),
-  status: downloadTaskStatusSchema,
-  downloadedBytes: int64Schema(),
-  storageUploadedBytes: int64Schema(),
-  totalBytes: nullableInt64Schema(),
-  downloadBps: int64Schema(),
-  storageUploadBps: int64Schema(),
-  errorMessage: z.string().nullable().optional(),
-  resultObjectId: z.string().nullable().optional(),
-  detail: downloadTaskDetailSchema.nullable().optional(),
-  uploadToken: z.string().optional(),
-  assignedDownloaderId: z.string().nullable().optional(),
+  orgId: z.string().optional(),
+  createdBy: z.string().optional(),
+  spec: z.object({
+    source: z.object({
+      type: downloadSourceTypeSchema,
+      uri: z.string(),
+    }),
+    destination: z.object({
+      folder: z.string(),
+      name: z.string().nullable(),
+    }),
+    labels: z.object({
+      category: z.string().nullable(),
+      tags: z.array(z.string()),
+    }),
+  }),
+  status: z.object({
+    state: downloadTaskStatusSchema,
+    assignment: z
+      .object({
+        downloaderId: z.string(),
+        assignedAt: z.string().nullable().optional(),
+        uploadToken: z.string().optional(),
+      })
+      .nullable(),
+    progress: downloadTaskProgressSchema,
+    billing: z.object({
+      state: z.enum(['none', 'ok', 'insufficient_credits']),
+      authorizedBytes: int64Schema(),
+      chargedBytes: int64Schema(),
+      chargedCredits: int64Schema(),
+    }),
+    output: z.object({ objectId: z.string() }).nullable(),
+    runtime: downloadTaskRuntimeSchema.nullable(),
+    error: z
+      .object({
+        code: z.string().max(80).nullable().optional(),
+        message: z.string().max(1000).nullable(),
+      })
+      .nullable(),
+    startedAt: z.string().nullable(),
+    finishedAt: z.string().nullable(),
+    updatedAt: z.string(),
+  }),
+  createdAt: z.string(),
 })
 
 export const downloadTaskPageSchema = z.object({
@@ -193,14 +249,10 @@ export const createDownloadTaskSchema = z.object({
 
 export const updateDownloadTaskSchema = z.object({
   status: downloadTaskStatusSchema.optional(),
-  downloadedBytes: int64Schema().optional(),
-  storageUploadedBytes: int64Schema().optional(),
-  totalBytes: nullableInt64Schema().optional(),
-  downloadBps: int64Schema().optional(),
-  storageUploadBps: int64Schema().optional(),
+  progress: downloadTaskProgressSchema.partial().optional(),
   errorMessage: z.string().max(1000).nullable().optional(),
   resultObjectId: z.string().min(1).nullable().optional(),
-  detail: downloadTaskDetailSchema.nullable().optional(),
+  runtime: downloadTaskRuntimeSchema.nullable().optional(),
 })
 
 export const downloadTaskActionInputSchema = z.object({
@@ -259,7 +311,7 @@ export type CreateDownloadTaskInput = z.infer<typeof createDownloadTaskSchema>
 export type UpdateDownloadTaskInput = z.infer<typeof updateDownloadTaskSchema>
 export type DownloadTaskActionInput = z.infer<typeof downloadTaskActionInputSchema>
 export type ListDownloadTasksQuery = z.infer<typeof listDownloadTasksQuerySchema>
-export type DownloadTaskDetail = z.infer<typeof downloadTaskDetailSchema>
+export type DownloadTaskRuntime = z.infer<typeof downloadTaskRuntimeSchema>
 export type DownloadTaskSchema = z.infer<typeof downloadTaskSchema>
 export type CreateObjectUploadSessionInput = z.infer<typeof createObjectUploadSessionSchema>
 export type PresignObjectUploadPartsInput = z.infer<typeof presignObjectUploadPartsSchema>

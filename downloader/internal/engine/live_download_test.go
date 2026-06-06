@@ -21,6 +21,17 @@ import (
 	"github.com/saltbo/zpan/downloader/internal/client"
 )
 
+func liveTask(id, sourceType, sourceURI, name string) client.DownloadTask {
+	return client.DownloadTask{
+		ID: id,
+		Spec: client.DownloadTaskSpec{
+			Source:      client.DownloadTaskSource{Type: sourceType, URI: sourceURI},
+			Destination: client.DownloadTaskDestination{Name: name},
+			Labels:      client.DownloadTaskLabels{Tags: []string{}},
+		},
+	}
+}
+
 func TestLiveDownloadThreeSourceTypes(t *testing.T) {
 	if os.Getenv("LIVE_DOWNLOAD_VERIFY") != "1" {
 		t.Skip("set LIVE_DOWNLOAD_VERIFY=1 to run live HTTP/magnet/torrent URL downloads")
@@ -116,30 +127,30 @@ func TestLiveDownloadThreeSourceTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	httpResult := runLiveDownload(t, ctx, HTTP{Dir: filepath.Join(root, "http")}, client.DownloadTask{
-		ID:         "live-http",
-		SourceType: "http",
-		SourceURI:  httpServer.URL + "/" + fixtureName,
-		Name:       "http-fixture.txt",
-	})
+	httpResult := runLiveDownload(
+		t,
+		ctx,
+		HTTP{Dir: filepath.Join(root, "http")},
+		liveTask("live-http", "http", httpServer.URL+"/"+fixtureName, "http-fixture.txt"),
+	)
 	magnetURL := fmt.Sprintf(
 		"magnet:?xt=urn:btih:%s&dn=%s&tr=%s",
 		hex.EncodeToString(infoHash),
 		url.QueryEscape(fixtureName),
 		url.QueryEscape(trackerServer.URL+"/announce"),
 	)
-	magnetResult := runLiveDownload(t, ctx, Aria2{URL: fmt.Sprintf("ws://127.0.0.1:%d/jsonrpc", rpcPort), Dir: filepath.Join(root, "magnet")}, client.DownloadTask{
-		ID:         "live-magnet",
-		SourceType: "magnet",
-		SourceURI:  magnetURL,
-		Name:       "magnet-fixture.txt",
-	})
-	torrentResult := runLiveDownload(t, ctx, Aria2{URL: fmt.Sprintf("ws://127.0.0.1:%d/jsonrpc", rpcPort), Dir: filepath.Join(root, "torrent-url")}, client.DownloadTask{
-		ID:         "live-torrent-url",
-		SourceType: "torrent_url",
-		SourceURI:  torrentServer.URL + "/fixture.torrent",
-		Name:       "torrent-url-fixture.txt",
-	})
+	magnetResult := runLiveDownload(
+		t,
+		ctx,
+		Aria2{URL: fmt.Sprintf("ws://127.0.0.1:%d/jsonrpc", rpcPort), Dir: filepath.Join(root, "magnet")},
+		liveTask("live-magnet", "magnet", magnetURL, "magnet-fixture.txt"),
+	)
+	torrentResult := runLiveDownload(
+		t,
+		ctx,
+		Aria2{URL: fmt.Sprintf("ws://127.0.0.1:%d/jsonrpc", rpcPort), Dir: filepath.Join(root, "torrent-url")},
+		liveTask("live-torrent-url", "torrent_url", torrentServer.URL+"/fixture.torrent", "torrent-url-fixture.txt"),
+	)
 
 	assertSameContent(t, httpResult.Path, fixtureName, fixtureBytes)
 	assertSameContent(t, magnetResult.Path, fixtureName, fixtureBytes)
@@ -232,12 +243,7 @@ func TestLiveQBittorrentDownloadTorrentURL(t *testing.T) {
 	result := runLiveDownload(t, ctx, QBittorrent{
 		URL: "http://127.0.0.1:" + strconv.Itoa(webUIPort),
 		Dir: filepath.Join(root, "qbit-downloads"),
-	}, client.DownloadTask{
-		ID:         "live-qbit-torrent-url",
-		SourceType: "torrent_url",
-		SourceURI:  torrentServer.URL + "/fixture.torrent",
-		Name:       "qbit-fixture.txt",
-	})
+	}, liveTask("live-qbit-torrent-url", "torrent_url", torrentServer.URL+"/fixture.torrent", "qbit-fixture.txt"))
 
 	assertSameContent(t, result.Path, fixtureName, fixtureBytes)
 	t.Logf("qBittorrent torrent_url result: %s (%d bytes)", result.Path, result.Size)
@@ -246,7 +252,7 @@ func TestLiveQBittorrentDownloadTorrentURL(t *testing.T) {
 func runLiveDownload(t *testing.T, ctx context.Context, downloader Engine, task client.DownloadTask) Result {
 	t.Helper()
 	var lastDownloaded int64
-	result, err := downloader.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error {
+	result, err := downloader.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error {
 		if downloaded < lastDownloaded {
 			t.Fatalf("download progress moved backwards: %d < %d", downloaded, lastDownloaded)
 		}
@@ -257,7 +263,7 @@ func runLiveDownload(t *testing.T, ctx context.Context, downloader Engine, task 
 		t.Fatal(err)
 	}
 	if result.Size <= 0 {
-		t.Fatalf("expected non-empty result for %s", task.SourceType)
+		t.Fatalf("expected non-empty result for %s", task.SourceType())
 	}
 	if _, err := os.Stat(result.Path); err != nil {
 		t.Fatal(err)

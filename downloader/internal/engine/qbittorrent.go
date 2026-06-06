@@ -116,7 +116,7 @@ func (q QBittorrent) RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error
 }
 
 func (q QBittorrent) InspectTask(ctx context.Context, task client.DownloadTask) (TaskSnapshot, bool, error) {
-	if task.SourceType == "http" {
+	if task.SourceType() == "http" {
 		return HTTP{Dir: q.Dir}.InspectTask(ctx, task)
 	}
 	qbt, err := q.login(ctx)
@@ -144,7 +144,7 @@ func (q QBittorrent) login(ctx context.Context) (*qbittorrent.Client, error) {
 }
 
 func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {
-	if task.SourceType == "http" {
+	if task.SourceType() == "http" {
 		return HTTP{Dir: q.Dir}.Download(ctx, task, progress)
 	}
 	taskDir := filepath.Join(q.Dir, task.ID)
@@ -172,7 +172,7 @@ func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, pro
 	}
 
 	options := qbittorrentAddOptions(task, taskDir, tag)
-	if _, err := qbt.AddTorrentFromUrlCtx(ctx, task.SourceURI, options); err != nil {
+	if _, err := qbt.AddTorrentFromUrlCtx(ctx, task.SourceURI(), options); err != nil {
 		return Result{}, err
 	}
 
@@ -228,7 +228,7 @@ func (q QBittorrent) snapshotTask(
 		Downloaded: torrent.Completed,
 		Total:      totalPtr,
 		Bps:        torrent.DlSpeed,
-		Detail:     qbittorrentDetail(ctx, qbt, torrent),
+		Runtime:    qbittorrentDetail(ctx, qbt, torrent),
 	}
 	if snapshot.State != TaskStateCompleted {
 		return snapshot, true, nil
@@ -289,10 +289,10 @@ func (q QBittorrent) findTask(ctx context.Context, qbt *qbittorrent.Client, task
 
 func qbittorrentAddOptions(task client.DownloadTask, taskDir string, trackingTag string) map[string]string {
 	category := "zpan"
-	if task.Category != "" {
-		category = task.Category
+	if task.Category() != "" {
+		category = task.Category()
 	}
-	tags := append([]string{trackingTag}, task.Tags...)
+	tags := append([]string{trackingTag}, task.Tags()...)
 	options := (&qbittorrent.TorrentAddOptions{
 		SavePath:           taskDir,
 		Category:           category,
@@ -355,7 +355,7 @@ func (q QBittorrent) seedSnapshot(hash string) func(context.Context) (SeedSnapsh
 			Downloaded: torrent.Completed,
 			Total:      totalPtr,
 			Bps:        torrent.DlSpeed,
-			Detail:     detail,
+			Runtime:    detail,
 		}, nil
 	}
 }
@@ -403,7 +403,7 @@ func waitQBittorrent(
 	}
 }
 
-func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbittorrent.Torrent) *client.DownloadTaskDetail {
+func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbittorrent.Torrent) *client.DownloadTaskRuntime {
 	connections := int64(torrent.NumSeeds + torrent.NumLeechs)
 	seeders := torrent.NumSeeds
 	leechers := torrent.NumLeechs
@@ -414,22 +414,26 @@ func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbi
 	if torrent.ETA >= 0 {
 		eta = &torrent.ETA
 	}
-	return &client.DownloadTaskDetail{
-		Engine:            "qbittorrent",
-		Phase:             qbittorrentPhase(string(torrent.State)),
-		EngineState:       string(torrent.State),
-		ETASeconds:        eta,
-		Connections:       &connections,
-		InfoHash:          torrent.Hash,
-		TorrentName:       torrent.Name,
-		Seeders:           &seeders,
-		Leechers:          &leechers,
-		Peers:             &peers,
-		PeerUploadedBytes: &uploaded,
-		PeerUploadBps:     &uploadBps,
-		Trackers:          qbittorrentTrackers(ctx, qbt, torrent),
-		PeerSamples:       qbittorrentPeers(ctx, qbt, torrent.Hash),
-		Files:             qbittorrentFiles(ctx, qbt, torrent),
+	return &client.DownloadTaskRuntime{
+		Engine:      "qbittorrent",
+		Phase:       qbittorrentPhase(string(torrent.State)),
+		State:       string(torrent.State),
+		ETASeconds:  eta,
+		Connections: &connections,
+		Torrent: &client.DownloadTaskTorrentRuntime{
+			InfoHash: torrent.Hash,
+			Name:     torrent.Name,
+			Seeders:  &seeders,
+			Leechers: &leechers,
+			Peers:    &peers,
+		},
+		Seeding: &client.DownloadTaskSeedingRuntime{
+			UploadedBytes:        &uploaded,
+			UploadBytesPerSecond: &uploadBps,
+		},
+		Trackers: qbittorrentTrackers(ctx, qbt, torrent),
+		Peers:    qbittorrentPeers(ctx, qbt, torrent.Hash),
+		Files:    qbittorrentFiles(ctx, qbt, torrent),
 	}
 }
 

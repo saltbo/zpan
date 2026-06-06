@@ -17,6 +17,30 @@ import (
 	"github.com/saltbo/zpan/downloader/internal/client"
 )
 
+func downloadTask(id, sourceType, sourceURI string) client.DownloadTask {
+	return client.DownloadTask{
+		ID: id,
+		Spec: client.DownloadTaskSpec{
+			Source:      client.DownloadTaskSource{Type: sourceType, URI: sourceURI},
+			Destination: client.DownloadTaskDestination{},
+			Labels:      client.DownloadTaskLabels{Tags: []string{}},
+		},
+		Status: client.DownloadTaskStatus{},
+	}
+}
+
+func downloadTaskWithName(id, sourceType, sourceURI, name string) client.DownloadTask {
+	task := downloadTask(id, sourceType, sourceURI)
+	task.Spec.Destination.Name = name
+	return task
+}
+
+func completedDownloadTask(id, sourceType, sourceURI string, size int64) client.DownloadTask {
+	task := downloadTask(id, sourceType, sourceURI)
+	task.Status.Progress.Download = client.DownloadTaskTransferProgress{Bytes: size, TotalBytes: &size}
+	return task
+}
+
 func TestHTTPDownload(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", "11")
@@ -26,11 +50,11 @@ func TestHTTPDownload(t *testing.T) {
 
 	dir := t.TempDir()
 	progressCalls := 0
-	var lastDetail *client.DownloadTaskDetail
+	var lastDetail *client.DownloadTaskRuntime
 	result, err := (HTTP{Dir: dir}).Download(
 		context.Background(),
-		client.DownloadTask{ID: "task-1", SourceType: "http", SourceURI: server.URL + "/file.txt"},
-		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error {
+		downloadTask("task-1", "http", server.URL+"/file.txt"),
+		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error {
 			progressCalls++
 			lastDetail = detail
 			if downloaded < 0 {
@@ -66,8 +90,8 @@ func TestHTTPDownload(t *testing.T) {
 func TestHTTPRejectsMagnet(t *testing.T) {
 	_, err := (HTTP{Dir: t.TempDir()}).Download(
 		context.Background(),
-		client.DownloadTask{ID: "task-1", SourceType: "magnet", SourceURI: "magnet:?xt=urn:btih:abc"},
-		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error { return nil },
+		downloadTask("task-1", "magnet", "magnet:?xt=urn:btih:abc"),
+		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error { return nil },
 	)
 	if err == nil {
 		t.Fatal("expected magnet to be rejected by HTTP engine")
@@ -118,8 +142,8 @@ func TestHTTPDownloadResumesExistingFile(t *testing.T) {
 
 	result, err := (HTTP{Dir: dir}).Download(
 		context.Background(),
-		client.DownloadTask{ID: "task-1", SourceType: "http", SourceURI: server.URL + "/file.txt"},
-		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error { return nil },
+		downloadTask("task-1", "http", server.URL+"/file.txt"),
+		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error { return nil },
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -147,13 +171,10 @@ func TestHTTPInspectTaskUsesCompletedCheckpoint(t *testing.T) {
 	}
 	total := int64(7)
 
-	snapshot, found, err := (HTTP{Dir: dir}).InspectTask(context.Background(), client.DownloadTask{
-		ID:              "task-1",
-		SourceType:      "http",
-		SourceURI:       "https://example.com/payload.bin",
-		DownloadedBytes: 7,
-		TotalBytes:      &total,
-	})
+	snapshot, found, err := (HTTP{Dir: dir}).InspectTask(
+		context.Background(),
+		completedDownloadTask("task-1", "http", "https://example.com/payload.bin", total),
+	)
 
 	if err != nil {
 		t.Fatal(err)
@@ -179,11 +200,10 @@ func TestHTTPInspectTaskDoesNotTrustLocalFileWithoutCompletedCheckpoint(t *testi
 		t.Fatal(err)
 	}
 
-	snapshot, found, err := (HTTP{Dir: dir}).InspectTask(context.Background(), client.DownloadTask{
-		ID:         "task-1",
-		SourceType: "http",
-		SourceURI:  "https://example.com/payload.bin",
-	})
+	snapshot, found, err := (HTTP{Dir: dir}).InspectTask(
+		context.Background(),
+		downloadTask("task-1", "http", "https://example.com/payload.bin"),
+	)
 
 	if err != nil {
 		t.Fatal(err)
@@ -204,13 +224,10 @@ func TestHTTPInspectTaskRejectsSizeMismatch(t *testing.T) {
 	}
 	total := int64(8)
 
-	_, _, err := (HTTP{Dir: dir}).InspectTask(context.Background(), client.DownloadTask{
-		ID:              "task-1",
-		SourceType:      "http",
-		SourceURI:       "https://example.com/payload.bin",
-		DownloadedBytes: 8,
-		TotalBytes:      &total,
-	})
+	_, _, err := (HTTP{Dir: dir}).InspectTask(
+		context.Background(),
+		completedDownloadTask("task-1", "http", "https://example.com/payload.bin", total),
+	)
 
 	if err == nil || !strings.Contains(err.Error(), "size mismatch") {
 		t.Fatalf("expected size mismatch error, got %v", err)
@@ -250,8 +267,8 @@ func TestQBittorrentHTTPDelegatesToBuiltin(t *testing.T) {
 
 	result, err := (QBittorrent{URL: "http://127.0.0.1:1", Dir: t.TempDir()}).Download(
 		context.Background(),
-		client.DownloadTask{ID: "task-1", SourceType: "http", SourceURI: server.URL + "/file.txt"},
-		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error { return nil },
+		downloadTask("task-1", "http", server.URL+"/file.txt"),
+		func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error { return nil },
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -267,12 +284,12 @@ func TestQBittorrentHTTPDelegatesToBuiltin(t *testing.T) {
 
 func TestQBittorrentAddOptionsPassThroughTaskClassification(t *testing.T) {
 	options := qbittorrentAddOptions(
-		client.DownloadTask{
-			ID:       "task-1",
-			Name:     "fixture",
-			Category: "movies",
-			Tags:     []string{"4k", "private"},
-		},
+		func() client.DownloadTask {
+			task := downloadTaskWithName("task-1", "magnet", "magnet:?xt=urn:btih:abc", "fixture")
+			task.Spec.Labels.Category = "movies"
+			task.Spec.Labels.Tags = []string{"4k", "private"}
+			return task
+		}(),
 		"/tmp/zpan/task-1",
 		qbittorrentTrackingTag("task-1"),
 	)
@@ -305,7 +322,7 @@ func TestQBittorrentAddOptionsDefaultsCategory(t *testing.T) {
 
 func TestQBittorrentAddOptionsIgnoresTorrentTaskName(t *testing.T) {
 	options := qbittorrentAddOptions(
-		client.DownloadTask{ID: "task-1", SourceType: "magnet", Name: "movie.torrent"},
+		downloadTaskWithName("task-1", "magnet", "magnet:?xt=urn:btih:abc", "movie.torrent"),
 		"/tmp/zpan/task-1",
 		qbittorrentTrackingTag("task-1"),
 	)
@@ -333,18 +350,17 @@ func TestIsAria2RPCDisconnected(t *testing.T) {
 func TestAria2TaskInfoHash(t *testing.T) {
 	const infoHash = "0546769f209ec059284b47f68659791a6f75ca8e"
 
-	if got := aria2TaskInfoHash(client.DownloadTask{
-		SourceType: "magnet",
-		SourceURI:  "magnet:?xt=urn:btih:" + infoHash + "&dn=fixture",
-	}); got != infoHash {
+	if got := aria2TaskInfoHash(downloadTask("task-1", "magnet", "magnet:?xt=urn:btih:"+infoHash+"&dn=fixture")); got != infoHash {
 		t.Fatalf("expected magnet infohash %s, got %s", infoHash, got)
 	}
-	if got := aria2TaskInfoHash(client.DownloadTask{
-		Detail: &client.DownloadTaskDetail{InfoHash: "0546769F209EC059284B47F68659791A6F75CA8E"},
-	}); got != infoHash {
+	taskWithRuntime := downloadTask("task-1", "magnet", "magnet:?xt=urn:btih:abc")
+	taskWithRuntime.Status.Runtime = &client.DownloadTaskRuntime{
+		Torrent: &client.DownloadTaskTorrentRuntime{InfoHash: "0546769F209EC059284B47F68659791A6F75CA8E"},
+	}
+	if got := aria2TaskInfoHash(taskWithRuntime); got != infoHash {
 		t.Fatalf("expected detail infohash %s, got %s", infoHash, got)
 	}
-	if got := aria2TaskInfoHash(client.DownloadTask{SourceType: "http", SourceURI: "https://example.com/file"}); got != "" {
+	if got := aria2TaskInfoHash(downloadTask("task-1", "http", "https://example.com/file")); got != "" {
 		t.Fatalf("expected no infohash for http task, got %s", got)
 	}
 }
@@ -482,7 +498,7 @@ func TestStripTorrentRoot(t *testing.T) {
 	}
 }
 
-func TestAria2DetailIncludesPeerSamples(t *testing.T) {
+func TestAria2DetailIncludesPeers(t *testing.T) {
 	detail := aria2Detail(
 		arigo.Status{
 			TotalLength:     1000,
@@ -501,17 +517,17 @@ func TestAria2DetailIncludesPeerSamples(t *testing.T) {
 		},
 	)
 
-	if detail.Peers == nil || *detail.Peers != 2 {
-		t.Fatalf("expected peer count 2, got %#v", detail.Peers)
+	if detail.Torrent == nil || detail.Torrent.Peers == nil || *detail.Torrent.Peers != 2 {
+		t.Fatalf("expected peer count 2, got %#v", detail.Torrent)
 	}
-	if detail.Leechers == nil || *detail.Leechers != 1 {
-		t.Fatalf("expected leecher count 1, got %#v", detail.Leechers)
+	if detail.Torrent.Leechers == nil || *detail.Torrent.Leechers != 1 {
+		t.Fatalf("expected leecher count 1, got %#v", detail.Torrent.Leechers)
 	}
-	if len(detail.PeerSamples) != 2 {
-		t.Fatalf("expected peer samples, got %#v", detail.PeerSamples)
+	if len(detail.Peers) != 2 {
+		t.Fatalf("expected peer samples, got %#v", detail.Peers)
 	}
-	if detail.PeerSamples[0].Address != "192.0.2.10:6881" {
-		t.Fatalf("unexpected peer address: %s", detail.PeerSamples[0].Address)
+	if detail.Peers[0].Address != "192.0.2.10:6881" {
+		t.Fatalf("unexpected peer address: %s", detail.Peers[0].Address)
 	}
 	if len(detail.Trackers) != 1 || detail.Trackers[0].Status != "announce" || detail.Trackers[0].Message == "" {
 		t.Fatalf("expected aria2 tracker limitation marker, got %#v", detail.Trackers)
@@ -555,7 +571,7 @@ func TestResultFromPathReturnsDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := resultFromPath(client.DownloadTask{ID: "task-1", Name: "bundle"}, taskDir, "bundle")
+	result, err := resultFromPath(downloadTaskWithName("task-1", "http", "https://example.com/bundle", "bundle"), taskDir, "bundle")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,7 +645,7 @@ func TestResultFromAria2FilesWrapsSingleFileBTTask(t *testing.T) {
 	}
 
 	result, err := resultFromAria2Files(
-		client.DownloadTask{ID: "task-1", SourceType: "magnet", Name: "movie.torrent"},
+		downloadTaskWithName("task-1", "magnet", "magnet:?xt=urn:btih:abc", "movie.torrent"),
 		taskDir,
 		"Iron.Lung.2026.1080p.WEBRip.10Bit.DDP.5.1.x265-NeoNoir",
 		[]arigo.File{{Path: filepath.Join(taskDir, "movie.mkv"), Length: 5, Selected: true}},
@@ -664,7 +680,7 @@ func TestResultFromDownloadedFilesWrapsMultipleTopLevelEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := resultFromDownloadedFiles(client.DownloadTask{ID: "task-1", Name: "bundle"}, taskDir, "fallback", []downloadedFile{
+	result, err := resultFromDownloadedFiles(downloadTaskWithName("task-1", "http", "https://example.com/bundle", "bundle"), taskDir, "fallback", []downloadedFile{
 		{path: filepath.Join(taskDir, "folder", "a.txt"), relativePath: filepath.Join("folder", "a.txt")},
 		{path: filepath.Join(taskDir, "root.txt"), relativePath: "root.txt"},
 	})
@@ -681,7 +697,7 @@ func TestResultFromDownloadedFilesWrapsMultipleTopLevelEntries(t *testing.T) {
 
 func TestOutputNameIgnoresTorrentTaskNameForBT(t *testing.T) {
 	name := outputName(
-		client.DownloadTask{ID: "task-1", SourceType: "magnet", Name: "movie.torrent"},
+		downloadTaskWithName("task-1", "magnet", "magnet:?xt=urn:btih:abc", "movie.torrent"),
 		"movie.mkv",
 	)
 
@@ -690,9 +706,9 @@ func TestOutputNameIgnoresTorrentTaskNameForBT(t *testing.T) {
 	}
 }
 
-func TestOutputNameAllowsHTTPDownloadTorrentName(t *testing.T) {
+func TestOutputNameAllowsHTTPDownloadName(t *testing.T) {
 	name := outputName(
-		client.DownloadTask{ID: "task-1", SourceType: "http", Name: "movie.torrent"},
+		downloadTaskWithName("task-1", "http", "https://example.com/movie.torrent", "movie.torrent"),
 		"download",
 	)
 

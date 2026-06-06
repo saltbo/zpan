@@ -246,37 +246,77 @@ export type DownloadTaskStatus =
   | 'canceled'
 
 export type DownloadTaskAction = 'pause' | 'resume' | 'cancel' | 'retry' | 'restart' | 'delete'
+export type DownloadTaskRuntimePhase = 'metadata' | 'downloading' | 'uploading' | 'seeding' | 'completed' | 'error'
+export type DownloadTaskBillingState = 'none' | 'ok' | 'insufficient_credits'
 
 export interface DownloadTask {
   id: string
-  orgId: string
-  createdByUserId: string
-  sourceType: DownloadSourceType
-  sourceUri: string
-  name: string | null
-  targetFolder: string
-  category: string | null
-  tags: string[]
-  assignedDownloaderId: string | null
-  status: DownloadTaskStatus
-  downloadedBytes: number
-  storageUploadedBytes: number
-  totalBytes: number | null
-  authorizedBytes: number
-  billedBytes: number
-  billedCredits: number
-  billingStatus: string
-  downloadBps: number
-  storageUploadBps: number
-  errorMessage: string | null
-  resultObjectId: string | null
-  detail: DownloadTaskDetail | null
-  uploadToken?: string
+  orgId?: string
+  createdBy?: string
+  spec: DownloadTaskSpec
+  status: DownloadTaskExecutionStatus
   createdAt: string
-  updatedAt: string
-  assignedAt: string | null
+}
+
+export interface DownloadTaskSpec {
+  source: {
+    type: DownloadSourceType
+    uri: string
+  }
+  destination: {
+    folder: string
+    name: string | null
+  }
+  labels: {
+    category: string | null
+    tags: string[]
+  }
+}
+
+export interface DownloadTaskExecutionStatus {
+  state: DownloadTaskStatus
+  assignment: DownloadTaskAssignment | null
+  progress: DownloadTaskProgress
+  billing: DownloadTaskBilling
+  output: DownloadTaskOutput | null
+  runtime: DownloadTaskRuntime | null
+  error: DownloadTaskError | null
   startedAt: string | null
   finishedAt: string | null
+  updatedAt: string
+}
+
+export interface DownloadTaskAssignment {
+  downloaderId: string
+  assignedAt?: string | null
+  uploadToken?: string
+}
+
+export interface DownloadTaskTransferProgress {
+  bytes: number
+  totalBytes?: number | null
+  bytesPerSecond: number
+}
+
+export interface DownloadTaskProgress {
+  download: DownloadTaskTransferProgress
+  upload: DownloadTaskTransferProgress
+}
+
+export interface DownloadTaskBilling {
+  state: DownloadTaskBillingState
+  authorizedBytes: number
+  chargedBytes: number
+  chargedCredits: number
+}
+
+export interface DownloadTaskOutput {
+  objectId: string
+}
+
+export interface DownloadTaskError {
+  code?: string | null
+  message: string | null
 }
 
 export interface DownloadTaskTracker {
@@ -294,6 +334,8 @@ export interface DownloadTaskPeer {
   progress?: number
   downloadBps?: number
   uploadBps?: number
+  countryCode?: string
+  regionCode?: string
 }
 
 export interface DownloadTaskFile {
@@ -303,23 +345,38 @@ export interface DownloadTaskFile {
   selected?: boolean
 }
 
-export interface DownloadTaskDetail {
+export interface DownloadTaskRuntime {
   engine?: Downloader['engine']
-  phase?: 'metadata' | 'downloading' | 'uploading' | 'seeding' | 'completed' | 'error'
-  engineState?: string
+  state?: string
+  phase?: DownloadTaskRuntimePhase
   message?: string
-  etaSeconds?: number | null
+  updatedAt?: string
+  progress?: DownloadTaskProgress
+  torrent?: DownloadTaskTorrentRuntime
+  seeding?: DownloadTaskSeedingRuntime
   connections?: number
+  etaSeconds?: number | null
+  trackers?: DownloadTaskTracker[]
+  peers?: DownloadTaskPeer[]
+  files?: DownloadTaskFile[]
+}
+
+export interface DownloadTaskTorrentRuntime {
   infoHash?: string
-  torrentName?: string
+  name?: string
   seeders?: number
   leechers?: number
   peers?: number
-  peerUploadedBytes?: number
-  peerUploadBps?: number
-  trackers?: DownloadTaskTracker[]
-  peerSamples?: DownloadTaskPeer[]
-  files?: DownloadTaskFile[]
+}
+
+export interface DownloadTaskSeedingRuntime {
+  enabled?: boolean
+  active?: boolean
+  uploadedBytes?: number
+  uploadBytesPerSecond?: number
+  ratio?: number
+  startedAt?: string | null
+  expiresAt?: string | null
 }
 
 export interface ObjectUploadSession {

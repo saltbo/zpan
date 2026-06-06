@@ -43,7 +43,7 @@ func (h HTTP) Check(ctx context.Context) error {
 }
 
 func (h HTTP) InspectTask(ctx context.Context, task client.DownloadTask) (TaskSnapshot, bool, error) {
-	if task.SourceType != "http" {
+	if task.SourceType() != "http" {
 		return TaskSnapshot{}, false, nil
 	}
 	size, ok := completedHTTPCheckpoint(task)
@@ -69,13 +69,13 @@ func (h HTTP) InspectTask(ctx context.Context, task client.DownloadTask) (TaskSn
 		State:      TaskStateCompleted,
 		Downloaded: size,
 		Total:      &size,
-		Detail:     &client.DownloadTaskDetail{Engine: "builtin", Phase: "completed"},
+		Runtime:    &client.DownloadTaskRuntime{Engine: "builtin", Phase: "completed"},
 		Result:     &result,
 	}, true, nil
 }
 
 func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {
-	if task.SourceType != "http" {
+	if task.SourceType() != "http" {
 		return Result{}, errors.New("http engine only supports http sources")
 	}
 	taskDir := filepath.Join(h.Dir, task.ID)
@@ -91,7 +91,7 @@ func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress P
 	if err != nil {
 		return Result{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, task.SourceURI, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, task.SourceURI(), nil)
 	if err != nil {
 		return Result{}, err
 	}
@@ -130,14 +130,14 @@ func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress P
 	if _, err := io.Copy(file, io.TeeReader(res.Body, counter)); err != nil {
 		return Result{}, err
 	}
-	if err := progress(counter.downloaded, total, 0, &client.DownloadTaskDetail{Engine: "builtin", Phase: "completed"}); err != nil {
+	if err := progress(counter.downloaded, total, 0, &client.DownloadTaskRuntime{Engine: "builtin", Phase: "completed"}); err != nil {
 		return Result{}, err
 	}
 	return Result{Path: path, Name: name, Size: counter.downloaded}, nil
 }
 
 func (h HTTP) outputPath(task client.DownloadTask) (string, string, error) {
-	parsed, err := httpURL(task.SourceURI)
+	parsed, err := httpURL(task.SourceURI())
 	if err != nil {
 		return "", "", err
 	}
@@ -146,13 +146,14 @@ func (h HTTP) outputPath(task client.DownloadTask) (string, string, error) {
 }
 
 func completedHTTPCheckpoint(task client.DownloadTask) (int64, bool) {
-	if task.TotalBytes == nil || *task.TotalBytes <= 0 {
+	total := task.Status.Progress.Download.TotalBytes
+	if total == nil || *total <= 0 {
 		return 0, false
 	}
-	if task.DownloadedBytes != *task.TotalBytes {
+	if task.Status.Progress.Download.Bytes != *total {
 		return 0, false
 	}
-	return *task.TotalBytes, true
+	return *total, true
 }
 
 func httpURL(raw string) (*url.URL, error) {

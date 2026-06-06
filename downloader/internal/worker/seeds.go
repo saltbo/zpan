@@ -56,8 +56,11 @@ func (w *Worker) retainSeed(task client.DownloadTask, result engine.Result, log 
 	if w.cfg.SeedDuration > 0 {
 		seed.expiresAt = now.Add(w.cfg.SeedDuration)
 	}
-	if snapshot, err := result.Seed.Snapshot(context.Background()); err == nil && snapshot.Detail != nil && snapshot.Detail.PeerUploadedBytes != nil {
-		seed.uploadBase = *snapshot.Detail.PeerUploadedBytes
+	if snapshot, err := result.Seed.Snapshot(context.Background()); err == nil &&
+		snapshot.Runtime != nil &&
+		snapshot.Runtime.Seeding != nil &&
+		snapshot.Runtime.Seeding.UploadedBytes != nil {
+		seed.uploadBase = *snapshot.Runtime.Seeding.UploadedBytes
 	} else if err != nil {
 		log.Warn("failed to record retained bt seed upload baseline", "error", err)
 	}
@@ -161,17 +164,18 @@ func (w *Worker) reportRetainedSeeds(ctx context.Context) {
 			log.Warn("failed to inspect retained bt seed", "error", err)
 			continue
 		}
-		if snapshot.Detail == nil {
+		if snapshot.Runtime == nil {
 			continue
 		}
-		snapshot.Detail.Phase = "seeding"
-		zero := int64(0)
+		snapshot.Runtime.Phase = "seeding"
+		if snapshot.Runtime.Seeding == nil {
+			snapshot.Runtime.Seeding = &client.DownloadTaskSeedingRuntime{}
+		}
+		active := true
+		snapshot.Runtime.Seeding.Active = &active
 		_, err = w.updateTask(ctx, seed.taskID, client.TaskPatch{
-			DownloadedBytes:  &snapshot.Downloaded,
-			TotalBytes:       snapshot.Total,
-			DownloadBps:      &snapshot.Bps,
-			StorageUploadBps: &zero,
-			Detail:           snapshot.Detail,
+			Progress: downloadProgressPatch(snapshot.Downloaded, snapshot.Total, 0),
+			Runtime:  snapshot.Runtime,
 		})
 		if err != nil {
 			log.Warn("failed to report retained bt seed", "error", err)
@@ -204,10 +208,12 @@ func (w *Worker) cleanupRetainedSeeds(ctx context.Context) {
 				w.logger.Warn("failed to inspect retained seed ratio", "task_id", seed.taskID, "path", seed.path, "error", err)
 				continue
 			}
-			if snapshot.Detail == nil || snapshot.Detail.PeerUploadedBytes == nil {
+			if snapshot.Runtime == nil ||
+				snapshot.Runtime.Seeding == nil ||
+				snapshot.Runtime.Seeding.UploadedBytes == nil {
 				continue
 			}
-			uploaded := *snapshot.Detail.PeerUploadedBytes - seed.uploadBase
+			uploaded := *snapshot.Runtime.Seeding.UploadedBytes - seed.uploadBase
 			if uploaded >= int64(float64(seed.downloaded)*w.cfg.SeedRatio) {
 				reasons[seed.taskID] = "ratio"
 			}

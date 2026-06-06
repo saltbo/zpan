@@ -169,7 +169,7 @@ func (w *Worker) tick(ctx context.Context) error {
 	w.logger.Debug("poll completed", "assigned_tasks", len(tasks), "running", w.currentTasks())
 	for _, task := range tasks {
 		taskLogger := w.taskLogger(task)
-		if task.UploadToken == "" {
+		if task.UploadToken() == "" {
 			taskLogger.Warn("assigned task skipped because upload token is missing")
 			continue
 		}
@@ -187,8 +187,8 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	defer w.finish(task.ID)
 	log := w.taskLogger(task)
 	defer w.recoverTaskPanic(ctx, task.ID, log)
-	log.Info("task started", "source_uri", task.SourceURI, "target_folder", task.TargetFolder)
-	currentDetail := task.Detail
+	log.Info("task started", "source_uri", task.SourceURI(), "target_folder", task.TargetFolder())
+	currentDetail := task.Runtime()
 	if nextTaskWorkStage(task) == taskWorkStageUploadExistingResult {
 		w.uploadExistingResult(ctx, log, task, currentDetail)
 		return
@@ -201,7 +201,7 @@ func (w *Worker) downloadThenUpload(
 	ctx context.Context,
 	log *slog.Logger,
 	task client.DownloadTask,
-	currentDetail *client.DownloadTaskDetail,
+	currentDetail *client.DownloadTaskRuntime,
 ) {
 	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "downloading"}); err != nil {
 		log.Error("failed to mark task downloading", "error", err)
@@ -211,16 +211,14 @@ func (w *Worker) downloadThenUpload(
 	}
 
 	var lastProgressLog time.Time
-	result, err := w.engine.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error {
-		detail = withDownloadETA(detail, downloaded, total, bps)
+	result, err := w.engine.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error {
+		detail = withDownloadRuntime(detail, downloaded, total, bps)
 		if detail != nil {
 			currentDetail = detail
 		}
 		_, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{
-			DownloadedBytes: &downloaded,
-			TotalBytes:      total,
-			DownloadBps:     &bps,
-			Detail:          detail,
+			Progress: downloadProgressPatch(downloaded, total, bps),
+			Runtime:  detail,
 		})
 		if updateErr != nil && strings.Contains(updateErr.Error(), "insufficient_credits") {
 			log.Warn("task paused by billing", "downloaded_bytes", downloaded, "total_bytes", optionalInt64(total), "bps", bps)
@@ -253,11 +251,11 @@ func (w *Worker) downloadThenUpload(
 				return
 			}
 			zero := int64(0)
+			downloaded, total := downloadCheckpoint(currentDetail)
 			if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
-				Status:           "interrupted",
-				DownloadBps:      &zero,
-				StorageUploadBps: &zero,
-				Detail:           interruptedDetail(currentDetail),
+				Status:   "interrupted",
+				Progress: downloadProgressPatch(downloaded, total, zero),
+				Runtime:  interruptedRuntime(currentDetail),
 			}); updateErr != nil {
 				log.Error("failed to mark task interrupted after shutdown", "error", updateErr)
 			}
@@ -291,7 +289,7 @@ func (w *Worker) uploadExistingResult(
 	ctx context.Context,
 	log *slog.Logger,
 	task client.DownloadTask,
-	currentDetail *client.DownloadTaskDetail,
+	currentDetail *client.DownloadTaskRuntime,
 ) {
 	snapshot, found, err := w.engine.InspectTask(ctx, task)
 	if err != nil {
@@ -339,19 +337,22 @@ func (w *Worker) recoverTaskPanic(ctx context.Context, taskID string, log *slog.
 }
 
 func nextTaskWorkStage(task client.DownloadTask) taskWorkStage {
-	if task.Status == "uploading" {
+	if task.State() == "uploading" {
 		return taskWorkStageUploadExistingResult
 	}
-	if task.Status != "assigned" && task.Status != "downloading" && task.Status != "interrupted" {
+	if task.State() != "assigned" && task.State() != "downloading" && task.State() != "interrupted" {
 		return taskWorkStageDownload
 	}
-	if task.StorageUploadedBytes > 0 {
+	if task.Status.Progress.Upload.Bytes > 0 {
 		return taskWorkStageUploadExistingResult
 	}
-	if task.Detail != nil && (task.Detail.Phase == "uploading" || task.Detail.Phase == "completed") {
+	runtime := task.Runtime()
+	if runtime != nil && (runtime.Phase == "uploading" || runtime.Phase == "completed") {
 		return taskWorkStageUploadExistingResult
 	}
-	if task.TotalBytes != nil && *task.TotalBytes > 0 && task.DownloadedBytes >= *task.TotalBytes {
+	if task.Status.Progress.Download.TotalBytes != nil &&
+		*task.Status.Progress.Download.TotalBytes > 0 &&
+		task.Status.Progress.Download.Bytes >= *task.Status.Progress.Download.TotalBytes {
 		return taskWorkStageUploadExistingResult
 	}
 	return taskWorkStageDownload
@@ -362,30 +363,32 @@ func (w *Worker) uploadAndComplete(
 	log *slog.Logger,
 	task client.DownloadTask,
 	result engine.Result,
-	currentDetail *client.DownloadTaskDetail,
+	currentDetail *client.DownloadTaskRuntime,
 ) {
 	zero := int64(0)
-	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "uploading", DownloadBps: &zero}); err != nil {
+	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{
+		Status:   "uploading",
+		Progress: downloadProgressPatch(result.Size, &result.Size, zero),
+	}); err != nil {
 		log.Error("failed to mark task uploading", "error", err)
 	}
-	task.Detail = currentDetail
 	resultObjectID, err := w.uploadResult(ctx, log, task, result)
 	if err != nil {
 		downloadedBytes := result.Size
 		if errors.Is(err, context.Canceled) {
-			uploadingDetail := task.Detail
+			uploadingDetail := currentDetail
 			if uploadingDetail == nil {
-				uploadingDetail = &client.DownloadTaskDetail{}
+				uploadingDetail = &client.DownloadTaskRuntime{}
 			}
 			uploadingDetail.Phase = "uploading"
-			uploadingDetail.PeerUploadBps = nil
+			uploadingDetail.Seeding = nil
 			if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
-				Status:           "interrupted",
-				DownloadedBytes:  &downloadedBytes,
-				TotalBytes:       &downloadedBytes,
-				DownloadBps:      &zero,
-				StorageUploadBps: &zero,
-				Detail:           interruptedDetail(uploadingDetail),
+				Status: "interrupted",
+				Progress: &client.DownloadTaskProgressPatch{
+					Download: transferProgress(downloadedBytes, &downloadedBytes, zero),
+					Upload:   transferProgress(0, &downloadedBytes, zero),
+				},
+				Runtime: interruptedRuntime(uploadingDetail),
 			}); updateErr != nil {
 				log.Error("failed to mark task interrupted after upload shutdown", "error", updateErr)
 			}
@@ -394,39 +397,40 @@ func (w *Worker) uploadAndComplete(
 		}
 		msg := taskErrorMessage(err)
 		log.Error("failed to upload result", "error", err)
-		failedDetail := task.Detail
+		failedDetail := currentDetail
 		if failedDetail == nil {
-			failedDetail = &client.DownloadTaskDetail{}
+			failedDetail = &client.DownloadTaskRuntime{}
 		}
 		failedDetail.Phase = "uploading"
-		failedDetail.PeerUploadBps = nil
+		failedDetail.Seeding = nil
 		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{
-			Status:           "failed",
-			ErrorMessage:     &msg,
-			DownloadedBytes:  &downloadedBytes,
-			TotalBytes:       &downloadedBytes,
-			DownloadBps:      &zero,
-			StorageUploadBps: &zero,
-			Detail:           failedDetail,
+			Status:       "failed",
+			ErrorMessage: &msg,
+			Progress: &client.DownloadTaskProgressPatch{
+				Download: transferProgress(downloadedBytes, &downloadedBytes, zero),
+				Upload:   transferProgress(0, &downloadedBytes, zero),
+			},
+			Runtime: failedDetail,
 		}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
 		}
 		return
 	}
 	uploadedBytes := result.Size
-	completedDetail := task.Detail
+	completedDetail := currentDetail
 	if completedDetail == nil {
-		completedDetail = &client.DownloadTaskDetail{}
+		completedDetail = &client.DownloadTaskRuntime{}
 	}
 	completedDetail.Phase = "completed"
-	completedDetail.PeerUploadBps = nil
+	completedDetail.Seeding = nil
 	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{
-		Status:               "completed",
-		ResultObjectID:       &resultObjectID,
-		StorageUploadedBytes: &uploadedBytes,
-		DownloadBps:          &zero,
-		StorageUploadBps:     &zero,
-		Detail:               completedDetail,
+		Status:         "completed",
+		ResultObjectID: &resultObjectID,
+		Progress: &client.DownloadTaskProgressPatch{
+			Download: transferProgress(result.Size, &result.Size, zero),
+			Upload:   transferProgress(uploadedBytes, &result.Size, zero),
+		},
+		Runtime: completedDetail,
 	}); err != nil {
 		log.Error("failed to mark task completed", "object_id", resultObjectID, "error", err)
 		return
@@ -442,13 +446,17 @@ func (w *Worker) uploadAndComplete(
 	}
 }
 
-func withDownloadETA(detail *client.DownloadTaskDetail, downloaded int64, total *int64, bps int64) *client.DownloadTaskDetail {
+func withDownloadRuntime(detail *client.DownloadTaskRuntime, downloaded int64, total *int64, bps int64) *client.DownloadTaskRuntime {
+	if detail == nil {
+		detail = &client.DownloadTaskRuntime{}
+	}
+	detail.Progress = &client.DownloadTaskProgress{
+		Download: *transferProgress(downloaded, total, bps),
+		Upload:   client.DownloadTaskTransferProgress{Bytes: 0, TotalBytes: nil, BytesPerSecond: 0},
+	}
 	eta := downloadETA(downloaded, total, bps)
 	if eta == nil {
 		return detail
-	}
-	if detail == nil {
-		return &client.DownloadTaskDetail{ETASeconds: eta}
 	}
 	if detail.ETASeconds == nil {
 		detail.ETASeconds = eta
@@ -456,12 +464,31 @@ func withDownloadETA(detail *client.DownloadTaskDetail, downloaded int64, total 
 	return detail
 }
 
-func interruptedDetail(detail *client.DownloadTaskDetail) *client.DownloadTaskDetail {
-	if detail == nil {
-		detail = &client.DownloadTaskDetail{}
+func interruptedRuntime(runtime *client.DownloadTaskRuntime) *client.DownloadTaskRuntime {
+	if runtime == nil {
+		runtime = &client.DownloadTaskRuntime{}
 	}
-	detail.Message = "Interrupted because the downloader stopped"
-	return detail
+	runtime.Message = "Interrupted because the downloader stopped"
+	return runtime
+}
+
+func downloadProgressPatch(downloaded int64, total *int64, bps int64) *client.DownloadTaskProgressPatch {
+	return &client.DownloadTaskProgressPatch{Download: transferProgress(downloaded, total, bps)}
+}
+
+func uploadProgressPatch(uploaded int64, total int64, bps int64) *client.DownloadTaskProgressPatch {
+	return &client.DownloadTaskProgressPatch{Upload: transferProgress(uploaded, &total, bps)}
+}
+
+func transferProgress(bytes int64, total *int64, bps int64) *client.DownloadTaskTransferProgress {
+	return &client.DownloadTaskTransferProgress{Bytes: bytes, TotalBytes: total, BytesPerSecond: bps}
+}
+
+func downloadCheckpoint(runtime *client.DownloadTaskRuntime) (int64, *int64) {
+	if runtime == nil || runtime.Progress == nil {
+		return 0, nil
+	}
+	return runtime.Progress.Download.Bytes, runtime.Progress.Download.TotalBytes
 }
 
 func downloadETA(downloaded int64, total *int64, bps int64) *int64 {
@@ -623,8 +650,8 @@ func (w *Worker) cancelRunning(task client.DownloadTask) bool {
 	if cancel == nil {
 		return false
 	}
-	w.taskLogger(task).Info("canceling running task from server state", "status", task.Status)
-	if task.Status == "pausing" {
+	w.taskLogger(task).Info("canceling running task from server state", "status", task.State())
+	if task.State() == "pausing" {
 		cancel(errTaskPausing)
 		return true
 	}
@@ -634,7 +661,7 @@ func (w *Worker) cancelRunning(task client.DownloadTask) bool {
 
 func (w *Worker) ackStoppedControlTask(ctx context.Context, task client.DownloadTask) {
 	log := w.taskLogger(task)
-	if task.Status == "pausing" {
+	if task.State() == "pausing" {
 		if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "paused"}); err != nil {
 			log.Error("failed to acknowledge paused task without local process", "error", err)
 			return
@@ -642,7 +669,7 @@ func (w *Worker) ackStoppedControlTask(ctx context.Context, task client.Download
 		log.Info("acknowledged paused task without local process")
 		return
 	}
-	if task.Status == "canceling" {
+	if task.State() == "canceling" {
 		if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "canceled"}); err != nil {
 			log.Error("failed to acknowledge canceled task without local process", "error", err)
 			return
@@ -716,9 +743,9 @@ func taskErrorMessage(err error) string {
 func (w *Worker) taskLogger(task client.DownloadTask) *slog.Logger {
 	return w.logger.With(
 		"task_id", task.ID,
-		"source_type", task.SourceType,
-		"name", task.Name,
-		"status", task.Status,
+		"source_type", task.SourceType(),
+		"name", task.Name(),
+		"status", task.State(),
 	)
 }
 

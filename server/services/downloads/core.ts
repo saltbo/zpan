@@ -6,7 +6,8 @@ import type {
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
 } from '@shared/schemas'
-import type { Downloader, DownloadTask, DownloadTaskDetail } from '@shared/types'
+import { downloadTaskRuntimeSchema } from '@shared/schemas'
+import type { Downloader, DownloadTask, DownloadTaskRuntime } from '@shared/types'
 import { and, asc, count, desc, eq, inArray, like, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { downloaders, downloadTasks } from '../../db/schema'
@@ -138,11 +139,7 @@ export async function deleteDownloader(platform: Platform, id: string): Promise<
     .set({
       status: 'queued',
       assignedDownloaderId: null,
-      uploadTokenHash: null,
-      uploadTokenJti: null,
-      uploadTokenIssuedAt: null,
-      uploadTokenExpiresAt: null,
-      detail: null,
+      runtime: null,
       assignedAt: null,
       updatedAt: now,
     })
@@ -210,31 +207,18 @@ export async function createDownloadTask(
   const now = new Date()
   const id = nanoid()
   const assigned = await selectDownloader(platform, input.source.type)
-  const uploadToken = assigned
-    ? await createTaskUploadToken(platform, {
-        taskId: id,
-        downloaderId: assigned.id,
-        orgId,
-        targetFolder: input.targetFolder,
-        createdByUserId: userId,
-      })
-    : null
   await platform.db.insert(downloadTasks).values({
     id,
     orgId,
     createdByUserId: userId,
     sourceType: input.source.type,
     sourceUri: input.source.uri,
-    name: input.name ?? null,
+    displayName: input.name ?? null,
     targetFolder: input.targetFolder,
     category: input.category ?? null,
     tags: JSON.stringify(input.tags ?? []),
     assignedDownloaderId: assigned?.id ?? null,
     status: assigned ? 'assigned' : 'queued',
-    uploadTokenHash: uploadToken?.hash ?? null,
-    uploadTokenJti: uploadToken?.jti ?? null,
-    uploadTokenIssuedAt: uploadToken?.issuedAt ?? null,
-    uploadTokenExpiresAt: uploadToken?.expiresAt ?? null,
     createdAt: now,
     updatedAt: now,
     assignedAt: assigned ? now : null,
@@ -302,13 +286,17 @@ function downloadTaskOrderBy(
   if (sortBy === 'progress') {
     return direction(sql<number>`
       case
-        when ${downloadTasks.totalBytes} is null or ${downloadTasks.totalBytes} = 0 then 0
-        else (${downloadTasks.downloadedBytes} * 1000000 / ${downloadTasks.totalBytes})
+        when json_extract(${downloadTasks.runtime}, '$.progress.download.totalBytes') is null
+          or json_extract(${downloadTasks.runtime}, '$.progress.download.totalBytes') = 0 then 0
+        else (
+          json_extract(${downloadTasks.runtime}, '$.progress.download.bytes') * 1000000 /
+          json_extract(${downloadTasks.runtime}, '$.progress.download.totalBytes')
+        )
       end
     `)
   }
   if (sortBy === 'eta') {
-    return direction(sql<number>`coalesce(json_extract(${downloadTasks.detail}, '$.etaSeconds'), 9223372036854775807)`)
+    return direction(sql<number>`coalesce(json_extract(${downloadTasks.runtime}, '$.etaSeconds'), 9223372036854775807)`)
   }
   return direction(downloadTasks.createdAt)
 }
@@ -338,7 +326,7 @@ export async function updateDownloadTask(
     const now = new Date()
     await platform.db
       .update(downloadTasks)
-      .set({ status: 'paused', downloadBps: 0, uploadBps: 0, updatedAt: now })
+      .set({ status: 'paused', runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)), updatedAt: now })
       .where(eq(downloadTasks.id, id))
     return getDownloadTask(platform, task.orgId, id)
   }
@@ -346,7 +334,12 @@ export async function updateDownloadTask(
     const now = new Date()
     await platform.db
       .update(downloadTasks)
-      .set({ status: 'canceled', downloadBps: 0, uploadBps: 0, finishedAt: task.finishedAt ?? now, updatedAt: now })
+      .set({
+        status: 'canceled',
+        runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
+        finishedAt: task.finishedAt ?? now,
+        updatedAt: now,
+      })
       .where(eq(downloadTasks.id, id))
     return getDownloadTask(platform, task.orgId, id)
   }
@@ -356,36 +349,28 @@ export async function updateDownloadTask(
   if (actor.orgId && !actor.downloaderId) {
     const onlyCancel =
       input.status === 'canceled' &&
-      input.downloadedBytes === undefined &&
-      input.storageUploadedBytes === undefined &&
-      input.totalBytes === undefined &&
-      input.downloadBps === undefined &&
-      input.storageUploadBps === undefined &&
+      input.progress === undefined &&
       input.errorMessage === undefined &&
       input.resultObjectId === undefined &&
-      input.detail === undefined
+      input.runtime === undefined
     if (!onlyCancel) throw new DownloadError('forbidden')
   }
 
   const now = new Date()
   let status = input.status ?? task.status
-  let authorizedBytes = task.authorizedBytes
-  let billedBytes = task.billedBytes
-  let billedCredits = task.billedCredits
+  let billingAuthorizedBytes = task.billingAuthorizedBytes
+  let billingChargedBytes = task.billingChargedBytes
+  let billingChargedCredits = task.billingChargedCredits
   let billingStatus = task.billingStatus
-  const downloadedBytes =
-    actor.downloaderId && input.downloadedBytes !== undefined
-      ? Math.max(input.downloadedBytes, task.downloadedBytes)
-      : (input.downloadedBytes ?? task.downloadedBytes)
-  const storageUploadedBytes =
-    actor.downloaderId && input.storageUploadedBytes !== undefined
-      ? Math.max(input.storageUploadedBytes, task.uploadedBytes)
-      : (input.storageUploadedBytes ?? task.uploadedBytes)
+  const currentRuntime = parseTaskRuntime(task.runtime)
+  const nextRuntime = nextTaskRuntime(currentRuntime, input.runtime, input.progress, status, now)
+  const currentDownloadedBytes = currentRuntime?.progress?.download.bytes ?? 0
+  const nextDownloadedBytes = nextRuntime?.progress?.download.bytes ?? currentDownloadedBytes
 
-  if (actor.downloaderId && downloadedBytes > task.downloadedBytes) {
+  if (actor.downloaderId && nextDownloadedBytes > currentDownloadedBytes) {
     const downloader = await loadDownloaderRow(platform, actor.downloaderId)
-    const targetUnits = Math.ceil(downloadedBytes / downloader.remoteDownloadCreditUnitBytes)
-    const currentUnits = Math.ceil(task.billedBytes / downloader.remoteDownloadCreditUnitBytes)
+    const targetUnits = Math.ceil(nextDownloadedBytes / downloader.remoteDownloadCreditUnitBytes)
+    const currentUnits = Math.ceil(task.billingChargedBytes / downloader.remoteDownloadCreditUnitBytes)
     try {
       for (let unit = currentUnits + 1; unit <= targetUnits; unit += 1) {
         await reportRemoteDownloadUnit({
@@ -398,11 +383,13 @@ export async function updateDownloadTask(
           creditsPerUnit: downloader.remoteDownloadCreditPerUnit,
           enabled: downloader.remoteDownloadCreditBillingEnabled,
         })
-        billedCredits += downloader.remoteDownloadCreditBillingEnabled ? downloader.remoteDownloadCreditPerUnit : 0
+        billingChargedCredits += downloader.remoteDownloadCreditBillingEnabled
+          ? downloader.remoteDownloadCreditPerUnit
+          : 0
       }
       if (targetUnits > currentUnits) {
-        billedBytes = targetUnits * downloader.remoteDownloadCreditUnitBytes
-        authorizedBytes = billedBytes
+        billingChargedBytes = targetUnits * downloader.remoteDownloadCreditUnitBytes
+        billingAuthorizedBytes = billingChargedBytes
         billingStatus = 'ok'
       }
     } catch (error) {
@@ -417,24 +404,18 @@ export async function updateDownloadTask(
 
   const nextFinishedAt =
     task.finishedAt ?? (input.status !== undefined && ['completed', 'failed', 'canceled'].includes(status) ? now : null)
-  const nextDetail = nextTaskDetail(task.detail, input.detail, status)
 
   await platform.db
     .update(downloadTasks)
     .set({
       status,
-      downloadedBytes,
-      uploadedBytes: storageUploadedBytes,
-      totalBytes: input.totalBytes === undefined ? task.totalBytes : input.totalBytes,
-      authorizedBytes,
-      billedBytes,
-      billedCredits,
+      billingAuthorizedBytes,
+      billingChargedBytes,
+      billingChargedCredits,
       billingStatus,
-      downloadBps: input.downloadBps ?? task.downloadBps,
-      uploadBps: input.storageUploadBps ?? task.uploadBps,
       errorMessage: input.errorMessage === undefined ? task.errorMessage : input.errorMessage,
       resultObjectId: input.resultObjectId === undefined ? task.resultObjectId : input.resultObjectId,
-      detail: nextDetail,
+      runtime: serializeTaskRuntime(nextRuntime),
       startedAt: task.startedAt ?? (status === 'downloading' ? now : null),
       finishedAt: nextFinishedAt,
       updatedAt: now,
@@ -475,7 +456,7 @@ export async function performDownloadTaskAction(
     const status = task.status === 'downloading' ? 'pausing' : 'paused'
     await platform.db
       .update(downloadTasks)
-      .set({ status, downloadBps: 0, uploadBps: 0, updatedAt: now })
+      .set({ status, runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)), updatedAt: now })
       .where(eq(downloadTasks.id, id))
     return getDownloadTask(platform, orgId, id)
   }
@@ -489,14 +470,8 @@ export async function performDownloadTaskAction(
       .set({
         status: 'queued',
         assignedDownloaderId: null,
-        uploadTokenHash: null,
-        uploadTokenJti: null,
-        uploadTokenIssuedAt: null,
-        uploadTokenExpiresAt: null,
         assignedAt: null,
-        downloadBps: 0,
-        uploadBps: 0,
-        detail: clearTaskDetailMessageJson(task.detail),
+        runtime: clearTaskRuntimeMessageJson(task.runtime),
         updatedAt: now,
       })
       .where(eq(downloadTasks.id, id))
@@ -518,8 +493,7 @@ export async function performDownloadTaskAction(
       .update(downloadTasks)
       .set({
         status,
-        downloadBps: 0,
-        uploadBps: 0,
+        runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
         finishedAt: status === 'canceled' ? (task.finishedAt ?? now) : task.finishedAt,
         updatedAt: now,
       })
@@ -536,15 +510,10 @@ export async function performDownloadTaskAction(
       .set({
         status: 'queued',
         assignedDownloaderId: null,
-        uploadTokenHash: null,
-        uploadTokenJti: null,
-        uploadTokenIssuedAt: null,
-        uploadTokenExpiresAt: null,
-        downloadBps: 0,
-        uploadBps: 0,
+        errorCode: null,
         errorMessage: null,
         resultObjectId: null,
-        detail: clearTaskDetailMessageJson(task.detail),
+        runtime: clearTaskRuntimeMessageJson(task.runtime),
         assignedAt: null,
         startedAt: null,
         finishedAt: null,
@@ -564,22 +533,14 @@ export async function performDownloadTaskAction(
       .set({
         status: 'queued',
         assignedDownloaderId: null,
-        uploadTokenHash: null,
-        uploadTokenJti: null,
-        uploadTokenIssuedAt: null,
-        uploadTokenExpiresAt: null,
-        downloadedBytes: 0,
-        uploadedBytes: 0,
-        totalBytes: null,
-        authorizedBytes: 0,
-        billedBytes: 0,
-        billedCredits: 0,
+        billingAuthorizedBytes: 0,
+        billingChargedBytes: 0,
+        billingChargedCredits: 0,
         billingStatus: 'none',
-        downloadBps: 0,
-        uploadBps: 0,
+        errorCode: null,
         errorMessage: null,
         resultObjectId: null,
-        detail: null,
+        runtime: null,
         assignedAt: null,
         startedAt: null,
         finishedAt: null,
@@ -593,39 +554,77 @@ export async function performDownloadTaskAction(
   throw new DownloadError('invalid_state')
 }
 
-function nextTaskDetail(
-  current: string | null,
-  input: UpdateDownloadTaskInput['detail'],
+function nextTaskRuntime(
+  current: DownloadTaskRuntime | null,
+  input: UpdateDownloadTaskInput['runtime'],
+  progress: UpdateDownloadTaskInput['progress'],
   status: string,
-): string | null {
-  const detail = input === undefined ? parseTaskDetail(current) : input
+  now: Date,
+): DownloadTaskRuntime | null {
+  const runtime = input === undefined ? current : input
+  const merged = mergeTaskRuntime(runtime, progress, now)
   if (!EXECUTABLE_TASK_STATUSES.includes(status as (typeof EXECUTABLE_TASK_STATUSES)[number])) {
-    return serializeTaskDetail(detail)
+    return merged
   }
-  return serializeTaskDetail(clearTaskDetailMessage(detail))
+  return clearTaskRuntimeMessage(merged)
 }
 
-function clearTaskDetailMessageJson(value: string | null): string | null {
-  return serializeTaskDetail(clearTaskDetailMessage(parseTaskDetail(value)))
+function mergeTaskRuntime(
+  runtime: DownloadTaskRuntime | null | undefined,
+  progress: UpdateDownloadTaskInput['progress'],
+  now: Date,
+): DownloadTaskRuntime | null {
+  const next = runtime ? { ...runtime } : null
+  if (!progress) return next
+  const base = next ?? {}
+  return {
+    ...base,
+    updatedAt: now.toISOString(),
+    progress: {
+      download: {
+        bytes: Math.max(progress.download?.bytes ?? 0, base.progress?.download.bytes ?? 0),
+        totalBytes: progress.download?.totalBytes ?? base.progress?.download.totalBytes ?? null,
+        bytesPerSecond: progress.download?.bytesPerSecond ?? base.progress?.download.bytesPerSecond ?? 0,
+      },
+      upload: {
+        bytes: Math.max(progress.upload?.bytes ?? 0, base.progress?.upload.bytes ?? 0),
+        totalBytes: progress.upload?.totalBytes ?? base.progress?.upload.totalBytes ?? null,
+        bytesPerSecond: progress.upload?.bytesPerSecond ?? base.progress?.upload.bytesPerSecond ?? 0,
+      },
+    },
+  }
 }
 
-function clearTaskDetailMessage(detail: DownloadTaskDetail | null): DownloadTaskDetail | null {
-  if (!detail?.message) return detail
-  const { message: _message, ...rest } = detail
+function stoppedRuntime(value: string | null): DownloadTaskRuntime | null {
+  const runtime = parseTaskRuntime(value)
+  if (!runtime?.progress) return runtime
+  return {
+    ...runtime,
+    progress: {
+      download: { ...runtime.progress.download, bytesPerSecond: 0 },
+      upload: { ...runtime.progress.upload, bytesPerSecond: 0 },
+    },
+    seeding: runtime.seeding ? { ...runtime.seeding, uploadBytesPerSecond: 0 } : runtime.seeding,
+  }
+}
+
+function clearTaskRuntimeMessageJson(value: string | null): string | null {
+  return serializeTaskRuntime(clearTaskRuntimeMessage(parseTaskRuntime(value)))
+}
+
+function clearTaskRuntimeMessage(runtime: DownloadTaskRuntime | null): DownloadTaskRuntime | null {
+  if (!runtime?.message) return runtime
+  const { message: _message, ...rest } = runtime
   return Object.keys(rest).length > 0 ? rest : null
 }
 
-function parseTaskDetail(value: string | null): DownloadTaskDetail | null {
+function parseTaskRuntime(value: string | null): DownloadTaskRuntime | null {
   if (!value) return null
-  try {
-    return JSON.parse(value) as DownloadTaskDetail
-  } catch {
-    return null
-  }
+  return downloadTaskRuntimeSchema.parse(JSON.parse(value))
 }
 
-function serializeTaskDetail(detail: DownloadTaskDetail | null | undefined): string | null {
-  return detail && Object.keys(detail).length > 0 ? JSON.stringify(detail) : null
+function serializeTaskRuntime(runtime: DownloadTaskRuntime | null | undefined): string | null {
+  return runtime && Object.keys(runtime).length > 0 ? JSON.stringify(runtime) : null
 }
 
 export async function assertTaskUploadAllowed(platform: Platform, params: { taskId: string; downloaderId: string }) {
@@ -646,23 +645,12 @@ async function assignQueuedTasks(platform: Platform): Promise<void> {
   for (const task of tasks) {
     const downloader = await selectDownloader(platform, task.sourceType)
     if (!downloader) continue
-    const token = await createTaskUploadToken(platform, {
-      taskId: task.id,
-      downloaderId: downloader.id,
-      orgId: task.orgId,
-      targetFolder: task.targetFolder,
-      createdByUserId: task.createdByUserId,
-    })
     const now = new Date()
     await platform.db
       .update(downloadTasks)
       .set({
         status: 'assigned',
         assignedDownloaderId: downloader.id,
-        uploadTokenHash: token.hash,
-        uploadTokenJti: token.jti,
-        uploadTokenIssuedAt: token.issuedAt,
-        uploadTokenExpiresAt: token.expiresAt,
         assignedAt: now,
         updatedAt: now,
       })
@@ -687,21 +675,18 @@ async function selectDownloader(platform: Platform, sourceType: string): Promise
 
 async function createTaskUploadToken(
   platform: Platform,
-  params: { taskId: string; downloaderId: string; orgId: string; targetFolder: string; createdByUserId: string },
-) {
-  const issuedAt = Math.floor(Date.now() / 1000)
-  const jti = nanoid()
-  const expiresAt = new Date((issuedAt + UPLOAD_TOKEN_TTL_SECONDS) * 1000)
-  return buildTaskUploadToken(platform, params, { jti, issuedAt, expiresAt })
-}
-
-async function buildTaskUploadToken(
-  platform: Platform,
-  params: { taskId: string; downloaderId: string; orgId: string; targetFolder: string; createdByUserId: string },
-  tokenState: { jti: string; issuedAt: number; expiresAt: Date },
-) {
-  const exp = Math.floor(tokenState.expiresAt.getTime() / 1000)
-  const token = await signDownloadToken(platform, {
+  params: {
+    taskId: string
+    downloaderId: string
+    orgId: string
+    targetFolder: string
+    createdByUserId: string
+    assignedAt: Date
+  },
+): Promise<string> {
+  const issuedAt = Math.floor(params.assignedAt.getTime() / 1000)
+  const exp = issuedAt + UPLOAD_TOKEN_TTL_SECONDS
+  return signDownloadToken(platform, {
     v: 1,
     typ: 'download-task-upload',
     taskId: params.taskId,
@@ -710,64 +695,25 @@ async function buildTaskUploadToken(
     targetFolder: params.targetFolder,
     createdByUserId: params.createdByUserId,
     scopes: ['objects:create', 'objects:upload', 'objects:confirm'],
-    jti: tokenState.jti,
-    iat: tokenState.issuedAt,
+    jti: `${params.taskId}:${params.downloaderId}:${params.assignedAt.getTime()}`,
+    iat: issuedAt,
     exp,
   })
-  return {
-    token,
-    hash: await hashDownloadToken(platform, token),
-    jti: tokenState.jti,
-    issuedAt: new Date(tokenState.issuedAt * 1000),
-    expiresAt: tokenState.expiresAt,
-  }
 }
 
 async function toDownloadTaskWithToken(platform: Platform, row: DownloadTaskRow, includeUploadToken: boolean) {
   const task = toDownloadTask(row)
-  if (includeUploadToken && row.assignedDownloaderId) {
-    const tokenParams = {
+  if (includeUploadToken && task.status.assignment && row.assignedAt) {
+    task.status.assignment.uploadToken = await createTaskUploadToken(platform, {
       taskId: row.id,
-      downloaderId: row.assignedDownloaderId,
+      downloaderId: task.status.assignment.downloaderId,
       orgId: row.orgId,
       targetFolder: row.targetFolder,
       createdByUserId: row.createdByUserId,
-    }
-    const existingToken = await restoreTaskUploadToken(platform, row, tokenParams)
-    const token = existingToken ?? (await createTaskUploadToken(platform, tokenParams))
-    if (!existingToken) {
-      await platform.db
-        .update(downloadTasks)
-        .set({
-          uploadTokenHash: token.hash,
-          uploadTokenJti: token.jti,
-          uploadTokenIssuedAt: token.issuedAt,
-          uploadTokenExpiresAt: token.expiresAt,
-        })
-        .where(eq(downloadTasks.id, row.id))
-    }
-    task.uploadToken = token.token
+      assignedAt: row.assignedAt,
+    })
   }
   return task
-}
-
-async function restoreTaskUploadToken(
-  platform: Platform,
-  row: DownloadTaskRow,
-  params: { taskId: string; downloaderId: string; orgId: string; targetFolder: string; createdByUserId: string },
-) {
-  if (!row.uploadTokenHash || !row.uploadTokenJti || !row.uploadTokenExpiresAt) return null
-  if (row.uploadTokenExpiresAt.getTime() <= Date.now()) return null
-
-  const issuedAt = row.uploadTokenIssuedAt
-    ? Math.floor(row.uploadTokenIssuedAt.getTime() / 1000)
-    : Math.floor(row.uploadTokenExpiresAt.getTime() / 1000) - 24 * 60 * 60
-  const token = await buildTaskUploadToken(platform, params, {
-    jti: row.uploadTokenJti,
-    issuedAt,
-    expiresAt: row.uploadTokenExpiresAt,
-  })
-  return token.hash === row.uploadTokenHash ? token : null
 }
 
 async function loadDownloaderRow(platform: Platform, id: string): Promise<DownloaderRow> {

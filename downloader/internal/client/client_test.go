@@ -10,6 +10,28 @@ import (
 	"testing"
 )
 
+func downloadTaskFixture(id string, status string) DownloadTask {
+	return DownloadTask{
+		ID: id,
+		Spec: DownloadTaskSpec{
+			Source:      DownloadTaskSource{Type: "http", URI: "https://example.com/file.bin"},
+			Destination: DownloadTaskDestination{Name: "file.bin"},
+			Labels:      DownloadTaskLabels{Tags: []string{}},
+		},
+		Status: DownloadTaskStatus{
+			State: status,
+			Assignment: &DownloadTaskAssignment{
+				DownloaderID: "downloader-1",
+				UploadToken:  "upload-token",
+			},
+			Progress: DownloadTaskProgress{
+				Download: DownloadTaskTransferProgress{Bytes: 1024, BytesPerSecond: 10},
+				Upload:   DownloadTaskTransferProgress{},
+			},
+		},
+	}
+}
+
 func TestCreateObjectUsesRenameConflictStrategy(t *testing.T) {
 	var body map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +65,7 @@ func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 		status := r.URL.Query().Get("status")
 		statuses = append(statuses, status)
 		_ = json.NewEncoder(w).Encode(Page[DownloadTask]{
-			Items: []DownloadTask{{ID: "task-" + status, Status: status, UploadToken: "upload-token"}},
+			Items: []DownloadTask{downloadTaskFixture("task-"+status, status)},
 		})
 	}))
 	defer server.Close()
@@ -72,19 +94,7 @@ func TestUpdateTaskUsesGeneratedRequestShape(t *testing.T) {
 			t.Fatal(err)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(DownloadTask{
-			ID:                   "task-1",
-			SourceType:           "http",
-			SourceURI:            "https://example.com/file.bin",
-			Name:                 "file.bin",
-			TargetFolder:         "",
-			Tags:                 []string{},
-			Status:               "downloading",
-			DownloadedBytes:      1024,
-			StorageUploadedBytes: 0,
-			DownloadBps:          10,
-			StorageUploadBps:     0,
-		})
+		_ = json.NewEncoder(w).Encode(downloadTaskFixture("task-1", "downloading"))
 	}))
 	defer server.Close()
 
@@ -92,10 +102,11 @@ func TestUpdateTaskUsesGeneratedRequestShape(t *testing.T) {
 	totalBytes := int64(2048)
 	etaSeconds := int64(30)
 	task, err := mustClient(t, server.URL, "token").UpdateTask(context.Background(), "task-1", TaskPatch{
-		Status:          "downloading",
-		DownloadedBytes: &downloadedBytes,
-		TotalBytes:      &totalBytes,
-		Detail: &DownloadTaskDetail{
+		Status: "downloading",
+		Progress: &DownloadTaskProgressPatch{
+			Download: &DownloadTaskTransferProgress{Bytes: downloadedBytes, TotalBytes: &totalBytes},
+		},
+		Runtime: &DownloadTaskRuntime{
 			Engine:     "builtin",
 			Phase:      "downloading",
 			ETASeconds: &etaSeconds,
@@ -105,15 +116,23 @@ func TestUpdateTaskUsesGeneratedRequestShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if task.ID != "task-1" || task.Status != "downloading" {
+	if task.ID != "task-1" || task.State() != "downloading" {
 		t.Fatalf("unexpected task: %#v", task)
 	}
-	if body["status"] != "downloading" || body["downloadedBytes"] != float64(1024) || body["totalBytes"] != float64(2048) {
+	if body["status"] != "downloading" {
 		t.Fatalf("unexpected patch body: %#v", body)
 	}
-	detail, ok := body["detail"].(map[string]any)
-	if !ok || detail["engine"] != "builtin" || detail["phase"] != "downloading" || detail["etaSeconds"] != float64(30) {
-		t.Fatalf("unexpected detail body: %#v", body["detail"])
+	progress, ok := body["progress"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected progress body: %#v", body["progress"])
+	}
+	download, ok := progress["download"].(map[string]any)
+	if !ok || download["bytes"] != float64(1024) || download["totalBytes"] != float64(2048) {
+		t.Fatalf("unexpected progress body: %#v", body["progress"])
+	}
+	runtime, ok := body["runtime"].(map[string]any)
+	if !ok || runtime["engine"] != "builtin" || runtime["phase"] != "downloading" || runtime["etaSeconds"] != float64(30) {
+		t.Fatalf("unexpected runtime body: %#v", body["runtime"])
 	}
 }
 

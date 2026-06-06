@@ -198,7 +198,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
               page: query.page,
               pageSize: query.pageSize,
             })
-            const fingerprint = result.items.map((task) => `${task.id}:${task.updatedAt}`).join('|')
+            const fingerprint = result.items.map((task) => `${task.id}:${task.status.updatedAt}`).join('|')
             if (fingerprint !== lastFingerprint) {
               lastFingerprint = fingerprint
               send('snapshot', { items: result.items, total: result.total, page: query.page, pageSize: query.pageSize })

@@ -213,12 +213,12 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 		AllowOverwrite:   true,
 		AutoFileRenaming: false,
 	}
-	if a.RetainSeed && task.SourceType != "http" {
+	if a.RetainSeed && task.SourceType() != "http" {
 		options.SeedTime = 1000000
 	}
-	if task.Name != "" && task.SourceType == "http" {
+	if task.Name() != "" && task.SourceType() == "http" {
 		options.GID = aria2TaskGID(task.ID)
-		options.Out = task.Name
+		options.Out = task.Name()
 	}
 	gid, err := addAria2Task(ctx, aria, task, options)
 	if err != nil {
@@ -252,7 +252,7 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 }
 
 func shouldAttachExistingAria2Task(task client.DownloadTask) bool {
-	return task.Status == "downloading" || task.Status == "uploading"
+	return task.State() == "downloading" || task.State() == "uploading"
 }
 
 func (a Aria2) snapshotTask(
@@ -274,7 +274,7 @@ func (a Aria2) snapshotTask(
 		Downloaded: completed,
 		Total:      totalPtr,
 		Bps:        bps,
-		Detail:     aria2Detail(status, peers),
+		Runtime:    aria2Detail(status, peers),
 		Error:      status.ErrorMessage,
 	}
 	if snapshot.State != TaskStateCompleted {
@@ -289,7 +289,7 @@ func (a Aria2) snapshotTask(
 	if err != nil {
 		return TaskSnapshot{}, false, err
 	}
-	if a.RetainSeed && task.SourceType != "http" {
+	if a.RetainSeed && task.SourceType() != "http" {
 		result.Seed = a.seedFromStatus(status, taskDir)
 	}
 	snapshot.Result = &result
@@ -309,10 +309,10 @@ func aria2TaskState(status arigo.Status) TaskState {
 }
 
 func addAria2Task(ctx context.Context, aria *arigo.Client, task client.DownloadTask, options *arigo.Options) (arigo.GID, error) {
-	if task.SourceType != "torrent_url" {
-		return aria.AddURI(arigo.URIs(task.SourceURI), options)
+	if task.SourceType() != "torrent_url" {
+		return aria.AddURI(arigo.URIs(task.SourceURI()), options)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, task.SourceURI, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, task.SourceURI(), nil)
 	if err != nil {
 		return arigo.GID{}, err
 	}
@@ -333,8 +333,8 @@ func addAria2Task(ctx context.Context, aria *arigo.Client, task client.DownloadT
 
 func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.DownloadTask, taskDir string, gid string, progress Progress) (Result, error) {
 	initialProgress := progress
-	if task.SourceType != "http" {
-		initialProgress = func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error { return nil }
+	if task.SourceType() != "http" {
+		initialProgress = func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error { return nil }
 	}
 	primaryGID := gid
 	status, err := a.waitAria2(ctx, aria, primaryGID, initialProgress)
@@ -360,7 +360,7 @@ func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.
 	if err != nil {
 		return Result{}, fmt.Errorf("build result from aria2 files: %w", err)
 	}
-	if a.RetainSeed && task.SourceType != "http" {
+	if a.RetainSeed && task.SourceType() != "http" {
 		result.Seed = a.seedFromStatus(status, taskDir)
 		return result, nil
 	}
@@ -497,13 +497,14 @@ func aria2TaskGID(taskID string) string {
 }
 
 func aria2TaskInfoHash(task client.DownloadTask) string {
-	if task.Detail != nil && task.Detail.InfoHash != "" {
-		return strings.ToLower(task.Detail.InfoHash)
+	runtime := task.Runtime()
+	if runtime != nil && runtime.Torrent != nil && runtime.Torrent.InfoHash != "" {
+		return strings.ToLower(runtime.Torrent.InfoHash)
 	}
-	if task.SourceType != "magnet" {
+	if task.SourceType() != "magnet" {
 		return ""
 	}
-	u, err := url.Parse(task.SourceURI)
+	u, err := url.Parse(task.SourceURI())
 	if err != nil {
 		return ""
 	}
@@ -598,7 +599,7 @@ func (a Aria2) seedSnapshot(gid string) func(context.Context) (SeedSnapshot, err
 			Downloaded: int64(status.CompletedLength),
 			Total:      totalPtr,
 			Bps:        int64(status.DownloadSpeed),
-			Detail:     detail,
+			Runtime:    detail,
 		}, nil
 	}
 }
@@ -717,29 +718,33 @@ func isAria2RPCDisconnected(err error) bool {
 	return errors.Is(err, rpc2.ErrShutdown) || errors.Is(err, io.ErrClosedPipe) || strings.Contains(err.Error(), "connection is shut down")
 }
 
-func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskDetail {
+func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskRuntime {
 	connections := int64(status.Connections)
 	seeders := int64(status.NumSeeders)
 	peerCount := int64(len(peers))
 	leechers := aria2Leechers(peers)
 	uploaded := int64(status.UploadLength)
 	uploadBps := int64(status.UploadSpeed)
-	detail := &client.DownloadTaskDetail{
-		Engine:            "aria2",
-		Phase:             aria2Phase(string(status.Status), status.FollowedBy),
-		EngineState:       string(status.Status),
-		ETASeconds:        aria2ETA(status),
-		Connections:       &connections,
-		InfoHash:          status.InfoHash,
-		TorrentName:       status.BitTorrent.Info.Name,
-		Seeders:           &seeders,
-		Leechers:          leechers,
-		Peers:             &peerCount,
-		PeerUploadedBytes: &uploaded,
-		PeerUploadBps:     &uploadBps,
-		Trackers:          aria2Trackers(status.BitTorrent.AnnounceList),
-		PeerSamples:       aria2Peers(peers),
-		Files:             aria2Files(status.Dir, status.BitTorrent.Info.Name, status.Files),
+	detail := &client.DownloadTaskRuntime{
+		Engine:      "aria2",
+		Phase:       aria2Phase(string(status.Status), status.FollowedBy),
+		State:       string(status.Status),
+		ETASeconds:  aria2ETA(status),
+		Connections: &connections,
+		Torrent: &client.DownloadTaskTorrentRuntime{
+			InfoHash: status.InfoHash,
+			Name:     status.BitTorrent.Info.Name,
+			Seeders:  &seeders,
+			Leechers: leechers,
+			Peers:    &peerCount,
+		},
+		Seeding: &client.DownloadTaskSeedingRuntime{
+			UploadedBytes:        &uploaded,
+			UploadBytesPerSecond: &uploadBps,
+		},
+		Trackers: aria2Trackers(status.BitTorrent.AnnounceList),
+		Peers:    aria2Peers(peers),
+		Files:    aria2Files(status.Dir, status.BitTorrent.Info.Name, status.Files),
 	}
 	if status.ErrorMessage != "" {
 		detail.Message = status.ErrorMessage

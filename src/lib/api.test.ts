@@ -1047,7 +1047,7 @@ describe('api', () => {
 
     it('updates a download task', async () => {
       const payload = { id: 'task-1', status: 'downloading' }
-      const body = { status: 'downloading' as const, downloadedBytes: 1024 }
+      const body = { status: 'downloading' as const, progress: { download: { bytes: 1024, bytesPerSecond: 0 } } }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await updateDownloadTask('task-1', body)
@@ -1161,7 +1161,9 @@ describe('api', () => {
     it('throws ApiError on download task failure', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'credits exhausted' }, false, 402))
 
-      await expect(updateDownloadTask('task-1', { downloadedBytes: 2048 })).rejects.toThrow('credits exhausted')
+      await expect(
+        updateDownloadTask('task-1', { progress: { download: { bytes: 2048, bytesPerSecond: 0 } } }),
+      ).rejects.toThrow('credits exhausted')
     })
   })
 

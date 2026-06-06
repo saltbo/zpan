@@ -164,7 +164,7 @@ func TestUploadFailurePersistsDownloadCheckpoint(t *testing.T) {
 	w.uploadAndComplete(
 		context.Background(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		client.DownloadTask{ID: "task-1", Status: "downloading", UploadToken: "upload-token"},
+		clientTaskWithUploadToken("task-1", "downloading"),
 		result,
 		nil,
 	)
@@ -173,17 +173,17 @@ func TestUploadFailurePersistsDownloadCheckpoint(t *testing.T) {
 		t.Fatalf("expected uploading and failed updates, got %d", len(api.patches))
 	}
 	failed := api.patches[len(api.patches)-1]
-	if failed.Status != "failed" {
-		t.Fatalf("expected failed status, got %q", failed.Status)
+	if failed.State() != "failed" {
+		t.Fatalf("expected failed status, got %q", failed.State())
 	}
-	if failed.DownloadedBytes == nil || *failed.DownloadedBytes != result.Size {
-		t.Fatalf("expected downloaded bytes %d, got %#v", result.Size, failed.DownloadedBytes)
+	if failed.Progress == nil || failed.Progress.Download == nil || failed.Progress.Download.Bytes != result.Size {
+		t.Fatalf("expected downloaded bytes %d, got %#v", result.Size, failed.Progress)
 	}
-	if failed.TotalBytes == nil || *failed.TotalBytes != result.Size {
-		t.Fatalf("expected total bytes %d, got %#v", result.Size, failed.TotalBytes)
+	if failed.Progress.Download.TotalBytes == nil || *failed.Progress.Download.TotalBytes != result.Size {
+		t.Fatalf("expected total bytes %d, got %#v", result.Size, failed.Progress.Download.TotalBytes)
 	}
-	if failed.Detail == nil || failed.Detail.Phase != "uploading" {
-		t.Fatalf("expected uploading detail phase, got %#v", failed.Detail)
+	if failed.Runtime == nil || failed.Runtime.Phase != "uploading" {
+		t.Fatalf("expected uploading detail phase, got %#v", failed.Runtime)
 	}
 }
 
@@ -215,35 +215,21 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 
 	first := NewWithAPI(config.Config{}, api)
 	first.engine = eng
-	first.process(context.Background(), client.DownloadTask{
-		ID:          "task-1",
-		Status:      "assigned",
-		SourceType:  "http",
-		SourceURI:   "https://example.com/payload.bin",
-		Name:        "payload.bin",
-		UploadToken: "upload-token",
-	})
+	first.process(context.Background(), clientHTTPTask("task-1", "assigned", "https://example.com/payload.bin", "payload.bin"))
 	failed := lastPatchWithStatus(t, api.patches, "failed")
-	if failed.DownloadedBytes == nil || *failed.DownloadedBytes != payloadSize {
-		t.Fatalf("expected failed task to persist downloaded bytes %d, got %#v", payloadSize, failed.DownloadedBytes)
+	if failed.Progress == nil || failed.Progress.Download == nil || failed.Progress.Download.Bytes != payloadSize {
+		t.Fatalf("expected failed task to persist downloaded bytes %d, got %#v", payloadSize, failed.Progress)
 	}
-	if failed.Detail == nil || failed.Detail.Phase != "uploading" {
-		t.Fatalf("expected failed task to persist uploading phase, got %#v", failed.Detail)
+	if failed.Runtime == nil || failed.Runtime.Phase != "uploading" {
+		t.Fatalf("expected failed task to persist uploading phase, got %#v", failed.Runtime)
 	}
 
 	second := NewWithAPI(config.Config{}, api)
 	second.engine = eng
-	second.process(context.Background(), client.DownloadTask{
-		ID:              "task-1",
-		Status:          "assigned",
-		SourceType:      "http",
-		SourceURI:       "https://example.com/payload.bin",
-		Name:            "payload.bin",
-		DownloadedBytes: payloadSize,
-		TotalBytes:      &payloadSize,
-		Detail:          &client.DownloadTaskDetail{Phase: "uploading"},
-		UploadToken:     "upload-token",
-	})
+	second.process(context.Background(), withRuntime(
+		withDownloadCheckpoint(clientHTTPTask("task-1", "assigned", "https://example.com/payload.bin", "payload.bin"), payloadSize, &payloadSize),
+		&client.DownloadTaskRuntime{Phase: "uploading"},
+	))
 
 	if eng.downloadCalls != 1 {
 		t.Fatalf("expected retry to avoid a second download, got %d download calls", eng.downloadCalls)
@@ -255,7 +241,7 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 		t.Fatalf("expected both attempts to upload the local result, got %d upload requests", uploadRequests)
 	}
 	last := api.patches[len(api.patches)-1]
-	if last.Status != "completed" {
+	if last.State() != "completed" {
 		t.Fatalf("expected retry to complete task, got last patch %#v", last)
 	}
 }
@@ -289,17 +275,10 @@ func TestWorkerLifecycleRetriesHTTPUploadFromCheckpointWithoutRedownloading(t *t
 
 	first := NewWithAPI(config.Config{}, api)
 	first.engine = engine.HTTP{Dir: downloadDir}
-	first.process(context.Background(), client.DownloadTask{
-		ID:          "task-1",
-		Status:      "assigned",
-		SourceType:  "http",
-		SourceURI:   downloadServer.URL + "/payload.bin",
-		Name:        "payload.bin",
-		UploadToken: "upload-token",
-	})
+	first.process(context.Background(), clientHTTPTask("task-1", "assigned", downloadServer.URL+"/payload.bin", "payload.bin"))
 	failed := lastPatchWithStatus(t, api.patches, "failed")
-	if failed.DownloadedBytes == nil || *failed.DownloadedBytes != payloadSize {
-		t.Fatalf("expected failed task to persist downloaded bytes %d, got %#v", payloadSize, failed.DownloadedBytes)
+	if failed.Progress == nil || failed.Progress.Download == nil || failed.Progress.Download.Bytes != payloadSize {
+		t.Fatalf("expected failed task to persist downloaded bytes %d, got %#v", payloadSize, failed.Progress)
 	}
 	if downloadRequests != 1 {
 		t.Fatalf("expected initial attempt to download once, got %d requests", downloadRequests)
@@ -307,17 +286,10 @@ func TestWorkerLifecycleRetriesHTTPUploadFromCheckpointWithoutRedownloading(t *t
 
 	second := NewWithAPI(config.Config{}, api)
 	second.engine = engine.HTTP{Dir: downloadDir}
-	second.process(context.Background(), client.DownloadTask{
-		ID:              "task-1",
-		Status:          "assigned",
-		SourceType:      "http",
-		SourceURI:       downloadServer.URL + "/payload.bin",
-		Name:            "payload.bin",
-		DownloadedBytes: payloadSize,
-		TotalBytes:      &payloadSize,
-		Detail:          &client.DownloadTaskDetail{Phase: "uploading"},
-		UploadToken:     "upload-token",
-	})
+	second.process(context.Background(), withRuntime(
+		withDownloadCheckpoint(clientHTTPTask("task-1", "assigned", downloadServer.URL+"/payload.bin", "payload.bin"), payloadSize, &payloadSize),
+		&client.DownloadTaskRuntime{Phase: "uploading"},
+	))
 
 	if downloadRequests != 1 {
 		t.Fatalf("expected retry not to request download source again, got %d requests", downloadRequests)
@@ -326,7 +298,7 @@ func TestWorkerLifecycleRetriesHTTPUploadFromCheckpointWithoutRedownloading(t *t
 		t.Fatalf("expected both attempts to upload the local file, got %d upload requests", uploadRequests)
 	}
 	last := api.patches[len(api.patches)-1]
-	if last.Status != "completed" {
+	if last.State() != "completed" {
 		t.Fatalf("expected retry to complete task, got last patch %#v", last)
 	}
 }
@@ -338,15 +310,10 @@ func TestUploadExistingResultInspectErrorFailsWithoutRedownloading(t *testing.T)
 	w.engine = eng
 
 	total := int64(100)
-	w.process(context.Background(), client.DownloadTask{
-		ID:          "task-1",
-		Status:      "assigned",
-		SourceType:  "magnet",
-		SourceURI:   "magnet:?xt=urn:btih:abc123",
-		TotalBytes:  &total,
-		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
-		UploadToken: "upload-token",
-	})
+	w.process(context.Background(), withRuntime(
+		withDownloadCheckpoint(clientTaskWithUploadToken("task-1", "assigned"), 0, &total),
+		&client.DownloadTaskRuntime{Phase: "uploading"},
+	))
 
 	if eng.downloadCalls != 0 {
 		t.Fatalf("expected runtime inspection failure not to restart download, got %d download calls", eng.downloadCalls)
@@ -364,15 +331,10 @@ func TestUploadExistingResultInspectPanicFailsWithoutRedownloading(t *testing.T)
 	w.engine = eng
 
 	total := int64(100)
-	w.process(context.Background(), client.DownloadTask{
-		ID:          "task-1",
-		Status:      "assigned",
-		SourceType:  "magnet",
-		SourceURI:   "magnet:?xt=urn:btih:abc123",
-		TotalBytes:  &total,
-		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
-		UploadToken: "upload-token",
-	})
+	w.process(context.Background(), withRuntime(
+		withDownloadCheckpoint(clientTaskWithUploadToken("task-1", "assigned"), 0, &total),
+		&client.DownloadTaskRuntime{Phase: "uploading"},
+	))
 
 	if eng.downloadCalls != 0 {
 		t.Fatalf("expected runtime inspection panic not to restart download, got %d download calls", eng.downloadCalls)
@@ -390,15 +352,10 @@ func TestUploadExistingResultMissingRuntimeFailsWithoutRedownloading(t *testing.
 	w.engine = eng
 
 	total := int64(100)
-	w.process(context.Background(), client.DownloadTask{
-		ID:          "task-1",
-		Status:      "assigned",
-		SourceType:  "magnet",
-		SourceURI:   "magnet:?xt=urn:btih:abc123",
-		TotalBytes:  &total,
-		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
-		UploadToken: "upload-token",
-	})
+	w.process(context.Background(), withRuntime(
+		withDownloadCheckpoint(clientTaskWithUploadToken("task-1", "assigned"), 0, &total),
+		&client.DownloadTaskRuntime{Phase: "uploading"},
+	))
 
 	if eng.downloadCalls != 0 {
 		t.Fatalf("expected missing runtime task not to restart download, got %d download calls", eng.downloadCalls)
@@ -419,15 +376,10 @@ func TestUploadExistingResultIncompleteRuntimeTaskFailsWithoutRedownloading(t *t
 	w.engine = eng
 
 	total := int64(100)
-	w.process(context.Background(), client.DownloadTask{
-		ID:          "task-1",
-		Status:      "assigned",
-		SourceType:  "magnet",
-		SourceURI:   "magnet:?xt=urn:btih:abc123",
-		TotalBytes:  &total,
-		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
-		UploadToken: "upload-token",
-	})
+	w.process(context.Background(), withRuntime(
+		withDownloadCheckpoint(clientTaskWithUploadToken("task-1", "assigned"), 0, &total),
+		&client.DownloadTaskRuntime{Phase: "uploading"},
+	))
 
 	if eng.downloadCalls != 0 {
 		t.Fatalf("expected incomplete runtime task not to restart download, got %d download calls", eng.downloadCalls)
@@ -444,14 +396,14 @@ func TestDownloadShutdownMarksTaskInterrupted(t *testing.T) {
 	w := NewWithAPI(config.Config{}, api)
 	w.engine = eng
 
-	w.process(context.Background(), client.DownloadTask{ID: "task-1", Status: "downloading"})
+	w.process(context.Background(), clientTaskWithStatus("task-1", "downloading"))
 
 	patch := lastPatchWithStatus(t, api.patches, "interrupted")
-	if patch.DownloadBps == nil || *patch.DownloadBps != 0 {
-		t.Fatalf("expected download speed to be reset, got %#v", patch.DownloadBps)
+	if patch.Progress == nil || patch.Progress.Download == nil || patch.Progress.Download.BytesPerSecond != 0 {
+		t.Fatalf("expected download speed to be reset, got %#v", patch.Progress)
 	}
-	if patch.Detail == nil || patch.Detail.Message == "" {
-		t.Fatalf("expected interrupted detail message, got %#v", patch.Detail)
+	if patch.Runtime == nil || patch.Runtime.Message == "" {
+		t.Fatalf("expected interrupted detail message, got %#v", patch.Runtime)
 	}
 }
 
@@ -467,17 +419,17 @@ func TestUploadShutdownMarksTaskInterrupted(t *testing.T) {
 	w.uploadAndComplete(
 		ctx,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		client.DownloadTask{ID: "task-1", Status: "downloading", UploadToken: "upload-token"},
+		clientTaskWithUploadToken("task-1", "downloading"),
 		engine.Result{Path: payloadPath, Name: "payload.bin", Size: int64(len("downloaded payload"))},
 		nil,
 	)
 
 	patch := lastPatchWithStatus(t, api.patches, "interrupted")
-	if patch.DownloadedBytes == nil || *patch.DownloadedBytes != int64(len("downloaded payload")) {
-		t.Fatalf("expected upload shutdown to preserve downloaded checkpoint, got %#v", patch.DownloadedBytes)
+	if patch.Progress == nil || patch.Progress.Download == nil || patch.Progress.Download.Bytes != int64(len("downloaded payload")) {
+		t.Fatalf("expected upload shutdown to preserve downloaded checkpoint, got %#v", patch.Progress)
 	}
-	if patch.Detail == nil || patch.Detail.Phase != "uploading" || patch.Detail.Message == "" {
-		t.Fatalf("expected upload shutdown to preserve phase and add interrupted message, got %#v", patch.Detail)
+	if patch.Runtime == nil || patch.Runtime.Phase != "uploading" || patch.Runtime.Message == "" {
+		t.Fatalf("expected upload shutdown to preserve phase and add interrupted message, got %#v", patch.Runtime)
 	}
 	if _, ok := findPatchWithStatus(api.patches, "failed"); ok {
 		t.Fatalf("expected upload shutdown not to mark failed, got %#v", api.patches)
@@ -494,7 +446,7 @@ func TestUploadETARoundsRemainingSeconds(t *testing.T) {
 
 func TestWithDownloadETAAddsFallback(t *testing.T) {
 	total := int64(100)
-	detail := withDownloadETA(&client.DownloadTaskDetail{Engine: "builtin"}, 25, &total, 20)
+	detail := withDownloadRuntime(&client.DownloadTaskRuntime{Engine: "builtin"}, 25, &total, 20)
 
 	if detail == nil || detail.ETASeconds == nil || *detail.ETASeconds != 4 {
 		t.Fatalf("expected fallback ETA 4, got %#v", detail)
@@ -507,7 +459,7 @@ func TestWithDownloadETAAddsFallback(t *testing.T) {
 func TestWithDownloadETAPreservesEngineETA(t *testing.T) {
 	total := int64(100)
 	existing := int64(9)
-	detail := withDownloadETA(&client.DownloadTaskDetail{ETASeconds: &existing}, 25, &total, 20)
+	detail := withDownloadRuntime(&client.DownloadTaskRuntime{ETASeconds: &existing}, 25, &total, 20)
 
 	if detail == nil || detail.ETASeconds == nil || *detail.ETASeconds != 9 {
 		t.Fatalf("expected engine ETA to be preserved, got %#v", detail)
@@ -556,47 +508,51 @@ func TestNextTaskWorkStage(t *testing.T) {
 	}{
 		{
 			name: "uploading status",
-			task: client.DownloadTask{Status: "uploading"},
+			task: clientTaskWithStatus("task-1", "uploading"),
 			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned with upload bytes",
-			task: client.DownloadTask{Status: "assigned", StorageUploadedBytes: 1},
+			task: func() client.DownloadTask {
+				task := clientTaskWithStatus("task-1", "assigned")
+				task.Status.Progress.Upload.Bytes = 1
+				return task
+			}(),
 			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned with uploading phase",
-			task: client.DownloadTask{Status: "assigned", Detail: &client.DownloadTaskDetail{Phase: "uploading"}},
+			task: withRuntime(clientTaskWithStatus("task-1", "assigned"), &client.DownloadTaskRuntime{Phase: "uploading"}),
 			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned with completed phase",
-			task: client.DownloadTask{Status: "assigned", Detail: &client.DownloadTaskDetail{Phase: "completed"}},
+			task: withRuntime(clientTaskWithStatus("task-1", "assigned"), &client.DownloadTaskRuntime{Phase: "completed"}),
 			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned with completed download bytes",
-			task: client.DownloadTask{Status: "assigned", DownloadedBytes: 100, TotalBytes: &total},
+			task: withDownloadCheckpoint(clientTaskWithStatus("task-1", "assigned"), 100, &total),
 			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned partial download",
-			task: client.DownloadTask{Status: "assigned", DownloadedBytes: 99, TotalBytes: &total},
+			task: withDownloadCheckpoint(clientTaskWithStatus("task-1", "assigned"), 99, &total),
 			want: taskWorkStageDownload,
 		},
 		{
 			name: "downloading completed bytes",
-			task: client.DownloadTask{Status: "downloading", DownloadedBytes: 100, TotalBytes: &total},
+			task: withDownloadCheckpoint(clientTaskWithStatus("task-1", "downloading"), 100, &total),
 			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "downloading partial download",
-			task: client.DownloadTask{Status: "downloading", DownloadedBytes: 99, TotalBytes: &total},
+			task: withDownloadCheckpoint(clientTaskWithStatus("task-1", "downloading"), 99, &total),
 			want: taskWorkStageDownload,
 		},
 		{
 			name: "interrupted with uploading phase",
-			task: client.DownloadTask{Status: "interrupted", Detail: &client.DownloadTaskDetail{Phase: "uploading"}},
+			task: withRuntime(clientTaskWithStatus("task-1", "interrupted"), &client.DownloadTaskRuntime{Phase: "uploading"}),
 			want: taskWorkStageUploadExistingResult,
 		},
 	}
@@ -742,7 +698,11 @@ func TestCleanupRetainedSeedsRemovesSeedAfterRatio(t *testing.T) {
 		path:       dir,
 		downloaded: 100,
 		snapshot: func(context.Context) (engine.SeedSnapshot, error) {
-			return engine.SeedSnapshot{Detail: &client.DownloadTaskDetail{PeerUploadedBytes: &uploaded}}, nil
+			return engine.SeedSnapshot{
+				Runtime: &client.DownloadTaskRuntime{
+					Seeding: &client.DownloadTaskSeedingRuntime{UploadedBytes: &uploaded},
+				},
+			}, nil
 		},
 		cleanup: func(context.Context) error {
 			cleaned = true
@@ -837,7 +797,43 @@ func writeTempFile(t *testing.T, content string) string {
 }
 
 func clientTask(id string) client.DownloadTask {
-	return client.DownloadTask{ID: id, SourceType: "magnet"}
+	return client.DownloadTask{
+		ID: id,
+		Spec: client.DownloadTaskSpec{
+			Source: client.DownloadTaskSource{Type: "magnet"},
+			Labels: client.DownloadTaskLabels{Tags: []string{}},
+		},
+		Status: client.DownloadTaskStatus{},
+	}
+}
+
+func clientTaskWithStatus(id string, status string) client.DownloadTask {
+	task := clientTask(id)
+	task.Status.State = status
+	return task
+}
+
+func clientTaskWithUploadToken(id string, status string) client.DownloadTask {
+	task := clientTaskWithStatus(id, status)
+	task.Status.Assignment = &client.DownloadTaskAssignment{DownloaderID: "downloader-1", UploadToken: "upload-token"}
+	return task
+}
+
+func clientHTTPTask(id string, status string, uri string, name string) client.DownloadTask {
+	task := clientTaskWithUploadToken(id, status)
+	task.Spec.Source = client.DownloadTaskSource{Type: "http", URI: uri}
+	task.Spec.Destination.Name = name
+	return task
+}
+
+func withDownloadCheckpoint(task client.DownloadTask, bytes int64, total *int64) client.DownloadTask {
+	task.Status.Progress.Download = client.DownloadTaskTransferProgress{Bytes: bytes, TotalBytes: total}
+	return task
+}
+
+func withRuntime(task client.DownloadTask, runtime *client.DownloadTaskRuntime) client.DownloadTask {
+	task.Status.Runtime = runtime
+	return task
 }
 
 func lastPatchWithStatus(t *testing.T, patches []client.TaskPatch, status string) client.TaskPatch {
@@ -851,7 +847,7 @@ func lastPatchWithStatus(t *testing.T, patches []client.TaskPatch, status string
 
 func findPatchWithStatus(patches []client.TaskPatch, status string) (client.TaskPatch, bool) {
 	for i := len(patches) - 1; i >= 0; i-- {
-		if patches[i].Status == status {
+		if patches[i].State() == status {
 			return patches[i], true
 		}
 	}
@@ -925,7 +921,17 @@ func (a *recordingAPI) AssignedTasks(context.Context) ([]client.DownloadTask, er
 
 func (a *recordingAPI) UpdateTask(_ context.Context, id string, patch client.TaskPatch) (client.DownloadTask, error) {
 	a.patches = append(a.patches, patch)
-	return client.DownloadTask{ID: id, Status: patch.Status, Detail: patch.Detail}, nil
+	task := clientTaskWithStatus(id, patch.State())
+	task.Status.Runtime = patch.Runtime
+	if patch.Progress != nil {
+		if patch.Progress.Download != nil {
+			task.Status.Progress.Download = *patch.Progress.Download
+		}
+		if patch.Progress.Upload != nil {
+			task.Status.Progress.Upload = *patch.Progress.Upload
+		}
+	}
+	return task, nil
 }
 
 func (a *recordingAPI) CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error) {

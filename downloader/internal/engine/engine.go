@@ -40,10 +40,10 @@ type SeedSnapshot struct {
 	Downloaded int64
 	Total      *int64
 	Bps        int64
-	Detail     *client.DownloadTaskDetail
+	Runtime    *client.DownloadTaskRuntime
 }
 
-type Progress func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error
+type Progress func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error
 
 type TaskState string
 
@@ -58,7 +58,7 @@ type TaskSnapshot struct {
 	Downloaded int64
 	Total      *int64
 	Bps        int64
-	Detail     *client.DownloadTaskDetail
+	Runtime    *client.DownloadTaskRuntime
 	Result     *Result
 	Error      string
 }
@@ -93,7 +93,7 @@ func (p *progressWriter) Write(data []byte) (int, error) {
 	now := time.Now()
 	if now.Sub(p.lastAt) >= time.Second {
 		bps := int64(float64(p.downloaded-p.lastBytes) / now.Sub(p.lastAt).Seconds())
-		if err := p.progress(p.downloaded, p.total, bps, &client.DownloadTaskDetail{Engine: "builtin", Phase: "downloading"}); err != nil {
+		if err := p.progress(p.downloaded, p.total, bps, &client.DownloadTaskRuntime{Engine: "builtin", Phase: "downloading"}); err != nil {
 			return n, err
 		}
 		p.lastBytes = p.downloaded
@@ -150,7 +150,7 @@ type downloadedFile struct {
 
 func resultFromDownloadedFiles(task client.DownloadTask, taskDir string, fallbackName string, files []downloadedFile) (Result, error) {
 	if len(files) == 1 && !hasPathSeparator(files[0].relativePath) {
-		if task.SourceType != "http" {
+		if task.SourceType() != "http" {
 			size, err := directorySize(taskDir)
 			if err != nil {
 				return Result{}, err
@@ -339,11 +339,11 @@ func outputName(task client.DownloadTask, fallback string) string {
 }
 
 func requestedOutputName(task client.DownloadTask) string {
-	name := strings.TrimSpace(task.Name)
+	name := strings.TrimSpace(task.Name())
 	if name == "" {
 		return ""
 	}
-	if task.SourceType != "http" && isDownloadSidecarPath(name) {
+	if task.SourceType() != "http" && isDownloadSidecarPath(name) {
 		return ""
 	}
 	return filepath.Base(name)

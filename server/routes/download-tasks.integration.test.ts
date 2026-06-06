@@ -1,7 +1,10 @@
+import type { DownloadTask } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../services/s3.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
+
+type DownloadTaskList = { items: DownloadTask[] }
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -23,6 +26,37 @@ const heartbeat = {
   downloadBps: 0,
   uploadBps: 0,
   freeDiskBytes: 1024 * 1024 * 1024,
+}
+
+function transferProgress(input: {
+  downloadBytes?: number
+  uploadBytes?: number
+  totalBytes?: number | null
+  downloadBps?: number
+  uploadBps?: number
+}) {
+  return {
+    progress: {
+      ...(input.downloadBytes === undefined
+        ? {}
+        : {
+            download: {
+              bytes: input.downloadBytes,
+              totalBytes: input.totalBytes,
+              bytesPerSecond: input.downloadBps ?? 0,
+            },
+          }),
+      ...(input.uploadBytes === undefined
+        ? {}
+        : {
+            upload: {
+              bytes: input.uploadBytes,
+              totalBytes: input.totalBytes,
+              bytesPerSecond: input.uploadBps ?? 0,
+            },
+          }),
+    },
+  }
 }
 
 async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
@@ -126,9 +160,9 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createTaskRes.status).toBe(201)
-    const task = (await createTaskRes.json()) as { id: string; status: string; assignedDownloaderId: string }
-    expect(task.status).toBe('assigned')
-    expect(task.assignedDownloaderId).toBe(createdDownloader.downloader.id)
+    const task = (await createTaskRes.json()) as DownloadTask
+    expect(task.status.state).toBe('assigned')
+    expect(task.status.assignment?.downloaderId).toBe(createdDownloader.downloader.id)
 
     const deleteRes = await app.request(`/api/admin/downloaders/${createdDownloader.downloader.id}`, {
       method: 'DELETE',
@@ -139,7 +173,7 @@ describe('Download tasks API integration', () => {
 
     const taskRes = await app.request(`/api/download-tasks/${task.id}`, { headers: user })
     expect(taskRes.status).toBe(200)
-    await expect(taskRes.json()).resolves.toMatchObject({ status: 'queued', assignedDownloaderId: null })
+    await expect(taskRes.json()).resolves.toMatchObject({ status: { state: 'queued', assignment: null } })
   })
 
   it('runs the remote download task upload flow through the standard object upload API', async () => {
@@ -172,34 +206,25 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createTaskRes.status).toBe(201)
-    const createdTask = (await createTaskRes.json()) as {
-      id: string
-      assignedDownloaderId: string
-      status: string
-      category: string
-      tags: string[]
-      uploadToken?: string
-    }
-    expect(createdTask.status).toBe('assigned')
-    expect(createdTask.assignedDownloaderId).toBe(createdDownloader.downloader.id)
-    expect(createdTask.category).toBe('fixtures')
-    expect(createdTask.tags).toEqual(['sample', 'http'])
-    expect(createdTask.uploadToken).toBeUndefined()
+    const createdTask = (await createTaskRes.json()) as DownloadTask
+    expect(createdTask.status.state).toBe('assigned')
+    expect(createdTask.status.assignment?.downloaderId).toBe(createdDownloader.downloader.id)
+    expect(createdTask.spec.labels.category).toBe('fixtures')
+    expect(createdTask.spec.labels.tags).toEqual(['sample', 'http'])
+    expect(createdTask.status.assignment?.uploadToken).toBeUndefined()
 
     const assignedRes = await app.request('/api/download-tasks?assignedTo=me&category=fixtures&tag=http', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(assignedRes.status).toBe(200)
-    const assigned = (await assignedRes.json()) as {
-      items: Array<{ id: string; uploadToken?: string; status: string; category: string; tags: string[] }>
-    }
+    const assigned = (await assignedRes.json()) as DownloadTaskList
     const assignedTask = assigned.items.find((item) => item.id === createdTask.id)
-    expect(assignedTask?.status).toBe('assigned')
-    expect(assignedTask?.category).toBe('fixtures')
-    expect(assignedTask?.tags).toEqual(['sample', 'http'])
-    expect(assignedTask?.uploadToken).toBeTruthy()
+    expect(assignedTask?.status.state).toBe('assigned')
+    expect(assignedTask?.spec.labels.category).toBe('fixtures')
+    expect(assignedTask?.spec.labels.tags).toEqual(['sample', 'http'])
+    expect(assignedTask?.status.assignment?.uploadToken).toBeTruthy()
     const uploadHeaders = {
-      Authorization: `Bearer ${assignedTask?.uploadToken}`,
+      Authorization: `Bearer ${assignedTask?.status.assignment?.uploadToken}`,
       'Content-Type': 'application/json',
     }
 
@@ -208,44 +233,44 @@ describe('Download tasks API integration', () => {
       headers: downloaderHeaders,
       body: JSON.stringify({
         status: 'downloading',
-        downloadedBytes: 10 * 1024 * 1024,
-        totalBytes: 10 * 1024 * 1024,
-        downloadBps: 512_000,
-        detail: {
+        ...transferProgress({
+          downloadBytes: 10 * 1024 * 1024,
+          totalBytes: 10 * 1024 * 1024,
+          downloadBps: 512_000,
+        }),
+        runtime: {
           engine: 'aria2',
           phase: 'downloading',
-          engineState: 'active',
+          state: 'active',
           etaSeconds: 42,
-          infoHash: 'abc123',
-          torrentName: 'fixture',
           connections: 8,
-          seeders: 3,
+          torrent: { infoHash: 'abc123', name: 'fixture', seeders: 3 },
           trackers: [{ url: 'udp://tracker.example/announce', status: 'working', seeds: 3, peers: 8 }],
-          peerSamples: [{ address: '127.0.0.1:6881', client: 'libtorrent', progress: 0.5, downloadBps: 128_000 }],
+          peers: [{ address: '127.0.0.1:6881', client: 'libtorrent', progress: 0.5, downloadBps: 128_000 }],
           files: [{ path: 'fixture.txt', size: 10 * 1024 * 1024, completedBytes: 5 * 1024 * 1024 }],
         },
       }),
     })
     expect(downloadingRes.status).toBe(200)
-    const downloadingTask = (await downloadingRes.json()) as {
-      detail: { engine: string; etaSeconds: number; infoHash: string; trackers: Array<{ url: string }> }
-    }
-    expect(downloadingTask.detail.engine).toBe('aria2')
-    expect(downloadingTask.detail.etaSeconds).toBe(42)
-    expect(downloadingTask.detail.infoHash).toBe('abc123')
-    expect(downloadingTask.detail.trackers[0].url).toBe('udp://tracker.example/announce')
+    const downloadingTask = (await downloadingRes.json()) as DownloadTask
+    const runtime = downloadingTask.status.runtime
+    expect(runtime).toBeTruthy()
+    expect(runtime?.torrent).toBeTruthy()
+    expect(runtime?.trackers).toBeTruthy()
+    expect(runtime?.engine).toBe('aria2')
+    expect(runtime?.etaSeconds).toBe(42)
+    expect(runtime?.torrent?.infoHash).toBe('abc123')
+    expect(runtime?.trackers?.[0]?.url).toBe('udp://tracker.example/announce')
 
     const recoverDownloadingRes = await app.request('/api/download-tasks?assignedTo=me&status=downloading', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(recoverDownloadingRes.status).toBe(200)
-    const recoverDownloading = (await recoverDownloadingRes.json()) as {
-      items: Array<{ id: string; uploadToken?: string; status: string }>
-    }
+    const recoverDownloading = (await recoverDownloadingRes.json()) as DownloadTaskList
     const recoverDownloadingTask = recoverDownloading.items.find((item) => item.id === createdTask.id)
-    expect(recoverDownloadingTask?.status).toBe('downloading')
-    expect(recoverDownloadingTask?.uploadToken).toBeTruthy()
-    expect(recoverDownloadingTask?.uploadToken).toBe(assignedTask?.uploadToken)
+    expect(recoverDownloadingTask?.status.state).toBe('downloading')
+    expect(recoverDownloadingTask?.status.assignment?.uploadToken).toBeTruthy()
+    expect(recoverDownloadingTask?.status.assignment?.uploadToken).toBe(assignedTask?.status.assignment?.uploadToken)
 
     const createFolderRes = await app.request('/api/objects', {
       method: 'POST',
@@ -350,28 +375,31 @@ describe('Download tasks API integration', () => {
     const uploadingRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
-      body: JSON.stringify({ status: 'uploading', downloadedBytes: 10 * 1024 * 1024 }),
+      body: JSON.stringify({
+        status: 'uploading',
+        ...transferProgress({ downloadBytes: 10 * 1024 * 1024, totalBytes: 10 * 1024 * 1024 }),
+      }),
     })
     expect(uploadingRes.status).toBe(200)
     const recoverUploadingRes = await app.request('/api/download-tasks?assignedTo=me&status=uploading', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(recoverUploadingRes.status).toBe(200)
-    const recoverUploading = (await recoverUploadingRes.json()) as {
-      items: Array<{ id: string; uploadToken?: string; status: string }>
-    }
+    const recoverUploading = (await recoverUploadingRes.json()) as DownloadTaskList
     const recoverUploadingTask = recoverUploading.items.find((item) => item.id === createdTask.id)
-    expect(recoverUploadingTask?.status).toBe('uploading')
-    expect(recoverUploadingTask?.uploadToken).toBeTruthy()
+    expect(recoverUploadingTask?.status.state).toBe('uploading')
+    expect(recoverUploadingTask?.status.assignment?.uploadToken).toBeTruthy()
 
     const completeTaskRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
       body: JSON.stringify({
         status: 'completed',
-        downloadedBytes: 10 * 1024 * 1024,
-        storageUploadedBytes: 10 * 1024 * 1024,
-        totalBytes: 10 * 1024 * 1024,
+        ...transferProgress({
+          downloadBytes: 10 * 1024 * 1024,
+          uploadBytes: 10 * 1024 * 1024,
+          totalBytes: 10 * 1024 * 1024,
+        }),
         resultObjectId: object.id,
       }),
     })
@@ -379,16 +407,11 @@ describe('Download tasks API integration', () => {
 
     const taskRes = await app.request(`/api/download-tasks/${createdTask.id}`, { headers: user })
     expect(taskRes.status).toBe(200)
-    const task = (await taskRes.json()) as {
-      status: string
-      resultObjectId: string
-      downloadedBytes: number
-      storageUploadedBytes: number
-    }
-    expect(task.status).toBe('completed')
-    expect(task.resultObjectId).toBe(object.id)
-    expect(task.downloadedBytes).toBe(10 * 1024 * 1024)
-    expect(task.storageUploadedBytes).toBe(10 * 1024 * 1024)
+    const task = (await taskRes.json()) as DownloadTask
+    expect(task.status.state).toBe('completed')
+    expect(task.status.output?.objectId).toBe(object.id)
+    expect(task.status.progress.download.bytes).toBe(10 * 1024 * 1024)
+    expect(task.status.progress.upload.bytes).toBe(10 * 1024 * 1024)
   })
 
   it('returns storage failure details when multipart upload session creation fails', async () => {
@@ -422,9 +445,9 @@ describe('Download tasks API integration', () => {
     const tasksRes = await app.request('/api/download-tasks?assignedTo=me&status=assigned', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
-    const tasks = (await tasksRes.json()) as { items: Array<{ uploadToken: string }> }
+    const tasks = (await tasksRes.json()) as DownloadTaskList
     const uploadHeaders = {
-      Authorization: `Bearer ${tasks.items[0].uploadToken}`,
+      Authorization: `Bearer ${tasks.items[0].status.assignment?.uploadToken}`,
       'Content-Type': 'application/json',
     }
     const createObjectRes = await app.request('/api/objects', {
@@ -468,7 +491,9 @@ describe('Download tasks API integration', () => {
     })
 
     expect(createTaskRes.status).toBe(201)
-    await expect(createTaskRes.json()).resolves.toMatchObject({ targetFolder: 'media/Movies' })
+    await expect(createTaskRes.json()).resolves.toMatchObject({
+      spec: { destination: { folder: 'media/Movies' } },
+    })
 
     const rows = await db.all<{ target_folder: string }>(
       sql`SELECT target_folder FROM download_tasks ORDER BY created_at DESC LIMIT 1`,
@@ -544,9 +569,9 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createTaskRes.status).toBe(201)
-    const createdTask = (await createTaskRes.json()) as { id: string; status: string; assignedDownloaderId: string }
-    expect(createdTask.status).toBe('assigned')
-    expect(createdTask.assignedDownloaderId).toBe(createdDownloader.downloader.id)
+    const createdTask = (await createTaskRes.json()) as DownloadTask
+    expect(createdTask.status.state).toBe('assigned')
+    expect(createdTask.status.assignment?.downloaderId).toBe(createdDownloader.downloader.id)
 
     const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
       method: 'POST',
@@ -554,19 +579,19 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ action: 'pause' }),
     })
     expect(pauseRes.status).toBe(200)
-    await expect(pauseRes.json()).resolves.toMatchObject({ status: 'paused' })
+    await expect(pauseRes.json()).resolves.toMatchObject({ status: { state: 'paused' } })
 
     const pausedAssignedRes = await app.request('/api/download-tasks?assignedTo=me', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(pausedAssignedRes.status).toBe(200)
-    const pausedAssigned = (await pausedAssignedRes.json()) as { items: Array<{ id: string; status: string }> }
-    expect(pausedAssigned.items.find((item) => item.id === createdTask.id)?.status).toBe('paused')
+    const pausedAssigned = (await pausedAssignedRes.json()) as DownloadTaskList
+    expect(pausedAssigned.items.find((item) => item.id === createdTask.id)?.status.state).toBe('paused')
 
     const pausedProgressRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
-      body: JSON.stringify({ downloadedBytes: 1024, downloadBps: 512 }),
+      body: JSON.stringify(transferProgress({ downloadBytes: 1024, downloadBps: 512 })),
     })
     expect(pausedProgressRes.status).toBe(409)
     await expect(pausedProgressRes.json()).resolves.toEqual({ error: 'Task is paused' })
@@ -577,7 +602,7 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ action: 'resume' }),
     })
     expect(resumeRes.status).toBe(200)
-    await expect(resumeRes.json()).resolves.toMatchObject({ status: 'assigned' })
+    await expect(resumeRes.json()).resolves.toMatchObject({ status: { state: 'assigned' } })
 
     const cancelRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
       method: 'POST',
@@ -585,14 +610,14 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ action: 'cancel' }),
     })
     expect(cancelRes.status).toBe(200)
-    await expect(cancelRes.json()).resolves.toMatchObject({ status: 'canceling' })
+    await expect(cancelRes.json()).resolves.toMatchObject({ status: { state: 'canceling' } })
 
     const canceledAssignedRes = await app.request('/api/download-tasks?assignedTo=me', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(canceledAssignedRes.status).toBe(200)
-    const canceledAssigned = (await canceledAssignedRes.json()) as { items: Array<{ id: string; status: string }> }
-    expect(canceledAssigned.items.find((item) => item.id === createdTask.id)?.status).toBe('canceling')
+    const canceledAssigned = (await canceledAssignedRes.json()) as DownloadTaskList
+    expect(canceledAssigned.items.find((item) => item.id === createdTask.id)?.status.state).toBe('canceling')
 
     const canceledAckRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
@@ -600,12 +625,15 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ status: 'canceled' }),
     })
     expect(canceledAckRes.status).toBe(200)
-    await expect(canceledAckRes.json()).resolves.toMatchObject({ status: 'canceled' })
+    await expect(canceledAckRes.json()).resolves.toMatchObject({ status: { state: 'canceled' } })
 
     const canceledCompleteRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
-      body: JSON.stringify({ status: 'completed', downloadedBytes: 2048, storageUploadedBytes: 2048 }),
+      body: JSON.stringify({
+        status: 'completed',
+        ...transferProgress({ downloadBytes: 2048, uploadBytes: 2048, totalBytes: 2048 }),
+      }),
     })
     expect(canceledCompleteRes.status).toBe(409)
     await expect(canceledCompleteRes.json()).resolves.toEqual({ error: 'Task is canceled' })
@@ -645,51 +673,47 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createTaskRes.status).toBe(201)
-    const createdTask = (await createTaskRes.json()) as { id: string; status: string; assignedDownloaderId: string }
-    expect(createdTask.status).toBe('assigned')
-    expect(createdTask.assignedDownloaderId).toBe(createdDownloader.downloader.id)
+    const createdTask = (await createTaskRes.json()) as DownloadTask
+    expect(createdTask.status.state).toBe('assigned')
+    expect(createdTask.status.assignment?.downloaderId).toBe(createdDownloader.downloader.id)
 
     const interruptedRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
       body: JSON.stringify({
         status: 'interrupted',
-        downloadedBytes: 1024,
-        totalBytes: 4096,
-        detail: { phase: 'downloading', message: 'Interrupted because the downloader stopped' },
+        ...transferProgress({ downloadBytes: 1024, totalBytes: 4096 }),
+        runtime: { phase: 'downloading', message: 'Interrupted because the downloader stopped' },
       }),
     })
     expect(interruptedRes.status).toBe(200)
     await expect(interruptedRes.json()).resolves.toMatchObject({
-      status: 'interrupted',
-      downloadedBytes: 1024,
-      totalBytes: 4096,
+      status: {
+        state: 'interrupted',
+        progress: { download: { bytes: 1024, totalBytes: 4096 } },
+      },
     })
 
     const interruptedAssignedRes = await app.request('/api/download-tasks?assignedTo=me&status=interrupted', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(interruptedAssignedRes.status).toBe(200)
-    const interruptedAssigned = (await interruptedAssignedRes.json()) as {
-      items: Array<{ id: string; status: string; uploadToken?: string }>
-    }
+    const interruptedAssigned = (await interruptedAssignedRes.json()) as DownloadTaskList
     const interruptedTask = interruptedAssigned.items.find((item) => item.id === createdTask.id)
-    expect(interruptedTask).toMatchObject({ status: 'interrupted' })
-    expect(interruptedTask?.uploadToken).toBeTruthy()
+    expect(interruptedTask).toMatchObject({ status: { state: 'interrupted' } })
+    expect(interruptedTask?.status.assignment?.uploadToken).toBeTruthy()
 
     const resumedProgressRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
-      body: JSON.stringify({ status: 'downloading', downloadedBytes: 2048, downloadBps: 256 }),
+      body: JSON.stringify({ status: 'downloading', ...transferProgress({ downloadBytes: 2048, downloadBps: 256 }) }),
     })
     expect(resumedProgressRes.status).toBe(200)
-    const resumedProgress = (await resumedProgressRes.json()) as {
-      status: string
-      downloadedBytes: number
-      detail: { message?: string } | null
-    }
-    expect(resumedProgress).toMatchObject({ status: 'downloading', downloadedBytes: 2048 })
-    expect(resumedProgress.detail?.message).toBeUndefined()
+    const resumedProgress = (await resumedProgressRes.json()) as DownloadTask
+    expect(resumedProgress).toMatchObject({
+      status: { state: 'downloading', progress: { download: { bytes: 2048 } } },
+    })
+    expect(resumedProgress.status.runtime?.message).toBeUndefined()
 
     const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
       method: 'POST',
@@ -697,7 +721,7 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ action: 'pause' }),
     })
     expect(pauseRes.status).toBe(200)
-    await expect(pauseRes.json()).resolves.toMatchObject({ status: 'pausing' })
+    await expect(pauseRes.json()).resolves.toMatchObject({ status: { state: 'pausing' } })
 
     const pausedRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
@@ -709,7 +733,7 @@ describe('Download tasks API integration', () => {
     const pausedProgressRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
-      body: JSON.stringify({ status: 'downloading', downloadedBytes: 3072 }),
+      body: JSON.stringify({ status: 'downloading', ...transferProgress({ downloadBytes: 3072 }) }),
     })
     expect(pausedProgressRes.status).toBe(409)
     await expect(pausedProgressRes.json()).resolves.toEqual({ error: 'Task is paused' })
@@ -741,8 +765,8 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createTaskRes.status).toBe(201)
-    const createdTask = (await createTaskRes.json()) as { id: string; status: string }
-    expect(createdTask.status).toBe('assigned')
+    const createdTask = (await createTaskRes.json()) as DownloadTask
+    expect(createdTask.status.state).toBe('assigned')
 
     const totalBytes = 4096
     const failedUploadRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
@@ -750,20 +774,26 @@ describe('Download tasks API integration', () => {
       headers: downloaderHeaders,
       body: JSON.stringify({
         status: 'failed',
-        downloadedBytes: totalBytes,
-        totalBytes,
-        storageUploadedBytes: 1024,
+        ...transferProgress({ downloadBytes: totalBytes, uploadBytes: 1024, totalBytes }),
         errorMessage: 'confirm object failed',
-        detail: { engine: 'aria2', phase: 'uploading', infoHash: 'abc123', message: 'upload token rejected' },
+        runtime: {
+          engine: 'aria2',
+          phase: 'uploading',
+          torrent: { infoHash: 'abc123' },
+          message: 'upload token rejected',
+        },
       }),
     })
     expect(failedUploadRes.status).toBe(200)
     await expect(failedUploadRes.json()).resolves.toMatchObject({
-      status: 'failed',
-      downloadedBytes: totalBytes,
-      totalBytes,
-      storageUploadedBytes: 1024,
-      detail: { phase: 'uploading' },
+      status: {
+        state: 'failed',
+        progress: {
+          download: { bytes: totalBytes, totalBytes },
+          upload: { bytes: 1024, totalBytes },
+        },
+        runtime: { phase: 'uploading' },
+      },
     })
 
     const retryRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
@@ -772,48 +802,37 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ action: 'retry' }),
     })
     expect(retryRes.status).toBe(200)
-    const retriedTask = (await retryRes.json()) as {
-      status: string
-      assignedDownloaderId: string
-      downloadedBytes: number
-      totalBytes: number
-      storageUploadedBytes: number
-      detail: { phase: string; message?: string } | null
-      errorMessage: string | null
-    }
+    const retriedTask = (await retryRes.json()) as DownloadTask
     expect(retriedTask).toMatchObject({
-      status: 'assigned',
-      assignedDownloaderId: createdDownloader.downloader.id,
-      downloadedBytes: totalBytes,
-      totalBytes,
-      storageUploadedBytes: 1024,
-      detail: { phase: 'uploading' },
-      errorMessage: null,
+      status: {
+        state: 'assigned',
+        assignment: { downloaderId: createdDownloader.downloader.id },
+        progress: {
+          download: { bytes: totalBytes, totalBytes },
+          upload: { bytes: 1024, totalBytes },
+        },
+        runtime: { phase: 'uploading' },
+        error: null,
+      },
     })
-    expect(retriedTask.detail?.message).toBeUndefined()
+    expect(retriedTask.status.runtime?.message).toBeUndefined()
 
     const assignedRes = await app.request('/api/download-tasks?assignedTo=me&status=assigned', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },
     })
     expect(assignedRes.status).toBe(200)
-    const assigned = (await assignedRes.json()) as {
-      items: Array<{
-        id: string
-        downloadedBytes: number
-        totalBytes: number
-        storageUploadedBytes: number
-        detail: { phase: string }
-        uploadToken: string
-      }>
-    }
+    const assigned = (await assignedRes.json()) as DownloadTaskList
     const task = assigned.items.find((item) => item.id === createdTask.id)
     expect(task).toMatchObject({
-      downloadedBytes: totalBytes,
-      totalBytes,
-      storageUploadedBytes: 1024,
-      detail: { phase: 'uploading' },
+      status: {
+        progress: {
+          download: { bytes: totalBytes, totalBytes },
+          upload: { bytes: 1024, totalBytes },
+        },
+        runtime: { phase: 'uploading' },
+      },
     })
-    expect(task?.uploadToken).toBeTruthy()
+    expect(task?.status.assignment?.uploadToken).toBeTruthy()
 
     const restartRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
       method: 'POST',
@@ -822,13 +841,16 @@ describe('Download tasks API integration', () => {
     })
     expect(restartRes.status).toBe(200)
     await expect(restartRes.json()).resolves.toMatchObject({
-      status: 'assigned',
-      assignedDownloaderId: createdDownloader.downloader.id,
-      downloadedBytes: 0,
-      totalBytes: null,
-      storageUploadedBytes: 0,
-      detail: null,
-      errorMessage: null,
+      status: {
+        state: 'assigned',
+        assignment: { downloaderId: createdDownloader.downloader.id },
+        progress: {
+          download: { bytes: 0, totalBytes: null },
+          upload: { bytes: 0, totalBytes: null },
+        },
+        runtime: null,
+        error: null,
+      },
     })
   })
 
@@ -858,7 +880,7 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createTaskRes.status).toBe(201)
-    const createdTask = (await createTaskRes.json()) as { id: string; status: string }
+    const createdTask = (await createTaskRes.json()) as DownloadTask
 
     const downloadingRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
@@ -873,12 +895,12 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ action: 'pause' }),
     })
     expect(pauseRes.status).toBe(200)
-    await expect(pauseRes.json()).resolves.toMatchObject({ status: 'pausing' })
+    await expect(pauseRes.json()).resolves.toMatchObject({ status: { state: 'pausing' } })
 
     const pausingProgressRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
-      body: JSON.stringify({ downloadedBytes: 1024 }),
+      body: JSON.stringify(transferProgress({ downloadBytes: 1024 })),
     })
     expect(pausingProgressRes.status).toBe(409)
     await expect(pausingProgressRes.json()).resolves.toEqual({ error: 'Task is pausing' })
@@ -889,7 +911,7 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ status: 'paused' }),
     })
     expect(pausedRes.status).toBe(200)
-    await expect(pausedRes.json()).resolves.toMatchObject({ status: 'paused' })
+    await expect(pausedRes.json()).resolves.toMatchObject({ status: { state: 'paused' } })
 
     const resumeRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
       method: 'POST',
@@ -898,8 +920,7 @@ describe('Download tasks API integration', () => {
     })
     expect(resumeRes.status).toBe(200)
     await expect(resumeRes.json()).resolves.toMatchObject({
-      status: 'assigned',
-      assignedDownloaderId: createdDownloader.downloader.id,
+      status: { state: 'assigned', assignment: { downloaderId: createdDownloader.downloader.id } },
     })
 
     const rerunRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
@@ -915,7 +936,7 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ action: 'cancel' }),
     })
     expect(cancelRes.status).toBe(200)
-    await expect(cancelRes.json()).resolves.toMatchObject({ status: 'canceling' })
+    await expect(cancelRes.json()).resolves.toMatchObject({ status: { state: 'canceling' } })
 
     const canceledRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
       method: 'PATCH',
@@ -923,7 +944,7 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ status: 'canceled' }),
     })
     expect(canceledRes.status).toBe(200)
-    await expect(canceledRes.json()).resolves.toMatchObject({ status: 'canceled' })
+    await expect(canceledRes.json()).resolves.toMatchObject({ status: { state: 'canceled' } })
   })
 
   it('rejects pause for billing-paused and uploading tasks', async () => {
@@ -996,8 +1017,8 @@ describe('Download tasks API integration', () => {
       }),
     })
     expect(createTaskRes.status).toBe(201)
-    const createdTask = (await createTaskRes.json()) as { id: string; status: string }
-    expect(createdTask.status).toBe('queued')
+    const createdTask = (await createTaskRes.json()) as DownloadTask
+    expect(createdTask.status.state).toBe('queued')
 
     const deleteRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
       method: 'POST',
@@ -1039,15 +1060,17 @@ describe('Download tasks API integration', () => {
 
     const categorySortRes = await app.request('/api/download-tasks?sortBy=category&sortDir=asc', { headers: user })
     expect(categorySortRes.status).toBe(200)
-    const categorySorted = (await categorySortRes.json()) as { items: Array<{ category: string }> }
-    expect(categorySorted.items.map((item) => item.category)).toEqual(['archive', 'video'])
+    const categorySorted = (await categorySortRes.json()) as DownloadTaskList
+    expect(categorySorted.items.map((item) => item.spec.labels.category)).toEqual(['archive', 'video'])
 
     const tagFilterRes = await app.request('/api/download-tasks?tag=movie&sortBy=source&sortDir=desc', {
       headers: user,
     })
     expect(tagFilterRes.status).toBe(200)
-    const tagFiltered = (await tagFilterRes.json()) as { items: Array<{ sourceUri: string; tags: string[] }> }
+    const tagFiltered = (await tagFilterRes.json()) as DownloadTaskList
     expect(tagFiltered.items).toHaveLength(1)
-    expect(tagFiltered.items[0]).toMatchObject({ sourceUri: 'https://example.com/b.bin', tags: ['bulk', 'movie'] })
+    expect(tagFiltered.items[0]).toMatchObject({
+      spec: { source: { uri: 'https://example.com/b.bin' }, labels: { tags: ['bulk', 'movie'] } },
+    })
   })
 })

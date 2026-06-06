@@ -26,42 +26,143 @@ type Page[T any] struct {
 }
 
 type DownloadTask struct {
-	ID                   string              `json:"id"`
-	SourceType           string              `json:"sourceType"`
-	SourceURI            string              `json:"sourceUri"`
-	Name                 string              `json:"name"`
-	TargetFolder         string              `json:"targetFolder"`
-	Category             string              `json:"category"`
-	Tags                 []string            `json:"tags"`
-	Status               string              `json:"status"`
-	DownloadedBytes      int64               `json:"downloadedBytes"`
-	StorageUploadedBytes int64               `json:"storageUploadedBytes"`
-	TotalBytes           *int64              `json:"totalBytes"`
-	DownloadBps          int64               `json:"downloadBps"`
-	StorageUploadBps     int64               `json:"storageUploadBps"`
-	Detail               *DownloadTaskDetail `json:"detail"`
-	ResultObjectID       string              `json:"resultObjectId"`
-	UploadToken          string              `json:"uploadToken"`
-	AssignedDownloaderID string              `json:"assignedDownloaderId"`
+	ID     string             `json:"id"`
+	Spec   DownloadTaskSpec   `json:"spec"`
+	Status DownloadTaskStatus `json:"status"`
 }
 
-type DownloadTaskDetail struct {
-	Engine            string                `json:"engine,omitempty"`
-	Phase             string                `json:"phase,omitempty"`
-	EngineState       string                `json:"engineState,omitempty"`
-	Message           string                `json:"message,omitempty"`
-	ETASeconds        *int64                `json:"etaSeconds,omitempty"`
-	Connections       *int64                `json:"connections,omitempty"`
-	InfoHash          string                `json:"infoHash,omitempty"`
-	TorrentName       string                `json:"torrentName,omitempty"`
-	Seeders           *int64                `json:"seeders,omitempty"`
-	Leechers          *int64                `json:"leechers,omitempty"`
-	Peers             *int64                `json:"peers,omitempty"`
-	PeerUploadedBytes *int64                `json:"peerUploadedBytes,omitempty"`
-	PeerUploadBps     *int64                `json:"peerUploadBps,omitempty"`
-	Trackers          []DownloadTaskTracker `json:"trackers,omitempty"`
-	PeerSamples       []DownloadTaskPeer    `json:"peerSamples,omitempty"`
-	Files             []DownloadTaskFile    `json:"files,omitempty"`
+func (t DownloadTask) SourceType() string {
+	return t.Spec.Source.Type
+}
+
+func (t DownloadTask) SourceURI() string {
+	return t.Spec.Source.URI
+}
+
+func (t DownloadTask) Name() string {
+	return t.Spec.Destination.Name
+}
+
+func (t DownloadTask) TargetFolder() string {
+	return t.Spec.Destination.Folder
+}
+
+func (t DownloadTask) Category() string {
+	return t.Spec.Labels.Category
+}
+
+func (t DownloadTask) Tags() []string {
+	return t.Spec.Labels.Tags
+}
+
+func (t DownloadTask) State() string {
+	return t.Status.State
+}
+
+func (t DownloadTask) Runtime() *DownloadTaskRuntime {
+	return t.Status.Runtime
+}
+
+func (t DownloadTask) UploadToken() string {
+	if t.Status.Assignment == nil {
+		return ""
+	}
+	return t.Status.Assignment.UploadToken
+}
+
+type DownloadTaskSpec struct {
+	Source      DownloadTaskSource      `json:"source"`
+	Destination DownloadTaskDestination `json:"destination"`
+	Labels      DownloadTaskLabels      `json:"labels"`
+}
+
+type DownloadTaskSource struct {
+	Type string `json:"type"`
+	URI  string `json:"uri"`
+}
+
+type DownloadTaskDestination struct {
+	Folder string `json:"folder"`
+	Name   string `json:"name"`
+}
+
+type DownloadTaskLabels struct {
+	Category string   `json:"category"`
+	Tags     []string `json:"tags"`
+}
+
+type DownloadTaskStatus struct {
+	State      string                  `json:"state"`
+	Assignment *DownloadTaskAssignment `json:"assignment"`
+	Progress   DownloadTaskProgress    `json:"progress"`
+	Runtime    *DownloadTaskRuntime    `json:"runtime"`
+	Output     *DownloadTaskOutput     `json:"output"`
+	Error      *DownloadTaskError      `json:"error"`
+}
+
+type DownloadTaskAssignment struct {
+	DownloaderID string `json:"downloaderId"`
+	AssignedAt   string `json:"assignedAt"`
+	UploadToken  string `json:"uploadToken,omitempty"`
+}
+
+type DownloadTaskOutput struct {
+	ObjectID string `json:"objectId"`
+}
+
+type DownloadTaskError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type DownloadTaskProgress struct {
+	Download DownloadTaskTransferProgress `json:"download"`
+	Upload   DownloadTaskTransferProgress `json:"upload"`
+}
+
+type DownloadTaskTransferProgress struct {
+	Bytes          int64  `json:"bytes"`
+	TotalBytes     *int64 `json:"totalBytes"`
+	BytesPerSecond int64  `json:"bytesPerSecond"`
+}
+
+type DownloadTaskProgressPatch struct {
+	Download *DownloadTaskTransferProgress `json:"download,omitempty"`
+	Upload   *DownloadTaskTransferProgress `json:"upload,omitempty"`
+}
+
+type DownloadTaskRuntime struct {
+	Engine      string                      `json:"engine,omitempty"`
+	Phase       string                      `json:"phase,omitempty"`
+	State       string                      `json:"state,omitempty"`
+	Message     string                      `json:"message,omitempty"`
+	UpdatedAt   string                      `json:"updatedAt,omitempty"`
+	Progress    *DownloadTaskProgress       `json:"progress,omitempty"`
+	ETASeconds  *int64                      `json:"etaSeconds,omitempty"`
+	Connections *int64                      `json:"connections,omitempty"`
+	Torrent     *DownloadTaskTorrentRuntime `json:"torrent,omitempty"`
+	Seeding     *DownloadTaskSeedingRuntime `json:"seeding,omitempty"`
+	Trackers    []DownloadTaskTracker       `json:"trackers,omitempty"`
+	Peers       []DownloadTaskPeer          `json:"peers,omitempty"`
+	Files       []DownloadTaskFile          `json:"files,omitempty"`
+}
+
+type DownloadTaskTorrentRuntime struct {
+	InfoHash string `json:"infoHash,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Seeders  *int64 `json:"seeders,omitempty"`
+	Leechers *int64 `json:"leechers,omitempty"`
+	Peers    *int64 `json:"peers,omitempty"`
+}
+
+type DownloadTaskSeedingRuntime struct {
+	Enabled              *bool    `json:"enabled,omitempty"`
+	Active               *bool    `json:"active,omitempty"`
+	UploadedBytes        *int64   `json:"uploadedBytes,omitempty"`
+	UploadBytesPerSecond *int64   `json:"uploadBytesPerSecond,omitempty"`
+	Ratio                *float64 `json:"ratio,omitempty"`
+	StartedAt            string   `json:"startedAt,omitempty"`
+	ExpiresAt            string   `json:"expiresAt,omitempty"`
 }
 
 type DownloadTaskTracker struct {
@@ -76,6 +177,8 @@ type DownloadTaskTracker struct {
 type DownloadTaskPeer struct {
 	Address     string   `json:"address"`
 	Client      string   `json:"client,omitempty"`
+	CountryCode string   `json:"countryCode,omitempty"`
+	RegionCode  string   `json:"regionCode,omitempty"`
 	Progress    *float64 `json:"progress,omitempty"`
 	DownloadBps *int64   `json:"downloadBps,omitempty"`
 	UploadBps   *int64   `json:"uploadBps,omitempty"`
@@ -103,15 +206,15 @@ type Heartbeat struct {
 }
 
 type TaskPatch struct {
-	Status               string              `json:"status,omitempty"`
-	DownloadedBytes      *int64              `json:"downloadedBytes,omitempty"`
-	StorageUploadedBytes *int64              `json:"storageUploadedBytes,omitempty"`
-	TotalBytes           *int64              `json:"totalBytes,omitempty"`
-	DownloadBps          *int64              `json:"downloadBps,omitempty"`
-	StorageUploadBps     *int64              `json:"storageUploadBps,omitempty"`
-	ErrorMessage         *string             `json:"errorMessage,omitempty"`
-	ResultObjectID       *string             `json:"resultObjectId,omitempty"`
-	Detail               *DownloadTaskDetail `json:"detail,omitempty"`
+	Status         string                     `json:"status,omitempty"`
+	Progress       *DownloadTaskProgressPatch `json:"progress,omitempty"`
+	ErrorMessage   *string                    `json:"errorMessage,omitempty"`
+	ResultObjectID *string                    `json:"resultObjectId,omitempty"`
+	Runtime        *DownloadTaskRuntime       `json:"runtime,omitempty"`
+}
+
+func (p TaskPatch) State() string {
+	return p.Status
 }
 
 type ObjectDraft struct {
@@ -351,64 +454,13 @@ func createDownloaderRequestBody(req CreateDownloaderRequest) openapi.PostApiAdm
 }
 
 func taskPatchRequestBody(patch TaskPatch) (openapi.PatchApiDownloadTasksIdJSONRequestBody, error) {
-	body := openapi.PatchApiDownloadTasksIdJSONRequestBody{
-		DownloadBps:          patch.DownloadBps,
-		DownloadedBytes:      patch.DownloadedBytes,
-		ErrorMessage:         patch.ErrorMessage,
-		ResultObjectId:       patch.ResultObjectID,
-		StorageUploadBps:     patch.StorageUploadBps,
-		StorageUploadedBytes: patch.StorageUploadedBytes,
-		TotalBytes:           patch.TotalBytes,
+	data, err := json.Marshal(patch)
+	if err != nil {
+		return openapi.PatchApiDownloadTasksIdJSONRequestBody{}, err
 	}
-	if patch.Status != "" {
-		status := openapi.PatchApiDownloadTasksIdJSONBodyStatus(patch.Status)
-		body.Status = &status
-	}
-	if patch.Detail != nil {
-		data, err := json.Marshal(patch.Detail)
-		if err != nil {
-			return body, err
-		}
-		var detail struct {
-			Connections *int                                                 `json:"connections,omitempty"`
-			Engine      *openapi.PatchApiDownloadTasksIdJSONBodyDetailEngine `json:"engine,omitempty"`
-			EngineState *string                                              `json:"engineState,omitempty"`
-			EtaSeconds  *int                                                 `json:"etaSeconds,omitempty"`
-			Files       *[]struct {
-				CompletedBytes *int64 `json:"completedBytes,omitempty"`
-				Path           string `json:"path"`
-				Selected       *bool  `json:"selected,omitempty"`
-				Size           int64  `json:"size"`
-			} `json:"files,omitempty"`
-			InfoHash    *string `json:"infoHash,omitempty"`
-			Leechers    *int    `json:"leechers,omitempty"`
-			Message     *string `json:"message,omitempty"`
-			PeerSamples *[]struct {
-				Address     string   `json:"address"`
-				Client      *string  `json:"client,omitempty"`
-				DownloadBps *int64   `json:"downloadBps,omitempty"`
-				Progress    *float32 `json:"progress,omitempty"`
-				UploadBps   *int64   `json:"uploadBps,omitempty"`
-			} `json:"peerSamples,omitempty"`
-			PeerUploadBps     *int64                                              `json:"peerUploadBps,omitempty"`
-			PeerUploadedBytes *int64                                              `json:"peerUploadedBytes,omitempty"`
-			Peers             *int                                                `json:"peers,omitempty"`
-			Phase             *openapi.PatchApiDownloadTasksIdJSONBodyDetailPhase `json:"phase,omitempty"`
-			Seeders           *int                                                `json:"seeders,omitempty"`
-			TorrentName       *string                                             `json:"torrentName,omitempty"`
-			Trackers          *[]struct {
-				Leechers *int    `json:"leechers,omitempty"`
-				Message  *string `json:"message,omitempty"`
-				Peers    *int    `json:"peers,omitempty"`
-				Seeds    *int    `json:"seeds,omitempty"`
-				Status   *string `json:"status,omitempty"`
-				Url      string  `json:"url"`
-			} `json:"trackers,omitempty"`
-		}
-		if err := json.Unmarshal(data, &detail); err != nil {
-			return body, err
-		}
-		body.Detail = &detail
+	var body openapi.PatchApiDownloadTasksIdJSONRequestBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		return openapi.PatchApiDownloadTasksIdJSONRequestBody{}, err
 	}
 	return body, nil
 }
