@@ -240,6 +240,17 @@ func splitRelativePath(path string) []string {
 	return out
 }
 
+func stripTorrentRoot(path string, torrentName string) string {
+	parts := splitRelativePath(path)
+	if len(parts) < 2 {
+		return filepath.ToSlash(filepath.Clean(path))
+	}
+	if torrentName == "" || parts[0] != torrentName {
+		return filepath.ToSlash(filepath.Clean(path))
+	}
+	return strings.Join(parts[1:], "/")
+}
+
 func hasPathSeparator(path string) bool {
 	return len(splitRelativePath(path)) > 1
 }

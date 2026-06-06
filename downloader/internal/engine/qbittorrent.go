@@ -429,6 +429,7 @@ func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbi
 		PeerUploadBps:     &uploadBps,
 		Trackers:          qbittorrentTrackers(ctx, qbt, torrent),
 		PeerSamples:       qbittorrentPeers(ctx, qbt, torrent.Hash),
+		Files:             qbittorrentFiles(ctx, qbt, torrent),
 	}
 }
 
@@ -503,6 +504,34 @@ func qbittorrentPeers(ctx context.Context, qbt *qbittorrent.Client, hash string)
 			UploadBps:   &up,
 		})
 		if len(out) >= 20 {
+			break
+		}
+	}
+	return out
+}
+
+func qbittorrentFiles(ctx context.Context, qbt *qbittorrent.Client, torrent qbittorrent.Torrent) []client.DownloadTaskFile {
+	if torrent.Hash == "" {
+		return nil
+	}
+	files, err := qbt.GetFilesInformationCtx(ctx, torrent.Hash)
+	if err != nil || files == nil {
+		return nil
+	}
+	out := make([]client.DownloadTaskFile, 0, min(len(*files), 50))
+	for _, file := range *files {
+		if file.Size <= 0 {
+			continue
+		}
+		completed := int64(float64(file.Size) * float64(file.Progress))
+		selected := file.Priority > 0
+		out = append(out, client.DownloadTaskFile{
+			Path:           stripTorrentRoot(file.Name, torrent.Name),
+			Size:           file.Size,
+			CompletedBytes: &completed,
+			Selected:       &selected,
+		})
+		if len(out) >= 50 {
 			break
 		}
 	}
