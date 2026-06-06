@@ -175,11 +175,11 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	log := w.taskLogger(task)
 	log.Info("task started", "source_uri", task.SourceURI, "target_folder", task.TargetFolder)
 	currentDetail := task.Detail
-	if task.Status == "uploading" {
+	if shouldRecoverBeforeDownload(task) {
 		result, recovered, err := w.engine.Recover(ctx, task)
 		if err != nil {
 			msg := taskErrorMessage(err)
-			log.Error("failed to recover uploading task", "error", err)
+			log.Error("failed to recover completed download result", "error", err)
 			if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
 				log.Error("failed to mark task failed", "error", updateErr)
 			}
@@ -190,7 +190,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 			w.uploadAndComplete(ctx, log, task, result, currentDetail)
 			return
 		}
-		log.Warn("uploading task has no recoverable local result; restarting download")
+		log.Warn("task has no recoverable completed download result; restarting download", "status", task.Status)
 	}
 
 	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "running"}); err != nil {
@@ -266,6 +266,22 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 
 	log.Debug("task download completed", "path", result.Path, "name", result.Name, "size", result.Size)
 	w.uploadAndComplete(ctx, log, task, result, currentDetail)
+}
+
+func shouldRecoverBeforeDownload(task client.DownloadTask) bool {
+	if task.Status == "uploading" {
+		return true
+	}
+	if task.Status != "assigned" {
+		return false
+	}
+	if task.StorageUploadedBytes > 0 {
+		return true
+	}
+	if task.Detail != nil && task.Detail.Phase == "uploading" {
+		return true
+	}
+	return task.TotalBytes != nil && *task.TotalBytes > 0 && task.DownloadedBytes >= *task.TotalBytes
 }
 
 func (w *Worker) uploadAndComplete(

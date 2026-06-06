@@ -212,6 +212,54 @@ func TestTaskErrorMessageTruncatesToSchemaLimit(t *testing.T) {
 	}
 }
 
+func TestShouldRecoverBeforeDownload(t *testing.T) {
+	total := int64(100)
+	cases := []struct {
+		name string
+		task client.DownloadTask
+		want bool
+	}{
+		{
+			name: "uploading status",
+			task: client.DownloadTask{Status: "uploading"},
+			want: true,
+		},
+		{
+			name: "assigned with upload bytes",
+			task: client.DownloadTask{Status: "assigned", StorageUploadedBytes: 1},
+			want: true,
+		},
+		{
+			name: "assigned with uploading phase",
+			task: client.DownloadTask{Status: "assigned", Detail: &client.DownloadTaskDetail{Phase: "uploading"}},
+			want: true,
+		},
+		{
+			name: "assigned with completed download bytes",
+			task: client.DownloadTask{Status: "assigned", DownloadedBytes: 100, TotalBytes: &total},
+			want: true,
+		},
+		{
+			name: "assigned partial download",
+			task: client.DownloadTask{Status: "assigned", DownloadedBytes: 99, TotalBytes: &total},
+			want: false,
+		},
+		{
+			name: "running completed bytes",
+			task: client.DownloadTask{Status: "running", DownloadedBytes: 100, TotalBytes: &total},
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldRecoverBeforeDownload(tc.task); got != tc.want {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
 func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 	dir := t.TempDir()
 	cleaned := false
