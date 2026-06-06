@@ -389,6 +389,38 @@ describe('saveShareToDrive', () => {
     expect(rows[0]?.used).toBe(fileSize)
   })
 
+  it('rolls back target usage when storage copy fails after quota reservation', async () => {
+    const { db } = await createTestApp()
+    await insertStorage(db)
+    const srcOrgId = nanoid()
+    const dstOrgId = nanoid()
+    const fileSize = 2048
+    const matter = await seedMatter(db, { orgId: srcOrgId, size: fileSize })
+    const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'u1', kind: 'landing' })
+    await seedOrgQuota(db, dstOrgId, 100000, 128)
+    await db.run(sql`UPDATE storages SET used = 128 WHERE id = ${STORAGE_ID}`)
+    vi.mocked(S3Service.prototype.copyObject).mockRejectedValueOnce(new Error('copy failed'))
+
+    if (share.status === 'revoked') throw new Error('test setup failed')
+
+    await expect(
+      saveShareToDrive(db, {
+        share,
+        matter,
+        currentUserId: 'u2',
+        targetOrgId: dstOrgId,
+        targetParent: '',
+      }),
+    ).rejects.toThrow('copy failed')
+
+    const quotaRows = await db.select().from(orgQuotas).where(sql`org_id = ${dstOrgId}`)
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${STORAGE_ID}`)
+    const dstMatters = await getMattersInOrg(db, dstOrgId)
+    expect(quotaRows[0]?.used).toBe(128)
+    expect(storageRows[0]?.used).toBe(128)
+    expect(dstMatters).toHaveLength(0)
+  })
+
   it('recursively copies a folder tree to target org', async () => {
     const { db } = await createTestApp()
     await insertStorage(db)

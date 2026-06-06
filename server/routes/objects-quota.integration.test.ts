@@ -179,6 +179,49 @@ describe('POST /api/objects/copy — quota enforcement', () => {
     expect(storageRows[0].used).toBe(200)
   })
 
+  it('rolls back usage when S3 copy fails after quota reservation', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db, 100)
+    const orgId = await getOrgId(db)
+    await setOrgQuota(db, orgId, 1000, 100)
+    await insertFile(db, orgId, { id: 'm-copy-s3-fail', name: 'fail.txt', size: 200 })
+    vi.mocked(S3Service.prototype.copyObject).mockRejectedValueOnce(new Error('copy failed'))
+
+    const res = await app.request('/api/objects/copy', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ copyFrom: 'm-copy-s3-fail', parent: 'Archive' }),
+    })
+
+    expect(res.status).toBe(500)
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(storageRows[0].used).toBe(100)
+    expect(quotaRows[0].used).toBe(100)
+  })
+
+  it('rolls back usage when copy fails on name conflict after quota reservation', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db, 100)
+    const orgId = await getOrgId(db)
+    await setOrgQuota(db, orgId, 1000, 100)
+    await insertFile(db, orgId, { id: 'm-copy-conflict', name: 'conflict.txt', size: 200 })
+
+    const res = await app.request('/api/objects/copy', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ copyFrom: 'm-copy-conflict', parent: '', onConflict: 'fail' }),
+    })
+
+    expect(res.status).toBe(409)
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(storageRows[0].used).toBe(100)
+    expect(quotaRows[0].used).toBe(100)
+  })
+
   it('returns 201 without incrementing usage when copying a zero-size file', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
@@ -246,6 +289,65 @@ describe('POST /api/objects/copy — quota enforcement', () => {
       body: JSON.stringify({ copyFrom: 'nonexistent', parent: '' }),
     })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('trash and purge — storage usage accounting', () => {
+  it('does not change usage when an active file is moved to trash', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db, 300)
+    const orgId = await getOrgId(db)
+    await setOrgQuota(db, orgId, 1000, 300)
+    await insertFile(db, orgId, { id: 'm-trash-usage', name: 'keep-accounted.txt', size: 300 })
+
+    const res = await app.request('/api/objects/m-trash-usage', {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'trash' }),
+    })
+
+    expect(res.status).toBe(200)
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(storageRows[0].used).toBe(300)
+    expect(quotaRows[0].used).toBe(300)
+  })
+
+  it('emptying trash releases only purged files and keeps active file usage', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db, 500)
+    const orgId = await getOrgId(db)
+    await setOrgQuota(db, orgId, 1000, 500)
+    await insertFile(db, orgId, { id: 'm-active-after-empty', name: 'active.txt', size: 300 })
+    await insertFile(db, orgId, { id: 'm-trashed-empty', name: 'trashed.txt', size: 200, status: 'trashed' })
+
+    const res = await app.request('/api/trash', { method: 'DELETE', headers })
+
+    expect(res.status).toBe(200)
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(storageRows[0].used).toBe(300)
+    expect(quotaRows[0].used).toBe(300)
+  })
+
+  it('emptying trash recalculates usage when counters had drifted below active file bytes', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db, 200)
+    const orgId = await getOrgId(db)
+    await setOrgQuota(db, orgId, 1000, 200)
+    await insertFile(db, orgId, { id: 'm-active-drift', name: 'active.txt', size: 300 })
+    await insertFile(db, orgId, { id: 'm-trashed-drift', name: 'trashed.txt', size: 200, status: 'trashed' })
+
+    const res = await app.request('/api/trash', { method: 'DELETE', headers })
+
+    expect(res.status).toBe(200)
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(storageRows[0].used).toBe(300)
+    expect(quotaRows[0].used).toBe(300)
   })
 })
 

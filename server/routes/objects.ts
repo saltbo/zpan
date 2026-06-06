@@ -27,6 +27,7 @@ import {
   confirmUpload,
   copyMatter,
   createMatter,
+  decrementUsage,
   getMatter,
   getMatters,
   incrementUsageIfAllowed,
@@ -485,27 +486,37 @@ const app = new Hono<Env>()
     if (!source) return c.json({ error: 'Not found' }, 404)
 
     const sourceSize = source.size ?? 0
+    const storage = source.object ? ((await getStorage(db, source.storageId)) as unknown as S3Storage | null) : null
+    if (source.object && !storage) return c.json({ error: 'Storage not found' }, 404)
+
     if (sourceSize > 0) {
       const allowed = await incrementUsageIfAllowed(db, orgId, source.storageId, sourceSize)
       if (!allowed) return c.json({ error: 'Quota exceeded' }, 422)
     }
 
     let newObject = ''
-    if (source.object) {
-      const storage = (await getStorage(db, source.storageId)) as unknown as S3Storage
-      if (!storage) return c.json({ error: 'Storage not found' }, 404)
-      newObject = buildObjectKey({
-        uid: userId,
-        orgId,
-        rawExt: fileExt(source.name),
-      })
-      await s3.copyObject(storage, source.object, storage, newObject)
-    }
-
     try {
+      if (source.object) {
+        newObject = buildObjectKey({
+          uid: userId,
+          orgId,
+          rawExt: fileExt(source.name),
+        })
+        await s3.copyObject(storage as S3Storage, source.object, storage as S3Storage, newObject)
+      }
       const copy = await copyMatter(db, source, parent, newObject, { onConflict, userId })
       return c.json(copy, 201)
     } catch (e) {
+      if (sourceSize > 0) {
+        await decrementUsage(db, orgId, new Map([[source.storageId, sourceSize]]), sourceSize)
+      }
+      if (newObject && storage) {
+        try {
+          await s3.deleteObject(storage, newObject)
+        } catch {
+          // Best-effort cleanup for an object copied before the DB insert failed.
+        }
+      }
       if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
       throw e
     }

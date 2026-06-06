@@ -1,7 +1,9 @@
+import { eq, sql } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
 import type { Storage as S3Storage } from '../../shared/types'
+import { imageHostings, matters, orgQuotas, storages } from '../db/schema'
 import type { Database } from '../platform/interface'
-import { decrementUsage, type Matter, purgeMatters } from './matter'
+import { type Matter, purgeMatters } from './matter'
 import { S3Service } from './s3'
 import { cascadeDeleteByMatter } from './share'
 import { getStorage } from './storage'
@@ -42,6 +44,46 @@ export async function purgeRecursively(db: Database, orgId: string, matters: Mat
     orgId,
     matters.map((m) => m.id),
   )
-  await decrementUsage(db, orgId, bytesByStorage, totalBytes)
+  if (totalBytes > 0) await reconcileUsageAfterPurge(db, orgId, bytesByStorage.keys())
   return matters.length
+}
+
+async function reconcileUsageAfterPurge(db: Database, orgId: string, storageIds: Iterable<string>): Promise<void> {
+  await db
+    .update(orgQuotas)
+    .set({
+      used: sql`COALESCE((
+        SELECT SUM(${matters.size})
+        FROM ${matters}
+        WHERE ${matters.orgId} = ${orgId}
+          AND ${matters.dirtype} = ${DirType.FILE}
+          AND ${matters.status} IN ('active', 'trashed')
+      ), 0) + COALESCE((
+        SELECT SUM(${imageHostings.size})
+        FROM ${imageHostings}
+        WHERE ${imageHostings.orgId} = ${orgId}
+          AND ${imageHostings.status} = 'active'
+      ), 0)`,
+    })
+    .where(eq(orgQuotas.orgId, orgId))
+
+  for (const storageId of storageIds) {
+    await db
+      .update(storages)
+      .set({
+        used: sql`COALESCE((
+          SELECT SUM(${matters.size})
+          FROM ${matters}
+          WHERE ${matters.storageId} = ${storageId}
+            AND ${matters.dirtype} = ${DirType.FILE}
+            AND ${matters.status} IN ('active', 'trashed')
+        ), 0) + COALESCE((
+          SELECT SUM(${imageHostings.size})
+          FROM ${imageHostings}
+          WHERE ${imageHostings.storageId} = ${storageId}
+            AND ${imageHostings.status} = 'active'
+        ), 0)`,
+      })
+      .where(eq(storages.id, storageId))
+  }
 }
