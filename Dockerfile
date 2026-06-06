@@ -38,14 +38,14 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends aria2 ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && addgroup --system zpan \
- && adduser --system --ingroup zpan --home /home/zpan zpan
+ && adduser --system --ingroup zpan --home /home/zpan zpan \
+ && mkdir -p /home/zpan/.local/share/zpan
 COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
-COPY --from=geoip-db /out/geoip.mmdb /usr/local/share/zpan/geoip.mmdb
+COPY --from=geoip-db /out/geoip.mmdb /home/zpan/.local/share/zpan/geoip.mmdb
 RUN mkdir -p /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /downloads \
  && chown -R zpan:zpan /home/zpan /downloads
 USER zpan
 ENV HOME=/home/zpan
-ENV ZPAN_DOWNLOADER_GEOIP_DB=/usr/local/share/zpan/geoip.mmdb
 WORKDIR /downloads
 ENTRYPOINT ["zpan"]
 CMD ["downloader", "up"]
@@ -57,7 +57,8 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends aria2 ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && addgroup --system zpan \
- && adduser --system --ingroup zpan --home /home/zpan zpan
+ && adduser --system --ingroup zpan --home /home/zpan zpan \
+ && mkdir -p /home/zpan/.local/share/zpan
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/dist-server ./dist-server
@@ -66,7 +67,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
 COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
-COPY --from=geoip-db /out/geoip.mmdb /usr/local/share/zpan/geoip.mmdb
+COPY --from=geoip-db /out/geoip.mmdb /home/zpan/.local/share/zpan/geoip.mmdb
 
 RUN mkdir -p /data /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader \
  && chown -R zpan:zpan /data /home/zpan
@@ -76,7 +77,6 @@ USER zpan
 ENV NODE_ENV=production
 ENV HOME=/home/zpan
 ENV PORT=8222
-ENV ZPAN_DOWNLOADER_GEOIP_DB=/usr/local/share/zpan/geoip.mmdb
 EXPOSE 8222
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
