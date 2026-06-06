@@ -256,7 +256,7 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 	}
 }
 
-func TestDownloadShutdownMarksTaskAssigned(t *testing.T) {
+func TestDownloadShutdownMarksTaskPaused(t *testing.T) {
 	api := &recordingAPI{}
 	eng := &recordingEngine{downloadErr: context.Canceled}
 	w := NewWithAPI(config.Config{}, api)
@@ -264,13 +264,16 @@ func TestDownloadShutdownMarksTaskAssigned(t *testing.T) {
 
 	w.process(context.Background(), client.DownloadTask{ID: "task-1", Status: "running"})
 
-	patch := lastPatchWithStatus(t, api.patches, "assigned")
+	patch := lastPatchWithStatus(t, api.patches, "paused")
 	if patch.DownloadBps == nil || *patch.DownloadBps != 0 {
 		t.Fatalf("expected download speed to be reset, got %#v", patch.DownloadBps)
 	}
+	if patch.Detail == nil || patch.Detail.Message == "" {
+		t.Fatalf("expected shutdown pause message, got %#v", patch.Detail)
+	}
 }
 
-func TestUploadShutdownKeepsTaskUploading(t *testing.T) {
+func TestUploadShutdownMarksTaskPaused(t *testing.T) {
 	payloadPath := writeTempFile(t, "downloaded payload")
 	api := &recordingAPI{
 		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", UploadURL: "http://127.0.0.1:1"},
@@ -287,9 +290,12 @@ func TestUploadShutdownKeepsTaskUploading(t *testing.T) {
 		nil,
 	)
 
-	patch := lastPatchWithStatus(t, api.patches, "uploading")
+	patch := lastPatchWithStatus(t, api.patches, "paused")
 	if patch.DownloadedBytes == nil || *patch.DownloadedBytes != int64(len("downloaded payload")) {
 		t.Fatalf("expected upload shutdown to preserve downloaded checkpoint, got %#v", patch.DownloadedBytes)
+	}
+	if patch.Detail == nil || patch.Detail.Phase != "uploading" || patch.Detail.Message == "" {
+		t.Fatalf("expected upload shutdown to preserve phase and add message, got %#v", patch.Detail)
 	}
 	if _, ok := findPatchWithStatus(api.patches, "failed"); ok {
 		t.Fatalf("expected upload shutdown not to mark failed, got %#v", api.patches)

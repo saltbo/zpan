@@ -256,12 +256,12 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 			}
 			zero := int64(0)
 			if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
-				Status:           "assigned",
+				Status:           "paused",
 				DownloadBps:      &zero,
 				StorageUploadBps: &zero,
-				Detail:           currentDetail,
+				Detail:           shutdownPauseDetail(currentDetail),
 			}); updateErr != nil {
-				log.Error("failed to mark task resumable after shutdown", "error", updateErr)
+				log.Error("failed to mark task paused after shutdown", "error", updateErr)
 			}
 			log.Info("task stopped by context cancellation")
 			return
@@ -331,14 +331,14 @@ func (w *Worker) uploadAndComplete(
 			uploadingDetail.Phase = "uploading"
 			uploadingDetail.PeerUploadBps = nil
 			if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
-				Status:           "uploading",
+				Status:           "paused",
 				DownloadedBytes:  &downloadedBytes,
 				TotalBytes:       &downloadedBytes,
 				DownloadBps:      &zero,
 				StorageUploadBps: &zero,
-				Detail:           uploadingDetail,
+				Detail:           shutdownPauseDetail(uploadingDetail),
 			}); updateErr != nil {
-				log.Error("failed to mark task uploading after shutdown", "error", updateErr)
+				log.Error("failed to mark task paused after upload shutdown", "error", updateErr)
 			}
 			log.Info("task upload stopped by context cancellation")
 			return
@@ -404,6 +404,14 @@ func withDownloadETA(detail *client.DownloadTaskDetail, downloaded int64, total 
 	if detail.ETASeconds == nil {
 		detail.ETASeconds = eta
 	}
+	return detail
+}
+
+func shutdownPauseDetail(detail *client.DownloadTaskDetail) *client.DownloadTaskDetail {
+	if detail == nil {
+		detail = &client.DownloadTaskDetail{}
+	}
+	detail.Message = "Paused because the downloader stopped"
 	return detail
 }
 
