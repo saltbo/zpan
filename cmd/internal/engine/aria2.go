@@ -27,6 +27,7 @@ type Aria2 struct {
 	Dir        string
 	StateDir   string
 	RetainSeed bool
+	GeoIP      PeerGeoIPResolver
 }
 
 var aria2StatusKeys = []string{
@@ -312,7 +313,7 @@ func (a Aria2) snapshotTask(
 		Downloaded: completed,
 		Total:      totalPtr,
 		Bps:        bps,
-		Runtime:    aria2Detail(status, peers),
+		Runtime:    aria2Detail(status, peers, a.GeoIP),
 		Error:      status.ErrorMessage,
 	}
 	if snapshot.State != TaskStateCompleted {
@@ -675,7 +676,7 @@ func (a Aria2) seedSnapshot(gid string) func(context.Context) (SeedSnapshot, err
 		if total > 0 {
 			totalPtr = &total
 		}
-		detail := aria2Detail(status, peers)
+		detail := aria2Detail(status, peers, a.GeoIP)
 		detail.Phase = "seeding"
 		return SeedSnapshot{
 			Downloaded: int64(status.CompletedLength),
@@ -730,7 +731,7 @@ func (a Aria2) waitAria2(ctx context.Context, aria **arigo.Client, gid string, p
 				totalPtr = &total
 			}
 			peers := a.getAria2Peers(ctx, aria, gid)
-			if err := progress(completed, totalPtr, bps, aria2Detail(status, peers)); err != nil {
+			if err := progress(completed, totalPtr, bps, aria2Detail(status, peers, a.GeoIP)); err != nil {
 				_ = (*aria).ForcePause(gid)
 				return arigo.Status{}, err
 			}
@@ -800,7 +801,7 @@ func isAria2RPCDisconnected(err error) bool {
 	return errors.Is(err, rpc2.ErrShutdown) || errors.Is(err, io.ErrClosedPipe) || strings.Contains(err.Error(), "connection is shut down")
 }
 
-func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskRuntime {
+func aria2Detail(status arigo.Status, peers []arigo.Peer, geoIP PeerGeoIPResolver) *client.DownloadTaskRuntime {
 	connections := int64(status.Connections)
 	seeders := int64(status.NumSeeders)
 	peerCount := int64(len(peers))
@@ -825,7 +826,7 @@ func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskRu
 			UploadBytesPerSecond: &uploadBps,
 		},
 		Trackers: aria2Trackers(status.BitTorrent.AnnounceList),
-		Peers:    aria2Peers(peers),
+		Peers:    aria2Peers(peers, geoIP),
 		Files:    aria2Files(status.Dir, status.BitTorrent.Info.Name, status.Files),
 	}
 	if status.ErrorMessage != "" {
@@ -902,7 +903,7 @@ func aria2Leechers(peers []arigo.Peer) *int64 {
 	return &count
 }
 
-func aria2Peers(peers []arigo.Peer) []client.DownloadTaskPeer {
+func aria2Peers(peers []arigo.Peer, geoIP PeerGeoIPResolver) []client.DownloadTaskPeer {
 	out := make([]client.DownloadTaskPeer, 0, min(len(peers), 20))
 	for _, peer := range peers {
 		if peer.IP == "" {
@@ -910,11 +911,13 @@ func aria2Peers(peers []arigo.Peer) []client.DownloadTaskPeer {
 		}
 		down := int64(peer.DownloadSpeed)
 		up := int64(peer.UploadSpeed)
-		out = append(out, client.DownloadTaskPeer{
+		item := client.DownloadTaskPeer{
 			Address:     fmt.Sprintf("%s:%d", peer.IP, peer.Port),
 			DownloadBps: &down,
 			UploadBps:   &up,
-		})
+		}
+		applyPeerRegion(&item, peer.IP, "", geoIP)
+		out = append(out, item)
 		if len(out) >= 20 {
 			break
 		}

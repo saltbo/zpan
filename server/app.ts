@@ -39,6 +39,7 @@ import webdav from './routes/webdav'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
+  const corsOrigins = getCorsOrigins(platform)
 
   app.use('/*', platformMiddleware(platform, auth))
   app.use('/*', imageHostingDomain)
@@ -49,7 +50,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.use(
     '/api/*',
     cors({
-      origin: (origin) => origin || '*',
+      origin: (origin) => (origin && corsOrigins.has(origin) ? origin : null),
       allowHeaders: ['Content-Type', 'Authorization'],
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
@@ -118,6 +119,25 @@ export function createApp(platform: Platform, auth: Auth) {
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
   return app
+}
+
+function getCorsOrigins(platform: Platform): Set<string> {
+  const origins = new Set<string>()
+  const addOrigin = (value: string | undefined) => {
+    if (!value) return
+    try {
+      origins.add(new URL(value).origin)
+    } catch {
+      origins.add(value)
+    }
+  }
+
+  addOrigin(platform.getEnv('BETTER_AUTH_URL'))
+  for (const origin of platform.getEnv('TRUSTED_ORIGINS')?.split(',') ?? []) {
+    addOrigin(origin.trim())
+  }
+
+  return origins
 }
 
 export type AppType = ReturnType<typeof createApp>

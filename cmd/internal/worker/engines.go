@@ -12,14 +12,14 @@ import (
 
 func (w *Worker) resolveEngine(ctx context.Context) error {
 	if w.cfg.Engine == "" || w.cfg.Engine == "auto" {
-		if downloader, ok, err := explicitlyConfiguredExternalEngine(w.cfg); err != nil {
+		if downloader, ok, err := explicitlyConfiguredExternalEngine(w.cfg, w.geoIP); err != nil {
 			return err
 		} else if ok {
 			return w.useConfiguredExternalEngine(ctx, downloader)
 		}
 		return w.resolveAutoEngine(ctx)
 	}
-	downloader, err := configuredEngine(w.cfg)
+	downloader, err := configuredEngine(w.cfg, w.geoIP)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func (w *Worker) useConfiguredExternalEngine(ctx context.Context, downloader eng
 }
 
 func (w *Worker) resolveAutoEngine(ctx context.Context) error {
-	candidates := externalEngines(w.cfg)
+	candidates := externalEngines(w.cfg, w.geoIP)
 	w.logger.Info("auto selecting downloader runtime", "priority", engineNames(candidates))
 	for _, downloader := range candidates {
 		w.logger.Info("checking downloader runtime binary", "engine", downloader.Name())
@@ -110,8 +110,8 @@ func (w *Worker) stopStartedEngines() {
 	}
 }
 
-func configuredEngine(cfg config.Config) (engine.Engine, error) {
-	for _, downloader := range append(externalEngines(cfg), engine.HTTP{Dir: cfg.DownloadDir}) {
+func configuredEngine(cfg config.Config, geoIP engine.PeerGeoIPResolver) (engine.Engine, error) {
+	for _, downloader := range append(externalEngines(cfg, geoIP), engine.HTTP{Dir: cfg.DownloadDir}) {
 		if downloader.Name() == cfg.Engine {
 			return downloader, nil
 		}
@@ -119,9 +119,9 @@ func configuredEngine(cfg config.Config) (engine.Engine, error) {
 	return nil, fmt.Errorf("unsupported downloader engine %q; expected auto, builtin, aria2, or qbittorrent", cfg.Engine)
 }
 
-func explicitlyConfiguredExternalEngine(cfg config.Config) (engine.Engine, bool, error) {
+func explicitlyConfiguredExternalEngine(cfg config.Config, geoIP engine.PeerGeoIPResolver) (engine.Engine, bool, error) {
 	configured := make([]engine.Engine, 0, 2)
-	for _, downloader := range externalEngines(cfg) {
+	for _, downloader := range externalEngines(cfg, geoIP) {
 		switch downloader.Name() {
 		case "aria2":
 			if cfg.Aria2Configured {
@@ -142,10 +142,10 @@ func explicitlyConfiguredExternalEngine(cfg config.Config) (engine.Engine, bool,
 	return configured[0], true, nil
 }
 
-func externalEngines(cfg config.Config) []engine.Engine {
+func externalEngines(cfg config.Config, geoIP engine.PeerGeoIPResolver) []engine.Engine {
 	return []engine.Engine{
-		engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, StateDir: cfg.StateDir, RetainSeed: cfg.SeedEnabled},
-		engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled},
+		engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, StateDir: cfg.StateDir, RetainSeed: cfg.SeedEnabled, GeoIP: geoIP},
+		engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled, GeoIP: geoIP},
 	}
 }
 

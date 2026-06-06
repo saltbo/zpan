@@ -19,6 +19,7 @@ type Config struct {
 	Engine                string
 	DownloadDir           string
 	StateDir              string
+	GeoIPDBPath           string
 	PollInterval          time.Duration
 	MaxConcurrentTasks    int
 	Aria2URL              string
@@ -38,6 +39,7 @@ const (
 	DefaultServerURL      = "http://localhost:5173"
 	DefaultAria2URL       = "ws://127.0.0.1:6800/jsonrpc"
 	DefaultQBittorrentURL = "http://127.0.0.1:8080"
+	DefaultGeoIPDBPath    = "/usr/share/zpan/geoip.mmdb"
 )
 
 func Defaults(v *viper.Viper) {
@@ -47,6 +49,7 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("downloader.engine", "auto")
 	v.SetDefault("downloader.download_dir", filepath.Join(home, "Downloads", "zpan"))
 	v.SetDefault("downloader.state_dir", defaultStateDir(home))
+	v.SetDefault("downloader.geoip_db", DefaultGeoIPDBPath)
 	v.SetDefault("downloader.poll_interval", "5s")
 	v.SetDefault("downloader.max_concurrent_tasks", 2)
 	v.SetDefault("downloader.aria2.url", DefaultAria2URL)
@@ -93,6 +96,7 @@ func Load(v *viper.Viper) (Config, error) {
 		Engine:             v.GetString("downloader.engine"),
 		DownloadDir:        v.GetString("downloader.download_dir"),
 		StateDir:           v.GetString("downloader.state_dir"),
+		GeoIPDBPath:        v.GetString("downloader.geoip_db"),
 		PollInterval:       interval,
 		MaxConcurrentTasks: v.GetInt("downloader.max_concurrent_tasks"),
 		Aria2URL:           v.GetString("downloader.aria2.url"),
@@ -143,6 +147,7 @@ func WriteDefaultConfig(path string, serverURL string) error {
 		Engine:             "auto",
 		DownloadDir:        filepath.Join(home, "Downloads", "zpan"),
 		StateDir:           defaultStateDir(home),
+		GeoIPDBPath:        DefaultGeoIPDBPath,
 		PollInterval:       5 * time.Second,
 		MaxConcurrentTasks: 2,
 		SeedEnabled:        true,
@@ -195,6 +200,7 @@ func configYAML(cfg Config, includeRuntimeHints bool) string {
 	fmt.Fprintf(&b, "  engine: %s\n", yamlString(nonEmpty(cfg.Engine, "auto")))
 	fmt.Fprintf(&b, "  download_dir: %s\n", yamlString(cfg.DownloadDir))
 	fmt.Fprintf(&b, "  state_dir: %s\n", yamlString(cfg.StateDir))
+	fmt.Fprintf(&b, "  geoip_db: %s\n", yamlString(nonEmpty(cfg.GeoIPDBPath, DefaultGeoIPDBPath)))
 	fmt.Fprintf(&b, "  poll_interval: %s\n", yamlString(formatDuration(cfg.PollInterval, "5s")))
 	fmt.Fprintf(&b, "  max_concurrent_tasks: %d\n", cfg.MaxConcurrentTasks)
 	b.WriteString("  seed:\n")

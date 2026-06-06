@@ -18,6 +18,8 @@ dist-lambda-pkg/
 # Database
 *.db
 *.db-journal
+cmd/data/*.mmdb
+cmd/data/*.mmdb.gz
 
 # Editor
 .idea/

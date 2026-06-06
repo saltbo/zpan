@@ -22,6 +22,17 @@ RUN go mod download
 COPY cmd ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/zpan ./zpan
 
+FROM debian:bookworm-slim AS geoip-db
+ARG GEOIP_DB_MONTH=2026-06
+ARG GEOIP_DB_URL=https://download.db-ip.com/free/dbip-city-lite-${GEOIP_DB_MONTH}.mmdb.gz
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl gzip \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /out \
+ && curl -fsSL "$GEOIP_DB_URL" -o /tmp/geoip.mmdb.gz \
+ && gzip -dc /tmp/geoip.mmdb.gz > /out/geoip.mmdb \
+ && rm -f /tmp/geoip.mmdb.gz
+
 FROM debian:bookworm-slim AS cli
 RUN apt-get update \
  && apt-get install -y --no-install-recommends aria2 ca-certificates \
@@ -29,6 +40,7 @@ RUN apt-get update \
  && addgroup --system zpan \
  && adduser --system --ingroup zpan --home /home/zpan zpan
 COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
+COPY --from=geoip-db /out/geoip.mmdb /usr/share/zpan/geoip.mmdb
 RUN mkdir -p /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /downloads \
  && chown -R zpan:zpan /home/zpan /downloads
 USER zpan
@@ -53,6 +65,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
 COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
+COPY --from=geoip-db /out/geoip.mmdb /usr/share/zpan/geoip.mmdb
 
 RUN mkdir -p /data /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader \
  && chown -R zpan:zpan /data /home/zpan

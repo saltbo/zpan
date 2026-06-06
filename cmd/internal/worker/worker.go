@@ -38,6 +38,7 @@ type Worker struct {
 	cfg           config.Config
 	api           apiClient
 	engine        engine.Engine
+	geoIP         *engine.GeoIPResolver
 	logger        *slog.Logger
 	running       map[string]context.CancelCauseFunc
 	retainedSeeds []retainedSeed
@@ -91,6 +92,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		"engine", w.cfg.Engine,
 		"download_dir", w.cfg.DownloadDir,
 		"state_dir", w.cfg.StateDir,
+		"geoip_db", w.cfg.GeoIPDBPath,
 		"poll_interval", w.cfg.PollInterval.String(),
 		"max_concurrent_tasks", w.cfg.MaxConcurrentTasks,
 		"seed_enabled", w.cfg.SeedEnabled,
@@ -98,6 +100,15 @@ func (w *Worker) Run(ctx context.Context) error {
 		"seed_cache_limit", w.cfg.SeedCacheLimit,
 		"seed_ratio", w.cfg.SeedRatio,
 	)
+	geoIP, err := engine.OpenGeoIPResolver(w.cfg.GeoIPDBPath)
+	if err != nil {
+		return fmt.Errorf("open geoip database: %w", err)
+	}
+	w.geoIP = geoIP
+	if w.geoIP != nil {
+		w.logger.Info("geoip database loaded", "path", w.cfg.GeoIPDBPath)
+		defer w.geoIP.Close()
+	}
 	if err := w.resolveEngine(ctx); err != nil {
 		return err
 	}

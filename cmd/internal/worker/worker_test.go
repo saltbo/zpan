@@ -37,7 +37,7 @@ func TestExplicitlyConfiguredExternalEngineRejectsAmbiguousRuntimeConfig(t *test
 		QBittorrentConfigured: true,
 		Aria2URL:              config.DefaultAria2URL,
 		QBittorrentURL:        config.DefaultQBittorrentURL,
-	})
+	}, nil)
 	if err == nil {
 		t.Fatal("expected ambiguous external runtime config error")
 	}
@@ -48,7 +48,7 @@ func TestExplicitlyConfiguredExternalEngineSelectsConfiguredRuntime(t *testing.T
 		Aria2Configured: true,
 		Aria2URL:        "ws://aria2:6800/jsonrpc",
 		DownloadDir:     t.TempDir(),
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -589,6 +589,7 @@ func TestAria2DetailIncludesPeers(t *testing.T) {
 			{IP: "192.0.2.10", Port: 6881, DownloadSpeed: 1024, UploadSpeed: 256, Seeder: true},
 			{IP: "192.0.2.11", Port: 6882, DownloadSpeed: 2048, UploadSpeed: 512, Seeder: false},
 		},
+		nil,
 	)
 
 	if detail.Torrent == nil || detail.Torrent.Peers == nil || *detail.Torrent.Peers != 2 {
@@ -619,10 +620,34 @@ func TestAria2DetailOmitsETAWithoutUsableSpeed(t *testing.T) {
 			DownloadSpeed:   0,
 		},
 		nil,
+		nil,
 	)
 
 	if detail.ETASeconds != nil {
 		t.Fatalf("expected empty ETA without download speed, got %#v", detail.ETASeconds)
+	}
+}
+
+type fakeGeoIPResolver struct{}
+
+func (fakeGeoIPResolver) LookupPeerRegion(ip string) (string, string) {
+	if ip == "203.0.113.10" {
+		return "us", "ca"
+	}
+	return "", ""
+}
+
+func TestApplyPeerRegionUsesGeoIPAndFallbackCountry(t *testing.T) {
+	peer := client.DownloadTaskPeer{}
+	applyPeerRegion(&peer, "203.0.113.10", "", fakeGeoIPResolver{})
+	if peer.CountryCode != "US" || peer.RegionCode != "CA" {
+		t.Fatalf("expected US/CA from geoip, got %#v", peer)
+	}
+
+	fallback := client.DownloadTaskPeer{}
+	applyPeerRegion(&fallback, "198.51.100.10", "jp", fakeGeoIPResolver{})
+	if fallback.CountryCode != "JP" || fallback.RegionCode != "" {
+		t.Fatalf("expected JP fallback country, got %#v", fallback)
 	}
 }
 

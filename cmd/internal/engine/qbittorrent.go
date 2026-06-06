@@ -22,6 +22,7 @@ type QBittorrent struct {
 	Password   string
 	Dir        string
 	RetainSeed bool
+	GeoIP      PeerGeoIPResolver
 }
 
 func (q QBittorrent) Name() string {
@@ -205,7 +206,7 @@ func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, pro
 	}
 	if ok {
 		_ = qbt.StartCtx(ctx, []string{torrent.Hash})
-		torrent, err = waitQBittorrent(ctx, qbt, tag, progress)
+		torrent, err = waitQBittorrent(ctx, qbt, tag, progress, q.GeoIP)
 		if err != nil {
 			return Result{}, err
 		}
@@ -217,7 +218,7 @@ func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, pro
 		return Result{}, err
 	}
 
-	torrent, err = waitQBittorrent(ctx, qbt, tag, progress)
+	torrent, err = waitQBittorrent(ctx, qbt, tag, progress, q.GeoIP)
 	if err != nil {
 		return Result{}, err
 	}
@@ -269,7 +270,7 @@ func (q QBittorrent) snapshotTask(
 		Downloaded: torrent.Completed,
 		Total:      totalPtr,
 		Bps:        torrent.DlSpeed,
-		Runtime:    qbittorrentDetail(ctx, qbt, torrent),
+		Runtime:    qbittorrentDetail(ctx, qbt, torrent, q.GeoIP),
 	}
 	if snapshot.State != TaskStateCompleted {
 		return snapshot, true, nil
@@ -399,7 +400,7 @@ func (q QBittorrent) seedSnapshot(hash string) func(context.Context) (SeedSnapsh
 		if total > 0 {
 			totalPtr = &total
 		}
-		detail := qbittorrentDetail(ctx, qbt, torrent)
+		detail := qbittorrentDetail(ctx, qbt, torrent, q.GeoIP)
 		detail.Phase = "seeding"
 		return SeedSnapshot{
 			Downloaded: torrent.Completed,
@@ -415,6 +416,7 @@ func waitQBittorrent(
 	qbt *qbittorrent.Client,
 	tag string,
 	progress Progress,
+	geoIP PeerGeoIPResolver,
 ) (qbittorrent.Torrent, error) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -439,7 +441,7 @@ func waitQBittorrent(
 			if total > 0 {
 				totalPtr = &total
 			}
-			if err := progress(torrent.Completed, totalPtr, torrent.DlSpeed, qbittorrentDetail(ctx, qbt, torrent)); err != nil {
+			if err := progress(torrent.Completed, totalPtr, torrent.DlSpeed, qbittorrentDetail(ctx, qbt, torrent, geoIP)); err != nil {
 				_ = qbt.StopCtx(ctx, []string{torrent.Hash})
 				return qbittorrent.Torrent{}, err
 			}
@@ -453,7 +455,12 @@ func waitQBittorrent(
 	}
 }
 
-func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbittorrent.Torrent) *client.DownloadTaskRuntime {
+func qbittorrentDetail(
+	ctx context.Context,
+	qbt *qbittorrent.Client,
+	torrent qbittorrent.Torrent,
+	geoIP PeerGeoIPResolver,
+) *client.DownloadTaskRuntime {
 	connections := int64(torrent.NumSeeds + torrent.NumLeechs)
 	seeders := torrent.NumSeeds
 	leechers := torrent.NumLeechs
@@ -482,7 +489,7 @@ func qbittorrentDetail(ctx context.Context, qbt *qbittorrent.Client, torrent qbi
 			UploadBytesPerSecond: &uploadBps,
 		},
 		Trackers: qbittorrentTrackers(ctx, qbt, torrent),
-		Peers:    qbittorrentPeers(ctx, qbt, torrent.Hash),
+		Peers:    qbittorrentPeers(ctx, qbt, torrent.Hash, geoIP),
 		Files:    qbittorrentFiles(ctx, qbt, torrent),
 	}
 }
@@ -533,7 +540,7 @@ func qbittorrentTrackers(ctx context.Context, qbt *qbittorrent.Client, torrent q
 	return out
 }
 
-func qbittorrentPeers(ctx context.Context, qbt *qbittorrent.Client, hash string) []client.DownloadTaskPeer {
+func qbittorrentPeers(ctx context.Context, qbt *qbittorrent.Client, hash string, geoIP PeerGeoIPResolver) []client.DownloadTaskPeer {
 	if hash == "" {
 		return nil
 	}
@@ -550,13 +557,15 @@ func qbittorrentPeers(ctx context.Context, qbt *qbittorrent.Client, hash string)
 		if peer.IP != "" && peer.Port > 0 {
 			label = fmt.Sprintf("%s:%d", peer.IP, peer.Port)
 		}
-		out = append(out, client.DownloadTaskPeer{
+		item := client.DownloadTaskPeer{
 			Address:     label,
 			Client:      peer.Client,
 			Progress:    &progress,
 			DownloadBps: &down,
 			UploadBps:   &up,
-		})
+		}
+		applyPeerRegion(&item, peer.IP, peer.CountryCode, geoIP)
+		out = append(out, item)
 		if len(out) >= 20 {
 			break
 		}
