@@ -1447,6 +1447,8 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
 
   return (
     <div className="space-y-3">
+      <TaskErrorNotice task={task} />
+
       <div className="grid gap-2 md:grid-cols-4">
         <InspectorMetric
           icon={<Gauge className="size-4" />}
@@ -1530,16 +1532,27 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
         <InspectorField label={t('downloads.detail.startedAt')} value={formatDate(task.status.startedAt)} />
         <InspectorField label={t('downloads.detail.finishedAt')} value={formatDate(task.status.finishedAt)} />
       </div>
+    </div>
+  )
+}
 
-      {(task.status.error?.message || detail?.message) && (
-        <div className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <div className="min-w-0 space-y-1 break-words">
-            {task.status.error?.message && <div>{task.status.error?.message}</div>}
-            {detail?.message && <div>{detail.message}</div>}
-          </div>
+function TaskErrorNotice({ task }: { task: DownloadTask }) {
+  const { t } = useTranslation()
+  const detail = task.status.runtime
+  const messages = [task.status.error?.message, detail?.message].filter(Boolean) as string[]
+  if (messages.length === 0) return null
+
+  return (
+    <div className="flex gap-3 rounded-sm border border-destructive/35 bg-destructive/8 px-3 py-2.5 text-sm text-destructive">
+      <AlertCircle className="mt-0.5 size-4 shrink-0" />
+      <div className="min-w-0 space-y-1">
+        <div className="text-xs font-semibold uppercase tracking-wide">{t('downloads.detail.errorMessage')}</div>
+        <div className="space-y-1 break-words text-foreground">
+          {messages.map((message) => (
+            <div key={message}>{message}</div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -1615,8 +1628,8 @@ function PeersPanel({ task }: { task: DownloadTask }) {
       maxWidth: 430,
       render: (peer) => (
         <div className="flex min-w-0 items-center gap-2">
-          <PeerRegionMark countryCode={peer.countryCode} regionCode={peer.regionCode} />
           <span className="min-w-0 truncate font-mono text-xs">{peer.address}</span>
+          <PeerRegionMark countryCode={peer.countryCode} regionCode={peer.regionCode} />
         </div>
       ),
     },
@@ -1754,7 +1767,7 @@ function ResizableDetailTable<T>({
   }
 
   return (
-    <Table className="table-fixed text-xs" style={{ width: totalWidth }}>
+    <Table className="table-fixed text-xs" style={{ width: `max(100%, ${totalWidth}px)` }}>
       <colgroup>
         {columns.map((column) => (
           <col key={column.id} style={{ width: columnWidths[column.id] ?? column.width }} />
@@ -1802,11 +1815,11 @@ function PeerRegionMark({ countryCode, regionCode }: { countryCode?: string; reg
 
   return (
     <span
-      className="inline-flex h-5 min-w-8 shrink-0 items-center justify-center gap-1 rounded-sm border bg-muted px-1.5 text-[10px] font-semibold text-muted-foreground uppercase tabular-nums"
+      className="inline-flex shrink-0 items-baseline gap-1 text-[10px] font-medium text-muted-foreground uppercase tabular-nums"
       title={title || label}
     >
-      {flag && <span className="text-xs leading-none">{flag}</span>}
-      <span>{label}</span>
+      {flag && <span className="text-[13px] leading-none">{flag}</span>}
+      <span className="leading-none">{label}</span>
     </span>
   )
 }
@@ -1834,25 +1847,78 @@ function countryCodeToFlag(countryCode: string) {
 function LogPanel({ task }: { task: DownloadTask }) {
   const { t } = useTranslation()
   const detail = task.status.runtime
-  const messages = [
-    detail?.message && { label: t('downloads.detail.statusMessage'), value: detail.message },
-    task.status.error?.message && { label: t('downloads.detail.errorMessage'), value: task.status.error?.message },
-    { label: t('downloads.detail.createdAt'), value: formatDate(task.createdAt) },
-    { label: t('downloads.detail.startedAt'), value: formatDate(task.status.startedAt) },
-    { label: t('downloads.detail.finishedAt'), value: formatDate(task.status.finishedAt) },
-  ].filter(Boolean) as Array<{ label: string; value: string }>
+  const events = [
+    {
+      id: 'created',
+      tone: 'neutral',
+      time: formatDate(task.createdAt),
+      title: t('downloads.detail.createdAt'),
+      detail: sourceUri(task),
+    },
+    task.status.startedAt && {
+      id: 'started',
+      tone: 'active',
+      time: formatDate(task.status.startedAt),
+      title: t('downloads.detail.startedAt'),
+      detail: [detail?.engine, formatPhase(detail?.phase, t)].filter(Boolean).join(' · '),
+    },
+    detail?.message && {
+      id: 'runtime-message',
+      tone: 'warning',
+      time: formatDate(detail.updatedAt),
+      title: t('downloads.detail.statusMessage'),
+      detail: detail.message,
+    },
+    task.status.error?.message && {
+      id: 'error',
+      tone: 'error',
+      time: formatDate(task.status.updatedAt),
+      title: t('downloads.detail.errorMessage'),
+      detail: task.status.error.message,
+    },
+    task.status.finishedAt && {
+      id: 'finished',
+      tone: task.status.state === 'completed' ? 'success' : 'neutral',
+      time: formatDate(task.status.finishedAt),
+      title: t('downloads.detail.finishedAt'),
+      detail: t(`downloads.status.${task.status.state}`),
+    },
+  ].filter(Boolean) as Array<{
+    id: string
+    tone: 'active' | 'error' | 'neutral' | 'success' | 'warning'
+    time: string
+    title: string
+    detail: string
+  }>
 
   return (
-    <div className="space-y-2 font-mono text-xs">
-      {messages.map((message) => (
-        <div key={message.label} className="grid gap-2 rounded-sm border px-3 py-2 sm:grid-cols-[10rem_1fr]">
-          <div className="text-muted-foreground">{message.label}</div>
-          <div className="min-w-0 break-words">{message.value || '-'}</div>
+    <div className="space-y-0 text-xs">
+      {events.map((event, index) => (
+        <div key={event.id} className="grid grid-cols-[1.25rem_1fr] gap-2">
+          <div className="relative flex justify-center">
+            <span className={cn('mt-1.5 size-2 rounded-full', logEventDotClass(event.tone))} />
+            {index < events.length - 1 && <span className="absolute top-4 bottom-0 w-px bg-border" />}
+          </div>
+          <div className="min-w-0 pb-3">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="font-medium">{event.title}</span>
+              <span className="font-mono text-[11px] text-muted-foreground">{event.time}</span>
+            </div>
+            {event.detail && <div className="mt-0.5 break-words text-muted-foreground">{event.detail}</div>}
+          </div>
         </div>
       ))}
-      {messages.length === 0 && <EmptyPanel text={t('downloads.detail.noLog')} />}
+      {events.length === 0 && <EmptyPanel text={t('downloads.detail.noLog')} />}
     </div>
   )
+}
+
+function logEventDotClass(tone: 'active' | 'error' | 'neutral' | 'success' | 'warning') {
+  if (tone === 'active') return 'bg-sky-500'
+  if (tone === 'error') return 'bg-destructive'
+  if (tone === 'success') return 'bg-emerald-500'
+  if (tone === 'warning') return 'bg-amber-500'
+  return 'bg-muted-foreground/50'
 }
 
 function SourceIcon({ type }: { type: DownloadTask['spec']['source']['type'] }) {
