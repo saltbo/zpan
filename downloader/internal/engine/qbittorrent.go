@@ -131,7 +131,17 @@ func (q QBittorrent) Recover(ctx context.Context, task client.DownloadTask) (Res
 		result, err := resultFromQBittorrentFiles(ctx, qbt, task, filepath.Join(q.Dir, task.ID), torrent)
 		return result, err == nil, err
 	}
-	return recoverFromTaskDir(task, q.Dir)
+	if ok {
+		return Result{}, false, fmt.Errorf(
+			"qbittorrent task %s is not a completed upload resume candidate: state=%s progress=%f amount_left=%d total=%d",
+			torrent.Hash,
+			torrent.State,
+			torrent.Progress,
+			torrent.AmountLeft,
+			torrent.TotalSize,
+		)
+	}
+	return Result{}, false, nil
 }
 
 func (q QBittorrent) login(ctx context.Context) (*qbittorrent.Client, error) {
@@ -177,14 +187,7 @@ func (q QBittorrent) Download(ctx context.Context, task client.DownloadTask, pro
 
 	options := qbittorrentAddOptions(task, taskDir, tag)
 	if _, err := qbt.AddTorrentFromUrlCtx(ctx, task.SourceURI, options); err != nil {
-		torrent, ok, findErr := q.findTask(ctx, qbt, task)
-		if findErr != nil {
-			return Result{}, findErr
-		}
-		if !ok {
-			return Result{}, err
-		}
-		_ = qbt.StartCtx(ctx, []string{torrent.Hash})
+		return Result{}, err
 	}
 
 	torrent, err = waitQBittorrent(ctx, qbt, tag, progress)

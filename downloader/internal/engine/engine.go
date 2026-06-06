@@ -125,21 +125,6 @@ func resultFromPath(task client.DownloadTask, path string, fallbackName string) 
 	return Result{Path: path, Name: outputName(task, fallbackName), Size: size, IsDir: true}, nil
 }
 
-func recoverFromTaskDir(task client.DownloadTask, dir string) (Result, bool, error) {
-	taskDir := filepath.Join(dir, task.ID)
-	if _, err := os.Stat(taskDir); err != nil {
-		if os.IsNotExist(err) {
-			return Result{}, false, nil
-		}
-		return Result{}, false, err
-	}
-	result, err := resultFromPath(task, taskDir, requestedOutputName(task))
-	if err != nil {
-		return Result{}, false, err
-	}
-	return result, true, nil
-}
-
 type downloadedFile struct {
 	path         string
 	relativePath string

@@ -6,7 +6,7 @@ import type {
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
 } from '@shared/schemas'
-import type { Downloader, DownloadTask } from '@shared/types'
+import type { Downloader, DownloadTask, DownloadTaskDetail } from '@shared/types'
 import { and, asc, count, desc, eq, inArray, like, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { downloaders, downloadTasks } from '../../db/schema'
@@ -30,6 +30,7 @@ const CANCELABLE_TASK_STATUSES = [
   'pausing',
 ] as const
 const TERMINAL_TASK_STATUSES = ['completed', 'failed', 'canceled'] as const
+const EXECUTABLE_TASK_STATUSES = ['queued', 'assigned', 'downloading', 'uploading'] as const
 const RESTARTABLE_TASK_STATUSES = [
   'queued',
   'assigned',
@@ -141,6 +142,7 @@ export async function deleteDownloader(platform: Platform, id: string): Promise<
       uploadTokenJti: null,
       uploadTokenIssuedAt: null,
       uploadTokenExpiresAt: null,
+      detail: null,
       assignedAt: null,
       updatedAt: now,
     })
@@ -415,6 +417,7 @@ export async function updateDownloadTask(
 
   const nextFinishedAt =
     task.finishedAt ?? (input.status !== undefined && ['completed', 'failed', 'canceled'].includes(status) ? now : null)
+  const nextDetail = nextTaskDetail(task.detail, input.detail, status)
 
   await platform.db
     .update(downloadTasks)
@@ -431,7 +434,7 @@ export async function updateDownloadTask(
       uploadBps: input.storageUploadBps ?? task.uploadBps,
       errorMessage: input.errorMessage === undefined ? task.errorMessage : input.errorMessage,
       resultObjectId: input.resultObjectId === undefined ? task.resultObjectId : input.resultObjectId,
-      detail: input.detail === undefined ? task.detail : JSON.stringify(input.detail),
+      detail: nextDetail,
       startedAt: task.startedAt ?? (status === 'downloading' ? now : null),
       finishedAt: nextFinishedAt,
       updatedAt: now,
@@ -493,6 +496,7 @@ export async function performDownloadTaskAction(
         assignedAt: null,
         downloadBps: 0,
         uploadBps: 0,
+        detail: clearTaskDetailMessageJson(task.detail),
         updatedAt: now,
       })
       .where(eq(downloadTasks.id, id))
@@ -540,6 +544,7 @@ export async function performDownloadTaskAction(
         uploadBps: 0,
         errorMessage: null,
         resultObjectId: null,
+        detail: clearTaskDetailMessageJson(task.detail),
         assignedAt: null,
         startedAt: null,
         finishedAt: null,
@@ -586,6 +591,41 @@ export async function performDownloadTaskAction(
   }
 
   throw new DownloadError('invalid_state')
+}
+
+function nextTaskDetail(
+  current: string | null,
+  input: UpdateDownloadTaskInput['detail'],
+  status: string,
+): string | null {
+  const detail = input === undefined ? parseTaskDetail(current) : input
+  if (!EXECUTABLE_TASK_STATUSES.includes(status as (typeof EXECUTABLE_TASK_STATUSES)[number])) {
+    return serializeTaskDetail(detail)
+  }
+  return serializeTaskDetail(clearTaskDetailMessage(detail))
+}
+
+function clearTaskDetailMessageJson(value: string | null): string | null {
+  return serializeTaskDetail(clearTaskDetailMessage(parseTaskDetail(value)))
+}
+
+function clearTaskDetailMessage(detail: DownloadTaskDetail | null): DownloadTaskDetail | null {
+  if (!detail?.message) return detail
+  const { message: _message, ...rest } = detail
+  return Object.keys(rest).length > 0 ? rest : null
+}
+
+function parseTaskDetail(value: string | null): DownloadTaskDetail | null {
+  if (!value) return null
+  try {
+    return JSON.parse(value) as DownloadTaskDetail
+  } catch {
+    return null
+  }
+}
+
+function serializeTaskDetail(detail: DownloadTaskDetail | null | undefined): string | null {
+  return detail && Object.keys(detail).length > 0 ? JSON.stringify(detail) : null
 }
 
 export async function assertTaskUploadAllowed(platform: Platform, params: { taskId: string; downloaderId: string }) {

@@ -187,7 +187,8 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	log := w.taskLogger(task)
 	log.Info("task started", "source_uri", task.SourceURI, "target_folder", task.TargetFolder)
 	currentDetail := task.Detail
-	if resumeStage(task) == taskResumeUpload {
+	stage := resumeStage(task)
+	if stage == taskResumeUpload {
 		result, recovered, err := w.engine.Recover(ctx, task)
 		if err != nil {
 			msg := taskErrorMessage(err)
@@ -202,7 +203,12 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 			w.uploadAndComplete(ctx, log, task, result, currentDetail)
 			return
 		}
-		log.Warn("task has no recoverable completed download result; restarting download", "status", task.Status)
+		msg := "completed download is not recoverable from downloader runtime"
+		log.Error("failed to recover completed download result", "error", msg)
+		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+			log.Error("failed to mark task failed", "error", updateErr)
+		}
+		return
 	}
 
 	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "downloading"}); err != nil {

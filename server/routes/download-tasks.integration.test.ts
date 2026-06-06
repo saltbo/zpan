@@ -683,7 +683,13 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ status: 'downloading', downloadedBytes: 2048, downloadBps: 256 }),
     })
     expect(resumedProgressRes.status).toBe(200)
-    await expect(resumedProgressRes.json()).resolves.toMatchObject({ status: 'downloading', downloadedBytes: 2048 })
+    const resumedProgress = (await resumedProgressRes.json()) as {
+      status: string
+      downloadedBytes: number
+      detail: { message?: string } | null
+    }
+    expect(resumedProgress).toMatchObject({ status: 'downloading', downloadedBytes: 2048 })
+    expect(resumedProgress.detail?.message).toBeUndefined()
 
     const pauseRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
       method: 'POST',
@@ -748,7 +754,7 @@ describe('Download tasks API integration', () => {
         totalBytes,
         storageUploadedBytes: 1024,
         errorMessage: 'confirm object failed',
-        detail: { engine: 'aria2', phase: 'uploading', infoHash: 'abc123' },
+        detail: { engine: 'aria2', phase: 'uploading', infoHash: 'abc123', message: 'upload token rejected' },
       }),
     })
     expect(failedUploadRes.status).toBe(200)
@@ -766,7 +772,16 @@ describe('Download tasks API integration', () => {
       body: JSON.stringify({ action: 'retry' }),
     })
     expect(retryRes.status).toBe(200)
-    await expect(retryRes.json()).resolves.toMatchObject({
+    const retriedTask = (await retryRes.json()) as {
+      status: string
+      assignedDownloaderId: string
+      downloadedBytes: number
+      totalBytes: number
+      storageUploadedBytes: number
+      detail: { phase: string; message?: string } | null
+      errorMessage: string | null
+    }
+    expect(retriedTask).toMatchObject({
       status: 'assigned',
       assignedDownloaderId: createdDownloader.downloader.id,
       downloadedBytes: totalBytes,
@@ -775,6 +790,7 @@ describe('Download tasks API integration', () => {
       detail: { phase: 'uploading' },
       errorMessage: null,
     })
+    expect(retriedTask.detail?.message).toBeUndefined()
 
     const assignedRes = await app.request('/api/download-tasks?assignedTo=me&status=assigned', {
       headers: { Authorization: `Bearer ${createdDownloader.token}` },

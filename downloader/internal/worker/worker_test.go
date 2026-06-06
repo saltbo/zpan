@@ -256,6 +256,58 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 	}
 }
 
+func TestUploadResumeRecoveryErrorFailsWithoutRedownloading(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{recoverErr: errors.New("runtime state is inconsistent")}
+	w := NewWithAPI(config.Config{}, api)
+	w.engine = eng
+
+	total := int64(100)
+	w.process(context.Background(), client.DownloadTask{
+		ID:          "task-1",
+		Status:      "assigned",
+		SourceType:  "magnet",
+		SourceURI:   "magnet:?xt=urn:btih:abc123",
+		TotalBytes:  &total,
+		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
+		UploadToken: "upload-token",
+	})
+
+	if eng.downloadCalls != 0 {
+		t.Fatalf("expected upload resume recovery failure not to restart download, got %d download calls", eng.downloadCalls)
+	}
+	failed := lastPatchWithStatus(t, api.patches, "failed")
+	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "runtime state is inconsistent") {
+		t.Fatalf("expected recovery error to be reported, got %#v", failed.ErrorMessage)
+	}
+}
+
+func TestUploadResumeMissingRuntimeFailsWithoutRedownloading(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{recovered: false}
+	w := NewWithAPI(config.Config{}, api)
+	w.engine = eng
+
+	total := int64(100)
+	w.process(context.Background(), client.DownloadTask{
+		ID:          "task-1",
+		Status:      "assigned",
+		SourceType:  "magnet",
+		SourceURI:   "magnet:?xt=urn:btih:abc123",
+		TotalBytes:  &total,
+		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
+		UploadToken: "upload-token",
+	})
+
+	if eng.downloadCalls != 0 {
+		t.Fatalf("expected missing runtime during upload resume not to restart download, got %d download calls", eng.downloadCalls)
+	}
+	failed := lastPatchWithStatus(t, api.patches, "failed")
+	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "not recoverable") {
+		t.Fatalf("expected missing runtime to be reported, got %#v", failed.ErrorMessage)
+	}
+}
+
 func TestDownloadShutdownMarksTaskInterrupted(t *testing.T) {
 	api := &recordingAPI{}
 	eng := &recordingEngine{downloadErr: context.Canceled}
@@ -680,6 +732,7 @@ type recordingEngine struct {
 	downloadResult engine.Result
 	downloadErr    error
 	recoverResult  engine.Result
+	recoverErr     error
 	recovered      bool
 	restoreSeed    *engine.Seed
 	downloadCalls  int
@@ -701,6 +754,9 @@ func (e *recordingEngine) Check(context.Context) error {
 
 func (e *recordingEngine) Recover(context.Context, client.DownloadTask) (engine.Result, bool, error) {
 	e.recoverCalls++
+	if e.recoverErr != nil {
+		return engine.Result{}, false, e.recoverErr
+	}
 	return e.recoverResult, e.recovered, nil
 }
 

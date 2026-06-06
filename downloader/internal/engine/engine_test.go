@@ -116,6 +116,30 @@ func TestHTTPDownloadResumesExistingFile(t *testing.T) {
 	}
 }
 
+func TestHTTPRecoverDoesNotTrustLocalTaskDirectory(t *testing.T) {
+	dir := t.TempDir()
+	taskDir := filepath.Join(dir, "task-1")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "payload.bin"), []byte("payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, recovered, err := (HTTP{Dir: dir}).Recover(context.Background(), client.DownloadTask{
+		ID:         "task-1",
+		SourceType: "http",
+		SourceURI:  "https://example.com/payload.bin",
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered {
+		t.Fatalf("expected local directory not to be treated as a completed runtime result, got %#v", result)
+	}
+}
+
 func TestAria2StatusKeysRequestBittorrentPayload(t *testing.T) {
 	keys := strings.Join(aria2StatusKeys, ",")
 	if !strings.Contains(keys, "bittorrent") {
@@ -256,6 +280,21 @@ func TestAria2StatusMatchesTaskByInfoHash(t *testing.T) {
 	}
 	if aria2StatusMatchesTask(arigo.Status{InfoHash: infoHash}, "/tmp/zpan/task-1", "taskgid", "") {
 		t.Fatal("expected empty requested infohash not to match")
+	}
+}
+
+func TestIsAria2DownloadCompleteTreatsActiveFullTorrentAsComplete(t *testing.T) {
+	status := arigo.Status{
+		Status:          arigo.StatusActive,
+		TotalLength:     100,
+		CompletedLength: 100,
+		Files: []arigo.File{
+			{Path: "/tmp/zpan/task-1/movie.mkv", Length: 100, CompletedLength: 100},
+		},
+	}
+
+	if !isAria2DownloadComplete(status) {
+		t.Fatal("expected active full torrent to be recoverable as a completed download")
 	}
 }
 

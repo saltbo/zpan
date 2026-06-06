@@ -41,7 +41,7 @@ func (h HTTP) Check(ctx context.Context) error {
 }
 
 func (h HTTP) Recover(ctx context.Context, task client.DownloadTask) (Result, bool, error) {
-	return recoverFromTaskDir(task, h.Dir)
+	return Result{}, false, nil
 }
 
 func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {

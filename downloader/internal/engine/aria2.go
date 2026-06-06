@@ -163,16 +163,32 @@ func (a Aria2) Recover(ctx context.Context, task client.DownloadTask) (Result, b
 		if findErr != nil {
 			return Result{}, false, findErr
 		}
-		if ok && string(status.Status) == string(arigo.StatusCompleted) {
+		if ok && isAria2DownloadComplete(status) {
 			files, err := a.getAria2Files(ctx, &aria, status.GID)
 			if err != nil {
 				return Result{}, false, err
 			}
-			result, err := resultFromAria2Files(task, aria2StatusTaskDir(status, filepath.Join(a.Dir, task.ID)), status.BitTorrent.Info.Name, files)
+			taskDir := aria2StatusTaskDir(status, filepath.Join(a.Dir, task.ID))
+			result, err := resultFromAria2Files(task, taskDir, status.BitTorrent.Info.Name, files)
+			if err == nil && a.RetainSeed && task.SourceType != "http" {
+				result.Seed = a.seedFromStatus(status, taskDir)
+			}
 			return result, err == nil, err
 		}
+		if ok {
+			return Result{}, false, fmt.Errorf(
+				"aria2 task %s is not a completed upload resume candidate: status=%s completed=%d total=%d",
+				status.GID,
+				status.Status,
+				int64(status.CompletedLength),
+				int64(status.TotalLength),
+			)
+		}
 	}
-	return recoverFromTaskDir(task, a.Dir)
+	if err != nil {
+		return Result{}, false, err
+	}
+	return Result{}, false, nil
 }
 
 func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {
@@ -220,6 +236,9 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	}
 	gid, err := addAria2Task(ctx, aria, task, options)
 	if err != nil {
+		if !isAria2InfoHashAlreadyRegistered(err) {
+			return Result{}, fmt.Errorf("add aria2 task: %w", err)
+		}
 		status, ok, findErr := a.findTask(ctx, &aria, task)
 		if findErr != nil {
 			return Result{}, fmt.Errorf("find aria2 task after add failed: %w", findErr)
@@ -303,14 +322,7 @@ func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.
 		return Result{}, fmt.Errorf("build result from aria2 files: %w", err)
 	}
 	if a.RetainSeed && task.SourceType != "http" {
-		result.Seed = &Seed{
-			Engine:   "aria2",
-			ID:       resultGID,
-			InfoHash: strings.ToLower(status.InfoHash),
-			Path:     taskDir,
-			Snapshot: a.seedSnapshot(resultGID),
-			Cleanup:  a.cleanupSeed(resultGID, taskDir),
-		}
+		result.Seed = a.seedFromStatus(status, taskDir)
 		return result, nil
 	}
 	_ = (*aria).ForceRemove(resultGID)
@@ -320,6 +332,26 @@ func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task client.
 		_ = (*aria).RemoveDownloadResult(primaryGID)
 	}
 	return result, nil
+}
+
+func (a Aria2) seedFromStatus(status arigo.Status, taskDir string) *Seed {
+	return &Seed{
+		Engine:   "aria2",
+		ID:       status.GID,
+		InfoHash: strings.ToLower(status.InfoHash),
+		Path:     taskDir,
+		Snapshot: a.seedSnapshot(status.GID),
+		Cleanup:  a.cleanupSeed(status.GID, taskDir),
+	}
+}
+
+func isAria2DownloadComplete(status arigo.Status) bool {
+	total := int64(status.TotalLength)
+	completed := int64(status.CompletedLength)
+	if total > 0 && completed >= total && hasAria2LocalFile(status.Files) {
+		return true
+	}
+	return string(status.Status) == string(arigo.StatusCompleted)
 }
 
 func (a Aria2) findSeed(ctx context.Context, aria **arigo.Client, ref SeedRef) (arigo.Status, bool, error) {
