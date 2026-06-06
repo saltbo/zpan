@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -26,11 +27,11 @@ var errBillingPaused = errors.New("billing paused")
 var errTaskPausing = errors.New("task pausing")
 var errTaskCanceling = errors.New("task canceling")
 
-type taskResumeStage int
+type taskWorkStage int
 
 const (
-	taskResumeDownload taskResumeStage = iota
-	taskResumeUpload
+	taskWorkStageDownload taskWorkStage = iota
+	taskWorkStageUploadExistingResult
 )
 
 type Worker struct {
@@ -185,32 +186,23 @@ func (w *Worker) tick(ctx context.Context) error {
 func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	defer w.finish(task.ID)
 	log := w.taskLogger(task)
+	defer w.recoverTaskPanic(ctx, task.ID, log)
 	log.Info("task started", "source_uri", task.SourceURI, "target_folder", task.TargetFolder)
 	currentDetail := task.Detail
-	stage := resumeStage(task)
-	if stage == taskResumeUpload {
-		result, recovered, err := w.engine.Recover(ctx, task)
-		if err != nil {
-			msg := taskErrorMessage(err)
-			log.Error("failed to recover completed download result", "error", err)
-			if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
-				log.Error("failed to mark task failed", "error", updateErr)
-			}
-			return
-		}
-		if recovered {
-			log.Info("recovered completed download result", "path", result.Path, "name", result.Name, "size", result.Size)
-			w.uploadAndComplete(ctx, log, task, result, currentDetail)
-			return
-		}
-		msg := "completed download is not recoverable from downloader runtime"
-		log.Error("failed to recover completed download result", "error", msg)
-		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
-			log.Error("failed to mark task failed", "error", updateErr)
-		}
+	if nextTaskWorkStage(task) == taskWorkStageUploadExistingResult {
+		w.uploadExistingResult(ctx, log, task, currentDetail)
 		return
 	}
 
+	w.downloadThenUpload(ctx, log, task, currentDetail)
+}
+
+func (w *Worker) downloadThenUpload(
+	ctx context.Context,
+	log *slog.Logger,
+	task client.DownloadTask,
+	currentDetail *client.DownloadTaskDetail,
+) {
 	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "downloading"}); err != nil {
 		log.Error("failed to mark task downloading", "error", err)
 		if w.resolveControlledTaskUpdate(ctx, task.ID, err, log) {
@@ -295,23 +287,74 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	w.uploadAndComplete(ctx, log, task, result, currentDetail)
 }
 
-func resumeStage(task client.DownloadTask) taskResumeStage {
+func (w *Worker) uploadExistingResult(
+	ctx context.Context,
+	log *slog.Logger,
+	task client.DownloadTask,
+	currentDetail *client.DownloadTaskDetail,
+) {
+	snapshot, found, err := w.engine.InspectTask(ctx, task)
+	if err != nil {
+		msg := taskErrorMessage(err)
+		log.Error("failed to inspect downloader runtime task", "error", err)
+		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+			log.Error("failed to mark task failed", "error", updateErr)
+		}
+		return
+	}
+	if !found {
+		msg := "download task is missing from downloader runtime"
+		log.Error("failed to inspect downloader runtime task", "error", msg)
+		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+			log.Error("failed to mark task failed", "error", updateErr)
+		}
+		return
+	}
+	if snapshot.State != engine.TaskStateCompleted {
+		panic(fmt.Errorf(
+			"server task requires upload but runtime task is not completed: runtime_state=%s downloaded=%d total=%v",
+			snapshot.State,
+			snapshot.Downloaded,
+			optionalInt64(snapshot.Total),
+		))
+	}
+	if snapshot.Result == nil {
+		panic("runtime reported completed task without a local result")
+	}
+	log.Info("using completed runtime result", "path", snapshot.Result.Path, "name", snapshot.Result.Name, "size", snapshot.Result.Size)
+	w.uploadAndComplete(ctx, log, task, *snapshot.Result, currentDetail)
+}
+
+func (w *Worker) recoverTaskPanic(ctx context.Context, taskID string, log *slog.Logger) {
+	value := recover()
+	if value == nil {
+		return
+	}
+	err := fmt.Errorf("panic: %v", value)
+	msg := taskErrorMessage(err)
+	log.Error("task panicked", "panic", value, "stack", string(debug.Stack()))
+	if _, updateErr := w.updateTask(context.WithoutCancel(ctx), taskID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+		log.Error("failed to mark task failed after panic", "error", updateErr)
+	}
+}
+
+func nextTaskWorkStage(task client.DownloadTask) taskWorkStage {
 	if task.Status == "uploading" {
-		return taskResumeUpload
+		return taskWorkStageUploadExistingResult
 	}
 	if task.Status != "assigned" && task.Status != "downloading" && task.Status != "interrupted" {
-		return taskResumeDownload
+		return taskWorkStageDownload
 	}
 	if task.StorageUploadedBytes > 0 {
-		return taskResumeUpload
+		return taskWorkStageUploadExistingResult
 	}
 	if task.Detail != nil && (task.Detail.Phase == "uploading" || task.Detail.Phase == "completed") {
-		return taskResumeUpload
+		return taskWorkStageUploadExistingResult
 	}
 	if task.TotalBytes != nil && *task.TotalBytes > 0 && task.DownloadedBytes >= *task.TotalBytes {
-		return taskResumeUpload
+		return taskWorkStageUploadExistingResult
 	}
-	return taskResumeDownload
+	return taskWorkStageDownload
 }
 
 func (w *Worker) uploadAndComplete(

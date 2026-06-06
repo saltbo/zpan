@@ -33,7 +33,7 @@ func TestCreateObjectUsesRenameConflictStrategy(t *testing.T) {
 	}
 }
 
-func TestAssignedTasksFetchesRecoverableStatuses(t *testing.T) {
+func TestAssignedTasksFetchesRunnableStatuses(t *testing.T) {
 	var statuses []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/download-tasks" {
@@ -55,7 +55,7 @@ func TestAssignedTasksFetchesRecoverableStatuses(t *testing.T) {
 	sort.Strings(statuses)
 	expected := []string{"assigned", "downloading", "interrupted", "uploading"}
 	if !reflect.DeepEqual(statuses, expected) {
-		t.Fatalf("expected recoverable statuses %v, got %v", expected, statuses)
+		t.Fatalf("expected runnable statuses %v, got %v", expected, statuses)
 	}
 	if len(tasks) != 4 {
 		t.Fatalf("expected four tasks, got %d", len(tasks))

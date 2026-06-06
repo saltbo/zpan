@@ -115,33 +115,19 @@ func (q QBittorrent) RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error
 	}, nil
 }
 
-func (q QBittorrent) Recover(ctx context.Context, task client.DownloadTask) (Result, bool, error) {
+func (q QBittorrent) InspectTask(ctx context.Context, task client.DownloadTask) (TaskSnapshot, bool, error) {
 	if task.SourceType == "http" {
-		return HTTP{Dir: q.Dir}.Recover(ctx, task)
+		return HTTP{Dir: q.Dir}.InspectTask(ctx, task)
 	}
 	qbt, err := q.login(ctx)
 	if err != nil {
-		return Result{}, false, err
+		return TaskSnapshot{}, false, err
 	}
 	torrent, ok, err := q.findTask(ctx, qbt, task)
-	if err != nil {
-		return Result{}, false, err
+	if err != nil || !ok {
+		return TaskSnapshot{}, ok, err
 	}
-	if ok && (torrent.Progress >= 1 || (torrent.AmountLeft == 0 && torrent.TotalSize > 0)) {
-		result, err := resultFromQBittorrentFiles(ctx, qbt, task, filepath.Join(q.Dir, task.ID), torrent)
-		return result, err == nil, err
-	}
-	if ok {
-		return Result{}, false, fmt.Errorf(
-			"qbittorrent task %s is not a completed upload resume candidate: state=%s progress=%f amount_left=%d total=%d",
-			torrent.Hash,
-			torrent.State,
-			torrent.Progress,
-			torrent.AmountLeft,
-			torrent.TotalSize,
-		)
-	}
-	return Result{}, false, nil
+	return q.snapshotTask(ctx, qbt, task, torrent)
 }
 
 func (q QBittorrent) login(ctx context.Context) (*qbittorrent.Client, error) {
@@ -221,6 +207,62 @@ func (q QBittorrent) resultFromTorrent(
 	}
 	_ = qbt.DeleteTorrentsCtx(ctx, []string{torrent.Hash}, false)
 	return result, nil
+}
+
+func (q QBittorrent) snapshotTask(
+	ctx context.Context,
+	qbt *qbittorrent.Client,
+	task client.DownloadTask,
+	torrent qbittorrent.Torrent,
+) (TaskSnapshot, bool, error) {
+	total := torrent.TotalSize
+	if total <= 0 {
+		total = torrent.Size
+	}
+	var totalPtr *int64
+	if total > 0 {
+		totalPtr = &total
+	}
+	snapshot := TaskSnapshot{
+		State:      qbittorrentTaskState(torrent),
+		Downloaded: torrent.Completed,
+		Total:      totalPtr,
+		Bps:        torrent.DlSpeed,
+		Detail:     qbittorrentDetail(ctx, qbt, torrent),
+	}
+	if snapshot.State != TaskStateCompleted {
+		return snapshot, true, nil
+	}
+	result, err := resultFromQBittorrentFiles(ctx, qbt, task, filepath.Join(q.Dir, task.ID), torrent)
+	if err != nil {
+		return TaskSnapshot{}, false, err
+	}
+	if q.RetainSeed {
+		result.Seed = &Seed{
+			Engine:   "qbittorrent",
+			ID:       torrent.Hash,
+			InfoHash: torrent.Hash,
+			Path:     filepath.Join(q.Dir, task.ID),
+			Snapshot: q.seedSnapshot(torrent.Hash),
+			Cleanup:  q.cleanupSeed(torrent.Hash, filepath.Join(q.Dir, task.ID)),
+		}
+	}
+	snapshot.Result = &result
+	return snapshot, true, nil
+}
+
+func qbittorrentTaskState(torrent qbittorrent.Torrent) TaskState {
+	total := torrent.TotalSize
+	if total <= 0 {
+		total = torrent.Size
+	}
+	if torrent.Progress >= 1 || (torrent.AmountLeft == 0 && total > 0) {
+		return TaskStateCompleted
+	}
+	if isQBittorrentErrorState(torrent.State) {
+		return TaskStateFailed
+	}
+	return TaskStateDownloading
 }
 
 func (q QBittorrent) findTask(ctx context.Context, qbt *qbittorrent.Client, task client.DownloadTask) (qbittorrent.Torrent, bool, error) {

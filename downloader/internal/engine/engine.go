@@ -45,11 +45,29 @@ type SeedSnapshot struct {
 
 type Progress func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskDetail) error
 
+type TaskState string
+
+const (
+	TaskStateDownloading TaskState = "downloading"
+	TaskStateCompleted   TaskState = "completed"
+	TaskStateFailed      TaskState = "failed"
+)
+
+type TaskSnapshot struct {
+	State      TaskState
+	Downloaded int64
+	Total      *int64
+	Bps        int64
+	Detail     *client.DownloadTaskDetail
+	Result     *Result
+	Error      string
+}
+
 type Engine interface {
 	Name() string
 	Capabilities() []string
 	Check(ctx context.Context) error
-	Recover(ctx context.Context, task client.DownloadTask) (Result, bool, error)
+	InspectTask(ctx context.Context, task client.DownloadTask) (TaskSnapshot, bool, error)
 	Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error)
 }
 

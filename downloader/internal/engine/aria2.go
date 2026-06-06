@@ -155,40 +155,17 @@ func (a Aria2) RestoreSeed(ctx context.Context, ref SeedRef) (*Seed, error) {
 	}, nil
 }
 
-func (a Aria2) Recover(ctx context.Context, task client.DownloadTask) (Result, bool, error) {
+func (a Aria2) InspectTask(ctx context.Context, task client.DownloadTask) (TaskSnapshot, bool, error) {
 	aria, err := a.client(ctx)
-	if err == nil {
-		defer aria.Close()
-		status, ok, findErr := a.findTask(ctx, &aria, task)
-		if findErr != nil {
-			return Result{}, false, findErr
-		}
-		if ok && isAria2DownloadComplete(status) {
-			files, err := a.getAria2Files(ctx, &aria, status.GID)
-			if err != nil {
-				return Result{}, false, err
-			}
-			taskDir := aria2StatusTaskDir(status, filepath.Join(a.Dir, task.ID))
-			result, err := resultFromAria2Files(task, taskDir, status.BitTorrent.Info.Name, files)
-			if err == nil && a.RetainSeed && task.SourceType != "http" {
-				result.Seed = a.seedFromStatus(status, taskDir)
-			}
-			return result, err == nil, err
-		}
-		if ok {
-			return Result{}, false, fmt.Errorf(
-				"aria2 task %s is not a completed upload resume candidate: status=%s completed=%d total=%d",
-				status.GID,
-				status.Status,
-				int64(status.CompletedLength),
-				int64(status.TotalLength),
-			)
-		}
-	}
 	if err != nil {
-		return Result{}, false, err
+		return TaskSnapshot{}, false, err
 	}
-	return Result{}, false, nil
+	defer aria.Close()
+	status, ok, err := a.findTask(ctx, &aria, task)
+	if err != nil || !ok {
+		return TaskSnapshot{}, ok, err
+	}
+	return a.snapshotTask(ctx, &aria, task, status)
 }
 
 func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {
@@ -203,7 +180,7 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	}
 	defer aria.Close()
 
-	if shouldRecoverExistingAria2Task(task) {
+	if shouldAttachExistingAria2Task(task) {
 		status, ok, err := a.findTask(ctx, &aria, task)
 		if err != nil {
 			return Result{}, fmt.Errorf("find aria2 task: %w", err)
@@ -265,8 +242,61 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 	return result, nil
 }
 
-func shouldRecoverExistingAria2Task(task client.DownloadTask) bool {
+func shouldAttachExistingAria2Task(task client.DownloadTask) bool {
 	return task.Status == "downloading" || task.Status == "uploading"
+}
+
+func (a Aria2) snapshotTask(
+	ctx context.Context,
+	aria **arigo.Client,
+	task client.DownloadTask,
+	status arigo.Status,
+) (TaskSnapshot, bool, error) {
+	total := int64(status.TotalLength)
+	completed := int64(status.CompletedLength)
+	bps := int64(status.DownloadSpeed)
+	var totalPtr *int64
+	if total > 0 {
+		totalPtr = &total
+	}
+	peers := a.getAria2Peers(ctx, aria, status.GID)
+	snapshot := TaskSnapshot{
+		State:      aria2TaskState(status),
+		Downloaded: completed,
+		Total:      totalPtr,
+		Bps:        bps,
+		Detail:     aria2Detail(status, peers),
+		Error:      status.ErrorMessage,
+	}
+	if snapshot.State != TaskStateCompleted {
+		return snapshot, true, nil
+	}
+	files, err := a.getAria2Files(ctx, aria, status.GID)
+	if err != nil {
+		return TaskSnapshot{}, false, err
+	}
+	taskDir := aria2StatusTaskDir(status, filepath.Join(a.Dir, task.ID))
+	result, err := resultFromAria2Files(task, taskDir, status.BitTorrent.Info.Name, files)
+	if err != nil {
+		return TaskSnapshot{}, false, err
+	}
+	if a.RetainSeed && task.SourceType != "http" {
+		result.Seed = a.seedFromStatus(status, taskDir)
+	}
+	snapshot.Result = &result
+	return snapshot, true, nil
+}
+
+func aria2TaskState(status arigo.Status) TaskState {
+	if isAria2DownloadComplete(status) {
+		return TaskStateCompleted
+	}
+	switch string(status.Status) {
+	case string(arigo.StatusError), string(arigo.StatusRemoved):
+		return TaskStateFailed
+	default:
+		return TaskStateDownloading
+	}
 }
 
 func addAria2Task(ctx context.Context, aria *arigo.Client, task client.DownloadTask, options *arigo.Options) (arigo.GID, error) {

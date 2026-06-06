@@ -3,8 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -40,8 +42,36 @@ func (h HTTP) Check(ctx context.Context) error {
 	return os.Remove(path)
 }
 
-func (h HTTP) Recover(ctx context.Context, task client.DownloadTask) (Result, bool, error) {
-	return Result{}, false, nil
+func (h HTTP) InspectTask(ctx context.Context, task client.DownloadTask) (TaskSnapshot, bool, error) {
+	if task.SourceType != "http" {
+		return TaskSnapshot{}, false, nil
+	}
+	size, ok := completedHTTPCheckpoint(task)
+	if !ok {
+		return TaskSnapshot{}, false, nil
+	}
+	path, name, err := h.outputPath(task)
+	if err != nil {
+		return TaskSnapshot{}, false, err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return TaskSnapshot{}, false, fmt.Errorf("inspect http completed file: %w", err)
+	}
+	if info.IsDir() {
+		return TaskSnapshot{}, false, fmt.Errorf("inspect http completed file: %s is a directory", path)
+	}
+	if info.Size() != size {
+		return TaskSnapshot{}, false, fmt.Errorf("inspect http completed file: size mismatch path=%s expected=%d actual=%d", path, size, info.Size())
+	}
+	result := Result{Path: path, Name: name, Size: size}
+	return TaskSnapshot{
+		State:      TaskStateCompleted,
+		Downloaded: size,
+		Total:      &size,
+		Detail:     &client.DownloadTaskDetail{Engine: "builtin", Phase: "completed"},
+		Result:     &result,
+	}, true, nil
 }
 
 func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress Progress) (Result, error) {
@@ -53,13 +83,15 @@ func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress P
 		return Result{}, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, task.SourceURI, nil)
+	path, name, err := h.outputPath(task)
 	if err != nil {
 		return Result{}, err
 	}
-	name := outputName(task, filenameFromURL(req.URL))
-	path := filepath.Join(taskDir, name)
 	existingSize, err := existingFileSize(path)
+	if err != nil {
+		return Result{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, task.SourceURI, nil)
 	if err != nil {
 		return Result{}, err
 	}
@@ -102,6 +134,36 @@ func (h HTTP) Download(ctx context.Context, task client.DownloadTask, progress P
 		return Result{}, err
 	}
 	return Result{Path: path, Name: name, Size: counter.downloaded}, nil
+}
+
+func (h HTTP) outputPath(task client.DownloadTask) (string, string, error) {
+	parsed, err := httpURL(task.SourceURI)
+	if err != nil {
+		return "", "", err
+	}
+	name := outputName(task, filenameFromURL(parsed))
+	return filepath.Join(h.Dir, task.ID, name), name, nil
+}
+
+func completedHTTPCheckpoint(task client.DownloadTask) (int64, bool) {
+	if task.TotalBytes == nil || *task.TotalBytes <= 0 {
+		return 0, false
+	}
+	if task.DownloadedBytes != *task.TotalBytes {
+		return 0, false
+	}
+	return *task.TotalBytes, true
+}
+
+func httpURL(raw string) (*url.URL, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported http source url: %s", raw)
+	}
+	return parsed, nil
 }
 
 func existingFileSize(path string) (int64, error) {

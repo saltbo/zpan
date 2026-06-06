@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -205,8 +206,11 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 	}
 	eng := &recordingEngine{
 		downloadResult: engine.Result{Path: payloadPath, Name: "payload.bin", Size: payloadSize},
-		recoverResult:  engine.Result{Path: payloadPath, Name: "payload.bin", Size: payloadSize},
-		recovered:      true,
+		taskSnapshot: engine.TaskSnapshot{
+			State:  engine.TaskStateCompleted,
+			Result: &engine.Result{Path: payloadPath, Name: "payload.bin", Size: payloadSize},
+		},
+		taskFound: true,
 	}
 
 	first := NewWithAPI(config.Config{}, api)
@@ -244,8 +248,8 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 	if eng.downloadCalls != 1 {
 		t.Fatalf("expected retry to avoid a second download, got %d download calls", eng.downloadCalls)
 	}
-	if eng.recoverCalls != 1 {
-		t.Fatalf("expected retry to recover the completed download, got %d recover calls", eng.recoverCalls)
+	if eng.inspectCalls != 1 {
+		t.Fatalf("expected retry to inspect the runtime task, got %d inspect calls", eng.inspectCalls)
 	}
 	if uploadRequests != 2 {
 		t.Fatalf("expected both attempts to upload the local result, got %d upload requests", uploadRequests)
@@ -256,35 +260,80 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 	}
 }
 
-func TestUploadResumeRecoveryErrorFailsWithoutRedownloading(t *testing.T) {
-	api := &recordingAPI{}
-	eng := &recordingEngine{recoverErr: errors.New("runtime state is inconsistent")}
-	w := NewWithAPI(config.Config{}, api)
-	w.engine = eng
+func TestWorkerLifecycleRetriesHTTPUploadFromCheckpointWithoutRedownloading(t *testing.T) {
+	payload := "downloaded payload"
+	downloadRequests := 0
+	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		downloadRequests++
+		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+		_, _ = w.Write([]byte(payload))
+	}))
+	defer downloadServer.Close()
 
-	total := int64(100)
-	w.process(context.Background(), client.DownloadTask{
+	uploadRequests := 0
+	uploadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uploadRequests++
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			t.Fatal(err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer uploadServer.Close()
+
+	api := &recordingAPI{
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", UploadURL: uploadServer.URL},
+		confirmErrs:       []error{errors.New("unauthorized"), nil},
+	}
+	downloadDir := t.TempDir()
+	payloadSize := int64(len(payload))
+
+	first := NewWithAPI(config.Config{}, api)
+	first.engine = engine.HTTP{Dir: downloadDir}
+	first.process(context.Background(), client.DownloadTask{
 		ID:          "task-1",
 		Status:      "assigned",
-		SourceType:  "magnet",
-		SourceURI:   "magnet:?xt=urn:btih:abc123",
-		TotalBytes:  &total,
-		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
+		SourceType:  "http",
+		SourceURI:   downloadServer.URL + "/payload.bin",
+		Name:        "payload.bin",
 		UploadToken: "upload-token",
 	})
-
-	if eng.downloadCalls != 0 {
-		t.Fatalf("expected upload resume recovery failure not to restart download, got %d download calls", eng.downloadCalls)
-	}
 	failed := lastPatchWithStatus(t, api.patches, "failed")
-	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "runtime state is inconsistent") {
-		t.Fatalf("expected recovery error to be reported, got %#v", failed.ErrorMessage)
+	if failed.DownloadedBytes == nil || *failed.DownloadedBytes != payloadSize {
+		t.Fatalf("expected failed task to persist downloaded bytes %d, got %#v", payloadSize, failed.DownloadedBytes)
+	}
+	if downloadRequests != 1 {
+		t.Fatalf("expected initial attempt to download once, got %d requests", downloadRequests)
+	}
+
+	second := NewWithAPI(config.Config{}, api)
+	second.engine = engine.HTTP{Dir: downloadDir}
+	second.process(context.Background(), client.DownloadTask{
+		ID:              "task-1",
+		Status:          "assigned",
+		SourceType:      "http",
+		SourceURI:       downloadServer.URL + "/payload.bin",
+		Name:            "payload.bin",
+		DownloadedBytes: payloadSize,
+		TotalBytes:      &payloadSize,
+		Detail:          &client.DownloadTaskDetail{Phase: "uploading"},
+		UploadToken:     "upload-token",
+	})
+
+	if downloadRequests != 1 {
+		t.Fatalf("expected retry not to request download source again, got %d requests", downloadRequests)
+	}
+	if uploadRequests != 2 {
+		t.Fatalf("expected both attempts to upload the local file, got %d upload requests", uploadRequests)
+	}
+	last := api.patches[len(api.patches)-1]
+	if last.Status != "completed" {
+		t.Fatalf("expected retry to complete task, got last patch %#v", last)
 	}
 }
 
-func TestUploadResumeMissingRuntimeFailsWithoutRedownloading(t *testing.T) {
+func TestUploadExistingResultInspectErrorFailsWithoutRedownloading(t *testing.T) {
 	api := &recordingAPI{}
-	eng := &recordingEngine{recovered: false}
+	eng := &recordingEngine{inspectErr: errors.New("runtime state is inconsistent")}
 	w := NewWithAPI(config.Config{}, api)
 	w.engine = eng
 
@@ -300,11 +349,92 @@ func TestUploadResumeMissingRuntimeFailsWithoutRedownloading(t *testing.T) {
 	})
 
 	if eng.downloadCalls != 0 {
-		t.Fatalf("expected missing runtime during upload resume not to restart download, got %d download calls", eng.downloadCalls)
+		t.Fatalf("expected runtime inspection failure not to restart download, got %d download calls", eng.downloadCalls)
 	}
 	failed := lastPatchWithStatus(t, api.patches, "failed")
-	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "not recoverable") {
+	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "runtime state is inconsistent") {
+		t.Fatalf("expected runtime inspection error to be reported, got %#v", failed.ErrorMessage)
+	}
+}
+
+func TestUploadExistingResultInspectPanicFailsWithoutRedownloading(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{inspectPanic: "runtime invariant violated"}
+	w := NewWithAPI(config.Config{}, api)
+	w.engine = eng
+
+	total := int64(100)
+	w.process(context.Background(), client.DownloadTask{
+		ID:          "task-1",
+		Status:      "assigned",
+		SourceType:  "magnet",
+		SourceURI:   "magnet:?xt=urn:btih:abc123",
+		TotalBytes:  &total,
+		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
+		UploadToken: "upload-token",
+	})
+
+	if eng.downloadCalls != 0 {
+		t.Fatalf("expected runtime inspection panic not to restart download, got %d download calls", eng.downloadCalls)
+	}
+	failed := lastPatchWithStatus(t, api.patches, "failed")
+	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "panic: runtime invariant violated") {
+		t.Fatalf("expected panic to be reported, got %#v", failed.ErrorMessage)
+	}
+}
+
+func TestUploadExistingResultMissingRuntimeFailsWithoutRedownloading(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{taskFound: false}
+	w := NewWithAPI(config.Config{}, api)
+	w.engine = eng
+
+	total := int64(100)
+	w.process(context.Background(), client.DownloadTask{
+		ID:          "task-1",
+		Status:      "assigned",
+		SourceType:  "magnet",
+		SourceURI:   "magnet:?xt=urn:btih:abc123",
+		TotalBytes:  &total,
+		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
+		UploadToken: "upload-token",
+	})
+
+	if eng.downloadCalls != 0 {
+		t.Fatalf("expected missing runtime task not to restart download, got %d download calls", eng.downloadCalls)
+	}
+	failed := lastPatchWithStatus(t, api.patches, "failed")
+	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "missing from downloader runtime") {
 		t.Fatalf("expected missing runtime to be reported, got %#v", failed.ErrorMessage)
+	}
+}
+
+func TestUploadExistingResultIncompleteRuntimeTaskFailsWithoutRedownloading(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{
+		taskSnapshot: engine.TaskSnapshot{State: engine.TaskStateDownloading, Downloaded: 10},
+		taskFound:    true,
+	}
+	w := NewWithAPI(config.Config{}, api)
+	w.engine = eng
+
+	total := int64(100)
+	w.process(context.Background(), client.DownloadTask{
+		ID:          "task-1",
+		Status:      "assigned",
+		SourceType:  "magnet",
+		SourceURI:   "magnet:?xt=urn:btih:abc123",
+		TotalBytes:  &total,
+		Detail:      &client.DownloadTaskDetail{Phase: "uploading"},
+		UploadToken: "upload-token",
+	})
+
+	if eng.downloadCalls != 0 {
+		t.Fatalf("expected incomplete runtime task not to restart download, got %d download calls", eng.downloadCalls)
+	}
+	failed := lastPatchWithStatus(t, api.patches, "failed")
+	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "server task requires upload but runtime task is not completed") {
+		t.Fatalf("expected invariant failure to be reported, got %#v", failed.ErrorMessage)
 	}
 }
 
@@ -417,63 +547,63 @@ func TestTaskErrorMessageTruncatesToSchemaLimit(t *testing.T) {
 	}
 }
 
-func TestResumeStage(t *testing.T) {
+func TestNextTaskWorkStage(t *testing.T) {
 	total := int64(100)
 	cases := []struct {
 		name string
 		task client.DownloadTask
-		want taskResumeStage
+		want taskWorkStage
 	}{
 		{
 			name: "uploading status",
 			task: client.DownloadTask{Status: "uploading"},
-			want: taskResumeUpload,
+			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned with upload bytes",
 			task: client.DownloadTask{Status: "assigned", StorageUploadedBytes: 1},
-			want: taskResumeUpload,
+			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned with uploading phase",
 			task: client.DownloadTask{Status: "assigned", Detail: &client.DownloadTaskDetail{Phase: "uploading"}},
-			want: taskResumeUpload,
+			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned with completed phase",
 			task: client.DownloadTask{Status: "assigned", Detail: &client.DownloadTaskDetail{Phase: "completed"}},
-			want: taskResumeUpload,
+			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned with completed download bytes",
 			task: client.DownloadTask{Status: "assigned", DownloadedBytes: 100, TotalBytes: &total},
-			want: taskResumeUpload,
+			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "assigned partial download",
 			task: client.DownloadTask{Status: "assigned", DownloadedBytes: 99, TotalBytes: &total},
-			want: taskResumeDownload,
+			want: taskWorkStageDownload,
 		},
 		{
 			name: "downloading completed bytes",
 			task: client.DownloadTask{Status: "downloading", DownloadedBytes: 100, TotalBytes: &total},
-			want: taskResumeUpload,
+			want: taskWorkStageUploadExistingResult,
 		},
 		{
 			name: "downloading partial download",
 			task: client.DownloadTask{Status: "downloading", DownloadedBytes: 99, TotalBytes: &total},
-			want: taskResumeDownload,
+			want: taskWorkStageDownload,
 		},
 		{
 			name: "interrupted with uploading phase",
 			task: client.DownloadTask{Status: "interrupted", Detail: &client.DownloadTaskDetail{Phase: "uploading"}},
-			want: taskResumeUpload,
+			want: taskWorkStageUploadExistingResult,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := resumeStage(tc.task); got != tc.want {
+			if got := nextTaskWorkStage(tc.task); got != tc.want {
 				t.Fatalf("expected %v, got %v", tc.want, got)
 			}
 		})
@@ -731,12 +861,13 @@ func findPatchWithStatus(patches []client.TaskPatch, status string) (client.Task
 type recordingEngine struct {
 	downloadResult engine.Result
 	downloadErr    error
-	recoverResult  engine.Result
-	recoverErr     error
-	recovered      bool
+	taskSnapshot   engine.TaskSnapshot
+	inspectErr     error
+	inspectPanic   any
+	taskFound      bool
 	restoreSeed    *engine.Seed
 	downloadCalls  int
-	recoverCalls   int
+	inspectCalls   int
 	restoreCalls   int
 }
 
@@ -752,12 +883,15 @@ func (e *recordingEngine) Check(context.Context) error {
 	return nil
 }
 
-func (e *recordingEngine) Recover(context.Context, client.DownloadTask) (engine.Result, bool, error) {
-	e.recoverCalls++
-	if e.recoverErr != nil {
-		return engine.Result{}, false, e.recoverErr
+func (e *recordingEngine) InspectTask(context.Context, client.DownloadTask) (engine.TaskSnapshot, bool, error) {
+	e.inspectCalls++
+	if e.inspectPanic != nil {
+		panic(e.inspectPanic)
 	}
-	return e.recoverResult, e.recovered, nil
+	if e.inspectErr != nil {
+		return engine.TaskSnapshot{}, false, e.inspectErr
+	}
+	return e.taskSnapshot, e.taskFound, nil
 }
 
 func (e *recordingEngine) RestoreSeed(context.Context, engine.SeedRef) (*engine.Seed, error) {

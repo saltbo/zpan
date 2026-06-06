@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/Braurbeki/arigo"
+	qbittorrent "github.com/autobrr/go-qbittorrent"
 	"github.com/cenkalti/rpc2"
 	"github.com/saltbo/zpan/downloader/internal/client"
 )
@@ -116,7 +117,40 @@ func TestHTTPDownloadResumesExistingFile(t *testing.T) {
 	}
 }
 
-func TestHTTPRecoverDoesNotTrustLocalTaskDirectory(t *testing.T) {
+func TestHTTPInspectTaskUsesCompletedCheckpoint(t *testing.T) {
+	dir := t.TempDir()
+	taskDir := filepath.Join(dir, "task-1")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "payload.bin"), []byte("payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	total := int64(7)
+
+	snapshot, found, err := (HTTP{Dir: dir}).InspectTask(context.Background(), client.DownloadTask{
+		ID:              "task-1",
+		SourceType:      "http",
+		SourceURI:       "https://example.com/payload.bin",
+		DownloadedBytes: 7,
+		TotalBytes:      &total,
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Fatal("expected completed http checkpoint to be found")
+	}
+	if snapshot.State != TaskStateCompleted {
+		t.Fatalf("expected completed state, got %#v", snapshot)
+	}
+	if snapshot.Result == nil || snapshot.Result.Path != filepath.Join(taskDir, "payload.bin") || snapshot.Result.Size != 7 {
+		t.Fatalf("unexpected completed result: %#v", snapshot.Result)
+	}
+}
+
+func TestHTTPInspectTaskDoesNotTrustLocalFileWithoutCompletedCheckpoint(t *testing.T) {
 	dir := t.TempDir()
 	taskDir := filepath.Join(dir, "task-1")
 	if err := os.MkdirAll(taskDir, 0o755); err != nil {
@@ -126,7 +160,7 @@ func TestHTTPRecoverDoesNotTrustLocalTaskDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, recovered, err := (HTTP{Dir: dir}).Recover(context.Background(), client.DownloadTask{
+	snapshot, found, err := (HTTP{Dir: dir}).InspectTask(context.Background(), client.DownloadTask{
 		ID:         "task-1",
 		SourceType: "http",
 		SourceURI:  "https://example.com/payload.bin",
@@ -135,8 +169,32 @@ func TestHTTPRecoverDoesNotTrustLocalTaskDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if recovered {
-		t.Fatalf("expected local directory not to be treated as a completed runtime result, got %#v", result)
+	if found {
+		t.Fatalf("expected local file without checkpoint not to be trusted, got %#v", snapshot)
+	}
+}
+
+func TestHTTPInspectTaskRejectsSizeMismatch(t *testing.T) {
+	dir := t.TempDir()
+	taskDir := filepath.Join(dir, "task-1")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "payload.bin"), []byte("payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	total := int64(8)
+
+	_, _, err := (HTTP{Dir: dir}).InspectTask(context.Background(), client.DownloadTask{
+		ID:              "task-1",
+		SourceType:      "http",
+		SourceURI:       "https://example.com/payload.bin",
+		DownloadedBytes: 8,
+		TotalBytes:      &total,
+	})
+
+	if err == nil || !strings.Contains(err.Error(), "size mismatch") {
+		t.Fatalf("expected size mismatch error, got %v", err)
 	}
 }
 
@@ -294,17 +352,61 @@ func TestIsAria2DownloadCompleteTreatsActiveFullTorrentAsComplete(t *testing.T) 
 	}
 
 	if !isAria2DownloadComplete(status) {
-		t.Fatal("expected active full torrent to be recoverable as a completed download")
+		t.Fatal("expected active full torrent to be treated as completed")
+	}
+}
+
+func TestAria2TaskState(t *testing.T) {
+	if got := aria2TaskState(arigo.Status{
+		Status:          arigo.StatusActive,
+		TotalLength:     100,
+		CompletedLength: 100,
+		Files:           []arigo.File{{Path: "/tmp/zpan/task-1/file.bin", Length: 100, CompletedLength: 100}},
+	}); got != TaskStateCompleted {
+		t.Fatalf("expected active full torrent to be completed, got %s", got)
+	}
+	if got := aria2TaskState(arigo.Status{Status: arigo.StatusActive, TotalLength: 100, CompletedLength: 10}); got != TaskStateDownloading {
+		t.Fatalf("expected active partial torrent to be downloading, got %s", got)
+	}
+	if got := aria2TaskState(arigo.Status{Status: arigo.StatusError}); got != TaskStateFailed {
+		t.Fatalf("expected error torrent to be failed, got %s", got)
+	}
+}
+
+func TestQBittorrentTaskState(t *testing.T) {
+	if got := qbittorrentTaskState(qbittorrent.Torrent{
+		State:      qbittorrent.TorrentState("stalledUP"),
+		Progress:   1,
+		AmountLeft: 0,
+		TotalSize:  100,
+	}); got != TaskStateCompleted {
+		t.Fatalf("expected seeding torrent to be completed, got %s", got)
+	}
+	if got := qbittorrentTaskState(qbittorrent.Torrent{
+		State:      qbittorrent.TorrentState("downloading"),
+		Progress:   0.5,
+		AmountLeft: 50,
+		TotalSize:  100,
+	}); got != TaskStateDownloading {
+		t.Fatalf("expected partial torrent to be downloading, got %s", got)
+	}
+	if got := qbittorrentTaskState(qbittorrent.Torrent{
+		State:      qbittorrent.TorrentState("missingFiles"),
+		Progress:   0.5,
+		AmountLeft: 50,
+		TotalSize:  100,
+	}); got != TaskStateFailed {
+		t.Fatalf("expected missing files torrent to be failed, got %s", got)
 	}
 }
 
 func TestIsAria2InfoHashAlreadyRegistered(t *testing.T) {
 	err := errors.New("InfoHash 0546769f209ec059284b47f68659791a6f75ca8e is already registered.")
 	if !isAria2InfoHashAlreadyRegistered(err) {
-		t.Fatal("expected aria2 infohash conflict to be recoverable")
+		t.Fatal("expected aria2 infohash conflict to be attachable")
 	}
 	if isAria2InfoHashAlreadyRegistered(errors.New("aria2 download ended with status error")) {
-		t.Fatal("expected ordinary aria2 error to stay non-recoverable")
+		t.Fatal("expected ordinary aria2 error not to be treated as an infohash conflict")
 	}
 }
 
