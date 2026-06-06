@@ -284,7 +284,7 @@ export async function createAuth(
       deviceAuthorization({
         schema: {},
         verificationUri: '/device',
-        validateClient: async (clientId) => clientId === 'zpan-downloader',
+        validateClient: async (clientId) => clientId === 'zpan-cli',
       }),
       apiKey([
         {

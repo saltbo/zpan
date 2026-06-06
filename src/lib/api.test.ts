@@ -1002,7 +1002,7 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listDownloadTasks({
-        status: 'running',
+        status: 'downloading',
         assignedTo: 'me',
         category: 'movies',
         tag: '4k',
@@ -1015,7 +1015,7 @@ describe('api', () => {
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/download-tasks?')
-      expect(url).toContain('status=running')
+      expect(url).toContain('status=downloading')
       expect(url).toContain('assignedTo=me')
       expect(url).toContain('category=movies')
       expect(url).toContain('tag=4k')
@@ -1046,8 +1046,8 @@ describe('api', () => {
     })
 
     it('updates a download task', async () => {
-      const payload = { id: 'task-1', status: 'running' }
-      const body = { status: 'running' as const, downloadedBytes: 1024 }
+      const payload = { id: 'task-1', status: 'downloading' }
+      const body = { status: 'downloading' as const, progress: { download: { bytes: 1024, bytesPerSecond: 0 } } }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await updateDownloadTask('task-1', body)
@@ -1080,14 +1080,14 @@ describe('api', () => {
 
     it('builds the download task events URL from RPC client', () => {
       const url = downloadTaskEventsUrl({
-        status: 'running',
+        status: 'downloading',
         category: 'movies',
         tag: '4k',
         sortBy: 'status',
         sortDir: 'desc',
       })
       expect(url.pathname).toBe('/api/download-tasks/events')
-      expect(url.searchParams.get('status')).toBe('running')
+      expect(url.searchParams.get('status')).toBe('downloading')
       expect(url.searchParams.get('category')).toBe('movies')
       expect(url.searchParams.get('tag')).toBe('4k')
       expect(url.searchParams.get('sortBy')).toBe('status')
@@ -1161,7 +1161,9 @@ describe('api', () => {
     it('throws ApiError on download task failure', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'credits exhausted' }, false, 402))
 
-      await expect(updateDownloadTask('task-1', { downloadedBytes: 2048 })).rejects.toThrow('credits exhausted')
+      await expect(
+        updateDownloadTask('task-1', { progress: { download: { bytes: 2048, bytesPerSecond: 0 } } }),
+      ).rejects.toThrow('credits exhausted')
     })
   })
 

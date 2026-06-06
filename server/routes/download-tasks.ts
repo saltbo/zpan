@@ -2,7 +2,8 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   createDownloadTaskSchema,
   downloadTaskActionInputSchema,
-  downloadTaskDetailSchema,
+  downloadTaskPageSchema,
+  downloadTaskSchema,
   listDownloadTasksQuerySchema,
   updateDownloadTaskSchema,
 } from '@shared/schemas'
@@ -19,13 +20,6 @@ import {
 } from '../services/downloads'
 
 const errorSchema = z.object({ error: z.string() })
-const int64Schema = () => z.number().int().openapi({ type: 'integer', format: 'int64' })
-const nullableInt64Schema = () =>
-  z
-    .number()
-    .int()
-    .nullable()
-    .openapi({ type: 'integer', format: 'int64', nullable: true } as never)
 
 type OpenAPIContext = Context<Env> & {
   req: Context<Env>['req'] & {
@@ -33,46 +27,6 @@ type OpenAPIContext = Context<Env> & {
     param(name: string): string
   }
 }
-
-const downloadTaskSchema = z.object({
-  id: z.string(),
-  sourceType: z.enum(['http', 'magnet', 'torrent_url']),
-  sourceUri: z.string(),
-  name: z.string(),
-  targetFolder: z.string(),
-  category: z.string().nullable(),
-  tags: z.array(z.string()),
-  status: z.enum([
-    'queued',
-    'assigned',
-    'running',
-    'billing_paused',
-    'pausing',
-    'paused',
-    'uploading',
-    'canceling',
-    'completed',
-    'failed',
-    'canceled',
-  ]),
-  downloadedBytes: int64Schema(),
-  storageUploadedBytes: int64Schema(),
-  totalBytes: nullableInt64Schema(),
-  downloadBps: int64Schema(),
-  storageUploadBps: int64Schema(),
-  errorMessage: z.string().nullable().optional(),
-  resultObjectId: z.string().nullable().optional(),
-  detail: downloadTaskDetailSchema.nullable().optional(),
-  uploadToken: z.string().optional(),
-  assignedDownloaderId: z.string().nullable().optional(),
-})
-
-const downloadTaskPageSchema = z.object({
-  items: z.array(downloadTaskSchema),
-  total: z.number().int(),
-  page: z.number().int(),
-  pageSize: z.number().int(),
-})
 
 const sseEncoder = new TextEncoder()
 const downloadTaskEventIntervalMs = 2000
@@ -244,7 +198,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
               page: query.page,
               pageSize: query.pageSize,
             })
-            const fingerprint = result.items.map((task) => `${task.id}:${task.updatedAt}`).join('|')
+            const fingerprint = result.items.map((task) => `${task.id}:${task.status.updatedAt}`).join('|')
             if (fingerprint !== lastFingerprint) {
               lastFingerprint = fingerprint
               send('snapshot', { items: result.items, total: result.total, page: query.page, pageSize: query.pageSize })
@@ -318,7 +272,6 @@ async function downloadTaskResponse(c: Context<Env>, action: () => Promise<unkno
     if (error instanceof DownloadError) {
       if (error.code === 'not_found') return c.json({ error: 'Not found' }, 404)
       if (error.code === 'forbidden') return c.json({ error: 'Forbidden' }, 403)
-      if (error.code === 'billing_paused') return c.json({ error: 'insufficient_credits' }, 402)
       return c.json({ error: error.message }, 409)
     }
     throw error
