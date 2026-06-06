@@ -562,12 +562,26 @@ function nextTaskRuntime(
   status: string,
   now: Date,
 ): DownloadTaskRuntime | null {
-  const runtime = input === undefined ? current : input
+  const runtime = input === undefined ? current : input === null ? null : mergeTaskRuntimePatch(current, input)
   const merged = mergeTaskRuntime(runtime, progress, now)
   if (!EXECUTABLE_TASK_STATUSES.includes(status as (typeof EXECUTABLE_TASK_STATUSES)[number])) {
     return merged
   }
   return clearTaskRuntimeMessage(merged)
+}
+
+function mergeTaskRuntimePatch(current: DownloadTaskRuntime | null, patch: DownloadTaskRuntime): DownloadTaskRuntime {
+  const merged: DownloadTaskRuntime = { ...(current ?? {}), ...patch }
+  if (current?.progress || patch.progress) {
+    merged.progress = mergeTaskProgress(current?.progress, patch.progress)
+  }
+  if (current?.torrent && patch.torrent) {
+    merged.torrent = { ...current.torrent, ...patch.torrent }
+  }
+  if (current?.seeding && patch.seeding) {
+    merged.seeding = { ...current.seeding, ...patch.seeding }
+  }
+  return merged
 }
 
 function mergeTaskRuntime(
@@ -581,17 +595,24 @@ function mergeTaskRuntime(
   return {
     ...base,
     updatedAt: now.toISOString(),
-    progress: {
-      download: {
-        bytes: Math.max(progress.download?.bytes ?? 0, base.progress?.download.bytes ?? 0),
-        totalBytes: progress.download?.totalBytes ?? base.progress?.download.totalBytes ?? null,
-        bytesPerSecond: progress.download?.bytesPerSecond ?? base.progress?.download.bytesPerSecond ?? 0,
-      },
-      upload: {
-        bytes: Math.max(progress.upload?.bytes ?? 0, base.progress?.upload.bytes ?? 0),
-        totalBytes: progress.upload?.totalBytes ?? base.progress?.upload.totalBytes ?? null,
-        bytesPerSecond: progress.upload?.bytesPerSecond ?? base.progress?.upload.bytesPerSecond ?? 0,
-      },
+    progress: mergeTaskProgress(base.progress, progress),
+  }
+}
+
+function mergeTaskProgress(
+  current: DownloadTaskRuntime['progress'] | undefined,
+  patch: UpdateDownloadTaskInput['progress'] | DownloadTaskRuntime['progress'] | undefined,
+): NonNullable<DownloadTaskRuntime['progress']> {
+  return {
+    download: {
+      bytes: Math.max(patch?.download?.bytes ?? 0, current?.download.bytes ?? 0),
+      totalBytes: patch?.download?.totalBytes ?? current?.download.totalBytes ?? null,
+      bytesPerSecond: patch?.download?.bytesPerSecond ?? current?.download.bytesPerSecond ?? 0,
+    },
+    upload: {
+      bytes: Math.max(patch?.upload?.bytes ?? 0, current?.upload.bytes ?? 0),
+      totalBytes: patch?.upload?.totalBytes ?? current?.upload.totalBytes ?? null,
+      bytesPerSecond: patch?.upload?.bytesPerSecond ?? current?.upload.bytesPerSecond ?? 0,
     },
   }
 }

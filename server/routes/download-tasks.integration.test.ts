@@ -414,6 +414,93 @@ describe('Download tasks API integration', () => {
     expect(task.status.progress.upload.bytes).toBe(10 * 1024 * 1024)
   })
 
+  it('merges downloader task updates as patches without dropping prior transfer data', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'patch-progress-downloader')
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+    })
+    expect(heartbeatRes.status).toBe(200)
+
+    const user = await authedHeaders(app, 'patch-progress-user@example.com')
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'magnet', uri: 'magnet:?xt=urn:btih:patchprogress' },
+        targetFolder: 'Remote Downloads',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const task = (await createTaskRes.json()) as DownloadTask
+
+    const totalBytes = 10 * 1024 * 1024
+    const downloadingRes = await app.request(`/api/download-tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        status: 'downloading',
+        ...transferProgress({ downloadBytes: totalBytes, totalBytes, downloadBps: 512_000 }),
+        runtime: {
+          engine: 'aria2',
+          phase: 'downloading',
+          progress: {
+            download: { bytes: totalBytes, totalBytes, bytesPerSecond: 512_000 },
+            upload: { bytes: 0, totalBytes: null, bytesPerSecond: 0 },
+          },
+          torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
+          trackers: [{ url: 'udp://tracker.example/announce', status: 'working', seeds: 2 }],
+        },
+      }),
+    })
+    expect(downloadingRes.status).toBe(200)
+
+    const uploadingRes = await app.request(`/api/download-tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        status: 'uploading',
+        ...transferProgress({ uploadBytes: 4 * 1024 * 1024, totalBytes, uploadBps: 256_000 }),
+        runtime: {
+          phase: 'uploading',
+          etaSeconds: 24,
+        },
+      }),
+    })
+    expect(uploadingRes.status).toBe(200)
+    const uploadingTask = (await uploadingRes.json()) as DownloadTask
+
+    expect(uploadingTask.status.progress.download).toMatchObject({
+      bytes: totalBytes,
+      totalBytes,
+      bytesPerSecond: 512_000,
+    })
+    expect(uploadingTask.status.progress.upload).toMatchObject({
+      bytes: 4 * 1024 * 1024,
+      totalBytes,
+      bytesPerSecond: 256_000,
+    })
+    expect(uploadingTask.status.runtime).toMatchObject({
+      engine: 'aria2',
+      phase: 'uploading',
+      etaSeconds: 24,
+      progress: {
+        download: { bytes: totalBytes, totalBytes, bytesPerSecond: 512_000 },
+        upload: { bytes: 4 * 1024 * 1024, totalBytes, bytesPerSecond: 256_000 },
+      },
+      torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
+      trackers: [{ url: 'udp://tracker.example/announce', status: 'working', seeds: 2 }],
+    })
+  })
+
   it('returns storage failure details when multipart upload session creation fails', async () => {
     vi.mocked(S3Service.prototype.createMultipartUpload).mockRejectedValueOnce(
       new Error('bucket does not support multipart'),
