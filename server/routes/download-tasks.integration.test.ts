@@ -499,6 +499,41 @@ describe('Download tasks API integration', () => {
       torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
       trackers: [{ url: 'udp://tracker.example/announce', status: 'working', seeds: 2 }],
     })
+
+    const completedRes = await app.request(`/api/download-tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        status: 'completed',
+        runtime: { phase: 'completed' },
+      }),
+    })
+    expect(completedRes.status).toBe(200)
+    const completedTask = (await completedRes.json()) as DownloadTask
+    expect(completedTask.status.runtime).toMatchObject({
+      phase: 'completed',
+      etaSeconds: null,
+    })
+
+    const seedingRes = await app.request(`/api/download-tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        runtime: {
+          phase: 'seeding',
+          seeding: { active: true, uploadedBytes: 1024, uploadBytesPerSecond: 128 },
+        },
+      }),
+    })
+    expect(seedingRes.status).toBe(200)
+    const seedingTask = (await seedingRes.json()) as DownloadTask
+    expect(seedingTask.status.runtime).toMatchObject({
+      engine: 'aria2',
+      phase: 'seeding',
+      etaSeconds: null,
+      torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
+      seeding: { active: true, uploadedBytes: 1024, uploadBytesPerSecond: 128 },
+    })
   })
 
   it('returns storage failure details when multipart upload session creation fails', async () => {
@@ -966,6 +1001,45 @@ describe('Download tasks API integration', () => {
           upload: { bytes: 0, totalBytes: null },
         },
         runtime: null,
+      },
+    })
+
+    const downloadingAfterRestartRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        ...transferProgress({ downloadBytes: 1024, totalBytes, downloadBps: 256 }),
+        runtime: { phase: 'downloading', etaSeconds: 36 },
+      }),
+    })
+    expect(downloadingAfterRestartRes.status).toBe(200)
+
+    const completedAfterRestartRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        status: 'completed',
+        runtime: { phase: 'completed' },
+      }),
+    })
+    expect(completedAfterRestartRes.status).toBe(200)
+    await expect(completedAfterRestartRes.json()).resolves.toMatchObject({
+      status: {
+        runtime: { phase: 'completed', etaSeconds: null },
+      },
+    })
+
+    const seedingAfterRestartRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        runtime: { phase: 'seeding', seeding: { active: true } },
+      }),
+    })
+    expect(seedingAfterRestartRes.status).toBe(200)
+    await expect(seedingAfterRestartRes.json()).resolves.toMatchObject({
+      status: {
+        runtime: { phase: 'seeding', etaSeconds: null, seeding: { active: true } },
       },
     })
   })

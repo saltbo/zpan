@@ -579,6 +579,9 @@ function nextTaskRuntime(
 
 function mergeTaskRuntimePatch(current: DownloadTaskRuntime | null, patch: DownloadTaskRuntime): DownloadTaskRuntime {
   const merged: DownloadTaskRuntime = { ...(current ?? {}), ...patch }
+  if (patch.phase === 'completed' || patch.phase === 'seeding') {
+    merged.etaSeconds = null
+  }
   if (current?.progress || patch.progress) {
     merged.progress = mergeTaskProgress(current?.progress, patch.progress)
   }
