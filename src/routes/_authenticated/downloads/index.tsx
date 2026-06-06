@@ -1927,8 +1927,8 @@ function LogPanel({ task }: { task: DownloadTask }) {
           </div>
           <div className="min-w-0 pb-3">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="font-medium">{event.title}</span>
               <span className="font-mono text-[11px] text-muted-foreground">{event.time}</span>
+              <span className="font-medium">{event.title}</span>
             </div>
             {event.detail && <div className="mt-0.5 break-words text-muted-foreground">{event.detail}</div>}
           </div>
