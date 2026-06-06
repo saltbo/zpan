@@ -573,7 +573,7 @@ func aria2Detail(status arigo.Status, peers []arigo.Peer) *client.DownloadTaskDe
 		PeerUploadBps:     &uploadBps,
 		Trackers:          aria2Trackers(status.BitTorrent.AnnounceList),
 		PeerSamples:       aria2Peers(peers),
-		Files:             aria2Files(status.Files),
+		Files:             aria2Files(status.Dir, status.Files),
 	}
 	if status.ErrorMessage != "" {
 		detail.Message = status.ErrorMessage
@@ -669,17 +669,18 @@ func aria2Peers(peers []arigo.Peer) []client.DownloadTaskPeer {
 	return out
 }
 
-func aria2Files(files []arigo.File) []client.DownloadTaskFile {
+func aria2Files(baseDir string, files []arigo.File) []client.DownloadTaskFile {
 	out := make([]client.DownloadTaskFile, 0, min(len(files), 50))
 	for _, file := range files {
 		if file.Path == "" || isAria2MetadataPath(file.Path) {
 			continue
 		}
+		_, rel := downloadedPath(baseDir, file.Path)
 		size := int64(file.Length)
 		completed := int64(file.CompletedLength)
 		selected := file.Selected
 		out = append(out, client.DownloadTaskFile{
-			Path:           file.Path,
+			Path:           filepath.ToSlash(rel),
 			Size:           size,
 			CompletedBytes: &completed,
 			Selected:       &selected,

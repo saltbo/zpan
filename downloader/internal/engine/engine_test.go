@@ -259,6 +259,38 @@ func TestIsAria2InfoHashAlreadyRegistered(t *testing.T) {
 	}
 }
 
+func TestAria2FilesReportsRelativeTorrentPaths(t *testing.T) {
+	taskDir := filepath.Join(t.TempDir(), "task-1")
+	files := aria2Files(taskDir, []arigo.File{
+		{
+			Path:            filepath.Join(taskDir, "album", "disc-1", "track.flac"),
+			Length:          100,
+			CompletedLength: 50,
+			Selected:        true,
+		},
+		{
+			Path:            filepath.Join(t.TempDir(), "outside.flac"),
+			Length:          10,
+			CompletedLength: 10,
+			Selected:        true,
+		},
+		{
+			Path:   "[METADATA]info",
+			Length: 1,
+		},
+	})
+
+	if len(files) != 2 {
+		t.Fatalf("expected two visible files, got %#v", files)
+	}
+	if files[0].Path != "album/disc-1/track.flac" {
+		t.Fatalf("expected relative torrent path, got %s", files[0].Path)
+	}
+	if files[1].Path != "outside.flac" {
+		t.Fatalf("expected outside path to fall back to basename, got %s", files[1].Path)
+	}
+}
+
 func TestAria2DetailIncludesPeerSamples(t *testing.T) {
 	detail := aria2Detail(
 		arigo.Status{
