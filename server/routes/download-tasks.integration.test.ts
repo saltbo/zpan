@@ -940,6 +940,34 @@ describe('Download tasks API integration', () => {
         error: null,
       },
     })
+
+    const staleSeedRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        ...transferProgress({ downloadBytes: totalBytes, totalBytes }),
+        runtime: {
+          phase: 'seeding',
+          progress: {
+            download: { bytes: totalBytes, totalBytes, bytesPerSecond: 0 },
+            upload: { bytes: 0, totalBytes: null, bytesPerSecond: 0 },
+          },
+          torrent: { infoHash: 'stale-seed' },
+        },
+      }),
+    })
+    expect(staleSeedRes.status).toBe(200)
+    await expect(staleSeedRes.json()).resolves.toMatchObject({
+      status: {
+        state: 'assigned',
+        attempt: 2,
+        progress: {
+          download: { bytes: 0, totalBytes: null },
+          upload: { bytes: 0, totalBytes: null },
+        },
+        runtime: null,
+      },
+    })
   })
 
   it('uses transitional states for downloading task pause and cancel actions', async () => {

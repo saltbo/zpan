@@ -169,6 +169,10 @@ func (w *Worker) reportRetainedSeeds(ctx context.Context) {
 		log := w.logger.With("task_id", seed.taskID, "engine", seed.engine, "seed_id", seed.seedID)
 		snapshot, err := seed.snapshot(ctx)
 		if err != nil {
+			if isMissingRetainedSeedError(err) {
+				w.cleanupRetainedSeed(ctx, seed, "missing")
+				continue
+			}
 			log.Warn("failed to inspect retained bt seed", "error", err)
 			continue
 		}
@@ -191,6 +195,14 @@ func (w *Worker) reportRetainedSeeds(ctx context.Context) {
 		}
 		log.Debug("reported retained bt seed", "downloaded_bytes", snapshot.Downloaded, "bps", snapshot.Bps)
 	}
+}
+
+func isMissingRetainedSeedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "gid") && strings.Contains(message, "not found")
 }
 
 func (w *Worker) cleanupRetainedSeeds(ctx context.Context) {

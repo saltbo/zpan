@@ -355,6 +355,9 @@ export async function updateDownloadTask(
       input.runtime === undefined
     if (!onlyCancel) throw new DownloadError('forbidden')
   }
+  if (actor.downloaderId && isRetainedSeedReport(input) && task.status !== 'completed') {
+    return toDownloadTask(task)
+  }
 
   const now = new Date()
   let status = input.status ?? task.status
@@ -553,6 +556,10 @@ export async function performDownloadTaskAction(
   }
 
   throw new DownloadError('invalid_state')
+}
+
+function isRetainedSeedReport(input: UpdateDownloadTaskInput): boolean {
+  return input.status === undefined && input.runtime?.phase === 'seeding'
 }
 
 function nextTaskRuntime(

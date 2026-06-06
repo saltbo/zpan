@@ -703,6 +703,32 @@ func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 	}
 }
 
+func TestReportRetainedSeedsCleansMissingSeed(t *testing.T) {
+	cleaned := false
+	w := NewWithAPI(config.Config{SeedEnabled: true}, nil)
+	w.retainedSeeds = []retainedSeed{{
+		taskID: "task-1",
+		engine: "aria2",
+		seedID: "missing-gid",
+		snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+			return engine.SeedSnapshot{}, errors.New("GID missing-gid is not found")
+		},
+		cleanup: func(context.Context) error {
+			cleaned = true
+			return nil
+		},
+	}}
+
+	w.reportRetainedSeeds(context.Background())
+
+	if !cleaned {
+		t.Fatal("expected missing retained seed to be cleaned")
+	}
+	if got := len(w.retainedSeedSnapshot()); got != 0 {
+		t.Fatalf("expected missing retained seed to be removed, got %d", got)
+	}
+}
+
 func TestRestoreRetainedSeedsLoadsLedger(t *testing.T) {
 	stateDir := t.TempDir()
 	seedPath := t.TempDir()
