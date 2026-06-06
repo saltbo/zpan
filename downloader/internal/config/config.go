@@ -12,23 +12,30 @@ import (
 )
 
 type Config struct {
-	ServerURL          string
-	Token              string
-	Engine             string
-	DownloadDir        string
-	StateDir           string
-	PollInterval       time.Duration
-	MaxConcurrentTasks int
-	Aria2URL           string
-	Aria2Secret        string
-	QBittorrentURL     string
-	QBittorrentUser    string
-	QBittorrentPass    string
-	SeedEnabled        bool
-	SeedDuration       time.Duration
-	SeedCacheLimit     int64
-	SeedRatio          float64
+	ServerURL             string
+	Token                 string
+	Engine                string
+	DownloadDir           string
+	StateDir              string
+	PollInterval          time.Duration
+	MaxConcurrentTasks    int
+	Aria2URL              string
+	Aria2Secret           string
+	QBittorrentURL        string
+	QBittorrentUser       string
+	QBittorrentPass       string
+	SeedEnabled           bool
+	SeedDuration          time.Duration
+	SeedCacheLimit        int64
+	SeedRatio             float64
+	Aria2Configured       bool
+	QBittorrentConfigured bool
 }
+
+const (
+	DefaultAria2URL       = "ws://127.0.0.1:6800/jsonrpc"
+	DefaultQBittorrentURL = "http://127.0.0.1:8080"
+)
 
 func Defaults(v *viper.Viper) {
 	home, _ := os.UserHomeDir()
@@ -38,8 +45,8 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("state_dir", defaultStateDir(home))
 	v.SetDefault("poll_interval", "5s")
 	v.SetDefault("max_concurrent_tasks", 2)
-	v.SetDefault("aria2.url", "ws://127.0.0.1:6800/jsonrpc")
-	v.SetDefault("qbittorrent.url", "http://127.0.0.1:8080")
+	v.SetDefault("aria2.url", DefaultAria2URL)
+	v.SetDefault("qbittorrent.url", DefaultQBittorrentURL)
 	v.SetDefault("seed.enabled", true)
 	v.SetDefault("seed.duration", "1h")
 	v.SetDefault("seed.cache_limit", "10GB")
@@ -47,7 +54,6 @@ func Defaults(v *viper.Viper) {
 }
 
 func Load(v *viper.Viper) (Config, error) {
-	Defaults(v)
 	v.SetEnvPrefix("zpan_downloader")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
@@ -58,6 +64,11 @@ func Load(v *viper.Viper) (Config, error) {
 			return Config{}, err
 		}
 	}
+	aria2Configured := explicitValue(v, "aria2.url", "ARIA2_URL") || explicitValue(v, "aria2.secret", "ARIA2_SECRET")
+	qbittorrentConfigured := explicitValue(v, "qbittorrent.url", "QBITTORRENT_URL") ||
+		explicitValue(v, "qbittorrent.username", "QBITTORRENT_USERNAME") ||
+		explicitValue(v, "qbittorrent.password", "QBITTORRENT_PASSWORD")
+	Defaults(v)
 
 	interval, err := time.ParseDuration(v.GetString("poll_interval"))
 	if err != nil {
@@ -89,12 +100,14 @@ func Load(v *viper.Viper) (Config, error) {
 		SeedDuration:       seedDuration,
 		SeedCacheLimit:     seedCacheLimit,
 		SeedRatio:          v.GetFloat64("seed.ratio"),
+		Aria2Configured:    aria2Configured && (v.GetString("aria2.url") != DefaultAria2URL || v.GetString("aria2.secret") != ""),
+		QBittorrentConfigured: qbittorrentConfigured &&
+			(v.GetString("qbittorrent.url") != DefaultQBittorrentURL ||
+				v.GetString("qbittorrent.username") != "" ||
+				v.GetString("qbittorrent.password") != ""),
 	}
 	if cfg.ServerURL == "" {
 		return Config{}, errors.New("server_url is required")
-	}
-	if cfg.Token == "" {
-		return Config{}, errors.New("token is required")
 	}
 	if cfg.MaxConcurrentTasks < 1 {
 		return Config{}, errors.New("max_concurrent_tasks must be at least 1")
@@ -112,6 +125,13 @@ func Load(v *viper.Viper) (Config, error) {
 		return Config{}, errors.New("seed.ratio must not be negative")
 	}
 	return cfg, nil
+}
+
+func explicitValue(v *viper.Viper, key string, envName string) bool {
+	if os.Getenv("ZPAN_DOWNLOADER_"+envName) != "" {
+		return true
+	}
+	return v.IsSet(key)
 }
 
 func parseBytes(value string) (int64, error) {

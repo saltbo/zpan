@@ -12,27 +12,30 @@ import (
 
 func (w *Worker) resolveEngine(ctx context.Context) error {
 	if w.cfg.Engine == "" || w.cfg.Engine == "auto" {
+		if downloader, ok, err := explicitlyConfiguredExternalEngine(w.cfg); err != nil {
+			return err
+		} else if ok {
+			return w.useConfiguredExternalEngine(ctx, downloader)
+		}
 		return w.resolveAutoEngine(ctx)
 	}
 	downloader, err := configuredEngine(w.cfg)
 	if err != nil {
 		return err
 	}
-	w.logger.Info("checking configured downloader engine", "engine", downloader.Name())
-	if w.checkEngine(ctx, downloader) == nil {
-		w.useEngine(downloader, "configured engine is already running")
-		return nil
-	}
-	if _, ok := downloader.(engine.Starter); !ok {
+	if downloader.Name() == "builtin" {
 		w.useEngine(downloader, "configured built-in engine")
 		return nil
 	}
-	if err := w.startEngine(ctx, downloader); err != nil {
-		w.logger.Warn("configured downloader engine could not be started", "engine", downloader.Name(), "error", err)
-		w.useEngine(downloader, "configured engine selected despite failed auto start")
-		return nil
+	return w.useConfiguredExternalEngine(ctx, downloader)
+}
+
+func (w *Worker) useConfiguredExternalEngine(ctx context.Context, downloader engine.Engine) error {
+	w.logger.Info("checking configured downloader engine", "engine", downloader.Name())
+	if err := w.checkEngine(ctx, downloader); err != nil {
+		return fmt.Errorf("configured downloader engine %q is not available: %w", downloader.Name(), err)
 	}
-	w.useEngine(downloader, "configured engine started")
+	w.useEngine(downloader, "configured external engine")
 	return nil
 }
 
@@ -123,6 +126,29 @@ func configuredEngine(cfg config.Config) (engine.Engine, error) {
 		}
 	}
 	return nil, fmt.Errorf("unsupported downloader engine %q; expected auto, builtin, aria2, or qbittorrent", cfg.Engine)
+}
+
+func explicitlyConfiguredExternalEngine(cfg config.Config) (engine.Engine, bool, error) {
+	configured := make([]engine.Engine, 0, 2)
+	for _, downloader := range externalEngines(cfg) {
+		switch downloader.Name() {
+		case "aria2":
+			if cfg.Aria2Configured {
+				configured = append(configured, downloader)
+			}
+		case "qbittorrent":
+			if cfg.QBittorrentConfigured {
+				configured = append(configured, downloader)
+			}
+		}
+	}
+	if len(configured) == 0 {
+		return nil, false, nil
+	}
+	if len(configured) > 1 {
+		return nil, false, fmt.Errorf("multiple external downloader engines are configured; set engine to aria2 or qbittorrent")
+	}
+	return configured[0], true, nil
 }
 
 func externalEngines(cfg config.Config) []engine.Engine {

@@ -1,5 +1,5 @@
 # Build from source
-# Usage: docker compose -f docker-compose.build.yml up -d --build
+# Usage: docker compose -f docker-compose.yml up -d --build
 
 services:
   zpan:
@@ -15,5 +15,23 @@ services:
       - zpan-data:/data
     restart: unless-stopped
 
+  downloader:
+    build: .
+    command: ["zpan-downloader", "run"]
+    environment:
+      - ZPAN_DOWNLOADER_SERVER_URL=http://zpan:8222
+      - ZPAN_DOWNLOADER_DOWNLOAD_DIR=/downloads
+    volumes:
+      - zpan-downloader-config:/home/zpan/.config/zpan-downloader
+      - zpan-downloader-state:/home/zpan/.local/state/zpan-downloader
+      - zpan-downloads:/downloads
+    depends_on:
+      zpan:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   zpan-data:
+  zpan-downloader-config:
+  zpan-downloader-state:
+  zpan-downloads:

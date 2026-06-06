@@ -62,6 +62,9 @@ type apiClient interface {
 }
 
 func New(cfg config.Config) (*Worker, error) {
+	if cfg.Token == "" {
+		return nil, errors.New("token is required")
+	}
 	api, err := client.New(cfg.ServerURL, cfg.Token)
 	if err != nil {
 		return nil, err

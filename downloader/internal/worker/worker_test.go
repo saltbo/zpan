@@ -31,6 +31,35 @@ func TestResolveEngineRejectsUnknownConfiguredEngine(t *testing.T) {
 	}
 }
 
+func TestExplicitlyConfiguredExternalEngineRejectsAmbiguousRuntimeConfig(t *testing.T) {
+	_, _, err := explicitlyConfiguredExternalEngine(config.Config{
+		Aria2Configured:       true,
+		QBittorrentConfigured: true,
+		Aria2URL:              config.DefaultAria2URL,
+		QBittorrentURL:        config.DefaultQBittorrentURL,
+	})
+	if err == nil {
+		t.Fatal("expected ambiguous external runtime config error")
+	}
+}
+
+func TestExplicitlyConfiguredExternalEngineSelectsConfiguredRuntime(t *testing.T) {
+	downloader, ok, err := explicitlyConfiguredExternalEngine(config.Config{
+		Aria2Configured: true,
+		Aria2URL:        "ws://aria2:6800/jsonrpc",
+		DownloadDir:     t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected configured external runtime")
+	}
+	if downloader.Name() != "aria2" {
+		t.Fatalf("expected aria2 runtime, got %q", downloader.Name())
+	}
+}
+
 func TestUploadFileSendsContentLength(t *testing.T) {
 	path := writeTempFile(t, "hello world")
 	var contentLength string

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -44,8 +43,7 @@ func rootCommand() *cobra.Command {
 		v.SetConfigFile(cfgFile)
 	}
 
-	root.AddCommand(runCommand(v))
-	root.AddCommand(loginCommand(v, &cfgFile))
+	root.AddCommand(runCommand(v, &cfgFile))
 	root.AddCommand(configCommand(v, &cfgFile))
 	return root
 }
@@ -68,7 +66,7 @@ func setLogLevel(level string) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: parsed})))
 }
 
-func runCommand(v *viper.Viper) *cobra.Command {
+func runCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "run",
 		Short: "Start the downloader worker",
@@ -76,6 +74,9 @@ func runCommand(v *viper.Viper) *cobra.Command {
 			slog.Info("loading downloader config")
 			cfg, err := config.Load(v)
 			if err != nil {
+				return err
+			}
+			if err := validateConfiguredEngine(cfg.Engine); err != nil {
 				return err
 			}
 			slog.Info("downloader config loaded",
@@ -90,6 +91,13 @@ func runCommand(v *viper.Viper) *cobra.Command {
 			)
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
+			if cfg.Token == "" {
+				registered, err := registerDownloaderWithDeviceLogin(ctx, cmd, v, cfg, *cfgFile)
+				if err != nil {
+					return err
+				}
+				cfg.Token = registered.Token
+			}
 			downloader, err := worker.New(cfg)
 			if err != nil {
 				return err
@@ -97,88 +105,6 @@ func runCommand(v *viper.Viper) *cobra.Command {
 			return downloader.Run(ctx)
 		},
 	}
-}
-
-func loginCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
-	var name string
-	cmd := &cobra.Command{
-		Use:   "login",
-		Short: "Register this downloader with ZPan using device login",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			slog.Info("starting downloader device login")
-			config.Defaults(v)
-			v.SetConfigFile(*cfgFile)
-			if err := v.ReadInConfig(); err != nil {
-				var notFound viper.ConfigFileNotFoundError
-				if !errors.As(err, &notFound) && !errors.Is(err, os.ErrNotExist) {
-					return err
-				}
-			}
-			serverURL := strings.TrimRight(v.GetString("server_url"), "/")
-			if serverURL == "" {
-				return fmt.Errorf("server_url is required")
-			}
-			slog.Info("requesting device login code", "server_url", serverURL)
-			if name == "" {
-				hostname, _ := os.Hostname()
-				name = hostname
-				if name == "" {
-					name = "zpan-downloader"
-				}
-			}
-
-			api, err := client.New(serverURL, "")
-			if err != nil {
-				return err
-			}
-			ctx := cmd.Context()
-			code, err := api.RequestDeviceCode(ctx)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Open this URL to authorize the downloader:\n%s\n\n", code.VerificationURIComplete)
-			fmt.Fprintf(cmd.OutOrStdout(), "User code: %s\n", code.UserCode)
-
-			slog.Info("waiting for device authorization", "user_code", code.UserCode)
-			token, err := pollDeviceToken(ctx, api, code)
-			if err != nil {
-				return err
-			}
-			slog.Info("device authorization completed")
-			heartbeat, err := loginHeartbeat(v)
-			if err != nil {
-				return err
-			}
-			registered, err := api.CreateDownloader(ctx, token.AccessToken, client.CreateDownloaderRequest{
-				Name:      name,
-				Heartbeat: heartbeat,
-			})
-			if err != nil {
-				return err
-			}
-			slog.Info("downloader registered", "downloader_id", registered.Downloader.ID)
-
-			v.Set("server_url", serverURL)
-			v.Set("token", registered.Token)
-			if err := os.MkdirAll(filepath.Dir(*cfgFile), 0o755); err != nil {
-				return err
-			}
-			if _, err := os.Stat(*cfgFile); err == nil {
-				if err := v.WriteConfigAs(*cfgFile); err != nil {
-					return err
-				}
-			} else {
-				if err := v.SafeWriteConfigAs(*cfgFile); err != nil {
-					return err
-				}
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Downloader registered: %s\n", registered.Downloader.ID)
-			fmt.Fprintf(cmd.OutOrStdout(), "Config saved: %s\n", *cfgFile)
-			return nil
-		},
-	}
-	cmd.Flags().StringVar(&name, "name", "", "downloader name")
-	return cmd
 }
 
 func configCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
@@ -199,6 +125,68 @@ func configCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 		},
 	})
 	return cmd
+}
+
+func registerDownloaderWithDeviceLogin(
+	ctx context.Context,
+	cmd *cobra.Command,
+	v *viper.Viper,
+	cfg config.Config,
+	cfgFile string,
+) (client.CreateDownloaderResponse, error) {
+	slog.Info("starting downloader device login")
+	api, err := client.New(cfg.ServerURL, "")
+	if err != nil {
+		return client.CreateDownloaderResponse{}, err
+	}
+	slog.Info("requesting device login code", "server_url", cfg.ServerURL)
+	code, err := api.RequestDeviceCode(ctx)
+	if err != nil {
+		return client.CreateDownloaderResponse{}, err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Open this URL to authorize the downloader:\n%s\n\n", code.VerificationURIComplete)
+	fmt.Fprintf(cmd.OutOrStdout(), "User code: %s\n", code.UserCode)
+
+	slog.Info("waiting for device authorization", "user_code", code.UserCode)
+	token, err := pollDeviceToken(ctx, api, code)
+	if err != nil {
+		return client.CreateDownloaderResponse{}, err
+	}
+	slog.Info("device authorization completed")
+	registered, err := api.CreateDownloader(ctx, token.AccessToken, client.CreateDownloaderRequest{
+		Name:      downloaderName(),
+		Heartbeat: registrationHeartbeat(cfg),
+	})
+	if err != nil {
+		return client.CreateDownloaderResponse{}, err
+	}
+	slog.Info("downloader registered", "downloader_id", registered.Downloader.ID)
+	if err := saveRegisteredDownloaderConfig(v, cfg, cfgFile, registered.Token); err != nil {
+		return client.CreateDownloaderResponse{}, err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Downloader registered: %s\n", registered.Downloader.ID)
+	fmt.Fprintf(cmd.OutOrStdout(), "Config saved: %s\n", cfgFile)
+	return registered, nil
+}
+
+func saveRegisteredDownloaderConfig(v *viper.Viper, cfg config.Config, cfgFile string, token string) error {
+	v.Set("server_url", cfg.ServerURL)
+	v.Set("token", token)
+	if err := os.MkdirAll(filepath.Dir(cfgFile), 0o755); err != nil {
+		return err
+	}
+	if _, err := os.Stat(cfgFile); err == nil {
+		return v.WriteConfigAs(cfgFile)
+	}
+	return v.SafeWriteConfigAs(cfgFile)
+}
+
+func downloaderName() string {
+	hostname, _ := os.Hostname()
+	if hostname != "" {
+		return hostname
+	}
+	return "zpan-downloader"
 }
 
 func pollDeviceToken(ctx context.Context, api *client.Client, code client.DeviceCode) (client.DeviceToken, error) {
@@ -231,39 +219,48 @@ func isPendingDeviceAuthError(err error) bool {
 	return strings.Contains(message, "authorization_pending") || strings.Contains(message, "slow_down")
 }
 
-func loginHeartbeat(v *viper.Viper) (client.Heartbeat, error) {
+func registrationHeartbeat(cfg config.Config) client.Heartbeat {
 	hostname, _ := os.Hostname()
-	engine, err := normalizeLoginEngine(v.GetString("engine"))
-	if err != nil {
-		return client.Heartbeat{}, err
-	}
+	engine := normalizeRegistrationEngine(cfg)
 	return client.Heartbeat{
 		Version:            worker.Version,
 		Hostname:           hostname,
 		Platform:           runtime.GOOS,
 		Arch:               runtime.GOARCH,
 		Engine:             engine,
-		Capabilities:       loginCapabilities(engine),
-		MaxConcurrentTasks: v.GetInt("max_concurrent_tasks"),
+		Capabilities:       runtimeCapabilities(engine),
+		MaxConcurrentTasks: cfg.MaxConcurrentTasks,
 		CurrentTasks:       0,
 		DownloadBps:        0,
 		UploadBps:          0,
 		FreeDiskBytes:      0,
-	}, nil
-}
-
-func normalizeLoginEngine(engine string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(engine)) {
-	case "", "auto":
-		return "builtin", nil
-	case "builtin", "aria2", "qbittorrent":
-		return strings.ToLower(strings.TrimSpace(engine)), nil
-	default:
-		return "", fmt.Errorf("unsupported downloader engine %q; expected auto, builtin, aria2, or qbittorrent", engine)
 	}
 }
 
-func loginCapabilities(name string) []string {
+func normalizeRegistrationEngine(cfg config.Config) string {
+	switch strings.ToLower(strings.TrimSpace(cfg.Engine)) {
+	case "aria2", "qbittorrent", "builtin":
+		return strings.ToLower(strings.TrimSpace(cfg.Engine))
+	}
+	if cfg.Aria2Configured {
+		return "aria2"
+	}
+	if cfg.QBittorrentConfigured {
+		return "qbittorrent"
+	}
+	return "builtin"
+}
+
+func validateConfiguredEngine(engine string) error {
+	switch strings.ToLower(strings.TrimSpace(engine)) {
+	case "", "auto", "builtin", "aria2", "qbittorrent":
+		return nil
+	default:
+		return fmt.Errorf("unsupported downloader engine %q; expected auto, builtin, aria2, or qbittorrent", engine)
+	}
+}
+
+func runtimeCapabilities(name string) []string {
 	switch name {
 	case "aria2", "qbittorrent":
 		return []string{"http", "magnet", "torrent"}

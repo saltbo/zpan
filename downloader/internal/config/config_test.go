@@ -37,7 +37,6 @@ func TestLoadParsesSeedPolicy(t *testing.T) {
 func TestLoadUsesSafeSeedDefaults(t *testing.T) {
 	v := viper.New()
 	v.Set("server_url", "http://localhost:5173")
-	v.Set("token", "token")
 
 	cfg, err := Load(v)
 	if err != nil {
@@ -51,6 +50,39 @@ func TestLoadUsesSafeSeedDefaults(t *testing.T) {
 	}
 	if cfg.SeedCacheLimit != 10_000_000_000 {
 		t.Fatalf("expected default seed cache limit 10GB, got %d", cfg.SeedCacheLimit)
+	}
+	if cfg.Token != "" {
+		t.Fatalf("expected missing token to be accepted for device login bootstrap, got %q", cfg.Token)
+	}
+}
+
+func TestLoadDoesNotTreatDefaultRuntimeURLsAsConfigured(t *testing.T) {
+	v := viper.New()
+	v.Set("server_url", "http://localhost:5173")
+
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Aria2Configured {
+		t.Fatal("default aria2 url should not force configured external runtime mode")
+	}
+	if cfg.QBittorrentConfigured {
+		t.Fatal("default qbittorrent url should not force configured external runtime mode")
+	}
+}
+
+func TestLoadTreatsExternalRuntimeOverridesAsConfigured(t *testing.T) {
+	v := viper.New()
+	v.Set("server_url", "http://localhost:5173")
+	v.Set("aria2.url", "ws://aria2:6800/jsonrpc")
+
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.Aria2Configured {
+		t.Fatal("expected custom aria2 url to configure external runtime mode")
 	}
 }
 
