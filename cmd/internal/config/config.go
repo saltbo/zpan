@@ -35,13 +35,14 @@ type Config struct {
 }
 
 const (
+	DefaultServerURL      = "http://localhost:5173"
 	DefaultAria2URL       = "ws://127.0.0.1:6800/jsonrpc"
 	DefaultQBittorrentURL = "http://127.0.0.1:8080"
 )
 
 func Defaults(v *viper.Viper) {
 	home, _ := os.UserHomeDir()
-	v.SetDefault("server_url", "http://localhost:5173")
+	v.SetDefault("server_url", DefaultServerURL)
 	v.SetDefault("token", "")
 	v.SetDefault("downloader.engine", "auto")
 	v.SetDefault("downloader.download_dir", filepath.Join(home, "Downloads", "zpan"))
@@ -135,10 +136,10 @@ func explicitValue(v *viper.Viper, key string) bool {
 	return v.IsSet(key)
 }
 
-func WriteDefaultConfig(path string) error {
+func WriteDefaultConfig(path string, serverURL string) error {
 	home, _ := os.UserHomeDir()
 	cfg := Config{
-		ServerURL:          "http://localhost:5173",
+		ServerURL:          strings.TrimRight(nonEmpty(serverURL, DefaultServerURL), "/"),
 		Engine:             "auto",
 		DownloadDir:        filepath.Join(home, "Downloads", "zpan"),
 		StateDir:           defaultStateDir(home),

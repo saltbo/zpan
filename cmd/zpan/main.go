@@ -120,13 +120,16 @@ func configCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 		Use:   "config",
 		Short: "Manage CLI configuration",
 	}
-	cmd.AddCommand(&cobra.Command{
+	var serverURL string
+	initCmd := &cobra.Command{
 		Use:   "init",
 		Short: "Create a default config file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return config.WriteDefaultConfig(*cfgFile)
+			return config.WriteDefaultConfig(*cfgFile, serverURL)
 		},
-	})
+	}
+	initCmd.Flags().StringVar(&serverURL, "server-url", config.DefaultServerURL, "ZPan server URL")
+	cmd.AddCommand(initCmd)
 	return cmd
 }
 

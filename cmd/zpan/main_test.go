@@ -56,6 +56,9 @@ func TestRootCommandExposesDownloaderSubcommands(t *testing.T) {
 	if config.Name() != "init" {
 		t.Fatalf("expected root config init command, got %q", config.Name())
 	}
+	if config.Flags().Lookup("server-url") == nil {
+		t.Fatal("expected config init --server-url flag")
+	}
 	if command, _, err := root.Find([]string{"downloader", "config"}); err == nil && command.Name() == "config" {
 		t.Fatal("downloader config command should not be exposed")
 	}

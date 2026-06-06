@@ -119,7 +119,7 @@ func TestLoadRejectsInvalidSeedPolicy(t *testing.T) {
 
 func TestWriteDefaultConfigWritesCommentedRuntimeHints(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := WriteDefaultConfig(path); err != nil {
+	if err := WriteDefaultConfig(path, "https://zpan.space/"); err != nil {
 		t.Fatal(err)
 	}
 	content, err := os.ReadFile(path)
@@ -127,6 +127,9 @@ func TestWriteDefaultConfigWritesCommentedRuntimeHints(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(content)
+	if !strings.Contains(text, `server_url: "https://zpan.space"`) {
+		t.Fatalf("expected custom server URL, got:\n%s", text)
+	}
 	if strings.Contains(text, "token:") && !strings.Contains(text, "# token:") {
 		t.Fatalf("expected token to be commented in default config, got:\n%s", text)
 	}
