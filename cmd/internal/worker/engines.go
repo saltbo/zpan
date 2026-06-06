@@ -41,27 +41,18 @@ func (w *Worker) useConfiguredExternalEngine(ctx context.Context, downloader eng
 
 func (w *Worker) resolveAutoEngine(ctx context.Context) error {
 	candidates := externalEngines(w.cfg)
-	w.logger.Info("auto selecting downloader engine", "priority", engineNames(candidates))
+	w.logger.Info("auto selecting downloader runtime", "priority", engineNames(candidates))
 	for _, downloader := range candidates {
-		w.logger.Info("checking downloader engine availability", "engine", downloader.Name())
-		if err := w.checkEngine(ctx, downloader); err == nil {
-			w.useEngine(downloader, "engine is already running")
-			return nil
-		} else {
-			w.logger.Info("downloader engine is not running", "engine", downloader.Name(), "error", err)
-		}
-	}
-	for _, downloader := range candidates {
-		w.logger.Info("checking downloader engine binary", "engine", downloader.Name())
+		w.logger.Info("checking downloader runtime binary", "engine", downloader.Name())
 		if err := w.startEngine(ctx, downloader); err != nil {
-			w.logger.Info("downloader engine is not available for auto start", "engine", downloader.Name(), "error", err)
+			w.logger.Info("downloader runtime is not available for managed start", "engine", downloader.Name(), "error", err)
 			continue
 		}
-		w.useEngine(downloader, "engine binary found and started")
+		w.useEngine(downloader, "managed runtime binary found and started")
 		return nil
 	}
 	downloader := engine.HTTP{Dir: w.cfg.DownloadDir}
-	w.useEngine(downloader, "no external downloader engine is running or installed")
+	w.useEngine(downloader, "no external downloader runtime binary is installed")
 	return nil
 }
 
@@ -82,7 +73,7 @@ func (w *Worker) startEngine(ctx context.Context, downloader engine.Engine) erro
 	if !ok {
 		return fmt.Errorf("%s cannot be auto started", downloader.Name())
 	}
-	w.logger.Info("starting downloader engine", "engine", downloader.Name())
+	w.logger.Info("starting managed downloader runtime", "engine", downloader.Name())
 	cmd, err := starter.Start(ctx)
 	if err != nil {
 		return err
