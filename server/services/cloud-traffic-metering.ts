@@ -14,6 +14,7 @@ export type TrafficReportSource =
   | 'landing_share'
   | 'image_hosting'
   | 'custom_domain_image'
+  | 'webdav_download'
 
 export class CloudTrafficBlockedError extends Error {
   constructor() {

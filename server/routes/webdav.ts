@@ -8,6 +8,7 @@ import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import type { Env } from '../middleware/platform'
 import { ApiKeyRateLimitError, verifyApiKeyForPermission } from '../services/api-keys'
+import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import {
   copyMatter,
   createMatter,
@@ -58,6 +59,7 @@ import {
   workspaceEntry,
   xmlResponse,
 } from '../services/webdav-xml'
+import { reportTrafficForDownload } from './traffic-metering-utils'
 
 const s3 = new S3Service()
 const READ_METHODS = new Set(['OPTIONS', 'PROPFIND', 'GET', 'HEAD'])
@@ -321,6 +323,10 @@ function multipartRangeContentLength(boundary: string, contentType: string, rang
     contentLength += 2
   }
   return contentLength
+}
+
+function rangeContentBytes(ranges: ByteRange[]): number {
+  return ranges.reduce((total, range) => total + range.end - range.start + 1, 0)
 }
 
 function multipartRangeHeader(boundary: string, contentType: string, range: ByteRange, size: number): Uint8Array {
@@ -756,8 +762,9 @@ async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
 async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const { matter } = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const { matter, workspace } = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
     if (!matter) throw new WebDavPathError('Not found', 404)
+    if (!workspace) throw new WebDavPathError('Workspace not found', 404)
     if (matter.dirtype !== DirType.FILE) return c.text('Cannot read collection as file', 405)
     const precondition = preconditionResponse(c, matter)
     if (precondition) return precondition
@@ -782,12 +789,22 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       : { action: 'ignore' }
 
     if (rangeRequest.action === 'none' || rangeRequest.action === 'ignore') {
-      const body = await s3.getObjectBody(storage, matter.object)
-      return new Response(fixedLengthResponseBody(body, size), { headers })
+      const trafficError = await reserveWebDavTraffic(c, workspace.id, matter.id, storage, size)
+      if (trafficError) return trafficError
+      try {
+        const body = await s3.getObjectBody(storage, matter.object)
+        return new Response(fixedLengthResponseBody(body, size), { headers })
+      } catch (e) {
+        await refundTraffic(db, workspace.id, size)
+        throw e
+      }
     }
 
     if (rangeRequest.action === 'reject') return rangeNotSatisfiable(size)
     if (rangeRequest.action !== 'serve') throw new Error('Unexpected range request action')
+    const trafficBytes = rangeContentBytes(rangeRequest.ranges)
+    const trafficError = await reserveWebDavTraffic(c, workspace.id, matter.id, storage, trafficBytes)
+    if (trafficError) return trafficError
     if (rangeRequest.ranges.length > 1) {
       const boundary = `zpan-webdav-${matter.id}`
       const contentLength = multipartRangeContentLength(boundary, matter.type, rangeRequest.ranges, size)
@@ -800,13 +817,39 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
     const [range] = rangeRequest.ranges
     const contentLength = range.end - range.start + 1
-    const body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
+    let body: BodyInit
+    try {
+      body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
+    } catch (e) {
+      await refundTraffic(db, workspace.id, contentLength)
+      throw e
+    }
     headers.set('Content-Length', String(contentLength))
     headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
     return new Response(fixedLengthResponseBody(body, contentLength), { status: 206, headers })
   } catch (e) {
     return davError(c, e)
   }
+}
+
+async function reserveWebDavTraffic(
+  c: DavContext,
+  orgId: string,
+  matterId: string,
+  storage: S3Storage,
+  bytes: number,
+): Promise<Response | null> {
+  if (bytes <= 0) return null
+  const db = c.get('platform').db
+  const trafficAllowed = await consumeTrafficIfQuotaAllows(db, orgId, bytes)
+  if (!trafficAllowed) return c.text('Traffic quota exceeded', 422)
+  return reportTrafficForDownload(c, {
+    orgId,
+    bytes,
+    storage,
+    source: 'webdav_download',
+    sourceId: matterId,
+  })
 }
 
 async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {

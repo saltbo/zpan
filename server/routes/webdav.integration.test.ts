@@ -47,6 +47,29 @@ async function seedStorage(db: TestApp['db']) {
   `)
 }
 
+async function seedTrafficPlan(db: TestApp['db'], orgId: string, bytes: number, used = 0) {
+  const now = Date.now()
+  await db.run(sql`
+    UPDATE org_quotas
+    SET traffic_used = ${used}, traffic_period = '2026-06'
+    WHERE org_id = ${orgId}
+  `)
+  await db.run(sql`
+    UPDATE org_quota_entitlements
+    SET status = 'revoked', updated_at = ${now}
+    WHERE org_id = ${orgId}
+      AND resource_type = 'traffic'
+      AND entitlement_type = 'plan'
+      AND status = 'active'
+  `)
+  await db.run(sql`
+    INSERT INTO org_quota_entitlements
+      (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+    VALUES
+      (${`traffic-plan-${orgId}-${now}`}, ${orgId}, 'traffic', 'plan', 'test', ${`traffic-plan:${orgId}:${now}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Traffic Plan"}', ${now}, ${now})
+  `)
+}
+
 async function org(db: TestApp['db']) {
   const rows = await db.all<{ id: string; slug: string }>(sql`
     SELECT id, slug FROM organization WHERE metadata LIKE '%"type":"personal"%' LIMIT 1
@@ -465,6 +488,113 @@ describe('WebDAV API', () => {
       'objects/readme.txt',
     )
     expect(S3Service.prototype.getObjectBytes).not.toHaveBeenCalled()
+  })
+
+  it('GET consumes WebDAV traffic while HEAD does not', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    await file(db, workspace.id, { id: 'traffic-full', name: 'traffic.txt', size: 12 })
+    await seedTrafficPlan(db, workspace.id, 1000, 25)
+
+    const head = await app.request(`/dav/${workspace.slug}/traffic.txt`, {
+      method: 'HEAD',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(head.status).toBe(200)
+    const afterHead = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${workspace.id}`,
+    )
+    expect(afterHead[0].trafficUsed).toBe(25)
+
+    const get = await app.request(`/dav/${workspace.slug}/traffic.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(get.status).toBe(200)
+    await expect(get.text()).resolves.toBe('hello webdav')
+
+    const rows = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${workspace.id}`,
+    )
+    expect(rows[0].trafficUsed).toBe(37)
+  })
+
+  it('GET consumes only served WebDAV range bytes and rejects over-quota reads before S3 access', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    await file(db, workspace.id, { id: 'traffic-range', name: 'range-traffic.txt', size: 12 })
+    await seedTrafficPlan(db, workspace.id, 30, 25)
+    vi.mocked(S3Service.prototype.getObjectBody).mockResolvedValueOnce(streamBody('hello'))
+
+    const partial = await app.request(`/dav/${workspace.slug}/range-traffic.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'bytes=0-4' }),
+    })
+    expect(partial.status).toBe(206)
+    await expect(partial.text()).resolves.toBe('hello')
+
+    const afterPartial = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${workspace.id}`,
+    )
+    expect(afterPartial[0].trafficUsed).toBe(30)
+
+    const over = await app.request(`/dav/${workspace.slug}/range-traffic.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'bytes=5-6' }),
+    })
+    expect(over.status).toBe(422)
+    await expect(over.text()).resolves.toBe('Traffic quota exceeded')
+    expect(S3Service.prototype.getObjectBody).toHaveBeenCalledTimes(1)
+
+    const invalid = await app.request(`/dav/${workspace.slug}/range-traffic.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key, { Range: 'bytes=99-100' }),
+    })
+    expect(invalid.status).toBe(416)
+    const afterInvalid = await db.all<{ trafficUsed: number }>(
+      sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${workspace.id}`,
+    )
+    expect(afterInvalid[0].trafficUsed).toBe(30)
+  })
+
+  it('GET reports metered WebDAV traffic for cloud billing', async () => {
+    const { app, db, auth } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    await db.run(sql`
+      UPDATE storages
+      SET egress_credit_billing_enabled = 1, egress_credit_unit_bytes = 100, egress_credit_per_unit = 2
+      WHERE id = ${storage.id}
+    `)
+    const workspace = await org(db)
+    const account = await userAccount(db)
+    const key = await apiKey(auth, account.id, { webdav: ['read'] })
+    await file(db, workspace.id, { id: 'traffic-report', name: 'report.txt', size: 12 })
+    await seedTrafficPlan(db, workspace.id, 1000, 0)
+
+    const res = await app.request(`/dav/${workspace.slug}/report.txt`, {
+      method: 'GET',
+      headers: basicHeaders(account.email, key),
+    })
+    expect(res.status).toBe(200)
+    await res.text()
+
+    const reports = await db.all<{ source: string; sourceId: string; bytes: number; status: string }>(sql`
+      SELECT source, source_id AS sourceId, bytes, status
+      FROM cloud_traffic_reports
+      WHERE org_id = ${workspace.id}
+    `)
+    expect(reports).toMatchObject([
+      { source: 'webdav_download', sourceId: 'traffic-report', bytes: 12, status: 'skipped_unbound' },
+    ])
   })
 
   it('GET supports valid byte ranges and rejects invalid ranges', async () => {
