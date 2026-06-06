@@ -46,6 +46,7 @@ func (q QBittorrent) Start(ctx context.Context) (*exec.Cmd, error) {
 		args = append(args, "--webui-port="+webURL.port)
 	}
 	cmd := exec.Command(path, args...)
+	configureEngineProcess(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}

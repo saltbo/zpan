@@ -91,6 +91,7 @@ func (a Aria2) Start(ctx context.Context) (*exec.Cmd, error) {
 		args = append(args, "--rpc-secret="+a.Secret)
 	}
 	cmd := exec.Command(path, args...)
+	configureEngineProcess(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
