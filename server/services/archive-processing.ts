@@ -6,11 +6,12 @@ import type { Storage as S3StorageType } from '../../shared/types'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { createBackgroundJob, updateBackgroundJob } from './background-jobs'
-import { createMatter, decrementUsage, getMatter, incrementUsageIfAllowed, purgeMatters } from './matter'
+import { createMatter, getMatter, purgeMatters } from './matter'
 import { createNotification } from './notification'
 import { buildObjectKey } from './path-template'
 import { S3Service } from './s3'
 import { getStorage, selectStorage } from './storage'
+import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 import { collectCompressionPlan, createZipArchiveStream } from './zip-compress'
 import { streamValidatedZip, validateZipDirectory } from './zip-extract'
 
@@ -105,37 +106,44 @@ async function runCompressionJob(
   try {
     outputBytes = await s3.putObject(targetStorage, key, createZipArchiveStream(sources, plan.directories), ZIP_MIME)
     objectWritten = true
-    const allowed = await incrementUsageIfAllowed(db, orgId, targetStorage.id, outputBytes)
-    if (!allowed) throw new Error('Quota exceeded for generated ZIP archive')
-    const matter = await createMatter(db, {
-      orgId,
-      userId,
-      name: plan.outputName,
-      type: ZIP_MIME,
-      size: outputBytes,
-      dirtype: DirType.FILE,
-      parent: plan.targetFolder,
-      object: key,
-      storageId: targetStorage.id,
-      status: 'active',
-      onConflict: 'rename',
-    })
+    const job = await withStorageUsageReservation(
+      db,
+      { orgId, storageId: targetStorage.id, bytes: outputBytes },
+      async (ctx) => {
+        ctx.onRollback(() => s3.deleteObject(targetStorage, key))
+        const matter = await createMatter(db, {
+          orgId,
+          userId,
+          name: plan.outputName,
+          type: ZIP_MIME,
+          size: outputBytes,
+          dirtype: DirType.FILE,
+          parent: plan.targetFolder,
+          object: key,
+          storageId: targetStorage.id,
+          status: 'active',
+          onConflict: 'rename',
+        })
 
-    return updateBackgroundJob(db, orgId, jobId, {
-      status: 'completed',
-      progress: {
-        inputBytes: plan.inputBytes,
-        outputBytes,
-        processedBytes: plan.inputBytes,
-        fileCount: plan.files.length,
-        currentFilename: null,
+        return updateBackgroundJob(db, orgId, jobId, {
+          status: 'completed',
+          progress: {
+            inputBytes: plan.inputBytes,
+            outputBytes,
+            processedBytes: plan.inputBytes,
+            fileCount: plan.files.length,
+            currentFilename: null,
+          },
+          resultMetadata: { matterId: matter.id, outputName: matter.name, outputBytes },
+          cancelable: false,
+        })
       },
-      resultMetadata: { matterId: matter.id, outputName: matter.name, outputBytes },
-      cancelable: false,
-    })
+    )
+    objectWritten = false
+    return job
   } catch (error) {
-    if (outputBytes > 0) await decrementUsage(db, orgId, new Map([[targetStorage.id, outputBytes]]), outputBytes)
     if (objectWritten) await s3.deleteObject(targetStorage, key)
+    if (error instanceof StorageQuotaExceededError) throw new Error('Quota exceeded for generated ZIP archive')
     throw error
   }
 }
@@ -167,57 +175,62 @@ async function runExtractionJob(
   const writtenKeys: string[] = []
   const createdMatterIds: string[] = []
   const folderParents = new Map<string, string>()
-  let outputBytes = 0
   try {
-    for (const folderPath of plan.folders) {
-      await ensureExtractedFolder(folderPath)
-    }
-    const allowed = await incrementUsageIfAllowed(db, orgId, targetStorage.id, plan.totalBytes)
-    if (!allowed) throw new Error('Quota exceeded for extracted ZIP contents')
-    outputBytes = plan.totalBytes
+    return await withStorageUsageReservation(
+      db,
+      { orgId, storageId: targetStorage.id, bytes: plan.totalBytes },
+      async (ctx) => {
+        ctx.onRollback(async () => {
+          await purgeMatters(db, orgId, createdMatterIds)
+          await s3.deleteObjects(targetStorage, writtenKeys)
+        })
 
-    const zipStream = trackReadableStream(await s3.getObjectStream(sourceStorage, zipMatter.object), (chunk) =>
-      progress.addProcessedBytes(chunk.byteLength),
-    )
-    const archive = await streamValidatedZip(zipStream, async (file) => {
-      await progress.setCurrentFilename(file.path)
-      const parent = file.parentPath ? await ensureExtractedFolder(file.parentPath) : targetFolder
-      const key = buildObjectKey({ uid: userId, orgId, rawExt: extension(file.name) })
-      const size = await s3.putObject(targetStorage, key, file.stream, DEFAULT_FILE_MIME)
-      await file.size
-      writtenKeys.push(key)
-      const matter = await createMatter(db, {
-        orgId,
-        userId,
-        name: file.name,
-        type: DEFAULT_FILE_MIME,
-        size,
-        dirtype: DirType.FILE,
-        parent,
-        object: key,
-        storageId: targetStorage.id,
-        status: 'active',
-        onConflict: 'rename',
-      })
-      createdMatterIds.push(matter.id)
-    })
+        for (const folderPath of plan.folders) {
+          await ensureExtractedFolder(folderPath)
+        }
 
-    return updateBackgroundJob(db, orgId, jobId, {
-      status: 'completed',
-      progress: {
-        inputBytes: sourceHead.size,
-        outputBytes: archive.totalBytes,
-        processedBytes: sourceHead.size,
-        fileCount: plan.fileCount,
-        currentFilename: null,
+        const zipStream = trackReadableStream(await s3.getObjectStream(sourceStorage, zipMatter.object), (chunk) =>
+          progress.addProcessedBytes(chunk.byteLength),
+        )
+        const archive = await streamValidatedZip(zipStream, async (file) => {
+          await progress.setCurrentFilename(file.path)
+          const parent = file.parentPath ? await ensureExtractedFolder(file.parentPath) : targetFolder
+          const key = buildObjectKey({ uid: userId, orgId, rawExt: extension(file.name) })
+          const size = await s3.putObject(targetStorage, key, file.stream, DEFAULT_FILE_MIME)
+          await file.size
+          writtenKeys.push(key)
+          const matter = await createMatter(db, {
+            orgId,
+            userId,
+            name: file.name,
+            type: DEFAULT_FILE_MIME,
+            size,
+            dirtype: DirType.FILE,
+            parent,
+            object: key,
+            storageId: targetStorage.id,
+            status: 'active',
+            onConflict: 'rename',
+          })
+          createdMatterIds.push(matter.id)
+        })
+
+        return updateBackgroundJob(db, orgId, jobId, {
+          status: 'completed',
+          progress: {
+            inputBytes: sourceHead.size,
+            outputBytes: archive.totalBytes,
+            processedBytes: sourceHead.size,
+            fileCount: plan.fileCount,
+            currentFilename: null,
+          },
+          resultMetadata: { matterIds: createdMatterIds, outputBytes: archive.totalBytes },
+          cancelable: false,
+        })
       },
-      resultMetadata: { matterIds: createdMatterIds, outputBytes: archive.totalBytes },
-      cancelable: false,
-    })
+    )
   } catch (error) {
-    await purgeMatters(db, orgId, createdMatterIds)
-    if (outputBytes > 0) await decrementUsage(db, orgId, new Map([[targetStorage.id, outputBytes]]), outputBytes)
-    await s3.deleteObjects(targetStorage, writtenKeys)
+    if (error instanceof StorageQuotaExceededError) throw new Error('Quota exceeded for extracted ZIP contents')
     throw error
   }
 

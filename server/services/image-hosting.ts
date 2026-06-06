@@ -2,9 +2,9 @@ import { and, asc, eq, gt, isNotNull, like, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { AllowedImageMime } from '../../shared/schemas'
 import type { ImageHosting } from '../../shared/types'
-import { imageHostingConfigs, imageHostings, orgQuotas, storages } from '../db/schema'
+import { imageHostingConfigs, imageHostings } from '../db/schema'
 import type { Database } from '../platform/interface'
-import { incrementUsageIfEffectiveQuotaAllows } from './effective-quota'
+import { reconcileStorageUsage, StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 
 // ── Token-based redirect helpers (used by /r/:token route) ───────────────────
 
@@ -249,31 +249,30 @@ export async function confirmImageHosting(
   id: string,
   orgId: string,
 ): Promise<{ row: ImageHostingRow | null; quotaExceeded?: boolean }> {
-  const existing = await getImageHosting(db, id, orgId)
-  if (!existing) return { row: null }
-  if (existing.status !== 'draft') return { row: null }
+  try {
+    const existing = await getImageHosting(db, id, orgId)
+    if (!existing) return { row: null }
+    if (existing.status !== 'draft') return { row: null }
 
-  const bytes = existing.size
-  if (bytes > 0) {
-    const allowed = await incrementImageQuotaIfAllowed(db, orgId, existing.storageId, bytes)
-    if (!allowed) return { row: null, quotaExceeded: true }
+    const bytes = existing.size
+    return await withStorageUsageReservation(db, { orgId, storageId: existing.storageId, bytes }, async () => {
+      const updated = await db
+        .update(imageHostings)
+        .set({ status: 'active' })
+        .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId), eq(imageHostings.status, 'draft')))
+        .returning({ id: imageHostings.id })
+
+      if (updated.length === 0) {
+        throw new Error('CONFIRM_IMAGE_RACE')
+      }
+
+      return { row: { ...existing, status: 'active' } }
+    })
+  } catch (error) {
+    if (error instanceof StorageQuotaExceededError) return { row: null, quotaExceeded: true }
+    if (error instanceof Error && error.message === 'CONFIRM_IMAGE_RACE') return { row: null }
+    throw error
   }
-
-  const updated = await db
-    .update(imageHostings)
-    .set({ status: 'active' })
-    .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId), eq(imageHostings.status, 'draft')))
-    .returning({ id: imageHostings.id })
-
-  if (updated.length === 0) {
-    // Concurrent confirm — rollback quota
-    if (bytes > 0) {
-      await decrementImageQuota(db, orgId, existing.storageId, bytes)
-    }
-    return { row: null }
-  }
-
-  return { row: { ...existing, status: 'active' } }
 }
 
 export async function deleteImageHosting(db: Database, id: string, orgId: string): Promise<ImageHostingRow | null> {
@@ -283,36 +282,10 @@ export async function deleteImageHosting(db: Database, id: string, orgId: string
   await db.delete(imageHostings).where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId)))
 
   if (existing.status === 'active' && existing.size > 0) {
-    await decrementImageQuota(db, orgId, existing.storageId, existing.size)
+    await reconcileStorageUsage(db, orgId, [existing.storageId])
   }
 
   return existing
-}
-
-export async function incrementImageQuotaIfAllowed(
-  db: Database,
-  orgId: string,
-  storageId: string,
-  bytes: number,
-): Promise<boolean> {
-  return incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, bytes)
-}
-
-export async function decrementImageQuota(
-  db: Database,
-  orgId: string,
-  storageId: string,
-  bytes: number,
-): Promise<void> {
-  await db
-    .update(storages)
-    .set({ used: sql`MAX(0, ${storages.used} - ${bytes})` })
-    .where(eq(storages.id, storageId))
-
-  await db
-    .update(orgQuotas)
-    .set({ used: sql`MAX(0, ${orgQuotas.used} - ${bytes})` })
-    .where(eq(orgQuotas.orgId, orgId))
 }
 
 export function buildImageUrl(config: ImageHostingConfigRow | null, path: string, tokenUrl: string): string {

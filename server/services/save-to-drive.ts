@@ -6,11 +6,12 @@ import type { Database } from '../platform/interface'
 import { recordActivity } from './activity'
 import { hasQuotaForBytes } from './effective-quota'
 import type { Matter } from './matter'
-import { createMatter, decrementUsage, incrementUsageIfAllowed } from './matter'
+import { createMatter } from './matter'
 import { buildObjectKey } from './path-template'
 import { S3Service } from './s3'
 import type { Share, ShareResolution } from './share'
 import { getStorage, selectStorage } from './storage'
+import { withStorageUsageReservation } from './storage-usage'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,57 +90,45 @@ async function saveFile(
 ): Promise<Matter> {
   const bytes = sourceMatter.size ?? 0
 
-  if (bytes > 0) {
-    const allowed = await incrementUsageIfAllowed(db, targetOrgId, targetStorage.id, bytes, teamQuotaEnabled)
-    if (!allowed) throw new Error('QUOTA_EXCEEDED')
-  }
-
   const dstKey = buildObjectKey({ uid: currentUserId, orgId: targetOrgId, rawExt: fileExt(sourceMatter.name) })
-  let copied = false
 
-  try {
-    if (sourceStorage.id === targetStorage.id) {
-      await s3.copyObject(sourceStorage, sourceMatter.object, targetStorage, dstKey)
-    } else {
-      await s3.streamCopy(sourceStorage, sourceMatter.object, targetStorage, dstKey)
-    }
-    copied = true
-
-    const newMatter = await createMatter(db, {
-      orgId: targetOrgId,
-      name: sourceMatter.name,
-      type: sourceMatter.type,
-      size: bytes ?? undefined,
-      dirtype: DirType.FILE,
-      parent: targetParent,
-      object: dstKey,
-      storageId: targetStorage.id,
-      status: 'active',
-      onConflict: 'rename',
-    })
-
-    await recordActivity(db, {
-      orgId: targetOrgId,
-      userId: currentUserId,
-      action: 'save_from_share',
-      targetType: 'file',
-      targetId: newMatter.id,
-      targetName: newMatter.name,
-      metadata: { sourceShareId: shareId },
-    })
-
-    return newMatter
-  } catch (error) {
-    if (bytes > 0) await decrementUsage(db, targetOrgId, new Map([[targetStorage.id, bytes]]), bytes)
-    if (copied) {
-      try {
-        await s3.deleteObject(targetStorage, dstKey)
-      } catch {
-        // Best-effort cleanup for an object copied before the DB insert failed.
+  return withStorageUsageReservation(
+    db,
+    { orgId: targetOrgId, storageId: targetStorage.id, bytes, teamQuotaEnabled },
+    async (ctx) => {
+      if (sourceStorage.id === targetStorage.id) {
+        await s3.copyObject(sourceStorage, sourceMatter.object, targetStorage, dstKey)
+      } else {
+        await s3.streamCopy(sourceStorage, sourceMatter.object, targetStorage, dstKey)
       }
-    }
-    throw error
-  }
+      ctx.onRollback(() => s3.deleteObject(targetStorage, dstKey))
+
+      const newMatter = await createMatter(db, {
+        orgId: targetOrgId,
+        name: sourceMatter.name,
+        type: sourceMatter.type,
+        size: bytes,
+        dirtype: DirType.FILE,
+        parent: targetParent,
+        object: dstKey,
+        storageId: targetStorage.id,
+        status: 'active',
+        onConflict: 'rename',
+      })
+
+      await recordActivity(db, {
+        orgId: targetOrgId,
+        userId: currentUserId,
+        action: 'save_from_share',
+        targetType: 'file',
+        targetId: newMatter.id,
+        targetName: newMatter.name,
+        metadata: { sourceShareId: shareId },
+      })
+
+      return newMatter
+    },
+  )
 }
 
 // ─── Folder recursive copy ────────────────────────────────────────────────────

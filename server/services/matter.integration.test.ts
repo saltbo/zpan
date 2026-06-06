@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest'
 import { orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
 import { getEffectiveQuota, hasQuotaForBytes } from './effective-quota.js'
-import { confirmUpload, incrementUsageIfAllowed, listTrashedRoots, updateMatter } from './matter.js'
+import { confirmUpload, listTrashedRoots, updateMatter } from './matter.js'
+import {
+  reconcileStorageUsage,
+  reserveStorageUsage,
+  StorageQuotaExceededError,
+  withStorageUsageReservation,
+} from './storage-usage.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -49,6 +55,13 @@ async function insertOrgQuota(db: TestDb, orgId: string, quota: number, used = 0
   }
 }
 
+async function insertOrganization(db: TestDb, orgId: string) {
+  await db.run(sql`
+    INSERT INTO organization (id, name, slug, created_at)
+    VALUES (${orgId}, 'Test Org', ${`org-${orgId}`}, ${Date.now()})
+  `)
+}
+
 async function insertDraftFile(
   db: TestDb,
   orgId: string,
@@ -65,30 +78,30 @@ async function insertDraftFile(
   return id
 }
 
-// ─── incrementUsageIfAllowed ──────────────────────────────────────────────────
+// ─── storage usage reservations ───────────────────────────────────────────────
 
-describe('incrementUsageIfAllowed', () => {
-  it('returns true and increments when no quota row exists (unlimited)', async () => {
+describe('reserveStorageUsage', () => {
+  it('reserves and increments when no quota row exists (unlimited)', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-ul', used: 0 })
 
-    const result = await incrementUsageIfAllowed(db, orgId, storageId, 500)
+    const result = await reserveStorageUsage(db, { orgId, storageId, bytes: 500 })
 
-    expect(result).toBe(true)
+    expect(result).toEqual({ orgId, storageId, bytes: 500 })
     const rows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storageId}`)
     expect(rows[0].used).toBe(500)
   })
 
-  it('returns true and increments when quota is 0 (unlimited)', async () => {
+  it('reserves and increments when quota is 0 (unlimited)', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-q0', used: 100 })
     await insertOrgQuota(db, orgId, 0, 5000)
 
-    const result = await incrementUsageIfAllowed(db, orgId, storageId, 999999)
+    const result = await reserveStorageUsage(db, { orgId, storageId, bytes: 999999 })
 
-    expect(result).toBe(true)
+    expect(result).toEqual({ orgId, storageId, bytes: 999999 })
     const rows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storageId}`)
     expect(rows[0].used).toBe(1000099)
   })
@@ -102,39 +115,38 @@ describe('incrementUsageIfAllowed', () => {
     await expect(getEffectiveQuota(db, orgId)).resolves.toMatchObject({ baseQuota: 0, quota: 0 })
   })
 
-  it('returns true and increments when used + bytes is within quota', async () => {
+  it('reserves when used + bytes is within quota', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-in', used: 0 })
     await insertOrgQuota(db, orgId, 1000, 400)
 
-    const result = await incrementUsageIfAllowed(db, orgId, storageId, 500)
+    const result = await reserveStorageUsage(db, { orgId, storageId, bytes: 500 })
 
-    expect(result).toBe(true)
+    expect(result).toEqual({ orgId, storageId, bytes: 500 })
   })
 
-  it('returns true and increments when used + bytes is exactly at quota', async () => {
+  it('reserves when used + bytes is exactly at quota', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-exact', used: 0 })
     await insertOrgQuota(db, orgId, 1000, 500)
 
-    const result = await incrementUsageIfAllowed(db, orgId, storageId, 500)
+    const result = await reserveStorageUsage(db, { orgId, storageId, bytes: 500 })
 
-    expect(result).toBe(true)
+    expect(result).toEqual({ orgId, storageId, bytes: 500 })
     const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
     expect(quotaRows[0].used).toBe(1000)
   })
 
-  it('returns false and does not increment when used + bytes exceeds quota', async () => {
+  it('rejects and does not increment when used + bytes exceeds quota', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-over', used: 50 })
     await insertOrgQuota(db, orgId, 1000, 800)
 
-    const result = await incrementUsageIfAllowed(db, orgId, storageId, 201)
+    await expect(reserveStorageUsage(db, { orgId, storageId, bytes: 201 })).rejects.toThrow(StorageQuotaExceededError)
 
-    expect(result).toBe(false)
     const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storageId}`)
     expect(storageRows[0].used).toBe(50) // unchanged
     const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
@@ -147,22 +159,19 @@ describe('incrementUsageIfAllowed', () => {
     const storageId = await insertStorage(db, { id: 'st-grant', used: 0 })
     await insertOrgQuota(db, orgId, 1000, 800)
 
-    const result = await incrementUsageIfAllowed(db, orgId, storageId, 600)
+    await expect(reserveStorageUsage(db, { orgId, storageId, bytes: 600 })).rejects.toThrow(StorageQuotaExceededError)
 
-    expect(result).toBe(false)
     const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
     expect(quotaRows[0].used).toBe(800)
   })
 
-  it('returns false and does not increment when quota is fully consumed', async () => {
+  it('rejects when quota is fully consumed', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-full', used: 100 })
     await insertOrgQuota(db, orgId, 1000, 1000)
 
-    const result = await incrementUsageIfAllowed(db, orgId, storageId, 1)
-
-    expect(result).toBe(false)
+    await expect(reserveStorageUsage(db, { orgId, storageId, bytes: 1 })).rejects.toThrow(StorageQuotaExceededError)
   })
 
   it('increments orgQuotas.used when within quota', async () => {
@@ -171,7 +180,7 @@ describe('incrementUsageIfAllowed', () => {
     const storageId = await insertStorage(db, { id: 'st-q-inc', used: 0 })
     await insertOrgQuota(db, orgId, 5000, 200)
 
-    await incrementUsageIfAllowed(db, orgId, storageId, 300)
+    await reserveStorageUsage(db, { orgId, storageId, bytes: 300 })
 
     const rows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
     expect(rows[0].used).toBe(500)
@@ -183,10 +192,64 @@ describe('incrementUsageIfAllowed', () => {
     const storageId = await insertStorage(db, { id: 'st-s-inc', used: 100 })
     await insertOrgQuota(db, orgId, 5000, 100)
 
-    await incrementUsageIfAllowed(db, orgId, storageId, 400)
+    await reserveStorageUsage(db, { orgId, storageId, bytes: 400 })
 
     const rows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storageId}`)
     expect(rows[0].used).toBe(500)
+  })
+
+  it('rolls back reserved usage and registered cleanup when the mutation fails', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const storageId = await insertStorage(db, { id: 'st-rb', used: 10 })
+    await insertOrgQuota(db, orgId, 1000, 10)
+    const cleaned: string[] = []
+
+    await expect(
+      withStorageUsageReservation(db, { orgId, storageId, bytes: 300 }, async (ctx) => {
+        ctx.onRollback(() => {
+          cleaned.push('object-key')
+        })
+        throw new Error('persist failed')
+      }),
+    ).rejects.toThrow('persist failed')
+
+    expect(cleaned).toEqual(['object-key'])
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storageId}`)
+    expect(storageRows[0].used).toBe(10)
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(quotaRows[0].used).toBe(10)
+  })
+
+  it('reconciles active and trashed files plus active image hostings', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const storageId = await insertStorage(db, { id: 'st-rec', used: 9999 })
+    await insertOrganization(db, orgId)
+    await insertOrgQuota(db, orgId, 5000, 9999)
+    const now = Date.now()
+
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
+      VALUES
+        ('active-file', ${orgId}, 'active-file-alias', 'active.txt', 'text/plain', 100, 0, '', 'active-key', ${storageId}, 'active', NULL, ${now}, ${now}),
+        ('trashed-file', ${orgId}, 'trashed-file-alias', 'trashed.txt', 'text/plain', 200, 0, '', 'trashed-key', ${storageId}, 'trashed', ${now}, ${now}, ${now}),
+        ('draft-file', ${orgId}, 'draft-file-alias', 'draft.txt', 'text/plain', 300, 0, '', 'draft-key', ${storageId}, 'draft', NULL, ${now}, ${now}),
+        ('active-folder', ${orgId}, 'active-folder-alias', 'Folder', 'folder', 400, 1, '', '', ${storageId}, 'active', NULL, ${now}, ${now})
+    `)
+    await db.run(sql`
+      INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
+      VALUES
+        ('active-image', ${orgId}, 'ih_active', 'active.png', ${storageId}, 'ih/active.png', 50, 'image/png', 'active', 0, ${now}),
+        ('draft-image', ${orgId}, 'ih_draft', 'draft.png', ${storageId}, 'ih/draft.png', 70, 'image/png', 'draft', 0, ${now})
+    `)
+
+    await reconcileStorageUsage(db, orgId, [storageId])
+
+    const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${storageId}`)
+    expect(storageRows[0].used).toBe(350)
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(quotaRows[0].used).toBe(350)
   })
 })
 

@@ -2,16 +2,16 @@ import type { SQL } from 'drizzle-orm'
 import { and, asc, count, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { DirType } from '../../shared/constants'
-import { matters, orgQuotas, storages } from '../db/schema'
+import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { recordActivity } from './activity'
-import { incrementUsageIfEffectiveQuotaAllows } from './effective-quota'
 import {
   applyConflictResolution,
   type ConflictStrategy,
   commitConflictPlan,
   planConflictResolution,
 } from './matter-name-conflict'
+import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 
 export type Matter = typeof matters.$inferSelect
 
@@ -259,69 +259,62 @@ export async function confirmUpload(
   orgId: string,
   opts: { onConflict?: ConflictStrategy; userId?: string; teamQuotaEnabled?: boolean } = {},
 ): Promise<{ matter: Matter | null; quotaExceeded?: boolean }> {
-  const existing = await getMatter(db, id, orgId)
-  if (!existing) return { matter: null }
-  if (existing.status !== 'draft') return { matter: null }
+  try {
+    const existing = await getMatter(db, id, orgId)
+    if (!existing) return { matter: null }
+    if (existing.status !== 'draft') return { matter: null }
 
-  // Plan-then-commit: between draft creation and now, another user may have
-  // created a conflicting active row. We plan (side-effect-free) first so the
-  // quota check below can short-circuit without ever trashing an incumbent
-  // file. The DB's partial unique index fires on the status update as a final
-  // safety net against concurrent confirms.
-  const plan = await planConflictResolution(db, orgId, existing.parent, existing.name, opts.onConflict ?? 'fail', {
-    excludeId: existing.id,
-    isFolder: false,
-    userId: opts.userId,
-  })
-
-  const bytes = existing.size ?? 0
-  if (bytes > 0) {
-    const allowed = await incrementUsageIfAllowed(db, orgId, existing.storageId, bytes, opts.teamQuotaEnabled ?? true)
-    if (!allowed) return { matter: null, quotaExceeded: true }
-  }
-
-  // Quota reserved — now safe to execute the replace (if any).
-  await commitConflictPlan(db, orgId, plan, opts.userId)
-
-  const now = new Date()
-  const updated = await db
-    .update(matters)
-    .set({ name: plan.finalName, status: 'active', updatedAt: now })
-    .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft')))
-    .returning({ id: matters.id })
-
-  if (updated.length === 0) {
-    // Concurrent confirm won the race — rollback the quota increment
-    if (bytes > 0) {
-      await decrementUsage(db, orgId, new Map([[existing.storageId, bytes]]), bytes)
-    }
-    return { matter: null }
-  }
-
-  const confirmed = { ...existing, name: plan.finalName, status: 'active', updatedAt: now }
-
-  if (opts.userId) {
-    await recordActivity(db, {
-      orgId,
+    // Plan-then-commit: between draft creation and now, another user may have
+    // created a conflicting active row. We plan (side-effect-free) first so the
+    // quota check below can short-circuit without ever trashing an incumbent
+    // file. The DB's partial unique index fires on the status update as a final
+    // safety net against concurrent confirms.
+    const plan = await planConflictResolution(db, orgId, existing.parent, existing.name, opts.onConflict ?? 'fail', {
+      excludeId: existing.id,
+      isFolder: false,
       userId: opts.userId,
-      action: 'upload_confirm',
-      targetType: 'file',
-      targetId: confirmed.id,
-      targetName: confirmed.name,
     })
+
+    const bytes = existing.size ?? 0
+    return await withStorageUsageReservation(
+      db,
+      { orgId, storageId: existing.storageId, bytes, teamQuotaEnabled: opts.teamQuotaEnabled ?? true },
+      async () => {
+        // Quota reserved — now safe to execute the replace (if any).
+        await commitConflictPlan(db, orgId, plan, opts.userId)
+
+        const now = new Date()
+        const updated = await db
+          .update(matters)
+          .set({ name: plan.finalName, status: 'active', updatedAt: now })
+          .where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft')))
+          .returning({ id: matters.id })
+
+        if (updated.length === 0) {
+          throw new Error('CONFIRM_UPLOAD_RACE')
+        }
+
+        const confirmed = { ...existing, name: plan.finalName, status: 'active', updatedAt: now }
+
+        if (opts.userId) {
+          await recordActivity(db, {
+            orgId,
+            userId: opts.userId,
+            action: 'upload_confirm',
+            targetType: 'file',
+            targetId: confirmed.id,
+            targetName: confirmed.name,
+          })
+        }
+
+        return { matter: confirmed }
+      },
+    )
+  } catch (error) {
+    if (error instanceof StorageQuotaExceededError) return { matter: null, quotaExceeded: true }
+    if (error instanceof Error && error.message === 'CONFIRM_UPLOAD_RACE') return { matter: null }
+    throw error
   }
-
-  return { matter: confirmed }
-}
-
-export async function incrementUsageIfAllowed(
-  db: Database,
-  orgId: string,
-  storageId: string,
-  bytes: number,
-  teamQuotaEnabled = true,
-): Promise<boolean> {
-  return incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, bytes, teamQuotaEnabled)
 }
 
 export async function copyMatter(
@@ -697,25 +690,4 @@ export async function listTrashedRoots(db: Database, orgId: string): Promise<Mat
 
   const trashedPaths = new Set(all.map((m) => buildPath(m.parent, m.name)))
   return all.filter((m) => !trashedPaths.has(m.parent))
-}
-
-export async function decrementUsage(
-  db: Database,
-  orgId: string,
-  bytesByStorage: Map<string, number>,
-  totalBytes: number,
-): Promise<void> {
-  for (const [storageId, bytes] of bytesByStorage) {
-    if (bytes <= 0) continue
-    await db
-      .update(storages)
-      .set({ used: sql`MAX(0, ${storages.used} - ${bytes})` })
-      .where(eq(storages.id, storageId))
-  }
-  if (totalBytes > 0) {
-    await db
-      .update(orgQuotas)
-      .set({ used: sql`MAX(0, ${orgQuotas.used} - ${totalBytes})` })
-      .where(eq(orgQuotas.orgId, orgId))
-  }
 }

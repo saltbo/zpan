@@ -9,18 +9,16 @@ import { matters } from '../db/schema'
 import type { Env } from '../middleware/platform'
 import { ApiKeyRateLimitError, verifyApiKeyForPermission } from '../services/api-keys'
 import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
-import {
-  copyMatter,
-  createMatter,
-  decrementUsage,
-  incrementUsageIfAllowed,
-  trashMatter,
-  updateMatter,
-} from '../services/matter'
+import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
 import { NameConflictError } from '../services/matter-name-conflict'
 import { buildObjectKey } from '../services/path-template'
 import { S3Service } from '../services/s3'
 import { getStorage, selectStorage } from '../services/storage'
+import {
+  reconcileStorageUsage,
+  StorageQuotaExceededError,
+  withStorageUsageReservation,
+} from '../services/storage-usage'
 import {
   ensureFolder,
   joinMatterPath,
@@ -884,59 +882,94 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
     const knownSizeDelta =
       contentLength === null ? 0 : target.matter ? contentLength - (target.matter.size ?? 0) : contentLength
-    if (knownSizeDelta > 0) {
-      const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, knownSizeDelta)
-      if (!allowed) return c.text('Quota exceeded', 422)
-    }
 
-    let uploadedSize = 0
     try {
-      uploadedSize = await s3.putObject(storage, objectKey, body, contentType, contentLength ?? undefined)
+      return await withStorageUsageReservation(
+        db,
+        { orgId: workspace.id, storageId: storage.id, bytes: Math.max(0, knownSizeDelta) },
+        async (ctx) => {
+          const uploadedSize = await s3.putObject(storage, objectKey, body, contentType, contentLength ?? undefined)
+          const sizeDelta = target.matter ? uploadedSize - (target.matter.size ?? 0) : uploadedSize
+
+          if (!target.matter || objectKey !== target.matter.object) {
+            ctx.onRollback(() => s3.deleteObject(storage, objectKey))
+          }
+
+          if (contentLength === null && sizeDelta > 0) {
+            return withStorageUsageReservation(
+              db,
+              { orgId: workspace.id, storageId: storage.id, bytes: sizeDelta },
+              async () => {
+                return persistWebDavUpload(
+                  db,
+                  workspace.id,
+                  auth.userId,
+                  target,
+                  storage,
+                  objectKey,
+                  contentType,
+                  uploadedSize,
+                )
+              },
+            )
+          }
+
+          const response = await persistWebDavUpload(
+            db,
+            workspace.id,
+            auth.userId,
+            target,
+            storage,
+            objectKey,
+            contentType,
+            uploadedSize,
+          )
+          if (sizeDelta < 0) await reconcileStorageUsage(db, workspace.id, [storage.id])
+          return response
+        },
+      )
     } catch (e) {
-      if (knownSizeDelta > 0)
-        await decrementUsage(db, workspace.id, new Map([[storage.id, knownSizeDelta]]), knownSizeDelta)
+      if (e instanceof StorageQuotaExceededError) return c.text('Quota exceeded', 422)
       throw e
     }
-
-    const sizeDelta = target.matter ? uploadedSize - (target.matter.size ?? 0) : uploadedSize
-    if (contentLength === null && sizeDelta > 0) {
-      const allowed = await incrementUsageIfAllowed(db, workspace.id, storage.id, sizeDelta)
-      if (!allowed) {
-        await s3.deleteObject(storage, objectKey)
-        return c.text('Quota exceeded', 422)
-      }
-    }
-
-    if (sizeDelta < 0) {
-      await decrementUsage(db, workspace.id, new Map([[storage.id, Math.abs(sizeDelta)]]), Math.abs(sizeDelta))
-    }
-
-    if (target.matter) {
-      const now = new Date()
-      await db
-        .update(matters)
-        .set({ type: contentType, size: uploadedSize, object: objectKey, updatedAt: now })
-        .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, workspace.id)))
-      if (objectKey !== target.matter.object) await s3.deleteObject(storage, target.matter.object)
-      return new Response(null, { status: 204 })
-    }
-
-    await createMatter(db, {
-      orgId: workspace.id,
-      userId: auth.userId,
-      name: target.name,
-      type: contentType,
-      size: uploadedSize,
-      dirtype: DirType.FILE,
-      parent: target.parent,
-      object: objectKey,
-      storageId: storage.id,
-      status: ObjectStatus.ACTIVE,
-    })
-    return new Response(null, { status: 201 })
   } catch (e) {
     return davError(c, e)
   }
+}
+
+async function persistWebDavUpload(
+  db: Env['Variables']['platform']['db'],
+  orgId: string,
+  userId: string,
+  target: WebDavTarget,
+  storage: S3Storage,
+  objectKey: string,
+  contentType: string,
+  uploadedSize: number,
+): Promise<Response> {
+  if (target.matter) {
+    const now = new Date()
+    await db
+      .update(matters)
+      .set({ type: contentType, size: uploadedSize, object: objectKey, updatedAt: now })
+      .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, orgId)))
+    if (objectKey !== target.matter.object) await s3.deleteObject(storage, target.matter.object)
+    return new Response(null, { status: 204 })
+  }
+
+  await createMatter(db, {
+    orgId,
+    userId,
+    name: target.name,
+    type: contentType,
+    size: uploadedSize,
+    dirtype: DirType.FILE,
+    parent: target.parent,
+    object: objectKey,
+    storageId: storage.id,
+    status: ObjectStatus.ACTIVE,
+  })
+  return new Response(null, { status: 201 })
 }
 
 async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
@@ -1052,9 +1085,10 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
     const source = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
     const sourceWorkspace = requireWorkspace(source)
     if (!source.matter) throw new WebDavPathError('Not found', 404)
+    const sourceMatter = source.matter
     const ifFailed = await ifHeaderPrecondition(c, auth, source)
     if (ifFailed) return ifFailed
-    const precondition = preconditionResponse(c, source.matter)
+    const precondition = preconditionResponse(c, sourceMatter)
     if (precondition) return precondition
     const destination = destinationPath(c)
     if (destination instanceof Response) return destination
@@ -1062,9 +1096,9 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
     const targetWorkspace = requireWorkspace(target)
     if (sourceWorkspace.id !== targetWorkspace.id) return c.text('Cross-workspace COPY is not supported', 403)
     if (!target.name) return c.text('Cannot copy to collection root', 405)
-    const oldPath = joinMatterPath(source.matter.parent, source.matter.name)
+    const oldPath = joinMatterPath(sourceMatter.parent, sourceMatter.name)
     const newPath = joinMatterPath(target.parent, target.name)
-    if (source.matter.dirtype !== DirType.FILE && (newPath === oldPath || newPath.startsWith(`${oldPath}/`))) {
+    if (sourceMatter.dirtype !== DirType.FILE && (newPath === oldPath || newPath.startsWith(`${oldPath}/`))) {
       return xmlResponse(errorXml('forbidden', 'Cannot copy a collection into itself or its descendant.'), 403)
     }
     const targetLocked = await lockPrecondition(c, target)
@@ -1073,46 +1107,43 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
     const replacingTarget = Boolean(target.matter)
     await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
 
-    if (source.matter.dirtype !== DirType.FILE) {
+    if (sourceMatter.dirtype !== DirType.FILE) {
       return copyCollection(c, auth, source, target, replacingTarget)
     }
 
     let newObject = ''
-    let reservedUsage: { storageId: string; bytes: number } | null = null
     try {
-      if (source.matter.object) {
-        const storage = (await getStorage(db, source.matter.storageId)) as unknown as S3Storage | null
-        if (!storage) return c.text('Storage not found', 404)
-        const bytes = source.matter.size ?? 0
-        if (bytes > 0) {
-          const allowed = await incrementUsageIfAllowed(db, sourceWorkspace.id, storage.id, bytes)
-          if (!allowed) return c.text('Quota exceeded', 422)
-          reservedUsage = { storageId: storage.id, bytes }
-        }
-        newObject = buildObjectKey({ uid: auth.userId, orgId: sourceWorkspace.id, rawExt: fileExt(target.name) })
-        await s3.copyObject(storage, source.matter.object, storage, newObject)
-      }
+      const storage = sourceMatter.object
+        ? ((await getStorage(db, sourceMatter.storageId)) as unknown as S3Storage | null)
+        : null
+      if (sourceMatter.object && !storage) return c.text('Storage not found', 404)
+      const bytes = sourceMatter.size ?? 0
 
-      if (target.matter) {
-        await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
-        await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
-      }
-      const copy = await copyMatter(db, { ...source.matter, name: target.name }, target.parent, newObject, {
-        onConflict: 'fail',
-        userId: auth.userId,
-      })
-      await copyDeadProperties(db, sourceWorkspace.id, resourcePath(source), joinMatterPath(copy.parent, copy.name))
-      c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(copy.parent, copy.name)))
-      return c.body(null, replacingTarget ? 204 : 201)
+      return await withStorageUsageReservation(
+        db,
+        { orgId: sourceWorkspace.id, storageId: sourceMatter.storageId, bytes },
+        async (ctx) => {
+          if (sourceMatter.object && storage) {
+            newObject = buildObjectKey({ uid: auth.userId, orgId: sourceWorkspace.id, rawExt: fileExt(target.name) })
+            await s3.copyObject(storage, sourceMatter.object, storage, newObject)
+            ctx.onRollback(() => s3.deleteObject(storage, newObject))
+          }
+
+          if (target.matter) {
+            await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
+            await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+          }
+          const copy = await copyMatter(db, { ...sourceMatter, name: target.name }, target.parent, newObject, {
+            onConflict: 'fail',
+            userId: auth.userId,
+          })
+          await copyDeadProperties(db, sourceWorkspace.id, resourcePath(source), joinMatterPath(copy.parent, copy.name))
+          c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(copy.parent, copy.name)))
+          return c.body(null, replacingTarget ? 204 : 201)
+        },
+      )
     } catch (e) {
-      if (reservedUsage) {
-        await decrementUsage(
-          db,
-          sourceWorkspace.id,
-          new Map([[reservedUsage.storageId, reservedUsage.bytes]]),
-          reservedUsage.bytes,
-        )
-      }
+      if (e instanceof StorageQuotaExceededError) return c.text('Quota exceeded', 422)
       throw e
     }
   } catch (e) {
@@ -1131,18 +1162,17 @@ async function copyCollection(
   const sourceWorkspace = requireWorkspace(source)
   const targetWorkspace = requireWorkspace(target)
   if (!source.matter) throw new WebDavPathError('Not found', 404)
+  const sourceMatter = source.matter
 
   const depth = c.req.header('Depth') ?? 'infinity'
   if (depth !== '0' && depth !== 'infinity') return xmlResponse(errorXml('bad-depth'), 400)
 
-  const sourceRoot = joinMatterPath(source.matter.parent, source.matter.name)
+  const sourceRoot = joinMatterPath(sourceMatter.parent, sourceMatter.name)
   const targetRoot = joinMatterPath(target.parent, target.name)
   const children = await listChildren(db, sourceWorkspace.id, sourceRoot)
   const descendants = await listDescendants(db, sourceWorkspace.id, sourceRoot)
   const ordered =
     depth === 'infinity' ? [...children, ...descendants].sort((a, b) => a.parent.length - b.parent.length) : []
-  const reservedUsage: Array<{ storageId: string; bytes: number }> = []
-  const copiedObjects: Array<{ storage: S3Storage; key: string }> = []
   const preparedCopies: Array<{ item: (typeof ordered)[number]; targetParent: string; objectKey: string }> = []
   const createdIds: string[] = []
   const targetRows =
@@ -1155,59 +1185,58 @@ async function copyCollection(
       : target.matter
         ? [target.matter]
         : []
+  const reservationInputs = ordered
+    .filter((item) => item.dirtype === DirType.FILE && item.object && (item.size ?? 0) > 0)
+    .map((item) => ({ orgId: targetWorkspace.id, storageId: item.storageId, bytes: item.size ?? 0 }))
 
   try {
-    for (const item of ordered) {
-      const targetParent =
-        item.parent === sourceRoot ? targetRoot : `${targetRoot}${item.parent.slice(sourceRoot.length)}`
-      let objectKey = ''
-      if (item.dirtype === DirType.FILE && item.object) {
-        const storage = (await getStorage(db, item.storageId)) as unknown as S3Storage | null
-        if (!storage) return c.text('Storage not found', 404)
-        const bytes = item.size ?? 0
-        if (bytes > 0) {
-          const allowed = await incrementUsageIfAllowed(db, targetWorkspace.id, storage.id, bytes)
-          if (!allowed) return c.text('Quota exceeded', 422)
-          reservedUsage.push({ storageId: storage.id, bytes })
+    return await withStorageUsageReservation(db, reservationInputs, async (ctx) => {
+      for (const item of ordered) {
+        const targetParent =
+          item.parent === sourceRoot ? targetRoot : `${targetRoot}${item.parent.slice(sourceRoot.length)}`
+        let objectKey = ''
+        if (item.dirtype === DirType.FILE && item.object) {
+          const storage = (await getStorage(db, item.storageId)) as unknown as S3Storage | null
+          if (!storage) return c.text('Storage not found', 404)
+          objectKey = buildObjectKey({ uid: auth.userId, orgId: targetWorkspace.id, rawExt: fileExt(item.name) })
+          await s3.copyObject(storage, item.object, storage, objectKey)
+          ctx.onRollback(() => s3.deleteObject(storage, objectKey))
         }
-        objectKey = buildObjectKey({ uid: auth.userId, orgId: targetWorkspace.id, rawExt: fileExt(item.name) })
-        await s3.copyObject(storage, item.object, storage, objectKey)
-        copiedObjects.push({ storage, key: objectKey })
+        preparedCopies.push({ item, targetParent, objectKey })
       }
-      preparedCopies.push({ item, targetParent, objectKey })
-    }
 
-    if (target.matter) {
-      await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
-      await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
-    }
+      if (target.matter) {
+        await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
+        await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
+      }
 
-    const rootCopy = await copyMatter(db, { ...source.matter, name: target.name }, target.parent, '', {
-      onConflict: 'fail',
-      userId: auth.userId,
-    })
-    createdIds.push(rootCopy.id)
-    await copyDeadProperties(db, sourceWorkspace.id, sourceRoot, joinMatterPath(rootCopy.parent, rootCopy.name))
-
-    for (const prepared of preparedCopies) {
-      const copy = await copyMatter(db, prepared.item, prepared.targetParent, prepared.objectKey, {
+      const rootCopy = await copyMatter(db, { ...sourceMatter, name: target.name }, target.parent, '', {
         onConflict: 'fail',
         userId: auth.userId,
       })
-      createdIds.push(copy.id)
-      await copyDeadProperties(
-        db,
-        sourceWorkspace.id,
-        joinMatterPath(prepared.item.parent, prepared.item.name),
-        joinMatterPath(copy.parent, copy.name),
-      )
-    }
+      createdIds.push(rootCopy.id)
+      await copyDeadProperties(db, sourceWorkspace.id, sourceRoot, joinMatterPath(rootCopy.parent, rootCopy.name))
 
-    c.header(
-      'Location',
-      matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(rootCopy.parent, rootCopy.name)),
-    )
-    return c.body(null, replacingTarget ? 204 : 201)
+      for (const prepared of preparedCopies) {
+        const copy = await copyMatter(db, prepared.item, prepared.targetParent, prepared.objectKey, {
+          onConflict: 'fail',
+          userId: auth.userId,
+        })
+        createdIds.push(copy.id)
+        await copyDeadProperties(
+          db,
+          sourceWorkspace.id,
+          joinMatterPath(prepared.item.parent, prepared.item.name),
+          joinMatterPath(copy.parent, copy.name),
+        )
+      }
+
+      c.header(
+        'Location',
+        matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(rootCopy.parent, rootCopy.name)),
+      )
+      return c.body(null, replacingTarget ? 204 : 201)
+    })
   } catch (e) {
     if (createdIds.length > 0) {
       await db
@@ -1217,14 +1246,7 @@ async function copyCollection(
       await deleteWebDavState(db, targetWorkspace.id, targetRoot)
     }
     if (targetRows.length > 0) await restoreActiveMatterRows(db, targetRows)
-    await Promise.all(copiedObjects.map((object) => s3.deleteObject(object.storage, object.key)))
-    const byStorage = new Map<string, number>()
-    let total = 0
-    for (const item of reservedUsage) {
-      byStorage.set(item.storageId, (byStorage.get(item.storageId) ?? 0) + item.bytes)
-      total += item.bytes
-    }
-    if (total > 0) await decrementUsage(db, targetWorkspace.id, byStorage, total)
+    if (e instanceof StorageQuotaExceededError) return c.text('Quota exceeded', 422)
     throw e
   }
 }

@@ -17,17 +17,16 @@ import {
   buildImageUrl,
   confirmImageHosting,
   createImageHosting,
-  decrementImageQuota,
   deleteImageHosting,
   deriveDefaultPath,
   getImageHosting,
   getImageHostingConfig,
-  incrementImageQuotaIfAllowed,
   listImageHostings,
   validatePath,
 } from '../services/image-hosting'
 import { S3Service } from '../services/s3'
 import { getStorage, selectStorage } from '../services/storage'
+import { StorageQuotaExceededError, withStorageUsageReservation } from '../services/storage-usage'
 import { PRESIGN_TTL_SECS } from './share-utils'
 
 const s3 = new S3Service()
@@ -163,48 +162,56 @@ const app = new Hono<Env>()
     const pathErr = validatePath(requestedPath)
     if (pathErr) return c.json(pathErr, 400)
 
-    const allowed = await incrementImageQuotaIfAllowed(db, orgId, storage.id, fileBytes.byteLength)
-    if (!allowed) return c.json({ error: 'Quota exceeded' }, 422)
-
-    const row = await createImageHosting(db, {
-      orgId,
-      path: requestedPath,
-      mime: mime as (typeof ALLOWED_IMAGE_MIMES)[number],
-      size: fileBytes.byteLength,
-      storageId: storage.id,
-      status: 'draft',
-    })
-
     try {
-      await s3.putObject(storage, row.storageKey, fileBytes, mime)
+      const row = await withStorageUsageReservation(
+        db,
+        { orgId, storageId: storage.id, bytes: fileBytes.byteLength },
+        async (ctx) => {
+          const row = await createImageHosting(db, {
+            orgId,
+            path: requestedPath,
+            mime: mime as (typeof ALLOWED_IMAGE_MIMES)[number],
+            size: fileBytes.byteLength,
+            storageId: storage.id,
+            status: 'draft',
+          })
+
+          ctx.onRollback(async () => {
+            await db.delete(imageHostings).where(and(eq(imageHostings.id, row.id), eq(imageHostings.orgId, orgId)))
+            await s3.deleteObject(storage, row.storageKey)
+          })
+
+          await s3.putObject(storage, row.storageKey, fileBytes, mime)
+
+          await db
+            .update(imageHostings)
+            .set({ status: 'active' })
+            .where(and(eq(imageHostings.id, row.id), eq(imageHostings.orgId, orgId)))
+
+          return row
+        },
+      )
+
+      const origin = new URL(c.req.url).origin
+      const tokenUrl = `${origin}/r/${row.token}`
+      const url = buildImageUrl(config, row.path, tokenUrl)
+
+      return c.json(
+        {
+          data: {
+            url,
+            urlAlt: tokenUrl,
+            markdown: `![](${url})`,
+            html: `<img src="${url}" />`,
+            bbcode: `[img]${url}[/img]`,
+          },
+        },
+        201,
+      )
     } catch (err) {
-      // S3 put failed — remove DB row and refund the quota we already incremented
-      await db.delete(imageHostings).where(and(eq(imageHostings.id, row.id), eq(imageHostings.orgId, orgId)))
-      await decrementImageQuota(db, orgId, storage.id, fileBytes.byteLength)
+      if (err instanceof StorageQuotaExceededError) return c.json({ error: 'Quota exceeded' }, 422)
       throw err
     }
-
-    await db
-      .update(imageHostings)
-      .set({ status: 'active' })
-      .where(and(eq(imageHostings.id, row.id), eq(imageHostings.orgId, orgId)))
-
-    const origin = new URL(c.req.url).origin
-    const tokenUrl = `${origin}/r/${row.token}`
-    const url = buildImageUrl(config, row.path, tokenUrl)
-
-    return c.json(
-      {
-        data: {
-          url,
-          urlAlt: tokenUrl,
-          markdown: `![](${url})`,
-          html: `<img src="${url}" />`,
-          bbcode: `[img]${url}[/img]`,
-        },
-      },
-      201,
-    )
   })
 
   // ── POST /api/ihost/images/presign ─────────────────────────────────────────
