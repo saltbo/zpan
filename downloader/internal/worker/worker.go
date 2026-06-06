@@ -254,6 +254,15 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 				log.Info("task canceled by control action")
 				return
 			}
+			zero := int64(0)
+			if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
+				Status:           "assigned",
+				DownloadBps:      &zero,
+				StorageUploadBps: &zero,
+				Detail:           currentDetail,
+			}); updateErr != nil {
+				log.Error("failed to mark task resumable after shutdown", "error", updateErr)
+			}
 			log.Info("task stopped by context cancellation")
 			return
 		}
@@ -313,9 +322,29 @@ func (w *Worker) uploadAndComplete(
 	task.Detail = currentDetail
 	resultObjectID, err := w.uploadResult(ctx, log, task, result)
 	if err != nil {
+		downloadedBytes := result.Size
+		if errors.Is(err, context.Canceled) {
+			uploadingDetail := task.Detail
+			if uploadingDetail == nil {
+				uploadingDetail = &client.DownloadTaskDetail{}
+			}
+			uploadingDetail.Phase = "uploading"
+			uploadingDetail.PeerUploadBps = nil
+			if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{
+				Status:           "uploading",
+				DownloadedBytes:  &downloadedBytes,
+				TotalBytes:       &downloadedBytes,
+				DownloadBps:      &zero,
+				StorageUploadBps: &zero,
+				Detail:           uploadingDetail,
+			}); updateErr != nil {
+				log.Error("failed to mark task uploading after shutdown", "error", updateErr)
+			}
+			log.Info("task upload stopped by context cancellation")
+			return
+		}
 		msg := taskErrorMessage(err)
 		log.Error("failed to upload result", "error", err)
-		downloadedBytes := result.Size
 		failedDetail := task.Detail
 		if failedDetail == nil {
 			failedDetail = &client.DownloadTaskDetail{}

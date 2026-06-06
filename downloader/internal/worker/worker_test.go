@@ -256,6 +256,46 @@ func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
 	}
 }
 
+func TestDownloadShutdownMarksTaskAssigned(t *testing.T) {
+	api := &recordingAPI{}
+	eng := &recordingEngine{downloadErr: context.Canceled}
+	w := NewWithAPI(config.Config{}, api)
+	w.engine = eng
+
+	w.process(context.Background(), client.DownloadTask{ID: "task-1", Status: "running"})
+
+	patch := lastPatchWithStatus(t, api.patches, "assigned")
+	if patch.DownloadBps == nil || *patch.DownloadBps != 0 {
+		t.Fatalf("expected download speed to be reset, got %#v", patch.DownloadBps)
+	}
+}
+
+func TestUploadShutdownKeepsTaskUploading(t *testing.T) {
+	payloadPath := writeTempFile(t, "downloaded payload")
+	api := &recordingAPI{
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", UploadURL: "http://127.0.0.1:1"},
+	}
+	w := NewWithAPI(config.Config{}, api)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	w.uploadAndComplete(
+		ctx,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		client.DownloadTask{ID: "task-1", Status: "running", UploadToken: "upload-token"},
+		engine.Result{Path: payloadPath, Name: "payload.bin", Size: int64(len("downloaded payload"))},
+		nil,
+	)
+
+	patch := lastPatchWithStatus(t, api.patches, "uploading")
+	if patch.DownloadedBytes == nil || *patch.DownloadedBytes != int64(len("downloaded payload")) {
+		t.Fatalf("expected upload shutdown to preserve downloaded checkpoint, got %#v", patch.DownloadedBytes)
+	}
+	if _, ok := findPatchWithStatus(api.patches, "failed"); ok {
+		t.Fatalf("expected upload shutdown not to mark failed, got %#v", api.patches)
+	}
+}
+
 func TestUploadETARoundsRemainingSeconds(t *testing.T) {
 	eta := uploadETA(&uploadProgress{uploaded: 25, totalBytes: 100}, 20)
 
@@ -609,17 +649,25 @@ func clientTask(id string) client.DownloadTask {
 
 func lastPatchWithStatus(t *testing.T, patches []client.TaskPatch, status string) client.TaskPatch {
 	t.Helper()
+	patch, ok := findPatchWithStatus(patches, status)
+	if !ok {
+		t.Fatalf("expected patch with status %q in %#v", status, patches)
+	}
+	return patch
+}
+
+func findPatchWithStatus(patches []client.TaskPatch, status string) (client.TaskPatch, bool) {
 	for i := len(patches) - 1; i >= 0; i-- {
 		if patches[i].Status == status {
-			return patches[i]
+			return patches[i], true
 		}
 	}
-	t.Fatalf("expected patch with status %q in %#v", status, patches)
-	return client.TaskPatch{}
+	return client.TaskPatch{}, false
 }
 
 type recordingEngine struct {
 	downloadResult engine.Result
+	downloadErr    error
 	recoverResult  engine.Result
 	recovered      bool
 	restoreSeed    *engine.Seed
@@ -652,7 +700,7 @@ func (e *recordingEngine) RestoreSeed(context.Context, engine.SeedRef) (*engine.
 
 func (e *recordingEngine) Download(context.Context, client.DownloadTask, engine.Progress) (engine.Result, error) {
 	e.downloadCalls++
-	return e.downloadResult, nil
+	return e.downloadResult, e.downloadErr
 }
 
 type recordingAPI struct {

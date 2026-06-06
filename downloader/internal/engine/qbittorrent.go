@@ -45,7 +45,7 @@ func (q QBittorrent) Start(ctx context.Context) (*exec.Cmd, error) {
 	if strings.Contains(filepathBase(path), "qbittorrent-nox") {
 		args = append(args, "--webui-port="+webURL.port)
 	}
-	cmd := exec.CommandContext(ctx, path, args...)
+	cmd := exec.Command(path, args...)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}

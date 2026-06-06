@@ -90,7 +90,7 @@ func (a Aria2) Start(ctx context.Context) (*exec.Cmd, error) {
 	if a.Secret != "" {
 		args = append(args, "--rpc-secret="+a.Secret)
 	}
-	cmd := exec.CommandContext(ctx, path, args...)
+	cmd := exec.Command(path, args...)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
