@@ -180,14 +180,22 @@ func (w *Worker) reportRetainedSeeds(ctx context.Context) {
 			continue
 		}
 		snapshot.Runtime.Phase = "seeding"
+		snapshot.Runtime.ETASeconds = nil
 		if snapshot.Runtime.Seeding == nil {
 			snapshot.Runtime.Seeding = &client.DownloadTaskSeedingRuntime{}
 		}
 		active := true
 		snapshot.Runtime.Seeding.Active = &active
+		snapshot.Runtime.Progress = &client.DownloadTaskProgress{
+			Download: *transferProgress(snapshot.Downloaded, snapshot.Total, 0),
+			Upload:   *transferProgress(seed.size, &seed.size, 0),
+		}
 		_, err = w.updateTask(ctx, seed.taskID, client.TaskPatch{
-			Progress: downloadProgressPatch(snapshot.Downloaded, snapshot.Total, 0),
-			Runtime:  snapshot.Runtime,
+			Progress: &client.DownloadTaskProgressPatch{
+				Download: transferProgress(snapshot.Downloaded, snapshot.Total, 0),
+				Upload:   transferProgress(seed.size, &seed.size, 0),
+			},
+			Runtime: snapshot.Runtime,
 		})
 		if err != nil {
 			log.Warn("failed to report retained bt seed", "error", err)

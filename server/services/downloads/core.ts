@@ -569,29 +569,12 @@ function nextTaskRuntime(
   status: string,
   now: Date,
 ): DownloadTaskRuntime | null {
-  const runtime = input === undefined ? current : input === null ? null : mergeTaskRuntimePatch(current, input)
+  const runtime = input === undefined ? current : input
   const merged = mergeTaskRuntime(runtime, progress, now)
   if (!EXECUTABLE_TASK_STATUSES.includes(status as (typeof EXECUTABLE_TASK_STATUSES)[number])) {
     return merged
   }
   return clearTaskRuntimeMessage(merged)
-}
-
-function mergeTaskRuntimePatch(current: DownloadTaskRuntime | null, patch: DownloadTaskRuntime): DownloadTaskRuntime {
-  const merged: DownloadTaskRuntime = { ...(current ?? {}), ...patch }
-  if (patch.phase === 'completed' || patch.phase === 'seeding') {
-    merged.etaSeconds = null
-  }
-  if (current?.progress || patch.progress) {
-    merged.progress = mergeTaskProgress(current?.progress, patch.progress)
-  }
-  if (current?.torrent && patch.torrent) {
-    merged.torrent = { ...current.torrent, ...patch.torrent }
-  }
-  if (current?.seeding && patch.seeding) {
-    merged.seeding = { ...current.seeding, ...patch.seeding }
-  }
-  return merged
 }
 
 function mergeTaskRuntime(

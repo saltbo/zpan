@@ -207,6 +207,10 @@ func (w *Worker) reportUploadProgress(
 	}
 	detail.Phase = "uploading"
 	detail.ETASeconds = uploadETA(progress, bps)
+	detail.Progress = &client.DownloadTaskProgress{
+		Download: task.Status.Progress.Download,
+		Upload:   *transferProgress(progress.uploaded, &progress.totalBytes, bps),
+	}
 	detail.Seeding = nil
 	_, err := w.updateTask(ctx, task.ID, client.TaskPatch{
 		Status:   "uploading",

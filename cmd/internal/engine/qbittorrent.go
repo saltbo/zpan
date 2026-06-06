@@ -471,7 +471,7 @@ func qbittorrentDetail(
 	if torrent.ETA >= 0 {
 		eta = &torrent.ETA
 	}
-	return &client.DownloadTaskRuntime{
+	detail := &client.DownloadTaskRuntime{
 		Engine:      "qbittorrent",
 		Phase:       qbittorrentPhase(string(torrent.State)),
 		State:       string(torrent.State),
@@ -492,6 +492,10 @@ func qbittorrentDetail(
 		Peers:    qbittorrentPeers(ctx, qbt, torrent.Hash, geoIP),
 		Files:    qbittorrentFiles(ctx, qbt, torrent),
 	}
+	if detail.Phase == "seeding" {
+		detail.ETASeconds = nil
+	}
+	return detail
 }
 
 func qbittorrentPhase(state string) string {

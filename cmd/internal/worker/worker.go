@@ -463,6 +463,9 @@ func (w *Worker) uploadAndComplete(
 	}); err != nil {
 		log.Error("failed to mark task uploading", "error", err)
 	}
+	task.Status.Progress.Download = *transferProgress(result.Size, &result.Size, zero)
+	task.Status.Progress.Upload = *transferProgress(0, &result.Size, zero)
+	task.Status.Runtime = currentDetail
 	resultObjectID, err := w.uploadResult(ctx, log, task, result)
 	if err != nil {
 		downloadedBytes := result.Size
@@ -513,6 +516,7 @@ func (w *Worker) uploadAndComplete(
 		completedDetail = &client.DownloadTaskRuntime{}
 	}
 	completedDetail.Phase = "completed"
+	completedDetail.ETASeconds = nil
 	completedDetail.Seeding = nil
 	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{
 		Status:         "completed",

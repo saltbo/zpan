@@ -729,6 +729,49 @@ func TestReportRetainedSeedsCleansMissingSeed(t *testing.T) {
 	}
 }
 
+func TestReportRetainedSeedsSendsCompleteSeedingSnapshot(t *testing.T) {
+	api := &recordingAPI{}
+	w := NewWithAPI(config.Config{SeedEnabled: true}, api)
+	total := int64(100)
+	eta := int64(30)
+	uploaded := int64(12)
+	w.retainedSeeds = []retainedSeed{{
+		taskID:     "task-1",
+		engine:     "aria2",
+		seedID:     "gid",
+		size:       total,
+		downloaded: total,
+		snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+			return engine.SeedSnapshot{
+				Downloaded: total,
+				Total:      &total,
+				Runtime: &client.DownloadTaskRuntime{
+					Engine:     "aria2",
+					Phase:      "seeding",
+					ETASeconds: &eta,
+					Seeding:    &client.DownloadTaskSeedingRuntime{UploadedBytes: &uploaded},
+				},
+			}, nil
+		},
+		cleanup: func(context.Context) error { return nil },
+	}}
+
+	w.reportRetainedSeeds(context.Background())
+
+	patch := api.patches[len(api.patches)-1]
+	if patch.Runtime == nil || patch.Runtime.ETASeconds != nil {
+		t.Fatalf("expected seeding runtime without ETA, got %#v", patch.Runtime)
+	}
+	if patch.Runtime.Progress == nil ||
+		patch.Runtime.Progress.Download.Bytes != total ||
+		patch.Runtime.Progress.Upload.Bytes != total {
+		t.Fatalf("expected complete transfer progress in seeding snapshot, got %#v", patch.Runtime.Progress)
+	}
+	if patch.Progress == nil || patch.Progress.Upload == nil || patch.Progress.Upload.Bytes != total {
+		t.Fatalf("expected top-level upload progress to stay complete, got %#v", patch.Progress)
+	}
+}
+
 func TestRestoreRetainedSeedsLoadsLedger(t *testing.T) {
 	stateDir := t.TempDir()
 	seedPath := t.TempDir()

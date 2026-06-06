@@ -552,6 +552,23 @@ func TestQBittorrentTaskState(t *testing.T) {
 	}
 }
 
+func TestQBittorrentDetailOmitsSeedingETA(t *testing.T) {
+	detail := qbittorrentDetail(context.Background(), nil, qbittorrent.Torrent{
+		State:      qbittorrent.TorrentState("stalledUP"),
+		ETA:        3600,
+		Progress:   1,
+		AmountLeft: 0,
+		TotalSize:  100,
+	}, nil)
+
+	if detail.Phase != "seeding" {
+		t.Fatalf("expected seeding phase, got %s", detail.Phase)
+	}
+	if detail.ETASeconds != nil {
+		t.Fatalf("expected seeding detail without ETA, got %#v", detail.ETASeconds)
+	}
+}
+
 func TestIsAria2InfoHashAlreadyRegistered(t *testing.T) {
 	err := errors.New("InfoHash 0546769f209ec059284b47f68659791a6f75ca8e is already registered.")
 	if !isAria2InfoHashAlreadyRegistered(err) {

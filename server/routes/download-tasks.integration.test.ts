@@ -414,7 +414,7 @@ describe('Download tasks API integration', () => {
     expect(task.status.progress.upload.bytes).toBe(10 * 1024 * 1024)
   })
 
-  it('merges downloader task updates as patches without dropping prior transfer data', async () => {
+  it('stores downloader runtime reports as snapshots while progress remains patchable', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
 
@@ -470,8 +470,15 @@ describe('Download tasks API integration', () => {
         status: 'uploading',
         ...transferProgress({ uploadBytes: 4 * 1024 * 1024, totalBytes, uploadBps: 256_000 }),
         runtime: {
+          engine: 'aria2',
           phase: 'uploading',
           etaSeconds: 24,
+          progress: {
+            download: { bytes: totalBytes, totalBytes, bytesPerSecond: 0 },
+            upload: { bytes: 4 * 1024 * 1024, totalBytes, bytesPerSecond: 256_000 },
+          },
+          torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
+          trackers: [{ url: 'udp://tracker.example/announce', status: 'working', seeds: 2 }],
         },
       }),
     })
@@ -481,7 +488,7 @@ describe('Download tasks API integration', () => {
     expect(uploadingTask.status.progress.download).toMatchObject({
       bytes: totalBytes,
       totalBytes,
-      bytesPerSecond: 512_000,
+      bytesPerSecond: 0,
     })
     expect(uploadingTask.status.progress.upload).toMatchObject({
       bytes: 4 * 1024 * 1024,
@@ -493,34 +500,53 @@ describe('Download tasks API integration', () => {
       phase: 'uploading',
       etaSeconds: 24,
       progress: {
-        download: { bytes: totalBytes, totalBytes, bytesPerSecond: 512_000 },
+        download: { bytes: totalBytes, totalBytes, bytesPerSecond: 0 },
         upload: { bytes: 4 * 1024 * 1024, totalBytes, bytesPerSecond: 256_000 },
       },
       torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
       trackers: [{ url: 'udp://tracker.example/announce', status: 'working', seeds: 2 }],
     })
 
+    const replacementRuntimeRes = await app.request(`/api/download-tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        runtime: { phase: 'uploading' },
+      }),
+    })
+    expect(replacementRuntimeRes.status).toBe(200)
+    const replacementRuntimeTask = (await replacementRuntimeRes.json()) as DownloadTask
+    expect(replacementRuntimeTask.status.runtime).toEqual({ phase: 'uploading' })
+
     const completedRes = await app.request(`/api/download-tasks/${task.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
       body: JSON.stringify({
         status: 'completed',
-        runtime: { phase: 'completed' },
+        runtime: {
+          engine: 'aria2',
+          phase: 'completed',
+          torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
+        },
       }),
     })
     expect(completedRes.status).toBe(200)
     const completedTask = (await completedRes.json()) as DownloadTask
     expect(completedTask.status.runtime).toMatchObject({
+      engine: 'aria2',
       phase: 'completed',
-      etaSeconds: null,
+      torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
     })
+    expect(completedTask.status.runtime).not.toHaveProperty('etaSeconds')
 
     const seedingRes = await app.request(`/api/download-tasks/${task.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
       body: JSON.stringify({
         runtime: {
+          engine: 'aria2',
           phase: 'seeding',
+          torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
           seeding: { active: true, uploadedBytes: 1024, uploadBytesPerSecond: 128 },
         },
       }),
@@ -530,10 +556,10 @@ describe('Download tasks API integration', () => {
     expect(seedingTask.status.runtime).toMatchObject({
       engine: 'aria2',
       phase: 'seeding',
-      etaSeconds: null,
       torrent: { infoHash: 'patch-info-hash', name: 'patch-progress' },
       seeding: { active: true, uploadedBytes: 1024, uploadBytesPerSecond: 128 },
     })
+    expect(seedingTask.status.runtime).not.toHaveProperty('etaSeconds')
   })
 
   it('returns storage failure details when multipart upload session creation fails', async () => {
@@ -1025,7 +1051,7 @@ describe('Download tasks API integration', () => {
     expect(completedAfterRestartRes.status).toBe(200)
     await expect(completedAfterRestartRes.json()).resolves.toMatchObject({
       status: {
-        runtime: { phase: 'completed', etaSeconds: null },
+        runtime: { phase: 'completed' },
       },
     })
 
@@ -1039,7 +1065,7 @@ describe('Download tasks API integration', () => {
     expect(seedingAfterRestartRes.status).toBe(200)
     await expect(seedingAfterRestartRes.json()).resolves.toMatchObject({
       status: {
-        runtime: { phase: 'seeding', etaSeconds: null, seeding: { active: true } },
+        runtime: { phase: 'seeding', seeding: { active: true } },
       },
     })
   })
