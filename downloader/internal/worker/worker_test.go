@@ -657,6 +657,47 @@ func TestRestoreRetainedSeedsLoadsLedger(t *testing.T) {
 	}
 }
 
+func TestRestoreRetainedSeedsDoesNotDuplicateAlreadyRestoredSeed(t *testing.T) {
+	stateDir := t.TempDir()
+	seedPath := t.TempDir()
+	if err := saveSeedLedger(stateDir, seedLedger{Seeds: []seedLedgerEntry{{
+		TaskID:     "task-1",
+		Engine:     "aria2",
+		SeedID:     "gid",
+		InfoHash:   "abc123",
+		Path:       seedPath,
+		Size:       456,
+		RetainedAt: time.Now().Add(-time.Minute),
+		ExpiresAt:  time.Now().Add(time.Hour),
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	eng := &recordingEngine{restoreSeed: &engine.Seed{
+		Engine:   "aria2",
+		ID:       "gid",
+		InfoHash: "abc123",
+		Path:     seedPath,
+		Snapshot: func(context.Context) (engine.SeedSnapshot, error) {
+			return engine.SeedSnapshot{}, nil
+		},
+		Cleanup: func(context.Context) error {
+			return nil
+		},
+	}}
+	w := NewWithAPI(config.Config{SeedEnabled: true, StateDir: stateDir}, nil)
+	w.engine = eng
+
+	w.restoreRetainedSeeds(context.Background())
+	w.restoreRetainedSeeds(context.Background())
+
+	if got := len(w.retainedSeedSnapshot()); got != 1 {
+		t.Fatalf("expected one restored seed, got %d", got)
+	}
+	if eng.restoreCalls != 1 {
+		t.Fatalf("expected restore to skip existing seed, got %d calls", eng.restoreCalls)
+	}
+}
+
 func TestCleanupRetainedSeedsRemovesExpiredSeed(t *testing.T) {
 	dir := t.TempDir()
 	w := NewWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour}, nil)

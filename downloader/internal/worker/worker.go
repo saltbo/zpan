@@ -131,6 +131,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		case <-seedCleanupTicker.C:
 			w.cleanupRetainedSeeds(ctx)
 		case <-seedReportTicker.C:
+			w.restoreRetainedSeeds(ctx)
 			w.reportRetainedSeeds(ctx)
 		}
 	}

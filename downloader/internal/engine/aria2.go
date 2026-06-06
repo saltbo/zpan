@@ -394,10 +394,13 @@ func isAria2DownloadComplete(status arigo.Status) bool {
 }
 
 func (a Aria2) findSeed(ctx context.Context, aria **arigo.Client, ref SeedRef) (arigo.Status, bool, error) {
+	taskDir := aria2SeedTaskDir(a.Dir, ref)
 	if ref.ID != "" {
 		status, err := tellAria2Status(*aria, ref.ID)
 		if err == nil {
-			return status, true, nil
+			if isAria2SeedStatus(status) {
+				return status, true, nil
+			}
 		}
 		if isAria2RPCDisconnected(err) {
 			if err := a.reconnect(ctx, aria); err != nil {
@@ -405,7 +408,9 @@ func (a Aria2) findSeed(ctx context.Context, aria **arigo.Client, ref SeedRef) (
 			}
 			status, err = tellAria2Status(*aria, ref.ID)
 			if err == nil {
-				return status, true, nil
+				if isAria2SeedStatus(status) {
+					return status, true, nil
+				}
 			}
 		}
 	}
@@ -413,20 +418,40 @@ func (a Aria2) findSeed(ctx context.Context, aria **arigo.Client, ref SeedRef) (
 	if err != nil {
 		return arigo.Status{}, false, err
 	}
-	infoHash := strings.ToLower(ref.InfoHash)
-	taskDir := filepath.Clean(ref.Path)
-	if taskDir == "." || taskDir == string(filepath.Separator) {
-		taskDir = filepath.Clean(filepath.Join(a.Dir, ref.TaskID))
-	}
-	for _, status := range statuses {
-		if infoHash != "" && strings.EqualFold(status.InfoHash, infoHash) {
-			return status, true, nil
-		}
-		if taskDir != "" && filepath.Clean(status.Dir) == taskDir {
-			return status, true, nil
-		}
+	status, ok := selectAria2SeedStatus(statuses, ref, taskDir)
+	if ok {
+		return status, true, nil
 	}
 	return arigo.Status{}, false, nil
+}
+
+func selectAria2SeedStatus(statuses []arigo.Status, ref SeedRef, taskDir string) (arigo.Status, bool) {
+	infoHash := strings.ToLower(ref.InfoHash)
+	for _, status := range statuses {
+		if !isAria2SeedStatus(status) {
+			continue
+		}
+		if infoHash != "" && strings.EqualFold(status.InfoHash, infoHash) {
+			return status, true
+		}
+		if taskDir != "" && filepath.Clean(status.Dir) == taskDir {
+			return status, true
+		}
+	}
+	return arigo.Status{}, false
+}
+
+func aria2SeedTaskDir(root string, ref SeedRef) string {
+	taskDir := filepath.Clean(ref.Path)
+	if taskDir == "." || taskDir == string(filepath.Separator) {
+		taskDir = filepath.Clean(filepath.Join(root, ref.TaskID))
+	}
+	return taskDir
+}
+
+func isAria2SeedStatus(status arigo.Status) bool {
+	total := int64(status.TotalLength)
+	return total > 0 && int64(status.CompletedLength) >= total && hasAria2LocalFile(status.Files)
 }
 
 func (a Aria2) client(ctx context.Context) (*arigo.Client, error) {

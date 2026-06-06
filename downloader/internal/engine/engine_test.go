@@ -391,6 +391,47 @@ func TestIsAria2DownloadCompleteTreatsActiveFullTorrentAsComplete(t *testing.T) 
 	}
 }
 
+func TestSelectAria2SeedStatusPrefersCompletedPayloadOverMetadata(t *testing.T) {
+	infoHash := "f8f8044d5dfeef2719dcda6ce42dba1c4eb9ea22"
+	taskDir := filepath.Join(t.TempDir(), "task-1")
+	metadata := arigo.Status{
+		GID:             "metadata-gid",
+		Status:          arigo.StatusCompleted,
+		InfoHash:        infoHash,
+		Dir:             taskDir,
+		TotalLength:     17596,
+		CompletedLength: 17596,
+		Files: []arigo.File{{
+			Path:            "[METADATA]",
+			Length:          17596,
+			CompletedLength: 17596,
+			Selected:        true,
+		}},
+	}
+	payload := arigo.Status{
+		GID:             "payload-gid",
+		Status:          arigo.StatusActive,
+		InfoHash:        infoHash,
+		Dir:             taskDir,
+		TotalLength:     100,
+		CompletedLength: 100,
+		Files: []arigo.File{{
+			Path:            filepath.Join(taskDir, "album", "track.flac"),
+			Length:          100,
+			CompletedLength: 100,
+			Selected:        true,
+		}},
+	}
+
+	got, ok := selectAria2SeedStatus([]arigo.Status{metadata, payload}, SeedRef{InfoHash: infoHash}, taskDir)
+	if !ok {
+		t.Fatal("expected seed status")
+	}
+	if got.GID != "payload-gid" {
+		t.Fatalf("expected payload seed, got %s", got.GID)
+	}
+}
+
 func TestAria2TaskState(t *testing.T) {
 	if got := aria2TaskState(arigo.Status{
 		Status:          arigo.StatusActive,

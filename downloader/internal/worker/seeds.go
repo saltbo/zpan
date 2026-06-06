@@ -101,7 +101,15 @@ func (w *Worker) restoreRetainedSeeds(ctx context.Context) {
 	var restored []retainedSeed
 	var kept []seedLedgerEntry
 	now := time.Now()
+	existing := map[string]struct{}{}
+	for _, seed := range w.retainedSeedSnapshot() {
+		existing[seed.taskID] = struct{}{}
+	}
 	for _, entry := range ledger.Seeds {
+		if _, ok := existing[entry.TaskID]; ok {
+			kept = append(kept, entry)
+			continue
+		}
 		if !entry.ExpiresAt.IsZero() && !now.Before(entry.ExpiresAt) {
 			_ = os.RemoveAll(entry.Path)
 			continue
@@ -120,7 +128,7 @@ func (w *Worker) restoreRetainedSeeds(ctx context.Context) {
 		}
 		if seed == nil {
 			if _, statErr := os.Stat(entry.Path); statErr == nil {
-				w.logger.Info("retained bt seed runtime is missing; keeping local ledger entry", "task_id", entry.TaskID, "engine", entry.Engine, "path", entry.Path)
+				w.logger.Debug("retained bt seed runtime is not ready; keeping local ledger entry", "task_id", entry.TaskID, "engine", entry.Engine, "path", entry.Path)
 				kept = append(kept, entry)
 			}
 			continue
