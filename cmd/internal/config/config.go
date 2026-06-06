@@ -39,7 +39,6 @@ const (
 	DefaultServerURL      = "http://localhost:5173"
 	DefaultAria2URL       = "ws://127.0.0.1:6800/jsonrpc"
 	DefaultQBittorrentURL = "http://127.0.0.1:8080"
-	DefaultGeoIPDBPath    = "/usr/share/zpan/geoip.mmdb"
 )
 
 func Defaults(v *viper.Viper) {
@@ -49,7 +48,7 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("downloader.engine", "auto")
 	v.SetDefault("downloader.download_dir", filepath.Join(home, "Downloads", "zpan"))
 	v.SetDefault("downloader.state_dir", defaultStateDir(home))
-	v.SetDefault("downloader.geoip_db", DefaultGeoIPDBPath)
+	v.SetDefault("downloader.geoip_db", defaultGeoIPDBPath(home))
 	v.SetDefault("downloader.poll_interval", "5s")
 	v.SetDefault("downloader.max_concurrent_tasks", 2)
 	v.SetDefault("downloader.aria2.url", DefaultAria2URL)
@@ -147,7 +146,7 @@ func WriteDefaultConfig(path string, serverURL string) error {
 		Engine:             "auto",
 		DownloadDir:        filepath.Join(home, "Downloads", "zpan"),
 		StateDir:           defaultStateDir(home),
-		GeoIPDBPath:        DefaultGeoIPDBPath,
+		GeoIPDBPath:        defaultGeoIPDBPath(home),
 		PollInterval:       5 * time.Second,
 		MaxConcurrentTasks: 2,
 		SeedEnabled:        true,
@@ -200,7 +199,8 @@ func configYAML(cfg Config, includeRuntimeHints bool) string {
 	fmt.Fprintf(&b, "  engine: %s\n", yamlString(nonEmpty(cfg.Engine, "auto")))
 	fmt.Fprintf(&b, "  download_dir: %s\n", yamlString(cfg.DownloadDir))
 	fmt.Fprintf(&b, "  state_dir: %s\n", yamlString(cfg.StateDir))
-	fmt.Fprintf(&b, "  geoip_db: %s\n", yamlString(nonEmpty(cfg.GeoIPDBPath, DefaultGeoIPDBPath)))
+	home, _ := os.UserHomeDir()
+	fmt.Fprintf(&b, "  geoip_db: %s\n", yamlString(nonEmpty(cfg.GeoIPDBPath, defaultGeoIPDBPath(home))))
 	fmt.Fprintf(&b, "  poll_interval: %s\n", yamlString(formatDuration(cfg.PollInterval, "5s")))
 	fmt.Fprintf(&b, "  max_concurrent_tasks: %d\n", cfg.MaxConcurrentTasks)
 	b.WriteString("  seed:\n")
@@ -260,6 +260,13 @@ func nonEmpty(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func defaultGeoIPDBPath(home string) string {
+	if dataHome := os.Getenv("XDG_DATA_HOME"); dataHome != "" {
+		return filepath.Join(dataHome, "zpan", "geoip.mmdb")
+	}
+	return filepath.Join(home, ".local", "share", "zpan", "geoip.mmdb")
 }
 
 func formatSeedCacheLimit(value int64) string {
