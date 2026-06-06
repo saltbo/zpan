@@ -205,8 +205,8 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 		log.Warn("task has no recoverable completed download result; restarting download", "status", task.Status)
 	}
 
-	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "running"}); err != nil {
-		log.Error("failed to mark task running", "error", err)
+	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "downloading"}); err != nil {
+		log.Error("failed to mark task downloading", "error", err)
 		if w.resolveControlledTaskUpdate(ctx, task.ID, err, log) {
 			return
 		}
@@ -293,7 +293,7 @@ func resumeStage(task client.DownloadTask) taskResumeStage {
 	if task.Status == "uploading" {
 		return taskResumeUpload
 	}
-	if task.Status != "assigned" && task.Status != "running" {
+	if task.Status != "assigned" && task.Status != "downloading" && task.Status != "interrupted" {
 		return taskResumeDownload
 	}
 	if task.StorageUploadedBytes > 0 {

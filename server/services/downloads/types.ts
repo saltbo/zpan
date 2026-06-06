@@ -2,13 +2,7 @@ import type { downloaders, downloadTasks } from '../../db/schema'
 
 export class DownloadError extends Error {
   constructor(
-    readonly code:
-      | 'not_found'
-      | 'forbidden'
-      | 'no_downloader'
-      | 'invalid_state'
-      | 'billing_paused'
-      | 'unsupported_source',
+    readonly code: 'not_found' | 'forbidden' | 'no_downloader' | 'invalid_state' | 'unsupported_source',
     message: string = code,
   ) {
     super(message)

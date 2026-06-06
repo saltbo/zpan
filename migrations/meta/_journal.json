@@ -274,6 +274,13 @@
       "when": 1780597526882,
       "tag": "0039_index-download-task-classification",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1780710456844,
+      "tag": "0040_rename-download-task-states",
+      "breakpoints": true
     }
   ]
 }

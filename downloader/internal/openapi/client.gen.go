@@ -165,18 +165,18 @@ func (e PatchApiAdminDownloadersId200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for GetApiDownloadTasksParamsStatus.
 const (
-	GetApiDownloadTasksParamsStatusAssigned      GetApiDownloadTasksParamsStatus = "assigned"
-	GetApiDownloadTasksParamsStatusBillingPaused GetApiDownloadTasksParamsStatus = "billing_paused"
-	GetApiDownloadTasksParamsStatusCanceled      GetApiDownloadTasksParamsStatus = "canceled"
-	GetApiDownloadTasksParamsStatusCanceling     GetApiDownloadTasksParamsStatus = "canceling"
-	GetApiDownloadTasksParamsStatusCompleted     GetApiDownloadTasksParamsStatus = "completed"
-	GetApiDownloadTasksParamsStatusFailed        GetApiDownloadTasksParamsStatus = "failed"
-	GetApiDownloadTasksParamsStatusInterrupted   GetApiDownloadTasksParamsStatus = "interrupted"
-	GetApiDownloadTasksParamsStatusPaused        GetApiDownloadTasksParamsStatus = "paused"
-	GetApiDownloadTasksParamsStatusPausing       GetApiDownloadTasksParamsStatus = "pausing"
-	GetApiDownloadTasksParamsStatusQueued        GetApiDownloadTasksParamsStatus = "queued"
-	GetApiDownloadTasksParamsStatusRunning       GetApiDownloadTasksParamsStatus = "running"
-	GetApiDownloadTasksParamsStatusUploading     GetApiDownloadTasksParamsStatus = "uploading"
+	GetApiDownloadTasksParamsStatusAssigned    GetApiDownloadTasksParamsStatus = "assigned"
+	GetApiDownloadTasksParamsStatusCanceled    GetApiDownloadTasksParamsStatus = "canceled"
+	GetApiDownloadTasksParamsStatusCanceling   GetApiDownloadTasksParamsStatus = "canceling"
+	GetApiDownloadTasksParamsStatusCompleted   GetApiDownloadTasksParamsStatus = "completed"
+	GetApiDownloadTasksParamsStatusDownloading GetApiDownloadTasksParamsStatus = "downloading"
+	GetApiDownloadTasksParamsStatusFailed      GetApiDownloadTasksParamsStatus = "failed"
+	GetApiDownloadTasksParamsStatusInterrupted GetApiDownloadTasksParamsStatus = "interrupted"
+	GetApiDownloadTasksParamsStatusPaused      GetApiDownloadTasksParamsStatus = "paused"
+	GetApiDownloadTasksParamsStatusPausing     GetApiDownloadTasksParamsStatus = "pausing"
+	GetApiDownloadTasksParamsStatusQueued      GetApiDownloadTasksParamsStatus = "queued"
+	GetApiDownloadTasksParamsStatusSuspended   GetApiDownloadTasksParamsStatus = "suspended"
+	GetApiDownloadTasksParamsStatusUploading   GetApiDownloadTasksParamsStatus = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the GetApiDownloadTasksParamsStatus enum.
@@ -184,13 +184,13 @@ func (e GetApiDownloadTasksParamsStatus) Valid() bool {
 	switch e {
 	case GetApiDownloadTasksParamsStatusAssigned:
 		return true
-	case GetApiDownloadTasksParamsStatusBillingPaused:
-		return true
 	case GetApiDownloadTasksParamsStatusCanceled:
 		return true
 	case GetApiDownloadTasksParamsStatusCanceling:
 		return true
 	case GetApiDownloadTasksParamsStatusCompleted:
+		return true
+	case GetApiDownloadTasksParamsStatusDownloading:
 		return true
 	case GetApiDownloadTasksParamsStatusFailed:
 		return true
@@ -202,7 +202,7 @@ func (e GetApiDownloadTasksParamsStatus) Valid() bool {
 		return true
 	case GetApiDownloadTasksParamsStatusQueued:
 		return true
-	case GetApiDownloadTasksParamsStatusRunning:
+	case GetApiDownloadTasksParamsStatusSuspended:
 		return true
 	case GetApiDownloadTasksParamsStatusUploading:
 		return true
@@ -351,18 +351,18 @@ func (e GetApiDownloadTasks200JSONResponseBodyItemsSourceType) Valid() bool {
 
 // Defines values for GetApiDownloadTasks200JSONResponseBodyItemsStatus.
 const (
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusAssigned      GetApiDownloadTasks200JSONResponseBodyItemsStatus = "assigned"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingPaused GetApiDownloadTasks200JSONResponseBodyItemsStatus = "billing_paused"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceled      GetApiDownloadTasks200JSONResponseBodyItemsStatus = "canceled"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceling     GetApiDownloadTasks200JSONResponseBodyItemsStatus = "canceling"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusCompleted     GetApiDownloadTasks200JSONResponseBodyItemsStatus = "completed"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusFailed        GetApiDownloadTasks200JSONResponseBodyItemsStatus = "failed"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusInterrupted   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "interrupted"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusPaused        GetApiDownloadTasks200JSONResponseBodyItemsStatus = "paused"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusPausing       GetApiDownloadTasks200JSONResponseBodyItemsStatus = "pausing"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusQueued        GetApiDownloadTasks200JSONResponseBodyItemsStatus = "queued"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusRunning       GetApiDownloadTasks200JSONResponseBodyItemsStatus = "running"
-	GetApiDownloadTasks200JSONResponseBodyItemsStatusUploading     GetApiDownloadTasks200JSONResponseBodyItemsStatus = "uploading"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusAssigned    GetApiDownloadTasks200JSONResponseBodyItemsStatus = "assigned"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceled    GetApiDownloadTasks200JSONResponseBodyItemsStatus = "canceled"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceling   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "canceling"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusCompleted   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "completed"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusDownloading GetApiDownloadTasks200JSONResponseBodyItemsStatus = "downloading"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusFailed      GetApiDownloadTasks200JSONResponseBodyItemsStatus = "failed"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusInterrupted GetApiDownloadTasks200JSONResponseBodyItemsStatus = "interrupted"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusPaused      GetApiDownloadTasks200JSONResponseBodyItemsStatus = "paused"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusPausing     GetApiDownloadTasks200JSONResponseBodyItemsStatus = "pausing"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusQueued      GetApiDownloadTasks200JSONResponseBodyItemsStatus = "queued"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusSuspended   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "suspended"
+	GetApiDownloadTasks200JSONResponseBodyItemsStatusUploading   GetApiDownloadTasks200JSONResponseBodyItemsStatus = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the GetApiDownloadTasks200JSONResponseBodyItemsStatus enum.
@@ -370,13 +370,13 @@ func (e GetApiDownloadTasks200JSONResponseBodyItemsStatus) Valid() bool {
 	switch e {
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusAssigned:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusBillingPaused:
-		return true
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceled:
 		return true
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusCanceling:
 		return true
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusCompleted:
+		return true
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusDownloading:
 		return true
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusFailed:
 		return true
@@ -388,7 +388,7 @@ func (e GetApiDownloadTasks200JSONResponseBodyItemsStatus) Valid() bool {
 		return true
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusQueued:
 		return true
-	case GetApiDownloadTasks200JSONResponseBodyItemsStatusRunning:
+	case GetApiDownloadTasks200JSONResponseBodyItemsStatusSuspended:
 		return true
 	case GetApiDownloadTasks200JSONResponseBodyItemsStatusUploading:
 		return true
@@ -492,18 +492,18 @@ func (e PostApiDownloadTasks201JSONResponseBodySourceType) Valid() bool {
 
 // Defines values for PostApiDownloadTasks201JSONResponseBodyStatus.
 const (
-	PostApiDownloadTasks201JSONResponseBodyStatusAssigned      PostApiDownloadTasks201JSONResponseBodyStatus = "assigned"
-	PostApiDownloadTasks201JSONResponseBodyStatusBillingPaused PostApiDownloadTasks201JSONResponseBodyStatus = "billing_paused"
-	PostApiDownloadTasks201JSONResponseBodyStatusCanceled      PostApiDownloadTasks201JSONResponseBodyStatus = "canceled"
-	PostApiDownloadTasks201JSONResponseBodyStatusCanceling     PostApiDownloadTasks201JSONResponseBodyStatus = "canceling"
-	PostApiDownloadTasks201JSONResponseBodyStatusCompleted     PostApiDownloadTasks201JSONResponseBodyStatus = "completed"
-	PostApiDownloadTasks201JSONResponseBodyStatusFailed        PostApiDownloadTasks201JSONResponseBodyStatus = "failed"
-	PostApiDownloadTasks201JSONResponseBodyStatusInterrupted   PostApiDownloadTasks201JSONResponseBodyStatus = "interrupted"
-	PostApiDownloadTasks201JSONResponseBodyStatusPaused        PostApiDownloadTasks201JSONResponseBodyStatus = "paused"
-	PostApiDownloadTasks201JSONResponseBodyStatusPausing       PostApiDownloadTasks201JSONResponseBodyStatus = "pausing"
-	PostApiDownloadTasks201JSONResponseBodyStatusQueued        PostApiDownloadTasks201JSONResponseBodyStatus = "queued"
-	PostApiDownloadTasks201JSONResponseBodyStatusRunning       PostApiDownloadTasks201JSONResponseBodyStatus = "running"
-	PostApiDownloadTasks201JSONResponseBodyStatusUploading     PostApiDownloadTasks201JSONResponseBodyStatus = "uploading"
+	PostApiDownloadTasks201JSONResponseBodyStatusAssigned    PostApiDownloadTasks201JSONResponseBodyStatus = "assigned"
+	PostApiDownloadTasks201JSONResponseBodyStatusCanceled    PostApiDownloadTasks201JSONResponseBodyStatus = "canceled"
+	PostApiDownloadTasks201JSONResponseBodyStatusCanceling   PostApiDownloadTasks201JSONResponseBodyStatus = "canceling"
+	PostApiDownloadTasks201JSONResponseBodyStatusCompleted   PostApiDownloadTasks201JSONResponseBodyStatus = "completed"
+	PostApiDownloadTasks201JSONResponseBodyStatusDownloading PostApiDownloadTasks201JSONResponseBodyStatus = "downloading"
+	PostApiDownloadTasks201JSONResponseBodyStatusFailed      PostApiDownloadTasks201JSONResponseBodyStatus = "failed"
+	PostApiDownloadTasks201JSONResponseBodyStatusInterrupted PostApiDownloadTasks201JSONResponseBodyStatus = "interrupted"
+	PostApiDownloadTasks201JSONResponseBodyStatusPaused      PostApiDownloadTasks201JSONResponseBodyStatus = "paused"
+	PostApiDownloadTasks201JSONResponseBodyStatusPausing     PostApiDownloadTasks201JSONResponseBodyStatus = "pausing"
+	PostApiDownloadTasks201JSONResponseBodyStatusQueued      PostApiDownloadTasks201JSONResponseBodyStatus = "queued"
+	PostApiDownloadTasks201JSONResponseBodyStatusSuspended   PostApiDownloadTasks201JSONResponseBodyStatus = "suspended"
+	PostApiDownloadTasks201JSONResponseBodyStatusUploading   PostApiDownloadTasks201JSONResponseBodyStatus = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the PostApiDownloadTasks201JSONResponseBodyStatus enum.
@@ -511,13 +511,13 @@ func (e PostApiDownloadTasks201JSONResponseBodyStatus) Valid() bool {
 	switch e {
 	case PostApiDownloadTasks201JSONResponseBodyStatusAssigned:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusBillingPaused:
-		return true
 	case PostApiDownloadTasks201JSONResponseBodyStatusCanceled:
 		return true
 	case PostApiDownloadTasks201JSONResponseBodyStatusCanceling:
 		return true
 	case PostApiDownloadTasks201JSONResponseBodyStatusCompleted:
+		return true
+	case PostApiDownloadTasks201JSONResponseBodyStatusDownloading:
 		return true
 	case PostApiDownloadTasks201JSONResponseBodyStatusFailed:
 		return true
@@ -529,7 +529,7 @@ func (e PostApiDownloadTasks201JSONResponseBodyStatus) Valid() bool {
 		return true
 	case PostApiDownloadTasks201JSONResponseBodyStatusQueued:
 		return true
-	case PostApiDownloadTasks201JSONResponseBodyStatusRunning:
+	case PostApiDownloadTasks201JSONResponseBodyStatusSuspended:
 		return true
 	case PostApiDownloadTasks201JSONResponseBodyStatusUploading:
 		return true
@@ -540,18 +540,18 @@ func (e PostApiDownloadTasks201JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for GetApiDownloadTasksEventsParamsStatus.
 const (
-	GetApiDownloadTasksEventsParamsStatusAssigned      GetApiDownloadTasksEventsParamsStatus = "assigned"
-	GetApiDownloadTasksEventsParamsStatusBillingPaused GetApiDownloadTasksEventsParamsStatus = "billing_paused"
-	GetApiDownloadTasksEventsParamsStatusCanceled      GetApiDownloadTasksEventsParamsStatus = "canceled"
-	GetApiDownloadTasksEventsParamsStatusCanceling     GetApiDownloadTasksEventsParamsStatus = "canceling"
-	GetApiDownloadTasksEventsParamsStatusCompleted     GetApiDownloadTasksEventsParamsStatus = "completed"
-	GetApiDownloadTasksEventsParamsStatusFailed        GetApiDownloadTasksEventsParamsStatus = "failed"
-	GetApiDownloadTasksEventsParamsStatusInterrupted   GetApiDownloadTasksEventsParamsStatus = "interrupted"
-	GetApiDownloadTasksEventsParamsStatusPaused        GetApiDownloadTasksEventsParamsStatus = "paused"
-	GetApiDownloadTasksEventsParamsStatusPausing       GetApiDownloadTasksEventsParamsStatus = "pausing"
-	GetApiDownloadTasksEventsParamsStatusQueued        GetApiDownloadTasksEventsParamsStatus = "queued"
-	GetApiDownloadTasksEventsParamsStatusRunning       GetApiDownloadTasksEventsParamsStatus = "running"
-	GetApiDownloadTasksEventsParamsStatusUploading     GetApiDownloadTasksEventsParamsStatus = "uploading"
+	GetApiDownloadTasksEventsParamsStatusAssigned    GetApiDownloadTasksEventsParamsStatus = "assigned"
+	GetApiDownloadTasksEventsParamsStatusCanceled    GetApiDownloadTasksEventsParamsStatus = "canceled"
+	GetApiDownloadTasksEventsParamsStatusCanceling   GetApiDownloadTasksEventsParamsStatus = "canceling"
+	GetApiDownloadTasksEventsParamsStatusCompleted   GetApiDownloadTasksEventsParamsStatus = "completed"
+	GetApiDownloadTasksEventsParamsStatusDownloading GetApiDownloadTasksEventsParamsStatus = "downloading"
+	GetApiDownloadTasksEventsParamsStatusFailed      GetApiDownloadTasksEventsParamsStatus = "failed"
+	GetApiDownloadTasksEventsParamsStatusInterrupted GetApiDownloadTasksEventsParamsStatus = "interrupted"
+	GetApiDownloadTasksEventsParamsStatusPaused      GetApiDownloadTasksEventsParamsStatus = "paused"
+	GetApiDownloadTasksEventsParamsStatusPausing     GetApiDownloadTasksEventsParamsStatus = "pausing"
+	GetApiDownloadTasksEventsParamsStatusQueued      GetApiDownloadTasksEventsParamsStatus = "queued"
+	GetApiDownloadTasksEventsParamsStatusSuspended   GetApiDownloadTasksEventsParamsStatus = "suspended"
+	GetApiDownloadTasksEventsParamsStatusUploading   GetApiDownloadTasksEventsParamsStatus = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the GetApiDownloadTasksEventsParamsStatus enum.
@@ -559,13 +559,13 @@ func (e GetApiDownloadTasksEventsParamsStatus) Valid() bool {
 	switch e {
 	case GetApiDownloadTasksEventsParamsStatusAssigned:
 		return true
-	case GetApiDownloadTasksEventsParamsStatusBillingPaused:
-		return true
 	case GetApiDownloadTasksEventsParamsStatusCanceled:
 		return true
 	case GetApiDownloadTasksEventsParamsStatusCanceling:
 		return true
 	case GetApiDownloadTasksEventsParamsStatusCompleted:
+		return true
+	case GetApiDownloadTasksEventsParamsStatusDownloading:
 		return true
 	case GetApiDownloadTasksEventsParamsStatusFailed:
 		return true
@@ -577,7 +577,7 @@ func (e GetApiDownloadTasksEventsParamsStatus) Valid() bool {
 		return true
 	case GetApiDownloadTasksEventsParamsStatusQueued:
 		return true
-	case GetApiDownloadTasksEventsParamsStatusRunning:
+	case GetApiDownloadTasksEventsParamsStatusSuspended:
 		return true
 	case GetApiDownloadTasksEventsParamsStatusUploading:
 		return true
@@ -726,18 +726,18 @@ func (e GetApiDownloadTasksId200JSONResponseBodySourceType) Valid() bool {
 
 // Defines values for GetApiDownloadTasksId200JSONResponseBodyStatus.
 const (
-	GetApiDownloadTasksId200JSONResponseBodyStatusAssigned      GetApiDownloadTasksId200JSONResponseBodyStatus = "assigned"
-	GetApiDownloadTasksId200JSONResponseBodyStatusBillingPaused GetApiDownloadTasksId200JSONResponseBodyStatus = "billing_paused"
-	GetApiDownloadTasksId200JSONResponseBodyStatusCanceled      GetApiDownloadTasksId200JSONResponseBodyStatus = "canceled"
-	GetApiDownloadTasksId200JSONResponseBodyStatusCanceling     GetApiDownloadTasksId200JSONResponseBodyStatus = "canceling"
-	GetApiDownloadTasksId200JSONResponseBodyStatusCompleted     GetApiDownloadTasksId200JSONResponseBodyStatus = "completed"
-	GetApiDownloadTasksId200JSONResponseBodyStatusFailed        GetApiDownloadTasksId200JSONResponseBodyStatus = "failed"
-	GetApiDownloadTasksId200JSONResponseBodyStatusInterrupted   GetApiDownloadTasksId200JSONResponseBodyStatus = "interrupted"
-	GetApiDownloadTasksId200JSONResponseBodyStatusPaused        GetApiDownloadTasksId200JSONResponseBodyStatus = "paused"
-	GetApiDownloadTasksId200JSONResponseBodyStatusPausing       GetApiDownloadTasksId200JSONResponseBodyStatus = "pausing"
-	GetApiDownloadTasksId200JSONResponseBodyStatusQueued        GetApiDownloadTasksId200JSONResponseBodyStatus = "queued"
-	GetApiDownloadTasksId200JSONResponseBodyStatusRunning       GetApiDownloadTasksId200JSONResponseBodyStatus = "running"
-	GetApiDownloadTasksId200JSONResponseBodyStatusUploading     GetApiDownloadTasksId200JSONResponseBodyStatus = "uploading"
+	GetApiDownloadTasksId200JSONResponseBodyStatusAssigned    GetApiDownloadTasksId200JSONResponseBodyStatus = "assigned"
+	GetApiDownloadTasksId200JSONResponseBodyStatusCanceled    GetApiDownloadTasksId200JSONResponseBodyStatus = "canceled"
+	GetApiDownloadTasksId200JSONResponseBodyStatusCanceling   GetApiDownloadTasksId200JSONResponseBodyStatus = "canceling"
+	GetApiDownloadTasksId200JSONResponseBodyStatusCompleted   GetApiDownloadTasksId200JSONResponseBodyStatus = "completed"
+	GetApiDownloadTasksId200JSONResponseBodyStatusDownloading GetApiDownloadTasksId200JSONResponseBodyStatus = "downloading"
+	GetApiDownloadTasksId200JSONResponseBodyStatusFailed      GetApiDownloadTasksId200JSONResponseBodyStatus = "failed"
+	GetApiDownloadTasksId200JSONResponseBodyStatusInterrupted GetApiDownloadTasksId200JSONResponseBodyStatus = "interrupted"
+	GetApiDownloadTasksId200JSONResponseBodyStatusPaused      GetApiDownloadTasksId200JSONResponseBodyStatus = "paused"
+	GetApiDownloadTasksId200JSONResponseBodyStatusPausing     GetApiDownloadTasksId200JSONResponseBodyStatus = "pausing"
+	GetApiDownloadTasksId200JSONResponseBodyStatusQueued      GetApiDownloadTasksId200JSONResponseBodyStatus = "queued"
+	GetApiDownloadTasksId200JSONResponseBodyStatusSuspended   GetApiDownloadTasksId200JSONResponseBodyStatus = "suspended"
+	GetApiDownloadTasksId200JSONResponseBodyStatusUploading   GetApiDownloadTasksId200JSONResponseBodyStatus = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the GetApiDownloadTasksId200JSONResponseBodyStatus enum.
@@ -745,13 +745,13 @@ func (e GetApiDownloadTasksId200JSONResponseBodyStatus) Valid() bool {
 	switch e {
 	case GetApiDownloadTasksId200JSONResponseBodyStatusAssigned:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusBillingPaused:
-		return true
 	case GetApiDownloadTasksId200JSONResponseBodyStatusCanceled:
 		return true
 	case GetApiDownloadTasksId200JSONResponseBodyStatusCanceling:
 		return true
 	case GetApiDownloadTasksId200JSONResponseBodyStatusCompleted:
+		return true
+	case GetApiDownloadTasksId200JSONResponseBodyStatusDownloading:
 		return true
 	case GetApiDownloadTasksId200JSONResponseBodyStatusFailed:
 		return true
@@ -763,7 +763,7 @@ func (e GetApiDownloadTasksId200JSONResponseBodyStatus) Valid() bool {
 		return true
 	case GetApiDownloadTasksId200JSONResponseBodyStatusQueued:
 		return true
-	case GetApiDownloadTasksId200JSONResponseBodyStatusRunning:
+	case GetApiDownloadTasksId200JSONResponseBodyStatusSuspended:
 		return true
 	case GetApiDownloadTasksId200JSONResponseBodyStatusUploading:
 		return true
@@ -825,18 +825,18 @@ func (e PatchApiDownloadTasksIdJSONBodyDetailPhase) Valid() bool {
 
 // Defines values for PatchApiDownloadTasksIdJSONBodyStatus.
 const (
-	PatchApiDownloadTasksIdJSONBodyStatusAssigned      PatchApiDownloadTasksIdJSONBodyStatus = "assigned"
-	PatchApiDownloadTasksIdJSONBodyStatusBillingPaused PatchApiDownloadTasksIdJSONBodyStatus = "billing_paused"
-	PatchApiDownloadTasksIdJSONBodyStatusCanceled      PatchApiDownloadTasksIdJSONBodyStatus = "canceled"
-	PatchApiDownloadTasksIdJSONBodyStatusCanceling     PatchApiDownloadTasksIdJSONBodyStatus = "canceling"
-	PatchApiDownloadTasksIdJSONBodyStatusCompleted     PatchApiDownloadTasksIdJSONBodyStatus = "completed"
-	PatchApiDownloadTasksIdJSONBodyStatusFailed        PatchApiDownloadTasksIdJSONBodyStatus = "failed"
-	PatchApiDownloadTasksIdJSONBodyStatusInterrupted   PatchApiDownloadTasksIdJSONBodyStatus = "interrupted"
-	PatchApiDownloadTasksIdJSONBodyStatusPaused        PatchApiDownloadTasksIdJSONBodyStatus = "paused"
-	PatchApiDownloadTasksIdJSONBodyStatusPausing       PatchApiDownloadTasksIdJSONBodyStatus = "pausing"
-	PatchApiDownloadTasksIdJSONBodyStatusQueued        PatchApiDownloadTasksIdJSONBodyStatus = "queued"
-	PatchApiDownloadTasksIdJSONBodyStatusRunning       PatchApiDownloadTasksIdJSONBodyStatus = "running"
-	PatchApiDownloadTasksIdJSONBodyStatusUploading     PatchApiDownloadTasksIdJSONBodyStatus = "uploading"
+	PatchApiDownloadTasksIdJSONBodyStatusAssigned    PatchApiDownloadTasksIdJSONBodyStatus = "assigned"
+	PatchApiDownloadTasksIdJSONBodyStatusCanceled    PatchApiDownloadTasksIdJSONBodyStatus = "canceled"
+	PatchApiDownloadTasksIdJSONBodyStatusCanceling   PatchApiDownloadTasksIdJSONBodyStatus = "canceling"
+	PatchApiDownloadTasksIdJSONBodyStatusCompleted   PatchApiDownloadTasksIdJSONBodyStatus = "completed"
+	PatchApiDownloadTasksIdJSONBodyStatusDownloading PatchApiDownloadTasksIdJSONBodyStatus = "downloading"
+	PatchApiDownloadTasksIdJSONBodyStatusFailed      PatchApiDownloadTasksIdJSONBodyStatus = "failed"
+	PatchApiDownloadTasksIdJSONBodyStatusInterrupted PatchApiDownloadTasksIdJSONBodyStatus = "interrupted"
+	PatchApiDownloadTasksIdJSONBodyStatusPaused      PatchApiDownloadTasksIdJSONBodyStatus = "paused"
+	PatchApiDownloadTasksIdJSONBodyStatusPausing     PatchApiDownloadTasksIdJSONBodyStatus = "pausing"
+	PatchApiDownloadTasksIdJSONBodyStatusQueued      PatchApiDownloadTasksIdJSONBodyStatus = "queued"
+	PatchApiDownloadTasksIdJSONBodyStatusSuspended   PatchApiDownloadTasksIdJSONBodyStatus = "suspended"
+	PatchApiDownloadTasksIdJSONBodyStatusUploading   PatchApiDownloadTasksIdJSONBodyStatus = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the PatchApiDownloadTasksIdJSONBodyStatus enum.
@@ -844,13 +844,13 @@ func (e PatchApiDownloadTasksIdJSONBodyStatus) Valid() bool {
 	switch e {
 	case PatchApiDownloadTasksIdJSONBodyStatusAssigned:
 		return true
-	case PatchApiDownloadTasksIdJSONBodyStatusBillingPaused:
-		return true
 	case PatchApiDownloadTasksIdJSONBodyStatusCanceled:
 		return true
 	case PatchApiDownloadTasksIdJSONBodyStatusCanceling:
 		return true
 	case PatchApiDownloadTasksIdJSONBodyStatusCompleted:
+		return true
+	case PatchApiDownloadTasksIdJSONBodyStatusDownloading:
 		return true
 	case PatchApiDownloadTasksIdJSONBodyStatusFailed:
 		return true
@@ -862,7 +862,7 @@ func (e PatchApiDownloadTasksIdJSONBodyStatus) Valid() bool {
 		return true
 	case PatchApiDownloadTasksIdJSONBodyStatusQueued:
 		return true
-	case PatchApiDownloadTasksIdJSONBodyStatusRunning:
+	case PatchApiDownloadTasksIdJSONBodyStatusSuspended:
 		return true
 	case PatchApiDownloadTasksIdJSONBodyStatusUploading:
 		return true
@@ -945,18 +945,18 @@ func (e PatchApiDownloadTasksId200JSONResponseBodySourceType) Valid() bool {
 
 // Defines values for PatchApiDownloadTasksId200JSONResponseBodyStatus.
 const (
-	PatchApiDownloadTasksId200JSONResponseBodyStatusAssigned      PatchApiDownloadTasksId200JSONResponseBodyStatus = "assigned"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusBillingPaused PatchApiDownloadTasksId200JSONResponseBodyStatus = "billing_paused"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusCanceled      PatchApiDownloadTasksId200JSONResponseBodyStatus = "canceled"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusCanceling     PatchApiDownloadTasksId200JSONResponseBodyStatus = "canceling"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusCompleted     PatchApiDownloadTasksId200JSONResponseBodyStatus = "completed"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusFailed        PatchApiDownloadTasksId200JSONResponseBodyStatus = "failed"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusInterrupted   PatchApiDownloadTasksId200JSONResponseBodyStatus = "interrupted"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusPaused        PatchApiDownloadTasksId200JSONResponseBodyStatus = "paused"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusPausing       PatchApiDownloadTasksId200JSONResponseBodyStatus = "pausing"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusQueued        PatchApiDownloadTasksId200JSONResponseBodyStatus = "queued"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusRunning       PatchApiDownloadTasksId200JSONResponseBodyStatus = "running"
-	PatchApiDownloadTasksId200JSONResponseBodyStatusUploading     PatchApiDownloadTasksId200JSONResponseBodyStatus = "uploading"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusAssigned    PatchApiDownloadTasksId200JSONResponseBodyStatus = "assigned"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusCanceled    PatchApiDownloadTasksId200JSONResponseBodyStatus = "canceled"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusCanceling   PatchApiDownloadTasksId200JSONResponseBodyStatus = "canceling"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusCompleted   PatchApiDownloadTasksId200JSONResponseBodyStatus = "completed"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusDownloading PatchApiDownloadTasksId200JSONResponseBodyStatus = "downloading"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusFailed      PatchApiDownloadTasksId200JSONResponseBodyStatus = "failed"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusInterrupted PatchApiDownloadTasksId200JSONResponseBodyStatus = "interrupted"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusPaused      PatchApiDownloadTasksId200JSONResponseBodyStatus = "paused"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusPausing     PatchApiDownloadTasksId200JSONResponseBodyStatus = "pausing"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusQueued      PatchApiDownloadTasksId200JSONResponseBodyStatus = "queued"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusSuspended   PatchApiDownloadTasksId200JSONResponseBodyStatus = "suspended"
+	PatchApiDownloadTasksId200JSONResponseBodyStatusUploading   PatchApiDownloadTasksId200JSONResponseBodyStatus = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the PatchApiDownloadTasksId200JSONResponseBodyStatus enum.
@@ -964,13 +964,13 @@ func (e PatchApiDownloadTasksId200JSONResponseBodyStatus) Valid() bool {
 	switch e {
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusAssigned:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusBillingPaused:
-		return true
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusCanceled:
 		return true
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusCanceling:
 		return true
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusCompleted:
+		return true
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusDownloading:
 		return true
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusFailed:
 		return true
@@ -982,7 +982,7 @@ func (e PatchApiDownloadTasksId200JSONResponseBodyStatus) Valid() bool {
 		return true
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusQueued:
 		return true
-	case PatchApiDownloadTasksId200JSONResponseBodyStatusRunning:
+	case PatchApiDownloadTasksId200JSONResponseBodyStatusSuspended:
 		return true
 	case PatchApiDownloadTasksId200JSONResponseBodyStatusUploading:
 		return true
@@ -993,11 +993,12 @@ func (e PatchApiDownloadTasksId200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for PostApiDownloadTasksIdActionsJSONBodyAction.
 const (
-	Cancel PostApiDownloadTasksIdActionsJSONBodyAction = "cancel"
-	Delete PostApiDownloadTasksIdActionsJSONBodyAction = "delete"
-	Pause  PostApiDownloadTasksIdActionsJSONBodyAction = "pause"
-	Resume PostApiDownloadTasksIdActionsJSONBodyAction = "resume"
-	Retry  PostApiDownloadTasksIdActionsJSONBodyAction = "retry"
+	Cancel  PostApiDownloadTasksIdActionsJSONBodyAction = "cancel"
+	Delete  PostApiDownloadTasksIdActionsJSONBodyAction = "delete"
+	Pause   PostApiDownloadTasksIdActionsJSONBodyAction = "pause"
+	Restart PostApiDownloadTasksIdActionsJSONBodyAction = "restart"
+	Resume  PostApiDownloadTasksIdActionsJSONBodyAction = "resume"
+	Retry   PostApiDownloadTasksIdActionsJSONBodyAction = "retry"
 )
 
 // Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActionsJSONBodyAction enum.
@@ -1008,6 +1009,8 @@ func (e PostApiDownloadTasksIdActionsJSONBodyAction) Valid() bool {
 	case Delete:
 		return true
 	case Pause:
+		return true
+	case Restart:
 		return true
 	case Resume:
 		return true
@@ -1092,18 +1095,18 @@ func (e PostApiDownloadTasksIdActions200JSONResponseBody0SourceType) Valid() boo
 
 // Defines values for PostApiDownloadTasksIdActions200JSONResponseBody0Status.
 const (
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusAssigned      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "assigned"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingPaused PostApiDownloadTasksIdActions200JSONResponseBody0Status = "billing_paused"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceled      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceled"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceling"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "completed"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "failed"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusInterrupted   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "interrupted"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "paused"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPausing       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "pausing"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued        PostApiDownloadTasksIdActions200JSONResponseBody0Status = "queued"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusRunning       PostApiDownloadTasksIdActions200JSONResponseBody0Status = "running"
-	PostApiDownloadTasksIdActions200JSONResponseBody0StatusUploading     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "uploading"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusAssigned    PostApiDownloadTasksIdActions200JSONResponseBody0Status = "assigned"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceled    PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceled"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "canceling"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "completed"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusDownloading PostApiDownloadTasksIdActions200JSONResponseBody0Status = "downloading"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "failed"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusInterrupted PostApiDownloadTasksIdActions200JSONResponseBody0Status = "interrupted"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPaused      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "paused"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusPausing     PostApiDownloadTasksIdActions200JSONResponseBody0Status = "pausing"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued      PostApiDownloadTasksIdActions200JSONResponseBody0Status = "queued"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusSuspended   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "suspended"
+	PostApiDownloadTasksIdActions200JSONResponseBody0StatusUploading   PostApiDownloadTasksIdActions200JSONResponseBody0Status = "uploading"
 )
 
 // Valid indicates whether the value is a known member of the PostApiDownloadTasksIdActions200JSONResponseBody0Status enum.
@@ -1111,13 +1114,13 @@ func (e PostApiDownloadTasksIdActions200JSONResponseBody0Status) Valid() bool {
 	switch e {
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusAssigned:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusBillingPaused:
-		return true
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceled:
 		return true
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCanceling:
 		return true
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusCompleted:
+		return true
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusDownloading:
 		return true
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusFailed:
 		return true
@@ -1129,7 +1132,7 @@ func (e PostApiDownloadTasksIdActions200JSONResponseBody0Status) Valid() bool {
 		return true
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusQueued:
 		return true
-	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusRunning:
+	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusSuspended:
 		return true
 	case PostApiDownloadTasksIdActions200JSONResponseBody0StatusUploading:
 		return true

@@ -180,8 +180,8 @@
               "enum": [
                 "queued",
                 "assigned",
-                "running",
-                "billing_paused",
+                "downloading",
+                "suspended",
                 "pausing",
                 "paused",
                 "interrupted",
@@ -328,8 +328,8 @@
                             "enum": [
                               "queued",
                               "assigned",
-                              "running",
-                              "billing_paused",
+                              "downloading",
+                              "suspended",
                               "pausing",
                               "paused",
                               "interrupted",
@@ -706,8 +706,8 @@
                       "enum": [
                         "queued",
                         "assigned",
-                        "running",
-                        "billing_paused",
+                        "downloading",
+                        "suspended",
                         "pausing",
                         "paused",
                         "interrupted",
@@ -1007,8 +1007,8 @@
               "enum": [
                 "queued",
                 "assigned",
-                "running",
-                "billing_paused",
+                "downloading",
+                "suspended",
                 "pausing",
                 "paused",
                 "interrupted",
@@ -1194,8 +1194,8 @@
                       "enum": [
                         "queued",
                         "assigned",
-                        "running",
-                        "billing_paused",
+                        "downloading",
+                        "suspended",
                         "pausing",
                         "paused",
                         "interrupted",
@@ -1472,8 +1472,8 @@
                     "enum": [
                       "queued",
                       "assigned",
-                      "running",
-                      "billing_paused",
+                      "downloading",
+                      "suspended",
                       "pausing",
                       "paused",
                       "interrupted",
@@ -1730,8 +1730,8 @@
                       "enum": [
                         "queued",
                         "assigned",
-                        "running",
-                        "billing_paused",
+                        "downloading",
+                        "suspended",
                         "pausing",
                         "paused",
                         "interrupted",
@@ -2066,6 +2066,7 @@
                       "resume",
                       "cancel",
                       "retry",
+                      "restart",
                       "delete"
                     ]
                   }
@@ -2122,8 +2123,8 @@
                           "enum": [
                             "queued",
                             "assigned",
-                            "running",
-                            "billing_paused",
+                            "downloading",
+                            "suspended",
                             "pausing",
                             "paused",
                             "interrupted",

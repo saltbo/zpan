@@ -53,7 +53,7 @@ func TestAssignedTasksFetchesRecoverableStatuses(t *testing.T) {
 		t.Fatal(err)
 	}
 	sort.Strings(statuses)
-	expected := []string{"assigned", "interrupted", "running", "uploading"}
+	expected := []string{"assigned", "downloading", "interrupted", "uploading"}
 	if !reflect.DeepEqual(statuses, expected) {
 		t.Fatalf("expected recoverable statuses %v, got %v", expected, statuses)
 	}
@@ -79,7 +79,7 @@ func TestUpdateTaskUsesGeneratedRequestShape(t *testing.T) {
 			Name:                 "file.bin",
 			TargetFolder:         "",
 			Tags:                 []string{},
-			Status:               "running",
+			Status:               "downloading",
 			DownloadedBytes:      1024,
 			StorageUploadedBytes: 0,
 			DownloadBps:          10,
@@ -92,7 +92,7 @@ func TestUpdateTaskUsesGeneratedRequestShape(t *testing.T) {
 	totalBytes := int64(2048)
 	etaSeconds := int64(30)
 	task, err := mustClient(t, server.URL, "token").UpdateTask(context.Background(), "task-1", TaskPatch{
-		Status:          "running",
+		Status:          "downloading",
 		DownloadedBytes: &downloadedBytes,
 		TotalBytes:      &totalBytes,
 		Detail: &DownloadTaskDetail{
@@ -105,10 +105,10 @@ func TestUpdateTaskUsesGeneratedRequestShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if task.ID != "task-1" || task.Status != "running" {
+	if task.ID != "task-1" || task.Status != "downloading" {
 		t.Fatalf("unexpected task: %#v", task)
 	}
-	if body["status"] != "running" || body["downloadedBytes"] != float64(1024) || body["totalBytes"] != float64(2048) {
+	if body["status"] != "downloading" || body["downloadedBytes"] != float64(1024) || body["totalBytes"] != float64(2048) {
 		t.Fatalf("unexpected patch body: %#v", body)
 	}
 	detail, ok := body["detail"].(map[string]any)

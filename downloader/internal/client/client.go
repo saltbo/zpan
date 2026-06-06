@@ -195,7 +195,7 @@ func (c *Client) Heartbeat(ctx context.Context, heartbeat Heartbeat) error {
 func (c *Client) AssignedTasks(ctx context.Context) ([]DownloadTask, error) {
 	return c.assignedTasks(ctx, []openapi.GetApiDownloadTasksParamsStatus{
 		openapi.GetApiDownloadTasksParamsStatusAssigned,
-		openapi.GetApiDownloadTasksParamsStatusRunning,
+		openapi.GetApiDownloadTasksParamsStatusDownloading,
 		openapi.GetApiDownloadTasksParamsStatusInterrupted,
 		openapi.GetApiDownloadTasksParamsStatusUploading,
 	})

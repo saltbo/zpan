@@ -94,14 +94,15 @@ export const Route = createFileRoute('/_authenticated/downloads/')({
 
 const QUERY_KEY = ['download-tasks']
 const EMPTY_DOWNLOAD_TASKS: DownloadTask[] = []
-const PAUSABLE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'running'])
+const PAUSABLE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'downloading'])
 const SORTABLE_COLUMN_IDS = new Set(['source', 'status', 'progress', 'eta', 'category', 'tags'])
 const DEFAULT_COLUMN_ORDER = ['select', 'source', 'status', 'progress', 'eta', 'category', 'tags']
 const STATUS_FILTERS: Array<{ value: DownloadTaskStatus | 'all'; labelKey: string }> = [
   { value: 'all', labelKey: 'downloads.statusFilter.all' },
   { value: 'queued', labelKey: 'downloads.status.queued' },
-  { value: 'running', labelKey: 'downloads.status.running' },
+  { value: 'downloading', labelKey: 'downloads.status.downloading' },
   { value: 'uploading', labelKey: 'downloads.status.uploading' },
+  { value: 'suspended', labelKey: 'downloads.status.suspended' },
   { value: 'paused', labelKey: 'downloads.status.paused' },
   { value: 'interrupted', labelKey: 'downloads.status.interrupted' },
   { value: 'completed', labelKey: 'downloads.status.completed' },
@@ -1270,21 +1271,25 @@ function TaskMenuItem({
 
 function taskActions(task: DownloadTask): DownloadTaskAction[] {
   if (PAUSABLE_STATUSES.has(task.status)) return ['pause', 'cancel']
-  if (task.status === 'paused' || task.status === 'interrupted') return ['resume', 'cancel']
-  if (task.status === 'billing_paused' || task.status === 'uploading' || task.status === 'pausing') return ['cancel']
-  if (task.status === 'failed' || task.status === 'canceled') return ['retry', 'delete']
-  if (task.status === 'completed') return ['delete']
+  if (task.status === 'paused') return ['resume', 'restart', 'cancel']
+  if (task.status === 'suspended') return ['resume', 'restart', 'cancel']
+  if (task.status === 'interrupted') return ['restart', 'cancel']
+  if (task.status === 'uploading' || task.status === 'pausing') return ['cancel']
+  if (task.status === 'failed') return ['retry', 'restart', 'delete']
+  if (task.status === 'canceled') return ['restart', 'delete']
+  if (task.status === 'completed') return ['restart', 'delete']
   return []
 }
 
 function availableBulkActions(tasks: DownloadTask[]): DownloadTaskAction[] {
-  const orderedActions: DownloadTaskAction[] = ['pause', 'resume', 'cancel', 'retry', 'delete']
+  const orderedActions: DownloadTaskAction[] = ['pause', 'resume', 'cancel', 'retry', 'restart', 'delete']
   return orderedActions.filter((action) => tasks.some((task) => taskActions(task).includes(action)))
 }
 
 function primaryTaskAction(task: DownloadTask): DownloadTaskAction | null {
   if (PAUSABLE_STATUSES.has(task.status)) return 'pause'
-  if (task.status === 'paused' || task.status === 'interrupted') return 'resume'
+  if (task.status === 'paused' || task.status === 'suspended') return 'resume'
+  if (task.status === 'interrupted') return 'restart'
   if (task.status === 'failed' || task.status === 'canceled') return 'retry'
   return null
 }
@@ -1293,6 +1298,7 @@ function TaskActionIcon({ action }: { action: DownloadTaskAction }) {
   if (action === 'pause') return <PauseCircle />
   if (action === 'resume') return <PlayCircle />
   if (action === 'retry') return <RotateCcw />
+  if (action === 'restart') return <RotateCcw />
   if (action === 'delete') return <Trash2 />
   return <XCircle />
 }
@@ -1702,11 +1708,11 @@ function StatusBadge({ status }: { status: DownloadTaskDisplayStatus }) {
         'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
       icon: <RadioTower />,
     },
-    running: {
+    downloading: {
       className: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
       icon: <LoaderCircle className="animate-spin" />,
     },
-    billing_paused: {
+    suspended: {
       className:
         'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
       icon: <PauseCircle />,

@@ -272,7 +272,6 @@ async function downloadTaskResponse(c: Context<Env>, action: () => Promise<unkno
     if (error instanceof DownloadError) {
       if (error.code === 'not_found') return c.json({ error: 'Not found' }, 404)
       if (error.code === 'forbidden') return c.json({ error: 'Forbidden' }, 403)
-      if (error.code === 'billing_paused') return c.json({ error: 'insufficient_credits' }, 402)
       return c.json({ error: error.message }, 409)
     }
     throw error

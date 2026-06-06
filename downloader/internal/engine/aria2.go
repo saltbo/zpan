@@ -247,7 +247,7 @@ func (a Aria2) Download(ctx context.Context, task client.DownloadTask, progress 
 }
 
 func shouldRecoverExistingAria2Task(task client.DownloadTask) bool {
-	return task.Status == "running" || task.Status == "uploading"
+	return task.Status == "downloading" || task.Status == "uploading"
 }
 
 func addAria2Task(ctx context.Context, aria *arigo.Client, task client.DownloadTask, options *arigo.Options) (arigo.GID, error) {

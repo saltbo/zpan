@@ -112,7 +112,7 @@ export async function resolveTaskUploadToken(
   if (task.orgId !== claims.orgId || task.targetFolder !== claims.targetFolder) return null
   if (task.uploadTokenHash !== hash || task.uploadTokenJti !== claims.jti) return null
   if (task.uploadTokenExpiresAt && task.uploadTokenExpiresAt.getTime() <= Date.now()) return null
-  if (!['assigned', 'running', 'uploading'].includes(task.status)) return null
+  if (!['assigned', 'downloading', 'uploading'].includes(task.status)) return null
   return claims
 }
 

@@ -234,8 +234,8 @@ export type DownloadSourceType = 'http' | 'magnet' | 'torrent_url'
 export type DownloadTaskStatus =
   | 'queued'
   | 'assigned'
-  | 'running'
-  | 'billing_paused'
+  | 'downloading'
+  | 'suspended'
   | 'pausing'
   | 'paused'
   | 'interrupted'
@@ -245,7 +245,7 @@ export type DownloadTaskStatus =
   | 'failed'
   | 'canceled'
 
-export type DownloadTaskAction = 'pause' | 'resume' | 'cancel' | 'retry' | 'delete'
+export type DownloadTaskAction = 'pause' | 'resume' | 'cancel' | 'retry' | 'restart' | 'delete'
 
 export interface DownloadTask {
   id: string

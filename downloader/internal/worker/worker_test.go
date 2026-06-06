@@ -163,7 +163,7 @@ func TestUploadFailurePersistsDownloadCheckpoint(t *testing.T) {
 	w.uploadAndComplete(
 		context.Background(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		client.DownloadTask{ID: "task-1", Status: "running", UploadToken: "upload-token"},
+		client.DownloadTask{ID: "task-1", Status: "downloading", UploadToken: "upload-token"},
 		result,
 		nil,
 	)
@@ -262,7 +262,7 @@ func TestDownloadShutdownMarksTaskInterrupted(t *testing.T) {
 	w := NewWithAPI(config.Config{}, api)
 	w.engine = eng
 
-	w.process(context.Background(), client.DownloadTask{ID: "task-1", Status: "running"})
+	w.process(context.Background(), client.DownloadTask{ID: "task-1", Status: "downloading"})
 
 	patch := lastPatchWithStatus(t, api.patches, "interrupted")
 	if patch.DownloadBps == nil || *patch.DownloadBps != 0 {
@@ -285,7 +285,7 @@ func TestUploadShutdownMarksTaskInterrupted(t *testing.T) {
 	w.uploadAndComplete(
 		ctx,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		client.DownloadTask{ID: "task-1", Status: "running", UploadToken: "upload-token"},
+		client.DownloadTask{ID: "task-1", Status: "downloading", UploadToken: "upload-token"},
 		engine.Result{Path: payloadPath, Name: "payload.bin", Size: int64(len("downloaded payload"))},
 		nil,
 	)
@@ -403,14 +403,19 @@ func TestResumeStage(t *testing.T) {
 			want: taskResumeDownload,
 		},
 		{
-			name: "running completed bytes",
-			task: client.DownloadTask{Status: "running", DownloadedBytes: 100, TotalBytes: &total},
+			name: "downloading completed bytes",
+			task: client.DownloadTask{Status: "downloading", DownloadedBytes: 100, TotalBytes: &total},
 			want: taskResumeUpload,
 		},
 		{
-			name: "running partial download",
-			task: client.DownloadTask{Status: "running", DownloadedBytes: 99, TotalBytes: &total},
+			name: "downloading partial download",
+			task: client.DownloadTask{Status: "downloading", DownloadedBytes: 99, TotalBytes: &total},
 			want: taskResumeDownload,
+		},
+		{
+			name: "interrupted with uploading phase",
+			task: client.DownloadTask{Status: "interrupted", Detail: &client.DownloadTaskDetail{Phase: "uploading"}},
+			want: taskResumeUpload,
 		},
 	}
 

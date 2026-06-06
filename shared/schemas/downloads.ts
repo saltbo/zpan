@@ -5,8 +5,8 @@ export const downloaderEngineSchema = z.enum(['builtin', 'aria2', 'qbittorrent']
 export const downloadTaskStatusSchema = z.enum([
   'queued',
   'assigned',
-  'running',
-  'billing_paused',
+  'downloading',
+  'suspended',
   'pausing',
   'paused',
   'interrupted',
@@ -16,7 +16,7 @@ export const downloadTaskStatusSchema = z.enum([
   'failed',
   'canceled',
 ])
-export const downloadTaskActionSchema = z.enum(['pause', 'resume', 'cancel', 'retry', 'delete'])
+export const downloadTaskActionSchema = z.enum(['pause', 'resume', 'cancel', 'retry', 'restart', 'delete'])
 export const downloadSourceTypeSchema = z.enum(['http', 'magnet', 'torrent_url'])
 export const downloadTaskPhaseSchema = z.enum(['metadata', 'downloading', 'uploading', 'seeding', 'completed', 'error'])
 
