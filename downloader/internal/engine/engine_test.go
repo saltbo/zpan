@@ -74,6 +74,25 @@ func TestHTTPRejectsMagnet(t *testing.T) {
 	}
 }
 
+func TestAria2StartArgsForceSaveCompletedSeeds(t *testing.T) {
+	stateDir := t.TempDir()
+	args, err := (Aria2{Dir: t.TempDir(), StateDir: stateDir}).startArgs("6800")
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, "\n")
+	for _, expected := range []string{
+		"--input-file=" + filepath.Join(stateDir, "aria2.session"),
+		"--save-session=" + filepath.Join(stateDir, "aria2.session"),
+		"--save-session-interval=30",
+		"--force-save=true",
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("expected aria2 args to contain %q, got %v", expected, args)
+		}
+	}
+}
+
 func TestHTTPDownloadResumesExistingFile(t *testing.T) {
 	var rangeHeader string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

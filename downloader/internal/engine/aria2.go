@@ -62,10 +62,24 @@ func (a Aria2) Start(ctx context.Context) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
+	args, err := a.startArgs(rpcURL.port)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(path, args...)
+	configureEngineProcess(cmd)
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	go func() { _ = cmd.Wait() }()
+	return cmd, nil
+}
+
+func (a Aria2) startArgs(rpcPort string) ([]string, error) {
 	args := []string{
 		"--enable-rpc=true",
 		"--rpc-listen-all=false",
-		"--rpc-listen-port=" + rpcURL.port,
+		"--rpc-listen-port=" + rpcPort,
 		"--dir=" + a.Dir,
 		"--continue=true",
 		"--allow-overwrite=true",
@@ -85,18 +99,13 @@ func (a Aria2) Start(ctx context.Context) (*exec.Cmd, error) {
 			"--input-file="+sessionPath,
 			"--save-session="+sessionPath,
 			"--save-session-interval=30",
+			"--force-save=true",
 		)
 	}
 	if a.Secret != "" {
 		args = append(args, "--rpc-secret="+a.Secret)
 	}
-	cmd := exec.Command(path, args...)
-	configureEngineProcess(cmd)
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	go func() { _ = cmd.Wait() }()
-	return cmd, nil
+	return args, nil
 }
 
 func (a Aria2) Check(ctx context.Context) error {
