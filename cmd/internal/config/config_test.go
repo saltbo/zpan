@@ -1,6 +1,9 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,7 +13,7 @@ import (
 func TestLoadParsesSeedPolicy(t *testing.T) {
 	v := viper.New()
 	v.Set("server_url", "http://localhost:5173")
-	v.Set("downloader.token", "token")
+	v.Set("token", "token")
 	v.Set("downloader.seed.enabled", true)
 	v.Set("downloader.seed.duration", "30m")
 	v.Set("downloader.seed.cache_limit", "10GB")
@@ -31,6 +34,9 @@ func TestLoadParsesSeedPolicy(t *testing.T) {
 	}
 	if cfg.SeedRatio != 1.5 {
 		t.Fatalf("expected seed ratio 1.5, got %f", cfg.SeedRatio)
+	}
+	if cfg.Token != "token" {
+		t.Fatalf("expected global token to be loaded, got %q", cfg.Token)
 	}
 }
 
@@ -101,7 +107,7 @@ func TestLoadRejectsInvalidSeedPolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			v := viper.New()
 			v.Set("server_url", "http://localhost:5173")
-			v.Set("downloader.token", "token")
+			v.Set("token", "token")
 			v.Set(tt.key, tt.value)
 
 			if _, err := Load(v); err == nil {
@@ -109,4 +115,66 @@ func TestLoadRejectsInvalidSeedPolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWriteDefaultConfigWritesCommentedRuntimeHints(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := WriteDefaultConfig(path); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	if strings.Contains(text, "token:") && !strings.Contains(text, "# token:") {
+		t.Fatalf("expected token to be commented in default config, got:\n%s", text)
+	}
+	if hasConfigLine(text, "  aria2:") {
+		t.Fatalf("default config should not enable aria2 runtime block, got:\n%s", text)
+	}
+	if hasConfigLine(text, "  qbittorrent:") {
+		t.Fatalf("default config should not enable qbittorrent runtime block, got:\n%s", text)
+	}
+	if !strings.Contains(text, "  #   url: \"ws://127.0.0.1:6800/jsonrpc\"") {
+		t.Fatalf("expected commented aria2 runtime hint, got:\n%s", text)
+	}
+}
+
+func TestWriteConfigStoresGlobalTokenAndOmitsDefaultRuntimeBlocks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := Config{
+		ServerURL:          "https://zpan.space",
+		Engine:             "auto",
+		DownloadDir:        "/downloads",
+		StateDir:           "/state",
+		PollInterval:       5 * time.Second,
+		MaxConcurrentTasks: 2,
+		SeedEnabled:        true,
+		SeedDuration:       time.Hour,
+		SeedCacheLimit:     10_000_000_000,
+	}
+	if err := WriteConfig(path, cfg, "download-token"); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "token: \"download-token\"") {
+		t.Fatalf("expected global token, got:\n%s", text)
+	}
+	if strings.Contains(text, "downloader:\n  token:") || hasConfigLine(text, "  aria2:") || hasConfigLine(text, "  qbittorrent:") {
+		t.Fatalf("expected no downloader token or default runtime blocks, got:\n%s", text)
+	}
+}
+
+func hasConfigLine(text string, line string) bool {
+	for _, candidate := range strings.Split(text, "\n") {
+		if candidate == line {
+			return true
+		}
+	}
+	return false
 }

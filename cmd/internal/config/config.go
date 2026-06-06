@@ -2,8 +2,10 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +42,7 @@ const (
 func Defaults(v *viper.Viper) {
 	home, _ := os.UserHomeDir()
 	v.SetDefault("server_url", "http://localhost:5173")
+	v.SetDefault("token", "")
 	v.SetDefault("downloader.engine", "auto")
 	v.SetDefault("downloader.download_dir", filepath.Join(home, "Downloads", "zpan"))
 	v.SetDefault("downloader.state_dir", defaultStateDir(home))
@@ -85,7 +88,7 @@ func Load(v *viper.Viper) (Config, error) {
 
 	cfg := Config{
 		ServerURL:          strings.TrimRight(v.GetString("server_url"), "/"),
-		Token:              v.GetString("downloader.token"),
+		Token:              v.GetString("token"),
 		Engine:             v.GetString("downloader.engine"),
 		DownloadDir:        v.GetString("downloader.download_dir"),
 		StateDir:           v.GetString("downloader.state_dir"),
@@ -130,6 +133,146 @@ func Load(v *viper.Viper) (Config, error) {
 
 func explicitValue(v *viper.Viper, key string) bool {
 	return v.IsSet(key)
+}
+
+func WriteDefaultConfig(path string) error {
+	home, _ := os.UserHomeDir()
+	cfg := Config{
+		ServerURL:          "http://localhost:5173",
+		Engine:             "auto",
+		DownloadDir:        filepath.Join(home, "Downloads", "zpan"),
+		StateDir:           defaultStateDir(home),
+		PollInterval:       5 * time.Second,
+		MaxConcurrentTasks: 2,
+		SeedEnabled:        true,
+		SeedDuration:       time.Hour,
+		SeedCacheLimit:     10_000_000_000,
+		SeedRatio:          0,
+	}
+	return createConfigFile(path, defaultConfigYAML(cfg))
+}
+
+func WriteConfig(path string, cfg Config, token string) error {
+	cfg.Token = token
+	return writeConfigFile(path, configYAML(cfg, false))
+}
+
+func createConfigFile(path string, content string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = file.WriteString(content)
+	return err
+}
+
+func writeConfigFile(path string, content string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(content), 0o600)
+}
+
+func defaultConfigYAML(cfg Config) string {
+	return "# ZPan CLI configuration\n" +
+		"# token is written automatically after device login.\n" +
+		"# token: \"\"\n\n" +
+		configYAML(cfg, true)
+}
+
+func configYAML(cfg Config, includeRuntimeHints bool) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "server_url: %s\n", yamlString(cfg.ServerURL))
+	if cfg.Token != "" {
+		fmt.Fprintf(&b, "token: %s\n", yamlString(cfg.Token))
+	}
+	b.WriteString("downloader:\n")
+	fmt.Fprintf(&b, "  engine: %s\n", yamlString(nonEmpty(cfg.Engine, "auto")))
+	fmt.Fprintf(&b, "  download_dir: %s\n", yamlString(cfg.DownloadDir))
+	fmt.Fprintf(&b, "  state_dir: %s\n", yamlString(cfg.StateDir))
+	fmt.Fprintf(&b, "  poll_interval: %s\n", yamlString(formatDuration(cfg.PollInterval, "5s")))
+	fmt.Fprintf(&b, "  max_concurrent_tasks: %d\n", cfg.MaxConcurrentTasks)
+	b.WriteString("  seed:\n")
+	fmt.Fprintf(&b, "    enabled: %t\n", cfg.SeedEnabled)
+	fmt.Fprintf(&b, "    duration: %s\n", yamlString(formatDuration(cfg.SeedDuration, "1h")))
+	fmt.Fprintf(&b, "    cache_limit: %s\n", yamlString(formatSeedCacheLimit(cfg.SeedCacheLimit)))
+	fmt.Fprintf(&b, "    ratio: %s\n", strconv.FormatFloat(cfg.SeedRatio, 'f', -1, 64))
+	if shouldWriteAria2Config(cfg) {
+		b.WriteString("  aria2:\n")
+		fmt.Fprintf(&b, "    url: %s\n", yamlString(nonEmpty(cfg.Aria2URL, DefaultAria2URL)))
+		if cfg.Aria2Secret != "" {
+			fmt.Fprintf(&b, "    secret: %s\n", yamlString(cfg.Aria2Secret))
+		}
+	}
+	if shouldWriteQBittorrentConfig(cfg) {
+		b.WriteString("  qbittorrent:\n")
+		fmt.Fprintf(&b, "    url: %s\n", yamlString(nonEmpty(cfg.QBittorrentURL, DefaultQBittorrentURL)))
+		if cfg.QBittorrentUser != "" {
+			fmt.Fprintf(&b, "    username: %s\n", yamlString(cfg.QBittorrentUser))
+		}
+		if cfg.QBittorrentPass != "" {
+			fmt.Fprintf(&b, "    password: %s\n", yamlString(cfg.QBittorrentPass))
+		}
+	}
+	if includeRuntimeHints {
+		b.WriteString("\n")
+		b.WriteString("  # To connect an external aria2 runtime, set engine to \"aria2\"\n")
+		b.WriteString("  # and uncomment this block.\n")
+		fmt.Fprintf(&b, "  # aria2:\n")
+		fmt.Fprintf(&b, "  #   url: %s\n", yamlString(DefaultAria2URL))
+		fmt.Fprintf(&b, "  #   secret: %s\n", yamlString("optional-rpc-secret"))
+		b.WriteString("\n")
+		b.WriteString("  # To connect an external qBittorrent runtime, set engine to \"qbittorrent\"\n")
+		b.WriteString("  # and uncomment this block.\n")
+		fmt.Fprintf(&b, "  # qbittorrent:\n")
+		fmt.Fprintf(&b, "  #   url: %s\n", yamlString(DefaultQBittorrentURL))
+		fmt.Fprintf(&b, "  #   username: %s\n", yamlString("admin"))
+		fmt.Fprintf(&b, "  #   password: %s\n", yamlString("password"))
+	}
+	return b.String()
+}
+
+func shouldWriteAria2Config(cfg Config) bool {
+	return strings.EqualFold(cfg.Engine, "aria2") || cfg.Aria2Configured
+}
+
+func shouldWriteQBittorrentConfig(cfg Config) bool {
+	return strings.EqualFold(cfg.Engine, "qbittorrent") || cfg.QBittorrentConfigured
+}
+
+func yamlString(value string) string {
+	return strconv.Quote(value)
+}
+
+func nonEmpty(value string, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func formatSeedCacheLimit(value int64) string {
+	if value == 10_000_000_000 {
+		return "10GB"
+	}
+	return strconv.FormatInt(value, 10)
+}
+
+func formatDuration(value time.Duration, fallback string) string {
+	if value == 0 {
+		return fallback
+	}
+	if value == time.Hour {
+		return "1h"
+	}
+	if value%time.Second == 0 {
+		return value.String()
+	}
+	return value.String()
 }
 
 func parseBytes(value string) (int64, error) {

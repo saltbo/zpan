@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -101,7 +100,7 @@ func upCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 			if cfg.Token == "" {
-				registered, err := registerDownloaderWithDeviceLogin(ctx, cmd, v, cfg, *cfgFile)
+				registered, err := registerDownloaderWithDeviceLogin(ctx, cmd, cfg, *cfgFile)
 				if err != nil {
 					return err
 				}
@@ -125,12 +124,7 @@ func configCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 		Use:   "init",
 		Short: "Create a default config file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.Defaults(v)
-			v.SetConfigFile(*cfgFile)
-			if err := os.MkdirAll(filepath.Dir(*cfgFile), 0o755); err != nil {
-				return err
-			}
-			return v.SafeWriteConfigAs(*cfgFile)
+			return config.WriteDefaultConfig(*cfgFile)
 		},
 	})
 	return cmd
@@ -139,7 +133,6 @@ func configCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 func registerDownloaderWithDeviceLogin(
 	ctx context.Context,
 	cmd *cobra.Command,
-	v *viper.Viper,
 	cfg config.Config,
 	cfgFile string,
 ) (client.CreateDownloaderResponse, error) {
@@ -170,7 +163,7 @@ func registerDownloaderWithDeviceLogin(
 		return client.CreateDownloaderResponse{}, err
 	}
 	slog.Info("downloader registered", "downloader_id", registered.Downloader.ID)
-	if err := saveRegisteredDownloaderConfig(v, cfg, cfgFile, registered.Token); err != nil {
+	if err := saveRegisteredDownloaderConfig(cfg, cfgFile, registered.Token); err != nil {
 		return client.CreateDownloaderResponse{}, err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Downloader registered: %s\n", registered.Downloader.ID)
@@ -178,16 +171,8 @@ func registerDownloaderWithDeviceLogin(
 	return registered, nil
 }
 
-func saveRegisteredDownloaderConfig(v *viper.Viper, cfg config.Config, cfgFile string, token string) error {
-	v.Set("server_url", cfg.ServerURL)
-	v.Set("downloader.token", token)
-	if err := os.MkdirAll(filepath.Dir(cfgFile), 0o755); err != nil {
-		return err
-	}
-	if _, err := os.Stat(cfgFile); err == nil {
-		return v.WriteConfigAs(cfgFile)
-	}
-	return v.SafeWriteConfigAs(cfgFile)
+func saveRegisteredDownloaderConfig(cfg config.Config, cfgFile string, token string) error {
+	return config.WriteConfig(cfgFile, cfg, token)
 }
 
 func downloaderName() string {
