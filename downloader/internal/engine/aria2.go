@@ -36,7 +36,7 @@ var aria2StatusKeys = []string{
 	"downloadSpeed",
 	"dir",
 	"files",
-	"bitTorrent",
+	"bittorrent",
 	"followedBy",
 	"following",
 	"belongsTo",

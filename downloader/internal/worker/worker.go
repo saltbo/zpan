@@ -26,6 +26,13 @@ var errBillingPaused = errors.New("billing paused")
 var errTaskPausing = errors.New("task pausing")
 var errTaskCanceling = errors.New("task canceling")
 
+type taskResumeStage int
+
+const (
+	taskResumeDownload taskResumeStage = iota
+	taskResumeUpload
+)
+
 type Worker struct {
 	cfg           config.Config
 	api           apiClient
@@ -175,7 +182,7 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	log := w.taskLogger(task)
 	log.Info("task started", "source_uri", task.SourceURI, "target_folder", task.TargetFolder)
 	currentDetail := task.Detail
-	if shouldRecoverBeforeDownload(task) {
+	if resumeStage(task) == taskResumeUpload {
 		result, recovered, err := w.engine.Recover(ctx, task)
 		if err != nil {
 			msg := taskErrorMessage(err)
@@ -268,20 +275,23 @@ func (w *Worker) process(ctx context.Context, task client.DownloadTask) {
 	w.uploadAndComplete(ctx, log, task, result, currentDetail)
 }
 
-func shouldRecoverBeforeDownload(task client.DownloadTask) bool {
+func resumeStage(task client.DownloadTask) taskResumeStage {
 	if task.Status == "uploading" {
-		return true
+		return taskResumeUpload
 	}
-	if task.Status != "assigned" {
-		return false
+	if task.Status != "assigned" && task.Status != "running" {
+		return taskResumeDownload
 	}
 	if task.StorageUploadedBytes > 0 {
-		return true
+		return taskResumeUpload
 	}
-	if task.Detail != nil && task.Detail.Phase == "uploading" {
-		return true
+	if task.Detail != nil && (task.Detail.Phase == "uploading" || task.Detail.Phase == "completed") {
+		return taskResumeUpload
 	}
-	return task.TotalBytes != nil && *task.TotalBytes > 0 && task.DownloadedBytes >= *task.TotalBytes
+	if task.TotalBytes != nil && *task.TotalBytes > 0 && task.DownloadedBytes >= *task.TotalBytes {
+		return taskResumeUpload
+	}
+	return taskResumeDownload
 }
 
 func (w *Worker) uploadAndComplete(
@@ -300,7 +310,22 @@ func (w *Worker) uploadAndComplete(
 	if err != nil {
 		msg := taskErrorMessage(err)
 		log.Error("failed to upload result", "error", err)
-		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+		downloadedBytes := result.Size
+		failedDetail := task.Detail
+		if failedDetail == nil {
+			failedDetail = &client.DownloadTaskDetail{}
+		}
+		failedDetail.Phase = "uploading"
+		failedDetail.PeerUploadBps = nil
+		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{
+			Status:           "failed",
+			ErrorMessage:     &msg,
+			DownloadedBytes:  &downloadedBytes,
+			TotalBytes:       &downloadedBytes,
+			DownloadBps:      &zero,
+			StorageUploadBps: &zero,
+			Detail:           failedDetail,
+		}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
 		}
 		return

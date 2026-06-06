@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -149,6 +150,112 @@ func TestCollectDirectoryEntriesSkipsDownloadSidecars(t *testing.T) {
 	}
 }
 
+func TestUploadFailurePersistsDownloadCheckpoint(t *testing.T) {
+	api := &recordingAPI{createFolderErr: errors.New("unauthorized")}
+	w := NewWithAPI(config.Config{}, api)
+	result := engine.Result{
+		Path:  t.TempDir(),
+		Name:  "album",
+		Size:  1234,
+		IsDir: true,
+	}
+
+	w.uploadAndComplete(
+		context.Background(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		client.DownloadTask{ID: "task-1", Status: "running", UploadToken: "upload-token"},
+		result,
+		nil,
+	)
+
+	if len(api.patches) < 2 {
+		t.Fatalf("expected uploading and failed updates, got %d", len(api.patches))
+	}
+	failed := api.patches[len(api.patches)-1]
+	if failed.Status != "failed" {
+		t.Fatalf("expected failed status, got %q", failed.Status)
+	}
+	if failed.DownloadedBytes == nil || *failed.DownloadedBytes != result.Size {
+		t.Fatalf("expected downloaded bytes %d, got %#v", result.Size, failed.DownloadedBytes)
+	}
+	if failed.TotalBytes == nil || *failed.TotalBytes != result.Size {
+		t.Fatalf("expected total bytes %d, got %#v", result.Size, failed.TotalBytes)
+	}
+	if failed.Detail == nil || failed.Detail.Phase != "uploading" {
+		t.Fatalf("expected uploading detail phase, got %#v", failed.Detail)
+	}
+}
+
+func TestWorkerLifecycleRetriesUploadWithoutRedownloading(t *testing.T) {
+	payloadPath := writeTempFile(t, "downloaded payload")
+	payloadSize := int64(len("downloaded payload"))
+	uploadRequests := 0
+	uploadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uploadRequests++
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			t.Fatal(err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer uploadServer.Close()
+
+	api := &recordingAPI{
+		createObjectDraft: client.ObjectDraft{ID: "object-1", Name: "payload.bin", UploadURL: uploadServer.URL},
+		confirmErrs:       []error{errors.New("unauthorized"), nil},
+	}
+	eng := &recordingEngine{
+		downloadResult: engine.Result{Path: payloadPath, Name: "payload.bin", Size: payloadSize},
+		recoverResult:  engine.Result{Path: payloadPath, Name: "payload.bin", Size: payloadSize},
+		recovered:      true,
+	}
+
+	first := NewWithAPI(config.Config{}, api)
+	first.engine = eng
+	first.process(context.Background(), client.DownloadTask{
+		ID:          "task-1",
+		Status:      "assigned",
+		SourceType:  "http",
+		SourceURI:   "https://example.com/payload.bin",
+		Name:        "payload.bin",
+		UploadToken: "upload-token",
+	})
+	failed := lastPatchWithStatus(t, api.patches, "failed")
+	if failed.DownloadedBytes == nil || *failed.DownloadedBytes != payloadSize {
+		t.Fatalf("expected failed task to persist downloaded bytes %d, got %#v", payloadSize, failed.DownloadedBytes)
+	}
+	if failed.Detail == nil || failed.Detail.Phase != "uploading" {
+		t.Fatalf("expected failed task to persist uploading phase, got %#v", failed.Detail)
+	}
+
+	second := NewWithAPI(config.Config{}, api)
+	second.engine = eng
+	second.process(context.Background(), client.DownloadTask{
+		ID:              "task-1",
+		Status:          "assigned",
+		SourceType:      "http",
+		SourceURI:       "https://example.com/payload.bin",
+		Name:            "payload.bin",
+		DownloadedBytes: payloadSize,
+		TotalBytes:      &payloadSize,
+		Detail:          &client.DownloadTaskDetail{Phase: "uploading"},
+		UploadToken:     "upload-token",
+	})
+
+	if eng.downloadCalls != 1 {
+		t.Fatalf("expected retry to avoid a second download, got %d download calls", eng.downloadCalls)
+	}
+	if eng.recoverCalls != 1 {
+		t.Fatalf("expected retry to recover the completed download, got %d recover calls", eng.recoverCalls)
+	}
+	if uploadRequests != 2 {
+		t.Fatalf("expected both attempts to upload the local result, got %d upload requests", uploadRequests)
+	}
+	last := api.patches[len(api.patches)-1]
+	if last.Status != "completed" {
+		t.Fatalf("expected retry to complete task, got last patch %#v", last)
+	}
+}
+
 func TestUploadETARoundsRemainingSeconds(t *testing.T) {
 	eta := uploadETA(&uploadProgress{uploaded: 25, totalBytes: 100}, 20)
 
@@ -212,48 +319,58 @@ func TestTaskErrorMessageTruncatesToSchemaLimit(t *testing.T) {
 	}
 }
 
-func TestShouldRecoverBeforeDownload(t *testing.T) {
+func TestResumeStage(t *testing.T) {
 	total := int64(100)
 	cases := []struct {
 		name string
 		task client.DownloadTask
-		want bool
+		want taskResumeStage
 	}{
 		{
 			name: "uploading status",
 			task: client.DownloadTask{Status: "uploading"},
-			want: true,
+			want: taskResumeUpload,
 		},
 		{
 			name: "assigned with upload bytes",
 			task: client.DownloadTask{Status: "assigned", StorageUploadedBytes: 1},
-			want: true,
+			want: taskResumeUpload,
 		},
 		{
 			name: "assigned with uploading phase",
 			task: client.DownloadTask{Status: "assigned", Detail: &client.DownloadTaskDetail{Phase: "uploading"}},
-			want: true,
+			want: taskResumeUpload,
+		},
+		{
+			name: "assigned with completed phase",
+			task: client.DownloadTask{Status: "assigned", Detail: &client.DownloadTaskDetail{Phase: "completed"}},
+			want: taskResumeUpload,
 		},
 		{
 			name: "assigned with completed download bytes",
 			task: client.DownloadTask{Status: "assigned", DownloadedBytes: 100, TotalBytes: &total},
-			want: true,
+			want: taskResumeUpload,
 		},
 		{
 			name: "assigned partial download",
 			task: client.DownloadTask{Status: "assigned", DownloadedBytes: 99, TotalBytes: &total},
-			want: false,
+			want: taskResumeDownload,
 		},
 		{
 			name: "running completed bytes",
 			task: client.DownloadTask{Status: "running", DownloadedBytes: 100, TotalBytes: &total},
-			want: false,
+			want: taskResumeUpload,
+		},
+		{
+			name: "running partial download",
+			task: client.DownloadTask{Status: "running", DownloadedBytes: 99, TotalBytes: &total},
+			want: taskResumeDownload,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := shouldRecoverBeforeDownload(tc.task); got != tc.want {
+			if got := resumeStage(tc.task); got != tc.want {
 				t.Fatalf("expected %v, got %v", tc.want, got)
 			}
 		})
@@ -403,4 +520,102 @@ func writeTempFile(t *testing.T, content string) string {
 
 func clientTask(id string) client.DownloadTask {
 	return client.DownloadTask{ID: id, SourceType: "magnet"}
+}
+
+func lastPatchWithStatus(t *testing.T, patches []client.TaskPatch, status string) client.TaskPatch {
+	t.Helper()
+	for i := len(patches) - 1; i >= 0; i-- {
+		if patches[i].Status == status {
+			return patches[i]
+		}
+	}
+	t.Fatalf("expected patch with status %q in %#v", status, patches)
+	return client.TaskPatch{}
+}
+
+type recordingEngine struct {
+	downloadResult engine.Result
+	recoverResult  engine.Result
+	recovered      bool
+	downloadCalls  int
+	recoverCalls   int
+}
+
+func (e *recordingEngine) Name() string {
+	return "recording"
+}
+
+func (e *recordingEngine) Capabilities() []string {
+	return []string{"http", "magnet", "torrent"}
+}
+
+func (e *recordingEngine) Check(context.Context) error {
+	return nil
+}
+
+func (e *recordingEngine) Recover(context.Context, client.DownloadTask) (engine.Result, bool, error) {
+	e.recoverCalls++
+	return e.recoverResult, e.recovered, nil
+}
+
+func (e *recordingEngine) Download(context.Context, client.DownloadTask, engine.Progress) (engine.Result, error) {
+	e.downloadCalls++
+	return e.downloadResult, nil
+}
+
+type recordingAPI struct {
+	patches           []client.TaskPatch
+	createFolderErr   error
+	createObjectDraft client.ObjectDraft
+	confirmErrs       []error
+}
+
+func (a *recordingAPI) Heartbeat(context.Context, client.Heartbeat) error {
+	return nil
+}
+
+func (a *recordingAPI) AssignedControlTasks(context.Context) ([]client.DownloadTask, error) {
+	return nil, nil
+}
+
+func (a *recordingAPI) AssignedTasks(context.Context) ([]client.DownloadTask, error) {
+	return nil, nil
+}
+
+func (a *recordingAPI) UpdateTask(_ context.Context, id string, patch client.TaskPatch) (client.DownloadTask, error) {
+	a.patches = append(a.patches, patch)
+	return client.DownloadTask{ID: id, Status: patch.Status, Detail: patch.Detail}, nil
+}
+
+func (a *recordingAPI) CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error) {
+	return client.ObjectDraft{}, a.createFolderErr
+}
+
+func (a *recordingAPI) CreateObject(context.Context, string, string, int64, string) (client.ObjectDraft, error) {
+	return a.createObjectDraft, nil
+}
+
+func (a *recordingAPI) ConfirmObject(context.Context, string, string) error {
+	if len(a.confirmErrs) > 0 {
+		err := a.confirmErrs[0]
+		a.confirmErrs = a.confirmErrs[1:]
+		return err
+	}
+	return nil
+}
+
+func (a *recordingAPI) CreateObjectUploadSession(context.Context, string, string, int64) (client.ObjectUploadSession, error) {
+	return client.ObjectUploadSession{}, nil
+}
+
+func (a *recordingAPI) PresignObjectUploadParts(context.Context, string, string, string, []int) ([]client.PresignedObjectUploadPart, error) {
+	return nil, nil
+}
+
+func (a *recordingAPI) CompleteObjectUploadSession(context.Context, string, string, string, []client.CompletedObjectUploadPart) error {
+	return nil
+}
+
+func (a *recordingAPI) AbortObjectUploadSession(context.Context, string, string, string) error {
+	return nil
 }

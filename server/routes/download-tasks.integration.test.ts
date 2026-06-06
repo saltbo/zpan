@@ -619,6 +619,97 @@ describe('Download tasks API integration', () => {
     await expect(deleteRes.json()).resolves.toEqual({ id: createdTask.id, deleted: true })
   })
 
+  it('preserves the completed download checkpoint when retrying an upload failure', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'retry-checkpoint-downloader')
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+    })
+    expect(heartbeatRes.status).toBe(200)
+
+    const user = await authedHeaders(app, 'download-retry-checkpoint-user@example.com')
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'magnet', uri: 'magnet:?xt=urn:btih:abc123' },
+        targetFolder: 'Media/Music',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const createdTask = (await createTaskRes.json()) as { id: string; status: string }
+    expect(createdTask.status).toBe('assigned')
+
+    const totalBytes = 4096
+    const failedUploadRes = await app.request(`/api/download-tasks/${createdTask.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        status: 'failed',
+        downloadedBytes: totalBytes,
+        totalBytes,
+        storageUploadedBytes: 1024,
+        errorMessage: 'confirm object failed',
+        detail: { engine: 'aria2', phase: 'uploading', infoHash: 'abc123' },
+      }),
+    })
+    expect(failedUploadRes.status).toBe(200)
+    await expect(failedUploadRes.json()).resolves.toMatchObject({
+      status: 'failed',
+      downloadedBytes: totalBytes,
+      totalBytes,
+      storageUploadedBytes: 1024,
+      detail: { phase: 'uploading' },
+    })
+
+    const retryRes = await app.request(`/api/download-tasks/${createdTask.id}/actions`, {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'retry' }),
+    })
+    expect(retryRes.status).toBe(200)
+    await expect(retryRes.json()).resolves.toMatchObject({
+      status: 'assigned',
+      assignedDownloaderId: createdDownloader.downloader.id,
+      downloadedBytes: totalBytes,
+      totalBytes,
+      storageUploadedBytes: 1024,
+      detail: { phase: 'uploading' },
+      errorMessage: null,
+    })
+
+    const assignedRes = await app.request('/api/download-tasks?assignedTo=me&status=assigned', {
+      headers: { Authorization: `Bearer ${createdDownloader.token}` },
+    })
+    expect(assignedRes.status).toBe(200)
+    const assigned = (await assignedRes.json()) as {
+      items: Array<{
+        id: string
+        downloadedBytes: number
+        totalBytes: number
+        storageUploadedBytes: number
+        detail: { phase: string }
+        uploadToken: string
+      }>
+    }
+    const task = assigned.items.find((item) => item.id === createdTask.id)
+    expect(task).toMatchObject({
+      downloadedBytes: totalBytes,
+      totalBytes,
+      storageUploadedBytes: 1024,
+      detail: { phase: 'uploading' },
+    })
+    expect(task?.uploadToken).toBeTruthy()
+  })
+
   it('uses transitional states for running task pause and cancel actions', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)

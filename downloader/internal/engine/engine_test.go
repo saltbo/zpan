@@ -116,6 +116,16 @@ func TestHTTPDownloadResumesExistingFile(t *testing.T) {
 	}
 }
 
+func TestAria2StatusKeysRequestBittorrentPayload(t *testing.T) {
+	keys := strings.Join(aria2StatusKeys, ",")
+	if !strings.Contains(keys, "bittorrent") {
+		t.Fatalf("expected aria2 status keys to request bittorrent payload, got %v", aria2StatusKeys)
+	}
+	if strings.Contains(keys, "bitTorrent") {
+		t.Fatalf("aria2 status key is case-sensitive; use bittorrent, got %v", aria2StatusKeys)
+	}
+}
+
 func TestQBittorrentCheckUsesWebAPIVersion(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v2/app/version" {
