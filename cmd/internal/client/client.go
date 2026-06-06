@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/saltbo/zpan/downloader/internal/openapi"
+	"github.com/saltbo/zpan/cmd/internal/openapi"
 )
 
 type Client struct {

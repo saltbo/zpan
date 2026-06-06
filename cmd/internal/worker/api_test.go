@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/saltbo/zpan/downloader/internal/config"
+	"github.com/saltbo/zpan/cmd/internal/config"
 )
 
 func TestCallAPIRetriesTransientErrors(t *testing.T) {

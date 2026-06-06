@@ -13,7 +13,7 @@ import (
 	"time"
 
 	qbittorrent "github.com/autobrr/go-qbittorrent"
-	"github.com/saltbo/zpan/downloader/internal/client"
+	"github.com/saltbo/zpan/cmd/internal/client"
 )
 
 type QBittorrent struct {

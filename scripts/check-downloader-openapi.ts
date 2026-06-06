@@ -52,7 +52,7 @@ async function main() {
       'Downloader OpenAPI document is stale.',
     )
     await assertSame(
-      'downloader/internal/openapi/client.gen.go',
+      'cmd/internal/openapi/client.gen.go',
       generatedClientPath,
       'Downloader Go OpenAPI client is stale.',
     )

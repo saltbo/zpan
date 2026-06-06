@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/saltbo/zpan/downloader/internal/config"
-	"github.com/saltbo/zpan/downloader/internal/engine"
+	"github.com/saltbo/zpan/cmd/internal/config"
+	"github.com/saltbo/zpan/cmd/internal/engine"
 )
 
 func (w *Worker) resolveEngine(ctx context.Context) error {

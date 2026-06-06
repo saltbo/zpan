@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/saltbo/zpan/downloader/internal/client"
+	"github.com/saltbo/zpan/cmd/internal/client"
 )
 
 type HTTP struct {

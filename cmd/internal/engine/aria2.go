@@ -18,7 +18,7 @@ import (
 
 	"github.com/Braurbeki/arigo"
 	"github.com/cenkalti/rpc2"
-	"github.com/saltbo/zpan/downloader/internal/client"
+	"github.com/saltbo/zpan/cmd/internal/client"
 )
 
 type Aria2 struct {

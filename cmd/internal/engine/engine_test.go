@@ -14,7 +14,7 @@ import (
 	"github.com/Braurbeki/arigo"
 	qbittorrent "github.com/autobrr/go-qbittorrent"
 	"github.com/cenkalti/rpc2"
-	"github.com/saltbo/zpan/downloader/internal/client"
+	"github.com/saltbo/zpan/cmd/internal/client"
 )
 
 func downloadTask(id, sourceType, sourceURI string) client.DownloadTask {

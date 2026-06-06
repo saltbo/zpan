@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/saltbo/zpan/downloader/internal/client"
-	"github.com/saltbo/zpan/downloader/internal/config"
-	"github.com/saltbo/zpan/downloader/internal/worker"
+	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/cmd/internal/config"
+	"github.com/saltbo/zpan/cmd/internal/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -43,6 +43,7 @@ func rootCommand() *cobra.Command {
 		v.SetConfigFile(cfgFile)
 	}
 
+	root.AddCommand(configCommand(v, &cfgFile))
 	root.AddCommand(downloaderCommand(v, &cfgFile))
 	return root
 }
@@ -53,7 +54,6 @@ func downloaderCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 		Short: "Manage the ZPan remote downloader",
 	}
 	cmd.AddCommand(upCommand(v, cfgFile))
-	cmd.AddCommand(downloaderConfigCommand(v, cfgFile))
 	return cmd
 }
 
@@ -116,10 +116,10 @@ func upCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 	}
 }
 
-func downloaderConfigCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
+func configCommand(v *viper.Viper, cfgFile *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Manage downloader configuration",
+		Short: "Manage CLI configuration",
 	}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "init",

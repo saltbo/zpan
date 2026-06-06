@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/saltbo/zpan/downloader/internal/client"
+	"github.com/saltbo/zpan/cmd/internal/client"
 )
 
 const apiRetryAttempts = 3

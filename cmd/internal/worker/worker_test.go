@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/saltbo/zpan/downloader/internal/client"
-	"github.com/saltbo/zpan/downloader/internal/config"
-	"github.com/saltbo/zpan/downloader/internal/engine"
+	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/cmd/internal/config"
+	"github.com/saltbo/zpan/cmd/internal/engine"
 )
 
 func TestResolveEngineRejectsUnknownConfiguredEngine(t *testing.T) {

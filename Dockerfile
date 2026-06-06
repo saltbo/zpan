@@ -15,12 +15,12 @@ COPY . .
 RUN pnpm build:node \
  && pnpm prune --prod
 
-FROM golang:1.25 AS downloader-builder
-WORKDIR /app/downloader
-COPY downloader/go.mod downloader/go.sum ./
+FROM golang:1.25 AS cli-builder
+WORKDIR /app/cmd
+COPY cmd/go.mod cmd/go.sum ./
 RUN go mod download
-COPY downloader ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/zpan ./cmd/zpan
+COPY cmd ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/zpan ./zpan
 
 FROM debian:bookworm-slim AS cli
 RUN apt-get update \
@@ -28,7 +28,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && addgroup --system zpan \
  && adduser --system --ingroup zpan --home /home/zpan zpan
-COPY --from=downloader-builder /out/zpan /usr/local/bin/zpan
+COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
 RUN mkdir -p /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /downloads \
  && chown -R zpan:zpan /home/zpan /downloads
 USER zpan
@@ -52,7 +52,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
-COPY --from=downloader-builder /out/zpan /usr/local/bin/zpan
+COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
 
 RUN mkdir -p /data /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader \
  && chown -R zpan:zpan /data /home/zpan

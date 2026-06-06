@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/saltbo/zpan/downloader/internal/config"
+	"github.com/saltbo/zpan/cmd/internal/config"
 )
 
 func TestRegistrationHeartbeatNormalizesAutoEngine(t *testing.T) {
@@ -48,5 +48,15 @@ func TestRootCommandExposesDownloaderSubcommands(t *testing.T) {
 	}
 	if downloader.Name() != "up" {
 		t.Fatalf("expected downloader up command, got %q", downloader.Name())
+	}
+	config, _, err := root.Find([]string{"config", "init"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Name() != "init" {
+		t.Fatalf("expected root config init command, got %q", config.Name())
+	}
+	if command, _, err := root.Find([]string{"downloader", "config"}); err == nil && command.Name() == "config" {
+		t.Fatal("downloader config command should not be exposed")
 	}
 }

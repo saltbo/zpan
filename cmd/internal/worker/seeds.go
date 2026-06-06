@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/saltbo/zpan/downloader/internal/client"
-	"github.com/saltbo/zpan/downloader/internal/engine"
+	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/cmd/internal/engine"
 )
 
 const retainedSeedReportInterval = 5 * time.Second

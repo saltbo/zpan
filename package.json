@@ -37,7 +37,7 @@
     "e2e:archive": "node scripts/run-cloud-e2e.mjs --local --with-s3-mock --spec archive.spec.ts",
     "e2e:archive:cf": "node scripts/run-cloud-e2e.mjs --runtime cf --local --with-s3-mock --spec archive.spec.ts",
     "openapi:downloader": "tsx scripts/generate-downloader-openapi.ts",
-    "openapi:downloader:go": "pnpm openapi:downloader && cd downloader && go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.7.0 -config oapi-codegen.yaml ../docs/openapi/downloader.json",
+    "openapi:downloader:go": "pnpm openapi:downloader && cd cmd && go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.7.0 -config oapi-codegen.yaml ../docs/openapi/downloader.json",
     "openapi:downloader:check": "tsx scripts/check-downloader-openapi.ts",
     "openapi:downloader:all": "pnpm openapi:downloader:go"
   },

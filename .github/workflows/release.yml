@@ -20,8 +20,8 @@ jobs:
           cache: pnpm
       - uses: actions/setup-go@v6
         with:
-          go-version-file: downloader/go.mod
-          cache-dependency-path: downloader/go.sum
+          go-version-file: cmd/go.mod
+          cache-dependency-path: cmd/go.sum
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck

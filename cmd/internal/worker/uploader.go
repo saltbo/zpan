@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/saltbo/zpan/downloader/internal/client"
-	"github.com/saltbo/zpan/downloader/internal/engine"
+	"github.com/saltbo/zpan/cmd/internal/client"
+	"github.com/saltbo/zpan/cmd/internal/engine"
 )
 
 const maxSingleUploadSize = 5 * 1024 * 1024 * 1024
