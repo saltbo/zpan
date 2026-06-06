@@ -41,6 +41,7 @@ type Worker struct {
 	running       map[string]context.CancelCauseFunc
 	retainedSeeds []retainedSeed
 	started       []*exec.Cmd
+	wg            sync.WaitGroup
 	mu            sync.Mutex
 }
 
@@ -120,7 +121,8 @@ func (w *Worker) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			w.logger.Info("downloader stopped", "reason", ctx.Err())
-			return ctx.Err()
+			w.waitForTasks()
+			return nil
 		case <-ticker.C:
 			if err := w.tick(ctx); err != nil {
 				w.logger.Error("downloader tick failed", "error", err)
@@ -499,13 +501,33 @@ func (w *Worker) startTask(ctx context.Context, taskID string) (context.Context,
 	}
 	taskCtx, cancel := context.WithCancelCause(ctx)
 	w.running[taskID] = cancel
+	w.wg.Add(1)
 	return taskCtx, true
 }
 
 func (w *Worker) finish(taskID string) {
 	w.mu.Lock()
-	defer w.mu.Unlock()
-	delete(w.running, taskID)
+	_, exists := w.running[taskID]
+	if exists {
+		delete(w.running, taskID)
+	}
+	w.mu.Unlock()
+	if exists {
+		w.wg.Done()
+	}
+}
+
+func (w *Worker) waitForTasks() {
+	done := make(chan struct{})
+	go func() {
+		w.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		w.logger.Warn("timed out waiting for running tasks to stop", "running", w.currentTasks())
+	}
 }
 
 func (w *Worker) cancelRunning(task client.DownloadTask) bool {
