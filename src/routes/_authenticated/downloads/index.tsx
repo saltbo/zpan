@@ -82,6 +82,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createDownloadTask, downloadTaskEventsUrl, listDownloadTasks, runDownloadTaskAction } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -1628,8 +1629,8 @@ function PeersPanel({ task }: { task: DownloadTask }) {
       maxWidth: 430,
       render: (peer) => (
         <div className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 truncate font-mono text-xs">{peer.address}</span>
           <PeerRegionMark countryCode={peer.countryCode} regionCode={peer.regionCode} />
+          <span className="min-w-0 truncate font-mono text-xs">{peer.address}</span>
         </div>
       ),
     },
@@ -1806,21 +1807,33 @@ function ResizableDetailTable<T>({
 function PeerRegionMark({ countryCode, regionCode }: { countryCode?: string; regionCode?: string }) {
   const country = normalizeRegionCode(countryCode)
   const region = normalizeRegionCode(regionCode)
-  if (!country && !region) return null
+  if (!country) return null
 
   const countryName = country ? formatRegionDisplayName(country) : null
-  const label = country ?? region ?? ''
-  const title = [countryName ?? country, region && region !== country ? region : null].filter(Boolean).join(' · ')
-  const flag = country ? countryCodeToFlag(country) : null
+  const regionName = region && region !== country ? formatSubdivisionDisplayName(country, region) : null
+  const flag = countryCodeToFlag(country)
+  if (!flag) return null
 
   return (
-    <span
-      className="inline-flex shrink-0 items-baseline gap-1 text-[10px] font-medium text-muted-foreground uppercase tabular-nums"
-      title={title || label}
-    >
-      {flag && <span className="text-[13px] leading-none">{flag}</span>}
-      <span className="leading-none">{label}</span>
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center text-[15px] leading-none"
+          role="img"
+          aria-label={[countryName ?? country, regionName ?? region].filter(Boolean).join(', ')}
+        >
+          {flag}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="start" className="max-w-64">
+        <div className="space-y-0.5">
+          <div className="font-medium">{countryName ?? country}</div>
+          {region && region !== country && (
+            <div className="text-background/75">{regionName ? `${regionName} (${region})` : region}</div>
+          )}
+        </div>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -1833,6 +1846,15 @@ function formatRegionDisplayName(regionCode: string) {
   if (typeof Intl.DisplayNames !== 'function') return null
   try {
     return new Intl.DisplayNames(undefined, { type: 'region' }).of(regionCode) ?? null
+  } catch {
+    return null
+  }
+}
+
+function formatSubdivisionDisplayName(countryCode: string, regionCode: string) {
+  if (typeof Intl.DisplayNames !== 'function') return null
+  try {
+    return new Intl.DisplayNames(undefined, { type: 'region' }).of(`${countryCode}-${regionCode}`) ?? null
   } catch {
     return null
   }
@@ -1891,13 +1913,15 @@ function LogPanel({ task }: { task: DownloadTask }) {
     detail: string
   }>
 
+  const timelineEvents = [...events].reverse()
+
   return (
     <div className="space-y-0 text-xs">
-      {events.map((event, index) => (
+      {timelineEvents.map((event, index) => (
         <div key={event.id} className="grid grid-cols-[1.25rem_1fr] gap-2">
           <div className="relative flex justify-center">
             <span className={cn('mt-1.5 size-2 rounded-full', logEventDotClass(event.tone))} />
-            {index < events.length - 1 && <span className="absolute top-4 bottom-0 w-px bg-border" />}
+            {index < timelineEvents.length - 1 && <span className="absolute top-4 bottom-0 w-px bg-border" />}
           </div>
           <div className="min-w-0 pb-3">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
