@@ -42,7 +42,7 @@ function collapseItems(items: PageHeaderItem[]): Entry[] {
 function renderNavigable(item: PageHeaderItem) {
   if (item.to) {
     return (
-      <BreadcrumbLink asChild>
+      <BreadcrumbLink asChild className="block max-w-40 truncate">
         <Link to={item.to as never} params={item.params as never}>
           {item.label}
         </Link>
@@ -51,36 +51,43 @@ function renderNavigable(item: PageHeaderItem) {
   }
   if (item.onClick) {
     return (
-      <BreadcrumbLink asChild>
-        <button type="button" onClick={item.onClick} className="cursor-pointer bg-transparent">
+      <BreadcrumbLink asChild className="block max-w-40 truncate">
+        <button type="button" onClick={item.onClick} className="cursor-pointer bg-transparent text-left">
           {item.label}
         </button>
       </BreadcrumbLink>
     )
   }
-  return <span className="text-muted-foreground">{item.label}</span>
+  return (
+    <span className="block max-w-40 truncate text-muted-foreground" title={item.label}>
+      {item.label}
+    </span>
+  )
 }
 
 export function PageHeader({ items, actions }: PageHeaderProps) {
   const entries = collapseItems(items)
   return (
-    <div data-testid="page-header" className="flex min-h-9 flex-wrap items-center justify-between gap-3">
-      <Breadcrumb>
-        <BreadcrumbList className="gap-2 text-sm sm:gap-2">
+    <div data-testid="page-header" className="flex min-h-9 min-w-0 items-center justify-between gap-3">
+      <Breadcrumb className="min-w-0 flex-1">
+        <BreadcrumbList className="min-w-0 flex-nowrap gap-2 overflow-hidden text-sm sm:gap-2">
           {entries.map((entry, idx) => {
             const isLast = idx === entries.length - 1
             const key = entry.kind === 'ellipsis' ? `ellipsis-${idx}` : `${idx}-${entry.item.label}`
             return (
               <Fragment key={key}>
-                {idx > 0 && <BreadcrumbSeparator />}
-                <BreadcrumbItem className="gap-2">
+                {idx > 0 && <BreadcrumbSeparator className="shrink-0" />}
+                <BreadcrumbItem className={isLast ? 'min-w-0 flex-1 gap-2' : 'min-w-0 max-w-40 shrink-0 gap-2'}>
                   {entry.kind === 'ellipsis' ? (
                     <BreadcrumbEllipsis className="size-4" />
                   ) : (
                     <>
-                      {entry.item.icon}
+                      {entry.item.icon ? <span className="shrink-0">{entry.item.icon}</span> : null}
                       {isLast ? (
-                        <BreadcrumbPage className="text-base font-semibold text-foreground">
+                        <BreadcrumbPage
+                          className="block min-w-0 truncate text-base font-semibold text-foreground"
+                          title={entry.item.label}
+                        >
                           {entry.item.label}
                         </BreadcrumbPage>
                       ) : (
@@ -94,7 +101,7 @@ export function PageHeader({ items, actions }: PageHeaderProps) {
           })}
         </BreadcrumbList>
       </Breadcrumb>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{actions}</div> : null}
     </div>
   )
 }
