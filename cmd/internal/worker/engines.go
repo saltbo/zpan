@@ -144,8 +144,8 @@ func explicitlyConfiguredExternalEngine(cfg config.Config, geoIP engine.PeerGeoI
 
 func externalEngines(cfg config.Config, geoIP engine.PeerGeoIPResolver) []engine.Engine {
 	return []engine.Engine{
-		engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, StateDir: cfg.StateDir, RetainSeed: cfg.SeedEnabled, GeoIP: geoIP},
-		engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir, RetainSeed: cfg.SeedEnabled, GeoIP: geoIP},
+		engine.Aria2{URL: cfg.Aria2URL, Secret: cfg.Aria2Secret, Dir: cfg.DownloadDir, StateDir: cfg.StateDir, ListenPort: cfg.BTListenPort, RetainSeed: cfg.SeedEnabled, GeoIP: geoIP},
+		engine.QBittorrent{URL: cfg.QBittorrentURL, Username: cfg.QBittorrentUser, Password: cfg.QBittorrentPass, Dir: cfg.DownloadDir, StateDir: cfg.StateDir, ListenPort: cfg.BTListenPort, RetainSeed: cfg.SeedEnabled, GeoIP: geoIP},
 	}
 }
 

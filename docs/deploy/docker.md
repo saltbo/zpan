@@ -25,19 +25,47 @@ volumes:
   zpan-data:
 ```
 
-Migrations run automatically at startup. The compose files in this repository also include an optional downloader service using the CLI-only tag (`ghcr.io/saltbo/zpan:latest-cli`). On first start, `zpan downloader up` prints a device authorization URL in the container logs and waits. Open that URL as an admin user; after approval the downloader registers itself, saves its token under `/home/zpan/.config/zpan/config.yaml`, and continues running.
+Migrations run automatically at startup. The compose files in this repository also include an optional downloader service using the CLI-only tag (`ghcr.io/saltbo/zpan:latest-cli`). On first start, `zpan downloader up` prints a device authorization URL in the container logs and waits. Open that URL as an admin user; after approval the downloader registers itself, saves its token under `/data/config.yaml`, and continues running.
+
+To run only a remote downloader on another machine:
+
+```sh
+ZPAN_SERVER_URL=https://your-zpan.example.com \
+docker compose -f deploy/docker-compose.downloader.yml up -d
+```
+
+### Remote downloader storage
+
+The downloader compose files use one named volume mounted at `/data`. The token config, runtime state, active task files, and retained BitTorrent seed files live under that volume.
+
+The compose files expose the retained seed cache limit:
+
+```yaml
+environment:
+  - ZPAN_DOWNLOADER_SEED_CACHE_LIMIT=${ZPAN_DOWNLOADER_SEED_CACHE_LIMIT:-10GB}
+```
+
+When retained seed files exceed this limit, the downloader cleans the oldest retained seeds first. This is an application-level seed cache limit, not a Docker volume hard quota; active downloads are allowed to finish or fail naturally instead of being deleted mid-task.
 
 ### Remote downloader BitTorrent port
 
-The bundled downloader auto-starts aria2 for magnet and torrent tasks. aria2 listens on container port `6881` for BitTorrent peers, and the provided compose files publish both TCP and UDP:
+The bundled downloader can auto-start aria2 or qBittorrent for magnet and torrent tasks. The provided compose files publish the configured BitTorrent listen port for both TCP and UDP:
 
 ```yaml
 ports:
-  - "${ZPAN_BT_PORT:-6881}:6881/tcp"
-  - "${ZPAN_BT_PORT:-6881}:6881/udp"
+  - "${ZPAN_BT_PORT:-6881}:${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}/tcp"
+  - "${ZPAN_BT_PORT:-6881}:${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}/udp"
 ```
 
-Keep that port reachable from the internet if you want effective seeding and better peer connectivity. If multiple downloader containers run on the same host, give each one a different host port, for example `ZPAN_BT_PORT=6882`, while keeping the container side mapped to `6881`.
+Keep that port reachable from the internet if you want effective seeding and better peer connectivity. `ZPAN_BT_PORT` controls the host port. `ZPAN_DOWNLOADER_BT_LISTEN_PORT` controls the engine listen port inside the container. If multiple downloader containers run on the same host, give each one a different host port, for example `ZPAN_BT_PORT=6882`.
+
+The Docker images include both aria2 and qBittorrent. `ZPAN_DOWNLOADER_ENGINE=auto` keeps the default auto-selection behavior, which tries aria2 before qBittorrent. To run the managed qBittorrent engine instead:
+
+```sh
+ZPAN_DOWNLOADER_ENGINE=qbittorrent docker compose -f deploy/docker-compose.yml up -d
+```
+
+Managed qBittorrent uses the same `ZPAN_DOWNLOADER_BT_LISTEN_PORT` setting for BitTorrent peers; the WebUI stays bound to container-local `127.0.0.1`.
 
 ### Remote downloader hostname
 

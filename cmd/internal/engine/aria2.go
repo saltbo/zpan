@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,11 +27,10 @@ type Aria2 struct {
 	Secret     string
 	Dir        string
 	StateDir   string
+	ListenPort int
 	RetainSeed bool
 	GeoIP      PeerGeoIPResolver
 }
-
-const aria2BTListenPort = "6881"
 
 var aria2StatusKeys = []string{
 	"gid",
@@ -87,7 +87,7 @@ func (a Aria2) startArgs(rpcPort string) ([]string, error) {
 		"--continue=true",
 		"--allow-overwrite=true",
 		"--auto-file-renaming=false",
-		"--listen-port=" + aria2BTListenPort,
+		"--listen-port=" + listenPortString(a.ListenPort),
 	}
 	if a.StateDir != "" {
 		sessionPath := filepath.Join(a.StateDir, "aria2.session")
@@ -110,6 +110,13 @@ func (a Aria2) startArgs(rpcPort string) ([]string, error) {
 		args = append(args, "--rpc-secret="+a.Secret)
 	}
 	return args, nil
+}
+
+func listenPortString(port int) string {
+	if port == 0 {
+		return "6881"
+	}
+	return strconv.Itoa(port)
 }
 
 func (a Aria2) Check(ctx context.Context) error {

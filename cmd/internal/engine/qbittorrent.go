@@ -21,6 +21,8 @@ type QBittorrent struct {
 	Username   string
 	Password   string
 	Dir        string
+	StateDir   string
+	ListenPort int
 	RetainSeed bool
 	GeoIP      PeerGeoIPResolver
 }
@@ -38,13 +40,9 @@ func (q QBittorrent) Start(ctx context.Context) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	webURL, err := parseLocalEngineURL(q.URL, "8080")
+	args, err := q.startArgs(path)
 	if err != nil {
 		return nil, err
-	}
-	args := []string{}
-	if strings.Contains(filepathBase(path), "qbittorrent-nox") {
-		args = append(args, "--webui-port="+webURL.port)
 	}
 	cmd := exec.Command(path, args...)
 	configureEngineProcess(cmd)
@@ -53,6 +51,45 @@ func (q QBittorrent) Start(ctx context.Context) (*exec.Cmd, error) {
 	}
 	go func() { _ = cmd.Wait() }()
 	return cmd, nil
+}
+
+func (q QBittorrent) startArgs(path string) ([]string, error) {
+	webURL, err := parseLocalEngineURL(q.URL, "8080")
+	if err != nil {
+		return nil, err
+	}
+	args := []string{}
+	if q.StateDir != "" {
+		profileDir := filepath.Join(q.StateDir, "qbittorrent")
+		if err := writeQBittorrentManagedConfig(profileDir, q.Dir, webURL.port, listenPortString(q.ListenPort)); err != nil {
+			return nil, err
+		}
+		args = append(args, "--profile="+profileDir)
+	}
+	if strings.Contains(filepathBase(path), "qbittorrent-nox") {
+		args = append(args, "--webui-port="+webURL.port)
+	}
+	return args, nil
+}
+
+func writeQBittorrentManagedConfig(profileDir string, downloadDir string, webUIPort string, listenPort string) error {
+	configDir := filepath.Join(profileDir, "qBittorrent", "config")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		return err
+	}
+	config := fmt.Sprintf(`[LegalNotice]
+Accepted=true
+
+[Preferences]
+Connection\PortRangeMin=%s
+Downloads\SavePath=%s/
+WebUI\Address=127.0.0.1
+WebUI\AuthSubnetWhitelist=127.0.0.1
+WebUI\AuthSubnetWhitelistEnabled=true
+WebUI\LocalHostAuth=false
+WebUI\Port=%s
+`, listenPort, filepath.ToSlash(downloadDir), webUIPort)
+	return os.WriteFile(filepath.Join(configDir, "qBittorrent.conf"), []byte(config), 0o600)
 }
 
 func (q QBittorrent) Check(ctx context.Context) error {

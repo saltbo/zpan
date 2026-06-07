@@ -22,6 +22,7 @@ type Config struct {
 	GeoIPDBPath           string
 	PollInterval          time.Duration
 	MaxConcurrentTasks    int
+	BTListenPort          int
 	Aria2URL              string
 	Aria2Secret           string
 	QBittorrentURL        string
@@ -51,6 +52,7 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("downloader.geoip_db", defaultGeoIPDBPath(home))
 	v.SetDefault("downloader.poll_interval", "5s")
 	v.SetDefault("downloader.max_concurrent_tasks", 5)
+	v.SetDefault("downloader.bt_listen_port", 6881)
 	v.SetDefault("downloader.aria2.url", DefaultAria2URL)
 	v.SetDefault("downloader.qbittorrent.url", DefaultQBittorrentURL)
 	v.SetDefault("downloader.seed.enabled", true)
@@ -98,6 +100,7 @@ func Load(v *viper.Viper) (Config, error) {
 		GeoIPDBPath:        v.GetString("downloader.geoip_db"),
 		PollInterval:       interval,
 		MaxConcurrentTasks: v.GetInt("downloader.max_concurrent_tasks"),
+		BTListenPort:       v.GetInt("downloader.bt_listen_port"),
 		Aria2URL:           v.GetString("downloader.aria2.url"),
 		Aria2Secret:        v.GetString("downloader.aria2.secret"),
 		QBittorrentURL:     v.GetString("downloader.qbittorrent.url"),
@@ -119,6 +122,9 @@ func Load(v *viper.Viper) (Config, error) {
 	}
 	if cfg.MaxConcurrentTasks < 1 {
 		return Config{}, errors.New("max_concurrent_tasks must be at least 1")
+	}
+	if cfg.BTListenPort < 1 || cfg.BTListenPort > 65535 {
+		return Config{}, errors.New("downloader.bt_listen_port must be between 1 and 65535")
 	}
 	if cfg.StateDir == "" {
 		return Config{}, errors.New("state_dir is required")
@@ -149,6 +155,7 @@ func WriteDefaultConfig(path string, serverURL string) error {
 		GeoIPDBPath:        defaultGeoIPDBPath(home),
 		PollInterval:       5 * time.Second,
 		MaxConcurrentTasks: 5,
+		BTListenPort:       6881,
 		SeedEnabled:        true,
 		SeedDuration:       time.Hour,
 		SeedCacheLimit:     10_000_000_000,
@@ -203,6 +210,7 @@ func configYAML(cfg Config, includeRuntimeHints bool) string {
 	fmt.Fprintf(&b, "  geoip_db: %s\n", yamlString(nonEmpty(cfg.GeoIPDBPath, defaultGeoIPDBPath(home))))
 	fmt.Fprintf(&b, "  poll_interval: %s\n", yamlString(formatDuration(cfg.PollInterval, "5s")))
 	fmt.Fprintf(&b, "  max_concurrent_tasks: %d\n", cfg.MaxConcurrentTasks)
+	fmt.Fprintf(&b, "  bt_listen_port: %d\n", nonZero(cfg.BTListenPort, 6881))
 	b.WriteString("  seed:\n")
 	fmt.Fprintf(&b, "    enabled: %t\n", cfg.SeedEnabled)
 	fmt.Fprintf(&b, "    duration: %s\n", yamlString(formatDuration(cfg.SeedDuration, "1h")))
@@ -257,6 +265,13 @@ func yamlString(value string) string {
 
 func nonEmpty(value string, fallback string) string {
 	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func nonZero(value int, fallback int) int {
+	if value == 0 {
 		return fallback
 	}
 	return value

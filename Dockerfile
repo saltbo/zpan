@@ -35,19 +35,18 @@ RUN apt-get update \
 
 FROM debian:bookworm-slim AS cli
 RUN apt-get update \
- && apt-get install -y --no-install-recommends aria2 ca-certificates \
+ && apt-get install -y --no-install-recommends aria2 ca-certificates qbittorrent-nox \
  && rm -rf /var/lib/apt/lists/* \
  && addgroup --system zpan \
  && adduser --system --ingroup zpan --home /home/zpan zpan \
  && mkdir -p /home/zpan/.local/share/zpan
 COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
 COPY --from=geoip-db /out/geoip.mmdb /home/zpan/.local/share/zpan/geoip.mmdb
-RUN mkdir -p /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /downloads \
+RUN mkdir -p /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /data /downloads \
  && chown -R zpan:zpan /home/zpan /downloads
 USER zpan
 ENV HOME=/home/zpan
 WORKDIR /downloads
-EXPOSE 6881/tcp 6881/udp
 ENTRYPOINT ["zpan"]
 CMD ["downloader", "up"]
 
@@ -55,7 +54,7 @@ FROM node:24-slim
 WORKDIR /app
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends aria2 ca-certificates \
+ && apt-get install -y --no-install-recommends aria2 ca-certificates qbittorrent-nox \
  && rm -rf /var/lib/apt/lists/* \
  && addgroup --system zpan \
  && adduser --system --ingroup zpan --home /home/zpan zpan \
@@ -78,7 +77,7 @@ USER zpan
 ENV NODE_ENV=production
 ENV HOME=/home/zpan
 ENV PORT=8222
-EXPOSE 8222 6881/tcp 6881/udp
+EXPOSE 8222
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["node", "dist-server/entry-node.js"]

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -59,6 +60,23 @@ func TestLoadUsesSafeSeedDefaults(t *testing.T) {
 	}
 	if cfg.Token != "" {
 		t.Fatalf("expected missing token to be accepted for device login bootstrap, got %q", cfg.Token)
+	}
+	if cfg.BTListenPort != 6881 {
+		t.Fatalf("expected default BT listen port 6881, got %d", cfg.BTListenPort)
+	}
+}
+
+func TestLoadParsesBTListenPort(t *testing.T) {
+	v := viper.New()
+	v.Set("server_url", "http://localhost:5173")
+	v.Set("downloader.bt_listen_port", 51413)
+
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.BTListenPort != 51413 {
+		t.Fatalf("expected BT listen port 51413, got %d", cfg.BTListenPort)
 	}
 }
 
@@ -117,6 +135,20 @@ func TestLoadRejectsInvalidSeedPolicy(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsInvalidBTListenPort(t *testing.T) {
+	for _, port := range []int{0, 65536} {
+		t.Run(strconv.Itoa(port), func(t *testing.T) {
+			v := viper.New()
+			v.Set("server_url", "http://localhost:5173")
+			v.Set("downloader.bt_listen_port", port)
+
+			if _, err := Load(v); err == nil {
+				t.Fatal("expected Load to reject invalid BT listen port")
+			}
+		})
+	}
+}
+
 func TestWriteDefaultConfigWritesCommentedRuntimeHints(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := WriteDefaultConfig(path, "https://zpan.space/"); err != nil {
@@ -142,6 +174,9 @@ func TestWriteDefaultConfigWritesCommentedRuntimeHints(t *testing.T) {
 	if !strings.Contains(text, "  #   url: \"ws://127.0.0.1:6800/jsonrpc\"") {
 		t.Fatalf("expected commented aria2 runtime hint, got:\n%s", text)
 	}
+	if !strings.Contains(text, "  bt_listen_port: 6881") {
+		t.Fatalf("expected default BT listen port, got:\n%s", text)
+	}
 }
 
 func TestWriteConfigStoresGlobalTokenAndOmitsDefaultRuntimeBlocks(t *testing.T) {
@@ -153,6 +188,7 @@ func TestWriteConfigStoresGlobalTokenAndOmitsDefaultRuntimeBlocks(t *testing.T) 
 		StateDir:           "/state",
 		PollInterval:       5 * time.Second,
 		MaxConcurrentTasks: 5,
+		BTListenPort:       51413,
 		SeedEnabled:        true,
 		SeedDuration:       time.Hour,
 		SeedCacheLimit:     10_000_000_000,
@@ -170,6 +206,9 @@ func TestWriteConfigStoresGlobalTokenAndOmitsDefaultRuntimeBlocks(t *testing.T) 
 	}
 	if strings.Contains(text, "downloader:\n  token:") || hasConfigLine(text, "  aria2:") || hasConfigLine(text, "  qbittorrent:") {
 		t.Fatalf("expected no downloader token or default runtime blocks, got:\n%s", text)
+	}
+	if !strings.Contains(text, "  bt_listen_port: 51413") {
+		t.Fatalf("expected custom BT listen port, got:\n%s", text)
 	}
 }
 

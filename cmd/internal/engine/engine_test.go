@@ -133,7 +133,7 @@ func TestAria2DelegatesHTTPToBuiltin(t *testing.T) {
 
 func TestAria2StartArgsForceSaveCompletedSeeds(t *testing.T) {
 	stateDir := t.TempDir()
-	args, err := (Aria2{Dir: t.TempDir(), StateDir: stateDir}).startArgs("6800")
+	args, err := (Aria2{Dir: t.TempDir(), StateDir: stateDir, ListenPort: 51413}).startArgs("6800")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,11 +143,43 @@ func TestAria2StartArgsForceSaveCompletedSeeds(t *testing.T) {
 		"--save-session=" + filepath.Join(stateDir, "aria2.session"),
 		"--save-session-interval=30",
 		"--force-save=true",
-		"--listen-port=6881",
+		"--listen-port=51413",
 	} {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("expected aria2 args to contain %q, got %v", expected, args)
 		}
+	}
+}
+
+func TestQBittorrentStartArgsWritesManagedListenPort(t *testing.T) {
+	stateDir := t.TempDir()
+	downloadDir := t.TempDir()
+	args, err := (QBittorrent{
+		URL:        "http://127.0.0.1:8080",
+		Dir:        downloadDir,
+		StateDir:   stateDir,
+		ListenPort: 51413,
+	}).startArgs("/usr/bin/qbittorrent-nox")
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--profile="+filepath.Join(stateDir, "qbittorrent")) {
+		t.Fatalf("expected qBittorrent args to contain managed profile, got %v", args)
+	}
+	if !strings.Contains(joined, "--webui-port=8080") {
+		t.Fatalf("expected qBittorrent args to contain webui port, got %v", args)
+	}
+	content, err := os.ReadFile(filepath.Join(stateDir, "qbittorrent", "qBittorrent", "config", "qBittorrent.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	if !strings.Contains(text, `Connection\PortRangeMin=51413`) {
+		t.Fatalf("expected custom listen port, got:\n%s", text)
+	}
+	if !strings.Contains(text, `Downloads\SavePath=`+filepath.ToSlash(downloadDir)+`/`) {
+		t.Fatalf("expected custom download dir, got:\n%s", text)
 	}
 }
 

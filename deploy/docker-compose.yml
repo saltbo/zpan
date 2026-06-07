@@ -25,16 +25,18 @@ services:
     image: ghcr.io/saltbo/zpan:latest-cli
     hostname: "${HOSTNAME:-zpan-downloader}"
     ports:
-      - "${ZPAN_BT_PORT:-6881}:6881/tcp"
-      - "${ZPAN_BT_PORT:-6881}:6881/udp"
-    command: ["downloader", "up"]
+      - "${ZPAN_BT_PORT:-6881}:${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}/tcp"
+      - "${ZPAN_BT_PORT:-6881}:${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}/udp"
+    command: ["--config", "/data/config.yaml", "downloader", "up"]
     environment:
       - ZPAN_SERVER_URL=http://zpan:8222
-      - ZPAN_DOWNLOADER_DOWNLOAD_DIR=/downloads
+      - ZPAN_DOWNLOADER_ENGINE=${ZPAN_DOWNLOADER_ENGINE:-auto}
+      - ZPAN_DOWNLOADER_DOWNLOAD_DIR=/data/downloads
+      - ZPAN_DOWNLOADER_STATE_DIR=/data/state
+      - ZPAN_DOWNLOADER_BT_LISTEN_PORT=${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}
+      - ZPAN_DOWNLOADER_SEED_CACHE_LIMIT=${ZPAN_DOWNLOADER_SEED_CACHE_LIMIT:-10GB}
     volumes:
-      - zpan-config:/home/zpan/.config/zpan
-      - zpan-downloader-state:/home/zpan/.local/state/zpan/downloader
-      - zpan-downloads:/downloads
+      - downloader-data:/data
     depends_on:
       zpan:
         condition: service_healthy
@@ -42,6 +44,4 @@ services:
 
 volumes:
   zpan-data:
-  zpan-config:
-  zpan-downloader-state:
-  zpan-downloads:
+  downloader-data:
