@@ -1,4 +1,4 @@
-import type { DownloadTask } from '@shared/types'
+import type { Downloader, DownloadTask } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../services/s3.js'
@@ -174,6 +174,188 @@ describe('Download tasks API integration', () => {
     const taskRes = await app.request(`/api/download-tasks/${task.id}`, { headers: user })
     expect(taskRes.status).toBe(200)
     await expect(taskRes.json()).resolves.toMatchObject({ status: { state: 'queued', assignment: null } })
+  })
+
+  it('does not assign new tasks to downloaders with stale heartbeats', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const admin = await adminHeaders(app)
+    const staleDownloader = await registerDownloaderThroughDeviceLogin(app, 'stale-downloader', admin)
+    const liveDownloader = await registerDownloaderThroughDeviceLogin(app, 'live-downloader', admin)
+    const staleHeaders = {
+      Authorization: `Bearer ${staleDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    const liveHeaders = {
+      Authorization: `Bearer ${liveDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+
+    expect(
+      await app.request('/api/downloader/heartbeat', {
+        method: 'POST',
+        headers: staleHeaders,
+        body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+      }),
+    ).toHaveProperty('status', 200)
+    expect(
+      await app.request('/api/downloader/heartbeat', {
+        method: 'POST',
+        headers: liveHeaders,
+        body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+      }),
+    ).toHaveProperty('status', 200)
+
+    const staleHeartbeatAt = Date.now() - 60_000
+    await db.run(sql`
+      UPDATE downloaders
+      SET last_heartbeat_at = ${staleHeartbeatAt}, updated_at = ${staleHeartbeatAt}
+      WHERE id = ${staleDownloader.downloader.id}
+    `)
+
+    const user = await authedHeaders(app, 'stale-new-task-user@example.com')
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/stale-new-task.txt' },
+        targetFolder: '',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    await expect(createTaskRes.json()).resolves.toMatchObject({
+      status: { state: 'assigned', assignment: { downloaderId: liveDownloader.downloader.id } },
+    })
+  })
+
+  it('keeps tasks queued when matching downloaders are at capacity', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const admin = await adminHeaders(app)
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'busy-downloader', admin)
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    expect(
+      await app.request('/api/downloader/heartbeat', {
+        method: 'POST',
+        headers: downloaderHeaders,
+        body: JSON.stringify({ ...heartbeat, currentTasks: heartbeat.maxConcurrentTasks }),
+      }),
+    ).toHaveProperty('status', 200)
+
+    const user = await authedHeaders(app, 'busy-downloader-user@example.com')
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/busy-capacity.txt' },
+        targetFolder: '',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const createdTask = (await createTaskRes.json()) as DownloadTask
+    expect(createdTask.status).toMatchObject({ state: 'queued', assignment: null })
+
+    expect(
+      await app.request('/api/downloader/heartbeat', {
+        method: 'POST',
+        headers: downloaderHeaders,
+        body: JSON.stringify({ ...heartbeat, currentTasks: heartbeat.maxConcurrentTasks - 1 }),
+      }),
+    ).toHaveProperty('status', 200)
+
+    const taskRes = await app.request(`/api/download-tasks/${createdTask.id}`, { headers: user })
+    expect(taskRes.status).toBe(200)
+    await expect(taskRes.json()).resolves.toMatchObject({
+      status: { state: 'assigned', assignment: { downloaderId: createdDownloader.downloader.id } },
+    })
+  })
+
+  it('reports stale downloaders as offline in the admin list', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const admin = await adminHeaders(app)
+    const staleDownloader = await registerDownloaderThroughDeviceLogin(app, 'admin-stale-downloader', admin)
+    expect(
+      await app.request('/api/downloader/heartbeat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${staleDownloader.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+      }),
+    ).toHaveProperty('status', 200)
+
+    const staleHeartbeatAt = Date.now() - 60_000
+    await db.run(sql`
+      UPDATE downloaders
+      SET last_heartbeat_at = ${staleHeartbeatAt}, updated_at = ${staleHeartbeatAt}
+      WHERE id = ${staleDownloader.downloader.id}
+    `)
+
+    const listRes = await app.request('/api/admin/downloaders', { headers: admin })
+    expect(listRes.status).toBe(200)
+    const body = (await listRes.json()) as { items: Downloader[] }
+    const listed = body.items.find((item) => item.id === staleDownloader.downloader.id)
+    expect(listed?.status).toBe('offline')
+  })
+
+  it('reassigns unfinished tasks from stale downloaders on live heartbeat', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const admin = await adminHeaders(app)
+    const staleDownloader = await registerDownloaderThroughDeviceLogin(app, 'reassign-stale-downloader', admin)
+    const staleHeaders = {
+      Authorization: `Bearer ${staleDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    expect(
+      await app.request('/api/downloader/heartbeat', {
+        method: 'POST',
+        headers: staleHeaders,
+        body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+      }),
+    ).toHaveProperty('status', 200)
+
+    const user = await authedHeaders(app, 'stale-reassign-user@example.com')
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/stale-reassign.txt' },
+        targetFolder: '',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const createdTask = (await createTaskRes.json()) as DownloadTask
+    expect(createdTask.status.assignment?.downloaderId).toBe(staleDownloader.downloader.id)
+
+    const staleHeartbeatAt = Date.now() - 60_000
+    await db.run(sql`
+      UPDATE downloaders
+      SET last_heartbeat_at = ${staleHeartbeatAt}, updated_at = ${staleHeartbeatAt}
+      WHERE id = ${staleDownloader.downloader.id}
+    `)
+
+    const liveDownloader = await registerDownloaderThroughDeviceLogin(app, 'reassign-live-downloader', admin)
+    const liveHeartbeatRes = await app.request('/api/downloader/heartbeat', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${liveDownloader.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+    })
+    expect(liveHeartbeatRes.status).toBe(200)
+
+    const taskRes = await app.request(`/api/download-tasks/${createdTask.id}`, { headers: user })
+    expect(taskRes.status).toBe(200)
+    await expect(taskRes.json()).resolves.toMatchObject({
+      status: { state: 'assigned', assignment: { downloaderId: liveDownloader.downloader.id } },
+    })
   })
 
   it('runs the remote download task upload flow through the standard object upload API', async () => {

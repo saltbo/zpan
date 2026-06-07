@@ -152,7 +152,7 @@ func TestWriteConfigStoresGlobalTokenAndOmitsDefaultRuntimeBlocks(t *testing.T) 
 		DownloadDir:        "/downloads",
 		StateDir:           "/state",
 		PollInterval:       5 * time.Second,
-		MaxConcurrentTasks: 2,
+		MaxConcurrentTasks: 5,
 		SeedEnabled:        true,
 		SeedDuration:       time.Hour,
 		SeedCacheLimit:     10_000_000_000,

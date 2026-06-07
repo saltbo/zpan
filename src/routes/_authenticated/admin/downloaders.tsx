@@ -1,7 +1,7 @@
 import type { Downloader } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Activity, Trash2 } from 'lucide-react'
+import { Activity, Settings2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -16,6 +16,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { deleteDownloader, listDownloaders, updateDownloader } from '@/lib/api'
@@ -25,11 +28,22 @@ export const Route = createFileRoute('/_authenticated/admin/downloaders')({
 })
 
 const QUERY_KEY = ['admin', 'downloaders']
+const CREDIT_UNITS = { MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 } as const
+
+type CreditUnit = keyof typeof CREDIT_UNITS
+type CreditBillingForm = {
+  enabled: boolean
+  unitValue: string
+  unit: CreditUnit
+  credits: string
+}
 
 function AdminDownloadersPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [deleteTarget, setDeleteTarget] = useState<Downloader | null>(null)
+  const [billingTarget, setBillingTarget] = useState<Downloader | null>(null)
+  const [billingForm, setBillingForm] = useState<CreditBillingForm>(emptyBillingForm())
 
   const query = useQuery({
     queryKey: QUERY_KEY,
@@ -53,7 +67,22 @@ function AdminDownloadersPage() {
     onError: (err) => toast.error(err.message),
   })
 
+  const billingMutation = useMutation({
+    mutationFn: ({ downloader, form }: { downloader: Downloader; form: CreditBillingForm }) =>
+      updateDownloader(downloader.id, billingPayload(form)),
+    onSuccess: () => {
+      setBillingTarget(null)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      toast.success(t('admin.downloaders.billingSaveSuccess'))
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
   const downloaders = query.data?.items ?? []
+  const openBillingSettings = (downloader: Downloader) => {
+    setBillingTarget(downloader)
+    setBillingForm(billingFormFromDownloader(downloader))
+  }
 
   return (
     <div className="max-w-6xl space-y-4">
@@ -85,6 +114,7 @@ function AdminDownloadersPage() {
                 key={downloader.id}
                 downloader={downloader}
                 onToggle={(enabled) => toggleMutation.mutate({ id: downloader.id, enabled })}
+                onConfigureBilling={() => openBillingSettings(downloader)}
                 onDelete={() => setDeleteTarget(downloader)}
               />
             ))}
@@ -98,6 +128,15 @@ function AdminDownloadersPage() {
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
       />
+      <CreditBillingDialog
+        downloader={billingTarget}
+        form={billingForm}
+        open={billingTarget !== null}
+        pending={billingMutation.isPending}
+        onFormChange={setBillingForm}
+        onOpenChange={(open) => !open && setBillingTarget(null)}
+        onConfirm={() => billingTarget && billingMutation.mutate({ downloader: billingTarget, form: billingForm })}
+      />
     </div>
   )
 }
@@ -105,10 +144,12 @@ function AdminDownloadersPage() {
 function DownloaderRow({
   downloader,
   onToggle,
+  onConfigureBilling,
   onDelete,
 }: {
   downloader: Downloader
   onToggle: (enabled: boolean) => void
+  onConfigureBilling: () => void
   onDelete: () => void
 }) {
   const { t } = useTranslation()
@@ -148,8 +189,17 @@ function DownloaderRow({
           : t('common.disabled')}
       </TableCell>
       <TableCell className="text-right">
-        <div className="flex justify-end gap-2">
-          <Switch checked={downloader.enabled} onCheckedChange={onToggle} />
+        <div className="flex items-center justify-end gap-2">
+          <Switch size="sm" checked={downloader.enabled} onCheckedChange={onToggle} />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onConfigureBilling}
+            aria-label={t('admin.downloaders.configureBilling')}
+          >
+            <Settings2 className="size-4" />
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -162,6 +212,102 @@ function DownloaderRow({
         </div>
       </TableCell>
     </TableRow>
+  )
+}
+
+function CreditBillingDialog({
+  downloader,
+  form,
+  open,
+  pending,
+  onFormChange,
+  onOpenChange,
+  onConfirm,
+}: {
+  downloader: Downloader | null
+  form: CreditBillingForm
+  open: boolean
+  pending: boolean
+  onFormChange: (form: CreditBillingForm) => void
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  const { t } = useTranslation()
+  const valid = Number(form.unitValue) >= 1 && Number(form.credits) >= 1
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('admin.downloaders.billingTitle')}</DialogTitle>
+          <DialogDescription>
+            {t('admin.downloaders.billingDescription', { name: downloader?.name ?? '' })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (valid) onConfirm()
+          }}
+        >
+          <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+            <div>
+              <Label htmlFor="remoteDownloadCreditBillingEnabled">{t('admin.downloaders.billingEnabled')}</Label>
+              <p className="text-xs text-muted-foreground">{t('admin.downloaders.billingEnabledHint')}</p>
+            </div>
+            <Switch
+              id="remoteDownloadCreditBillingEnabled"
+              checked={form.enabled}
+              onCheckedChange={(enabled) => onFormChange({ ...form, enabled })}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="remoteDownloadCreditUnitValue">{t('admin.downloaders.billingUnit')}</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="remoteDownloadCreditUnitValue"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={form.unitValue}
+                  onChange={(event) => onFormChange({ ...form, unitValue: event.target.value })}
+                />
+                <Select value={form.unit} onValueChange={(unit) => onFormChange({ ...form, unit: unit as CreditUnit })}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MB">MB</SelectItem>
+                    <SelectItem value="GB">GB</SelectItem>
+                    <SelectItem value="TB">TB</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="remoteDownloadCreditPerUnit">{t('admin.downloaders.billingCredits')}</Label>
+              <Input
+                id="remoteDownloadCreditPerUnit"
+                type="number"
+                min={1}
+                step={1}
+                value={form.credits}
+                onChange={(event) => onFormChange({ ...form, credits: event.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={pending || !valid}>
+              {t('common.save')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -211,4 +357,32 @@ function formatBytes(bytes: number) {
     unit += 1
   }
   return `${value >= 10 || unit === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`
+}
+
+function emptyBillingForm(): CreditBillingForm {
+  return { enabled: false, unitValue: '100', unit: 'MB', credits: '1' }
+}
+
+function billingFormFromDownloader(downloader: Downloader): CreditBillingForm {
+  const unit = bytesToCreditUnit(downloader.remoteDownloadCreditUnitBytes)
+  return {
+    enabled: downloader.remoteDownloadCreditBillingEnabled,
+    unitValue: String(Math.max(1, downloader.remoteDownloadCreditUnitBytes / CREDIT_UNITS[unit])),
+    unit,
+    credits: String(downloader.remoteDownloadCreditPerUnit),
+  }
+}
+
+function billingPayload(form: CreditBillingForm) {
+  return {
+    remoteDownloadCreditBillingEnabled: form.enabled,
+    remoteDownloadCreditUnitBytes: Math.max(1, Math.floor(Number(form.unitValue))) * CREDIT_UNITS[form.unit],
+    remoteDownloadCreditPerUnit: Math.max(1, Math.floor(Number(form.credits))),
+  }
+}
+
+function bytesToCreditUnit(bytes: number): CreditUnit {
+  if (bytes >= CREDIT_UNITS.TB && bytes % CREDIT_UNITS.TB === 0) return 'TB'
+  if (bytes >= CREDIT_UNITS.GB && bytes % CREDIT_UNITS.GB === 0) return 'GB'
+  return 'MB'
 }

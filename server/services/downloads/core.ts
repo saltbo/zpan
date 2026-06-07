@@ -8,7 +8,7 @@ import type {
 } from '@shared/schemas'
 import { downloadTaskRuntimeSchema } from '@shared/schemas'
 import type { Downloader, DownloadTask, DownloadTaskRuntime } from '@shared/types'
-import { and, asc, count, desc, eq, inArray, like, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, inArray, like, lt, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { downloaders, downloadTasks } from '../../db/schema'
 import type { Platform } from '../../platform/interface'
@@ -19,6 +19,7 @@ import { DownloadError, type DownloaderRow, type DownloadTaskRow } from './types
 
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
 const UPLOAD_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
+const DOWNLOADER_HEARTBEAT_LEASE_MS = 30_000
 const PAUSABLE_TASK_STATUSES = ['queued', 'assigned', 'downloading'] as const
 const CANCELABLE_TASK_STATUSES = [
   'queued',
@@ -89,6 +90,7 @@ export async function createDownloader(
 }
 
 export async function listDownloaders(platform: Platform): Promise<Downloader[]> {
+  await recoverStaleDownloaderAssignments(platform)
   const rows = await platform.db.select().from(downloaders).orderBy(desc(downloaders.createdAt))
   return rows.map(toDownloader)
 }
@@ -206,6 +208,7 @@ export async function createDownloadTask(
 ): Promise<DownloadTask> {
   const now = new Date()
   const id = nanoid()
+  await recoverStaleDownloaderAssignments(platform)
   const assigned = await selectDownloader(platform, input.source.type)
   await platform.db.insert(downloadTasks).values({
     id,
@@ -651,6 +654,7 @@ export async function assertTaskUploadAllowed(platform: Platform, params: { task
 }
 
 async function assignQueuedTasks(platform: Platform): Promise<void> {
+  await recoverStaleDownloaderAssignments(platform)
   const tasks = await platform.db
     .select()
     .from(downloadTasks)
@@ -675,10 +679,18 @@ async function assignQueuedTasks(platform: Platform): Promise<void> {
 
 async function selectDownloader(platform: Platform, sourceType: string): Promise<DownloaderRow | null> {
   const needed = sourceType === 'http' ? ['http'] : ['magnet', 'torrent']
+  const leaseCutoff = new Date(Date.now() - DOWNLOADER_HEARTBEAT_LEASE_MS)
   const rows = await platform.db
     .select()
     .from(downloaders)
-    .where(and(eq(downloaders.enabled, true), eq(downloaders.status, 'online')))
+    .where(
+      and(
+        eq(downloaders.enabled, true),
+        eq(downloaders.status, 'online'),
+        gte(downloaders.lastHeartbeatAt, leaseCutoff),
+        gt(downloaders.maxConcurrentTasks, downloaders.currentTasks),
+      ),
+    )
     .orderBy(asc(downloaders.currentTasks), asc(downloaders.downloadBps))
   return (
     rows.find((row) => {
@@ -686,6 +698,43 @@ async function selectDownloader(platform: Platform, sourceType: string): Promise
       return needed.some((capability) => capabilities.includes(capability))
     }) ?? null
   )
+}
+
+async function recoverStaleDownloaderAssignments(platform: Platform): Promise<void> {
+  const now = new Date()
+  const leaseCutoff = new Date(now.getTime() - DOWNLOADER_HEARTBEAT_LEASE_MS)
+  const staleDownloaders = await platform.db
+    .select({ id: downloaders.id })
+    .from(downloaders)
+    .where(
+      and(
+        eq(downloaders.enabled, true),
+        eq(downloaders.status, 'online'),
+        lt(downloaders.lastHeartbeatAt, leaseCutoff),
+      ),
+    )
+  if (staleDownloaders.length === 0) return
+
+  const staleIds = staleDownloaders.map((downloader) => downloader.id)
+  await platform.db
+    .update(downloadTasks)
+    .set({
+      status: 'queued',
+      assignedDownloaderId: null,
+      assignedAt: null,
+      runtime: null,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        inArray(downloadTasks.assignedDownloaderId, staleIds),
+        inArray(downloadTasks.status, ['assigned', 'downloading', 'uploading', 'interrupted']),
+      ),
+    )
+  await platform.db
+    .update(downloaders)
+    .set({ status: 'offline', currentTasks: 0, downloadBps: 0, uploadBps: 0, updatedAt: now })
+    .where(inArray(downloaders.id, staleIds))
 }
 
 async function createTaskUploadToken(

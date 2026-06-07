@@ -50,7 +50,7 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("downloader.state_dir", defaultStateDir(home))
 	v.SetDefault("downloader.geoip_db", defaultGeoIPDBPath(home))
 	v.SetDefault("downloader.poll_interval", "5s")
-	v.SetDefault("downloader.max_concurrent_tasks", 2)
+	v.SetDefault("downloader.max_concurrent_tasks", 5)
 	v.SetDefault("downloader.aria2.url", DefaultAria2URL)
 	v.SetDefault("downloader.qbittorrent.url", DefaultQBittorrentURL)
 	v.SetDefault("downloader.seed.enabled", true)
@@ -148,7 +148,7 @@ func WriteDefaultConfig(path string, serverURL string) error {
 		StateDir:           defaultStateDir(home),
 		GeoIPDBPath:        defaultGeoIPDBPath(home),
 		PollInterval:       5 * time.Second,
-		MaxConcurrentTasks: 2,
+		MaxConcurrentTasks: 5,
 		SeedEnabled:        true,
 		SeedDuration:       time.Hour,
 		SeedCacheLimit:     10_000_000_000,
