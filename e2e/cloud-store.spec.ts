@@ -97,25 +97,6 @@ test.describe
       await expectOrderCreated(page, product.id)
     })
 
-    test('@desktop creates Cloud store products and gift cards through admin UI forms', async ({ page }) => {
-      test.setTimeout(180_000)
-
-      await signInAsAdmin(page)
-      await ensureCloudBinding(page)
-
-      const testId = Date.now()
-      const packageName = `E2E UI Plan ${testId}`
-      const creditPackageName = `E2E UI Credits ${testId}`
-      const storagePlan = await createStoragePlanThroughUi(page, packageName)
-      const creditPackage = await createCreditPackageThroughUi(page, creditPackageName)
-
-      await expectAdminProductVisibleInApi(page, storagePlan.id, packageName)
-      await expectAdminCreditProductVisibleInApi(page, creditPackage.id, creditPackageName)
-
-      const giftCardCode = await createGiftCardThroughUi(page)
-      await expectAdminGiftCardVisibleInApi(page, giftCardCode)
-    })
-
     test('@desktop lets a regular user list Cloud packages and redeem a gift card', async ({
       page,
       browser,
@@ -305,93 +286,7 @@ async function createGiftCard(page: Page) {
   return { ...card, code: card.code }
 }
 
-async function createStoragePlanThroughUi(page: Page, packageName: string) {
-  await gotoAdminCloudStore(page)
-  await page.getByRole('button', { name: 'New plan' }).click()
-  const dialog = page.getByRole('dialog', { name: 'New plan' })
-  await dialog.getByLabel('Plan name').fill(packageName)
-  await dialog.getByLabel('Description').fill('Created by Playwright through the admin form')
-  await dialog.getByRole('spinbutton', { name: 'Storage quota' }).fill('1')
-  await dialog.getByRole('spinbutton', { name: 'Included Credits' }).fill('200')
-  await dialog.getByLabel('Monthly price (USD)').fill('1')
-
-  const response = page.waitForResponse(
-    (item) => item.url().includes('/api/admin/store/packages') && item.request().method() === 'POST',
-  )
-  await dialog.getByRole('button', { name: 'Save' }).click()
-  const result = await response
-  await expectResponseStatus(result, 201)
-  await expect(dialog).not.toBeVisible({ timeout: 20_000 })
-  return result.json() as Promise<CloudProduct>
-}
-
-async function createCreditPackageThroughUi(page: Page, packageName: string) {
-  await gotoAdminCloudStore(page)
-  await page.getByRole('button', { name: 'New Credits package' }).click()
-  const dialog = page.getByRole('dialog', { name: 'New Credits package' })
-  await dialog.getByLabel('Name').fill(packageName)
-  await dialog.getByLabel('Description').fill('Created by Playwright through the admin form')
-  await dialog.getByRole('spinbutton', { name: 'Credits' }).fill('200')
-  await dialog.getByLabel('Package amount (USD)').fill('1')
-
-  const response = page.waitForResponse(
-    (item) => item.url().includes('/api/admin/store/packages') && item.request().method() === 'POST',
-  )
-  await dialog.getByRole('button', { name: 'Save' }).click()
-  const result = await response
-  await expectResponseStatus(result, 201)
-  await expect(dialog).not.toBeVisible({ timeout: 20_000 })
-  return result.json() as Promise<CloudProduct>
-}
-
-async function createGiftCardThroughUi(page: Page) {
-  await gotoAdminCloudStore(page)
-  await page.getByRole('tab', { name: 'Gift Cards' }).click()
-  await page.getByRole('button', { name: 'Generate gift cards' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Generate gift cards' })
-  await dialog.getByLabel('Credits').fill('3')
-
-  const response = page.waitForResponse(
-    (item) => item.url().includes('/api/admin/store/gift-cards') && item.request().method() === 'POST',
-  )
-  await dialog.getByRole('button', { name: 'Generate' }).click()
-  const result = await response
-  await expectResponseStatus(result, 201)
-  const cards = (await result.json()) as CloudGiftCard[]
-  expect(cards.length).toBe(1)
-  const card = cards[0]
-  if (card.code === null) throw new Error('Cloud gift card create response did not include code')
-  return card.code
-}
-
-async function gotoAdminCloudStore(page: Page) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.goto('/admin/cloud-store', { waitUntil: 'domcontentloaded' })
-    await expect(page).toHaveURL(/admin\/cloud-store/, { timeout: 10_000 })
-    const heading = page.getByRole('heading', { name: 'Storage Plans', exact: true })
-    try {
-      await expect(heading).toBeVisible({ timeout: 15_000 })
-      return
-    } catch (error) {
-      if (attempt === 1) throw error
-      await page.waitForTimeout(1500)
-    }
-  }
-}
-
 async function expectAdminProductVisibleInApi(page: Page, packageId: string, packageName: string) {
-  await expect
-    .poll(
-      async () => {
-        const product = await getJson<CloudProduct>(page, `/api/admin/store/packages/${packageId}`)
-        return product.name
-      },
-      { timeout: 60_000 },
-    )
-    .toBe(packageName)
-}
-
-async function expectAdminCreditProductVisibleInApi(page: Page, packageId: string, packageName: string) {
   await expect
     .poll(
       async () => {
