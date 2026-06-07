@@ -1,7 +1,7 @@
 import type { Downloader } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Activity, Settings2, Trash2 } from 'lucide-react'
+import { Activity, Pencil, Settings2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -42,6 +42,8 @@ function AdminDownloadersPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [deleteTarget, setDeleteTarget] = useState<Downloader | null>(null)
+  const [renameTarget, setRenameTarget] = useState<Downloader | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   const [billingTarget, setBillingTarget] = useState<Downloader | null>(null)
   const [billingForm, setBillingForm] = useState<CreditBillingForm>(emptyBillingForm())
 
@@ -67,6 +69,18 @@ function AdminDownloadersPage() {
     onError: (err) => toast.error(err.message),
   })
 
+  const renameMutation = useMutation({
+    mutationFn: ({ downloader, name }: { downloader: Downloader; name: string }) =>
+      updateDownloader(downloader.id, { name: name.trim() }),
+    onSuccess: () => {
+      setRenameTarget(null)
+      setRenameValue('')
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      toast.success(t('admin.downloaders.renameSuccess'))
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
   const billingMutation = useMutation({
     mutationFn: ({ downloader, form }: { downloader: Downloader; form: CreditBillingForm }) =>
       updateDownloader(downloader.id, billingPayload(form)),
@@ -79,6 +93,10 @@ function AdminDownloadersPage() {
   })
 
   const downloaders = query.data?.items ?? []
+  const openRenameDialog = (downloader: Downloader) => {
+    setRenameTarget(downloader)
+    setRenameValue(downloader.name)
+  }
   const openBillingSettings = (downloader: Downloader) => {
     setBillingTarget(downloader)
     setBillingForm(billingFormFromDownloader(downloader))
@@ -114,6 +132,7 @@ function AdminDownloadersPage() {
                 key={downloader.id}
                 downloader={downloader}
                 onToggle={(enabled) => toggleMutation.mutate({ id: downloader.id, enabled })}
+                onRename={() => openRenameDialog(downloader)}
                 onConfigureBilling={() => openBillingSettings(downloader)}
                 onDelete={() => setDeleteTarget(downloader)}
               />
@@ -127,6 +146,20 @@ function AdminDownloadersPage() {
         pending={deleteMutation.isPending}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
+      <RenameDownloaderDialog
+        downloader={renameTarget}
+        value={renameValue}
+        open={renameTarget !== null}
+        pending={renameMutation.isPending}
+        onValueChange={setRenameValue}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameTarget(null)
+            setRenameValue('')
+          }
+        }}
+        onConfirm={() => renameTarget && renameMutation.mutate({ downloader: renameTarget, name: renameValue })}
       />
       <CreditBillingDialog
         downloader={billingTarget}
@@ -144,11 +177,13 @@ function AdminDownloadersPage() {
 function DownloaderRow({
   downloader,
   onToggle,
+  onRename,
   onConfigureBilling,
   onDelete,
 }: {
   downloader: Downloader
   onToggle: (enabled: boolean) => void
+  onRename: () => void
   onConfigureBilling: () => void
   onDelete: () => void
 }) {
@@ -191,6 +226,9 @@ function DownloaderRow({
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2">
           <Switch size="sm" checked={downloader.enabled} onCheckedChange={onToggle} />
+          <Button type="button" variant="ghost" size="icon" onClick={onRename} aria-label={t('common.edit')}>
+            <Pencil className="size-4" />
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -212,6 +250,65 @@ function DownloaderRow({
         </div>
       </TableCell>
     </TableRow>
+  )
+}
+
+function RenameDownloaderDialog({
+  downloader,
+  value,
+  open,
+  pending,
+  onValueChange,
+  onOpenChange,
+  onConfirm,
+}: {
+  downloader: Downloader | null
+  value: string
+  open: boolean
+  pending: boolean
+  onValueChange: (value: string) => void
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  const { t } = useTranslation()
+  const valid = value.trim().length >= 1 && value.trim().length <= 120
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('admin.downloaders.renameTitle')}</DialogTitle>
+          <DialogDescription>
+            {t('admin.downloaders.renameDescription', { hostname: downloader?.hostname ?? '' })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (valid) onConfirm()
+          }}
+        >
+          <div className="space-y-2">
+            <Label htmlFor="downloaderDisplayName">{t('admin.downloaders.displayName')}</Label>
+            <Input
+              id="downloaderDisplayName"
+              maxLength={120}
+              value={value}
+              onChange={(event) => onValueChange(event.target.value)}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={pending || !valid}>
+              {t('common.save')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
