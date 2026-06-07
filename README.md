@@ -5,11 +5,11 @@
 <h1 align="center">ZPan</h1>
 
 <p align="center">
-  <strong>The open-source, S3-native file hosting platform.</strong>
+  <strong>Open-source file hosting for your S3-compatible storage.</strong>
 </p>
 
 <p align="center">
-  A focused S3 web drive for image hosting, file sharing, and direct-to-object-storage workflows.
+  Deploy on Cloudflare Workers or Docker. Upload directly to object storage.
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@
 
 ZPan is a lightweight file hosting platform built on top of S3-compatible storage. Files upload directly from the client to S3 through presigned URLs, bypassing server bandwidth entirely. The server is the control plane: auth, metadata, shares, quotas, teams, WebDAV, tool integrations, and admin operations.
 
-The product boundary is intentional: ZPan is a purpose-built S3-native web drive, not a wrapper around every consumer cloud drive and not a full groupware suite. You bring an S3-compatible bucket; ZPan gives it a clean web UI, public sharing, image-hosting APIs, and deployment options that do not require a VPS or NAS.
+The product boundary is intentional: ZPan is a purpose-built S3-backed web drive, not a wrapper around every consumer cloud drive and not a full groupware suite. You bring an S3-compatible bucket; ZPan gives it a clean web UI, public sharing, image-hosting APIs, and deployment options that do not require a VPS or NAS.
 
 **Core scenarios:**
 
@@ -39,7 +39,7 @@ The product boundary is intentional: ZPan is a purpose-built S3-native web drive
 
 **S3 only, by design.** ZPan does not chase every net-disk provider or build a cloud-drive nesting layer. The storage contract stays simple and durable: S3-compatible buckets such as Cloudflare R2, AWS S3, Backblaze B2, MinIO, RustFS, Tigris, and other S3-compatible services.
 
-**Serverless native.** ZPan is built around Cloudflare Workers, D1, Hono, and web-standard APIs, with Docker and other runtimes as additional deployment targets. You can run a real file-hosting control plane without owning a VPS, keeping a NAS online, or proxying uploads through a long-running server.
+**Cloudflare Workers first.** ZPan is built around Cloudflare Workers, D1, Hono, and web-standard APIs, with Docker and other runtimes as additional deployment targets. You can run a real file-hosting control plane without owning a VPS, keeping a NAS online, or proxying uploads through a long-running server.
 
 **Direct transfer path.** Uploads and downloads use presigned object-storage URLs whenever possible. That keeps server bandwidth low, avoids a central file-transfer bottleneck, and lets object storage do the heavy lifting.
 
@@ -65,14 +65,14 @@ ZPan is not trying to be:
 
 ## How ZPan Compares
 
-Most self-hosted file projects start from either server files, desktop sync, collaboration, or many-provider aggregation. ZPan starts from S3-compatible object storage and a serverless-friendly control plane.
+Most self-hosted file projects start from either server files, desktop sync, collaboration, or many-provider aggregation. ZPan starts from S3-compatible object storage and a Cloudflare Workers-friendly control plane.
 
 | Capability | **ZPan** | [Cloudreve](https://docs.cloudreve.org/en/) | [AList](https://alist-repo.github.io/docs/guide/drivers/) | [Nextcloud](https://nextcloud.com/files/) | [Seafile](https://www.seafile.com/en/features/) | [File Browser](https://github.com/filebrowser/filebrowser) |
 |------------|----------|------------|--------|-----------|---------|--------------|
-| S3-native product focus | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| S3-backed product focus | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | S3-compatible storage backend | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ |
 | Direct browser-to-object-storage path | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ |
-| Cloudflare Workers native | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Cloudflare Workers deployment | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | No VPS/NAS required | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | PicGo/ShareX image-hosting workflow | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Per-user public file homepage | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ |
