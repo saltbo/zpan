@@ -52,7 +52,7 @@ export function ShareLayout({ children }: ShareLayoutProps) {
         <div className="mx-auto flex min-h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
           <Link to="/" className="flex min-w-0 items-center gap-3">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-card shadow-sm">
-              <img src="/logo.svg" alt={siteName} className="size-6" />
+              <img src={branding.logo_url ?? '/logo.png'} alt={siteName} className="size-6" />
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-none">{siteName}</p>
@@ -115,7 +115,7 @@ export function ShareLayout({ children }: ShareLayoutProps) {
       <footer className="border-t bg-background/80">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <img src={branding.logo_url ?? '/logo.svg'} alt={siteName} className="size-7 shrink-0" />
+            <img src={branding.logo_url ?? '/logo.png'} alt={siteName} className="size-7 shrink-0" />
             <div className="min-w-0">
               <p className="truncate font-medium text-foreground">{siteName}</p>
               <p className="truncate">{siteDescription || t('share.externalTagline')}</p>

@@ -1,21 +1,31 @@
-# ZPan
+<p align="center">
+  <img src="public/logo.png" alt="ZPan logo" width="128" height="128" />
+</p>
 
-**The open-source, S3-native file hosting platform.**
+<h1 align="center">ZPan</h1>
 
-[![CI](https://github.com/saltbo/zpan/actions/workflows/ci.yml/badge.svg)](https://github.com/saltbo/zpan/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/saltbo/zpan/graph/badge.svg)](https://codecov.io/gh/saltbo/zpan)
-[![Release](https://github.com/saltbo/zpan/actions/workflows/release.yml/badge.svg)](https://github.com/saltbo/zpan/actions/workflows/release.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/saltbo/zpan)](https://github.com/saltbo/zpan/releases/latest)
-[![Docker Image](https://img.shields.io/badge/ghcr.io-saltbo%2Fzpan-blue)](https://ghcr.io/saltbo/zpan)
-[![License](https://img.shields.io/github/license/saltbo/zpan.svg)](https://github.com/saltbo/zpan/blob/master/LICENSE)
+<p align="center">
+  <strong>The open-source, S3-native file hosting platform.</strong>
+</p>
 
-> A restrained S3 web drive for image hosting, file sharing, and direct-to-object-storage workflows.
+<p align="center">
+  A focused S3 web drive for image hosting, file sharing, and direct-to-object-storage workflows.
+</p>
+
+<p align="center">
+  <a href="https://github.com/saltbo/zpan/actions/workflows/ci.yml"><img src="https://github.com/saltbo/zpan/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://codecov.io/gh/saltbo/zpan"><img src="https://codecov.io/gh/saltbo/zpan/graph/badge.svg" alt="codecov" /></a>
+  <a href="https://github.com/saltbo/zpan/actions/workflows/release.yml"><img src="https://github.com/saltbo/zpan/actions/workflows/release.yml/badge.svg" alt="Release" /></a>
+  <a href="https://github.com/saltbo/zpan/releases/latest"><img src="https://img.shields.io/github/v/release/saltbo/zpan" alt="GitHub Release" /></a>
+  <a href="https://ghcr.io/saltbo/zpan"><img src="https://img.shields.io/badge/ghcr.io-saltbo%2Fzpan-blue" alt="Docker Image" /></a>
+  <a href="https://github.com/saltbo/zpan/blob/master/LICENSE"><img src="https://img.shields.io/github/license/saltbo/zpan.svg" alt="License" /></a>
+</p>
 
 ## What is ZPan?
 
 ZPan is a lightweight file hosting platform built on top of S3-compatible storage. Files upload directly from the client to S3 through presigned URLs, bypassing server bandwidth entirely. The server is the control plane: auth, metadata, shares, quotas, teams, WebDAV, tool integrations, and admin operations.
 
-The product boundary is intentional: ZPan is an S3-native web drive, not a wrapper around every consumer cloud drive and not a full groupware suite. You bring an S3-compatible bucket; ZPan gives it a clean web UI, public sharing, image-hosting APIs, and deployment options that do not require a VPS or NAS.
+The product boundary is intentional: ZPan is a purpose-built S3-native web drive, not a wrapper around every consumer cloud drive and not a full groupware suite. You bring an S3-compatible bucket; ZPan gives it a clean web UI, public sharing, image-hosting APIs, and deployment options that do not require a VPS or NAS.
 
 **Core scenarios:**
 
@@ -41,7 +51,7 @@ The product boundary is intentional: ZPan is an S3-native web drive, not a wrapp
 
 ZPan is a good fit when you want:
 
-- A restrained S3-backed web drive instead of a storage-provider zoo
+- A focused S3-backed web drive instead of a storage-provider zoo
 - A self-hosted image bed and file-sharing app backed by your own bucket
 - Cloudflare-native deployment without maintaining a VPS or NAS
 - Browser-to-S3 transfers instead of app-server file proxying

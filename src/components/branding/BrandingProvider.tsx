@@ -52,7 +52,9 @@ function applyFavicon(url: string | null) {
     link.rel = 'icon'
     document.head.appendChild(link)
   }
-  link.href = url ?? '/favicon.ico'
+  if (url) link.removeAttribute('type')
+  else link.type = 'image/png'
+  link.href = url ?? '/favicon.png'
 }
 
 function themedDarkValue(value: string) {

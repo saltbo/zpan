@@ -74,7 +74,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="gap-2 px-3 pt-3 pb-1">
         <div className="-mx-3 flex items-center gap-2.5 border-b px-4 pb-3">
-          <img src={branding.logo_url ?? '/logo.svg'} alt={siteName} className="size-8" />
+          <img src={branding.logo_url ?? '/logo.png'} alt={siteName} className="size-8" />
           <span className="text-lg font-semibold">{siteName}</span>
         </div>
         <OrgSwitcher />
