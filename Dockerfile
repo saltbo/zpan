@@ -47,6 +47,7 @@ RUN mkdir -p /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /do
 USER zpan
 ENV HOME=/home/zpan
 WORKDIR /downloads
+EXPOSE 6881/tcp 6881/udp
 ENTRYPOINT ["zpan"]
 CMD ["downloader", "up"]
 
@@ -77,7 +78,7 @@ USER zpan
 ENV NODE_ENV=production
 ENV HOME=/home/zpan
 ENV PORT=8222
-EXPOSE 8222
+EXPOSE 8222 6881/tcp 6881/udp
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["node", "dist-server/entry-node.js"]

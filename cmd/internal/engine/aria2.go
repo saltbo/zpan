@@ -30,6 +30,8 @@ type Aria2 struct {
 	GeoIP      PeerGeoIPResolver
 }
 
+const aria2BTListenPort = "6881"
+
 var aria2StatusKeys = []string{
 	"gid",
 	"status",
@@ -85,6 +87,7 @@ func (a Aria2) startArgs(rpcPort string) ([]string, error) {
 		"--continue=true",
 		"--allow-overwrite=true",
 		"--auto-file-renaming=false",
+		"--listen-port=" + aria2BTListenPort,
 	}
 	if a.StateDir != "" {
 		sessionPath := filepath.Join(a.StateDir, "aria2.session")

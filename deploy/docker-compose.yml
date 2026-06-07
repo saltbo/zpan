@@ -23,6 +23,9 @@ services:
 
   downloader:
     image: ghcr.io/saltbo/zpan:latest-cli
+    ports:
+      - "${ZPAN_BT_PORT:-6881}:6881/tcp"
+      - "${ZPAN_BT_PORT:-6881}:6881/udp"
     command: ["downloader", "up"]
     environment:
       - ZPAN_SERVER_URL=http://zpan:8222

@@ -27,6 +27,18 @@ volumes:
 
 Migrations run automatically at startup. The compose files in this repository also include an optional downloader service using the CLI-only tag (`ghcr.io/saltbo/zpan:latest-cli`). On first start, `zpan downloader up` prints a device authorization URL in the container logs and waits. Open that URL as an admin user; after approval the downloader registers itself, saves its token under `/home/zpan/.config/zpan/config.yaml`, and continues running.
 
+### Remote downloader BitTorrent port
+
+The bundled downloader auto-starts aria2 for magnet and torrent tasks. aria2 listens on container port `6881` for BitTorrent peers, and the provided compose files publish both TCP and UDP:
+
+```yaml
+ports:
+  - "${ZPAN_BT_PORT:-6881}:6881/tcp"
+  - "${ZPAN_BT_PORT:-6881}:6881/udp"
+```
+
+Keep that port reachable from the internet if you want effective seeding and better peer connectivity. If multiple downloader containers run on the same host, give each one a different host port, for example `ZPAN_BT_PORT=6882`, while keeping the container side mapped to `6881`.
+
 ## Turso (libSQL) opt-in
 
 Set `TURSO_DATABASE_URL` to switch from local SQLite to a Turso (or self-hosted libSQL) database. `TURSO_AUTH_TOKEN` is required for remote URLs; it can be omitted for local `file://` URLs.

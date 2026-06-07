@@ -143,6 +143,7 @@ func TestAria2StartArgsForceSaveCompletedSeeds(t *testing.T) {
 		"--save-session=" + filepath.Join(stateDir, "aria2.session"),
 		"--save-session-interval=30",
 		"--force-save=true",
+		"--listen-port=6881",
 	} {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("expected aria2 args to contain %q, got %v", expected, args)
