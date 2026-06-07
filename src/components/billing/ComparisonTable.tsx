@@ -63,6 +63,7 @@ export function ComparisonTable() {
               <TableHead className="w-28 text-center" style={{ color: '#1A73E8' }}>
                 {t('settings.billing.comparison.pro')}
               </TableHead>
+              <TableHead className="w-28 text-center">{t('settings.billing.comparison.business')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -70,7 +71,7 @@ export function ComparisonTable() {
               <>
                 <TableRow key={`cat-${category}`}>
                   <TableCell
-                    colSpan={3}
+                    colSpan={4}
                     className="bg-muted/50 pl-6 font-semibold text-xs uppercase tracking-wide text-muted-foreground"
                   >
                     {t(CATEGORY_I18N[category])}
@@ -88,6 +89,15 @@ export function ComparisonTable() {
                       <div className="flex justify-center">
                         <FeatureCell
                           value={feature.pro}
+                          comingSoon={'comingSoon' in feature && feature.comingSoon}
+                          t={t}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <FeatureCell
+                          value={feature.business}
                           comingSoon={'comingSoon' in feature && feature.comingSoon}
                           t={t}
                         />

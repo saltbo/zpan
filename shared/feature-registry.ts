@@ -11,7 +11,7 @@ export type CellValue = boolean | { i18nKey: string; params?: Record<string, unk
 // Feature categories
 // ---------------------------------------------------------------------------
 
-export const FEATURE_CATEGORIES = ['core', 'pro'] as const
+export const FEATURE_CATEGORIES = ['core', 'pro', 'business'] as const
 
 export type FeatureCategory = (typeof FEATURE_CATEGORIES)[number]
 
@@ -19,6 +19,7 @@ export type FeatureCategory = (typeof FEATURE_CATEGORIES)[number]
 export const CATEGORY_I18N: Record<FeatureCategory, string> = {
   core: 'features.category.core',
   pro: 'features.category.pro',
+  business: 'features.category.business',
 }
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,8 @@ export interface FeatureDefinition {
   community: CellValue
   /** What Pro plan gets — true (included), false (not included), or structured value. */
   pro: CellValue
+  /** What Business plan gets — true (included), false (not included), or structured value. */
+  business: CellValue
   /**
    * If present, this feature is a real entitlement gate enforced at runtime.
    * The value must match a key in the PRO_GATE_KEYS tuple.
@@ -54,30 +57,35 @@ export const FEATURE_REGISTRY = [
     category: 'core',
     community: true,
     pro: true,
+    business: true,
   },
   {
     i18nKey: 'features.shareLinks',
     category: 'core',
     community: true,
     pro: true,
+    business: true,
   },
   {
     i18nKey: 'features.imageHosting',
     category: 'core',
     community: true,
     pro: true,
+    business: true,
   },
   {
     i18nKey: 'features.socialLoginOidc',
     category: 'core',
     community: true,
     pro: true,
+    business: true,
   },
   {
     i18nKey: 'features.inviteCodes',
     category: 'core',
     community: true,
     pro: true,
+    business: true,
   },
 
   // ── Pro Features ────────────────────────────────────────────────────
@@ -86,6 +94,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: false,
     pro: true,
+    business: true,
     gateKey: 'white_label',
   },
   {
@@ -93,6 +102,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: false,
     pro: true,
+    business: true,
     gateKey: 'open_registration',
   },
   {
@@ -100,6 +110,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: { i18nKey: 'features.teamWorkspaces.limit', params: { count: FREE_EXTRA_TEAM_LIMIT } },
     pro: { i18nKey: 'features.teamWorkspaces.unlimited' },
+    business: { i18nKey: 'features.teamWorkspaces.unlimited' },
     gateKey: 'teams_unlimited',
   },
   {
@@ -107,13 +118,15 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: { i18nKey: 'features.storageBackends.limit', params: { count: FREE_STORAGE_LIMIT } },
     pro: { i18nKey: 'features.storageBackends.unlimited' },
+    business: { i18nKey: 'features.storageBackends.unlimited' },
     gateKey: 'storages_unlimited',
   },
   {
     i18nKey: 'features.cloudStore',
-    category: 'pro',
+    category: 'business',
     community: false,
-    pro: true,
+    pro: false,
+    business: true,
     gateKey: 'quota_store',
   },
   {
@@ -121,6 +134,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: false,
     pro: true,
+    business: true,
     gateKey: 'site_announcements',
   },
   {
@@ -128,6 +142,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: false,
     pro: true,
+    business: true,
     comingSoon: true,
   },
   {
@@ -135,6 +150,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: false,
     pro: true,
+    business: true,
     comingSoon: true,
   },
   {
@@ -142,6 +158,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: false,
     pro: true,
+    business: true,
     gateKey: 'audit_log',
   },
   {
@@ -149,6 +166,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: false,
     pro: true,
+    business: true,
     comingSoon: true,
   },
   {
@@ -156,6 +174,7 @@ export const FEATURE_REGISTRY = [
     category: 'pro',
     community: false,
     pro: true,
+    business: true,
     comingSoon: true,
   },
 ] as const satisfies readonly FeatureDefinition[]

@@ -82,7 +82,7 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
     onError: (err) => toast.error(err instanceof Error ? err.message : t('settings.billing.bound.disconnectError')),
   })
 
-  const grantedFeatures = state.active ? LOCAL_PRO_FEATURES : []
+  const grantedFeatures = state.active ? (state.features ?? LOCAL_PRO_FEATURES) : []
   const hasSyncError = Boolean(state.last_refresh_error)
   const issuedLabel = state.account_email
     ? t('settings.billing.bound.issuedTo', { email: state.account_email })

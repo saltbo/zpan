@@ -4,12 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { PUBLIC_KEYS } from '../licensing/public-keys.js'
 import { getCloudStoreSettings } from '../services/cloud-store.js'
-import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
-import {
-  cloudGiftCardsResponseSchema,
-  cloudPackageResponseSchema,
-  getUserStoreSettings,
-} from './cloud-store-helpers.js'
+import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
+import { cloudGiftCardsResponseSchema, cloudPackageResponseSchema } from './cloud-store-helpers.js'
 
 const REFRESH_TOKEN = 'test-refresh-token'
 const INSTANCE_STORE_PATH = '/api/stores/store-test-binding'
@@ -436,22 +432,6 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('surfaces unexpected store settings load errors', async () => {
-    const db = {
-      select: () => ({
-        from: () => ({
-          where: async () => {
-            throw new Error('settings read failed')
-          },
-        }),
-      }),
-    }
-
-    await expect(getUserStoreSettings(db as unknown as Parameters<typeof getUserStoreSettings>[0])).rejects.toThrow(
-      'settings read failed',
-    )
-  })
-
   it('returns 402 when Pro quota_store is absent', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
@@ -482,7 +462,7 @@ describe('Quota Store API', () => {
 
   it('validates package resource bytes and prices', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/admin/store/packages', {
@@ -502,7 +482,7 @@ describe('Quota Store API', () => {
 
   it('reads and updates quota store settings', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
 
     const empty = await app.request('/api/admin/store/settings', { headers })
@@ -524,7 +504,7 @@ describe('Quota Store API', () => {
 
   it('updates quota store operator settings only', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -543,7 +523,7 @@ describe('Quota Store API', () => {
 
   it('reports Cloud not connected when the settings binding refresh token is missing', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     await db.run(sql`UPDATE license_bindings SET refresh_token = NULL`)
@@ -558,7 +538,7 @@ describe('Quota Store API', () => {
 
   it('proxies package CRUD to Cloud without local sync', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -608,7 +588,7 @@ describe('Quota Store API', () => {
 
   it('accepts Cloud package object lists and PUT updates', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -676,7 +656,7 @@ describe('Quota Store API', () => {
 
   it('gets packages by Cloud id', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -691,7 +671,7 @@ describe('Quota Store API', () => {
 
   it('does not send callback URLs during package create', async () => {
     const { app, db } = await createTestApp({ ZPAN_PUBLIC_ORIGIN: 'https://zpan.example/custom-path' })
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -712,7 +692,7 @@ describe('Quota Store API', () => {
 
   it('proxies recurring plans and credit packages to Cloud deliverables', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -787,7 +767,7 @@ describe('Quota Store API', () => {
 
   it('rejects mixed package billing modes before proxying to Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -812,7 +792,7 @@ describe('Quota Store API', () => {
 
   it('rejects non-USD package prices before proxying to Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -839,7 +819,7 @@ describe('Quota Store API', () => {
 
   it('rejects malformed metered traffic prices before proxying to Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -884,7 +864,7 @@ describe('Quota Store API', () => {
 
   it('rejects duplicate fixed or metered subscription prices before proxying to Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -941,7 +921,7 @@ describe('Quota Store API', () => {
 
   it('accepts yearly subscription prices and rejects multi-month intervals before proxying to Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -975,7 +955,7 @@ describe('Quota Store API', () => {
 
   it('updates package plan deliverables directly through Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -996,7 +976,7 @@ describe('Quota Store API', () => {
 
   it('updates package names without touching deliverables', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -1013,7 +993,7 @@ describe('Quota Store API', () => {
 
   it('ignores spoofed forwarded origin for Cloud checkout return URLs', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1041,7 +1021,7 @@ describe('Quota Store API', () => {
 
   it('does not use forwarded origins during package create', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -1067,7 +1047,7 @@ describe('Quota Store API', () => {
 
   it('ignores non-https forwarded schemes for Cloud checkout return URLs', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1095,7 +1075,7 @@ describe('Quota Store API', () => {
 
   it('uses https origin for non-local http request URLs', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1118,7 +1098,7 @@ describe('Quota Store API', () => {
 
   it('uses configured auth URL origin for checkout return URLs', async () => {
     const { app, db } = await createTestApp({ BETTER_AUTH_URL: 'https://auth.example.com/path' })
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1141,7 +1121,7 @@ describe('Quota Store API', () => {
 
   it('falls back to request origin when public origin env is invalid', async () => {
     const { app, db } = await createTestApp({ ZPAN_PUBLIC_ORIGIN: 'not a url' })
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1164,7 +1144,7 @@ describe('Quota Store API', () => {
 
   it('falls back to request origin when public origin env uses an unsupported scheme', async () => {
     const { app, db } = await createTestApp({ ZPAN_PUBLIC_ORIGIN: 'ftp://files.example.com' })
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1187,7 +1167,7 @@ describe('Quota Store API', () => {
 
   it('surfaces package create Cloud failures', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 502, json: async () => ({}) } as Response)
@@ -1208,7 +1188,7 @@ describe('Quota Store API', () => {
 
   it('rejects malformed successful package responses', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
@@ -1229,7 +1209,7 @@ describe('Quota Store API', () => {
 
   it('rejects prices with empty currency strings', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
 
     const res = await app.request('/api/admin/store/packages', {
@@ -1248,7 +1228,7 @@ describe('Quota Store API', () => {
 
   it('rejects non-json successful package responses', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -1275,7 +1255,7 @@ describe('Quota Store API', () => {
 
   it('deletes packages through Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1294,7 +1274,7 @@ describe('Quota Store API', () => {
 
   it('proxies admin gift card management through the bound Cloud API', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -1344,7 +1324,7 @@ describe('Quota Store API', () => {
 
   it('accepts paged admin gift card lists from Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -1361,7 +1341,7 @@ describe('Quota Store API', () => {
 
   it('accepts paged admin gift card create responses from Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -1396,7 +1376,7 @@ describe('Quota Store API', () => {
 
   it('disables admin gift cards through Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -1421,7 +1401,7 @@ describe('Quota Store API', () => {
 
   it('rejects non-admin gift card management', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const admin = await adminHeaders(app)
     await seedSettings(app, admin)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -1434,7 +1414,7 @@ describe('Quota Store API', () => {
 
   it('proxies admin store orders from Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -1456,7 +1436,7 @@ describe('Quota Store API', () => {
 
   it('paginates admin store orders from Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -1478,7 +1458,7 @@ describe('Quota Store API', () => {
 
   it('updates packages through Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -1501,7 +1481,7 @@ describe('Quota Store API', () => {
 
   it('publishes and unpublishes packages through partial Cloud patches', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -1520,7 +1500,7 @@ describe('Quota Store API', () => {
 
   it('surfaces package update Cloud failures without local writes', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -1545,7 +1525,7 @@ describe('Quota Store API', () => {
 
   it('surfaces package delete Cloud failures', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     vi.mocked(fetch).mockResolvedValueOnce({
@@ -1565,7 +1545,7 @@ describe('Quota Store API', () => {
 
   it('rejects checkout target orgs the user cannot access', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1581,7 +1561,7 @@ describe('Quota Store API', () => {
 
   it('omits credit discount fields when checking out recurring packages', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1613,7 +1593,7 @@ describe('Quota Store API', () => {
 
   it('rejects recurring checkout when the workspace already has an active plan', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -1663,7 +1643,7 @@ describe('Quota Store API', () => {
 
   it('creates fixed-duration package checkouts without credit discount fields', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1679,7 +1659,7 @@ describe('Quota Store API', () => {
 
   it('creates a subscription portal for the active workspace plan', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -1707,7 +1687,7 @@ describe('Quota Store API', () => {
 
   it('lists purchasable packages, targets, checkout, and orders', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -1784,7 +1764,7 @@ describe('Quota Store API', () => {
 
   it('rejects checkout currency fields before proxying to Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1808,7 +1788,7 @@ describe('Quota Store API', () => {
 
   it('rejects malformed Cloud checkout products with non-USD prices', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -1839,7 +1819,7 @@ describe('Quota Store API', () => {
 
   it('proxies credit balance and gift card redemption through credit endpoints', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -1876,7 +1856,7 @@ describe('Quota Store API', () => {
 
   it('proxies credit ledger entries through credit endpoints', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -1919,7 +1899,7 @@ describe('Quota Store API', () => {
 
   it('continues payment and cancels orders through Cloud', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -1977,7 +1957,7 @@ describe('Quota Store API', () => {
 
   it('rejects payment continuation and cancellation for another org order', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
 
@@ -2002,9 +1982,9 @@ describe('Quota Store API', () => {
     ).toBe(false)
   })
 
-  it('hides self-service packages when the store is disabled', async () => {
+  it('does not let the legacy local disabled flag block self-service store endpoints', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     await app.request('/api/admin/store/settings', {
@@ -2025,19 +2005,15 @@ describe('Quota Store API', () => {
     })
     const orders = await app.request('/api/store/orders', { headers })
 
-    expect(packages.status).toBe(403)
-    await expect(packages.json()).resolves.toEqual({ error: 'quota_store_disabled' })
-    expect(targets.status).toBe(403)
-    await expect(targets.json()).resolves.toEqual({ error: 'quota_store_disabled' })
-    expect(checkout.status).toBe(403)
-    await expect(checkout.json()).resolves.toEqual({ error: 'quota_store_disabled' })
-    expect(orders.status).toBe(403)
-    await expect(orders.json()).resolves.toEqual({ error: 'quota_store_disabled' })
+    expect(packages.status).not.toBe(403)
+    expect(targets.status).not.toBe(403)
+    expect(checkout.status).not.toBe(403)
+    expect(orders.status).not.toBe(403)
   })
 
   it('hides self-service store endpoints until Cloud is bound', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     await db.run(sql`UPDATE license_bindings SET refresh_token = NULL`)
@@ -2064,7 +2040,7 @@ describe('Quota Store API', () => {
 
   it('rejects malformed successful checkout responses', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -2082,7 +2058,7 @@ describe('Quota Store API', () => {
 
   it('surfaces Cloud checkout error responses', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -2104,7 +2080,7 @@ describe('Quota Store API', () => {
 
   it('uses status errors when Cloud checkout error bodies have no string error', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     await seedSettings(app, headers)
     const packageId = await seedPackage(db)
@@ -2126,7 +2102,7 @@ describe('Quota Store API', () => {
 
   it('accepts current Cloud quota-change webhook tokens with audience equal to instance id', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2183,7 +2159,7 @@ describe('Quota Store API', () => {
 
   it('valid Cloud quota-change webhook records active entitlement once and records audit', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2239,7 +2215,7 @@ describe('Quota Store API', () => {
 
   it('delivers initial subscription storage and traffic entitlements under a stable source id', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2332,7 +2308,7 @@ describe('Quota Store API', () => {
 
   it('renews subscription entitlements by replacing plan bytes and extending expiry', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2409,7 +2385,7 @@ describe('Quota Store API', () => {
 
   it('accumulates repeated Cloud increases for the same order and resource', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2455,7 +2431,7 @@ describe('Quota Store API', () => {
 
   it('decreases accumulated Cloud order entitlement bytes without revoking the remainder', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2513,7 +2489,7 @@ describe('Quota Store API', () => {
 
   it('restarts entitlement bytes when a new increase follows full revocation', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2571,7 +2547,7 @@ describe('Quota Store API', () => {
 
   it('rejects legacy order delivery event types', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({
@@ -2592,7 +2568,7 @@ describe('Quota Store API', () => {
 
   it('storage decreases revoke matching Cloud order entitlements without changing base quota', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2629,7 +2605,7 @@ describe('Quota Store API', () => {
 
   it('records traffic increases and revokes them on matching decreases', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2672,7 +2648,7 @@ describe('Quota Store API', () => {
 
   it('processes same-order increase then decrease as two independent events', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2734,7 +2710,7 @@ describe('Quota Store API', () => {
 
   it('does not fall back to base quota when a second decrease sees an already revoked entitlement', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2788,7 +2764,7 @@ describe('Quota Store API', () => {
 
   it('replaying the same decrease event is idempotent and does not double-deduct', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2823,7 +2799,7 @@ describe('Quota Store API', () => {
 
   it('reverses pre-migration Cloud order quota stored in base quota', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2853,7 +2829,7 @@ describe('Quota Store API', () => {
 
   it('records decrease audit event with correct action and metadata', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2888,7 +2864,7 @@ describe('Quota Store API', () => {
 
   it('traffic decrease from same cloudOrderId processes independently', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2931,7 +2907,7 @@ describe('Quota Store API', () => {
 
   it('rejects failed delivery retries when the payload hash changes', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -2968,7 +2944,7 @@ describe('Quota Store API', () => {
 
   it('allows failed delivery retries when the payload is unchanged', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
@@ -3003,7 +2979,7 @@ describe('Quota Store API', () => {
 
   it('rejects missing Cloud quota-change webhook auth', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
 
@@ -3020,7 +2996,7 @@ describe('Quota Store API', () => {
 
   it('rejects malformed Cloud quota-change webhook event tokens', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-bad-token' })
@@ -3039,7 +3015,7 @@ describe('Quota Store API', () => {
 
   it('rejects Cloud quota-change webhook event tokens with the wrong purpose', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-purpose' })
@@ -3058,7 +3034,7 @@ describe('Quota Store API', () => {
 
   it('rejects expired Cloud quota-change webhook event tokens', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-expired-token' })
@@ -3078,7 +3054,7 @@ describe('Quota Store API', () => {
 
   it('rejects Cloud quota-change webhook event tokens without issuedAt', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-missing-issued-at' })
@@ -3097,7 +3073,7 @@ describe('Quota Store API', () => {
 
   it('rejects Cloud quota-change webhook event tokens with future issuedAt and no notBefore', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-future-issued-at' })
@@ -3117,7 +3093,7 @@ describe('Quota Store API', () => {
 
   it('rejects Cloud quota-change webhook event tokens with an overlong TTL', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-overlong-token' })
@@ -3137,7 +3113,7 @@ describe('Quota Store API', () => {
 
   it('rejects Cloud quota-change webhook event tokens with the wrong payload hash', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-hash' })
@@ -3156,7 +3132,7 @@ describe('Quota Store API', () => {
 
   it('rejects Cloud quota-change webhook event tokens with a mismatched event id', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({
@@ -3184,7 +3160,7 @@ describe('Quota Store API', () => {
 
   it('rejects Cloud quota-change webhook event tokens with the wrong audience', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-audience' })
@@ -3203,7 +3179,7 @@ describe('Quota Store API', () => {
 
   it('rejects signed malformed Cloud payloads', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = '{bad-json'
@@ -3216,7 +3192,7 @@ describe('Quota Store API', () => {
 
   it('rejects deliveries without resource details', async () => {
     const { app, db } = await createTestApp()
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
     await seedSettings(app, headers)
     const payload = JSON.stringify({
@@ -3306,7 +3282,20 @@ async function seedCloudPr16License(db: Awaited<ReturnType<typeof createTestApp>
     accountId: 'test-account',
     instanceId: 'license_1',
     storeId: 'store-binding-1',
-    edition: 'pro',
+    edition: 'business',
+    features: [
+      'white_label',
+      'open_registration',
+      'teams_unlimited',
+      'storages_unlimited',
+      'site_announcements',
+      'audit_log',
+      'quota_store',
+    ],
+    licenseId: 'business-license-unit',
+    licenseKind: 'subscription',
+    businessPlanCode: 'business_basic',
+    storeLimit: 1,
     authorizedHosts: ['localhost'],
     licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
     issuedAt,

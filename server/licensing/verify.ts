@@ -1,5 +1,6 @@
 import { ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
-import type { LicenseAssertion } from '@shared/types'
+import { PRO_GATE_KEYS } from '@shared/feature-registry'
+import type { LicenseAssertion, ProFeature } from '@shared/types'
 import { verify } from 'paseto-ts/v4'
 import { PUBLIC_KEYS } from './public-keys'
 
@@ -54,7 +55,7 @@ function tryVerify(cert: string, publicKey: string, options: VerifyCertificateOp
       return null
     }
 
-    if (payload.instanceId !== options.instanceId || payload.edition !== 'pro') {
+    if (payload.instanceId !== options.instanceId || (payload.edition !== 'pro' && payload.edition !== 'business')) {
       return null
     }
 
@@ -66,8 +67,17 @@ function tryVerify(cert: string, publicKey: string, options: VerifyCertificateOp
       return null
     }
 
-    return { ...payload, authorizedHosts }
+    return { ...payload, authorizedHosts, features: normalizeFeatures(payload.features) }
   } catch {
     return null
   }
+}
+
+function normalizeFeatures(features: unknown): ProFeature[] | undefined {
+  if (!Array.isArray(features)) return undefined
+  const allowed = new Set(PRO_GATE_KEYS)
+  const normalized = features.filter(
+    (feature): feature is ProFeature => typeof feature === 'string' && allowed.has(feature as ProFeature),
+  )
+  return [...new Set(normalized)]
 }

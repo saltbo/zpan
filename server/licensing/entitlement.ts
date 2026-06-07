@@ -1,9 +1,16 @@
+import type { ProFeature } from '@shared/types'
 import type { Database } from '../platform/interface'
+import { effectiveFeatures } from './has-feature'
 import { loadLicenseState } from './license-state'
 import { verifyCertificate } from './verify'
 
 export interface EntitlementSummary {
-  edition: 'pro'
+  edition: 'pro' | 'business'
+  features: ProFeature[]
+  licenseId?: string
+  licenseKind?: 'owned' | 'subscription'
+  businessPlanCode?: string
+  storeLimit?: number
   certificateExpiresAt: number
   licenseValidUntil: number
 }
@@ -30,6 +37,11 @@ export async function loadEntitlement(db: Database): Promise<EntitlementSummary 
   cachedSummary = assertion
     ? {
         edition: assertion.edition,
+        features: effectiveFeatures(assertion.edition, assertion.features),
+        licenseId: assertion.licenseId,
+        licenseKind: assertion.licenseKind,
+        businessPlanCode: assertion.businessPlanCode,
+        storeLimit: assertion.storeLimit,
         certificateExpiresAt: assertion.expiresAt,
         licenseValidUntil: assertion.licenseValidUntil,
       }

@@ -96,8 +96,14 @@ export async function processCloudOrderQuotaChange(
 
 export async function getRequiredSettings(db: Database) {
   const settings = await getRawSettings(db)
-  if (!settings?.enabled) throw new Error('quota_store_disabled')
-  return settings
+  return (
+    settings ?? {
+      id: CLOUD_STORE_ENABLED_KEY,
+      enabled: true,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    }
+  )
 }
 
 async function getRawSettings(db: Database) {

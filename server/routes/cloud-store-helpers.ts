@@ -13,7 +13,7 @@ import {
 } from 'zpan-cloud-sdk'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
-import { getCloudStoreBinding, getRequiredSettings } from '../services/cloud-store'
+import { getCloudStoreBinding, type getRequiredSettings } from '../services/cloud-store'
 
 const CLOUD_STORE_REQUEST_TIMEOUT_MS = 10_000
 
@@ -64,12 +64,11 @@ export const giftCardListQuerySchema = z.object({ status: giftCardStatusSchema.o
 
 export async function getUserStoreSettings(db: Parameters<typeof getRequiredSettings>[0]) {
   try {
-    await getRequiredSettings(db)
     await getCloudStoreBinding(db)
     return { ready: true }
   } catch (error) {
     const message = (error as Error).message
-    if (message === 'quota_store_disabled' || message === 'quota_store_binding_missing') return { error: message }
+    if (message === 'quota_store_binding_missing') return { error: message }
     throw error
   }
 }

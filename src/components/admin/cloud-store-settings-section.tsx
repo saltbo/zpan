@@ -1,38 +1,28 @@
 import { HardDrive } from 'lucide-react'
 import type { UseFormRegisterReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { ProBadge } from '@/components/ProBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 
 export type StorageQuotaUnit = 'MB' | 'GB'
 
 export function StorageSettingsSection({
-  hasCloudStore,
   quotaUnit,
-  cloudStoreEnabled,
   quotaError,
   quotaInputProps,
   pending,
-  cloudStoreLoading,
   onQuotaUnitChange,
   onSave,
-  onCloudStoreChange,
 }: {
-  hasCloudStore: boolean
   quotaUnit: StorageQuotaUnit
-  cloudStoreEnabled: boolean
   quotaError?: string
   quotaInputProps: UseFormRegisterReturn
   pending: boolean
-  cloudStoreLoading: boolean
   onQuotaUnitChange: (unit: StorageQuotaUnit) => void
   onSave: () => void
-  onCloudStoreChange: (enabled: boolean) => void
 }) {
   const { t } = useTranslation()
 
@@ -66,26 +56,6 @@ export function StorageSettingsSection({
           </div>
           <p className="text-xs leading-5 text-muted-foreground">{t('admin.settings.defaultOrgQuotaHint')}</p>
           {quotaError && <p className="text-xs text-destructive">{quotaError}</p>}
-        </div>
-
-        <div
-          className={`flex items-center justify-between gap-4 rounded-md border p-3 ${
-            !hasCloudStore ? 'opacity-60' : ''
-          }`}
-        >
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="cloudStoreEnabled">{t('admin.settings.cloudStoreEnabled')}</Label>
-              <ProBadge tooltip={t('admin.settings.storageProTooltip')} />
-            </div>
-            <p className="text-xs leading-5 text-muted-foreground">{t('admin.settings.cloudStoreEnabledHint')}</p>
-          </div>
-          <Switch
-            id="cloudStoreEnabled"
-            checked={cloudStoreEnabled}
-            disabled={!hasCloudStore || pending || cloudStoreLoading}
-            onCheckedChange={onCloudStoreChange}
-          />
         </div>
 
         <div className="flex justify-end">

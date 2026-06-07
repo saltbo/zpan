@@ -7,10 +7,10 @@ import {
 } from '@shared/captcha'
 import { SignupMode } from '@shared/constants'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getCloudStoreSettings, setSystemOption, updateCloudStoreSettings } from '@/lib/api'
+import { setSystemOption } from '@/lib/api'
 import { SettingsPage } from './index'
 
 const siteOptionsState = vi.hoisted(() => ({
@@ -62,9 +62,7 @@ vi.mock('@/hooks/useEntitlement', () => ({
 }))
 
 vi.mock('@/lib/api', () => ({
-  getCloudStoreSettings: vi.fn(),
   setSystemOption: vi.fn(),
-  updateCloudStoreSettings: vi.fn(),
 }))
 
 function renderSettingsPage() {
@@ -113,8 +111,6 @@ afterEach(() => {
 
 describe('SettingsPage', () => {
   it('saves identity settings from the identity section', async () => {
-    vi.mocked(getCloudStoreSettings).mockResolvedValue(null)
-
     const view = renderSettingsPage()
     await view.findByLabelText('admin.settings.siteName')
 
@@ -133,8 +129,6 @@ describe('SettingsPage', () => {
   })
 
   it('saves closed registration mode from the registration switch', async () => {
-    vi.mocked(getCloudStoreSettings).mockResolvedValue(null)
-
     const view = renderSettingsPage()
     const registrationSwitch = await view.findByRole('switch', { name: 'admin.settings.registrationLabel' })
 
@@ -144,46 +138,23 @@ describe('SettingsPage', () => {
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
   })
 
-  it('updates storage plans from the storage settings section', async () => {
-    vi.mocked(getCloudStoreSettings).mockResolvedValue({
-      id: 'settings-1',
-      enabled: false,
-      status: 'ready',
-      createdAt: '2026-05-05T00:00:00.000Z',
-      updatedAt: '2026-05-05T00:00:00.000Z',
-    })
-    vi.mocked(updateCloudStoreSettings).mockResolvedValue({
-      id: 'settings-1',
-      enabled: true,
-      status: 'ready',
-      createdAt: '2026-05-05T00:00:00.000Z',
-      updatedAt: '2026-05-05T00:00:00.000Z',
-    })
-
+  it('updates the default storage quota from the storage settings section', async () => {
     const view = renderSettingsPage()
 
-    const storagePlansSwitch = await view.findByRole('switch', { name: 'admin.settings.cloudStoreEnabled' })
-    await waitFor(() => expect(storagePlansSwitch.hasAttribute('disabled')).toBe(false))
-    expect(storagePlansSwitch.getAttribute('aria-checked')).toBe('false')
+    const quotaInput = await view.findByLabelText('admin.settings.defaultOrgQuota')
+    await waitFor(() => expect(quotaInput).toHaveProperty('value', '1'))
+    fireEvent.change(quotaInput, { target: { value: '1' } })
 
-    fireEvent.click(storagePlansSwitch)
-    await waitFor(() => expect(storagePlansSwitch.getAttribute('aria-checked')).toBe('true'))
-    expect(updateCloudStoreSettings).not.toHaveBeenCalled()
-
-    const saveButtons = view.getAllByRole('button', { name: 'common.save' })
-    fireEvent.click(saveButtons[saveButtons.length - 1])
+    const storageSection = view.getByText('admin.settings.storageSection').closest('[data-slot="card"]')
+    if (!storageSection) throw new Error('storage section not found')
+    fireEvent.click(within(storageSection as HTMLElement).getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('default_org_quota', '1073741824', false))
-    await waitFor(() => expect(updateCloudStoreSettings).toHaveBeenCalledWith({ enabled: true }))
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
   })
 
   it('saves captcha settings from the authentication protection section', async () => {
-    vi.mocked(getCloudStoreSettings).mockResolvedValue(null)
-
     const view = renderSettingsPage()
-    const storagePlansSwitch = await view.findByRole('switch', { name: 'admin.settings.cloudStoreEnabled' })
-    await waitFor(() => expect(storagePlansSwitch.hasAttribute('disabled')).toBe(false))
 
     fireEvent.change(await view.findByLabelText('admin.settings.captchaSiteKey'), {
       target: { value: 'site-key' },

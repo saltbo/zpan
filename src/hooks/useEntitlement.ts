@@ -13,7 +13,7 @@ export function useEntitlement() {
   })
 
   function hasFeature(name: ProFeature): boolean {
-    return Boolean(name && data?.bound && data.active)
+    return Boolean(name && data?.bound && data.active && data.features?.includes(name))
   }
 
   return {

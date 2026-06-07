@@ -126,6 +126,9 @@ describe('loadEntitlement', () => {
     await seedBinding(
       db,
       signAssertion({
+        features: ['white_label', 'quota_store'],
+        licenseId: 'lic-1',
+        licenseKind: 'owned',
         licenseValidUntil,
         expiresAt: certificateExpiresAt,
       }),
@@ -134,8 +137,37 @@ describe('loadEntitlement', () => {
     const result = await loadEntitlement(db)
     expect(result).not.toBeNull()
     expect(result?.edition).toBe('pro')
+    expect(result?.features).toEqual(['white_label', 'quota_store'])
+    expect(result?.licenseId).toBe('lic-1')
+    expect(result?.licenseKind).toBe('owned')
     expect(result?.licenseValidUntil).toBe(licenseValidUntil)
     expect(result?.certificateExpiresAt).toBe(certificateExpiresAt)
+  })
+
+  it('returns business entitlement summary metadata', async () => {
+    const db = makeDb()
+
+    await seedBinding(
+      db,
+      signAssertion({
+        edition: 'business',
+        features: ['white_label', 'quota_store'],
+        licenseId: 'lic-business',
+        licenseKind: 'subscription',
+        businessPlanCode: 'business_basic',
+        storeLimit: 1,
+      }),
+    )
+
+    const result = await loadEntitlement(db)
+    expect(result).toMatchObject({
+      edition: 'business',
+      features: ['white_label', 'quota_store'],
+      licenseId: 'lic-business',
+      licenseKind: 'subscription',
+      businessPlanCode: 'business_basic',
+      storeLimit: 1,
+    })
   })
 
   it('returns null for an expired PASETO assertion', async () => {
