@@ -43,7 +43,7 @@ RUN apt-get update \
 COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
 COPY --from=geoip-db /out/geoip.mmdb /home/zpan/.local/share/zpan/geoip.mmdb
 RUN mkdir -p /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /data /downloads \
- && chown -R zpan:zpan /home/zpan /downloads
+ && chown -R zpan:zpan /data /home/zpan /downloads
 USER zpan
 ENV HOME=/home/zpan
 WORKDIR /downloads

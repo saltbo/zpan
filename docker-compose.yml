@@ -1,6 +1,8 @@
 # Build from source
 # Usage: docker compose -f docker-compose.yml up -d --build
 
+name: zpan
+
 services:
   zpan:
     build: .
@@ -26,10 +28,10 @@ services:
       context: .
       target: cli
     hostname: "${HOSTNAME:-zpan-downloader}"
+    command: ["--config", "/data/config.yaml", "downloader", "up"]
     ports:
       - "${ZPAN_BT_PORT:-6881}:${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}/tcp"
       - "${ZPAN_BT_PORT:-6881}:${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}/udp"
-    command: ["--config", "/data/config.yaml", "downloader", "up"]
     environment:
       - ZPAN_SERVER_URL=http://zpan:8222
       - ZPAN_DOWNLOADER_ENGINE=${ZPAN_DOWNLOADER_ENGINE:-auto}

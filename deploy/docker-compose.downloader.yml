@@ -4,11 +4,13 @@
 #
 # On first start, check container logs for the device authorization URL.
 
+name: zpan-downloader
+
 services:
   downloader:
     image: ghcr.io/saltbo/zpan:latest-cli
-    command: ["--config", "/data/config.yaml", "downloader", "up"]
     hostname: "${HOSTNAME:-zpan-downloader}"
+    command: ["--config", "/data/config.yaml", "downloader", "up"]
     ports:
       - "${ZPAN_BT_PORT:-6881}:${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}/tcp"
       - "${ZPAN_BT_PORT:-6881}:${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}/udp"
