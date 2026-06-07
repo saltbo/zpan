@@ -173,7 +173,7 @@ async function syncTrafficReport(params: {
           },
     )
     const response = usageResponseSchema.parse(data)
-    if (!response.accepted || response.eventId !== report.eventId) throw new Error('cloud_usage_report_rejected')
+    if (!response.accepted) throw new Error('cloud_usage_report_rejected')
     await updateTrafficReport(db, report.eventId, 'reported', null, now)
     return 'reported'
   } catch (error) {

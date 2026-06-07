@@ -8,6 +8,7 @@ import { normalizeHost } from '../licensing/verify'
 import type { Env } from '../middleware/platform'
 import { syncPendingCloudTrafficReports } from '../services/cloud-traffic-metering'
 import { runLicensingRefresh } from '../services/licensing-refresh-runner'
+import { syncPendingRemoteDownloadUsageReports } from '../services/remote-download-usage'
 
 function configuredPublicHost(c: Context<Env>): string | null {
   const value = c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL')
@@ -63,9 +64,12 @@ const app = new Hono<Env>()
 
     const db = c.get('platform').db
     const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
-    const result = await syncPendingCloudTrafficReports({ db, cloudBaseUrl })
+    const [traffic, remoteDownload] = await Promise.all([
+      syncPendingCloudTrafficReports({ db, cloudBaseUrl }),
+      syncPendingRemoteDownloadUsageReports({ db, cloudBaseUrl }),
+    ])
 
-    return c.json({ ok: true, ...result })
+    return c.json({ ok: true, ...traffic, remoteDownload })
   })
 
 export default app

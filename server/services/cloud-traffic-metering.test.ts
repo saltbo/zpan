@@ -248,15 +248,15 @@ describe('cloud traffic metering', () => {
     ])
   })
 
-  it('marks reports failed when Cloud does not accept the same event id', async () => {
-    const { db, platform } = await createTestApp()
+  it('marks reports reported when Cloud returns its own usage event id', async () => {
+    const { db, platform } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
     await seedTrafficBinding(db)
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(makeResponse({ data: { accepted: true, duplicate: false, eventId: 'other_evt' } })),
     )
 
-    await reportTrafficEgress({
+    const result = await reportTrafficEgress({
       platform,
       orgId: 'org_1',
       bytes: 1024,
@@ -265,15 +265,10 @@ describe('cloud traffic metering', () => {
       eventId: 'evt_mismatch',
       ...meteredStorage,
     })
-    await expect(syncPendingCloudTrafficReports({ db, cloudBaseUrl: 'https://cloud.example' })).resolves.toEqual({
-      attempted: 1,
-      reported: 0,
-      blocked: 0,
-      failed: 1,
-    })
 
+    expect(result).toMatchObject({ status: 'reported', eventId: 'evt_mismatch', duplicate: false })
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([
-      { eventId: 'evt_mismatch', status: 'failed', error: 'cloud_usage_report_rejected' },
+      { eventId: 'evt_mismatch', status: 'reported', error: null },
     ])
   })
 

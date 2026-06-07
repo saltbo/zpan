@@ -3,6 +3,7 @@
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { syncPendingCloudTrafficReports } from '../server/services/cloud-traffic-metering'
 import { runLicensingRefresh } from '../server/services/licensing-refresh-runner'
+import { syncPendingRemoteDownloadUsageReports } from '../server/services/remote-download-usage'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 
 // Subset of the worker Env used by the scheduled handler.
@@ -21,6 +22,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
   const cloudBaseUrl = env.ZPAN_CLOUD_URL ?? ZPAN_CLOUD_URL_DEFAULT
   if (event.cron === TRAFFIC_SYNC_CRON) {
     await syncPendingCloudTrafficReports({ db: platform.db, cloudBaseUrl })
+    await syncPendingRemoteDownloadUsageReports({ db: platform.db, cloudBaseUrl })
     return
   }
 

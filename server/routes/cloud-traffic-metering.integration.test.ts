@@ -160,7 +160,7 @@ describe('object download cloud traffic reporting', () => {
     ])
   })
 
-  it('records a failed report without refunding local traffic when Cloud returns a mismatched event id', async () => {
+  it('records a reported report without refunding local traffic when Cloud returns its own usage event id', async () => {
     const { app, db } = await createTestApp()
     await seedTrafficBinding(db)
     vi.stubGlobal(
@@ -181,7 +181,7 @@ describe('object download cloud traffic reporting', () => {
       sql`SELECT traffic_used AS trafficUsed FROM org_quotas WHERE org_id = ${orgId}`,
     )
     expect(rows[0].trafficUsed).toBe(125)
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'failed' }])
+    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported', error: null }])
   })
 
   it('keeps the pre-presign Cloud report and refunds local traffic when presign fails', async () => {

@@ -1,12 +1,16 @@
 import type { Downloader, DownloadTask } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { remoteDownloadUsageReports } from '../db/schema'
+import { createLicenseBinding } from '../licensing/license-state'
+import type { Database } from '../platform/interface'
 import { S3Service } from '../services/s3.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
 type DownloadTaskList = { items: DownloadTask[] }
 
 beforeEach(() => {
+  vi.unstubAllGlobals()
   vi.restoreAllMocks()
   vi.spyOn(S3Service.prototype, 'presignUpload').mockResolvedValue('https://presigned-upload.example.com')
   vi.spyOn(S3Service.prototype, 'createMultipartUpload').mockResolvedValue('upload-1')
@@ -59,6 +63,15 @@ function transferProgress(input: {
   }
 }
 
+function makeCloudResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  } as unknown as Response
+}
+
 async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   const now = Date.now()
   await db.run(sql`
@@ -73,6 +86,19 @@ async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']
       '$UID/$RAW_NAME', '', 0, 0, 'active', 0, ${100 * 1024 * 1024}, 1, ${now}, ${now}
     )
   `)
+}
+
+async function seedCloudBinding(db: Database) {
+  await createLicenseBinding(db, {
+    cloudBindingId: 'download-billing-binding',
+    cloudStoreId: 'store-download-billing',
+    instanceId: 'test-instance',
+    cloudAccountId: 'test-account',
+    refreshToken: 'test-refresh-token',
+    cachedCert: 'test-certificate',
+    cachedExpiresAt: Math.floor(Date.now() / 1000) + 3600,
+    lastRefreshAt: Math.floor(Date.now() / 1000),
+  })
 }
 
 async function registerDownloaderThroughDeviceLogin(
@@ -594,6 +620,82 @@ describe('Download tasks API integration', () => {
     expect(task.status.output?.objectId).toBe(object.id)
     expect(task.status.progress.download.bytes).toBe(10 * 1024 * 1024)
     expect(task.status.progress.upload.bytes).toBe(10 * 1024 * 1024)
+  })
+
+  it('accepts Cloud usage event ids that differ from local remote download idempotency keys', async () => {
+    const { app, db } = await createTestApp({
+      DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret',
+      ZPAN_CLOUD_URL: 'https://cloud.example',
+    })
+    await insertStorage(db)
+    await seedCloudBinding(db)
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          makeCloudResponse({ data: { accepted: true, duplicate: false, eventId: 'different-event-id' } }),
+        ),
+    )
+
+    const createdDownloader = await registerDownloaderThroughDeviceLogin(app, 'billing-transient-downloader')
+    await db.run(sql`
+      UPDATE downloaders
+      SET remote_download_credit_billing_enabled = 1,
+          remote_download_credit_unit_bytes = ${5 * 1024 * 1024},
+          remote_download_credit_per_unit = 1
+      WHERE id = ${createdDownloader.downloader.id}
+    `)
+    const downloaderHeaders = {
+      Authorization: `Bearer ${createdDownloader.token}`,
+      'Content-Type': 'application/json',
+    }
+    const heartbeatRes = await app.request('/api/downloader/heartbeat', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, currentTasks: 0 }),
+    })
+    expect(heartbeatRes.status).toBe(200)
+
+    const user = await authedHeaders(app, 'download-billing-transient-user@example.com')
+    const createTaskRes = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: { type: 'http', uri: 'https://example.com/billing-transient.bin' },
+        targetFolder: 'Remote Downloads',
+      }),
+    })
+    expect(createTaskRes.status).toBe(201)
+    const task = (await createTaskRes.json()) as DownloadTask
+
+    const patchRes = await app.request(`/api/download-tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({
+        status: 'downloading',
+        ...transferProgress({
+          downloadBytes: 5 * 1024 * 1024,
+          totalBytes: 10 * 1024 * 1024,
+          downloadBps: 512_000,
+        }),
+      }),
+    })
+
+    expect(patchRes.status).toBe(200)
+    await expect(patchRes.json()).resolves.toMatchObject({
+      status: {
+        state: 'downloading',
+        billing: { state: 'ok', chargedBytes: 5 * 1024 * 1024, chargedCredits: 1 },
+      },
+    })
+    await expect(db.select().from(remoteDownloadUsageReports)).resolves.toMatchObject([
+      {
+        eventId: `remote_download:${task.id}:1`,
+        status: 'reported',
+        error: null,
+      },
+    ])
   })
 
   it('stores downloader runtime reports as snapshots while progress remains patchable', async () => {

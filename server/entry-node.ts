@@ -7,6 +7,7 @@ import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
 import { runLicensingRefresh } from './services/licensing-refresh-runner'
+import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
@@ -40,4 +41,5 @@ setInterval(() => {
 console.log('traffic.sync.scheduler.started interval=10m')
 setInterval(() => {
   void syncPendingCloudTrafficReports({ db: platform.db, cloudBaseUrl })
+  void syncPendingRemoteDownloadUsageReports({ db: platform.db, cloudBaseUrl })
 }, TRAFFIC_SYNC_INTERVAL_MS)
