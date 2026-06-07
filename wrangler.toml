@@ -62,6 +62,9 @@ migrations_dir = "./migrations"
 binding = "PUBLIC_IMAGES"
 bucket_name = "zpan-public-images-staging"
 
+[[env.staging.send_email]]
+name = "EMAIL"
+
 [[env.staging.queues.producers]]
 binding = "ARCHIVE_QUEUE"
 queue = "zpan-archive-jobs-staging"
