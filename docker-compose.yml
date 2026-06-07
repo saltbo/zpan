@@ -25,6 +25,7 @@ services:
     build:
       context: .
       target: cli
+    hostname: "${HOSTNAME:-zpan-downloader}"
     ports:
       - "${ZPAN_BT_PORT:-6881}:6881/tcp"
       - "${ZPAN_BT_PORT:-6881}:6881/udp"

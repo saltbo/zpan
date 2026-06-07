@@ -39,6 +39,22 @@ ports:
 
 Keep that port reachable from the internet if you want effective seeding and better peer connectivity. If multiple downloader containers run on the same host, give each one a different host port, for example `ZPAN_BT_PORT=6882`, while keeping the container side mapped to `6881`.
 
+### Remote downloader hostname
+
+Docker gives containers a generated hostname unless one is configured. The downloader uses the OS hostname during registration and heartbeats, so the compose files set the container hostname from the host environment:
+
+```yaml
+hostname: "${HOSTNAME:-zpan-downloader}"
+```
+
+On hosts where `HOSTNAME` is not exported, pass it when starting compose:
+
+```sh
+HOSTNAME="$(hostname)" docker compose -f deploy/docker-compose.yml up -d
+```
+
+If the downloader has already registered with a generated container hostname, change the hostname before registering a fresh downloader. The heartbeat hostname updates after restart, but the display name shown in the admin table is the name captured at registration time.
+
 ## Turso (libSQL) opt-in
 
 Set `TURSO_DATABASE_URL` to switch from local SQLite to a Turso (or self-hosted libSQL) database. `TURSO_AUTH_TOKEN` is required for remote URLs; it can be omitted for local `file://` URLs.
