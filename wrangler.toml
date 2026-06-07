@@ -48,6 +48,10 @@ crons = ["*/10 * * * *", "0 */6 * * *"]
 # ----------------------------------------------------------------------------
 [env.staging]
 
+[env.staging.vars]
+BETTER_AUTH_URL = "https://zpan-staging.saltbo.workers.dev"
+ZPAN_CLOUD_URL = "https://zpan-cloud-staging.saltbo.workers.dev"
+
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "zpan-db-staging"
