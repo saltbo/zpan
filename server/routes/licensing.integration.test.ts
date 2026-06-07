@@ -11,7 +11,10 @@ describe('GET /api/licensing/status', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ bound: false })
+    expect(body).toMatchObject({
+      bound: false,
+      cloud_dashboard_url: 'https://cloud.zpan.space/dashboard',
+    })
   })
 
   it('returns bound state with plan and features when binding row exists with cert', async () => {

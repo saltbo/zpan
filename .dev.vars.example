@@ -4,5 +4,9 @@
 # Required: better-auth signing secret. Generate with: openssl rand -base64 32
 BETTER_AUTH_SECRET=
 
-# Optional: point local development at a non-production ZPan Cloud.
-ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev
+# Local ZPan URL.
+BETTER_AUTH_URL=http://localhost:5185
+TRUSTED_ORIGINS=http://localhost:5185
+
+# Local ZPan Cloud URL.
+ZPAN_CLOUD_URL=http://localhost:5186

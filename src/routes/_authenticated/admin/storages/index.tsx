@@ -31,6 +31,7 @@ function StoragesPage() {
 
   const storages = storagesQuery.data?.items ?? []
   const storagesLimitReached = !hasFeature('storages_unlimited') && storages.length >= FREE_STORAGE_LIMIT
+  const hasTrafficBilling = hasFeature('quota_store')
 
   function handleEdit(storage: Storage) {
     setEditingStorage(storage)
@@ -90,6 +91,7 @@ function StoragesPage() {
               <StorageTableRow
                 key={storage.id}
                 storage={storage}
+                hasTrafficBilling={hasTrafficBilling}
                 onEdit={() => handleEdit(storage)}
                 onDelete={() => setDeleteTarget({ id: storage.id, title: storage.title })}
               />
@@ -108,7 +110,12 @@ function StoragesPage() {
         </table>
       </div>
 
-      <StorageFormDrawer open={formOpen} onOpenChange={handleFormOpenChange} storage={editingStorage} />
+      <StorageFormDrawer
+        open={formOpen}
+        onOpenChange={handleFormOpenChange}
+        storage={editingStorage}
+        hasTrafficBilling={hasTrafficBilling}
+      />
 
       <DeleteStorageDialog
         open={deleteTarget !== null}
@@ -121,10 +128,12 @@ function StoragesPage() {
 
 function StorageTableRow({
   storage,
+  hasTrafficBilling,
   onEdit,
   onDelete,
 }: {
   storage: Storage
+  hasTrafficBilling: boolean
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -148,7 +157,7 @@ function StorageTableRow({
       <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{storage.bucket}</td>
       <td className="hidden max-w-48 truncate px-4 py-3 text-muted-foreground lg:table-cell">{storage.endpoint}</td>
       <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
-        {storage.egressCreditBillingEnabled
+        {hasTrafficBilling && storage.egressCreditBillingEnabled
           ? t('admin.storages.egressBillingRate', {
               credits: storage.egressCreditPerUnit,
               unit: formatSize(storage.egressCreditUnitBytes),

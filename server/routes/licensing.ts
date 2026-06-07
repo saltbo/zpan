@@ -22,6 +22,10 @@ function configuredPublicHost(c: Context<Env>): string | null {
   }
 }
 
+function cloudDashboardUrl(cloudBaseUrl: string): string {
+  return `${cloudBaseUrl.replace(/\/$/, '')}/dashboard`
+}
+
 function secretsMatch(provided: string, expected: string): boolean {
   if (provided.length !== expected.length) return false
   const enc = new TextEncoder()
@@ -37,7 +41,7 @@ const app = new Hono<Env>()
       normalizeHost(c.req.header('x-forwarded-host') ?? c.req.header('host')) ??
       new URL(c.req.url).host
     const state = await loadBindingState(db, { currentHost, cloudBaseUrl })
-    return c.json(state satisfies BindingState)
+    return c.json({ ...state, cloud_dashboard_url: cloudDashboardUrl(cloudBaseUrl) } satisfies BindingState)
   })
 
   // POST /api/licensing/refresh-cron?secret=<REFRESH_CRON_SECRET>

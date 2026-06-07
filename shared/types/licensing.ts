@@ -38,4 +38,5 @@ export interface BindingState {
   certificate_expires_at?: number
   last_refresh_at?: number
   last_refresh_error?: string
+  cloud_dashboard_url?: string
 }

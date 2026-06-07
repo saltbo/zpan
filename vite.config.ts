@@ -5,7 +5,7 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
 
-const appPort = Number(process.env.E2E_APP_PORT ?? 5173)
+const appPort = Number(process.env.E2E_APP_PORT ?? 5185)
 const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
 
 export default defineConfig(({ mode }) => ({

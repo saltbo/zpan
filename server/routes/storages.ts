@@ -15,6 +15,10 @@ import {
   updateStorage,
 } from '../services/storage'
 
+function enablesEgressCreditBilling(input: { egressCreditBillingEnabled?: boolean }) {
+  return input.egressCreditBillingEnabled === true
+}
+
 const app = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => {
@@ -38,7 +42,11 @@ const app = new Hono<Env>()
         402,
       )
     }
-    const storage = await createStorage(db, c.req.valid('json'))
+    const input = c.req.valid('json')
+    if (enablesEgressCreditBilling(input) && !hasFeature('quota_store', state)) {
+      return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
+    }
+    const storage = await createStorage(db, input)
     await recordActivity(db, {
       orgId,
       userId,
@@ -62,7 +70,11 @@ const app = new Hono<Env>()
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const id = c.req.param('id')
-    const storage = await updateStorage(db, id, c.req.valid('json'))
+    const input = c.req.valid('json')
+    if (enablesEgressCreditBilling(input) && !hasFeature('quota_store', await loadBindingState(db))) {
+      return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
+    }
+    const storage = await updateStorage(db, id, input)
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
     await recordActivity(db, {
       orgId,

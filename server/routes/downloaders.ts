@@ -9,6 +9,7 @@ import {
   updateDownloaderSchema,
 } from '@shared/schemas'
 import type { Context } from 'hono'
+import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin, requireDownloader } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -107,9 +108,14 @@ const downloadersRoute = new OpenAPIHono<Env>()
   }) as never)
   .openapi(updateRoute, (async (c: OpenAPIContext) => {
     const id = c.req.param('id') as string
-    return downloadResponse(c, async () =>
-      updateDownloader(c.get('platform'), id, c.req.valid('json') as z.infer<typeof updateDownloaderSchema>),
-    )
+    const input = c.req.valid('json') as z.infer<typeof updateDownloaderSchema>
+    if (input.remoteDownloadCreditBillingEnabled === true) {
+      const state = await loadBindingState(c.get('platform').db)
+      if (!hasFeature('quota_store', state)) {
+        return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
+      }
+    }
+    return downloadResponse(c, async () => updateDownloader(c.get('platform'), id, input))
   }) as never)
   .openapi(deleteRoute, (async (c: OpenAPIContext) => {
     const id = c.req.param('id') as string

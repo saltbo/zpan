@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { remoteDownloadUsageReports } from '../db/schema'
+import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database, Platform } from '../platform/interface'
 import { postBoundCloudJson } from './licensing-cloud'
@@ -34,6 +35,7 @@ export async function reportRemoteDownloadUnit(params: {
   enabled: boolean
 }): Promise<{ status: RemoteDownloadUsageStatus; eventId: string }> {
   if (!params.enabled) return { status: 'reported', eventId: '' }
+  if (!hasFeature('quota_store', await loadBindingState(params.platform.db))) return { status: 'reported', eventId: '' }
   const eventId = `remote_download:${params.taskId}:${params.unitIndex}`
   const existing = await params.platform.db
     .select()
@@ -78,6 +80,8 @@ export async function syncPendingRemoteDownloadUsageReports(params: {
   now?: Date
 }): Promise<{ attempted: number; reported: number; blocked: number; failed: number }> {
   const { db, cloudBaseUrl, limit = 100, now = new Date() } = params
+  if (!hasFeature('quota_store', await loadBindingState(db)))
+    return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
   const binding = await loadActiveLicenseBinding(db)
   if (!binding?.refreshToken || !binding.cloudStoreId) return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
 

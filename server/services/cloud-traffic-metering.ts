@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { cloudTrafficReports } from '../db/schema'
+import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database, Platform } from '../platform/interface'
 import { currentTrafficPeriod } from './effective-quota'
@@ -48,6 +49,9 @@ export async function reportTrafficEgress(params: {
   const { platform, orgId, bytes, source, sourceId, now = new Date() } = params
   if (bytes <= 0) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
   if (!params.egressCreditBillingEnabled) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
+  if (!hasFeature('quota_store', await loadBindingState(platform.db))) {
+    return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
+  }
   if (!params.storageId || !params.egressCreditUnitBytes || !params.egressCreditPerUnit) {
     throw new Error('storage_egress_pricing_missing')
   }
@@ -111,6 +115,8 @@ export async function syncPendingCloudTrafficReports(params: {
   now?: Date
 }): Promise<{ attempted: number; reported: number; blocked: number; failed: number }> {
   const { db, cloudBaseUrl, limit = 100, now = new Date() } = params
+  if (!hasFeature('quota_store', await loadBindingState(db)))
+    return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
   const binding = await loadActiveLicenseBinding(db)
   if (!binding?.refreshToken || !binding.cloudStoreId) return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
 

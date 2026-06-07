@@ -67,9 +67,10 @@ interface StorageFormDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   storage: Storage | null
+  hasTrafficBilling: boolean
 }
 
-export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDrawerProps) {
+export function StorageFormDrawer({ open, onOpenChange, storage, hasTrafficBilling }: StorageFormDrawerProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [showSecret, setShowSecret] = useState(false)
@@ -96,16 +97,16 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
         customHost: storage.customHost || '',
         capacityValue: value,
         capacityUnit: unit,
-        egressCreditBillingEnabled: storage.egressCreditBillingEnabled ?? false,
+        egressCreditBillingEnabled: hasTrafficBilling ? (storage.egressCreditBillingEnabled ?? false) : false,
         egressCreditUnitValue: egressUnit.value,
         egressCreditUnit: egressUnit.unit,
         egressCreditPerUnit: storage.egressCreditPerUnit ?? 1,
       })
     } else {
-      form.reset(DEFAULT_VALUES)
+      form.reset({ ...DEFAULT_VALUES, egressCreditBillingEnabled: false })
     }
     setShowSecret(false)
-  }, [open, storage, form])
+  }, [open, storage, form, hasTrafficBilling])
 
   const mutation = useMutation({
     mutationFn: ({
@@ -117,9 +118,13 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
     }: StorageFormValues) => {
       const capacity = capacityValue * UNITS[capacityUnit]
       const egressCreditUnitBytes = egressCreditUnitValue * UNITS[egressCreditUnit]
-      return isEditing
-        ? updateStorage(storage.id, { ...rest, capacity, egressCreditUnitBytes })
-        : createStorage({ ...rest, capacity, egressCreditUnitBytes })
+      const payload = {
+        ...rest,
+        egressCreditBillingEnabled: hasTrafficBilling ? rest.egressCreditBillingEnabled : false,
+        capacity,
+        egressCreditUnitBytes,
+      }
+      return isEditing ? updateStorage(storage.id, payload) : createStorage(payload)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
@@ -226,10 +231,16 @@ export function StorageFormDrawer({ open, onOpenChange, storage }: StorageFormDr
                   </div>
                   <Switch
                     id="egressCreditBillingEnabled"
+                    disabled={!hasTrafficBilling}
                     checked={form.watch('egressCreditBillingEnabled')}
-                    onCheckedChange={(checked) => form.setValue('egressCreditBillingEnabled', checked)}
+                    onCheckedChange={(checked) =>
+                      form.setValue('egressCreditBillingEnabled', hasTrafficBilling && checked)
+                    }
                   />
                 </div>
+                {!hasTrafficBilling && (
+                  <p className="mt-2 text-xs text-muted-foreground">{t('admin.storages.egressBillingBusinessOnly')}</p>
+                )}
                 {form.watch('egressCreditBillingEnabled') && (
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <FormField
