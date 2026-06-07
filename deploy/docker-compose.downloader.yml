@@ -9,7 +9,7 @@ name: zpan-downloader
 services:
   downloader:
     image: ghcr.io/saltbo/zpan:latest-cli
-    hostname: "${HOSTNAME:-zpan-downloader}"
+    hostname: zpan-downloader
     command: ["--config", "/data/config.yaml", "downloader", "up"]
     ports:
       - "${ZPAN_BT_PORT:-6881}:${ZPAN_DOWNLOADER_BT_LISTEN_PORT:-6881}/tcp"
@@ -23,6 +23,7 @@ services:
       - ZPAN_DOWNLOADER_SEED_CACHE_LIMIT=${ZPAN_DOWNLOADER_SEED_CACHE_LIMIT:-10GB}
     volumes:
       - downloader-data:/data
+      - /etc/hostname:/host/etc/hostname:ro
     restart: unless-stopped
 
 volumes:

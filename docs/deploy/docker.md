@@ -69,19 +69,14 @@ Managed qBittorrent uses the same `ZPAN_DOWNLOADER_BT_LISTEN_PORT` setting for B
 
 ### Remote downloader hostname
 
-Docker gives containers a generated hostname unless one is configured. The downloader uses the OS hostname during registration and heartbeats, so the compose files set the container hostname from the host environment:
+Docker gives containers a generated hostname unless one is configured. The downloader reads the mounted host hostname file during registration and heartbeats:
 
 ```yaml
-hostname: "${HOSTNAME:-zpan-downloader}"
+volumes:
+  - /etc/hostname:/host/etc/hostname:ro
 ```
 
-On hosts where `HOSTNAME` is not exported, pass it when starting compose:
-
-```sh
-HOSTNAME="$(hostname)" docker compose -f deploy/docker-compose.yml up -d
-```
-
-If the downloader has already registered with a generated container hostname, change the hostname before registering a fresh downloader. The heartbeat hostname updates after restart, but the display name shown in the admin table is the name captured at registration time.
+On Linux hosts, this makes first-time downloader registration use the host machine name automatically. If the mount is unavailable, the downloader falls back to the container hostname.
 
 ## Turso (libSQL) opt-in
 

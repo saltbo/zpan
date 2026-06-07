@@ -18,6 +18,7 @@ import (
 	"github.com/saltbo/zpan/cmd/internal/client"
 	"github.com/saltbo/zpan/cmd/internal/config"
 	"github.com/saltbo/zpan/cmd/internal/engine"
+	"github.com/saltbo/zpan/cmd/internal/host"
 )
 
 const Version = "0.1.0"
@@ -785,7 +786,6 @@ func (w *Worker) ackStoppedControlTask(ctx context.Context, task client.Download
 }
 
 func (w *Worker) heartbeat() client.Heartbeat {
-	hostname, _ := os.Hostname()
 	engineName := w.cfg.Engine
 	capabilities := []string{"http"}
 	if w.engine != nil {
@@ -795,7 +795,7 @@ func (w *Worker) heartbeat() client.Heartbeat {
 	speeds := w.currentTransferSpeeds()
 	return client.Heartbeat{
 		Version:            Version,
-		Hostname:           hostname,
+		Hostname:           host.DownloaderHostname(),
 		Platform:           runtime.GOOS,
 		Arch:               runtime.GOARCH,
 		Engine:             engineName,

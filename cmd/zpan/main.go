@@ -13,6 +13,7 @@ import (
 
 	"github.com/saltbo/zpan/cmd/internal/client"
 	"github.com/saltbo/zpan/cmd/internal/config"
+	"github.com/saltbo/zpan/cmd/internal/host"
 	"github.com/saltbo/zpan/cmd/internal/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -179,8 +180,7 @@ func saveRegisteredDownloaderConfig(cfg config.Config, cfgFile string, token str
 }
 
 func downloaderName() string {
-	hostname, _ := os.Hostname()
-	if hostname != "" {
+	if hostname := host.DownloaderHostname(); hostname != "" {
 		return hostname
 	}
 	return "zpan"
@@ -217,11 +217,10 @@ func isPendingDeviceAuthError(err error) bool {
 }
 
 func registrationHeartbeat(cfg config.Config) client.Heartbeat {
-	hostname, _ := os.Hostname()
 	engine := normalizeRegistrationEngine(cfg)
 	return client.Heartbeat{
 		Version:            worker.Version,
-		Hostname:           hostname,
+		Hostname:           host.DownloaderHostname(),
 		Platform:           runtime.GOOS,
 		Arch:               runtime.GOARCH,
 		Engine:             engine,
