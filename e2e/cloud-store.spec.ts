@@ -181,9 +181,11 @@ async function enableCloudStore(page: Page) {
 }
 
 async function approvePairingInCloud(pairing: PairingInfo) {
-  const email = process.env.E2E_CLOUD_PRO_EMAIL
-  const password = process.env.E2E_CLOUD_PRO_PASSWORD
-  if (!email || !password) throw new Error('E2E_CLOUD_PRO_EMAIL and E2E_CLOUD_PRO_PASSWORD are required')
+  const email = process.env.E2E_CLOUD_BUSINESS_EMAIL ?? process.env.E2E_CLOUD_PRO_EMAIL
+  const password = process.env.E2E_CLOUD_BUSINESS_PASSWORD ?? process.env.E2E_CLOUD_PRO_PASSWORD
+  if (!email || !password) {
+    throw new Error('E2E_CLOUD_BUSINESS_EMAIL and E2E_CLOUD_BUSINESS_PASSWORD are required')
+  }
 
   const cloudOrigin = new URL(pairing.pairingUrl).origin
   const cloudRequest = await playwrightRequest.newContext({ baseURL: cloudOrigin })
