@@ -41,11 +41,17 @@ type Worker struct {
 	geoIP         *engine.GeoIPResolver
 	logger        *slog.Logger
 	running       map[string]context.CancelCauseFunc
+	speeds        map[string]transferSpeeds
 	retainedSeeds []retainedSeed
 	attempts      map[string]int
 	started       []*exec.Cmd
 	wg            sync.WaitGroup
 	mu            sync.Mutex
+}
+
+type transferSpeeds struct {
+	downloadBps int64
+	uploadBps   int64
 }
 
 type apiClient interface {
@@ -79,6 +85,7 @@ func NewWithAPI(cfg config.Config, api apiClient) *Worker {
 		api:      api,
 		logger:   slog.Default(),
 		running:  map[string]context.CancelCauseFunc{},
+		speeds:   map[string]transferSpeeds{},
 		attempts: map[string]int{},
 	}
 }
@@ -238,6 +245,7 @@ func (w *Worker) downloadThenUpload(
 
 	var lastProgressLog time.Time
 	result, err := w.engine.Download(ctx, task, func(downloaded int64, total *int64, bps int64, detail *client.DownloadTaskRuntime) error {
+		w.setTaskTransferSpeed(task.ID, transferSpeeds{downloadBps: bps})
 		detail = withDownloadRuntime(detail, downloaded, total, bps)
 		if detail != nil {
 			currentDetail = detail
@@ -710,6 +718,7 @@ func (w *Worker) startTask(ctx context.Context, taskID string) (context.Context,
 	}
 	taskCtx, cancel := context.WithCancelCause(ctx)
 	w.running[taskID] = cancel
+	w.speeds[taskID] = transferSpeeds{}
 	w.wg.Add(1)
 	return taskCtx, true
 }
@@ -719,6 +728,7 @@ func (w *Worker) finish(taskID string) {
 	_, exists := w.running[taskID]
 	if exists {
 		delete(w.running, taskID)
+		delete(w.speeds, taskID)
 	}
 	w.mu.Unlock()
 	if exists {
@@ -782,6 +792,7 @@ func (w *Worker) heartbeat() client.Heartbeat {
 		engineName = w.engine.Name()
 		capabilities = w.engine.Capabilities()
 	}
+	speeds := w.currentTransferSpeeds()
 	return client.Heartbeat{
 		Version:            Version,
 		Hostname:           hostname,
@@ -791,8 +802,8 @@ func (w *Worker) heartbeat() client.Heartbeat {
 		Capabilities:       capabilities,
 		MaxConcurrentTasks: w.cfg.MaxConcurrentTasks,
 		CurrentTasks:       w.currentTasks(),
-		DownloadBps:        0,
-		UploadBps:          0,
+		DownloadBps:        speeds.downloadBps,
+		UploadBps:          speeds.uploadBps,
 		FreeDiskBytes:      0,
 	}
 }
@@ -826,6 +837,26 @@ func (w *Worker) currentTasks() int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return len(w.running)
+}
+
+func (w *Worker) setTaskTransferSpeed(taskID string, speeds transferSpeeds) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if _, exists := w.running[taskID]; !exists {
+		return
+	}
+	w.speeds[taskID] = speeds
+}
+
+func (w *Worker) currentTransferSpeeds() transferSpeeds {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	var total transferSpeeds
+	for _, speeds := range w.speeds {
+		total.downloadBps += speeds.downloadBps
+		total.uploadBps += speeds.uploadBps
+	}
+	return total
 }
 
 func taskErrorMessage(err error) string {

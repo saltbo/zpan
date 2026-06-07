@@ -19,6 +19,37 @@ import (
 	"github.com/saltbo/zpan/cmd/internal/engine"
 )
 
+func TestHeartbeatReportsAggregateTransferSpeeds(t *testing.T) {
+	w := NewWithAPI(config.Config{Engine: "auto", MaxConcurrentTasks: 5}, &recordingAPI{})
+
+	if _, ok := w.startTask(context.Background(), "task-1"); !ok {
+		t.Fatal("expected task-1 to start")
+	}
+	if _, ok := w.startTask(context.Background(), "task-2"); !ok {
+		t.Fatal("expected task-2 to start")
+	}
+	w.setTaskTransferSpeed("task-1", transferSpeeds{downloadBps: 100, uploadBps: 20})
+	w.setTaskTransferSpeed("task-2", transferSpeeds{downloadBps: 300, uploadBps: 40})
+
+	heartbeat := w.heartbeat()
+	if heartbeat.CurrentTasks != 2 {
+		t.Fatalf("expected 2 current tasks, got %d", heartbeat.CurrentTasks)
+	}
+	if heartbeat.DownloadBps != 400 || heartbeat.UploadBps != 60 {
+		t.Fatalf("expected aggregate speeds 400/60, got %d/%d", heartbeat.DownloadBps, heartbeat.UploadBps)
+	}
+
+	w.finish("task-1")
+	heartbeat = w.heartbeat()
+	if heartbeat.CurrentTasks != 1 {
+		t.Fatalf("expected 1 current task after finish, got %d", heartbeat.CurrentTasks)
+	}
+	if heartbeat.DownloadBps != 300 || heartbeat.UploadBps != 40 {
+		t.Fatalf("expected finished task speed to be removed, got %d/%d", heartbeat.DownloadBps, heartbeat.UploadBps)
+	}
+	w.finish("task-2")
+}
+
 func TestResolveEngineRejectsUnknownConfiguredEngine(t *testing.T) {
 	w := NewWithAPI(config.Config{Engine: "bad-engine"}, nil)
 

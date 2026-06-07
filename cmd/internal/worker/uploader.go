@@ -201,6 +201,7 @@ func (w *Worker) reportUploadProgress(
 	if elapsed > 0 {
 		bps = int64(float64(progress.uploaded-progress.lastBytes) / elapsed)
 	}
+	w.setTaskTransferSpeed(task.ID, transferSpeeds{uploadBps: bps})
 	detail := task.Runtime()
 	if detail == nil {
 		detail = &client.DownloadTaskRuntime{}
