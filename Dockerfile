@@ -12,6 +12,10 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
  && pnpm install --frozen-lockfile
 
 COPY . .
+# .git is excluded from the build context, so git describe cannot run here.
+# The release workflow passes the tag via APP_VERSION; resolveAppVersion reads it.
+ARG APP_VERSION=dev
+ENV ZPAN_APP_VERSION=${APP_VERSION}
 RUN pnpm build:node \
  && pnpm prune --prod --ignore-scripts
 
