@@ -200,8 +200,8 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
       zpan-cloud-sdk:
-        specifier: ^2.0.0
-        version: 2.0.0(hono@4.12.21)(zod@4.4.3)
+        specifier: ^2.0.1
+        version: 2.0.1(hono@4.12.21)(zod@4.4.3)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.4.10
@@ -5623,8 +5623,8 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
-  zpan-cloud-sdk@2.0.0:
-    resolution: {integrity: sha512-cWvPEIkr1MHhPIDJjrJrRzwQUWPtT+hu7ljdS3EEQby0YcGNrS7IwuBOq9zt+TcwB/J02op3VMuziXrGfzcapQ==}
+  zpan-cloud-sdk@2.0.1:
+    resolution: {integrity: sha512-o2VqkNhD4NRM8RE5HIJmNAInFO6Mqtm7zea5ys4lAK5O0bs2QYXuEKrOYxGth4MES7VQ9XpoT9Gs585/c7m4DQ==}
     peerDependencies:
       hono: ^4.7.11
       zod: ^4.3.6
@@ -11051,7 +11051,7 @@ snapshots:
 
   zod@4.4.3: {}
 
-  zpan-cloud-sdk@2.0.0(hono@4.12.21)(zod@4.4.3):
+  zpan-cloud-sdk@2.0.1(hono@4.12.21)(zod@4.4.3):
     dependencies:
       hono: 4.12.21
       zod: 4.4.3

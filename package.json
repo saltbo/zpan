@@ -103,7 +103,7 @@
     "tailwind-merge": "^3.5.0",
     "yet-another-react-lightbox": "^3.30.1",
     "zod": "^4.4.3",
-    "zpan-cloud-sdk": "^2.0.0"
+    "zpan-cloud-sdk": "^2.0.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",
