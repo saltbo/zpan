@@ -18,7 +18,7 @@ describe('instance telemetry', () => {
     vi.mocked(getOrCreateInstanceId).mockReset()
   })
 
-  it('does not call the telemetry gateway when product token is disabled', async () => {
+  it('does not call the telemetry endpoint when product token is disabled', async () => {
     const fetchFn = vi.fn()
 
     const result = await reportInstanceTelemetry({
@@ -60,7 +60,6 @@ describe('instance telemetry', () => {
     expect(fetchFn).toHaveBeenCalledWith(INSTANCE_TELEMETRY_ENDPOINT, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${INSTANCE_TELEMETRY_PRODUCT_TOKEN}`,
         'content-type': 'application/json',
       },
       body: expect.any(String),
@@ -68,10 +67,10 @@ describe('instance telemetry', () => {
 
     const body = JSON.parse(fetchFn.mock.calls[0][1].body)
     expect(body).toMatchObject({
-      schema_version: 1,
+      api_key: INSTANCE_TELEMETRY_PRODUCT_TOKEN,
       event: INSTANCE_TELEMETRY_EVENT,
-      anonymous_id: 'inst-1',
-      sent_at: '2026-06-08T12:00:00.000Z',
+      distinct_id: 'inst-1',
+      timestamp: '2026-06-08T12:00:00.000Z',
       properties: {
         instance_id: 'inst-1',
         app_version: '0.0.1',

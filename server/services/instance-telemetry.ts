@@ -5,7 +5,7 @@ import type { Database } from '../platform/interface'
 export const INSTANCE_TELEMETRY_CRON = '0 */12 * * *'
 export const INSTANCE_TELEMETRY_EVENT = 'heartbeat'
 export const INSTANCE_TELEMETRY_INTERVAL = '12h'
-export const INSTANCE_TELEMETRY_ENDPOINT = 'https://e.zpan.space/v1/events'
+export const INSTANCE_TELEMETRY_ENDPOINT = 'https://e.zpan.space/capture/'
 export const INSTANCE_TELEMETRY_PRODUCT_TOKEN = 'pub_4709cd351f9bf91df7a4926d8ec835f423b0b2539a1d6f53'
 
 export interface InstanceTelemetryConfig {
@@ -36,11 +36,11 @@ export interface InstanceTelemetryResult {
 }
 
 interface TelemetryCapturePayload {
-  schema_version: 1
+  api_key: string
   event: string
-  anonymous_id: string
+  distinct_id: string
   properties: Record<string, string>
-  sent_at: string
+  timestamp: string
 }
 
 export async function reportInstanceTelemetry(params: InstanceTelemetryParams): Promise<InstanceTelemetryResult> {
@@ -55,12 +55,12 @@ export async function reportInstanceTelemetry(params: InstanceTelemetryParams): 
     cron: params.cron,
     runtime: params.runtime,
     timestamp,
+    productToken,
   })
 
   const res = await (params.fetchFn ?? fetch)(endpoint, {
     method: 'POST',
     headers: {
-      authorization: `Bearer ${productToken}`,
       'content-type': 'application/json',
     },
     body: JSON.stringify(payload),
@@ -75,6 +75,7 @@ function buildTelemetryPayload(params: {
   cron: string
   runtime: InstanceTelemetryRuntime
   timestamp: string
+  productToken: string
 }): TelemetryCapturePayload {
   const properties: Record<string, string> = {
     instance_id: params.instanceId,
@@ -90,11 +91,11 @@ function buildTelemetryPayload(params: {
   addOptionalProperty(properties, 'os_release', params.runtime.osRelease)
 
   return {
-    schema_version: 1,
+    api_key: params.productToken,
     event: INSTANCE_TELEMETRY_EVENT,
-    anonymous_id: params.instanceId,
+    distinct_id: params.instanceId,
     properties,
-    sent_at: params.timestamp,
+    timestamp: params.timestamp,
   }
 }
 
