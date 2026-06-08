@@ -70,8 +70,7 @@ setInterval(() => {
   void syncPendingRemoteDownloadUsageReports({ db: platform.db, cloudBaseUrl })
 }, TRAFFIC_SYNC_INTERVAL_MS)
 
-console.log('instance.telemetry.scheduler.started interval=12h')
-setInterval(() => {
+function reportNodeInstanceTelemetry(): void {
   void (async () => {
     try {
       await reportInstanceTelemetry({
@@ -92,4 +91,8 @@ setInterval(() => {
       console.error(`instance.telemetry.error code=${code}`)
     }
   })()
-}, INSTANCE_TELEMETRY_INTERVAL_MS)
+}
+
+console.log('instance.telemetry.scheduler.started interval=12h')
+reportNodeInstanceTelemetry()
+setInterval(reportNodeInstanceTelemetry, INSTANCE_TELEMETRY_INTERVAL_MS)
