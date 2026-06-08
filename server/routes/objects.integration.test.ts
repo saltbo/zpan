@@ -1,7 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloudTrafficReports } from '../db/schema.js'
-import { createLicenseBinding } from '../licensing/license-state.js'
 import {
   confirmUpload,
   copyMatter,
@@ -13,7 +12,7 @@ import {
   updateMatter,
 } from '../services/matter.js'
 import { S3Service } from '../services/s3.js'
-import { authedHeaders, createTestApp } from '../test/setup.js'
+import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -762,16 +761,7 @@ describe('Objects API', () => {
     await insertStorage(db, { metered: true })
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'doc.txt' })
-    await createLicenseBinding(db, {
-      cloudBindingId: 'binding_1',
-      cloudStoreId: 'store_1',
-      instanceId: 'instance_1',
-      cloudAccountId: 'account_1',
-      refreshToken: 'refresh-token-1',
-      cachedCert: 'cert',
-      cachedExpiresAt: Math.floor(Date.now() / 1000) + 3600,
-      lastRefreshAt: Math.floor(Date.now() / 1000),
-    })
+    await seedBusinessLicense(db)
     vi.stubGlobal(
       'fetch',
       vi.fn(async (_url, init) => {

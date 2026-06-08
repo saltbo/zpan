@@ -60,10 +60,12 @@ describe('licensing-cloud', () => {
       expect(headerValue(init.headers, 'content-type')).toBe('application/json')
       const body = JSON.parse(init.body as string)
       expect(body).toEqual({
-        instanceId: 'inst-1',
-        instanceName: 'My ZPan',
-        instanceHost: 'https://zpan.example.com',
-        instanceVersion: '0.0.1',
+        instance: {
+          id: 'inst-1',
+          name: 'My ZPan',
+          url: 'https://zpan.example.com',
+          version: '0.0.1',
+        },
       })
       expect(result).toEqual(payload)
     })

@@ -1,12 +1,11 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloudTrafficReports } from '../db/schema'
-import { createLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
 import { currentTrafficPeriod } from '../services/effective-quota'
 import { S3Service } from '../services/s3'
 import { createShare } from '../services/share'
-import { authedHeaders, createTestApp } from '../test/setup'
+import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup'
 import { encodeChildRef } from './share-utils'
 
 const STORAGE_ID = 'st-cloud-traffic-test'
@@ -35,17 +34,8 @@ function acceptedUsageResponse(_url: string, init?: RequestInit): Response {
   return makeCloudResponse({ data: { accepted: true, duplicate: false, eventId: body.eventId } })
 }
 
-async function seedTrafficBinding(db: Database) {
-  await createLicenseBinding(db, {
-    cloudBindingId: 'test-binding',
-    cloudStoreId: 'store-test-binding',
-    instanceId: 'test-instance',
-    cloudAccountId: 'test-account',
-    refreshToken: 'test-refresh-token',
-    cachedCert: 'test-certificate',
-    cachedExpiresAt: Math.floor(Date.now() / 1000) + 3600,
-    lastRefreshAt: Math.floor(Date.now() / 1000),
-  })
+async function seedTrafficBinding(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+  await seedBusinessLicense(db)
 }
 
 async function insertStorage(db: Database) {

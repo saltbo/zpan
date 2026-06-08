@@ -17,7 +17,11 @@ export async function runLicensingRefresh(
   if (state.lastRefreshAt != null && nowSec - state.lastRefreshAt < DEDUP_WINDOW_SEC) return
 
   try {
-    await performRefresh(db, cloudBaseUrl, instance)
+    if (instance) {
+      await performRefresh(db, cloudBaseUrl, instance)
+    } else {
+      await performRefresh(db, cloudBaseUrl)
+    }
     console.log('licensing.refresh.ok')
   } catch (err) {
     const code = err instanceof Error ? err.message : String(err)
