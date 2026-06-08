@@ -65,8 +65,6 @@ describe('handleScheduled', () => {
         BETTER_AUTH_URL: 'https://zpan.example',
         ZPAN_CLOUD_URL: 'https://cloud.example',
         ZPAN_INSTANCE_ID: 'configured-instance',
-        ZPAN_POSTHOG_HOST: 'https://e.zpan.space',
-        ZPAN_POSTHOG_PROJECT_TOKEN: 'ph-token',
       },
     )
 
@@ -74,14 +72,11 @@ describe('handleScheduled', () => {
     expect(reportInstanceTelemetry).toHaveBeenCalledWith({
       db: 'db',
       config: {
-        posthogHost: 'https://e.zpan.space',
-        posthogProjectToken: 'ph-token',
         configuredInstanceId: 'configured-instance',
       },
       cron: '0 */12 * * *',
       runtime: {
         target: 'cloudflare-worker',
-        hostname: 'zpan.example',
       },
     })
     expect(runLicensingRefresh).not.toHaveBeenCalled()
