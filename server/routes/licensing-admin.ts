@@ -144,8 +144,12 @@ const app = new Hono<Env>()
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const baseUrl = getCloudBaseUrl(c)
+    const instance = await buildCloudInstanceInfo(db, {
+      configuredInstanceId: configuredInstanceId(c),
+      url: getInstanceOrigin(c),
+    })
 
-    await performRefresh(db, baseUrl)
+    await performRefresh(db, baseUrl, instance)
 
     const state = await loadLicenseState(db)
 
