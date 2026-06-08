@@ -1,3 +1,4 @@
+import { release as osRelease } from 'node:os'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
@@ -86,6 +87,7 @@ setInterval(() => {
           hostname: configuredTelemetryHostname(),
           osPlatform: process.platform,
           osArch: process.arch,
+          osRelease: osRelease(),
         },
       })
     } catch (err) {
