@@ -84,7 +84,6 @@ jobs:
     needs: check
     env:
       BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
-      ZPAN_TELEMETRY_DISABLED: '1'
       E2E_CLOUD_BUSINESS_EMAIL_NODE: ${{ secrets.E2E_CLOUD_BUSINESS_EMAIL_NODE }}
       E2E_CLOUD_BUSINESS_PASSWORD_NODE: ${{ secrets.E2E_CLOUD_BUSINESS_PASSWORD_NODE }}
     steps:
@@ -132,7 +131,6 @@ jobs:
     needs: check
     env:
       BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
-      ZPAN_TELEMETRY_DISABLED: '1'
       E2E_CLOUD_BUSINESS_EMAIL_CF: ${{ secrets.E2E_CLOUD_BUSINESS_EMAIL_CF }}
       E2E_CLOUD_BUSINESS_PASSWORD_CF: ${{ secrets.E2E_CLOUD_BUSINESS_PASSWORD_CF }}
     steps:
@@ -153,7 +151,6 @@ jobs:
           TRUSTED_ORIGINS=http://localhost:5185
           ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev
           VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev
-          ZPAN_TELEMETRY_DISABLED=1
           E2E_STORAGE_ENDPOINT=http://127.0.0.1:9191
           E2E_STORAGE_BUCKET=e2e-test
           E2E_STORAGE_REGION=auto

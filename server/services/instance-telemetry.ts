@@ -16,7 +16,6 @@ export interface InstanceTelemetryConfig {
   configuredInstanceId?: string
   siteUrl?: string
   allowIp?: boolean
-  disabled?: boolean
 }
 
 export interface InstanceTelemetryRuntime {
@@ -43,8 +42,6 @@ export interface InstanceTelemetryResult {
 }
 
 export async function reportInstanceTelemetry(params: InstanceTelemetryParams): Promise<InstanceTelemetryResult> {
-  if (params.config.disabled) return { reported: false, reason: 'disabled' }
-
   const posthogHost = (params.config.posthogHost ?? INSTANCE_TELEMETRY_POSTHOG_HOST).trim()
   const posthogProjectToken = (params.config.posthogProjectToken ?? INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN).trim()
   if (!posthogHost || !posthogProjectToken) return { reported: false, reason: 'disabled' }

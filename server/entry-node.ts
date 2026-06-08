@@ -53,8 +53,8 @@ function envAllowsIp(value: string | undefined): boolean {
   return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
 }
 
-function envDisablesTelemetry(value: string | undefined): boolean {
-  return ['1', 'true', 'yes', 'on'].includes(value?.trim().toLowerCase() ?? '')
+function isGitHubActionsE2E(): boolean {
+  return process.env.GITHUB_ACTIONS === 'true' && process.env.BETTER_AUTH_URL === 'http://localhost:5185'
 }
 
 console.log('licensing.refresh.scheduler.started interval=6h')
@@ -84,6 +84,8 @@ setInterval(() => {
 }, TRAFFIC_SYNC_INTERVAL_MS)
 
 function reportNodeInstanceTelemetry(): void {
+  if (isGitHubActionsE2E()) return
+
   void (async () => {
     try {
       await reportInstanceTelemetry({
@@ -92,7 +94,6 @@ function reportNodeInstanceTelemetry(): void {
           configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
           siteUrl: process.env.ZPAN_PUBLIC_ORIGIN ?? process.env.BETTER_AUTH_URL,
           allowIp: envAllowsIp(process.env.ZPAN_TELEMETRY_ALLOW_IP),
-          disabled: envDisablesTelemetry(process.env.ZPAN_TELEMETRY_DISABLED),
         },
         cron: INSTANCE_TELEMETRY_CRON,
         trigger: 'runtime',

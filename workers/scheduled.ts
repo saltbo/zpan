@@ -16,7 +16,6 @@ export interface ScheduledEnv {
   ZPAN_PUBLIC_ORIGIN?: string
   ZPAN_INSTANCE_ID?: string
   ZPAN_TELEMETRY_ALLOW_IP?: string
-  ZPAN_TELEMETRY_DISABLED?: string
   [key: string]: unknown
 }
 
@@ -25,10 +24,6 @@ type ScheduledTrigger = Pick<ScheduledEvent, 'cron'>
 
 function envAllowsIp(value: string | undefined): boolean {
   return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
-}
-
-function envDisablesTelemetry(value: string | undefined): boolean {
-  return ['1', 'true', 'yes', 'on'].includes(value?.trim().toLowerCase() ?? '')
 }
 
 export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv): Promise<void> {
@@ -47,7 +42,6 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
         configuredInstanceId: env.ZPAN_INSTANCE_ID,
         siteUrl: env.ZPAN_PUBLIC_ORIGIN ?? env.BETTER_AUTH_URL,
         allowIp: envAllowsIp(env.ZPAN_TELEMETRY_ALLOW_IP),
-        disabled: envDisablesTelemetry(env.ZPAN_TELEMETRY_DISABLED),
       },
       cron: event.cron,
       trigger: 'scheduled',

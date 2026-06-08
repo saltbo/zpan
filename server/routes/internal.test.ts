@@ -57,7 +57,6 @@ describe('POST /api/internal/instance-telemetry/report', () => {
         configuredInstanceId: 'configured-instance',
         siteUrl: 'https://zpan.example.com/path',
         allowIp: true,
-        disabled: false,
       },
       cron: '0 */12 * * *',
       trigger: 'deploy',
