@@ -2,6 +2,7 @@ import { release as osRelease } from 'node:os'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
+import { resolveAppVersion } from '../scripts/app-version.mjs'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 import { createBootstrap } from './bootstrap'
 import { buildCloudInstanceInfo } from './licensing/instance-info'
@@ -16,6 +17,16 @@ import { getSitePublicOrigin } from './services/site-public-origin'
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 const INSTANCE_TELEMETRY_INTERVAL_MS = 12 * 60 * 60 * 1000 // 12 hours
+const appVersionGlobalKey = '__ZPAN_APP_VERSION__'
+
+// tsx runs this entry directly (dev + E2E) without the tsup build-time define,
+// so resolve the version at runtime. In the built output the define inlines the
+// constant, turning this condition into `if (false)`, so resolveAppVersion is
+// never reached and git is never invoked in production. The assignment uses
+// bracket access so the define does not rewrite it into an invalid literal LHS.
+if (!globalThis.__ZPAN_APP_VERSION__) {
+  globalThis[appVersionGlobalKey] = resolveAppVersion()
+}
 
 const platform = process.env.TURSO_DATABASE_URL
   ? await createLibsqlPlatform({
