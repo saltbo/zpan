@@ -8,7 +8,7 @@ import Database from 'better-sqlite3'
 import { hashPassword } from '../server/lib/password'
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from './helpers'
 
-const localBaseUrl = process.env.E2E_LOCAL_BASE_URL ?? 'http://localhost:5173'
+const localBaseUrl = process.env.E2E_LOCAL_BASE_URL ?? 'http://localhost:5185'
 const defaultOrgQuota = process.env.E2E_DEFAULT_ORG_QUOTA ?? String(1024 * 1024 * 1024)
 
 const storageConfig = {

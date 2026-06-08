@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => ({
       ? undefined
       : {
           zpan: {
+            optimizeDeps: {
+              exclude: ['@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner'],
+            },
             resolve: {
               conditions: ['browser', 'workerd', 'worker', 'module', 'development|production'],
               mainFields: ['browser', 'module', 'jsnext:main', 'jsnext'],

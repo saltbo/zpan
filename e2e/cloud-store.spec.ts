@@ -276,7 +276,7 @@ async function expectCloudOk(response: APIResponse, message: string) {
 }
 
 async function unbindCurrentCloudBinding() {
-  const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173'
+  const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5185'
   const headers = { Origin: new URL(baseURL).origin }
   const request = await playwrightRequest.newContext({ baseURL })
   try {
