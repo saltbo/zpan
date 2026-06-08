@@ -137,6 +137,21 @@ jobs:
           echo "url=https://$DOMAIN" >> "$GITHUB_OUTPUT"
           echo "R2 public URL: https://$DOMAIN"
 
+      - name: Ensure Queue exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          OUTPUT=$(pnpm exec wrangler queues create zpan-archive-jobs 2>&1)
+          if echo "$OUTPUT" | grep -q "already taken"; then
+            echo "Queue already exists, skipping"
+          elif echo "$OUTPUT" | grep -q "ERROR"; then
+            echo "$OUTPUT"
+            exit 1
+          else
+            echo "Created queue: zpan-archive-jobs"
+          fi
+
       - name: Patch wrangler.toml with D1 database ID
         run: sed -i "s/database_id = \"[^\"]*\"/database_id = \"${{ steps.d1.outputs.id }}\"/" wrangler.toml
 
