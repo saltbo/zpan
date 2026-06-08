@@ -129,6 +129,7 @@ const app = new Hono<Env>()
       return c.json({
         status: 'approved' as const,
         edition: assertion.edition,
+        cloud_store_id: entitlement.binding.storeId,
       })
     }
 

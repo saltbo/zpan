@@ -23,6 +23,11 @@ type PairingInfo = {
   pairingUrl: string
 }
 
+type PairingPollResult = {
+  status: string
+  cloud_store_id?: string
+}
+
 type CloudProduct = {
   id: string
   name: string
@@ -152,18 +157,23 @@ test.describe
   })
 
 async function ensureCloudBinding(page: Page): Promise<CloudBusinessContext> {
-  const current = await getJson<BindingState>(page, '/api/licensing/status')
-  if (current.bound && current.active) {
-    return createCloudBusinessContext(cloudOriginFromStatus(current))
-  }
+  await unbindCurrentCloudBinding()
 
   const pairing = await postJson<PairingInfo>(page, '/api/licensing/pair')
   await approvePairingInCloud(pairing)
 
+  let approved: PairingPollResult | null = null
   await expect
-    .poll(async () => (await getJson<{ status: string }>(page, `/api/licensing/pair/${pairing.code}/poll`)).status, {
-      timeout: 30_000,
-    })
+    .poll(
+      async () => {
+        const result = await getJson<PairingPollResult>(page, `/api/licensing/pair/${pairing.code}/poll`)
+        if (result.status === 'approved') approved = result
+        return result.status
+      },
+      {
+        timeout: 30_000,
+      },
+    )
     .toBe('approved')
 
   await expect
@@ -172,20 +182,12 @@ async function ensureCloudBinding(page: Page): Promise<CloudBusinessContext> {
       return state.bound && state.active
     })
     .toBe(true)
-  return createCloudBusinessContext(new URL(pairing.pairingUrl).origin)
+
+  if (!approved?.cloud_store_id) throw new Error('Cloud pairing approval did not include cloud_store_id')
+  return createCloudBusinessContext(new URL(pairing.pairingUrl).origin, approved.cloud_store_id)
 }
 
-function cloudOriginFromStatus(state: BindingState) {
-  if (state.cloud_dashboard_url) return new URL(state.cloud_dashboard_url).origin
-  return (
-    process.env.ZPAN_CLOUD_URL ??
-    process.env.VITE_ZPAN_CLOUD_URL ??
-    process.env.E2E_ZPAN_CLOUD_URL ??
-    'https://zpan-cloud-staging.saltbo.workers.dev'
-  )
-}
-
-async function createCloudBusinessContext(baseURL: string): Promise<CloudBusinessContext> {
+async function createCloudBusinessContext(baseURL: string, storeId?: string): Promise<CloudBusinessContext> {
   const email = process.env.E2E_CLOUD_BUSINESS_EMAIL ?? process.env.E2E_CLOUD_PRO_EMAIL
   const password = process.env.E2E_CLOUD_BUSINESS_PASSWORD ?? process.env.E2E_CLOUD_PRO_PASSWORD
   if (!email || !password) {
@@ -198,8 +200,7 @@ async function createCloudBusinessContext(baseURL: string): Promise<CloudBusines
   })
   await expectCloudOk(signIn, 'Cloud test account sign-in failed')
 
-  const storeId = await pollCloudBusinessStore(request)
-  return { request, storeId }
+  return { request, storeId: storeId ?? (await pollCloudBusinessStore(request)) }
 }
 
 async function pollCloudBusinessStore(request: APIRequestContext): Promise<string> {
