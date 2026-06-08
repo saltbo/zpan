@@ -53,6 +53,10 @@ function envAllowsIp(value: string | undefined): boolean {
   return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
 }
 
+function envDisablesTelemetry(value: string | undefined): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(value?.trim().toLowerCase() ?? '')
+}
+
 console.log('licensing.refresh.scheduler.started interval=6h')
 setInterval(() => {
   // runLicensingRefresh handles all errors internally and never rejects.
@@ -88,6 +92,7 @@ function reportNodeInstanceTelemetry(): void {
           configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
           siteUrl: process.env.ZPAN_PUBLIC_ORIGIN ?? process.env.BETTER_AUTH_URL,
           allowIp: envAllowsIp(process.env.ZPAN_TELEMETRY_ALLOW_IP),
+          disabled: envDisablesTelemetry(process.env.ZPAN_TELEMETRY_DISABLED),
         },
         cron: INSTANCE_TELEMETRY_CRON,
         trigger: 'runtime',

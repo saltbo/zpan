@@ -60,6 +60,20 @@ describe('instance telemetry', () => {
     expect(getInstanceDisplayName).not.toHaveBeenCalled()
   })
 
+  it('does not call the telemetry endpoint when telemetry is disabled', async () => {
+    const result = await reportInstanceTelemetry({
+      db: {} as Database,
+      config: { disabled: true },
+      cron: INSTANCE_TELEMETRY_CRON,
+      runtime: { target: 'cloudflare-worker', provider: 'cloudflare' },
+    })
+
+    expect(result).toEqual({ reported: false, reason: 'disabled' })
+    expect(posthogMocks.PostHog).not.toHaveBeenCalled()
+    expect(getOrCreateInstanceId).not.toHaveBeenCalled()
+    expect(getInstanceDisplayName).not.toHaveBeenCalled()
+  })
+
   it('captures the expected telemetry event with built-in PostHog host and project token', async () => {
     vi.mocked(getOrCreateInstanceId).mockResolvedValue('inst-1')
 

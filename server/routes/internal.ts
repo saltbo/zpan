@@ -11,6 +11,10 @@ function envAllowsIp(value: string | undefined): boolean {
   return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
 }
 
+function envDisablesTelemetry(value: string | undefined): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(value?.trim().toLowerCase() ?? '')
+}
+
 internal.post('/instance-telemetry/report', async (c) => {
   const platform = c.get('platform')
   const token = platform.getEnv(INTERNAL_API_TOKEN_ENV)?.trim()
@@ -39,6 +43,7 @@ internal.post('/instance-telemetry/report', async (c) => {
       configuredInstanceId: platform.getEnv('ZPAN_INSTANCE_ID'),
       siteUrl: platform.getEnv('ZPAN_PUBLIC_ORIGIN') ?? platform.getEnv('BETTER_AUTH_URL'),
       allowIp: envAllowsIp(platform.getEnv('ZPAN_TELEMETRY_ALLOW_IP')),
+      disabled: envDisablesTelemetry(platform.getEnv('ZPAN_TELEMETRY_DISABLED')),
     },
     cron: INSTANCE_TELEMETRY_CRON,
     trigger: 'deploy',
