@@ -7,11 +7,13 @@ import { buildCloudInstanceInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
 import { runLicensingRefresh } from './services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
+const INSTANCE_TELEMETRY_INTERVAL_MS = 12 * 60 * 60 * 1000 // 12 hours
 
 const platform = process.env.TURSO_DATABASE_URL
   ? await createLibsqlPlatform({
@@ -66,3 +68,35 @@ setInterval(() => {
   void syncPendingCloudTrafficReports({ db: platform.db, cloudBaseUrl })
   void syncPendingRemoteDownloadUsageReports({ db: platform.db, cloudBaseUrl })
 }, TRAFFIC_SYNC_INTERVAL_MS)
+
+console.log('instance.telemetry.scheduler.started interval=12h')
+setInterval(() => {
+  void (async () => {
+    try {
+      await reportInstanceTelemetry({
+        db: platform.db,
+        config: {
+          posthogHost: process.env.ZPAN_POSTHOG_HOST,
+          posthogProjectToken: process.env.ZPAN_POSTHOG_PROJECT_TOKEN,
+          configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
+        },
+        cron: INSTANCE_TELEMETRY_CRON,
+        runtime: {
+          target: 'node/docker',
+          hostname: configuredTelemetryHostname(),
+          osPlatform: process.platform,
+          osArch: process.arch,
+        },
+      })
+    } catch (err) {
+      const code = err instanceof Error ? err.message : String(err)
+      console.error(`instance.telemetry.error code=${code}`)
+    }
+  })()
+}, INSTANCE_TELEMETRY_INTERVAL_MS)
+
+function configuredTelemetryHostname(): string | undefined {
+  const instanceUrl = configuredPublicOrigin()
+  if (instanceUrl) return new URL(instanceUrl).hostname
+  return process.env.HOSTNAME
+}
