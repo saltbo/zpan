@@ -30,8 +30,10 @@ internal.post('/instance-telemetry/report', async (c) => {
     db: platform.db,
     config: {
       configuredInstanceId: platform.getEnv('ZPAN_INSTANCE_ID'),
+      siteUrl: platform.getEnv('ZPAN_PUBLIC_ORIGIN') ?? platform.getEnv('BETTER_AUTH_URL'),
     },
     cron: INSTANCE_TELEMETRY_CRON,
+    trigger: 'deploy',
     runtime,
   })
 

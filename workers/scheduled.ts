@@ -11,7 +11,9 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 // The full Env is defined in bootstrap.ts; this avoids circular imports.
 export interface ScheduledEnv {
   DB: D1Database
+  BETTER_AUTH_URL?: string
   ZPAN_CLOUD_URL?: string
+  ZPAN_PUBLIC_ORIGIN?: string
   ZPAN_INSTANCE_ID?: string
   [key: string]: unknown
 }
@@ -33,8 +35,10 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
       db: platform.db,
       config: {
         configuredInstanceId: env.ZPAN_INSTANCE_ID,
+        siteUrl: env.ZPAN_PUBLIC_ORIGIN ?? env.BETTER_AUTH_URL,
       },
       cron: event.cron,
+      trigger: 'scheduled',
       runtime: {
         target: 'cloudflare-worker',
       },

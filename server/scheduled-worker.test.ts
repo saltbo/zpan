@@ -73,8 +73,10 @@ describe('handleScheduled', () => {
       db: 'db',
       config: {
         configuredInstanceId: 'configured-instance',
+        siteUrl: 'https://zpan.example',
       },
       cron: '0 */12 * * *',
+      trigger: 'scheduled',
       runtime: {
         target: 'cloudflare-worker',
       },

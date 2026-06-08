@@ -77,8 +77,10 @@ function reportNodeInstanceTelemetry(): void {
         db: platform.db,
         config: {
           configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
+          siteUrl: process.env.ZPAN_PUBLIC_ORIGIN ?? process.env.BETTER_AUTH_URL,
         },
         cron: INSTANCE_TELEMETRY_CRON,
+        trigger: 'runtime',
         runtime: {
           target: 'node/docker',
           osPlatform: process.platform,

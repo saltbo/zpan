@@ -41,6 +41,7 @@ describe('POST /api/internal/instance-telemetry/report', () => {
     const { app, db } = await createTestApp({
       ZPAN_INTERNAL_API_TOKEN: 'test-token',
       ZPAN_INSTANCE_ID: 'configured-instance',
+      BETTER_AUTH_URL: 'https://zpan.example.com/path',
     })
 
     const res = await app.request('/api/internal/instance-telemetry/report', {
@@ -54,8 +55,10 @@ describe('POST /api/internal/instance-telemetry/report', () => {
       db,
       config: {
         configuredInstanceId: 'configured-instance',
+        siteUrl: 'https://zpan.example.com/path',
       },
       cron: '0 */12 * * *',
+      trigger: 'deploy',
       runtime: expect.objectContaining({
         target: 'node/docker',
       }),
