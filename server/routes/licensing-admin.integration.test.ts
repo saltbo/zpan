@@ -130,7 +130,7 @@ describe('POST /api/licensing/pair', () => {
     expect(body.pairingUrl).toBe('https://cloud.zpan.space/pair')
 
     const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(init.body)).instanceHost).toBe('http://localhost')
+    expect(JSON.parse(String(init.body)).instance.url).toBe('http://localhost')
   })
 
   it('uses the configured instance id when present', async () => {
@@ -152,7 +152,7 @@ describe('POST /api/licensing/pair', () => {
 
     expect(res.status).toBe(200)
     const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(init.body)).instanceId).toBe('zpan-e2e-node')
+    expect(JSON.parse(String(init.body)).instance.id).toBe('zpan-e2e-node')
   })
 })
 

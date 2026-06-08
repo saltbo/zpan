@@ -47,29 +47,40 @@ describe('licensing-cloud', () => {
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await createPairing(BASE_URL, 'inst-1', 'My ZPan', 'zpan.example.com', '0.0.1')
+      const result = await createPairing(BASE_URL, {
+        id: 'inst-1',
+        name: 'My ZPan',
+        url: 'https://zpan.example.com',
+        version: '0.0.1',
+      })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://cloud.zpan.space/api/pairings')
       expect(init.method).toBe('POST')
       const body = JSON.parse(init.body as string)
-      expect(body.instanceId).toBe('inst-1')
-      expect(body.instanceName).toBe('My ZPan')
-      expect(body.instanceHost).toBe('zpan.example.com')
-      expect(body.instanceVersion).toBe('0.0.1')
+      expect(body.instance).toEqual({
+        id: 'inst-1',
+        name: 'My ZPan',
+        url: 'https://zpan.example.com',
+        version: '0.0.1',
+      })
       expect(result).toEqual(payload)
     })
 
     it('throws on non-OK response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Bad Request' }, 400))
 
-      await expect(createPairing(BASE_URL, 'inst-1', 'ZPan', 'host')).rejects.toThrow('Cloud pairing failed')
+      await expect(
+        createPairing(BASE_URL, { id: 'inst-1', name: 'ZPan', url: 'https://zpan.example.com', version: '0.0.1' }),
+      ).rejects.toThrow('Cloud pairing failed')
     })
 
     it('throws CloudNetworkError on fetch failure', async () => {
       vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'))
 
-      await expect(createPairing(BASE_URL, 'inst-1', 'ZPan', 'host')).rejects.toThrow(CloudNetworkError)
+      await expect(
+        createPairing(BASE_URL, { id: 'inst-1', name: 'ZPan', url: 'https://zpan.example.com', version: '0.0.1' }),
+      ).rejects.toThrow(CloudNetworkError)
     })
   })
 

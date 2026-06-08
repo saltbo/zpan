@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { BindingState } from '../../shared/types'
 import { loadBindingState } from '../licensing/has-feature'
+import { buildCloudInstanceInfo } from '../licensing/instance-info'
 import { normalizeHost } from '../licensing/verify'
 import type { Env } from '../middleware/platform'
 import { syncPendingCloudTrafficReports } from '../services/cloud-traffic-metering'
@@ -11,15 +12,24 @@ import { runLicensingRefresh } from '../services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from '../services/remote-download-usage'
 
 function configuredPublicHost(c: Context<Env>): string | null {
+  const origin = configuredPublicOrigin(c)
+  return origin ? new URL(origin).host : null
+}
+
+function configuredPublicOrigin(c: Context<Env>): string | null {
   const value = c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL')
   if (!value) return null
   try {
     const url = new URL(value)
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.host
+    return url.origin
   } catch {
     return null
   }
+}
+
+function configuredInstanceId(c: Context<Env>): string | undefined {
+  return c.get('platform').getEnv('ZPAN_INSTANCE_ID')
 }
 
 function cloudDashboardUrl(cloudBaseUrl: string): string {
@@ -56,7 +66,11 @@ const app = new Hono<Env>()
 
     const db = c.get('platform').db
     const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
-    await runLicensingRefresh(db, cloudBaseUrl)
+    const origin = configuredPublicOrigin(c)
+    const instance = origin
+      ? await buildCloudInstanceInfo(db, { configuredInstanceId: configuredInstanceId(c), url: origin })
+      : undefined
+    await runLicensingRefresh(db, cloudBaseUrl, instance)
 
     return c.json({ ok: true })
   })

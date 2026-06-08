@@ -37,6 +37,13 @@ export interface LicenseAccountInfo {
   email?: string | null
 }
 
+export interface CloudInstanceInfo {
+  id: string
+  name: string
+  url: string
+  version: string
+}
+
 export class CloudInvalidResponseError extends Error {
   constructor() {
     super('Cloud response missing certificate')
@@ -118,14 +125,8 @@ export async function requestCloudJson<T, U = T>(
   return unwrapCloudResponse(await cloudResponse(response), responseSchema)
 }
 
-export async function createPairing(
-  baseUrl: string,
-  instanceId: string,
-  instanceName: string,
-  instanceHost: string,
-  instanceVersion?: string,
-): Promise<PairingResponse> {
-  const json = { instanceId, instanceName, instanceHost, instanceVersion } as {
+export async function createPairing(baseUrl: string, instance: CloudInstanceInfo): Promise<PairingResponse> {
+  const json = { instance } as unknown as {
     instanceId: string
     instanceName: string
     instanceHost: string
@@ -157,8 +158,15 @@ export async function pollPairing(baseUrl: string, code: string): Promise<Pairin
 
 // Throws CloudUnboundError on 401 (instance was unbound from cloud side).
 // Throws CloudNetworkError on network failure.
-export async function refreshEntitlement(baseUrl: string, refreshToken: string): Promise<EntitlementRefreshResponse> {
-  const res = await cloudResponse(createBoundCloudClient(baseUrl, refreshToken).entitlements.$post())
+export async function refreshEntitlement(
+  baseUrl: string,
+  refreshToken: string,
+  instance?: CloudInstanceInfo,
+): Promise<EntitlementRefreshResponse> {
+  const postEntitlement = createBoundCloudClient(baseUrl, refreshToken).entitlements.$post as unknown as (args?: {
+    json?: { instance: CloudInstanceInfo }
+  }) => Promise<Response>
+  const res = await cloudResponse(instance ? postEntitlement({ json: { instance } }) : postEntitlement())
 
   if ((res.status as number) === 401) {
     throw new CloudUnboundError()

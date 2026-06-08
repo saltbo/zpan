@@ -1,10 +1,8 @@
-import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import packageJson from '../../package.json'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { systemOptions } from '../db/schema'
 import { invalidateEntitlementCache } from '../licensing/entitlement'
 import { getOrCreateInstanceId } from '../licensing/instance-id'
+import { buildCloudInstanceInfo } from '../licensing/instance-info'
 import { clearLicenseBinding, createLicenseBinding, loadLicenseState } from '../licensing/license-state'
 import { performRefresh } from '../licensing/refresh'
 import { normalizeHost, verifyCertificate } from '../licensing/verify'
@@ -69,18 +67,12 @@ const app = new Hono<Env>()
     const db = c.get('platform').db
     const baseUrl = getCloudBaseUrl(c)
 
-    const instanceId = await getOrCreateInstanceId(db, configuredInstanceId(c))
+    const instance = await buildCloudInstanceInfo(db, {
+      configuredInstanceId: configuredInstanceId(c),
+      url: getInstanceOrigin(c),
+    })
 
-    const titleRows = await db
-      .select({ value: systemOptions.value })
-      .from(systemOptions)
-      .where(eq(systemOptions.key, 'site_title'))
-      .limit(1)
-
-    const instanceName = titleRows[0]?.value ?? 'ZPan'
-    const instanceHost = getInstanceOrigin(c)
-
-    const pairing = await createPairing(baseUrl, instanceId, instanceName, instanceHost, packageJson.version)
+    const pairing = await createPairing(baseUrl, instance)
     return c.json(pairing)
   })
 
