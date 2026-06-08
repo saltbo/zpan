@@ -74,11 +74,13 @@ describe('handleScheduled', () => {
       config: {
         configuredInstanceId: 'configured-instance',
         siteUrl: 'https://zpan.example',
+        allowIp: true,
       },
       cron: '0 */12 * * *',
       trigger: 'scheduled',
       runtime: {
         target: 'cloudflare-worker',
+        provider: 'cloudflare',
       },
     })
     expect(runLicensingRefresh).not.toHaveBeenCalled()

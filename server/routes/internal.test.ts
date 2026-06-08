@@ -56,11 +56,13 @@ describe('POST /api/internal/instance-telemetry/report', () => {
       config: {
         configuredInstanceId: 'configured-instance',
         siteUrl: 'https://zpan.example.com/path',
+        allowIp: true,
       },
       cron: '0 */12 * * *',
       trigger: 'deploy',
       runtime: expect.objectContaining({
         target: 'node/docker',
+        provider: 'node',
       }),
     })
   })

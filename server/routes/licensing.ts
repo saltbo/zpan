@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
+import { release as osRelease } from 'node:os'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
@@ -30,6 +31,17 @@ function configuredPublicOrigin(c: Context<Env>): string | null {
 
 function configuredInstanceId(c: Context<Env>): string | undefined {
   return c.get('platform').getEnv('ZPAN_INSTANCE_ID')
+}
+
+function runtimeInfo(c: Context<Env>) {
+  if (c.get('platform').getBinding('DB')) {
+    return { runtime: { provider: 'cloudflare' as const, target: 'cloudflare-worker' as const } }
+  }
+  return {
+    runtime: { provider: 'node' as const, target: 'node/docker' as const },
+    server: { os: { platform: process.platform, arch: process.arch, release: osRelease() } },
+    node: { version: process.version },
+  }
 }
 
 function cloudDashboardUrl(cloudBaseUrl: string): string {
@@ -68,7 +80,11 @@ const app = new Hono<Env>()
     const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
     const origin = configuredPublicOrigin(c)
     const instance = origin
-      ? await buildCloudInstanceInfo(db, { configuredInstanceId: configuredInstanceId(c), url: origin })
+      ? await buildCloudInstanceInfo(db, {
+          configuredInstanceId: configuredInstanceId(c),
+          url: origin,
+          runtime: runtimeInfo(c),
+        })
       : undefined
     await runLicensingRefresh(db, cloudBaseUrl, instance)
 

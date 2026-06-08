@@ -51,7 +51,7 @@ describe('instance telemetry', () => {
       db: {} as Database,
       config: { posthogProjectToken: '' },
       cron: INSTANCE_TELEMETRY_CRON,
-      runtime: { target: 'cloudflare-worker' },
+      runtime: { target: 'cloudflare-worker', provider: 'cloudflare' },
     })
 
     expect(result).toEqual({ reported: false, reason: 'disabled' })
@@ -72,9 +72,11 @@ describe('instance telemetry', () => {
       cron: INSTANCE_TELEMETRY_CRON,
       runtime: {
         target: 'node/docker',
+        provider: 'node',
         osPlatform: 'linux',
         osArch: 'arm64',
         osRelease: '6.8.0',
+        nodeVersion: 'v24.0.0',
       },
       now: new Date('2026-06-08T12:00:00.000Z'),
     })
@@ -96,21 +98,109 @@ describe('instance telemetry', () => {
       disableGeoip: false,
       timestamp: new Date('2026-06-08T12:00:00.000Z'),
       properties: {
-        instance_id: 'inst-1',
-        instance_name: 'Test Instance',
-        instance_url: 'https://zpan.example.com',
-        instance_version: '0.0.1',
-        $current_url: 'https://zpan.example.com',
-        runtime_target: 'node/docker',
-        os_platform: 'linux',
-        os_arch: 'arm64',
-        os_release: '6.8.0',
+        instance: {
+          id: 'inst-1',
+          name: 'Test Instance',
+          url: 'https://zpan.example.com',
+          version: '0.0.1',
+          runtime: {
+            provider: 'node',
+            target: 'node/docker',
+          },
+          server: {
+            os: {
+              platform: 'linux',
+              arch: 'arm64',
+              release: '6.8.0',
+            },
+          },
+          node: {
+            version: 'v24.0.0',
+          },
+        },
         report_trigger: 'scheduled',
         report_interval: '12h',
         report_schedule: INSTANCE_TELEMETRY_CRON,
         reported_at: '2026-06-08T12:00:00.000Z',
+        $current_url: 'https://zpan.example.com',
+        $set: {
+          instance: {
+            id: 'inst-1',
+            name: 'Test Instance',
+            url: 'https://zpan.example.com',
+            version: '0.0.1',
+            runtime: {
+              provider: 'node',
+              target: 'node/docker',
+            },
+            server: {
+              os: {
+                platform: 'linux',
+                arch: 'arm64',
+                release: '6.8.0',
+              },
+            },
+            node: {
+              version: 'v24.0.0',
+            },
+          },
+          $current_url: 'https://zpan.example.com',
+        },
+        $set_once: {
+          initialInstance: {
+            id: 'inst-1',
+            name: 'Test Instance',
+            url: 'https://zpan.example.com',
+            version: '0.0.1',
+            runtime: {
+              provider: 'node',
+              target: 'node/docker',
+            },
+            server: {
+              os: {
+                platform: 'linux',
+                arch: 'arm64',
+                release: '6.8.0',
+              },
+            },
+            node: {
+              version: 'v24.0.0',
+            },
+          },
+          initialReportedAt: '2026-06-08T12:00:00.000Z',
+        },
       },
     })
     expect(posthogMocks.shutdown).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables GeoIP when IP reporting is explicitly disabled', async () => {
+    vi.mocked(getOrCreateInstanceId).mockResolvedValue('inst-1')
+
+    await reportInstanceTelemetry({
+      db: {} as Database,
+      config: {
+        allowIp: false,
+      },
+      cron: INSTANCE_TELEMETRY_CRON,
+      runtime: {
+        target: 'cloudflare-worker',
+        provider: 'cloudflare',
+      },
+      now: new Date('2026-06-08T12:00:00.000Z'),
+    })
+
+    expect(posthogMocks.PostHog).toHaveBeenCalledWith(INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN, {
+      host: INSTANCE_TELEMETRY_POSTHOG_HOST,
+      flushAt: 1,
+      flushInterval: 0,
+      disableCompression: true,
+      disableGeoip: true,
+    })
+    expect(posthogMocks.captureImmediate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        disableGeoip: true,
+      }),
+    )
   })
 })

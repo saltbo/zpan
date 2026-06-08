@@ -15,13 +15,16 @@ export interface InstanceTelemetryConfig {
   posthogProjectToken?: string
   configuredInstanceId?: string
   siteUrl?: string
+  allowIp?: boolean
 }
 
 export interface InstanceTelemetryRuntime {
   target: 'cloudflare-worker' | 'node/docker'
+  provider: 'cloudflare' | 'node'
   osPlatform?: string
   osArch?: string
   osRelease?: string
+  nodeVersion?: string
 }
 
 export interface InstanceTelemetryParams {
@@ -47,18 +50,19 @@ export async function reportInstanceTelemetry(params: InstanceTelemetryParams): 
   const instanceName = await getInstanceDisplayName(params.db)
   const instanceUrl = normalizeSiteUrl(params.config.siteUrl)
   const timestamp = (params.now ?? new Date()).toISOString()
+  const disableGeoip = params.config.allowIp === false
   const client = new PostHog(posthogProjectToken, {
     host: posthogHost,
     flushAt: 1,
     flushInterval: 0,
     disableCompression: true,
-    disableGeoip: false,
+    disableGeoip,
   })
 
   await client.captureImmediate({
     distinctId: instanceId,
     event: INSTANCE_TELEMETRY_EVENT,
-    disableGeoip: false,
+    disableGeoip,
     timestamp: new Date(timestamp),
     properties: buildTelemetryProperties({
       instanceId,
@@ -83,28 +87,50 @@ function buildTelemetryProperties(params: {
   trigger: 'deploy' | 'scheduled' | 'runtime'
   runtime: InstanceTelemetryRuntime
   timestamp: string
-}): Record<string, string> {
-  const properties: Record<string, string> = {
-    instance_id: params.instanceId,
-    instance_name: params.instanceName,
-    instance_version: packageJson.version,
-    runtime_target: params.runtime.target,
+}): Record<string, unknown> {
+  const instance = compactObject({
+    id: params.instanceId,
+    name: params.instanceName,
+    url: params.instanceUrl,
+    version: packageJson.version,
+    runtime: compactObject({
+      provider: params.runtime.provider,
+      target: params.runtime.target,
+    }),
+    server: optionalNestedObject({
+      os: optionalObject({
+        platform: params.runtime.osPlatform,
+        arch: params.runtime.osArch,
+        release: params.runtime.osRelease,
+      }),
+    }),
+    node: optionalObject({
+      version: params.runtime.nodeVersion,
+    }),
+  })
+
+  const properties: Record<string, unknown> = {
+    instance,
     report_trigger: params.trigger,
     report_interval: INSTANCE_TELEMETRY_INTERVAL,
     report_schedule: params.cron,
     reported_at: params.timestamp,
+    $set: compactObject({
+      instance,
+      $current_url: params.instanceUrl,
+    }),
+    $set_once: compactObject({
+      initialInstance: instance,
+      initialReportedAt: params.timestamp,
+    }),
   }
 
-  addOptionalProperty(properties, 'instance_url', params.instanceUrl)
   addOptionalProperty(properties, '$current_url', params.instanceUrl)
-  addOptionalProperty(properties, 'os_platform', params.runtime.osPlatform)
-  addOptionalProperty(properties, 'os_arch', params.runtime.osArch)
-  addOptionalProperty(properties, 'os_release', params.runtime.osRelease)
 
   return properties
 }
 
-function addOptionalProperty(properties: Record<string, string>, key: string, value: string | undefined): void {
+function addOptionalProperty(properties: Record<string, unknown>, key: string, value: string | undefined): void {
   if (value) properties[key] = value
 }
 
@@ -118,4 +144,24 @@ function normalizeSiteUrl(value: string | undefined): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function compactObject(input: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(input).filter((entry) => entry[1] !== undefined))
+}
+
+function optionalObject(input: Record<string, string | undefined>): Record<string, string> | undefined {
+  const output = Object.fromEntries(
+    Object.entries(input).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  return Object.keys(output).length > 0 ? output : undefined
+}
+
+function optionalNestedObject(
+  input: Record<string, Record<string, string> | undefined>,
+): Record<string, Record<string, string>> | undefined {
+  const output = Object.fromEntries(
+    Object.entries(input).filter((entry): entry is [string, Record<string, string>] => entry[1] !== undefined),
+  )
+  return Object.keys(output).length > 0 ? output : undefined
 }

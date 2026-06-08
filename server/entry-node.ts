@@ -49,6 +49,10 @@ function configuredPublicOrigin(): string | null {
   }
 }
 
+function envAllowsIp(value: string | undefined): boolean {
+  return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
+}
+
 console.log('licensing.refresh.scheduler.started interval=6h')
 setInterval(() => {
   // runLicensingRefresh handles all errors internally and never rejects.
@@ -58,6 +62,11 @@ setInterval(() => {
       ? await buildCloudInstanceInfo(platform.db, {
           configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
           url: instanceUrl,
+          runtime: {
+            runtime: { provider: 'node', target: 'node/docker' },
+            server: { os: { platform: process.platform, arch: process.arch, release: osRelease() } },
+            node: { version: process.version },
+          },
         })
       : undefined
     await runLicensingRefresh(platform.db, cloudBaseUrl, instance)
@@ -78,14 +87,17 @@ function reportNodeInstanceTelemetry(): void {
         config: {
           configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
           siteUrl: process.env.ZPAN_PUBLIC_ORIGIN ?? process.env.BETTER_AUTH_URL,
+          allowIp: envAllowsIp(process.env.ZPAN_TELEMETRY_ALLOW_IP),
         },
         cron: INSTANCE_TELEMETRY_CRON,
         trigger: 'runtime',
         runtime: {
           target: 'node/docker',
+          provider: 'node',
           osPlatform: process.platform,
           osArch: process.arch,
           osRelease: osRelease(),
+          nodeVersion: process.version,
         },
       })
     } catch (err) {

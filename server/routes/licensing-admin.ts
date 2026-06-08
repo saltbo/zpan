@@ -1,3 +1,4 @@
+import { release as osRelease } from 'node:os'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { invalidateEntitlementCache } from '../licensing/entitlement'
@@ -30,6 +31,21 @@ function configuredPublicOrigin(c: { get(key: 'platform'): { getEnv(k: string): 
     return url.origin
   } catch {
     return null
+  }
+}
+
+function runtimeInfo(c: {
+  get(key: 'platform'): {
+    getBinding<T = unknown>(key: string): T | undefined
+  }
+}) {
+  if (c.get('platform').getBinding('DB')) {
+    return { runtime: { provider: 'cloudflare' as const, target: 'cloudflare-worker' as const } }
+  }
+  return {
+    runtime: { provider: 'node' as const, target: 'node/docker' as const },
+    server: { os: { platform: process.platform, arch: process.arch, release: osRelease() } },
+    node: { version: process.version },
   }
 }
 
@@ -70,6 +86,7 @@ const app = new Hono<Env>()
     const instance = await buildCloudInstanceInfo(db, {
       configuredInstanceId: configuredInstanceId(c),
       url: getInstanceOrigin(c),
+      runtime: runtimeInfo(c),
     })
 
     const pairing = await createPairing(baseUrl, instance)
@@ -148,6 +165,7 @@ const app = new Hono<Env>()
     const instance = await buildCloudInstanceInfo(db, {
       configuredInstanceId: configuredInstanceId(c),
       url: getInstanceOrigin(c),
+      runtime: runtimeInfo(c),
     })
 
     await performRefresh(db, baseUrl, instance)

@@ -7,6 +7,10 @@ const INTERNAL_API_TOKEN_ENV = 'ZPAN_INTERNAL_API_TOKEN'
 
 const internal = new Hono<Env>()
 
+function envAllowsIp(value: string | undefined): boolean {
+  return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
+}
+
 internal.post('/instance-telemetry/report', async (c) => {
   const platform = c.get('platform')
   const token = platform.getEnv(INTERNAL_API_TOKEN_ENV)?.trim()
@@ -18,12 +22,15 @@ internal.post('/instance-telemetry/report', async (c) => {
   const runtime = platform.getBinding('DB')
     ? {
         target: 'cloudflare-worker' as const,
+        provider: 'cloudflare' as const,
       }
     : {
         target: 'node/docker' as const,
+        provider: 'node' as const,
         osPlatform: process.platform,
         osArch: process.arch,
         osRelease: osRelease(),
+        nodeVersion: process.version,
       }
 
   const result = await reportInstanceTelemetry({
@@ -31,6 +38,7 @@ internal.post('/instance-telemetry/report', async (c) => {
     config: {
       configuredInstanceId: platform.getEnv('ZPAN_INSTANCE_ID'),
       siteUrl: platform.getEnv('ZPAN_PUBLIC_ORIGIN') ?? platform.getEnv('BETTER_AUTH_URL'),
+      allowIp: envAllowsIp(platform.getEnv('ZPAN_TELEMETRY_ALLOW_IP')),
     },
     cron: INSTANCE_TELEMETRY_CRON,
     trigger: 'deploy',

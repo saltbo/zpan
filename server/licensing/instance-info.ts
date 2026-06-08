@@ -20,6 +20,7 @@ export async function buildCloudInstanceInfo(
   params: {
     url: string
     configuredInstanceId?: string
+    runtime?: Pick<CloudInstanceInfo, 'runtime' | 'server' | 'node'>
   },
 ): Promise<CloudInstanceInfo> {
   const instanceId = await getOrCreateInstanceId(db, params.configuredInstanceId)
@@ -28,5 +29,6 @@ export async function buildCloudInstanceInfo(
     name: await getInstanceDisplayName(db),
     url: params.url,
     version: packageJson.version,
+    ...params.runtime,
   }
 }

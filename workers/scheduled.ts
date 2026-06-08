@@ -15,11 +15,16 @@ export interface ScheduledEnv {
   ZPAN_CLOUD_URL?: string
   ZPAN_PUBLIC_ORIGIN?: string
   ZPAN_INSTANCE_ID?: string
+  ZPAN_TELEMETRY_ALLOW_IP?: string
   [key: string]: unknown
 }
 
 const TRAFFIC_SYNC_CRON = '*/10 * * * *'
 type ScheduledTrigger = Pick<ScheduledEvent, 'cron'>
+
+function envAllowsIp(value: string | undefined): boolean {
+  return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
+}
 
 export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv): Promise<void> {
   const platform = createCloudflarePlatform(env)
@@ -36,11 +41,13 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
       config: {
         configuredInstanceId: env.ZPAN_INSTANCE_ID,
         siteUrl: env.ZPAN_PUBLIC_ORIGIN ?? env.BETTER_AUTH_URL,
+        allowIp: envAllowsIp(env.ZPAN_TELEMETRY_ALLOW_IP),
       },
       cron: event.cron,
       trigger: 'scheduled',
       runtime: {
         target: 'cloudflare-worker',
+        provider: 'cloudflare',
       },
     })
     return
