@@ -52,11 +52,13 @@ export async function reportInstanceTelemetry(params: InstanceTelemetryParams): 
     flushAt: 1,
     flushInterval: 0,
     disableCompression: true,
+    disableGeoip: false,
   })
 
   await client.captureImmediate({
     distinctId: instanceId,
     event: INSTANCE_TELEMETRY_EVENT,
+    disableGeoip: false,
     timestamp: new Date(timestamp),
     properties: buildTelemetryProperties({
       instanceId,

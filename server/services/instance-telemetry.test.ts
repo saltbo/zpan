@@ -87,11 +87,13 @@ describe('instance telemetry', () => {
       flushAt: 1,
       flushInterval: 0,
       disableCompression: true,
+      disableGeoip: false,
     })
     expect(posthogMocks.captureImmediate).toHaveBeenCalledTimes(1)
     expect(posthogMocks.captureImmediate).toHaveBeenCalledWith({
       event: INSTANCE_TELEMETRY_EVENT,
       distinctId: 'inst-1',
+      disableGeoip: false,
       timestamp: new Date('2026-06-08T12:00:00.000Z'),
       properties: {
         instance_id: 'inst-1',
