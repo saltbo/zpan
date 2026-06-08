@@ -180,7 +180,7 @@ export const FEATURE_REGISTRY = [
 ] as const satisfies readonly FeatureDefinition[]
 
 // ---------------------------------------------------------------------------
-// Derived types — ProFeature union from gateKey literals
+// Derived types — feature gate union from gateKey literals
 // ---------------------------------------------------------------------------
 
 type GatedFeature = Extract<(typeof FEATURE_REGISTRY)[number], { gateKey: string }>
@@ -189,7 +189,9 @@ type GatedFeature = Extract<(typeof FEATURE_REGISTRY)[number], { gateKey: string
  * Union of all active entitlement gate keys.
  * Automatically stays in sync with the registry.
  */
-export type ProFeature = GatedFeature['gateKey']
+export type LicenseFeature = GatedFeature['gateKey']
+
+export type ProFeature = LicenseFeature
 
 /** Runtime array of all active gate keys (for validation / iteration). */
 export const PRO_GATE_KEYS = FEATURE_REGISTRY.filter(

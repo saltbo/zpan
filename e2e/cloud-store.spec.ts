@@ -15,6 +15,7 @@ type BindingState = {
   bound: boolean
   active?: boolean
   account_email?: string
+  cloud_dashboard_url?: string
 }
 
 type PairingInfo = {
@@ -43,6 +44,16 @@ type CloudLicense = {
   id: string
 }
 
+type CloudStore = {
+  id: string
+  type: string
+}
+
+type CloudBusinessContext = {
+  request: APIRequestContext
+  storeId: string
+}
+
 type ResponseLike = {
   status(): number
   text(): Promise<string>
@@ -54,47 +65,51 @@ test.describe
       await unbindCurrentCloudBinding()
     })
 
-    test('@desktop covers pairing, admin store setup, gift-card credit redemption, and checkout', async ({
+    test('@desktop covers pairing, Cloud store setup, gift-card credit redemption, and checkout', async ({
       page,
       baseURL,
     }) => {
       test.setTimeout(420_000)
 
       await signInAsAdmin(page)
-      await ensureCloudBinding(page)
+      const cloud = await ensureCloudBinding(page)
 
-      const testId = Date.now()
-      const packageName = `E2E Cloud Plan ${testId}`
-      const creditPackageName = `E2E Credits ${testId}`
-      const storagePlan = await createStoragePlan(page, packageName)
-      const product = await createCreditPackage(page, creditPackageName)
-      const giftCard = await createGiftCard(page)
-      await expectAdminProductVisibleInApi(page, storagePlan.id, packageName)
-      await expectAdminGiftCardVisibleInApi(page, giftCard.code)
+      try {
+        const testId = Date.now()
+        const packageName = `E2E Cloud Plan ${testId}`
+        const creditPackageName = `E2E Credits ${testId}`
+        const storagePlan = await createStoragePlan(cloud, packageName)
+        const product = await createCreditPackage(cloud, creditPackageName)
+        const giftCard = await createGiftCard(cloud)
+        await expectCloudProductVisible(cloud, storagePlan.id, packageName)
+        await expectCloudGiftCardVisible(cloud, giftCard.code)
 
-      await page.goto('/storage')
-      await expect(page.getByRole('heading', { name: 'Storage', exact: true })).toBeVisible({ timeout: 20_000 })
-      await expectStorefrontProductVisibleInApi(page, packageName)
+        await page.goto('/storage')
+        await expect(page.getByRole('heading', { name: 'Storage', exact: true })).toBeVisible({ timeout: 20_000 })
+        await expectStorefrontProductVisibleInApi(page, packageName)
 
-      const creditsBefore = await getCreditBalance(page)
-      await redeemGiftCard(page, giftCard.code)
-      await expect.poll(() => getCreditBalance(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(creditsBefore + 200)
+        const creditsBefore = await getCreditBalance(page)
+        await redeemGiftCard(page, giftCard.code)
+        await expect.poll(() => getCreditBalance(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(creditsBefore + 200)
 
-      const hasPublicCallbackUrl = Boolean(baseURL && !LOCALHOST_RE.test(new URL(baseURL).origin))
-      if (!hasPublicCallbackUrl) {
-        test.info().annotations.push({
-          type: 'checkout-delivery-skipped',
-          description: 'Cloud staging cannot call back to a localhost ZPan instance.',
+        const hasPublicCallbackUrl = Boolean(baseURL && !LOCALHOST_RE.test(new URL(baseURL).origin))
+        if (!hasPublicCallbackUrl) {
+          test.info().annotations.push({
+            type: 'checkout-delivery-skipped',
+            description: 'Cloud staging cannot call back to a localhost ZPan instance.',
+          })
+          return
+        }
+
+        await postJson<{ orderId: string; url: string }>(page, '/api/store/checkouts', {
+          packageId: product.id,
+          priceId: product.prices[0].id,
         })
-        return
+
+        await expectOrderCreated(page)
+      } finally {
+        await cloud.request.dispose()
       }
-
-      await postJson<{ orderId: string; url: string }>(page, '/api/store/checkouts', {
-        packageId: product.id,
-        priceId: product.prices[0].id,
-      })
-
-      await expectOrderCreated(page, product.id)
     })
 
     test('@desktop lets a regular user list Cloud packages and redeem a gift card', async ({
@@ -105,38 +120,41 @@ test.describe
       test.setTimeout(300_000)
 
       await signInAsAdmin(page)
-      await ensureCloudBinding(page)
+      const cloud = await ensureCloudBinding(page)
 
-      const testId = Date.now()
-      const packageName = `E2E User Plan ${testId}`
-      await createStoragePlan(page, packageName)
-      const giftCard = await createGiftCard(page)
-      await expectStorefrontProductVisibleInApi(page, packageName)
-
-      const userContext = await newBrowserContext(browser, baseURL)
       try {
-        const userPage = await userContext.newPage()
-        await signUpAndGoToFiles(userPage)
-        await userPage.goto('/storage')
-        await expect(userPage.getByRole('heading', { name: 'Storage', exact: true })).toBeVisible({ timeout: 20_000 })
-        await expectStorefrontProductVisibleInApi(userPage, packageName)
+        const testId = Date.now()
+        const packageName = `E2E User Plan ${testId}`
+        await createStoragePlan(cloud, packageName)
+        const giftCard = await createGiftCard(cloud)
+        await expectStorefrontProductVisibleInApi(page, packageName)
 
-        const creditsBefore = await getCreditBalance(userPage)
-        await redeemGiftCard(userPage, giftCard.code)
-        await expect
-          .poll(() => getCreditBalance(userPage), { timeout: 20_000 })
-          .toBeGreaterThanOrEqual(creditsBefore + 200)
+        const userContext = await newBrowserContext(browser, baseURL)
+        try {
+          const userPage = await userContext.newPage()
+          await signUpAndGoToFiles(userPage)
+          await userPage.goto('/storage')
+          await expect(userPage.getByRole('heading', { name: 'Storage', exact: true })).toBeVisible({ timeout: 20_000 })
+          await expectStorefrontProductVisibleInApi(userPage, packageName)
+
+          const creditsBefore = await getCreditBalance(userPage)
+          await redeemGiftCard(userPage, giftCard.code)
+          await expect
+            .poll(() => getCreditBalance(userPage), { timeout: 20_000 })
+            .toBeGreaterThanOrEqual(creditsBefore + 200)
+        } finally {
+          await userContext.close()
+        }
       } finally {
-        await userContext.close()
+        await cloud.request.dispose()
       }
     })
   })
 
-async function ensureCloudBinding(page: Page) {
+async function ensureCloudBinding(page: Page): Promise<CloudBusinessContext> {
   const current = await getJson<BindingState>(page, '/api/licensing/status')
   if (current.bound && current.active) {
-    await enableCloudStore(page)
-    return
+    return createCloudBusinessContext(cloudOriginFromStatus(current))
   }
 
   const pairing = await postJson<PairingInfo>(page, '/api/licensing/pair')
@@ -154,11 +172,52 @@ async function ensureCloudBinding(page: Page) {
       return state.bound && state.active
     })
     .toBe(true)
-  await enableCloudStore(page)
+  return createCloudBusinessContext(new URL(pairing.pairingUrl).origin)
 }
 
-async function enableCloudStore(page: Page) {
-  await putJson(page, '/api/admin/store/settings', { enabled: true })
+function cloudOriginFromStatus(state: BindingState) {
+  if (state.cloud_dashboard_url) return new URL(state.cloud_dashboard_url).origin
+  return (
+    process.env.ZPAN_CLOUD_URL ??
+    process.env.VITE_ZPAN_CLOUD_URL ??
+    process.env.E2E_ZPAN_CLOUD_URL ??
+    'https://zpan-cloud-staging.saltbo.workers.dev'
+  )
+}
+
+async function createCloudBusinessContext(baseURL: string): Promise<CloudBusinessContext> {
+  const email = process.env.E2E_CLOUD_BUSINESS_EMAIL ?? process.env.E2E_CLOUD_PRO_EMAIL
+  const password = process.env.E2E_CLOUD_BUSINESS_PASSWORD ?? process.env.E2E_CLOUD_PRO_PASSWORD
+  if (!email || !password) {
+    throw new Error('E2E_CLOUD_BUSINESS_EMAIL and E2E_CLOUD_BUSINESS_PASSWORD are required')
+  }
+
+  const request = await playwrightRequest.newContext({ baseURL })
+  const signIn = await request.post('/api/auth/sign-in/email', {
+    data: { email, password },
+  })
+  await expectCloudOk(signIn, 'Cloud test account sign-in failed')
+
+  const storeId = await pollCloudBusinessStore(request)
+  return { request, storeId }
+}
+
+async function pollCloudBusinessStore(request: APIRequestContext): Promise<string> {
+  let storeId: string | null = null
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get('/api/accounts/me/stores')
+        await expectCloudOk(response, 'Cloud store list failed')
+        const body = (await response.json()) as { data?: { items?: CloudStore[] }; items?: CloudStore[] }
+        const stores = body.data?.items ?? body.items ?? []
+        storeId = stores.find((store) => store.type === 'instance')?.id ?? null
+        return storeId
+      },
+      { timeout: 60_000 },
+    )
+    .not.toBeNull()
+  return storeId!
 }
 
 async function approvePairingInCloud(pairing: PairingInfo) {
@@ -233,8 +292,8 @@ async function unbindCurrentCloudBinding() {
   }
 }
 
-async function createStoragePlan(page: Page, name: string) {
-  return postJson<CloudProduct>(page, '/api/admin/store/packages', {
+async function createStoragePlan(cloud: CloudBusinessContext, name: string) {
+  return cloudJson<CloudProduct>(cloud, 'POST', `/api/stores/${cloud.storeId}/products`, {
     type: 'store_item',
     name,
     description: 'Playwright staging Cloud store plan',
@@ -258,8 +317,8 @@ async function createStoragePlan(page: Page, name: string) {
   })
 }
 
-async function createCreditPackage(page: Page, name: string) {
-  return postJson<CloudProduct>(page, '/api/admin/store/packages', {
+async function createCreditPackage(cloud: CloudBusinessContext, name: string) {
+  return cloudJson<CloudProduct>(cloud, 'POST', `/api/stores/${cloud.storeId}/products`, {
     type: 'store_item',
     name,
     description: 'Playwright staging Cloud store Credits package',
@@ -275,8 +334,8 @@ async function createCreditPackage(page: Page, name: string) {
   })
 }
 
-async function createGiftCard(page: Page) {
-  const cards = await postJson<CloudGiftCard[]>(page, '/api/admin/store/gift-cards', {
+async function createGiftCard(cloud: CloudBusinessContext) {
+  const cards = await cloudJson<CloudGiftCard[]>(cloud, 'POST', `/api/stores/${cloud.storeId}/gift-cards`, {
     credits: 200,
     count: 1,
   })
@@ -286,11 +345,15 @@ async function createGiftCard(page: Page) {
   return { ...card, code: card.code }
 }
 
-async function expectAdminProductVisibleInApi(page: Page, packageId: string, packageName: string) {
+async function expectCloudProductVisible(cloud: CloudBusinessContext, packageId: string, packageName: string) {
   await expect
     .poll(
       async () => {
-        const product = await getJson<CloudProduct>(page, `/api/admin/store/packages/${packageId}`)
+        const product = await cloudJson<CloudProduct>(
+          cloud,
+          'GET',
+          `/api/stores/${cloud.storeId}/products/${packageId}`,
+        )
         return product.name
       },
       { timeout: 60_000 },
@@ -298,11 +361,15 @@ async function expectAdminProductVisibleInApi(page: Page, packageId: string, pac
     .toBe(packageName)
 }
 
-async function expectAdminGiftCardVisibleInApi(page: Page, code: string) {
+async function expectCloudGiftCardVisible(cloud: CloudBusinessContext, code: string) {
   await expect
     .poll(
       async () => {
-        const giftCards = await getJson<{ items: CloudGiftCard[] }>(page, '/api/admin/store/gift-cards')
+        const giftCards = await cloudJson<{ items: CloudGiftCard[] }>(
+          cloud,
+          'GET',
+          `/api/stores/${cloud.storeId}/gift-cards`,
+        )
         return giftCards.items.map((item) => item.codeLast4)
       },
       { timeout: 60_000 },
@@ -347,7 +414,7 @@ async function expectStorefrontProductVisibleInApi(page: Page, packageName: stri
     .toContain(packageName)
 }
 
-async function expectOrderCreated(page: Page, productId: string) {
+async function expectOrderCreated(page: Page) {
   const orders = await getJson<{ items: CloudOrder[] }>(page, '/api/store/orders')
   expect(orders.items[0]).toEqual(
     expect.objectContaining({
@@ -355,10 +422,6 @@ async function expectOrderCreated(page: Page, productId: string) {
     }),
   )
 
-  const adminOrders = await getJson<{
-    items: Array<CloudOrder & { items: Array<{ productId: string }> }>
-  }>(page, '/api/admin/store/orders')
-  expect(adminOrders.items.some((order) => order.items.some((item) => item.productId === productId))).toBe(true)
   return orders
 }
 
@@ -374,11 +437,7 @@ async function postJson<T>(page: Page, url: string, data?: unknown): Promise<T> 
   return browserJson<T>(page, 'POST', url, data)
 }
 
-async function putJson<T>(page: Page, url: string, data?: unknown): Promise<T> {
-  return browserJson<T>(page, 'PUT', url, data)
-}
-
-async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: string, data?: unknown): Promise<T> {
+async function browserJson<T>(page: Page, method: 'GET' | 'POST', url: string, data?: unknown): Promise<T> {
   const retryDelays = [500, 1000, 3000, 7000, 15000]
   const stripeRateLimitRetryDelays = [1000, 3000, 7000, 15000, 30000]
   for (let attempt = 0; attempt <= stripeRateLimitRetryDelays.length; attempt += 1) {
@@ -412,6 +471,21 @@ async function browserJson<T>(page: Page, method: 'GET' | 'POST' | 'PUT', url: s
     }
   }
   throw new Error(`${method} ${url} failed`)
+}
+
+async function cloudJson<T>(
+  cloud: CloudBusinessContext,
+  method: 'GET' | 'POST',
+  url: string,
+  data?: unknown,
+): Promise<T> {
+  const response = await cloud.request.fetch(url, {
+    method,
+    data,
+  })
+  await expectCloudOk(response, `Cloud ${method} ${url} failed`)
+  const body = (await response.json()) as { data?: T } | T
+  return body && typeof body === 'object' && 'data' in body ? (body.data as T) : (body as T)
 }
 
 async function expectResponseStatus(response: ResponseLike, status: number) {

@@ -1,41 +1,12 @@
-import type { CloudOrderQuotaChange, CloudStoreSettingsInput } from '@shared/schemas'
-import type { CloudStoreSettings, CloudStoreTarget } from '@shared/types'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import type { CloudOrderQuotaChange } from '@shared/schemas'
+import type { CloudStoreTarget } from '@shared/types'
+import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
-import { activityEvents, orgQuotaEntitlements, orgQuotas, systemOptions, webhookEvents } from '../db/schema'
+import { activityEvents, orgQuotaEntitlements, orgQuotas, webhookEvents } from '../db/schema'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
 import { type AtomicQuery, executeRows, executeWriteTransaction } from './db-transaction'
-
-const CLOUD_STORE_ENABLED_KEY = 'cloud_store_enabled'
-const CLOUD_STORE_CREATED_AT_KEY = 'cloud_store_created_at'
-const CLOUD_STORE_UPDATED_AT_KEY = 'cloud_store_updated_at'
-const CLOUD_STORE_SETTING_KEYS = [
-  CLOUD_STORE_ENABLED_KEY,
-  CLOUD_STORE_CREATED_AT_KEY,
-  CLOUD_STORE_UPDATED_AT_KEY,
-] as const
-
-export async function getCloudStoreSettings(db: Database): Promise<CloudStoreSettings | null> {
-  const settings = await getRawSettings(db)
-  if (!settings) return null
-  const binding = await loadActiveLicenseBinding(db)
-  return settingsDto(settings, Boolean(binding?.refreshToken))
-}
-
-export async function upsertCloudStoreSettings(
-  db: Database,
-  input: CloudStoreSettingsInput,
-): Promise<CloudStoreSettings> {
-  const now = new Date()
-  const existing = await getRawSettings(db)
-  const createdAt = existing?.createdAt ?? now
-  await writeSystemOption(db, CLOUD_STORE_ENABLED_KEY, input.enabled ? 'true' : 'false')
-  await writeSystemOption(db, CLOUD_STORE_CREATED_AT_KEY, createdAt.toISOString())
-  await writeSystemOption(db, CLOUD_STORE_UPDATED_AT_KEY, now.toISOString())
-  return (await getCloudStoreSettings(db))!
-}
 
 export async function getAccessibleTargets(db: Database, userId: string): Promise<CloudStoreTarget[]> {
   const rows = await db
@@ -92,51 +63,6 @@ export async function processCloudOrderQuotaChange(
   }
 
   return { duplicate: false, eventId: event.eventId }
-}
-
-export async function getRequiredSettings(db: Database) {
-  const settings = await getRawSettings(db)
-  return (
-    settings ?? {
-      id: CLOUD_STORE_ENABLED_KEY,
-      enabled: true,
-      createdAt: new Date(0),
-      updatedAt: new Date(0),
-    }
-  )
-}
-
-async function getRawSettings(db: Database) {
-  const rows = await db
-    .select({ key: systemOptions.key, value: systemOptions.value })
-    .from(systemOptions)
-    .where(inArray(systemOptions.key, [...CLOUD_STORE_SETTING_KEYS]))
-  if (rows.length === 0) return null
-  const values = new Map(rows.map((row) => [row.key, row.value]))
-  const enabled = values.get(CLOUD_STORE_ENABLED_KEY)
-  if (enabled === undefined) return null
-  const createdAt = values.get(CLOUD_STORE_CREATED_AT_KEY)
-  const updatedAt = values.get(CLOUD_STORE_UPDATED_AT_KEY)
-  if (!createdAt || !updatedAt) throw new Error('cloud_store_settings_incomplete')
-  return {
-    id: CLOUD_STORE_ENABLED_KEY,
-    enabled: enabled === 'true',
-    createdAt: new Date(createdAt),
-    updatedAt: new Date(updatedAt),
-  }
-}
-
-async function writeSystemOption(db: Database, key: string, value: string) {
-  const existing = await db
-    .select({ key: systemOptions.key })
-    .from(systemOptions)
-    .where(eq(systemOptions.key, key))
-    .limit(1)
-  if (existing.length > 0) {
-    await db.update(systemOptions).set({ value, public: false }).where(eq(systemOptions.key, key))
-    return
-  }
-  await db.insert(systemOptions).values({ key, value, public: false })
 }
 
 async function processQuotaChangeTransaction(
@@ -429,19 +355,6 @@ async function resumeWebhookEvent(
 
 async function markWebhookEvent(db: Database, id: string, status: string, error: string | null): Promise<void> {
   await db.update(webhookEvents).set({ status, error, processedAt: new Date() }).where(eq(webhookEvents.id, id))
-}
-
-function settingsDto(
-  row: { id: string; enabled: boolean; createdAt: Date; updatedAt: Date },
-  cloudReady = true,
-): CloudStoreSettings {
-  return {
-    id: row.id,
-    enabled: row.enabled,
-    status: cloudReady ? 'ready' : 'cloud_unbound',
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }
 }
 
 function parseOrgType(metadata: string | null): string {

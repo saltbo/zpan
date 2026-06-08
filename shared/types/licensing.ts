@@ -1,9 +1,8 @@
-import type { ProFeature } from '../feature-registry'
+import type { LicenseFeature } from '../feature-registry'
 
-export type { ProFeature } from '../feature-registry'
+export type { LicenseFeature, ProFeature } from '../feature-registry'
 
 export type LicenseEdition = 'pro' | 'business'
-export type LicenseKind = 'owned' | 'subscription'
 
 export interface LicenseAssertion {
   type: 'zpan.license'
@@ -12,11 +11,8 @@ export interface LicenseAssertion {
   accountId: string
   instanceId: string
   edition: LicenseEdition
-  features?: ProFeature[]
+  features?: LicenseFeature[]
   licenseId?: string
-  licenseKind?: LicenseKind
-  businessPlanCode?: string
-  storeLimit?: number
   authorizedHosts: string[]
   licenseValidUntil: number
   issuedAt: number
@@ -29,11 +25,8 @@ export interface BindingState {
   active?: boolean
   account_email?: string
   edition?: LicenseEdition
-  features?: ProFeature[]
+  features?: LicenseFeature[]
   license_id?: string
-  license_kind?: LicenseKind
-  business_plan_code?: string
-  store_limit?: number
   license_valid_until?: number
   certificate_expires_at?: number
   last_refresh_at?: number

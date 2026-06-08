@@ -58,9 +58,6 @@ describe('verifyCertificate', () => {
       edition: 'business',
       features: ['white_label', 'quota_store', 'unknown_feature'],
       licenseId: 'lic-1',
-      licenseKind: 'subscription',
-      businessPlanCode: 'business_basic',
-      storeLimit: 1,
     })
     const result = verifyCertificate(cert, { instanceId: 'inst-abc', currentHost: 'zpan.example.com' })
 
@@ -68,9 +65,6 @@ describe('verifyCertificate', () => {
     expect(result?.edition).toBe('business')
     expect(result?.features).toEqual(['white_label', 'quota_store'])
     expect(result?.licenseId).toBe('lic-1')
-    expect(result?.licenseKind).toBe('subscription')
-    expect(result?.businessPlanCode).toBe('business_basic')
-    expect(result?.storeLimit).toBe(1)
   })
 
   it('returns null for a cert with an invalid signature', () => {

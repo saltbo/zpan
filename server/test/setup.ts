@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { PRO_GATE_KEYS } from '../../shared/feature-registry'
-import type { LicenseEdition, LicenseKind, ProFeature } from '../../shared/types'
+import type { LicenseEdition, ProFeature } from '../../shared/types'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
 import * as authSchema from '../db/auth-schema'
@@ -613,7 +613,6 @@ export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp
     edition: 'pro',
     features:
       normalizeTestFeatures(features) ?? PRO_GATE_KEYS.filter((feature) => !BUSINESS_ONLY_TEST_FEATURES.has(feature)),
-    licenseKind: 'owned',
   })
 }
 
@@ -624,9 +623,6 @@ export async function seedBusinessLicense(db: Awaited<ReturnType<typeof createTe
   return seedLicense(db, {
     edition: 'business',
     features: normalizeTestFeatures(features) ?? [...PRO_GATE_KEYS],
-    licenseKind: 'subscription',
-    businessPlanCode: 'business_basic',
-    storeLimit: 1,
   })
 }
 
@@ -635,9 +631,6 @@ async function seedLicense(
   input: {
     edition: LicenseEdition
     features: ProFeature[]
-    licenseKind: LicenseKind
-    businessPlanCode?: string
-    storeLimit?: number
   },
 ) {
   const { PUBLIC_KEYS } = await import('../licensing/public-keys.js')
@@ -658,9 +651,6 @@ async function seedLicense(
     edition: input.edition,
     features: input.features,
     licenseId: 'test-license-unit',
-    licenseKind: input.licenseKind,
-    businessPlanCode: input.businessPlanCode,
-    storeLimit: input.storeLimit,
     authorizedHosts: ['localhost', 'zpan.example', 'auth.example.com'],
     licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
     issuedAt,

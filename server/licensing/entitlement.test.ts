@@ -128,7 +128,6 @@ describe('loadEntitlement', () => {
       signAssertion({
         features: ['white_label', 'quota_store'],
         licenseId: 'lic-1',
-        licenseKind: 'owned',
         licenseValidUntil,
         expiresAt: certificateExpiresAt,
       }),
@@ -139,7 +138,6 @@ describe('loadEntitlement', () => {
     expect(result?.edition).toBe('pro')
     expect(result?.features).toEqual(['white_label', 'quota_store'])
     expect(result?.licenseId).toBe('lic-1')
-    expect(result?.licenseKind).toBe('owned')
     expect(result?.licenseValidUntil).toBe(licenseValidUntil)
     expect(result?.certificateExpiresAt).toBe(certificateExpiresAt)
   })
@@ -153,9 +151,6 @@ describe('loadEntitlement', () => {
         edition: 'business',
         features: ['white_label', 'quota_store'],
         licenseId: 'lic-business',
-        licenseKind: 'subscription',
-        businessPlanCode: 'business_basic',
-        storeLimit: 1,
       }),
     )
 
@@ -164,9 +159,6 @@ describe('loadEntitlement', () => {
       edition: 'business',
       features: ['white_label', 'quota_store'],
       licenseId: 'lic-business',
-      licenseKind: 'subscription',
-      businessPlanCode: 'business_basic',
-      storeLimit: 1,
     })
   })
 

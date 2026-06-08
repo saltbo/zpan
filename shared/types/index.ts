@@ -91,14 +91,6 @@ export interface CurrentStoragePlan {
 
 export type WebhookEventStatus = 'processed' | 'duplicate' | 'failed'
 
-export interface CloudStoreSettings {
-  id: string
-  enabled: boolean
-  status: 'ready' | 'cloud_unbound'
-  createdAt: string
-  updatedAt: string
-}
-
 export type CloudProduct = CommerceProduct
 export type CloudProductPrice = ProductPrice
 export type CloudOrderFulfillmentPayload = ZPanCloudOrderFulfillmentPayload
@@ -592,7 +584,7 @@ export interface ImageHosting {
   createdAt: string
 }
 
-export type { BindingState, LicenseAssertion, LicenseEdition, LicenseKind, ProFeature } from './licensing'
+export type { BindingState, LicenseAssertion, LicenseEdition, LicenseFeature, ProFeature } from './licensing'
 
 export type BrandingThemePresetId = 'default' | 'ocean' | 'forest' | 'rose'
 

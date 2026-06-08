@@ -3,7 +3,6 @@ import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { PUBLIC_KEYS } from '../licensing/public-keys.js'
-import { getCloudStoreSettings } from '../services/cloud-store.js'
 import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
 import { cloudGiftCardsResponseSchema, cloudPackageResponseSchema } from './cloud-store-helpers.js'
 
@@ -44,19 +43,6 @@ function cloudProduct(overrides: Record<string, unknown> = {}) {
     sortOrder: 1,
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    ...overrides,
-  }
-}
-
-function cloudProductRequest(overrides: Record<string, unknown> = {}) {
-  return {
-    type: 'store_item',
-    name: 'Small',
-    description: '',
-    metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 100 } },
-    prices: [{ currency: 'usd', amount: 500, recurring: { interval: 'month', intervalCount: 1 } }],
-    active: true,
-    sortOrder: 0,
     ...overrides,
   }
 }
@@ -432,18 +418,8 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('returns 402 when Pro quota_store is absent', async () => {
-    const { app } = await createTestApp()
-    const headers = await adminHeaders(app)
-
-    const res = await app.request('/api/admin/store/packages', { headers })
-
-    expect(res.status).toBe(402)
-  })
-
   it('returns 402 for Cloud quota-change webhook when Pro quota_store is absent', async () => {
-    const { app, db } = await createTestApp()
-    await seedSettingsRow(db)
+    const { app } = await createTestApp()
     const payload = JSON.stringify({
       eventId: 'evt-no-pro',
       eventType: 'order.quota_changed',
@@ -460,542 +436,10 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(402)
   })
 
-  it('validates package resource bytes and prices', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-
-    const res = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Bad',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 0, includedCredits: 0 } },
-          prices: [],
-        }),
-      ),
-    })
-
-    expect(res.status).toBe(400)
-  })
-
-  it('reads and updates quota store settings', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-
-    const empty = await app.request('/api/admin/store/settings', { headers })
-    await seedSettings(app, headers)
-    const filled = await app.request('/api/admin/store/settings', { headers })
-
-    expect(empty.status).toBe(200)
-    await expect(empty.json()).resolves.toBeNull()
-    expect(filled.status).toBe(200)
-    const payload = await filled.json()
-    expect(payload).toMatchObject({
-      enabled: true,
-      status: 'ready',
-    })
-    expect(payload).not.toHaveProperty('cloudBaseUrl')
-    expect(payload).not.toHaveProperty('publicInstanceUrl')
-    expect(payload).not.toHaveProperty('webhookSigningSecret')
-  })
-
-  it('updates quota store operator settings only', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const updated = await app.request('/api/admin/store/settings', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: false }),
-    })
-
-    expect(updated.status).toBe(200)
-    await expect(updated.json()).resolves.toMatchObject({
-      enabled: false,
-      status: 'ready',
-    })
-  })
-
-  it('reports Cloud not connected when the settings binding refresh token is missing', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    await db.run(sql`UPDATE license_bindings SET refresh_token = NULL`)
-
-    const settings = await getCloudStoreSettings(db)
-
-    expect(settings).toMatchObject({
-      enabled: true,
-      status: 'cloud_unbound',
-    })
-  })
-
-  it('proxies package CRUD to Cloud without local sync', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const created = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Small',
-          description: 'starter',
-        }),
-      ),
-    })
-    const listed = await app.request('/api/admin/store/packages', { headers })
-
-    expect(created.status).toBe(201)
-    await expect(created.json()).resolves.toMatchObject({ id: 'cloud-pkg-1', name: 'Small' })
-    const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    const body = String(init.body)
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/products`)
-    expect(requestHeader(init, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
-    expect(JSON.parse(body)).toMatchObject({
-      name: 'Small',
-      description: 'starter',
-      metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 100 } },
-      type: 'store_item',
-      prices: [{ currency: 'usd', amount: 500, recurring: { interval: 'month', intervalCount: 1 } }],
-    })
-    expect(JSON.parse(body)).not.toHaveProperty('callbackUrl')
-    expect(listed.status).toBe(200)
-    await expect(listed.json()).resolves.toMatchObject({
-      total: 2,
-      items: [
-        {
-          id: 'cloud-pkg-1',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 100 } },
-          active: true,
-        },
-        {
-          id: 'cloud-pkg-inactive',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 8192, includedCredits: 0 } },
-          active: false,
-        },
-      ],
-    })
-  })
-
-  it('accepts Cloud package object lists and PUT updates', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        items: [
-          cloudProduct({
-            id: 'cloud-pkg-object',
-            name: 'Object Shape',
-            description: null,
-            metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
-            prices: [{ currency: 'usd', amount: 500, recurring: { interval: 'month', intervalCount: 1 } }],
-            sortOrder: 3,
-          }),
-        ],
-        total: 1,
-        limit: 100,
-        offset: 0,
-      }),
-    } as Response)
-
-    const listed = await app.request('/api/admin/store/packages', { headers })
-    const updated = await app.request('/api/admin/store/packages/cloud-pkg-object', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Updated',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 8192, includedCredits: 200 } },
-          prices: [{ currency: 'usd', amount: 900, recurring: { interval: 'year', intervalCount: 1 } }],
-        }),
-      ),
-    })
-
-    expect(listed.status).toBe(200)
-    await expect(listed.json()).resolves.toMatchObject({
-      total: 1,
-      items: [
-        {
-          id: 'cloud-pkg-object',
-          description: null,
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
-          sortOrder: 3,
-        },
-      ],
-    })
-    expect(updated.status).toBe(200)
-    const updateCall = vi.mocked(fetch).mock.calls.find((call) => call[1]?.method === 'PATCH')
-    expect(updateCall).toBeTruthy()
-    const [, updateInit] = updateCall as [URL, RequestInit]
-    expect(updateInit.method).toBe('PATCH')
-    expect(JSON.parse(updateInit.body as string)).toEqual({
-      name: 'Updated',
-      description: '',
-      type: 'store_item',
-      metadata: {
-        deliverable: { type: 'zpan.plan', storageBytes: 8192, includedCredits: 200 },
-      },
-      prices: [{ currency: 'usd', amount: 900, recurring: { interval: 'year', intervalCount: 1 } }],
-      active: true,
-      sortOrder: 0,
-    })
-  })
-
-  it('gets packages by Cloud id', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', { headers })
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({ id: 'cloud-pkg-1', active: true })
-    const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/products/cloud-pkg-1`)
-    expect(init.method).toBe('GET')
-  })
-
-  it('does not send callback URLs during package create', async () => {
-    const { app, db } = await createTestApp({ ZPAN_PUBLIC_ORIGIN: 'https://zpan.example/custom-path' })
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const created = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Configured',
-        }),
-      ),
-    })
-
-    expect(created.status).toBe(201)
-    const [, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(JSON.parse(init.body as string)).not.toHaveProperty('callbackUrl')
-  })
-
-  it('proxies recurring plans and credit packages to Cloud deliverables', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const recurringPlan = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Team Monthly',
-          metadata: {
-            deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 1200 },
-          },
-          prices: [
-            {
-              currency: 'usd',
-              amount: 1900,
-              recurring: { interval: 'month', intervalCount: 1 },
-              metadata: { creditGrantType: 'subscription_grant', creditAmount: '1200' },
-            },
-            {
-              currency: 'usd',
-              amount: 19000,
-              recurring: { interval: 'year', intervalCount: 1 },
-              metadata: { creditGrantType: 'subscription_grant', creditAmount: '1200' },
-            },
-          ],
-        }),
-      ),
-    })
-    const creditPackage = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Credits Pack',
-          metadata: { deliverable: { type: 'zpan.credits', includedCredits: 5000 } },
-          prices: [{ currency: 'usd', amount: 900, metadata: { creditGrantType: 'top_up', creditAmount: '5000' } }],
-        }),
-      ),
-    })
-
-    expect(recurringPlan.status).toBe(201)
-    expect(creditPackage.status).toBe(201)
-    const recurringBody = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
-    const creditBody = JSON.parse((vi.mocked(fetch).mock.calls[1][1] as RequestInit).body as string)
-    expect(recurringBody).toMatchObject({
-      type: 'store_item',
-      metadata: {
-        deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 1200 },
-      },
-      prices: [
-        {
-          currency: 'usd',
-          amount: 1900,
-          recurring: { interval: 'month', intervalCount: 1 },
-          metadata: { creditGrantType: 'subscription_grant', creditAmount: '1200' },
-        },
-        {
-          currency: 'usd',
-          amount: 19000,
-          recurring: { interval: 'year', intervalCount: 1 },
-          metadata: { creditGrantType: 'subscription_grant', creditAmount: '1200' },
-        },
-      ],
-    })
-    expect(creditBody).toMatchObject({
-      type: 'store_item',
-      metadata: { deliverable: { type: 'zpan.credits', includedCredits: 5000 } },
-      prices: [{ currency: 'usd', amount: 900, metadata: { creditGrantType: 'top_up', creditAmount: '5000' } }],
-    })
-  })
-
-  it('rejects mixed package billing modes before proxying to Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const created = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Mixed Billing',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
-          prices: [
-            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-            { currency: 'usd', amount: 9000 },
-          ],
-        }),
-      ),
-    })
-
-    expect(created.status).toBe(400)
-    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
-  })
-
-  it('rejects non-USD package prices before proxying to Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const created = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'CNY Package',
-          prices: [{ currency: 'cny', amount: 9000 }],
-        }),
-      ),
-    })
-    const updated = await app.request('/api/admin/store/packages/cloud-pkg-1', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prices: [{ currency: 'cny', amount: 9000 }] }),
-    })
-
-    expect(created.status).toBe(400)
-    expect(updated.status).toBe(400)
-    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
-  })
-
-  it('rejects malformed metered traffic prices before proxying to Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const missingUsageResource = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Malformed Metered',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
-          prices: [
-            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-            { currency: 'usd', amount: 2, recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' } },
-          ],
-        }),
-      ),
-    })
-    const missingUsageType = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Malformed Resource',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
-          prices: [
-            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-            {
-              currency: 'usd',
-              amount: 2,
-              recurring: { interval: 'month', intervalCount: 1 },
-              metadata: { usageResource: 'traffic_egress' },
-            },
-          ],
-        }),
-      ),
-    })
-
-    expect(missingUsageResource.status).toBe(400)
-    expect(missingUsageType.status).toBe(400)
-    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
-  })
-
-  it('rejects duplicate fixed or metered subscription prices before proxying to Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const duplicateFixed = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Duplicate Fixed',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
-          prices: [
-            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-            { currency: 'usd', amount: 2900, recurring: { interval: 'month', intervalCount: 1 } },
-            {
-              currency: 'usd',
-              amount: 2,
-              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-              metadata: { usageResource: 'traffic_egress' },
-            },
-          ],
-        }),
-      ),
-    })
-    const duplicateMetered = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Duplicate Metered',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
-          prices: [
-            { currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 1 } },
-            {
-              currency: 'usd',
-              amount: 2,
-              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-              metadata: { usageResource: 'traffic_egress' },
-            },
-            {
-              currency: 'usd',
-              amount: 3,
-              recurring: { interval: 'month', intervalCount: 1, usageType: 'metered' },
-              metadata: { usageResource: 'traffic_egress' },
-            },
-          ],
-        }),
-      ),
-    })
-
-    expect(duplicateFixed.status).toBe(400)
-    expect(duplicateMetered.status).toBe(400)
-    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
-  })
-
-  it('accepts yearly subscription prices and rejects multi-month intervals before proxying to Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const yearlyInterval = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Yearly Plan',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
-          prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'year', intervalCount: 1 } }],
-        }),
-      ),
-    })
-    const multiMonthInterval = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Quarterly Plan',
-          metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
-          prices: [{ currency: 'usd', amount: 1900, recurring: { interval: 'month', intervalCount: 3 } }],
-        }),
-      ),
-    })
-
-    expect(yearlyInterval.status).toBe(201)
-    expect(multiMonthInterval.status).toBe(400)
-    expect(vi.mocked(fetch)).toHaveBeenCalledOnce()
-  })
-
-  it('updates package plan deliverables directly through Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const updated = await app.request('/api/admin/store/packages/pkg-1', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 100 } },
-      }),
-    })
-
-    expect(updated.status).toBe(200)
-    const [, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(JSON.parse(String(init.body))).toEqual({
-      metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 100 } },
-    })
-  })
-
-  it('updates package names without touching deliverables', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const updated = await app.request('/api/admin/store/packages/pkg-1', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Renamed' }),
-    })
-
-    expect(updated.status).toBe(200)
-    const [, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(JSON.parse(String(init.body))).toEqual({ name: 'Renamed' })
-  })
-
   it('ignores spoofed forwarded origin for Cloud checkout return URLs', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
@@ -1019,37 +463,10 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('does not use forwarded origins during package create', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const created = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-        'x-forwarded-proto': 'http',
-        'x-forwarded-host': 'localhost',
-      },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Bad Proto',
-        }),
-      ),
-    })
-
-    expect(created.status).toBe(201)
-    const [, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(JSON.parse(init.body as string)).not.toHaveProperty('callbackUrl')
-  })
-
   it('ignores non-https forwarded schemes for Cloud checkout return URLs', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
@@ -1077,7 +494,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('http://files.example.com/api/store/checkouts', {
@@ -1100,7 +516,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp({ BETTER_AUTH_URL: 'https://auth.example.com/path' })
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
@@ -1123,7 +538,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp({ ZPAN_PUBLIC_ORIGIN: 'not a url' })
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
@@ -1146,7 +560,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp({ ZPAN_PUBLIC_ORIGIN: 'ftp://files.example.com' })
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
@@ -1165,389 +578,10 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('surfaces package create Cloud failures', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 502, json: async () => ({}) } as Response)
-
-    const res = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Small',
-        }),
-      ),
-    })
-
-    expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'cloud_request_failed_502' })
-  })
-
-  it('rejects malformed successful package responses', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
-
-    const res = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Small',
-        }),
-      ),
-    })
-
-    expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'invalid_cloud_response' })
-  })
-
-  it('rejects prices with empty currency strings', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-
-    const res = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Bad Currency',
-          prices: [{ currency: '', amount: 500 }],
-        }),
-      ),
-    })
-
-    expect(res.status).toBe(400)
-  })
-
-  it('rejects non-json successful package responses', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => {
-        throw new Error('not_json')
-      },
-    } as unknown as Response)
-
-    const res = await app.request('/api/admin/store/packages', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Small',
-        }),
-      ),
-    })
-
-    expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'invalid_cloud_response' })
-  })
-
-  it('deletes packages through Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    const packageId = await seedPackage(db)
-
-    const res = await app.request(`/api/admin/store/packages/${packageId}`, {
-      method: 'DELETE',
-      headers,
-    })
-
-    expect(res.status).toBe(200)
-    const calls = vi.mocked(fetch).mock.calls
-    const [url, init] = calls[calls.length - 1] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/products/${packageId}`)
-    expect(init.method).toBe('DELETE')
-  })
-
-  it('proxies admin gift card management through the bound Cloud API', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const generated = await app.request('/api/admin/store/gift-cards', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        credits: 4096,
-        expiresAt: '2099-06-01T00:00:00.000Z',
-        campaignId: 'campaign-1',
-        count: 2,
-      }),
-    })
-    const listed = await app.request('/api/admin/store/gift-cards?status=active', { headers })
-    const deleted = await app.request('/api/admin/store/gift-cards/ZS-GEN-1', { method: 'DELETE', headers })
-
-    expect(generated.status).toBe(201)
-    await expect(generated.json()).resolves.toMatchObject([
-      { code: 'ZS-GEN-1', credits: 4096, status: 'active' },
-      { code: 'ZS-GEN-2', credits: 4096, status: 'active' },
-    ])
-    expect(listed.status).toBe(200)
-    await expect(listed.json()).resolves.toMatchObject({
-      total: 1,
-      items: [{ code: 'ZS-LIST-1', credits: 1024 }],
-    })
-    expect(deleted.status).toBe(200)
-    await expect(deleted.json()).resolves.toEqual({ code: 'ZS-GEN-1', deleted: true })
-
-    const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
-    const [generateUrl, generateInit] = calls[0]
-    const [listUrl, listInit] = calls[1]
-    const [deleteUrl, deleteInit] = calls[2]
-    expect(String(generateUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
-    expect(requestHeader(generateInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
-    expect(JSON.parse(generateInit.body as string)).toEqual({
-      credits: 4096,
-      expiresAt: '2099-06-01T00:00:00.000Z',
-      campaignId: 'campaign-1',
-      count: 2,
-    })
-    expect(String(listUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards?status=active`)
-    expect(requestHeader(listInit, 'Authorization')).toBe(`Bearer ${REFRESH_TOKEN}`)
-    expect(String(deleteUrl)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards/ZS-GEN-1`)
-    expect(deleteInit.method).toBe('DELETE')
-  })
-
-  it('accepts paged admin gift card lists from Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => ({ items: [cloudGiftCard({ code: 'ZS-PAGED-1' })], total: 9, limit: 50, offset: 0 }),
-    } as Response)
-
-    const res = await app.request('/api/admin/store/gift-cards?status=active', { headers })
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({ total: 9, items: [{ code: 'ZS-PAGED-1' }] })
-  })
-
-  it('accepts paged admin gift card create responses from Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      status: 201,
-      json: async () => ({
-        items: [cloudGiftCard({ code: 'ZS-PAGED-CREATE-1', codeLast4: 'TE-1' })],
-        total: 1,
-        limit: 50,
-        offset: 0,
-      }),
-    } as Response)
-
-    const res = await app.request('/api/admin/store/gift-cards', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        credits: 4096,
-        count: 1,
-      }),
-    })
-
-    expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject([{ code: 'ZS-PAGED-CREATE-1' }])
-    const [[url, init]] = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards`)
-    expect(JSON.parse(init.body as string)).toEqual({
-      credits: 4096,
-      count: 1,
-    })
-  })
-
-  it('disables admin gift cards through Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => null,
-    } as Response)
-
-    const res = await app.request('/api/admin/store/gift-cards/ZS-GEN-1', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ disabled: true }),
-    })
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ code: 'ZS-GEN-1', disabled: true })
-    const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/gift-cards/ZS-GEN-1`)
-    expect(init.method).toBe('PATCH')
-    expect(JSON.parse(init.body as string)).toEqual({ disabled: true })
-  })
-
-  it('rejects non-admin gift card management', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const admin = await adminHeaders(app)
-    await seedSettings(app, admin)
-    const headers = await authedHeaders(app, 'buyer@example.com')
-
-    const res = await app.request('/api/admin/store/gift-cards', { headers })
-
-    expect(res.status).toBe(403)
-    expect(fetch).not.toHaveBeenCalled()
-  })
-
-  it('proxies admin store orders from Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const res = await app.request('/api/admin/store/orders', { headers })
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({
-      total: 1,
-      items: [
-        {
-          id: 'cloud-order-1',
-          items: [{ fulfillmentPayload: { deliverable: { type: 'zpan.plan', storageBytes: 512, trafficBytes: 0 } } }],
-        },
-      ],
-    })
-    const [url] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=100`)
-  })
-
-  it('paginates admin store orders from Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => ({ items: [cloudOrder({ id: 'cloud-order-2' })], total: 2, limit: 1, offset: 1 }),
-    } as Response)
-
-    const res = await app.request('/api/admin/store/orders?limit=1&offset=1', { headers })
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({
-      total: 2,
-      items: [{ id: 'cloud-order-2' }],
-    })
-    const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
-    expect(String(calls[0][0])).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/orders?limit=1&offset=1`)
-  })
-
-  it('updates packages through Cloud', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Small',
-        }),
-      ),
-    })
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({ id: 'cloud-pkg-1', name: 'Small' })
-    const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/products/cloud-pkg-1`)
-    expect(init.method).toBe('PATCH')
-  })
-
-  it('publishes and unpublishes packages through partial Cloud patches', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-
-    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: false }),
-    })
-
-    expect(res.status).toBe(200)
-    const [url, init] = vi.mocked(fetch).mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe(`${ZPAN_CLOUD_URL_DEFAULT}${INSTANCE_STORE_PATH}/products/cloud-pkg-1`)
-    expect(init.method).toBe('PATCH')
-    expect(JSON.parse(String(init.body))).toEqual({ active: false })
-  })
-
-  it('surfaces package update Cloud failures without local writes', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 502,
-      json: async () => ({ error: 'cloud_down' }),
-    } as Response)
-
-    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
-      method: 'PATCH',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        cloudProductRequest({
-          name: 'Small',
-        }),
-      ),
-    })
-
-    expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'cloud_down' })
-  })
-
-  it('surfaces package delete Cloud failures', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 503,
-      json: async () => ({ error: 'cloud_unavailable' }),
-    } as Response)
-
-    const res = await app.request('/api/admin/store/packages/cloud-pkg-1', {
-      method: 'DELETE',
-      headers,
-    })
-
-    expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'cloud_unavailable' })
-  })
-
   it('rejects checkout target orgs the user cannot access', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
     const res = await app.request('/api/store/checkouts', {
@@ -1563,7 +597,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
@@ -1595,7 +628,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
     const now = Date.now()
@@ -1645,7 +677,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
     const checkout = await app.request('/api/store/checkouts', {
@@ -1661,7 +692,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
@@ -1689,7 +719,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     const packageId = await seedPackage(db)
 
@@ -1766,7 +795,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
 
     const cnyCheckout = await app.request('/api/store/checkouts', {
@@ -1790,7 +818,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
@@ -1821,7 +848,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
 
     const credits = await app.request('/api/store/credits', { headers })
@@ -1858,7 +884,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
 
     const ledger = await app.request('/api/store/credits/ledger-entries', { headers })
@@ -1901,7 +926,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
@@ -1959,7 +983,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
 
     const payment = await app.request('/api/store/orders/order-other-org/payments', {
       method: 'POST',
@@ -1982,40 +1005,10 @@ describe('Quota Store API', () => {
     ).toBe(false)
   })
 
-  it('does not let the legacy local disabled flag block self-service store endpoints', async () => {
-    const { app, db } = await createTestApp()
-    await seedBusinessLicense(db)
-    const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
-    await app.request('/api/admin/store/settings', {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        enabled: false,
-      }),
-    })
-
-    const packageId = await seedPackage(db)
-    const packages = await app.request('/api/store/packages', { headers })
-    const targets = await app.request('/api/store/targets', { headers })
-    const checkout = await app.request('/api/store/checkouts', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId }),
-    })
-    const orders = await app.request('/api/store/orders', { headers })
-
-    expect(packages.status).not.toBe(403)
-    expect(targets.status).not.toBe(403)
-    expect(checkout.status).not.toBe(403)
-    expect(orders.status).not.toBe(403)
-  })
-
   it('hides self-service store endpoints until Cloud is bound', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     await db.run(sql`UPDATE license_bindings SET refresh_token = NULL`)
 
     const packageId = await seedPackage(db)
@@ -2042,7 +1035,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
 
@@ -2060,7 +1052,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
@@ -2082,7 +1073,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
-    await seedSettings(app, headers)
     const packageId = await seedPackage(db)
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
@@ -2103,8 +1093,6 @@ describe('Quota Store API', () => {
   it('accepts current Cloud quota-change webhook tokens with audience equal to instance id', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     const payload = JSON.stringify({
       eventId: 'evt-cloud-pr-15-token',
@@ -2128,8 +1116,6 @@ describe('Quota Store API', () => {
   it("accepts Cloud PR #16 quota-change webhook tokens with audience='license_1' and boundLicenseId='binding_1'", async () => {
     const { app, db } = await createTestApp()
     await seedCloudPr16License(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     const payload = JSON.stringify({
       eventId: 'evt-cloud-pr-16-token',
@@ -2161,7 +1147,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     const payload = JSON.stringify({
       eventId: 'evt-1',
@@ -2217,7 +1202,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`UPDATE org_quotas SET quota = 8192, traffic_quota = 1024 WHERE org_id = ${orgId}`)
     const subscriptionSourceId = `stripe_subscription:sub_metered_123:${orgId}`
@@ -2310,7 +1294,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     const subscriptionSourceId = `stripe_subscription:sub_renewal:${orgId}`
 
@@ -2387,7 +1370,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
 
     const first = await postWebhook(
@@ -2433,7 +1415,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
 
     await postWebhook(
@@ -2491,7 +1472,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
 
     await postWebhook(
@@ -2548,8 +1528,6 @@ describe('Quota Store API', () => {
   it('rejects legacy order delivery event types', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({
       eventId: 'evt-legacy-event-type',
       eventType: 'order.delivered',
@@ -2569,8 +1547,6 @@ describe('Quota Store API', () => {
   it('storage decreases revoke matching Cloud order entitlements without changing base quota', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`UPDATE org_quotas SET quota = 2048 WHERE org_id = ${orgId}`)
     const now = Date.now()
@@ -2607,7 +1583,6 @@ describe('Quota Store API', () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
 
     await postWebhook(
@@ -2649,8 +1624,6 @@ describe('Quota Store API', () => {
   it('processes same-order increase then decrease as two independent events', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`UPDATE org_quotas SET quota = 8192 WHERE org_id = ${orgId}`)
 
@@ -2711,8 +1684,6 @@ describe('Quota Store API', () => {
   it('does not fall back to base quota when a second decrease sees an already revoked entitlement', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`UPDATE org_quotas SET quota = 8192 WHERE org_id = ${orgId}`)
 
@@ -2765,8 +1736,6 @@ describe('Quota Store API', () => {
   it('replaying the same decrease event is idempotent and does not double-deduct', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`UPDATE org_quotas SET quota = 8192 WHERE org_id = ${orgId}`)
 
@@ -2800,8 +1769,6 @@ describe('Quota Store API', () => {
   it('reverses pre-migration Cloud order quota stored in base quota', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`UPDATE org_quotas SET quota = 8192, traffic_quota = 4096 WHERE org_id = ${orgId}`)
 
@@ -2830,8 +1797,6 @@ describe('Quota Store API', () => {
   it('records decrease audit event with correct action and metadata', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`UPDATE org_quotas SET quota = 8192 WHERE org_id = ${orgId}`)
 
@@ -2865,8 +1830,6 @@ describe('Quota Store API', () => {
   it('traffic decrease from same cloudOrderId processes independently', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
 
     await postWebhook(
@@ -2908,8 +1871,6 @@ describe('Quota Store API', () => {
   it('rejects failed delivery retries when the payload hash changes', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     const payload = JSON.stringify({
       eventId: 'evt-hash-conflict',
@@ -2945,8 +1906,6 @@ describe('Quota Store API', () => {
   it('allows failed delivery retries when the payload is unchanged', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const orgId = await getFirstOrgId(db)
     await db.run(sql`DELETE FROM org_quotas WHERE org_id = ${orgId}`)
     const payload = JSON.stringify({
@@ -2980,8 +1939,6 @@ describe('Quota Store API', () => {
   it('rejects missing Cloud quota-change webhook auth', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
 
     const res = await app.request('/api/store/webhook', {
       method: 'POST',
@@ -2997,8 +1954,6 @@ describe('Quota Store API', () => {
   it('rejects malformed Cloud quota-change webhook event tokens', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-bad-token' })
 
     const res = await app.request('/api/store/webhook', {
@@ -3016,8 +1971,6 @@ describe('Quota Store API', () => {
   it('rejects Cloud quota-change webhook event tokens with the wrong purpose', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-purpose' })
 
     const res = await app.request('/api/store/webhook', {
@@ -3035,8 +1988,6 @@ describe('Quota Store API', () => {
   it('rejects expired Cloud quota-change webhook event tokens', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-expired-token' })
     const now = Math.floor(Date.now() / 1000)
 
@@ -3055,8 +2006,6 @@ describe('Quota Store API', () => {
   it('rejects Cloud quota-change webhook event tokens without issuedAt', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-missing-issued-at' })
 
     const res = await app.request('/api/store/webhook', {
@@ -3074,8 +2023,6 @@ describe('Quota Store API', () => {
   it('rejects Cloud quota-change webhook event tokens with future issuedAt and no notBefore', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-future-issued-at' })
     const issuedAt = Math.floor(Date.now() / 1000) + 60
 
@@ -3094,8 +2041,6 @@ describe('Quota Store API', () => {
   it('rejects Cloud quota-change webhook event tokens with an overlong TTL', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-overlong-token' })
     const issuedAt = Math.floor(Date.now() / 1000)
 
@@ -3114,8 +2059,6 @@ describe('Quota Store API', () => {
   it('rejects Cloud quota-change webhook event tokens with the wrong payload hash', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-hash' })
 
     const res = await app.request('/api/store/webhook', {
@@ -3133,8 +2076,6 @@ describe('Quota Store API', () => {
   it('rejects Cloud quota-change webhook event tokens with a mismatched event id', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({
       eventId: 'evt-body-id',
       cloudOrderId: 'order-event-id',
@@ -3161,8 +2102,6 @@ describe('Quota Store API', () => {
   it('rejects Cloud quota-change webhook event tokens with the wrong audience', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({ eventId: 'evt-wrong-audience' })
 
     const res = await app.request('/api/store/webhook', {
@@ -3180,8 +2119,6 @@ describe('Quota Store API', () => {
   it('rejects signed malformed Cloud payloads', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = '{bad-json'
 
     const res = await postWebhook(app, payload)
@@ -3193,8 +2130,6 @@ describe('Quota Store API', () => {
   it('rejects deliveries without resource details', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
-    const headers = await adminHeaders(app)
-    await seedSettings(app, headers)
     const payload = JSON.stringify({
       eventId: 'evt-no-package',
       cloudOrderId: 'order-no-package',
@@ -3209,33 +2144,22 @@ describe('Quota Store API', () => {
   })
 })
 
-async function seedSettings(app: Awaited<ReturnType<typeof createTestApp>>['app'], headers: Record<string, string>) {
-  await app.request('/api/admin/store/settings', {
-    method: 'PUT',
-    headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled: true }),
-  })
-}
-
 async function getFirstOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
   const rows = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)
-  return rows[0].id
+  if (rows[0]) return rows[0].id
+  await db.run(sql`
+    INSERT INTO organization (id, name, slug, metadata)
+    VALUES ('org-test', 'Test Organization', 'test-organization', '{"type":"personal"}')
+  `)
+  await db.run(sql`
+    INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+    VALUES ('quota-test', 'org-test', 10485760, 0, 0, 0, '1970-01')
+  `)
+  return 'org-test'
 }
 
 async function seedPackage(_db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
   return 'cloud-pkg-1'
-}
-
-async function seedSettingsRow(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  const now = new Date().toISOString()
-  await db.run(sql`
-    INSERT INTO system_options
-      (key, value, public)
-    VALUES
-      ('cloud_store_enabled', 'true', 0),
-      ('cloud_store_created_at', ${now}, 0),
-      ('cloud_store_updated_at', ${now}, 0)
-  `)
 }
 
 async function postWebhook(app: Awaited<ReturnType<typeof createTestApp>>['app'], payload: string) {
@@ -3293,9 +2217,6 @@ async function seedCloudPr16License(db: Awaited<ReturnType<typeof createTestApp>
       'quota_store',
     ],
     licenseId: 'business-license-unit',
-    licenseKind: 'subscription',
-    businessPlanCode: 'business_basic',
-    storeLimit: 1,
     authorizedHosts: ['localhost'],
     licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
     issuedAt,

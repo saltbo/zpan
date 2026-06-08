@@ -5,18 +5,14 @@ import type {
   AnnouncementInput,
   CloudCreditBalanceResponse,
   CloudCreditLedgerResponse,
-  CloudProductInput,
-  CloudProductPatchInput,
   ConflictStrategy,
   CreateBackgroundJobRequest,
   CreateDownloadTaskInput,
-  CreateGiftCardInput,
   CreateObjectUploadSessionInput,
   CreateShareRequest,
   CreateStorageInput,
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
-  GiftCardStatus,
   PatchObjectUploadSessionInput,
   PresignObjectUploadPartsInput,
   RedeemGiftCardResponse,
@@ -37,10 +33,8 @@ import type {
   BrandingThemeMode,
   BrandingThemePresetId,
   BrandingThemeValues,
-  CloudGiftCard,
   CloudOrder,
   CloudProduct,
-  CloudStoreSettings,
   CloudStoreTarget,
   Downloader,
   DownloadTask,
@@ -61,7 +55,6 @@ import {
   adminAnnouncementsApi,
   adminAuditApi,
   adminAuthProviders,
-  adminCloudStoreApi,
   adminDownloadersApi,
   adminQuotas,
   adminSiteInvitations,
@@ -473,66 +466,6 @@ export function getUserQuota() {
 }
 
 // Quota Store API
-
-export function getCloudStoreSettings() {
-  return unwrap<CloudStoreSettings | null>(adminCloudStoreApi.settings.$get())
-}
-
-export function updateCloudStoreSettings(data: { enabled: boolean }) {
-  return unwrap<CloudStoreSettings>(adminCloudStoreApi.settings.$put({ json: data }))
-}
-
-export function listAdminCloudProducts() {
-  return unwrap<{ items: CloudProduct[]; total: number }>(adminCloudStoreApi.packages.$get())
-}
-
-export function listAdminCloudCreditProducts() {
-  return unwrap<{ items: CloudProduct[]; total: number }>(adminCloudStoreApi.credits.products.$get())
-}
-
-export function createCloudProduct(data: CloudProductInput) {
-  return unwrap<CloudProduct>(adminCloudStoreApi.packages.$post({ json: data }))
-}
-
-export function updateCloudProduct(id: string, data: CloudProductPatchInput) {
-  return unwrap<CloudProduct>(adminCloudStoreApi.packages[':id'].$patch({ param: { id }, json: data }))
-}
-
-export function deleteCloudProduct(id: string) {
-  return unwrap<{ id: string; deleted: boolean }>(adminCloudStoreApi.packages[':id'].$delete({ param: { id } }))
-}
-
-export function listCloudGiftCards(status?: GiftCardStatus) {
-  const query = status ? { status } : {}
-  return unwrap<{ items: CloudGiftCard[]; total: number }>(adminCloudStoreApi['gift-cards'].$get({ query }))
-}
-
-export function createCloudGiftCards(data: CreateGiftCardInput) {
-  return unwrap<CloudGiftCard[]>(adminCloudStoreApi['gift-cards'].$post({ json: data }))
-}
-
-export function disableCloudGiftCard(code: string) {
-  return unwrap<{ code: string; disabled: true }>(
-    adminCloudStoreApi['gift-cards'][':code'].$patch({
-      param: { code },
-      json: { disabled: true },
-    }),
-  )
-}
-
-export function deleteCloudGiftCard(code: string) {
-  return unwrap<{ code: string; deleted: boolean }>(
-    adminCloudStoreApi['gift-cards'][':code'].$delete({ param: { code } }),
-  )
-}
-
-export function listAdminCloudOrders(options: { limit?: number; offset?: number } = {}) {
-  const query = {
-    ...(options.limit !== undefined ? { limit: String(options.limit) } : {}),
-    ...(options.offset !== undefined ? { offset: String(options.offset) } : {}),
-  }
-  return unwrap<{ items: CloudOrder[]; total: number }>(adminCloudStoreApi.orders.$get({ query }))
-}
 
 export function listCloudProducts() {
   return unwrap<{ items: CloudProduct[]; total: number }>(cloudStoreApi.packages.$get())

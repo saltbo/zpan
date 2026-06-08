@@ -13,7 +13,8 @@ import {
 } from 'zpan-cloud-sdk'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
-import { getCloudStoreBinding, type getRequiredSettings } from '../services/cloud-store'
+import type { Database } from '../platform/interface'
+import { getCloudStoreBinding } from '../services/cloud-store'
 
 const CLOUD_STORE_REQUEST_TIMEOUT_MS = 10_000
 
@@ -62,7 +63,7 @@ export const cloudGiftCardCreateResponseSchema = z
   .transform((response) => (Array.isArray(response) ? response : response.items))
 export const giftCardListQuerySchema = z.object({ status: giftCardStatusSchema.optional() })
 
-export async function getUserStoreSettings(db: Parameters<typeof getRequiredSettings>[0]) {
+export async function getUserStoreSettings(db: Database) {
   try {
     await getCloudStoreBinding(db)
     return { ready: true }

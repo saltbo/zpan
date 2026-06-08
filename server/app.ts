@@ -13,7 +13,7 @@ import { adminAudit } from './routes/audit'
 import { adminAuthProviders, publicAuthProviders } from './routes/auth-providers'
 import backgroundJobs from './routes/background-jobs'
 import { brandingAdmin, publicBranding } from './routes/branding'
-import { adminCloudStore, cloudStore, cloudStoreWebhooks } from './routes/cloud-store'
+import { cloudStore, cloudStoreWebhooks } from './routes/cloud-store'
 import downloadTasks from './routes/download-tasks'
 import downloaders, { downloaderSelfRoute } from './routes/downloaders'
 import emailConfig from './routes/email-config'
@@ -101,7 +101,6 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/admin/quotas', adminQuotas)
   app.route('/api/quotas', userQuotas)
   app.route('/api/store', cloudStore)
-  app.route('/api/admin/store', adminCloudStore)
   app.route('/api/system', system)
   app.route('/api/admin/auth-providers', adminAuthProviders)
   app.route('/api/notifications', notifications)
@@ -162,7 +161,6 @@ export type AdminAuthProvidersRoute = typeof adminAuthProviders
 export type ProfileRoute = typeof profile
 export type CloudStoreRoute = typeof cloudStore
 export type CloudStoreWebhooksRoute = typeof cloudStoreWebhooks
-export type AdminCloudStoreRoute = typeof adminCloudStore
 export type TeamsRoute = typeof teams
 export type PublicTeamsRoute = typeof publicTeams
 export type NotificationsRoute = typeof notifications
