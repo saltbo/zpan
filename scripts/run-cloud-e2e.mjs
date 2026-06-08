@@ -24,6 +24,7 @@ const cloudEnv = {
   ZPAN_CLOUD_URL: process.env.ZPAN_CLOUD_URL ?? 'http://localhost:5186',
   VITE_ZPAN_CLOUD_URL: process.env.VITE_ZPAN_CLOUD_URL ?? 'http://localhost:5186',
 }
+const credentialsEnv = runtimeCloudCredentials(runtime)
 
 const tunnel = local ? null : await startTunnel(localBaseUrl)
 const tunnelHost = tunnel ? new URL(tunnel.url).hostname : ''
@@ -43,7 +44,7 @@ const e2eEnv = {
   ...cloudEnv,
   ...tunnelEnv,
   ...s3MockEnv(),
-  ...runtimeCloudCredentials(runtime),
+  ...credentialsEnv,
   ...(runtime === 'cf' ? { E2E_RUNTIME: 'cf' } : {}),
 }
 
