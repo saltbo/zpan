@@ -130,6 +130,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Prepare local D1
         run: pnpm exec wrangler d1 migrations apply DB --local
+      - name: Prepare CF E2E env
+        run: |
+          cat > .dev.vars <<'EOF'
+          BETTER_AUTH_SECRET=ci-test-secret-that-is-at-least-32-chars
+          BETTER_AUTH_URL=http://localhost:6174
+          TRUSTED_ORIGINS=http://localhost:6174
+          ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev
+          VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev
+          EOF
       - name: Run E2E
         run: |
           E2E_RUNTIME=cf \
