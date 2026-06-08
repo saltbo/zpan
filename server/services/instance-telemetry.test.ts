@@ -3,40 +3,57 @@ import { getOrCreateInstanceId } from '../licensing/instance-id'
 import type { Database } from '../platform/interface'
 import {
   INSTANCE_TELEMETRY_CRON,
-  INSTANCE_TELEMETRY_ENDPOINT,
   INSTANCE_TELEMETRY_EVENT,
+  INSTANCE_TELEMETRY_POSTHOG_HOST,
   INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN,
   reportInstanceTelemetry,
 } from './instance-telemetry'
+
+const posthogMocks = vi.hoisted(() => {
+  const captureImmediateMock = vi.fn()
+  const shutdownMock = vi.fn()
+  const PostHog = vi.fn(
+    class {
+      captureImmediate = captureImmediateMock
+      shutdown = shutdownMock
+    },
+  )
+  return { PostHog, captureImmediate: captureImmediateMock, shutdown: shutdownMock }
+})
 
 vi.mock('../licensing/instance-id', () => ({
   getOrCreateInstanceId: vi.fn(),
 }))
 
+vi.mock('posthog-node', () => ({
+  PostHog: posthogMocks.PostHog,
+}))
+
 describe('instance telemetry', () => {
   beforeEach(() => {
     vi.mocked(getOrCreateInstanceId).mockReset()
+    posthogMocks.PostHog.mockClear()
+    posthogMocks.captureImmediate.mockReset()
+    posthogMocks.shutdown.mockReset()
+    posthogMocks.captureImmediate.mockResolvedValue(undefined)
+    posthogMocks.shutdown.mockResolvedValue(undefined)
   })
 
   it('does not call the telemetry endpoint when PostHog project token is disabled', async () => {
-    const fetchFn = vi.fn()
-
     const result = await reportInstanceTelemetry({
       db: {} as Database,
       config: { posthogProjectToken: '' },
       cron: INSTANCE_TELEMETRY_CRON,
       runtime: { target: 'cloudflare-worker' },
-      fetchFn,
     })
 
     expect(result).toEqual({ reported: false, reason: 'disabled' })
-    expect(fetchFn).not.toHaveBeenCalled()
+    expect(posthogMocks.PostHog).not.toHaveBeenCalled()
     expect(getOrCreateInstanceId).not.toHaveBeenCalled()
   })
 
-  it('captures the expected telemetry event with built-in PostHog endpoint and project token', async () => {
+  it('captures the expected telemetry event with built-in PostHog host and project token', async () => {
     vi.mocked(getOrCreateInstanceId).mockResolvedValue('inst-1')
-    const fetchFn = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
 
     const result = await reportInstanceTelemetry({
       db: {} as Database,
@@ -51,26 +68,21 @@ describe('instance telemetry', () => {
         osRelease: '6.8.0',
       },
       now: new Date('2026-06-08T12:00:00.000Z'),
-      fetchFn,
     })
 
     expect(result).toEqual({ reported: true })
     expect(getOrCreateInstanceId).toHaveBeenCalledWith({}, 'configured-inst')
-    expect(fetchFn).toHaveBeenCalledTimes(1)
-    expect(fetchFn).toHaveBeenCalledWith(INSTANCE_TELEMETRY_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: expect.any(String),
+    expect(posthogMocks.PostHog).toHaveBeenCalledWith(INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN, {
+      host: INSTANCE_TELEMETRY_POSTHOG_HOST,
+      flushAt: 1,
+      flushInterval: 0,
+      disableCompression: true,
     })
-
-    const body = JSON.parse(fetchFn.mock.calls[0][1].body)
-    expect(body).toMatchObject({
-      api_key: INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN,
+    expect(posthogMocks.captureImmediate).toHaveBeenCalledTimes(1)
+    expect(posthogMocks.captureImmediate).toHaveBeenCalledWith({
       event: INSTANCE_TELEMETRY_EVENT,
-      distinct_id: 'inst-1',
-      timestamp: '2026-06-08T12:00:00.000Z',
+      distinctId: 'inst-1',
+      timestamp: new Date('2026-06-08T12:00:00.000Z'),
       properties: {
         instance_id: 'inst-1',
         app_version: '0.0.1',
@@ -83,5 +95,6 @@ describe('instance telemetry', () => {
         reported_at: '2026-06-08T12:00:00.000Z',
       },
     })
+    expect(posthogMocks.shutdown).toHaveBeenCalledTimes(1)
   })
 })

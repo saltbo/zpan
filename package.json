@@ -87,6 +87,7 @@
     "nodemailer": "^8.0.5",
     "paseto-ts": "^2.0.6",
     "pdfjs-dist": "^5.6.205",
+    "posthog-node": "^5.36.4",
     "radix-ui": "^1.4.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
