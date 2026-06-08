@@ -651,7 +651,7 @@ async function seedLicense(
     edition: input.edition,
     features: input.features,
     licenseId: 'test-license-unit',
-    authorizedHosts: ['localhost', 'zpan.example', 'auth.example.com'],
+    authorizedHosts: ['localhost', 'zpan.example', 'auth.example.com', 'files.example.com'],
     licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
     issuedAt,
     notBefore: issuedAt,

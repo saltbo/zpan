@@ -3,7 +3,6 @@ import { randomBytes } from 'node:crypto'
 
 const INTERNAL_TOKEN_ENV = 'ZPAN_INTERNAL_API_TOKEN'
 const REPORT_PATH = '/api/internal/instance-telemetry/report'
-const DEFAULT_DEPLOY_URL = 'https://zpan.saltbo.workers.dev'
 const TOP_LEVEL_ENV_ARG = '--env='
 const SECRET_PROPAGATION_DELAY_MS = 5000
 const REPORT_RETRY_COUNT = 12
@@ -23,9 +22,10 @@ if (process.env.GITHUB_ACTIONS === 'true') {
 
 let secretSet = false
 try {
+  const deployUrl = resolveDeployUrl()
   putInternalToken(token)
   secretSet = true
-  const reported = await reportDeployTelemetry(token)
+  const reported = await reportDeployTelemetry(token, deployUrl)
   if (!reported) {
     console.warn('Deploy telemetry report was not delivered after retries; continuing deploy.')
   }
@@ -58,8 +58,8 @@ function deleteInternalToken() {
   if (res.status !== 0) throw new Error(`wrangler secret delete failed status=${res.status ?? 1}`)
 }
 
-async function reportDeployTelemetry(internalToken) {
-  const url = new URL(REPORT_PATH, resolveDeployUrl())
+async function reportDeployTelemetry(internalToken, deployUrl) {
+  const url = new URL(REPORT_PATH, deployUrl)
   await sleep(SECRET_PROPAGATION_DELAY_MS)
 
   for (let attempt = 1; attempt <= REPORT_RETRY_COUNT; attempt += 1) {
@@ -87,7 +87,15 @@ async function reportDeployTelemetry(internalToken) {
 }
 
 function resolveDeployUrl() {
-  return process.env.ZPAN_DEPLOY_URL?.trim() || process.env.BETTER_AUTH_URL?.trim() || DEFAULT_DEPLOY_URL
+  const value = process.argv[2]?.trim()
+  if (!value) {
+    throw new Error('Deploy telemetry URL is required. Usage: node scripts/report-deploy-telemetry.mjs https://your-zpan.example')
+  }
+  const url = new URL(value)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`Deploy telemetry URL must use http or https: ${value}`)
+  }
+  return url.origin
 }
 
 function sleep(ms) {

@@ -11,6 +11,7 @@ import { syncPendingCloudTrafficReports } from './services/cloud-traffic-meterin
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
 import { runLicensingRefresh } from './services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
+import { getSitePublicOrigin } from './services/site-public-origin'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
@@ -37,18 +38,6 @@ serve({ fetch: server.fetch, port })
 // Start licensing refresh background scheduler
 const cloudBaseUrl = process.env.ZPAN_CLOUD_URL ?? ZPAN_CLOUD_URL_DEFAULT
 
-function configuredPublicOrigin(): string | null {
-  const value = process.env.ZPAN_PUBLIC_ORIGIN ?? process.env.BETTER_AUTH_URL
-  if (!value) return null
-  try {
-    const url = new URL(value)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.origin
-  } catch {
-    return null
-  }
-}
-
 function envAllowsIp(value: string | undefined): boolean {
   return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
 }
@@ -61,10 +50,9 @@ console.log('licensing.refresh.scheduler.started interval=6h')
 setInterval(() => {
   // runLicensingRefresh handles all errors internally and never rejects.
   void (async () => {
-    const instanceUrl = configuredPublicOrigin()
+    const instanceUrl = await getSitePublicOrigin(platform.db)
     const instance = instanceUrl
       ? await buildCloudInstanceInfo(platform.db, {
-          configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
           url: instanceUrl,
           runtime: {
             runtime: { provider: 'node', target: 'node/docker' },
@@ -91,8 +79,6 @@ function reportNodeInstanceTelemetry(): void {
       await reportInstanceTelemetry({
         db: platform.db,
         config: {
-          configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
-          siteUrl: process.env.ZPAN_PUBLIC_ORIGIN ?? process.env.BETTER_AUTH_URL,
           allowIp: envAllowsIp(process.env.ZPAN_TELEMETRY_ALLOW_IP),
         },
         cron: INSTANCE_TELEMETRY_CRON,

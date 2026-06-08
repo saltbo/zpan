@@ -150,6 +150,7 @@ export const cloudStore = new Hono<Env>()
       const quota = await getEffectiveQuota(db, targetOrgId)
       if (quota.currentPlan?.subscription) return c.json({ error: 'workspace_plan_exists' }, 409)
     }
+    const origin = await getInstanceOrigin(c)
     const order = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
         await client.stores[':storeId'].orders.$post({
@@ -157,7 +158,7 @@ export const cloudStore = new Hono<Env>()
           json: {
             items: [{ productId: body.packageId, priceId: price.id, quantity: 1 }],
             currency,
-            deliveryCallbackUrl: `${getInstanceOrigin(c)}/api/store/webhook`,
+            deliveryCallbackUrl: `${origin}/api/store/webhook`,
             target: {
               orgId: targetOrgId,
               customerId: targetOrgId,
@@ -169,7 +170,6 @@ export const cloudStore = new Hono<Env>()
       ),
     )
     if (isCloudError(order)) return c.json(order, 502)
-    const origin = getInstanceOrigin(c)
     const payment = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
         await client.stores[':storeId'].orders[':orderId'].payments.$post({
@@ -194,7 +194,7 @@ export const cloudStore = new Hono<Env>()
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const origin = getInstanceOrigin(c)
+    const origin = await getInstanceOrigin(c)
     const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
         await client.stores[':storeId'].billing['portal-sessions'].$post({
@@ -234,7 +234,7 @@ export const cloudStore = new Hono<Env>()
     const order = await getOrder(c, orderId)
     if (isCloudError(order)) return c.json(order, 502)
     if (!orderBelongsToTarget(order.target, targetOrgId)) return c.json({ error: 'Forbidden' }, 403)
-    const origin = getInstanceOrigin(c)
+    const origin = await getInstanceOrigin(c)
     const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
         await client.stores[':storeId'].orders[':orderId'].payments.$post({

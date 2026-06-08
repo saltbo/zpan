@@ -1,4 +1,5 @@
 import type { z } from 'zod'
+import { getSitePublicOrigin, originFromRequestUrl } from '../../services/site-public-origin'
 import {
   cloudOrdersResponseSchema,
   getBoundCloudClient,
@@ -32,27 +33,8 @@ export async function getCloudOrders(
   }
 }
 
-export function getInstanceOrigin(c: RouteContext): string {
-  const configuredOrigin = publicOriginFromEnv(
-    c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL'),
-  )
+export async function getInstanceOrigin(c: RouteContext): Promise<string> {
+  const configuredOrigin = await getSitePublicOrigin(c.get('platform').db)
   if (configuredOrigin) return configuredOrigin
-  const requestUrl = new URL(c.req.url)
-  if (requestUrl.protocol === 'https:' || isLocalHost(requestUrl.hostname)) return requestUrl.origin
-  return `https://${requestUrl.host}`
-}
-
-function publicOriginFromEnv(value: string | undefined): string | null {
-  if (!value) return null
-  try {
-    const url = new URL(value)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.origin
-  } catch {
-    return null
-  }
-}
-
-function isLocalHost(hostname: string) {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
+  return originFromRequestUrl(c.req.url) ?? new URL(c.req.url).origin
 }

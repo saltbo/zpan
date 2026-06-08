@@ -11,27 +11,10 @@ import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
 import { createPairing, pollPairing, unbindCloudLicense } from '../services/licensing-cloud'
+import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
 
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
-}
-
-function configuredInstanceId(c: {
-  get(key: 'platform'): { getEnv(k: string): string | undefined }
-}): string | undefined {
-  return c.get('platform').getEnv('ZPAN_INSTANCE_ID')
-}
-
-function configuredPublicOrigin(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string | null {
-  const value = c.get('platform').getEnv('ZPAN_PUBLIC_ORIGIN') ?? c.get('platform').getEnv('BETTER_AUTH_URL')
-  if (!value) return null
-  try {
-    const url = new URL(value)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.origin
-  } catch {
-    return null
-  }
 }
 
 function runtimeInfo(c: {
@@ -49,28 +32,20 @@ function runtimeInfo(c: {
   }
 }
 
-function getInstanceOrigin(c: {
-  get(key: 'platform'): { getEnv(k: string): string | undefined }
+async function getInstanceOrigin(c: {
+  get(key: 'platform'): { db: import('../platform/interface').Database }
   req: { url: string; header(name: string): string | undefined }
-}): string {
-  const configured = configuredPublicOrigin(c)
+}): Promise<string> {
+  const configured = await getSitePublicOrigin(c.get('platform').db)
   if (configured) return configured
-  const requestUrl = new URL(c.req.url)
-  const forwardedProto = c.req.header('x-forwarded-proto')
-  const forwardedHost = c.req.header('x-forwarded-host') ?? c.req.header('host')
-
-  if (forwardedProto && forwardedHost) {
-    return `${forwardedProto}://${forwardedHost}`
-  }
-
-  return requestUrl.origin
+  return originFromRequestUrl(c.req.url) ?? new URL(c.req.url).origin
 }
 
-function getRequestHost(c: {
-  get(key: 'platform'): { getEnv(k: string): string | undefined }
+async function getRequestHost(c: {
+  get(key: 'platform'): { db: import('../platform/interface').Database }
   req: { url: string; header(name: string): string | undefined }
-}): string {
-  const configured = configuredPublicOrigin(c)
+}): Promise<string> {
+  const configured = await getSitePublicOrigin(c.get('platform').db)
   if (configured) return new URL(configured).host
   const forwardedHost = c.req.header('x-forwarded-host') ?? c.req.header('host')
   return normalizeHost(forwardedHost) ?? new URL(c.req.url).host
@@ -84,8 +59,7 @@ const app = new Hono<Env>()
     const baseUrl = getCloudBaseUrl(c)
 
     const instance = await buildCloudInstanceInfo(db, {
-      configuredInstanceId: configuredInstanceId(c),
-      url: getInstanceOrigin(c),
+      url: await getInstanceOrigin(c),
       runtime: runtimeInfo(c),
     })
 
@@ -107,11 +81,11 @@ const app = new Hono<Env>()
         binding: result.binding,
         account: result.account,
       }
-      const instanceId = await getOrCreateInstanceId(db, configuredInstanceId(c))
+      const instanceId = await getOrCreateInstanceId(db)
       const cert = entitlement.certificate
       const assertion = verifyCertificate(cert, {
         instanceId,
-        currentHost: getRequestHost(c),
+        currentHost: await getRequestHost(c),
         cloudBaseUrl: baseUrl,
       })
       if (!assertion || !entitlement.binding?.storeId || !entitlement.account) {
@@ -163,8 +137,7 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')!
     const baseUrl = getCloudBaseUrl(c)
     const instance = await buildCloudInstanceInfo(db, {
-      configuredInstanceId: configuredInstanceId(c),
-      url: getInstanceOrigin(c),
+      url: await getInstanceOrigin(c),
       runtime: runtimeInfo(c),
     })
 

@@ -62,9 +62,7 @@ describe('handleScheduled', () => {
       { cron: INSTANCE_TELEMETRY_CRON },
       {
         DB: {} as D1Database,
-        BETTER_AUTH_URL: 'https://zpan.example',
         ZPAN_CLOUD_URL: 'https://cloud.example',
-        ZPAN_INSTANCE_ID: 'configured-instance',
       },
     )
 
@@ -72,8 +70,6 @@ describe('handleScheduled', () => {
     expect(reportInstanceTelemetry).toHaveBeenCalledWith({
       db: 'db',
       config: {
-        configuredInstanceId: 'configured-instance',
-        siteUrl: 'https://zpan.example',
         allowIp: true,
       },
       cron: '0 */12 * * *',

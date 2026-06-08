@@ -66,7 +66,6 @@ describe('instance telemetry', () => {
     const result = await reportInstanceTelemetry({
       db: {} as Database,
       config: {
-        configuredInstanceId: 'configured-inst',
         siteUrl: 'https://zpan.example.com/path',
       },
       cron: INSTANCE_TELEMETRY_CRON,
@@ -82,7 +81,7 @@ describe('instance telemetry', () => {
     })
 
     expect(result).toEqual({ reported: true })
-    expect(getOrCreateInstanceId).toHaveBeenCalledWith({}, 'configured-inst')
+    expect(getOrCreateInstanceId).toHaveBeenCalledWith({})
     expect(getInstanceDisplayName).toHaveBeenCalledWith({})
     expect(posthogMocks.PostHog).toHaveBeenCalledWith(INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN, {
       host: INSTANCE_TELEMETRY_POSTHOG_HOST,
@@ -180,6 +179,7 @@ describe('instance telemetry', () => {
     await reportInstanceTelemetry({
       db: {} as Database,
       config: {
+        siteUrl: 'https://zpan.example.com',
         allowIp: false,
       },
       cron: INSTANCE_TELEMETRY_CRON,

@@ -36,8 +36,6 @@ internal.post('/instance-telemetry/report', async (c) => {
   const result = await reportInstanceTelemetry({
     db: platform.db,
     config: {
-      configuredInstanceId: platform.getEnv('ZPAN_INSTANCE_ID'),
-      siteUrl: platform.getEnv('ZPAN_PUBLIC_ORIGIN') ?? platform.getEnv('BETTER_AUTH_URL'),
       allowIp: envAllowsIp(platform.getEnv('ZPAN_TELEMETRY_ALLOW_IP')),
     },
     cron: INSTANCE_TELEMETRY_CRON,

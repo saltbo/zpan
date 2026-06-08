@@ -3,6 +3,7 @@ import packageJson from '../../package.json'
 import { getOrCreateInstanceId } from '../licensing/instance-id'
 import { getInstanceDisplayName } from '../licensing/instance-info'
 import type { Database } from '../platform/interface'
+import { getSitePublicOrigin, normalizePublicOrigin } from './site-public-origin'
 
 export const INSTANCE_TELEMETRY_CRON = '0 */12 * * *'
 export const INSTANCE_TELEMETRY_EVENT = 'heartbeat'
@@ -13,7 +14,6 @@ export const INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN = 'phc_uh9AB5AqnpXpFfW2Ns7
 export interface InstanceTelemetryConfig {
   posthogHost?: string
   posthogProjectToken?: string
-  configuredInstanceId?: string
   siteUrl?: string
   allowIp?: boolean
 }
@@ -46,9 +46,10 @@ export async function reportInstanceTelemetry(params: InstanceTelemetryParams): 
   const posthogProjectToken = (params.config.posthogProjectToken ?? INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN).trim()
   if (!posthogHost || !posthogProjectToken) return { reported: false, reason: 'disabled' }
 
-  const instanceId = await getOrCreateInstanceId(params.db, params.config.configuredInstanceId)
+  const instanceId = await getOrCreateInstanceId(params.db)
   const instanceName = await getInstanceDisplayName(params.db)
-  const instanceUrl = normalizeSiteUrl(params.config.siteUrl)
+  const instanceUrl =
+    normalizePublicOrigin(params.config.siteUrl) ?? (await getSitePublicOrigin(params.db)) ?? undefined
   const timestamp = (params.now ?? new Date()).toISOString()
   const disableGeoip = params.config.allowIp === false
   const client = new PostHog(posthogProjectToken, {
@@ -132,18 +133,6 @@ function buildTelemetryProperties(params: {
 
 function addOptionalProperty(properties: Record<string, unknown>, key: string, value: string | undefined): void {
   if (value) properties[key] = value
-}
-
-function normalizeSiteUrl(value: string | undefined): string | undefined {
-  const input = value?.trim()
-  if (!input) return undefined
-  try {
-    const url = new URL(input)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined
-    return url.origin
-  } catch {
-    return undefined
-  }
 }
 
 function compactObject(input: Record<string, unknown>): Record<string, unknown> {

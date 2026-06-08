@@ -36,7 +36,6 @@ const tunnelEnv = {
   E2E_APP_PORT: String(appPort),
   E2E_API_PORT: String(apiPort),
   BETTER_AUTH_URL: baseUrl,
-  ZPAN_INSTANCE_ID: process.env.ZPAN_INSTANCE_ID ?? `zpan-e2e-${runtime}`,
   TRUSTED_ORIGINS: `${baseUrl},${localBaseUrl}`,
   ...(tunnel ? { E2E_CHROME_HOST_RESOLVER_RULES: `MAP ${tunnelHost} ${tunnelIp}` } : {}),
 }

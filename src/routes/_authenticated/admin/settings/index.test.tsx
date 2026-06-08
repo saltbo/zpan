@@ -17,6 +17,7 @@ const siteOptionsState = vi.hoisted(() => ({
   current: {
     siteName: 'ZPan',
     siteDescription: 'File hosting',
+    sitePublicOrigin: 'https://zpan.example.com',
     defaultOrgQuota: 1073741824,
     authSignupMode: 'open',
     captchaEnabled: false,
@@ -97,6 +98,7 @@ afterEach(() => {
   siteOptionsState.current = {
     siteName: 'ZPan',
     siteDescription: 'File hosting',
+    sitePublicOrigin: 'https://zpan.example.com',
     defaultOrgQuota: 1073741824,
     authSignupMode: SignupMode.OPEN,
     captchaEnabled: false,
@@ -120,11 +122,15 @@ describe('SettingsPage', () => {
     fireEvent.change(view.getByLabelText('admin.settings.siteDescription'), {
       target: { value: 'Updated file hosting' },
     })
+    fireEvent.change(view.getByLabelText('admin.settings.sitePublicOrigin'), {
+      target: { value: 'https://new.example.com/path' },
+    })
 
     fireEvent.click(view.getAllByRole('button', { name: 'common.save' })[0])
 
     await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('site_name', 'New ZPan', true))
     expect(setSystemOption).toHaveBeenCalledWith('site_description', 'Updated file hosting', true)
+    expect(setSystemOption).toHaveBeenCalledWith('site_public_origin', 'https://new.example.com/path', false)
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
   })
 

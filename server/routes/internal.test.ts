@@ -40,8 +40,6 @@ describe('POST /api/internal/instance-telemetry/report', () => {
   it('reports telemetry with the configured internal token', async () => {
     const { app, db } = await createTestApp({
       ZPAN_INTERNAL_API_TOKEN: 'test-token',
-      ZPAN_INSTANCE_ID: 'configured-instance',
-      BETTER_AUTH_URL: 'https://zpan.example.com/path',
     })
 
     const res = await app.request('/api/internal/instance-telemetry/report', {
@@ -54,8 +52,6 @@ describe('POST /api/internal/instance-telemetry/report', () => {
     expect(reportInstanceTelemetry).toHaveBeenCalledWith({
       db,
       config: {
-        configuredInstanceId: 'configured-instance',
-        siteUrl: 'https://zpan.example.com/path',
         allowIp: true,
       },
       cron: '0 */12 * * *',

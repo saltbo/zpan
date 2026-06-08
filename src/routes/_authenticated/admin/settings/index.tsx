@@ -45,6 +45,10 @@ function bytesToDisplay(bytes: number): { value: number; unit: StorageQuotaUnit 
 const settingsSchema = z.object({
   siteName: z.string().min(1),
   siteDescription: z.string(),
+  sitePublicOrigin: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^https?:\/\/[^/]+/.test(value), 'Site URL must start with http:// or https://'),
   quotaValue: z.coerce.number<number>().positive('Quota must be a positive number'),
   quotaUnit: z.enum(['MB', 'GB']),
   registrationsEnabled: z.boolean(),
@@ -75,6 +79,7 @@ export function SettingsPage() {
   const {
     siteName,
     siteDescription,
+    sitePublicOrigin,
     defaultOrgQuota: quotaBytes,
     authSignupMode,
     captchaEnabled,
@@ -93,6 +98,7 @@ export function SettingsPage() {
     defaultValues: {
       siteName: '',
       siteDescription: '',
+      sitePublicOrigin: '',
       quotaValue: 0,
       quotaUnit: 'MB',
       registrationsEnabled: false,
@@ -110,6 +116,7 @@ export function SettingsPage() {
     form.reset({
       siteName,
       siteDescription,
+      sitePublicOrigin,
       quotaValue: value,
       quotaUnit: unit,
       registrationsEnabled: authSignupMode === SignupMode.OPEN,
@@ -123,6 +130,7 @@ export function SettingsPage() {
     isLoading,
     siteName,
     siteDescription,
+    sitePublicOrigin,
     quotaBytes,
     authSignupMode,
     captchaEnabled,
@@ -135,11 +143,12 @@ export function SettingsPage() {
 
   const identityMutation = useMutation({
     mutationFn: async () => {
-      const valid = await form.trigger(['siteName', 'siteDescription'])
+      const valid = await form.trigger(['siteName', 'siteDescription', 'sitePublicOrigin'])
       if (!valid) throw new Error(t('admin.settings.identityInvalid'))
       const values = form.getValues()
       await setSystemOption('site_name', values.siteName, true)
       await setSystemOption('site_description', values.siteDescription, true)
+      await setSystemOption('site_public_origin', values.sitePublicOrigin.trim(), false)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
@@ -265,6 +274,19 @@ export function SettingsPage() {
               <p className="text-xs text-muted-foreground">{t('admin.settings.siteDescriptionHint')}</p>
               {form.formState.errors.siteDescription && (
                 <p className="text-xs text-destructive">{form.formState.errors.siteDescription.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="sitePublicOrigin">{t('admin.settings.sitePublicOrigin')}</Label>
+              <Input
+                id="sitePublicOrigin"
+                placeholder={t('admin.settings.sitePublicOriginPlaceholder')}
+                {...form.register('sitePublicOrigin')}
+              />
+              <p className="text-xs text-muted-foreground">{t('admin.settings.sitePublicOriginHint')}</p>
+              {form.formState.errors.sitePublicOrigin && (
+                <p className="text-xs text-destructive">{form.formState.errors.sitePublicOrigin.message}</p>
               )}
             </div>
 

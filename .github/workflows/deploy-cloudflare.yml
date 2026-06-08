@@ -169,7 +169,6 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          ZPAN_DEPLOY_URL: ${{ vars.ZPAN_DEPLOY_URL }}
         # Keep post-deploy hooks inside the repository deploy command so
         # GitHub Actions and Cloudflare Workers Builds can share the same path.
         run: pnpm deploy
