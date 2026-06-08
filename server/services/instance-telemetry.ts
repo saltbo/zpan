@@ -7,7 +7,7 @@ export const INSTANCE_TELEMETRY_CRON = '0 */12 * * *'
 export const INSTANCE_TELEMETRY_EVENT = 'heartbeat'
 export const INSTANCE_TELEMETRY_INTERVAL = '12h'
 export const INSTANCE_TELEMETRY_POSTHOG_HOST = 'https://e.zpan.space'
-export const INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN = 'pub_4709cd351f9bf91df7a4926d8ec835f423b0b2539a1d6f53'
+export const INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN = 'phc_uh9AB5AqnpXpFfW2Ns7bDGHaofSTLcA7TeatP6HzmtpF'
 
 export interface InstanceTelemetryConfig {
   posthogHost?: string
