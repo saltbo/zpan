@@ -5,7 +5,7 @@ import {
   INSTANCE_TELEMETRY_CRON,
   INSTANCE_TELEMETRY_ENDPOINT,
   INSTANCE_TELEMETRY_EVENT,
-  INSTANCE_TELEMETRY_PRODUCT_TOKEN,
+  INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN,
   reportInstanceTelemetry,
 } from './instance-telemetry'
 
@@ -18,12 +18,12 @@ describe('instance telemetry', () => {
     vi.mocked(getOrCreateInstanceId).mockReset()
   })
 
-  it('does not call the telemetry endpoint when product token is disabled', async () => {
+  it('does not call the telemetry endpoint when PostHog project token is disabled', async () => {
     const fetchFn = vi.fn()
 
     const result = await reportInstanceTelemetry({
       db: {} as Database,
-      config: { productToken: '' },
+      config: { posthogProjectToken: '' },
       cron: INSTANCE_TELEMETRY_CRON,
       runtime: { target: 'cloudflare-worker' },
       fetchFn,
@@ -34,7 +34,7 @@ describe('instance telemetry', () => {
     expect(getOrCreateInstanceId).not.toHaveBeenCalled()
   })
 
-  it('captures the expected telemetry event with built-in endpoint and product token', async () => {
+  it('captures the expected telemetry event with built-in PostHog endpoint and project token', async () => {
     vi.mocked(getOrCreateInstanceId).mockResolvedValue('inst-1')
     const fetchFn = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
 
@@ -67,7 +67,7 @@ describe('instance telemetry', () => {
 
     const body = JSON.parse(fetchFn.mock.calls[0][1].body)
     expect(body).toMatchObject({
-      api_key: INSTANCE_TELEMETRY_PRODUCT_TOKEN,
+      api_key: INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN,
       event: INSTANCE_TELEMETRY_EVENT,
       distinct_id: 'inst-1',
       timestamp: '2026-06-08T12:00:00.000Z',

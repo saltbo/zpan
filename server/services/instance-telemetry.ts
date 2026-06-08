@@ -6,11 +6,11 @@ export const INSTANCE_TELEMETRY_CRON = '0 */12 * * *'
 export const INSTANCE_TELEMETRY_EVENT = 'heartbeat'
 export const INSTANCE_TELEMETRY_INTERVAL = '12h'
 export const INSTANCE_TELEMETRY_ENDPOINT = 'https://e.zpan.space/capture/'
-export const INSTANCE_TELEMETRY_PRODUCT_TOKEN = 'pub_4709cd351f9bf91df7a4926d8ec835f423b0b2539a1d6f53'
+export const INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN = 'pub_4709cd351f9bf91df7a4926d8ec835f423b0b2539a1d6f53'
 
 export interface InstanceTelemetryConfig {
   endpoint?: string
-  productToken?: string
+  posthogProjectToken?: string
   configuredInstanceId?: string
 }
 
@@ -45,8 +45,8 @@ interface TelemetryCapturePayload {
 
 export async function reportInstanceTelemetry(params: InstanceTelemetryParams): Promise<InstanceTelemetryResult> {
   const endpoint = (params.config.endpoint ?? INSTANCE_TELEMETRY_ENDPOINT).trim()
-  const productToken = (params.config.productToken ?? INSTANCE_TELEMETRY_PRODUCT_TOKEN).trim()
-  if (!endpoint || !productToken) return { reported: false, reason: 'disabled' }
+  const posthogProjectToken = (params.config.posthogProjectToken ?? INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN).trim()
+  if (!endpoint || !posthogProjectToken) return { reported: false, reason: 'disabled' }
 
   const instanceId = await getOrCreateInstanceId(params.db, params.config.configuredInstanceId)
   const timestamp = (params.now ?? new Date()).toISOString()
@@ -55,7 +55,7 @@ export async function reportInstanceTelemetry(params: InstanceTelemetryParams): 
     cron: params.cron,
     runtime: params.runtime,
     timestamp,
-    productToken,
+    posthogProjectToken,
   })
 
   const res = await (params.fetchFn ?? fetch)(endpoint, {
@@ -75,7 +75,7 @@ function buildTelemetryPayload(params: {
   cron: string
   runtime: InstanceTelemetryRuntime
   timestamp: string
-  productToken: string
+  posthogProjectToken: string
 }): TelemetryCapturePayload {
   const properties: Record<string, string> = {
     instance_id: params.instanceId,
@@ -91,7 +91,7 @@ function buildTelemetryPayload(params: {
   addOptionalProperty(properties, 'os_release', params.runtime.osRelease)
 
   return {
-    api_key: params.productToken,
+    api_key: params.posthogProjectToken,
     event: INSTANCE_TELEMETRY_EVENT,
     distinct_id: params.instanceId,
     properties,

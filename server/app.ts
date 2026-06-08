@@ -19,6 +19,7 @@ import downloaders, { downloaderSelfRoute } from './routes/downloaders'
 import emailConfig from './routes/email-config'
 import ihost from './routes/ihost'
 import ihostConfig from './routes/ihost-config'
+import internal from './routes/internal'
 import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
 import licensing from './routes/licensing'
 import licensingAdmin from './routes/licensing-admin'
@@ -80,6 +81,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/branding', publicBranding)
   app.route('/api/site-invitations', publicSiteInvitations)
   app.route('/api/store', cloudStoreWebhooks)
+  app.route('/api/internal', internal)
 
   app.use('/api/*', authMiddleware)
 
