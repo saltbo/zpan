@@ -57,20 +57,22 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm openapi:downloader:check
-      - run: pnpm exec vitest run --project unit --coverage
+      - run: pnpm exec vitest run --project unit --coverage --coverage.reportsDirectory=coverage/unit
       - uses: codecov/codecov-action@v5
         if: always()
         with:
-          files: coverage/coverage-final.json
+          files: coverage/unit/coverage-final.json
           flags: unit
+          disable_search: true
           fail_ci_if_error: false
           handle_no_reports_found: true
-      - run: pnpm exec vitest run --project integration --coverage
+      - run: pnpm exec vitest run --project integration --coverage --coverage.reportsDirectory=coverage/integration
       - uses: codecov/codecov-action@v5
         if: always()
         with:
-          files: coverage/coverage-final.json
+          files: coverage/integration/coverage-final.json
           flags: integration
+          disable_search: true
           fail_ci_if_error: false
           handle_no_reports_found: true
       - run: mkdir -p dist
