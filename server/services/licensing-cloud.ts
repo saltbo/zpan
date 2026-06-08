@@ -2,6 +2,7 @@ import type { z } from 'zod'
 import { type CloudClient, createCloudClient } from 'zpan-cloud-sdk'
 
 const CLOUD_REQUEST_TIMEOUT_MS = 10_000
+const JSON_HEADERS = { 'content-type': 'application/json' }
 
 export interface PairingResponse {
   code: string
@@ -70,11 +71,11 @@ function cloudApiBaseUrl(baseUrl: string): string {
 }
 
 export function createBoundCloudClient(baseUrl: string, refreshToken: string): CloudClient {
-  return createCloudClient({ baseUrl: cloudApiBaseUrl(baseUrl), token: refreshToken })
+  return createCloudClient({ baseUrl: cloudApiBaseUrl(baseUrl), token: refreshToken, headers: JSON_HEADERS })
 }
 
 function createAnonymousCloudClient(baseUrl: string): CloudClient {
-  return createCloudClient({ baseUrl: cloudApiBaseUrl(baseUrl) })
+  return createCloudClient({ baseUrl: cloudApiBaseUrl(baseUrl), headers: JSON_HEADERS })
 }
 
 async function cloudResponse<
@@ -126,10 +127,16 @@ export async function requestCloudJson<T, U = T>(
 }
 
 export async function createPairing(baseUrl: string, instance: CloudInstanceInfo): Promise<PairingResponse> {
-  const json = { instance } as unknown as {
+  const json = {
+    instanceId: instance.id,
+    instanceName: instance.name,
+    instanceHost: instance.url,
+    instanceVersion: instance.version,
+  } satisfies {
     instanceId: string
     instanceName: string
     instanceHost: string
+    instanceVersion: string
   }
   const res = await cloudResponse(
     createAnonymousCloudClient(baseUrl).pairings.$post({

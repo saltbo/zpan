@@ -57,12 +57,13 @@ describe('licensing-cloud', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://cloud.zpan.space/api/pairings')
       expect(init.method).toBe('POST')
+      expect(headerValue(init.headers, 'content-type')).toBe('application/json')
       const body = JSON.parse(init.body as string)
-      expect(body.instance).toEqual({
-        id: 'inst-1',
-        name: 'My ZPan',
-        url: 'https://zpan.example.com',
-        version: '0.0.1',
+      expect(body).toEqual({
+        instanceId: 'inst-1',
+        instanceName: 'My ZPan',
+        instanceHost: 'https://zpan.example.com',
+        instanceVersion: '0.0.1',
       })
       expect(result).toEqual(payload)
     })
@@ -90,8 +91,9 @@ describe('licensing-cloud', () => {
 
       await pollPairing(BASE_URL, 'ABC-123')
 
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://cloud.zpan.space/api/pairings/ABC-123')
+      expect(headerValue(init.headers, 'content-type')).toBe('application/json')
     })
 
     it('returns pending status', async () => {
