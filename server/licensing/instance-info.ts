@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
-import packageJson from '../../package.json'
 import { systemOptions } from '../db/schema'
 import type { Database } from '../platform/interface'
 import type { CloudInstanceInfo } from '../services/licensing-cloud'
+import { getAppVersion } from '../version'
 import { getOrCreateInstanceId } from './instance-id'
 
 export async function getInstanceDisplayName(db: Database): Promise<string> {
@@ -27,7 +27,7 @@ export async function buildCloudInstanceInfo(
     id: instanceId,
     name: await getInstanceDisplayName(db),
     url: params.url,
-    version: packageJson.version,
+    version: getAppVersion(),
     ...params.runtime,
   }
 }

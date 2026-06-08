@@ -1,8 +1,8 @@
 import { PostHog } from 'posthog-node'
-import packageJson from '../../package.json'
 import { getOrCreateInstanceId } from '../licensing/instance-id'
 import { getInstanceDisplayName } from '../licensing/instance-info'
 import type { Database } from '../platform/interface'
+import { getAppVersion } from '../version'
 import { getSitePublicOrigin, normalizePublicOrigin } from './site-public-origin'
 
 export const INSTANCE_TELEMETRY_CRON = '0 */12 * * *'
@@ -50,6 +50,7 @@ export async function reportInstanceTelemetry(params: InstanceTelemetryParams): 
   const instanceName = await getInstanceDisplayName(params.db)
   const instanceUrl =
     normalizePublicOrigin(params.config.siteUrl) ?? (await getSitePublicOrigin(params.db)) ?? undefined
+  const appVersion = getAppVersion()
   const timestamp = (params.now ?? new Date()).toISOString()
   const disableGeoip = params.config.allowIp === false
   const client = new PostHog(posthogProjectToken, {
@@ -69,6 +70,7 @@ export async function reportInstanceTelemetry(params: InstanceTelemetryParams): 
       instanceId,
       instanceName,
       instanceUrl,
+      appVersion,
       cron: params.cron,
       trigger: params.trigger ?? 'scheduled',
       runtime: params.runtime,
@@ -84,6 +86,7 @@ function buildTelemetryProperties(params: {
   instanceId: string
   instanceName: string
   instanceUrl?: string
+  appVersion: string
   cron: string
   trigger: 'deploy' | 'scheduled' | 'runtime'
   runtime: InstanceTelemetryRuntime
@@ -93,7 +96,7 @@ function buildTelemetryProperties(params: {
     id: params.instanceId,
     name: params.instanceName,
     url: params.instanceUrl,
-    version: packageJson.version,
+    version: params.appVersion,
     runtime: compactObject({
       provider: params.runtime.provider,
       target: params.runtime.target,

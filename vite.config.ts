@@ -1,14 +1,20 @@
 import path from 'node:path'
+import { execSync } from 'node:child_process'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
+import packageJson from './package.json'
 
 const appPort = Number(process.env.E2E_APP_PORT ?? 5185)
 const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
+const appVersion = resolveAppVersion()
 
 export default defineConfig(({ mode }) => ({
+  define: {
+    __ZPAN_APP_VERSION__: JSON.stringify(appVersion),
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -59,3 +65,20 @@ export default defineConfig(({ mode }) => ({
       : {}),
   },
 }))
+
+function resolveAppVersion(): string {
+  return (
+    process.env.ZPAN_APP_VERSION?.trim() ||
+    runGit(['describe', '--tags', '--exact-match', 'HEAD']) ||
+    runGit(['describe', '--tags', '--always', '--dirty']) ||
+    packageJson.version
+  )
+}
+
+function runGit(args: string[]): string | null {
+  try {
+    return execSync(['git', ...args].join(' '), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null
+  } catch {
+    return null
+  }
+}
