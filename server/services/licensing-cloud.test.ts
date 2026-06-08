@@ -47,7 +47,7 @@ describe('licensing-cloud', () => {
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await createPairing(BASE_URL, 'inst-1', 'My ZPan', 'zpan.example.com')
+      const result = await createPairing(BASE_URL, 'inst-1', 'My ZPan', 'zpan.example.com', '0.0.1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://cloud.zpan.space/api/pairings')
@@ -56,6 +56,7 @@ describe('licensing-cloud', () => {
       expect(body.instanceId).toBe('inst-1')
       expect(body.instanceName).toBe('My ZPan')
       expect(body.instanceHost).toBe('zpan.example.com')
+      expect(body.instanceVersion).toBe('0.0.1')
       expect(result).toEqual(payload)
     })
 

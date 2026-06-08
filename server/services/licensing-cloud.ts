@@ -123,9 +123,17 @@ export async function createPairing(
   instanceId: string,
   instanceName: string,
   instanceHost: string,
+  instanceVersion?: string,
 ): Promise<PairingResponse> {
+  const json = { instanceId, instanceName, instanceHost, instanceVersion } as {
+    instanceId: string
+    instanceName: string
+    instanceHost: string
+  }
   const res = await cloudResponse(
-    createAnonymousCloudClient(baseUrl).pairings.$post({ json: { instanceId, instanceName, instanceHost } }),
+    createAnonymousCloudClient(baseUrl).pairings.$post({
+      json,
+    }),
   )
 
   if (!res.ok) {

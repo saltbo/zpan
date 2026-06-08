@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
+import packageJson from '../../package.json'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { systemOptions } from '../db/schema'
 import { invalidateEntitlementCache } from '../licensing/entitlement'
@@ -79,7 +80,7 @@ const app = new Hono<Env>()
     const instanceName = titleRows[0]?.value ?? 'ZPan'
     const instanceHost = getInstanceOrigin(c)
 
-    const pairing = await createPairing(baseUrl, instanceId, instanceName, instanceHost)
+    const pairing = await createPairing(baseUrl, instanceId, instanceName, instanceHost, packageJson.version)
     return c.json(pairing)
   })
 
