@@ -10,7 +10,3 @@ TRUSTED_ORIGINS=http://localhost:5185
 
 # Local ZPan Cloud URL.
 ZPAN_CLOUD_URL=http://localhost:5186
-
-# Optional instance telemetry reporting.
-ZPAN_POSTHOG_HOST=https://e.zpan.space
-ZPAN_POSTHOG_PROJECT_TOKEN=

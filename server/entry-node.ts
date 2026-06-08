@@ -77,14 +77,11 @@ setInterval(() => {
       await reportInstanceTelemetry({
         db: platform.db,
         config: {
-          posthogHost: process.env.ZPAN_POSTHOG_HOST,
-          posthogProjectToken: process.env.ZPAN_POSTHOG_PROJECT_TOKEN,
           configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
         },
         cron: INSTANCE_TELEMETRY_CRON,
         runtime: {
           target: 'node/docker',
-          hostname: configuredTelemetryHostname(),
           osPlatform: process.platform,
           osArch: process.arch,
           osRelease: osRelease(),
@@ -96,9 +93,3 @@ setInterval(() => {
     }
   })()
 }, INSTANCE_TELEMETRY_INTERVAL_MS)
-
-function configuredTelemetryHostname(): string | undefined {
-  const instanceUrl = configuredPublicOrigin()
-  if (instanceUrl) return new URL(instanceUrl).hostname
-  return process.env.HOSTNAME
-}
