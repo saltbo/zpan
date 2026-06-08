@@ -203,6 +203,7 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.status).toBe('approved')
+    expect(body.cloud_store_id).toBe('store-1')
 
     // Check that binding was persisted
     const state = await loadLicenseState(db)
