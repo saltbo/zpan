@@ -142,7 +142,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          OUTPUT=$(pnpm exec wrangler queues create zpan-archive-jobs 2>&1)
+          OUTPUT=$(pnpm exec wrangler queues create zpan-archive-jobs 2>&1) || true
           if echo "$OUTPUT" | grep -q "already taken"; then
             echo "Queue already exists, skipping"
           elif echo "$OUTPUT" | grep -q "ERROR"; then
