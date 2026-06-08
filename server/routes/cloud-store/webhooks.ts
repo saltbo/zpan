@@ -11,7 +11,7 @@ export const cloudStoreWebhooks = new Hono<Env>().use(requireFeature('quota_stor
   const binding = await getCloudStoreBinding(db)
   const rawPayload = await c.req.text()
   const payloadHash = await sha256Hex(rawPayload)
-  const eventToken = c.req.header('x-zpan-cloud-event-token') ?? ''
+  const eventToken = c.req.header('x-commerce-event-token') ?? ''
   const eventAuth = verifyCloudEventToken(eventToken, {
     cloudBaseUrl: getCloudBaseUrl(c),
     instanceId: binding.instanceId,

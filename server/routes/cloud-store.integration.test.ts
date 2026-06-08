@@ -1960,7 +1960,7 @@ describe('Quota Store API', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-zpan-cloud-event-token': 'bad-token',
+        'x-commerce-event-token': 'bad-token',
       },
       body: payload,
     })
@@ -2177,7 +2177,7 @@ async function signedWebhookHeaders(payload: string, overrides: Record<string, u
   const body = parseJson(payload)
   const issuedAt = Math.floor(Date.now() / 1000)
   const token = sign(EVENT_SECRET, {
-    type: 'zpan.cloud.event',
+    type: 'commerce.fulfillment.token',
     purpose: 'store.delivery',
     issuer: ZPAN_CLOUD_URL_DEFAULT,
     audience: 'test-instance',
@@ -2191,7 +2191,7 @@ async function signedWebhookHeaders(payload: string, overrides: Record<string, u
   })
 
   return {
-    'x-zpan-cloud-event-token': token,
+    'x-commerce-event-token': token,
   }
 }
 

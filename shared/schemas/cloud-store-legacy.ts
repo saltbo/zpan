@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { zpanCloudEventSchema } from 'zpan-cloud-sdk'
 
 export const legacyCloudProductDeliverableSchema = z.object({
   type: z.enum(['zpan.plan', 'zpan.credits', 'zpan.extra']),
@@ -39,7 +38,36 @@ const legacyCloudOrderQuotaChangeSchema = z
     }
   })
 
-const storeDeliveryEventSchema = zpanCloudEventSchema
+const storeDeliveryEventSchema = z.object({
+  eventId: z.string().min(1),
+  eventType: z.enum([
+    'commerce.order_item.fulfilled',
+    'commerce.subscription.renewed',
+    'commerce.subscription.updated',
+    'commerce.subscription.canceled',
+    'commerce.subscription.expired',
+  ]),
+  orderId: z.string().min(1),
+  orderItemId: z.string().min(1),
+  productId: z.string().min(1),
+  productName: z.string().min(1),
+  quantity: z.number().int().positive(),
+  deliverable: z.record(z.string(), z.unknown()),
+  target: z.record(z.string(), z.unknown()).nullable(),
+  context: z.object({
+    storeId: z.string().min(1),
+    paymentProvider: z.enum(['stripe', 'gift_card', 'credits']).nullable(),
+    stripePriceId: z.string().nullable().optional(),
+    stripePriceLookupKey: z.string().nullable().optional(),
+    stripePriceRecurring: z.unknown().optional(),
+    stripePriceMetadata: z.record(z.string(), z.string()).optional(),
+    stripeSubscriptionId: z.string().nullable().optional(),
+    stripeInvoiceId: z.string().nullable().optional(),
+    billingPeriodStart: z.string().nullable().optional(),
+    billingPeriodEnd: z.string().nullable().optional(),
+  }),
+  occurredAt: z.string().min(1),
+})
 
 function numberDeliverableValue(deliverable: Record<string, unknown>, key: string) {
   const value = deliverable[key]
@@ -81,7 +109,7 @@ export const cloudOrderQuotaChangeSchema = z.union([
     cloudOrderId: sourceId(event),
     targetOrgId: targetOrgId(event.target),
     direction:
-      event.eventType === 'store.subscription.canceled' || event.eventType === 'store.subscription.expired'
+      event.eventType === 'commerce.subscription.canceled' || event.eventType === 'commerce.subscription.expired'
         ? ('decrease' as const)
         : ('increase' as const),
     storageBytes: numberDeliverableValue(event.deliverable, 'storageBytes'),
