@@ -4,6 +4,14 @@ import { randomBytes } from 'node:crypto'
 const INTERNAL_TOKEN_ENV = 'ZPAN_INTERNAL_API_TOKEN'
 const REPORT_PATH = '/api/internal/instance-telemetry/report'
 const DEFAULT_DEPLOY_URL = 'https://zpan.saltbo.workers.dev'
+const TOP_LEVEL_ENV_ARG = '--env='
+
+class ReportError extends Error {
+  constructor(status, body) {
+    super(`HTTP ${status}: ${body}`)
+    this.status = status
+  }
+}
 
 const token = randomBytes(32).toString('hex')
 if (process.env.GITHUB_ACTIONS === 'true') {
@@ -33,7 +41,7 @@ try {
 
 function putInternalToken(internalToken) {
   console.log(`Setting ${INTERNAL_TOKEN_ENV}`)
-  const res = spawnSync('wrangler', ['secret', 'put', INTERNAL_TOKEN_ENV], {
+  const res = spawnSync('wrangler', ['secret', 'put', INTERNAL_TOKEN_ENV, TOP_LEVEL_ENV_ARG], {
     input: internalToken,
     encoding: 'utf8',
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -43,7 +51,7 @@ function putInternalToken(internalToken) {
 
 function deleteInternalToken() {
   console.log(`Deleting ${INTERNAL_TOKEN_ENV}`)
-  const res = spawnSync('wrangler', ['secret', 'delete', INTERNAL_TOKEN_ENV], {
+  const res = spawnSync('wrangler', ['secret', 'delete', INTERNAL_TOKEN_ENV, TOP_LEVEL_ENV_ARG], {
     input: 'y\n',
     encoding: 'utf8',
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -62,13 +70,17 @@ async function reportDeployTelemetry(internalToken) {
           authorization: `Bearer ${internalToken}`,
         },
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
+      if (!res.ok) throw new ReportError(res.status, await res.text())
       console.log(`Reported deployed instance telemetry: ${url}`)
       return
     } catch (err) {
       if (attempt === 5) throw err
-      const code = err instanceof Error ? err.message : String(err)
-      console.warn(`Deploy telemetry report failed attempt=${attempt} error=${code}`)
+      if (err instanceof ReportError && err.status === 404) {
+        console.warn(`Deploy telemetry endpoint is waiting for secret propagation attempt=${attempt}`)
+      } else {
+        const code = err instanceof Error ? err.message : String(err)
+        console.warn(`Deploy telemetry report failed attempt=${attempt} error=${code}`)
+      }
       await sleep(1000 * attempt)
     }
   }
