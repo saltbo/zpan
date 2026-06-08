@@ -11,7 +11,7 @@ const spec = valueAfter('--spec') ?? 'cloud-store.spec.ts'
 const local = args.includes('--local')
 const withS3Mock = args.includes('--with-s3-mock')
 const cloudflared = process.env.CLOUDFLARED_BIN ?? 'cloudflared'
-const appPort = Number(process.env.E2E_APP_PORT ?? (runtime === 'cf' ? 6174 : 6173))
+const appPort = Number(process.env.E2E_APP_PORT ?? 5185)
 const apiPort = Number(process.env.E2E_API_PORT ?? 9222)
 const s3MockPort = Number(process.env.E2E_S3_MOCK_PORT ?? 9191)
 const localBaseUrl = `http://localhost:${appPort}`
@@ -21,9 +21,10 @@ const publicDns = new Resolver()
 publicDns.setServers(['1.1.1.1', '1.0.0.1'])
 
 const cloudEnv = {
-  ZPAN_CLOUD_URL: process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev',
-  VITE_ZPAN_CLOUD_URL: process.env.VITE_ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev',
+  ZPAN_CLOUD_URL: process.env.ZPAN_CLOUD_URL ?? 'http://localhost:5186',
+  VITE_ZPAN_CLOUD_URL: process.env.VITE_ZPAN_CLOUD_URL ?? 'http://localhost:5186',
 }
+const credentialsEnv = runtimeCloudCredentials(runtime)
 
 const tunnel = local ? null : await startTunnel(localBaseUrl)
 const tunnelHost = tunnel ? new URL(tunnel.url).hostname : ''
@@ -43,7 +44,7 @@ const e2eEnv = {
   ...cloudEnv,
   ...tunnelEnv,
   ...s3MockEnv(),
-  ...runtimeCloudCredentials(runtime),
+  ...credentialsEnv,
   ...(runtime === 'cf' ? { E2E_RUNTIME: 'cf' } : {}),
 }
 

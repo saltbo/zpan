@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 const isCF = process.env.E2E_RUNTIME === 'cf'
 const envFile = process.env.CI ? '' : '--env-file=.dev.vars'
 const chromeHostResolverRules = process.env.E2E_CHROME_HOST_RESOLVER_RULES
-const appPort = Number(process.env.E2E_APP_PORT ?? 5173)
+const appPort = Number(process.env.E2E_APP_PORT ?? 5185)
 const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
 const s3MockPort = Number(process.env.E2E_S3_MOCK_PORT ?? 9191)
 const nodeCommand = JSON.stringify(process.execPath)
@@ -50,7 +50,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
+    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5185',
     headless: true,
     channel: process.env.CI ? 'chrome' : undefined,
     launchOptions: chromeHostResolverRules
