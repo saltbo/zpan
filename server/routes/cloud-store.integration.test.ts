@@ -2142,6 +2142,39 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(400)
     await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
   })
+
+  it('rejects credit-only commerce fulfillment events on the quota webhook', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const payload = JSON.stringify({
+      eventId: 'evt-credit-only',
+      eventType: 'commerce.order_item.fulfilled',
+      orderId: 'order-credit-only',
+      orderItemId: 'item-credit-only',
+      productId: 'product-credit-only',
+      productName: 'Credits',
+      quantity: 1,
+      deliverable: {
+        type: 'zpan.credits',
+        includedCredits: 200,
+      },
+      target: {
+        orgId: await getFirstOrgId(db),
+        customerId: 'customer-credit-only',
+        customerLabel: 'customer@example.com',
+      },
+      context: {
+        storeId: 'store_1',
+        paymentProvider: 'stripe',
+      },
+      occurredAt: '2026-06-01T00:00:00.000Z',
+    })
+
+    const res = await postWebhook(app, payload)
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
+  })
 })
 
 async function getFirstOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {

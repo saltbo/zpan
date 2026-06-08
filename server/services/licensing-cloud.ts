@@ -159,10 +159,10 @@ export async function refreshEntitlement(
   refreshToken: string,
   instance?: CloudInstanceInfo,
 ): Promise<EntitlementRefreshResponse> {
-  const postEntitlement = createBoundCloudClient(baseUrl, refreshToken).entitlements.$post as unknown as (args?: {
-    json?: { instance: CloudInstanceInfo }
-  }) => Promise<Response>
-  const res = await cloudResponse(instance ? postEntitlement({ json: { instance } }) : postEntitlement())
+  const client = createBoundCloudClient(baseUrl, refreshToken)
+  const res = await cloudResponse(
+    instance ? client.entitlements.$post({ json: { instance } }) : client.entitlements.$post({ json: undefined }),
+  )
 
   if ((res.status as number) === 401) {
     throw new CloudUnboundError()

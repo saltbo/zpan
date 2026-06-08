@@ -38,36 +38,49 @@ const legacyCloudOrderQuotaChangeSchema = z
     }
   })
 
-const storeDeliveryEventSchema = z.object({
-  eventId: z.string().min(1),
-  eventType: z.enum([
-    'commerce.order_item.fulfilled',
-    'commerce.subscription.renewed',
-    'commerce.subscription.updated',
-    'commerce.subscription.canceled',
-    'commerce.subscription.expired',
-  ]),
-  orderId: z.string().min(1),
-  orderItemId: z.string().min(1),
-  productId: z.string().min(1),
-  productName: z.string().min(1),
-  quantity: z.number().int().positive(),
-  deliverable: z.record(z.string(), z.unknown()),
-  target: z.record(z.string(), z.unknown()).nullable(),
-  context: z.object({
-    storeId: z.string().min(1),
-    paymentProvider: z.enum(['stripe', 'gift_card', 'credits']).nullable(),
-    stripePriceId: z.string().nullable().optional(),
-    stripePriceLookupKey: z.string().nullable().optional(),
-    stripePriceRecurring: z.unknown().optional(),
-    stripePriceMetadata: z.record(z.string(), z.string()).optional(),
-    stripeSubscriptionId: z.string().nullable().optional(),
-    stripeInvoiceId: z.string().nullable().optional(),
-    billingPeriodStart: z.string().nullable().optional(),
-    billingPeriodEnd: z.string().nullable().optional(),
-  }),
-  occurredAt: z.string().min(1),
-})
+const storeDeliveryEventSchema = z
+  .object({
+    eventId: z.string().min(1),
+    eventType: z.enum([
+      'commerce.order_item.fulfilled',
+      'commerce.subscription.renewed',
+      'commerce.subscription.updated',
+      'commerce.subscription.canceled',
+      'commerce.subscription.expired',
+    ]),
+    orderId: z.string().min(1),
+    orderItemId: z.string().min(1),
+    productId: z.string().min(1),
+    productName: z.string().min(1),
+    quantity: z.number().int().positive(),
+    deliverable: z.record(z.string(), z.unknown()),
+    target: z.record(z.string(), z.unknown()).nullable(),
+    context: z.object({
+      storeId: z.string().min(1),
+      paymentProvider: z.enum(['stripe', 'gift_card', 'credits']).nullable(),
+      stripePriceId: z.string().nullable().optional(),
+      stripePriceLookupKey: z.string().nullable().optional(),
+      stripePriceRecurring: z.unknown().optional(),
+      stripePriceMetadata: z.record(z.string(), z.string()).optional(),
+      stripeSubscriptionId: z.string().nullable().optional(),
+      stripeInvoiceId: z.string().nullable().optional(),
+      billingPeriodStart: z.string().nullable().optional(),
+      billingPeriodEnd: z.string().nullable().optional(),
+    }),
+    occurredAt: z.string().min(1),
+  })
+  .superRefine((event, ctx) => {
+    if (
+      numberDeliverableValue(event.deliverable, 'storageBytes') === 0 &&
+      numberDeliverableValue(event.deliverable, 'trafficBytes') === 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['deliverable'],
+        message: 'At least one of deliverable.storageBytes or deliverable.trafficBytes must be greater than 0',
+      })
+    }
+  })
 
 function numberDeliverableValue(deliverable: Record<string, unknown>, key: string) {
   const value = deliverable[key]

@@ -148,6 +148,28 @@ describe('licensing-cloud', () => {
       expect(result.certificate).toBe('v4.public.newtoken')
     })
 
+    it('sends instance info when refreshing entitlement', async () => {
+      const payload = { refreshToken: 'new-rt', certificate: 'v4.public.newtoken' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await refreshEntitlement(BASE_URL, 'old-rt', {
+        id: 'inst-1',
+        name: 'My ZPan',
+        url: 'https://zpan.example.com',
+        version: '0.0.1',
+      })
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(JSON.parse(init.body as string)).toEqual({
+        instance: {
+          id: 'inst-1',
+          name: 'My ZPan',
+          url: 'https://zpan.example.com',
+          version: '0.0.1',
+        },
+      })
+    })
+
     it('throws CloudUnboundError on 401', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unbound' }, 401))
 
