@@ -8,6 +8,8 @@
 //
 // Keys are PASERK k4.public.* strings (Ed25519, 32 raw bytes, base64url-encoded).
 export const PUBLIC_KEYS: string[] = [
+  // local zpan-cloud dev key — matches zpan-cloud/.dev.vars on this machine
+  'k4.public.uU2s4lgXfltPCUnbXcb5bOm3hi2AvGfM0k1ufQ3R0qs',
   // zpan-cloud staging key — provisioned 2026-05-09
   'k4.public.CCpUZ1yRWkFQy4fPZAblCYfzeJn4vDwPQrjtfiySwFc',
   // cloud.zpan.space production key — provisioned 2026-04-24

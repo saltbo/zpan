@@ -1,7 +1,7 @@
 name = "zpan"
 main = "./workers/bootstrap.ts"
 compatibility_date = "2026-04-12"
-compatibility_flags = ["nodejs_compat"]
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
 [assets]
 binding = "ASSETS"
@@ -48,6 +48,10 @@ crons = ["*/10 * * * *", "0 */6 * * *"]
 # ----------------------------------------------------------------------------
 [env.staging]
 
+[env.staging.vars]
+BETTER_AUTH_URL = "https://zpan-staging.saltbo.workers.dev"
+ZPAN_CLOUD_URL = "https://zpan-cloud-staging.saltbo.workers.dev"
+
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "zpan-db-staging"
@@ -57,6 +61,9 @@ migrations_dir = "./migrations"
 [[env.staging.r2_buckets]]
 binding = "PUBLIC_IMAGES"
 bucket_name = "zpan-public-images-staging"
+
+[[env.staging.send_email]]
+name = "EMAIL"
 
 [[env.staging.queues.producers]]
 binding = "ARCHIVE_QUEUE"

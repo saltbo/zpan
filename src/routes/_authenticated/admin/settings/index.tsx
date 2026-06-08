@@ -9,7 +9,7 @@ import {
   type CaptchaProvider,
 } from '@shared/captcha'
 import { SignupMode } from '@shared/constants'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Globe2, ShieldCheck } from 'lucide-react'
 import { useEffect } from 'react'
@@ -29,7 +29,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { siteOptionsQueryKey, useSiteOptions } from '@/hooks/use-site-options'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { getCloudStoreSettings, setSystemOption, updateCloudStoreSettings } from '@/lib/api'
+import { setSystemOption } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/settings/')({
   component: SettingsPage,
@@ -47,7 +47,6 @@ const settingsSchema = z.object({
   siteDescription: z.string(),
   quotaValue: z.coerce.number<number>().positive('Quota must be a positive number'),
   quotaUnit: z.enum(['MB', 'GB']),
-  cloudStoreEnabled: z.boolean(),
   registrationsEnabled: z.boolean(),
   captchaEnabled: z.boolean(),
   captchaProvider: z.enum(CAPTCHA_PROVIDERS),
@@ -88,13 +87,6 @@ export function SettingsPage() {
   const { hasFeature } = useEntitlement()
   const hasWhiteLabel = hasFeature('white_label')
   const hasOpenRegistration = hasFeature('open_registration')
-  const hasCloudStore = hasFeature('quota_store')
-  const cloudStoreQuery = useQuery({
-    queryKey: ['admin', 'cloud-store', 'settings'],
-    queryFn: getCloudStoreSettings,
-    enabled: hasCloudStore,
-    retry: false,
-  })
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -103,7 +95,6 @@ export function SettingsPage() {
       siteDescription: '',
       quotaValue: 0,
       quotaUnit: 'MB',
-      cloudStoreEnabled: false,
       registrationsEnabled: false,
       captchaEnabled: false,
       captchaProvider: 'cloudflare-turnstile',
@@ -121,7 +112,6 @@ export function SettingsPage() {
       siteDescription,
       quotaValue: value,
       quotaUnit: unit,
-      cloudStoreEnabled: cloudStoreQuery.data?.enabled ?? false,
       registrationsEnabled: authSignupMode === SignupMode.OPEN,
       captchaEnabled,
       captchaProvider,
@@ -134,7 +124,6 @@ export function SettingsPage() {
     siteName,
     siteDescription,
     quotaBytes,
-    cloudStoreQuery.data,
     authSignupMode,
     captchaEnabled,
     captchaProvider,
@@ -163,21 +152,21 @@ export function SettingsPage() {
 
   const storageMutation = useMutation({
     mutationFn: async () => {
-      const valid = await form.trigger(['quotaValue', 'quotaUnit'])
-      if (!valid) throw new Error(t('admin.settings.positiveQuotaRequired'))
       const values = form.getValues()
-      const bytes = Math.round(values.quotaValue * UNITS[values.quotaUnit])
+      if (!Number.isFinite(values.quotaValue) || values.quotaValue <= 0) {
+        form.setError('quotaValue', { message: t('admin.settings.positiveQuotaRequired') })
+        throw new Error(t('admin.settings.positiveQuotaRequired'))
+      }
+      const unit =
+        values.quotaUnit === 'MB' || values.quotaUnit === 'GB' ? values.quotaUnit : bytesToDisplay(quotaBytes).unit
+      const bytes = Math.round(values.quotaValue * UNITS[unit])
       await setSystemOption('default_org_quota', String(bytes), false)
-      if (hasCloudStore) await updateCloudStoreSettings({ enabled: values.cloudStoreEnabled })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store'] })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store', 'settings'] })
       toast.success(t('admin.settings.saved'))
     },
     onError: (err) => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'cloud-store', 'settings'] })
       toast.error(err.message)
     },
   })
@@ -217,7 +206,6 @@ export function SettingsPage() {
   })
 
   const quotaUnit = form.watch('quotaUnit')
-  const cloudStoreEnabled = form.watch('cloudStoreEnabled')
   const registrationsEnabled = form.watch('registrationsEnabled')
   const captchaProtectionEnabled = form.watch('captchaEnabled')
   const selectedCaptchaProvider = form.watch('captchaProvider')
@@ -419,18 +407,12 @@ export function SettingsPage() {
         </Card>
 
         <StorageSettingsSection
-          hasCloudStore={hasCloudStore}
           quotaUnit={quotaUnit}
-          cloudStoreEnabled={cloudStoreEnabled}
           quotaError={form.formState.errors.quotaValue?.message}
           quotaInputProps={form.register('quotaValue')}
           pending={storageMutation.isPending}
-          cloudStoreLoading={cloudStoreQuery.isLoading}
           onQuotaUnitChange={(unit) => form.setValue('quotaUnit', unit)}
           onSave={() => storageMutation.mutate()}
-          onCloudStoreChange={(checked) => {
-            form.setValue('cloudStoreEnabled', checked, { shouldDirty: true })
-          }}
         />
       </form>
 

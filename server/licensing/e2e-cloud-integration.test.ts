@@ -113,12 +113,12 @@ async function approvePairingInCloud(pairing: PairingResponse): Promise<void> {
 
 describe('E2E: zpan-cloud API contract', () => {
   it('POST /api/pairings creates a pairing with correct shape', async () => {
-    const result = await createPairing(
-      CLOUD_BASE_URL,
-      `e2e-${Date.now()}`,
-      'E2E Test Instance',
-      'https://e2e-test.local',
-    )
+    const result = await createPairing(CLOUD_BASE_URL, {
+      id: `e2e-${Date.now()}`,
+      name: 'E2E Test Instance',
+      url: 'https://e2e-test.local',
+      version: '0.0.1',
+    })
 
     expect(result).toMatchObject({
       code: expect.stringMatching(/^[A-Z0-9]{3}-[A-Z0-9]{3}$/),
@@ -129,12 +129,12 @@ describe('E2E: zpan-cloud API contract', () => {
   })
 
   it('GET /api/pairings/:code returns pending for a fresh code', async () => {
-    const pairing = await createPairing(
-      CLOUD_BASE_URL,
-      `e2e-poll-${Date.now()}`,
-      'E2E Poll Test',
-      'https://e2e-poll.local',
-    )
+    const pairing = await createPairing(CLOUD_BASE_URL, {
+      id: `e2e-poll-${Date.now()}`,
+      name: 'E2E Poll Test',
+      url: 'https://e2e-poll.local',
+      version: '0.0.1',
+    })
 
     const result = await pollPairing(CLOUD_BASE_URL, pairing.code)
 

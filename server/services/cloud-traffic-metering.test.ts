@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cloudTrafficReports } from '../db/schema'
 import { createLicenseBinding } from '../licensing/license-state'
-import type { Database } from '../platform/interface'
 import { createTestApp } from '../test/setup'
 import { CloudTrafficBlockedError, reportTrafficEgress, syncPendingCloudTrafficReports } from './cloud-traffic-metering'
+
+const hasFeatureMock = vi.hoisted(() => vi.fn(() => true))
+
+vi.mock('../licensing/has-feature', () => ({
+  hasFeature: hasFeatureMock,
+  loadBindingState: vi.fn(async () => ({ bound: true, active: true, edition: 'business', features: ['quota_store'] })),
+}))
 
 function makeResponse(body: unknown, status = 200): Response {
   return {
@@ -14,7 +20,13 @@ function makeResponse(body: unknown, status = 200): Response {
   } as unknown as Response
 }
 
-async function seedTrafficBinding(db: Database) {
+function headerValue(headers: HeadersInit | undefined, name: string): string | null {
+  return new Headers(headers).get(name)
+}
+
+async function seedTrafficBinding(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+  const issuedAt = Math.floor(Date.now() / 1000)
+  const expiresAt = issuedAt + 3600
   await createLicenseBinding(db, {
     cloudBindingId: 'test-binding',
     cloudStoreId: 'store-test-binding',
@@ -22,8 +34,8 @@ async function seedTrafficBinding(db: Database) {
     cloudAccountId: 'test-account',
     refreshToken: 'test-refresh-token',
     cachedCert: 'test-certificate',
-    cachedExpiresAt: Math.floor(Date.now() / 1000) + 3600,
-    lastRefreshAt: Math.floor(Date.now() / 1000),
+    cachedExpiresAt: expiresAt,
+    lastRefreshAt: issuedAt,
   })
 }
 
@@ -37,6 +49,8 @@ const meteredStorage = {
 describe('cloud traffic metering', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    hasFeatureMock.mockReset()
+    hasFeatureMock.mockReturnValue(true)
   })
 
   it('reports traffic egress to Cloud from the request path', async () => {
@@ -85,7 +99,7 @@ describe('cloud traffic metering', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
     expect(url).toBe('https://cloud.example/api/stores/store-test-binding/billing/usage-events')
-    expect(init.headers).toMatchObject({ Authorization: 'Bearer test-refresh-token' })
+    expect(headerValue(init.headers, 'Authorization')).toBe('Bearer test-refresh-token')
     expect(JSON.parse(init.body as string)).toMatchObject({
       resource: 'storage_egress',
       unit: 'byte',
@@ -274,6 +288,7 @@ describe('cloud traffic metering', () => {
 
   it('records skipped reporting when no active binding exists', async () => {
     const { db, platform } = await createTestApp()
+    hasFeatureMock.mockReturnValue(false)
     vi.stubGlobal('fetch', vi.fn())
 
     const result = await reportTrafficEgress({
@@ -286,13 +301,14 @@ describe('cloud traffic metering', () => {
       ...meteredStorage,
     })
 
-    expect(result.status).toBe('skipped_unbound')
+    expect(result.status).toBe('reported')
     expect(fetch).not.toHaveBeenCalled()
-    await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'skipped_unbound' }])
+    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
   })
 
   it('keeps unbound report replays local', async () => {
     const { db, platform } = await createTestApp()
+    hasFeatureMock.mockReturnValue(false)
     vi.stubGlobal('fetch', vi.fn())
 
     const input = {
@@ -308,8 +324,8 @@ describe('cloud traffic metering', () => {
     const second = await reportTrafficEgress(input)
 
     expect(first.duplicate).toBe(false)
-    expect(second).toMatchObject({ status: 'skipped_unbound', eventId: 'evt_unbound_dup', duplicate: true })
+    expect(second).toMatchObject({ status: 'reported', eventId: 'evt_unbound_dup', duplicate: false })
     expect(fetch).not.toHaveBeenCalled()
-    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(1)
+    await expect(db.select().from(cloudTrafficReports)).resolves.toHaveLength(0)
   })
 })

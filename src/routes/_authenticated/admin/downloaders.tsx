@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import { deleteDownloader, listDownloaders, updateDownloader } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/admin/downloaders')({
@@ -41,6 +42,8 @@ type CreditBillingForm = {
 function AdminDownloadersPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const { hasFeature } = useEntitlement()
+  const hasTrafficBilling = hasFeature('quota_store')
   const [deleteTarget, setDeleteTarget] = useState<Downloader | null>(null)
   const [renameTarget, setRenameTarget] = useState<Downloader | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -83,7 +86,7 @@ function AdminDownloadersPage() {
 
   const billingMutation = useMutation({
     mutationFn: ({ downloader, form }: { downloader: Downloader; form: CreditBillingForm }) =>
-      updateDownloader(downloader.id, billingPayload(form)),
+      updateDownloader(downloader.id, billingPayload(hasTrafficBilling ? form : { ...form, enabled: false })),
     onSuccess: () => {
       setBillingTarget(null)
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
@@ -99,7 +102,10 @@ function AdminDownloadersPage() {
   }
   const openBillingSettings = (downloader: Downloader) => {
     setBillingTarget(downloader)
-    setBillingForm(billingFormFromDownloader(downloader))
+    setBillingForm({
+      ...billingFormFromDownloader(downloader),
+      enabled: hasTrafficBilling && downloader.remoteDownloadCreditBillingEnabled,
+    })
   }
 
   return (
@@ -131,6 +137,7 @@ function AdminDownloadersPage() {
               <DownloaderRow
                 key={downloader.id}
                 downloader={downloader}
+                hasTrafficBilling={hasTrafficBilling}
                 onToggle={(enabled) => toggleMutation.mutate({ id: downloader.id, enabled })}
                 onRename={() => openRenameDialog(downloader)}
                 onConfigureBilling={() => openBillingSettings(downloader)}
@@ -166,6 +173,7 @@ function AdminDownloadersPage() {
         form={billingForm}
         open={billingTarget !== null}
         pending={billingMutation.isPending}
+        hasTrafficBilling={hasTrafficBilling}
         onFormChange={setBillingForm}
         onOpenChange={(open) => !open && setBillingTarget(null)}
         onConfirm={() => billingTarget && billingMutation.mutate({ downloader: billingTarget, form: billingForm })}
@@ -176,12 +184,14 @@ function AdminDownloadersPage() {
 
 function DownloaderRow({
   downloader,
+  hasTrafficBilling,
   onToggle,
   onRename,
   onConfigureBilling,
   onDelete,
 }: {
   downloader: Downloader
+  hasTrafficBilling: boolean
   onToggle: (enabled: boolean) => void
   onRename: () => void
   onConfigureBilling: () => void
@@ -219,7 +229,7 @@ function DownloaderRow({
         {formatBytes(downloader.downloadBps)}/s · {formatBytes(downloader.uploadBps)}/s
       </TableCell>
       <TableCell>
-        {downloader.remoteDownloadCreditBillingEnabled
+        {hasTrafficBilling && downloader.remoteDownloadCreditBillingEnabled
           ? `${downloader.remoteDownloadCreditPerUnit} / ${formatBytes(downloader.remoteDownloadCreditUnitBytes)}`
           : t('common.disabled')}
       </TableCell>
@@ -317,6 +327,7 @@ function CreditBillingDialog({
   form,
   open,
   pending,
+  hasTrafficBilling,
   onFormChange,
   onOpenChange,
   onConfirm,
@@ -325,6 +336,7 @@ function CreditBillingDialog({
   form: CreditBillingForm
   open: boolean
   pending: boolean
+  hasTrafficBilling: boolean
   onFormChange: (form: CreditBillingForm) => void
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
@@ -354,10 +366,14 @@ function CreditBillingDialog({
             </div>
             <Switch
               id="remoteDownloadCreditBillingEnabled"
+              disabled={!hasTrafficBilling}
               checked={form.enabled}
-              onCheckedChange={(enabled) => onFormChange({ ...form, enabled })}
+              onCheckedChange={(enabled) => onFormChange({ ...form, enabled: hasTrafficBilling && enabled })}
             />
           </div>
+          {!hasTrafficBilling && (
+            <p className="text-xs text-muted-foreground">{t('admin.downloaders.billingBusinessOnly')}</p>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="remoteDownloadCreditUnitValue">{t('admin.downloaders.billingUnit')}</Label>

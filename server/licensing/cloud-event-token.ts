@@ -6,7 +6,7 @@ import { trustedIssuerFromCloudUrl } from './verify'
 const CLOUD_EVENT_TOKEN_MAX_TTL_SECONDS = 5 * 60
 
 const cloudEventTokenSchema = z.object({
-  type: z.literal('zpan.cloud.event'),
+  type: z.literal('commerce.fulfillment.token'),
   purpose: z.literal('store.delivery'),
   issuer: z.string().min(1),
   audience: z.string().min(1),

@@ -11,10 +11,6 @@ import { type CloudOrderQuotaChange, legacyCloudProductDeliverableSchema } from 
 
 export { cloudOrderQuotaChangeSchema } from './cloud-store-legacy'
 
-export const cloudStoreSettingsSchema = z.object({
-  enabled: z.boolean(),
-})
-
 export const cloudStoreCurrencySchema = z.literal('usd')
 export const cloudProductPriceSchema = productPriceSchema.extend({
   currency: cloudStoreCurrencySchema,
@@ -199,7 +195,6 @@ export const disableGiftCardSchema = z.object({
   disabled: z.literal(true),
 })
 
-export type CloudStoreSettingsInput = z.infer<typeof cloudStoreSettingsSchema>
 export type CloudStoreCurrency = z.infer<typeof cloudStoreCurrencySchema>
 export type CloudProductPrice = z.infer<typeof cloudProductPriceSchema>
 export type CloudProductDeliverable = z.infer<typeof cloudProductDeliverableSchema>

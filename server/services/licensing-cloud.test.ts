@@ -3,10 +3,11 @@ import {
   CloudInvalidResponseError,
   CloudNetworkError,
   CloudUnboundError,
+  createBoundCloudClient,
   createPairing,
   pollPairing,
   refreshEntitlement,
-  requestBoundCloudJson,
+  requestCloudJson,
   unbindCloudLicense,
 } from './licensing-cloud'
 
@@ -20,6 +21,12 @@ function makeResponse(body: unknown, status = 200): Response {
     json: async () => body,
     text: async () => JSON.stringify(body),
   } as unknown as Response
+}
+
+function headerValue(headers: HeadersInit | undefined, name: string): string | null {
+  if (headers instanceof Headers) return headers.get(name)
+  if (Array.isArray(headers)) return new Headers(headers).get(name)
+  return headers?.[name] ?? null
 }
 
 describe('licensing-cloud', () => {
@@ -40,28 +47,43 @@ describe('licensing-cloud', () => {
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await createPairing(BASE_URL, 'inst-1', 'My ZPan', 'zpan.example.com')
+      const result = await createPairing(BASE_URL, {
+        id: 'inst-1',
+        name: 'My ZPan',
+        url: 'https://zpan.example.com',
+        version: '0.0.1',
+      })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://cloud.zpan.space/api/pairings')
       expect(init.method).toBe('POST')
+      expect(headerValue(init.headers, 'content-type')).toBe('application/json')
       const body = JSON.parse(init.body as string)
-      expect(body.instanceId).toBe('inst-1')
-      expect(body.instanceName).toBe('My ZPan')
-      expect(body.instanceHost).toBe('zpan.example.com')
+      expect(body).toEqual({
+        instance: {
+          id: 'inst-1',
+          name: 'My ZPan',
+          url: 'https://zpan.example.com',
+          version: '0.0.1',
+        },
+      })
       expect(result).toEqual(payload)
     })
 
     it('throws on non-OK response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Bad Request' }, 400))
 
-      await expect(createPairing(BASE_URL, 'inst-1', 'ZPan', 'host')).rejects.toThrow('Cloud pairing failed')
+      await expect(
+        createPairing(BASE_URL, { id: 'inst-1', name: 'ZPan', url: 'https://zpan.example.com', version: '0.0.1' }),
+      ).rejects.toThrow('Cloud pairing failed')
     })
 
     it('throws CloudNetworkError on fetch failure', async () => {
       vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'))
 
-      await expect(createPairing(BASE_URL, 'inst-1', 'ZPan', 'host')).rejects.toThrow(CloudNetworkError)
+      await expect(
+        createPairing(BASE_URL, { id: 'inst-1', name: 'ZPan', url: 'https://zpan.example.com', version: '0.0.1' }),
+      ).rejects.toThrow(CloudNetworkError)
     })
   })
 
@@ -71,8 +93,9 @@ describe('licensing-cloud', () => {
 
       await pollPairing(BASE_URL, 'ABC-123')
 
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://cloud.zpan.space/api/pairings/ABC-123')
+      expect(headerValue(init.headers, 'content-type')).toBe('application/json')
     })
 
     it('returns pending status', async () => {
@@ -119,10 +142,32 @@ describe('licensing-cloud', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://cloud.zpan.space/api/entitlements')
       expect(init.method).toBe('POST')
-      expect(init.headers).toEqual({ Authorization: 'Bearer old-rt' })
+      expect(headerValue(init.headers, 'Authorization')).toBe('Bearer old-rt')
       expect(init.body).toBeUndefined()
       expect(result.refreshToken).toBe('new-rt')
       expect(result.certificate).toBe('v4.public.newtoken')
+    })
+
+    it('sends instance info when refreshing entitlement', async () => {
+      const payload = { refreshToken: 'new-rt', certificate: 'v4.public.newtoken' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await refreshEntitlement(BASE_URL, 'old-rt', {
+        id: 'inst-1',
+        name: 'My ZPan',
+        url: 'https://zpan.example.com',
+        version: '0.0.1',
+      })
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(JSON.parse(init.body as string)).toEqual({
+        instance: {
+          id: 'inst-1',
+          name: 'My ZPan',
+          url: 'https://zpan.example.com',
+          version: '0.0.1',
+        },
+      })
     })
 
     it('throws CloudUnboundError on 401', async () => {
@@ -167,7 +212,7 @@ describe('licensing-cloud', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://cloud.zpan.space/api/licenses/binding_1')
       expect(init.method).toBe('DELETE')
-      expect(init.headers).toEqual({ Authorization: 'Bearer rt-bound' })
+      expect(headerValue(init.headers, 'Authorization')).toBe('Bearer rt-bound')
       expect(init.body).toBeUndefined()
     })
 
@@ -178,19 +223,22 @@ describe('licensing-cloud', () => {
     })
   })
 
-  describe('requestBoundCloudJson', () => {
-    it('sends PATCH requests with bound authorization and JSON payloads', async () => {
+  describe('requestCloudJson', () => {
+    it('unwraps SDK responses from bound clients', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ state: 'revoked' }))
 
-      const result = await requestBoundCloudJson(BASE_URL, '/api/store/gift-cards/ZS123', 'rt-bound', {
-        method: 'PATCH',
-        payload: { disabled: true },
-      })
+      const client = createBoundCloudClient(BASE_URL, 'rt-bound')
+      const result = await requestCloudJson(
+        client.stores[':storeId']['gift-cards'][':code'].$patch({
+          param: { storeId: 'store_1', code: 'ZS123' },
+          json: { disabled: true },
+        }),
+      )
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('https://cloud.zpan.space/api/store/gift-cards/ZS123')
+      expect(url).toBe('https://cloud.zpan.space/api/stores/store_1/gift-cards/ZS123')
       expect(init.method).toBe('PATCH')
-      expect(init.headers).toEqual({ Authorization: 'Bearer rt-bound', 'Content-Type': 'application/json' })
+      expect(headerValue(init.headers, 'Authorization')).toBe('Bearer rt-bound')
       expect(JSON.parse(init.body as string)).toEqual({ disabled: true })
       expect(result).toEqual({ state: 'revoked' })
     })

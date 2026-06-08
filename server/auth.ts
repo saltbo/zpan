@@ -149,6 +149,9 @@ export async function createAuth(
     secret,
     baseURL,
     trustedOrigins,
+    advanced: {
+      cookiePrefix: 'zp',
+    },
     emailAndPassword: {
       enabled: true,
       password: {

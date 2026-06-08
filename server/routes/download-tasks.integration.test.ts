@@ -2,10 +2,8 @@ import type { Downloader, DownloadTask } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { remoteDownloadUsageReports } from '../db/schema'
-import { createLicenseBinding } from '../licensing/license-state'
-import type { Database } from '../platform/interface'
 import { S3Service } from '../services/s3.js'
-import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
 
 type DownloadTaskList = { items: DownloadTask[] }
 
@@ -88,17 +86,8 @@ async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']
   `)
 }
 
-async function seedCloudBinding(db: Database) {
-  await createLicenseBinding(db, {
-    cloudBindingId: 'download-billing-binding',
-    cloudStoreId: 'store-download-billing',
-    instanceId: 'test-instance',
-    cloudAccountId: 'test-account',
-    refreshToken: 'test-refresh-token',
-    cachedCert: 'test-certificate',
-    cachedExpiresAt: Math.floor(Date.now() / 1000) + 3600,
-    lastRefreshAt: Math.floor(Date.now() / 1000),
-  })
+async function seedCloudBinding(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+  await seedBusinessLicense(db)
 }
 
 async function registerDownloaderThroughDeviceLogin(

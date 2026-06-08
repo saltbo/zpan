@@ -47,7 +47,7 @@ export async function redeemInviteCode(
   if (row.usedBy) return 'already_used'
   if (row.expiresAt && row.expiresAt < new Date()) return 'expired'
 
-  const result = await db
+  const updated = await db
     .update(inviteCodes)
     .set({ usedBy: userId, usedAt: new Date() })
     .where(
@@ -57,12 +57,9 @@ export async function redeemInviteCode(
         or(isNull(inviteCodes.expiresAt), gt(inviteCodes.expiresAt, new Date())),
       ),
     )
+    .returning({ id: inviteCodes.id })
 
-  // If no rows affected, another request redeemed it concurrently
-  const changes = (result as { rowsAffected?: number }).rowsAffected ?? (result as { changes?: number }).changes
-  if (changes === undefined)
-    throw new Error('DB driver returned no rowsAffected — cannot confirm invite code redemption')
-  return changes > 0 ? 'ok' : 'already_used'
+  return updated.length > 0 ? 'ok' : 'already_used'
 }
 
 export async function listInviteCodes(

@@ -3,6 +3,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 import { createBootstrap } from './bootstrap'
+import { buildCloudInstanceInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
@@ -32,10 +33,32 @@ serve({ fetch: server.fetch, port })
 
 // Start licensing refresh background scheduler
 const cloudBaseUrl = process.env.ZPAN_CLOUD_URL ?? ZPAN_CLOUD_URL_DEFAULT
+
+function configuredPublicOrigin(): string | null {
+  const value = process.env.ZPAN_PUBLIC_ORIGIN ?? process.env.BETTER_AUTH_URL
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
 console.log('licensing.refresh.scheduler.started interval=6h')
 setInterval(() => {
   // runLicensingRefresh handles all errors internally and never rejects.
-  void runLicensingRefresh(platform.db, cloudBaseUrl)
+  void (async () => {
+    const instanceUrl = configuredPublicOrigin()
+    const instance = instanceUrl
+      ? await buildCloudInstanceInfo(platform.db, {
+          configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
+          url: instanceUrl,
+        })
+      : undefined
+    await runLicensingRefresh(platform.db, cloudBaseUrl, instance)
+  })()
 }, REFRESH_INTERVAL_MS)
 
 console.log('traffic.sync.scheduler.started interval=10m')

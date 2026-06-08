@@ -3,9 +3,10 @@ import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { remoteDownloadUsageReports } from '../db/schema'
+import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database, Platform } from '../platform/interface'
-import { postBoundCloudJson } from './licensing-cloud'
+import { createBoundCloudClient, requestCloudJson } from './licensing-cloud'
 
 export class RemoteDownloadBillingBlockedError extends Error {
   constructor() {
@@ -34,6 +35,7 @@ export async function reportRemoteDownloadUnit(params: {
   enabled: boolean
 }): Promise<{ status: RemoteDownloadUsageStatus; eventId: string }> {
   if (!params.enabled) return { status: 'reported', eventId: '' }
+  if (!hasFeature('quota_store', await loadBindingState(params.platform.db))) return { status: 'reported', eventId: '' }
   const eventId = `remote_download:${params.taskId}:${params.unitIndex}`
   const existing = await params.platform.db
     .select()
@@ -78,6 +80,8 @@ export async function syncPendingRemoteDownloadUsageReports(params: {
   now?: Date
 }): Promise<{ attempted: number; reported: number; blocked: number; failed: number }> {
   const { db, cloudBaseUrl, limit = 100, now = new Date() } = params
+  if (!hasFeature('quota_store', await loadBindingState(db)))
+    return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
   const binding = await loadActiveLicenseBinding(db)
   if (!binding?.refreshToken || !binding.cloudStoreId) return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
 
@@ -110,12 +114,11 @@ async function syncRemoteDownloadUsageReport(params: {
   }
 
   try {
-    const response = usageResponseSchema.parse(
-      await postBoundCloudJson(
-        cloudBaseUrl,
-        `/api/stores/${encodeURIComponent(binding.cloudStoreId)}/billing/usage-events`,
-        binding.refreshToken,
-        {
+    const client = createBoundCloudClient(cloudBaseUrl, binding.refreshToken)
+    const response = await requestCloudJson(
+      client.stores[':storeId'].billing['usage-events'].$post({
+        param: { storeId: binding.cloudStoreId },
+        json: {
           resource: 'remote_download',
           unit: 'byte',
           bytes: report.unitBytes,
@@ -126,8 +129,9 @@ async function syncRemoteDownloadUsageReport(params: {
           sourceId: report.taskId,
           usageContext: { downloaderId: report.downloaderId },
           pricing: { unitQuantity: report.unitBytes, creditsPerUnit: report.creditsPerUnit },
-        },
-      ),
+        } as never,
+      }),
+      usageResponseSchema,
     )
     if (!response.accepted) throw new Error('cloud_usage_report_rejected')
     await mark(db, report.eventId, 'reported', null, now)

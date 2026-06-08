@@ -592,9 +592,7 @@ describe('WebDAV API', () => {
       FROM cloud_traffic_reports
       WHERE org_id = ${workspace.id}
     `)
-    expect(reports).toMatchObject([
-      { source: 'webdav_download', sourceId: 'traffic-report', bytes: 12, status: 'skipped_unbound' },
-    ])
+    expect(reports).toEqual([])
   })
 
   it('GET supports valid byte ranges and rejects invalid ranges', async () => {

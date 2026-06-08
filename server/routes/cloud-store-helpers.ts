@@ -7,13 +7,14 @@ import { z } from 'zod'
 import {
   billingPortalSessionResponseSchema,
   commerceProductSchema,
-  createCloudClient,
   paymentCreateResponseSchema,
   productListResponseSchema,
 } from 'zpan-cloud-sdk'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
-import { getCloudStoreBinding, getRequiredSettings } from '../services/cloud-store'
+import type { Database } from '../platform/interface'
+import { getCloudStoreBinding } from '../services/cloud-store'
+import { createBoundCloudClient } from '../services/licensing-cloud'
 
 const CLOUD_STORE_REQUEST_TIMEOUT_MS = 10_000
 
@@ -62,14 +63,13 @@ export const cloudGiftCardCreateResponseSchema = z
   .transform((response) => (Array.isArray(response) ? response : response.items))
 export const giftCardListQuerySchema = z.object({ status: giftCardStatusSchema.optional() })
 
-export async function getUserStoreSettings(db: Parameters<typeof getRequiredSettings>[0]) {
+export async function getUserStoreSettings(db: Database) {
   try {
-    await getRequiredSettings(db)
     await getCloudStoreBinding(db)
     return { ready: true }
   } catch (error) {
     const message = (error as Error).message
-    if (message === 'quota_store_disabled' || message === 'quota_store_binding_missing') return { error: message }
+    if (message === 'quota_store_binding_missing') return { error: message }
     throw error
   }
 }
@@ -77,7 +77,7 @@ export async function getUserStoreSettings(db: Parameters<typeof getRequiredSett
 export async function getBoundCloudClient(c: RouteContext) {
   const binding = await getCloudStoreBinding(c.get('platform').db)
   return {
-    client: createCloudClient({ baseUrl: `${getCloudBaseUrl(c).replace(/\/$/, '')}/api`, token: binding.refreshToken }),
+    client: createBoundCloudClient(getCloudBaseUrl(c), binding.refreshToken),
     storeId: binding.storeId,
   }
 }

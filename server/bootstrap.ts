@@ -8,12 +8,12 @@ export async function createBootstrap(platform: Platform) {
     throw new Error('BETTER_AUTH_SECRET is required. Set it in the environment before starting the server.')
   }
 
-  const baseURL = platform.getEnv('BETTER_AUTH_URL') || 'http://localhost:5173'
+  const baseURL = platform.getEnv('BETTER_AUTH_URL') || 'http://localhost:5185'
   const trustedOrigins = platform
     .getEnv('TRUSTED_ORIGINS')
     ?.split(',')
     .map((o) => o.trim())
-    .filter(Boolean) || ['http://localhost:5173']
+    .filter(Boolean) || ['http://localhost:5185']
 
   const auth = await createAuth(platform, secret, baseURL, trustedOrigins)
   return createApp(platform, auth)

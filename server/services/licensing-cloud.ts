@@ -1,7 +1,8 @@
-// HTTP client for cloud.zpan.space — pairing and entitlement refresh.
-// All requests have a 10s timeout.
+import type { z } from 'zod'
+import { type CloudClient, createCloudClient } from 'zpan-cloud-sdk'
 
 const CLOUD_REQUEST_TIMEOUT_MS = 10_000
+const JSON_HEADERS = { 'content-type': 'application/json' }
 
 export interface PairingResponse {
   code: string
@@ -37,6 +38,13 @@ export interface LicenseAccountInfo {
   email?: string | null
 }
 
+export interface CloudInstanceInfo {
+  id: string
+  name: string
+  url: string
+  version: string
+}
+
 export class CloudInvalidResponseError extends Error {
   constructor() {
     super('Cloud response missing certificate')
@@ -58,32 +66,72 @@ export class CloudNetworkError extends Error {
   }
 }
 
-function withTimeout(ms: number): AbortSignal {
-  return AbortSignal.timeout(ms)
+function cloudApiBaseUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/$/, '')}/api`
 }
 
-async function cloudFetch(baseUrl: string, path: string, init: RequestInit): Promise<Response> {
+export function createBoundCloudClient(baseUrl: string, refreshToken: string): CloudClient {
+  return createCloudClient({ baseUrl: cloudApiBaseUrl(baseUrl), token: refreshToken, headers: JSON_HEADERS })
+}
+
+function createAnonymousCloudClient(baseUrl: string): CloudClient {
+  return createCloudClient({ baseUrl: cloudApiBaseUrl(baseUrl), headers: JSON_HEADERS })
+}
+
+async function cloudResponse<
+  T extends { ok: boolean; status: number; json(): Promise<unknown>; text(): Promise<string> },
+>(response: Promise<T>): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
   try {
-    return await fetch(`${baseUrl}${path}`, {
-      ...init,
-      signal: withTimeout(CLOUD_REQUEST_TIMEOUT_MS),
-    })
+    return await Promise.race([
+      response,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('cloud_request_timeout')), CLOUD_REQUEST_TIMEOUT_MS)
+      }),
+    ])
   } catch (err) {
     throw new CloudNetworkError(err)
+  } finally {
+    if (timeout) clearTimeout(timeout)
   }
 }
 
-export async function createPairing(
-  baseUrl: string,
-  instanceId: string,
-  instanceName: string,
-  instanceHost: string,
-): Promise<PairingResponse> {
-  const res = await cloudFetch(baseUrl, '/api/pairings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ instanceId, instanceName, instanceHost }),
-  })
+export async function unwrapCloudResponse<T, U = T>(
+  response: {
+    status: number
+    ok: boolean
+    json(): Promise<T>
+  },
+  responseSchema?: z.ZodType<U>,
+): Promise<U> {
+  if (response.status === 204) return null as U
+  const data = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(cloudErrorCode(data) ?? `cloud_request_failed_${response.status}`)
+  const payload = data && typeof data === 'object' && 'data' in data ? data.data : data
+  if (!responseSchema) return payload as U
+  const parsed = responseSchema.safeParse(payload)
+  if (!parsed.success) throw new Error('invalid_cloud_response')
+  return parsed.data
+}
+
+export async function requestCloudJson<T, U = T>(
+  response: Promise<{
+    status: number
+    ok: boolean
+    json(): Promise<T>
+    text(): Promise<string>
+  }>,
+  responseSchema?: z.ZodType<U>,
+): Promise<U> {
+  return unwrapCloudResponse(await cloudResponse(response), responseSchema)
+}
+
+export async function createPairing(baseUrl: string, instance: CloudInstanceInfo): Promise<PairingResponse> {
+  const res = await cloudResponse(
+    createAnonymousCloudClient(baseUrl).pairings.$post({
+      json: { instance },
+    }),
+  )
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -94,9 +142,7 @@ export async function createPairing(
 }
 
 export async function pollPairing(baseUrl: string, code: string): Promise<PairingPollResponse> {
-  const res = await cloudFetch(baseUrl, `/api/pairings/${encodeURIComponent(code)}`, {
-    method: 'GET',
-  })
+  const res = await cloudResponse(createAnonymousCloudClient(baseUrl).pairings[':code'].$get({ param: { code } }))
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -106,16 +152,19 @@ export async function pollPairing(baseUrl: string, code: string): Promise<Pairin
   return unwrapCloudData<PairingPollResponse>(await res.json())
 }
 
-// Calls POST /api/entitlements with the stored refreshToken.
 // Throws CloudUnboundError on 401 (instance was unbound from cloud side).
 // Throws CloudNetworkError on network failure.
-export async function refreshEntitlement(baseUrl: string, refreshToken: string): Promise<EntitlementRefreshResponse> {
-  const res = await cloudFetch(baseUrl, '/api/entitlements', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${refreshToken}` },
-  })
+export async function refreshEntitlement(
+  baseUrl: string,
+  refreshToken: string,
+  instance?: CloudInstanceInfo,
+): Promise<EntitlementRefreshResponse> {
+  const client = createBoundCloudClient(baseUrl, refreshToken)
+  const res = await cloudResponse(
+    instance ? client.entitlements.$post({ json: { instance } }) : client.entitlements.$post({ json: undefined }),
+  )
 
-  if (res.status === 401) {
+  if ((res.status as number) === 401) {
     throw new CloudUnboundError()
   }
 
@@ -130,10 +179,9 @@ export async function refreshEntitlement(baseUrl: string, refreshToken: string):
 }
 
 export async function unbindCloudLicense(baseUrl: string, licenseId: string, refreshToken: string): Promise<void> {
-  const res = await cloudFetch(baseUrl, `/api/licenses/${encodeURIComponent(licenseId)}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${refreshToken}` },
-  })
+  const res = await cloudResponse(
+    createBoundCloudClient(baseUrl, refreshToken).licenses[':id'].$delete({ param: { id: licenseId } }),
+  )
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -141,54 +189,15 @@ export async function unbindCloudLicense(baseUrl: string, licenseId: string, ref
   }
 }
 
-export async function requestBoundCloudJson(
-  baseUrl: string,
-  path: string,
-  refreshToken: string,
-  init: { method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; payload?: object },
-): Promise<unknown> {
-  const headers: Record<string, string> = { Authorization: `Bearer ${refreshToken}` }
-  if (init.payload) headers['Content-Type'] = 'application/json'
-
-  const res = await cloudFetch(baseUrl, path, {
-    method: init.method,
-    headers,
-    body: init.payload ? JSON.stringify(init.payload) : undefined,
-  })
-
-  if (res.status === 204) return null
-
-  const data = await res.json().catch(() => null)
-  if (!res.ok) {
-    const error =
-      data &&
-      typeof data === 'object' &&
-      'error' in data &&
-      data.error &&
-      typeof data.error === 'object' &&
-      'code' in data.error &&
-      typeof data.error.code === 'string'
-        ? data.error.code
-        : data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
-          ? data.error
-          : null
-    throw new Error(error ?? `cloud_request_failed_${res.status}`)
-  }
-
-  if (data && typeof data === 'object' && 'data' in data) return data.data
-  return data
-}
-
-export async function postBoundCloudJson(
-  baseUrl: string,
-  path: string,
-  refreshToken: string,
-  payload: object,
-): Promise<unknown> {
-  return requestBoundCloudJson(baseUrl, path, refreshToken, { method: 'POST', payload })
-}
-
 function unwrapCloudData<T>(data: unknown): T {
   if (data && typeof data === 'object' && 'data' in data) return data.data as T
   return data as T
+}
+
+function cloudErrorCode(data: unknown) {
+  if (!data || typeof data !== 'object' || !('error' in data)) return null
+  const error = data.error
+  if (typeof error === 'string') return error
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') return error.code
+  return null
 }

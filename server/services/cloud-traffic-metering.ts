@@ -3,10 +3,11 @@ import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { cloudTrafficReports } from '../db/schema'
+import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database, Platform } from '../platform/interface'
 import { currentTrafficPeriod } from './effective-quota'
-import { postBoundCloudJson } from './licensing-cloud'
+import { createBoundCloudClient, requestCloudJson } from './licensing-cloud'
 
 export type TrafficReportSource =
   | 'object_download'
@@ -48,6 +49,9 @@ export async function reportTrafficEgress(params: {
   const { platform, orgId, bytes, source, sourceId, now = new Date() } = params
   if (bytes <= 0) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
   if (!params.egressCreditBillingEnabled) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
+  if (!hasFeature('quota_store', await loadBindingState(platform.db))) {
+    return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
+  }
   if (!params.storageId || !params.egressCreditUnitBytes || !params.egressCreditPerUnit) {
     throw new Error('storage_egress_pricing_missing')
   }
@@ -111,6 +115,8 @@ export async function syncPendingCloudTrafficReports(params: {
   now?: Date
 }): Promise<{ attempted: number; reported: number; blocked: number; failed: number }> {
   const { db, cloudBaseUrl, limit = 100, now = new Date() } = params
+  if (!hasFeature('quota_store', await loadBindingState(db)))
+    return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
   const binding = await loadActiveLicenseBinding(db)
   if (!binding?.refreshToken || !binding.cloudStoreId) return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
 
@@ -146,33 +152,35 @@ async function syncTrafficReport(params: {
 }): Promise<'reported' | 'blocked' | 'failed'> {
   const { db, cloudBaseUrl, refreshToken, storeId, report, now } = params
   try {
+    const client = createBoundCloudClient(cloudBaseUrl, refreshToken)
     const isStorageEgress = Boolean(report.storageId && report.unitBytes && report.creditsPerUnit)
-    const data = await postBoundCloudJson(
-      cloudBaseUrl,
-      `/api/stores/${encodeURIComponent(storeId)}/billing/usage-events`,
-      refreshToken,
-      isStorageEgress
-        ? {
-            resource: 'storage_egress',
-            unit: 'byte',
-            bytes: report.bytes,
-            eventId: report.eventId,
-            idempotencyKey: report.eventId,
-            customerId: report.orgId,
-            source: report.source,
-            sourceId: report.sourceId,
-            usageContext: { storageId: report.storageId },
-            pricing: { unitQuantity: report.unitBytes!, creditsPerUnit: report.creditsPerUnit! },
-          }
-        : {
-            resource: 'traffic_egress',
-            bytes: report.bytes,
-            eventId: report.eventId,
-            idempotencyKey: report.eventId,
-            customerId: report.orgId,
-          },
+    const payload = isStorageEgress
+      ? {
+          resource: 'storage_egress',
+          unit: 'byte',
+          bytes: report.bytes,
+          eventId: report.eventId,
+          idempotencyKey: report.eventId,
+          customerId: report.orgId,
+          source: report.source,
+          sourceId: report.sourceId,
+          usageContext: { storageId: report.storageId },
+          pricing: { unitQuantity: report.unitBytes!, creditsPerUnit: report.creditsPerUnit! },
+        }
+      : {
+          resource: 'traffic_egress',
+          bytes: report.bytes,
+          eventId: report.eventId,
+          idempotencyKey: report.eventId,
+          customerId: report.orgId,
+        }
+    const response = await requestCloudJson(
+      client.stores[':storeId'].billing['usage-events'].$post({
+        param: { storeId },
+        json: payload as never,
+      }),
+      usageResponseSchema,
     )
-    const response = usageResponseSchema.parse(data)
     if (!response.accepted) throw new Error('cloud_usage_report_rejected')
     await updateTrafficReport(db, report.eventId, 'reported', null, now)
     return 'reported'

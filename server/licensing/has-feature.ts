@@ -1,4 +1,5 @@
-import type { BindingState, ProFeature } from '../../shared/types'
+import { PRO_GATE_KEYS } from '../../shared/feature-registry'
+import type { BindingState, LicenseFeature } from '../../shared/types'
 import type { Database } from '../platform/interface'
 import { loadLicenseState } from './license-state'
 import { verifyCertificate } from './verify'
@@ -29,6 +30,8 @@ export async function loadBindingState(db: Database, options: BindingStateOption
     if (assertion) {
       result.active = true
       result.edition = assertion.edition
+      result.features = effectiveFeatures(assertion.edition, assertion.features)
+      result.license_id = assertion.licenseId
       result.license_valid_until = assertion.licenseValidUntil
       result.certificate_expires_at = assertion.expiresAt
     }
@@ -37,6 +40,17 @@ export async function loadBindingState(db: Database, options: BindingStateOption
   return result
 }
 
-export function hasFeature(feature: ProFeature, state: BindingState | null): boolean {
-  return Boolean(feature && state?.bound && state.active)
+export function hasFeature(feature: LicenseFeature, state: BindingState | null): boolean {
+  return Boolean(
+    feature && state?.bound && state.active && effectiveFeatures(state.edition, state.features).includes(feature),
+  )
+}
+
+const BUSINESS_ONLY_FEATURES = new Set<LicenseFeature>(['quota_store'])
+
+export function effectiveFeatures(edition: BindingState['edition'], features?: LicenseFeature[]): LicenseFeature[] {
+  if (features) return features
+  if (edition === 'pro') return PRO_GATE_KEYS.filter((feature) => !BUSINESS_ONLY_FEATURES.has(feature))
+  if (edition === 'business') return [...PRO_GATE_KEYS]
+  return []
 }

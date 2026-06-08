@@ -1,5 +1,6 @@
 import type { Database } from '../platform/interface'
 import {
+  type CloudInstanceInfo,
   CloudInvalidResponseError,
   CloudNetworkError,
   CloudUnboundError,
@@ -25,12 +26,12 @@ function normaliseCert(
   return { cert: raw, certificateExpiresAt: assertion?.expiresAt ?? null }
 }
 
-export async function performRefresh(db: Database, baseUrl: string): Promise<void> {
+export async function performRefresh(db: Database, baseUrl: string, instance?: CloudInstanceInfo): Promise<void> {
   const state = await loadLicenseState(db)
   if (!state.refreshToken || !state.instanceId) return
 
   try {
-    const data = await refreshEntitlement(baseUrl, state.refreshToken)
+    const data = await refreshEntitlement(baseUrl, state.refreshToken, instance)
     const { cert, certificateExpiresAt } = normaliseCert(data.certificate, {
       instanceId: state.instanceId,
       cloudBaseUrl: baseUrl,

@@ -79,17 +79,22 @@ function valueAfter(flag) {
 
 function runtimeCloudCredentials(runtime) {
   const suffix = runtime === 'cf' ? '_CF' : '_NODE'
-  const runtimeEmail = process.env[`E2E_CLOUD_PRO_EMAIL${suffix}`]?.trim()
-  const runtimePassword = process.env[`E2E_CLOUD_PRO_PASSWORD${suffix}`]?.trim()
+  const runtimeEmail =
+    process.env[`E2E_CLOUD_BUSINESS_EMAIL${suffix}`]?.trim() ||
+    process.env[`E2E_CLOUD_PRO_EMAIL${suffix}`]?.trim()
+  const runtimePassword =
+    process.env[`E2E_CLOUD_BUSINESS_PASSWORD${suffix}`]?.trim() ||
+    process.env[`E2E_CLOUD_PRO_PASSWORD${suffix}`]?.trim()
   if (process.env.CI && (!runtimeEmail || !runtimePassword)) {
-    throw new Error(`Missing E2E_CLOUD_PRO_EMAIL${suffix} or E2E_CLOUD_PRO_PASSWORD${suffix}`)
+    throw new Error(`Missing E2E_CLOUD_BUSINESS_EMAIL${suffix} or E2E_CLOUD_BUSINESS_PASSWORD${suffix}`)
   }
-  const email = runtimeEmail || process.env.E2E_CLOUD_PRO_EMAIL
-  const password = runtimePassword || process.env.E2E_CLOUD_PRO_PASSWORD
+  const email = runtimeEmail || process.env.E2E_CLOUD_BUSINESS_EMAIL || process.env.E2E_CLOUD_PRO_EMAIL
+  const password =
+    runtimePassword || process.env.E2E_CLOUD_BUSINESS_PASSWORD || process.env.E2E_CLOUD_PRO_PASSWORD
   return email && password
     ? {
-        E2E_CLOUD_PRO_EMAIL: email,
-        E2E_CLOUD_PRO_PASSWORD: password,
+        E2E_CLOUD_BUSINESS_EMAIL: email,
+        E2E_CLOUD_BUSINESS_PASSWORD: password,
       }
     : {}
 }

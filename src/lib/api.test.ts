@@ -16,8 +16,6 @@ import {
   createBackgroundJob,
   createCloudBillingPortalSession,
   createCloudCheckout,
-  createCloudGiftCards,
-  createCloudProduct,
   createDownloadTask,
   createIhostApiKey,
   createIhostImagePresign,
@@ -30,8 +28,6 @@ import {
   createWebDavAppPassword,
   deleteAnnouncement,
   deleteAvatar,
-  deleteCloudGiftCard,
-  deleteCloudProduct,
   deleteDownloader,
   deleteIhostConfig,
   deleteIhostImage,
@@ -40,7 +36,6 @@ import {
   deleteStorage,
   deleteTeamLogo,
   deleteUser,
-  disableCloudGiftCard,
   disconnectCloud,
   downloadTaskEventsUrl,
   emptyTrash,
@@ -49,7 +44,6 @@ import {
   getBackgroundJob,
   getBranding,
   getCloudCredits,
-  getCloudStoreSettings,
   getEmailConfig,
   getIhostConfig,
   getLicensingStatus,
@@ -66,15 +60,11 @@ import {
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
-  listAdminCloudCreditProducts,
-  listAdminCloudOrders,
-  listAdminCloudProducts,
   listAnnouncements,
   listAuthProviders,
   listBackgroundJobs,
   listCloudCreditLedgerEntries,
   listCloudCreditProducts,
-  listCloudGiftCards,
   listCloudOrders,
   listCloudProducts,
   listCloudStoreTargets,
@@ -118,8 +108,6 @@ import {
   testEmail,
   trashObject,
   updateAnnouncement,
-  updateCloudProduct,
-  updateCloudStoreSettings,
   updateDownloader,
   updateDownloadTask,
   updateIhostConfig,
@@ -302,162 +290,6 @@ describe('api', () => {
   })
 
   describe('quota store api', () => {
-    it('gets admin settings', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null))
-
-      await getCloudStoreSettings()
-
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/store/settings')
-      expect(init.method).toBe('GET')
-    })
-
-    it('updates admin settings payload', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ enabled: true }))
-
-      await updateCloudStoreSettings({
-        enabled: true,
-      })
-
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/admin/store/settings')
-      expect(init.method).toBe('PUT')
-      expect(JSON.parse(init.body as string)).toEqual({ enabled: true })
-    })
-
-    it('creates packages with typed RPC paths', async () => {
-      const payload: Parameters<typeof createCloudProduct>[0] = {
-        type: 'store_item',
-        name: 'Small',
-        description: '',
-        metadata: {
-          deliverable: { type: 'zpan.plan', storageBytes: 1024, includedCredits: 100 },
-        },
-        prices: [
-          {
-            currency: 'usd',
-            amount: 500,
-            recurring: { interval: 'month', intervalCount: 1 },
-            metadata: { creditGrantType: 'subscription_grant', creditAmount: '100' },
-          },
-        ],
-        active: true,
-        sortOrder: 0,
-      }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'pkg-1' }))
-
-      await createCloudProduct(payload)
-
-      const [createUrl, createInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(createUrl).toBe('/api/admin/store/packages')
-      expect(createInit.method).toBe('POST')
-      expect(JSON.parse(createInit.body as string)).toEqual({
-        type: 'store_item',
-        name: 'Small',
-        description: '',
-        metadata: {
-          deliverable: { type: 'zpan.plan', storageBytes: 1024, includedCredits: 100 },
-        },
-        prices: [
-          {
-            currency: 'usd',
-            amount: 500,
-            recurring: { interval: 'month', intervalCount: 1 },
-            metadata: { creditGrantType: 'subscription_grant', creditAmount: '100' },
-          },
-        ],
-        active: true,
-        sortOrder: 0,
-      })
-    })
-
-    it('updates packages with partial typed RPC payloads', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'pkg-1', active: false }))
-
-      await updateCloudProduct('pkg-1', { active: false })
-
-      const [updateUrl, updateInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(updateUrl).toBe('/api/admin/store/packages/pkg-1')
-      expect(updateInit.method).toBe('PATCH')
-      expect(JSON.parse(updateInit.body as string)).toEqual({ active: false })
-    })
-
-    it('throws ApiError for failed package writes', async () => {
-      vi.mocked(fetch)
-        .mockResolvedValueOnce(makeResponse({ error: 'package create failed' }, false, 502))
-        .mockResolvedValueOnce(makeResponse({ error: 'package update failed' }, false, 502))
-
-      await expect(
-        createCloudProduct({
-          type: 'store_item',
-          name: 'Small',
-          description: '',
-          metadata: { deliverable: { type: 'zpan.credits', includedCredits: 500 } },
-          prices: [{ currency: 'usd', amount: 500, metadata: { creditGrantType: 'top_up', creditAmount: '500' } }],
-          active: true,
-          sortOrder: 0,
-        }),
-      ).rejects.toThrow('package create failed')
-      await expect(updateCloudProduct('pkg-1', { active: false })).rejects.toThrow('package update failed')
-    })
-
-    it('lists and deletes admin packages', async () => {
-      vi.mocked(fetch)
-        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
-        .mockResolvedValueOnce(makeResponse({ id: 'pkg-1', deleted: true }))
-
-      await listAdminCloudProducts()
-      await deleteCloudProduct('pkg-1')
-
-      expect((vi.mocked(fetch).mock.calls[0] as [string])[0]).toBe('/api/admin/store/packages')
-      const [deleteUrl, deleteInit] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
-      expect(deleteUrl).toBe('/api/admin/store/packages/pkg-1')
-      expect(deleteInit.method).toBe('DELETE')
-    })
-
-    it('calls admin gift card and order endpoints', async () => {
-      vi.mocked(fetch)
-        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
-        .mockResolvedValueOnce(makeResponse([{ code: 'ZS123' }]))
-        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', disabled: true }))
-        .mockResolvedValueOnce(makeResponse({ code: 'ZS123', deleted: true }))
-        .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
-
-      await listCloudGiftCards('active')
-      const createdGiftCards = await createCloudGiftCards({ credits: 1024, campaignId: 'campaign-1', count: 3 })
-      await disableCloudGiftCard('ZS123')
-      await deleteCloudGiftCard('ZS123')
-      await listAdminCloudOrders({ limit: 100, offset: 100 })
-
-      const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
-      expect(calls[0][0]).toBe('/api/admin/store/gift-cards?status=active')
-      expect(calls[0][1].method).toBe('GET')
-      expect(calls[1][0]).toBe('/api/admin/store/gift-cards')
-      expect(calls[1][1].method).toBe('POST')
-      expect(JSON.parse(calls[1][1].body as string)).toEqual({
-        credits: 1024,
-        campaignId: 'campaign-1',
-        count: 3,
-      })
-      expect(createdGiftCards).toEqual([{ code: 'ZS123' }])
-      expect(calls[2][0]).toBe('/api/admin/store/gift-cards/ZS123')
-      expect(calls[2][1].method).toBe('PATCH')
-      expect(JSON.parse(calls[2][1].body as string)).toEqual({ disabled: true })
-      expect(calls[3][0]).toBe('/api/admin/store/gift-cards/ZS123')
-      expect(calls[3][1].method).toBe('DELETE')
-      expect(calls[4][0]).toBe('/api/admin/store/orders?limit=100&offset=100')
-    })
-
-    it('calls admin credits product endpoint', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
-
-      await listAdminCloudCreditProducts()
-
-      const calls = vi.mocked(fetch).mock.calls as Array<[string, RequestInit]>
-      expect(calls[0][0]).toBe('/api/admin/store/credits/products')
-      expect(calls[0][1].method).toBe('GET')
-    })
-
     it('calls user store endpoints', async () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
@@ -575,47 +407,7 @@ describe('api', () => {
       expect(JSON.parse(calls[4][1].body as string)).toEqual({ status: 'canceled' })
     })
 
-    it('throws ApiError for quota store failures', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'feature_not_available' }, false, 402))
-
-      await expect(listAdminCloudProducts()).rejects.toThrow('feature_not_available')
-    })
-
     it.each([
-      ['getCloudStoreSettings', () => getCloudStoreSettings()],
-      ['updateCloudStoreSettings', () => updateCloudStoreSettings({ enabled: true })],
-      ['listAdminCloudProducts', () => listAdminCloudProducts()],
-      [
-        'createCloudProduct',
-        () =>
-          createCloudProduct({
-            type: 'store_item',
-            name: 'Small',
-            description: '',
-            metadata: { deliverable: { type: 'zpan.credits', includedCredits: 500 } },
-            prices: [{ currency: 'usd', amount: 500, metadata: { creditGrantType: 'top_up', creditAmount: '500' } }],
-            active: true,
-            sortOrder: 0,
-          }),
-      ],
-      [
-        'updateCloudProduct',
-        () =>
-          updateCloudProduct('pkg-1', {
-            type: 'store_item',
-            name: 'Small',
-            description: '',
-            metadata: { deliverable: { type: 'zpan.credits', includedCredits: 500 } },
-            prices: [{ currency: 'usd', amount: 500, metadata: { creditGrantType: 'top_up', creditAmount: '500' } }],
-            sortOrder: 0,
-          }),
-      ],
-      ['deleteCloudProduct', () => deleteCloudProduct('pkg-1')],
-      ['listCloudGiftCards', () => listCloudGiftCards()],
-      ['createCloudGiftCards', () => createCloudGiftCards({ credits: 1024, count: 1 })],
-      ['disableCloudGiftCard', () => disableCloudGiftCard('ZS123')],
-      ['deleteCloudGiftCard', () => deleteCloudGiftCard('ZS123')],
-      ['listAdminCloudOrders', () => listAdminCloudOrders()],
       ['listCloudProducts', () => listCloudProducts()],
       ['listCloudStoreTargets', () => listCloudStoreTargets()],
       ['getCloudCredits', () => getCloudCredits()],

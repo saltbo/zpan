@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloudTrafficReports } from '../db/schema.js'
 import { createLicenseBinding } from '../licensing/license-state.js'
-import { createTestApp, seedProLicense } from '../test/setup.js'
+import { createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
 
 describe('GET /api/licensing/status', () => {
   it('returns { bound: false } when no binding row exists', async () => {
@@ -11,7 +11,10 @@ describe('GET /api/licensing/status', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ bound: false })
+    expect(body).toMatchObject({
+      bound: false,
+      cloud_dashboard_url: 'https://cloud.zpan.space/dashboard',
+    })
   })
 
   it('returns bound state with plan and features when binding row exists with cert', async () => {
@@ -174,16 +177,7 @@ describe('POST /api/licensing/refresh-cron', () => {
       REFRESH_CRON_SECRET: 'traffic-secret',
       ZPAN_CLOUD_URL: 'https://cloud.example',
     })
-    await createLicenseBinding(db, {
-      cloudBindingId: 'bind-traffic',
-      cloudStoreId: 'store-traffic',
-      instanceId: 'inst-traffic',
-      cloudAccountId: 'acc-traffic',
-      refreshToken: 'traffic-refresh-token',
-      cachedCert: 'test-cert',
-      cachedExpiresAt: Math.floor(Date.now() / 1000) + 86400,
-      lastRefreshAt: Math.floor(Date.now() / 1000),
-    })
+    await seedBusinessLicense(db)
     await db.insert(cloudTrafficReports).values({
       id: 'report_traffic_cron',
       orgId: 'org_traffic_cron',
@@ -206,8 +200,8 @@ describe('POST /api/licensing/refresh-cron', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ ok: true, attempted: 1, reported: 1, blocked: 0, failed: 0 })
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('https://cloud.example/api/stores/store-traffic/billing/usage-events')
-    expect(init.headers).toMatchObject({ Authorization: 'Bearer traffic-refresh-token' })
+    expect(url).toBe('https://cloud.example/api/stores/store-test-binding/billing/usage-events')
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer test-refresh-token')
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
   })
 

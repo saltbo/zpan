@@ -53,6 +53,20 @@ describe('verifyCertificate', () => {
     expect(result?.authorizedHosts).toEqual(['zpan.example.com'])
   })
 
+  it('returns assertion for a valid business cert and sanitizes feature keys', () => {
+    const cert = signCert({
+      edition: 'business',
+      features: ['white_label', 'quota_store', 'unknown_feature'],
+      licenseId: 'lic-1',
+    })
+    const result = verifyCertificate(cert, { instanceId: 'inst-abc', currentHost: 'zpan.example.com' })
+
+    expect(result).not.toBeNull()
+    expect(result?.edition).toBe('business')
+    expect(result?.features).toEqual(['white_label', 'quota_store'])
+    expect(result?.licenseId).toBe('lic-1')
+  })
+
   it('returns null for a cert with an invalid signature', () => {
     const cert = signCert()
     expect(verifyCertificate(`${cert.slice(0, -5)}XXXXX`, { instanceId: 'inst-abc' })).toBeNull()
@@ -66,6 +80,11 @@ describe('verifyCertificate', () => {
   it('returns null when instanceId does not match', () => {
     const cert = signCert()
     expect(verifyCertificate(cert, { instanceId: 'inst-DIFFERENT' })).toBeNull()
+  })
+
+  it('returns null when edition is not supported', () => {
+    const cert = signCert({ edition: 'enterprise' })
+    expect(verifyCertificate(cert, { instanceId: 'inst-abc' })).toBeNull()
   })
 
   it('returns null when host is not authorized', () => {

@@ -11,14 +11,8 @@ import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import {
-  canAccessTargetOrg,
-  getAccessibleTargets,
-  getCloudStoreBinding,
-  getCustomerLabel,
-} from '../../services/cloud-store'
+import { canAccessTargetOrg, getAccessibleTargets, getCustomerLabel } from '../../services/cloud-store'
 import { getEffectiveQuota } from '../../services/effective-quota'
-import { requestBoundCloudJson } from '../../services/licensing-cloud'
 import {
   cloudBillingPortalSessionResponseSchema,
   cloudCheckoutResponseSchema,
@@ -27,7 +21,6 @@ import {
   cloudPackageResponseSchema,
   cloudStoreOrdersQuerySchema,
   getBoundCloudClient,
-  getCloudBaseUrl,
   getUserStoreSettings,
   type RouteContext,
   unwrapCloudResponse,
@@ -82,9 +75,11 @@ export const cloudStore = new Hono<Env>()
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await cloudRequest(c, async ({ storeId }) =>
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
-        await getCloudCreditResource(c, storeId, targetOrgId, 'balance'),
+        await client.stores[':storeId']['credit-accounts'][':customerId'].balance.$get({
+          param: { storeId, customerId: targetOrgId },
+        }),
         cloudCreditBalanceResponseSchema,
       ),
     )
@@ -96,9 +91,12 @@ export const cloudStore = new Hono<Env>()
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await cloudRequest(c, async ({ storeId }) =>
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
-        await getCloudCreditResource(c, storeId, targetOrgId, 'ledger-entries'),
+        await client.stores[':storeId']['credit-accounts'][':customerId']['ledger-entries'].$get({
+          param: { storeId, customerId: targetOrgId },
+          query: {},
+        }),
         cloudCreditLedgerResponseSchema,
       ),
     )
@@ -110,9 +108,12 @@ export const cloudStore = new Hono<Env>()
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const result = await cloudRequest(c, async ({ storeId }) =>
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
-        await postCloudCreditRedemption(c, storeId, targetOrgId, [c.req.valid('json').code]),
+        await client.stores[':storeId']['credit-accounts'][':customerId'].redemptions.$post({
+          param: { storeId, customerId: targetOrgId },
+          json: { codes: [c.req.valid('json').code] },
+        }),
         redeemGiftCardResponseSchema,
       ),
     )
@@ -286,50 +287,6 @@ function getOrder(c: RouteContext, orderId: string) {
 
 function orderBelongsToTarget(target: Record<string, unknown> | null, targetOrgId: string): boolean {
   return target?.orgId === targetOrgId || target?.customerId === targetOrgId
-}
-
-function cloudCreditPath(storeId: string, customerId: string, resource: string) {
-  return `/api/stores/${encodeURIComponent(storeId)}/credit-accounts/${encodeURIComponent(customerId)}/${resource}`
-}
-
-async function getCloudCreditResource(
-  c: RouteContext,
-  storeId: string,
-  customerId: string,
-  resource: 'balance' | 'ledger-entries',
-) {
-  const binding = await getCloudStoreBinding(c.get('platform').db)
-  const data = await requestBoundCloudJson(
-    getCloudBaseUrl(c),
-    cloudCreditPath(storeId, customerId, resource),
-    binding.refreshToken,
-    {
-      method: 'GET',
-    },
-  )
-  return jsonResponse(data)
-}
-
-async function postCloudCreditRedemption(c: RouteContext, storeId: string, customerId: string, codes: string[]) {
-  const binding = await getCloudStoreBinding(c.get('platform').db)
-  const data = await requestBoundCloudJson(
-    getCloudBaseUrl(c),
-    cloudCreditPath(storeId, customerId, 'redemptions'),
-    binding.refreshToken,
-    {
-      method: 'POST',
-      payload: { codes },
-    },
-  )
-  return jsonResponse(data, 201)
-}
-
-function jsonResponse(data: unknown, status = 200) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => data,
-  }
 }
 
 async function cloudRequest<T>(

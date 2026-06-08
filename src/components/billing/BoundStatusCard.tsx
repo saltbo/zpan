@@ -52,16 +52,19 @@ const LOCAL_PRO_FEATURES = FEATURE_REGISTRY.filter(
     'gateKey' in item && item.gateKey != null && !('comingSoon' in item && item.comingSoon),
 ).map((item) => item.gateKey)
 
-const cloudDashboardUrl = `${(import.meta.env.VITE_ZPAN_CLOUD_URL || 'https://cloud.zpan.space').replace(/\/$/, '')}/dashboard`
-
 interface BoundStatusCardProps {
   state: BindingState
+}
+
+function editionKey(state: BindingState) {
+  return state.edition === 'business' ? 'business' : 'pro'
 }
 
 export function BoundStatusCard({ state }: BoundStatusCardProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [disconnectOpen, setDisconnectOpen] = useState(false)
+  const licenseEdition = editionKey(state)
 
   const refreshMutation = useMutation({
     mutationFn: refreshLicense,
@@ -77,12 +80,12 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: entitlementQueryKey })
       setDisconnectOpen(false)
-      toast.success(t('settings.billing.bound.disconnectSuccess'))
+      toast.success(t(`settings.billing.bound.${licenseEdition}.disconnectSuccess`))
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : t('settings.billing.bound.disconnectError')),
   })
 
-  const grantedFeatures = state.active ? LOCAL_PRO_FEATURES : []
+  const grantedFeatures = state.active ? (state.features ?? LOCAL_PRO_FEATURES) : []
   const hasSyncError = Boolean(state.last_refresh_error)
   const issuedLabel = state.account_email
     ? t('settings.billing.bound.issuedTo', { email: state.account_email })
@@ -99,7 +102,7 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
               </div>
               <div className="min-w-0 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <CardTitle className="text-xl">{t('settings.billing.bound.title')}</CardTitle>
+                  <CardTitle className="text-xl">{t(`settings.billing.bound.${licenseEdition}.title`)}</CardTitle>
                   <span
                     className={
                       hasSyncError
@@ -112,12 +115,18 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
                   </span>
                 </div>
                 <CardDescription className="break-words">{issuedLabel}</CardDescription>
-                <p className="text-sm text-muted-foreground">{t('settings.billing.bound.description')}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t(`settings.billing.bound.${licenseEdition}.description`)}
+                </p>
               </div>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
               <Button asChild>
-                <a href={cloudDashboardUrl} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={state.cloud_dashboard_url ?? 'https://cloud.zpan.space/dashboard'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <ExternalLink className="mr-2 size-4" />
                   {t('settings.billing.bound.manageButton')}
                 </a>
@@ -162,7 +171,7 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
           )}
 
           <div className="space-y-3">
-            <p className="text-sm font-medium">{t('settings.billing.bound.features')}</p>
+            <p className="text-sm font-medium">{t(`settings.billing.bound.${licenseEdition}.features`)}</p>
             {grantedFeatures.length > 0 ? (
               <ul className="grid gap-2 sm:grid-cols-2">
                 {grantedFeatures.map((feature) => {
@@ -179,7 +188,9 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
                 })}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">{t('settings.billing.bound.noFeatures')}</p>
+              <p className="text-sm text-muted-foreground">
+                {t(`settings.billing.bound.${licenseEdition}.noFeatures`)}
+              </p>
             )}
           </div>
         </CardContent>
@@ -188,8 +199,8 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
       <Dialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('settings.billing.bound.disconnectTitle')}</DialogTitle>
-            <DialogDescription>{t('settings.billing.bound.disconnectConfirm')}</DialogDescription>
+            <DialogTitle>{t(`settings.billing.bound.${licenseEdition}.disconnectTitle`)}</DialogTitle>
+            <DialogDescription>{t(`settings.billing.bound.${licenseEdition}.disconnectConfirm`)}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDisconnectOpen(false)}>
