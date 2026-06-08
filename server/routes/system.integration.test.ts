@@ -63,8 +63,9 @@ describe('System API — options CRUD', () => {
     expect(anonBody.items[0].key).toBe('site_name')
 
     const adminList = await app.request('/api/system/options', { headers: admin })
-    const adminBody = (await adminList.json()) as { total: number }
-    expect(adminBody.total).toBe(2)
+    const adminBody = (await adminList.json()) as { items: { key: string }[]; total: number }
+    expect(adminBody.total).toBeGreaterThanOrEqual(2)
+    expect(adminBody.items.map((item) => item.key)).toEqual(expect.arrayContaining(['site_name', 'smtp_password']))
 
     // Non-string value rejected
     const bad = await putOption(app, admin, 'site_name', { value: 123 })

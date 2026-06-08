@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vitest/config'
 
@@ -47,6 +48,7 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['server/**/*.test.ts', 'shared/**/*.test.ts', 'src/**/*.test.ts', 'src/**/*.test.tsx'],
           exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts', '**/e2e-*.test.ts'],
+          setupFiles: ['./server/test/app-version.ts'],
           coverage: {
             ...coverageConfig,
             thresholds: {
@@ -63,6 +65,7 @@ export default defineConfig({
         test: {
           name: 'integration',
           include: ['server/**/*.integration.test.ts', 'src/**/*.integration.test.ts'],
+          setupFiles: ['./server/test/app-version.ts'],
           coverage: {
             ...coverageConfig,
             thresholds: {
@@ -72,6 +75,39 @@ export default defineConfig({
               lines: 90,
             },
           },
+        },
+      },
+      {
+        plugins: [
+          cloudflareTest(async () => {
+            const migrationsPath = path.join(__dirname, './migrations')
+            const migrations = await readD1Migrations(migrationsPath)
+
+            return {
+              wrangler: { configPath: './wrangler.toml' },
+              miniflare: {
+                bindings: { TEST_MIGRATIONS: migrations },
+              },
+            }
+          }),
+        ],
+        resolve: { alias: aliases },
+        test: {
+          name: 'cloudflare',
+          globals: true,
+          testTimeout: 15000,
+          include: ['server/**/*.cf-test.ts', 'workers/**/*.cf-test.ts'],
+          setupFiles: ['./server/test/app-version.ts', './server/test/apply-migrations.ts'],
+        },
+      },
+      {
+        resolve: { alias: aliases },
+        test: {
+          name: 'libsql',
+          globals: true,
+          testTimeout: 30_000,
+          include: ['server/**/*.libsql-test.ts'],
+          setupFiles: ['./server/test/app-version.ts'],
         },
       },
     ],

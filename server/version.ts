@@ -1,14 +1,10 @@
-import packageJson from '../package.json'
-
-declare const __ZPAN_APP_VERSION__: string | undefined
-
-export function getAppVersion(): string {
-  const injectedVersion = getInjectedAppVersion()
-  if (injectedVersion) return injectedVersion
-  return process.env.ZPAN_APP_VERSION?.trim() || packageJson.version
+declare global {
+  var __ZPAN_APP_VERSION__: string | undefined
 }
 
-function getInjectedAppVersion(): string | null {
-  if (typeof __ZPAN_APP_VERSION__ === 'undefined') return null
-  return __ZPAN_APP_VERSION__.trim() || null
+export function getAppVersion(): string {
+  if (!globalThis.__ZPAN_APP_VERSION__) {
+    throw new Error('__ZPAN_APP_VERSION__ is not configured')
+  }
+  return globalThis.__ZPAN_APP_VERSION__
 }

@@ -23,6 +23,7 @@ jobs:
           go-version-file: cmd/go.mod
           cache-dependency-path: cmd/go.sum
       - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check-version
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm openapi:downloader:check

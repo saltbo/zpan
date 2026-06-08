@@ -101,7 +101,7 @@ describe('instance telemetry', () => {
           id: 'inst-1',
           name: 'Test Instance',
           url: 'https://zpan.example.com',
-          version: '0.0.1',
+          version: 'test-version',
           runtime: {
             provider: 'node',
             target: 'node/docker',
@@ -127,7 +127,7 @@ describe('instance telemetry', () => {
             id: 'inst-1',
             name: 'Test Instance',
             url: 'https://zpan.example.com',
-            version: '0.0.1',
+            version: 'test-version',
             runtime: {
               provider: 'node',
               target: 'node/docker',
@@ -150,7 +150,7 @@ describe('instance telemetry', () => {
             id: 'inst-1',
             name: 'Test Instance',
             url: 'https://zpan.example.com',
-            version: '0.0.1',
+            version: 'test-version',
             runtime: {
               provider: 'node',
               target: 'node/docker',
