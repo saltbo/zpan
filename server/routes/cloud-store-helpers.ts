@@ -7,7 +7,6 @@ import { z } from 'zod'
 import {
   billingPortalSessionResponseSchema,
   commerceProductSchema,
-  createCloudClient,
   paymentCreateResponseSchema,
   productListResponseSchema,
 } from 'zpan-cloud-sdk'
@@ -15,6 +14,7 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
 import type { Database } from '../platform/interface'
 import { getCloudStoreBinding } from '../services/cloud-store'
+import { createBoundCloudClient } from '../services/licensing-cloud'
 
 const CLOUD_STORE_REQUEST_TIMEOUT_MS = 10_000
 
@@ -77,7 +77,7 @@ export async function getUserStoreSettings(db: Database) {
 export async function getBoundCloudClient(c: RouteContext) {
   const binding = await getCloudStoreBinding(c.get('platform').db)
   return {
-    client: createCloudClient({ baseUrl: `${getCloudBaseUrl(c).replace(/\/$/, '')}/api`, token: binding.refreshToken }),
+    client: createBoundCloudClient(getCloudBaseUrl(c), binding.refreshToken),
     storeId: binding.storeId,
   }
 }

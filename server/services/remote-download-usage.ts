@@ -6,7 +6,7 @@ import { remoteDownloadUsageReports } from '../db/schema'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database, Platform } from '../platform/interface'
-import { postBoundCloudJson } from './licensing-cloud'
+import { createBoundCloudClient, requestCloudJson } from './licensing-cloud'
 
 export class RemoteDownloadBillingBlockedError extends Error {
   constructor() {
@@ -114,12 +114,11 @@ async function syncRemoteDownloadUsageReport(params: {
   }
 
   try {
-    const response = usageResponseSchema.parse(
-      await postBoundCloudJson(
-        cloudBaseUrl,
-        `/api/stores/${encodeURIComponent(binding.cloudStoreId)}/billing/usage-events`,
-        binding.refreshToken,
-        {
+    const client = createBoundCloudClient(cloudBaseUrl, binding.refreshToken)
+    const response = await requestCloudJson(
+      client.stores[':storeId'].billing['usage-events'].$post({
+        param: { storeId: binding.cloudStoreId },
+        json: {
           resource: 'remote_download',
           unit: 'byte',
           bytes: report.unitBytes,
@@ -130,8 +129,9 @@ async function syncRemoteDownloadUsageReport(params: {
           sourceId: report.taskId,
           usageContext: { downloaderId: report.downloaderId },
           pricing: { unitQuantity: report.unitBytes, creditsPerUnit: report.creditsPerUnit },
-        },
-      ),
+        } as never,
+      }),
+      usageResponseSchema,
     )
     if (!response.accepted) throw new Error('cloud_usage_report_rejected')
     await mark(db, report.eventId, 'reported', null, now)

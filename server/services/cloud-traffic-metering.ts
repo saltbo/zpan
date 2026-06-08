@@ -7,7 +7,7 @@ import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database, Platform } from '../platform/interface'
 import { currentTrafficPeriod } from './effective-quota'
-import { postBoundCloudJson } from './licensing-cloud'
+import { createBoundCloudClient, requestCloudJson } from './licensing-cloud'
 
 export type TrafficReportSource =
   | 'object_download'
@@ -152,33 +152,35 @@ async function syncTrafficReport(params: {
 }): Promise<'reported' | 'blocked' | 'failed'> {
   const { db, cloudBaseUrl, refreshToken, storeId, report, now } = params
   try {
+    const client = createBoundCloudClient(cloudBaseUrl, refreshToken)
     const isStorageEgress = Boolean(report.storageId && report.unitBytes && report.creditsPerUnit)
-    const data = await postBoundCloudJson(
-      cloudBaseUrl,
-      `/api/stores/${encodeURIComponent(storeId)}/billing/usage-events`,
-      refreshToken,
-      isStorageEgress
-        ? {
-            resource: 'storage_egress',
-            unit: 'byte',
-            bytes: report.bytes,
-            eventId: report.eventId,
-            idempotencyKey: report.eventId,
-            customerId: report.orgId,
-            source: report.source,
-            sourceId: report.sourceId,
-            usageContext: { storageId: report.storageId },
-            pricing: { unitQuantity: report.unitBytes!, creditsPerUnit: report.creditsPerUnit! },
-          }
-        : {
-            resource: 'traffic_egress',
-            bytes: report.bytes,
-            eventId: report.eventId,
-            idempotencyKey: report.eventId,
-            customerId: report.orgId,
-          },
+    const payload = isStorageEgress
+      ? {
+          resource: 'storage_egress',
+          unit: 'byte',
+          bytes: report.bytes,
+          eventId: report.eventId,
+          idempotencyKey: report.eventId,
+          customerId: report.orgId,
+          source: report.source,
+          sourceId: report.sourceId,
+          usageContext: { storageId: report.storageId },
+          pricing: { unitQuantity: report.unitBytes!, creditsPerUnit: report.creditsPerUnit! },
+        }
+      : {
+          resource: 'traffic_egress',
+          bytes: report.bytes,
+          eventId: report.eventId,
+          idempotencyKey: report.eventId,
+          customerId: report.orgId,
+        }
+    const response = await requestCloudJson(
+      client.stores[':storeId'].billing['usage-events'].$post({
+        param: { storeId },
+        json: payload as never,
+      }),
+      usageResponseSchema,
     )
-    const response = usageResponseSchema.parse(data)
     if (!response.accepted) throw new Error('cloud_usage_report_rejected')
     await updateTrafficReport(db, report.eventId, 'reported', null, now)
     return 'reported'

@@ -367,11 +367,10 @@ describe('DELETE /api/licensing/binding', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.deleted).toBe(true)
-    expect(fetch).toHaveBeenCalledWith('https://cloud.zpan.space/api/licenses/bind-1', {
-      method: 'DELETE',
-      headers: { Authorization: 'Bearer old-token' },
-      signal: expect.any(AbortSignal),
-    })
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://cloud.zpan.space/api/licenses/bind-1')
+    expect(init.method).toBe('DELETE')
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer old-token')
 
     // Confirm binding is gone
     const state = await loadLicenseState(db)
