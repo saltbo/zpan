@@ -5,6 +5,9 @@ const INTERNAL_TOKEN_ENV = 'ZPAN_INTERNAL_API_TOKEN'
 const REPORT_PATH = '/api/internal/instance-telemetry/report'
 const DEFAULT_DEPLOY_URL = 'https://zpan.saltbo.workers.dev'
 const TOP_LEVEL_ENV_ARG = '--env='
+const SECRET_PROPAGATION_DELAY_MS = 5000
+const REPORT_RETRY_COUNT = 12
+const REPORT_RETRY_DELAY_MS = 5000
 
 class ReportError extends Error {
   constructor(status, body) {
@@ -19,23 +22,19 @@ if (process.env.GITHUB_ACTIONS === 'true') {
 }
 
 let secretSet = false
-let reportError
 try {
   putInternalToken(token)
   secretSet = true
-  await reportDeployTelemetry(token)
+  const reported = await reportDeployTelemetry(token)
+  if (!reported) {
+    console.warn('Deploy telemetry report was not delivered after retries; continuing deploy.')
+  }
 } catch (err) {
-  reportError = err
-  throw err
+  const message = err instanceof Error ? err.message : String(err)
+  console.warn(`Deploy telemetry setup failed; continuing deploy. error=${message}`)
 } finally {
   if (secretSet) {
-    try {
-      deleteInternalToken()
-    } catch (err) {
-      if (!reportError) throw err
-      const message = err instanceof Error ? err.message : String(err)
-      console.error(`Failed to delete ${INTERNAL_TOKEN_ENV}: ${message}`)
-    }
+    deleteInternalToken()
   }
 }
 
@@ -61,8 +60,9 @@ function deleteInternalToken() {
 
 async function reportDeployTelemetry(internalToken) {
   const url = new URL(REPORT_PATH, resolveDeployUrl())
+  await sleep(SECRET_PROPAGATION_DELAY_MS)
 
-  for (let attempt = 1; attempt <= 5; attempt += 1) {
+  for (let attempt = 1; attempt <= REPORT_RETRY_COUNT; attempt += 1) {
     try {
       const res = await fetch(url, {
         method: 'POST',
@@ -72,18 +72,18 @@ async function reportDeployTelemetry(internalToken) {
       })
       if (!res.ok) throw new ReportError(res.status, await res.text())
       console.log(`Reported deployed instance telemetry: ${url}`)
-      return
+      return true
     } catch (err) {
-      if (attempt === 5) throw err
       if (err instanceof ReportError && err.status === 404) {
         console.warn(`Deploy telemetry endpoint is waiting for secret propagation attempt=${attempt}`)
       } else {
         const code = err instanceof Error ? err.message : String(err)
         console.warn(`Deploy telemetry report failed attempt=${attempt} error=${code}`)
       }
-      await sleep(1000 * attempt)
+      if (attempt < REPORT_RETRY_COUNT) await sleep(REPORT_RETRY_DELAY_MS)
     }
   }
+  return false
 }
 
 function resolveDeployUrl() {
