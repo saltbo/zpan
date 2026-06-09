@@ -189,6 +189,7 @@ jobs:
       - name: Build
         env:
           ZPAN_APP_VERSION: ${{ steps.release.outputs.version }}
+          ZPAN_APP_COMMIT: ${{ github.sha }}
         run: pnpm build
 
       - name: Deploy

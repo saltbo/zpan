@@ -33,6 +33,7 @@ import type {
   BrandingThemeMode,
   BrandingThemePresetId,
   BrandingThemeValues,
+  ChangelogInfo,
   CloudOrder,
   CloudProduct,
   CloudStoreTarget,
@@ -1026,6 +1027,10 @@ export function getLicensingStatus() {
 
 export function getInstanceInfo() {
   return unwrap<InstanceInfo>(system.instance.$get())
+}
+
+export function getChangelog() {
+  return unwrap<ChangelogInfo>(system.changelog.$get())
 }
 
 export function connectCloud() {

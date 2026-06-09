@@ -43,6 +43,7 @@ import {
   getAnnouncement,
   getBackgroundJob,
   getBranding,
+  getChangelog,
   getCloudCredits,
   getEmailConfig,
   getIhostConfig,
@@ -2925,6 +2926,39 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
 
       await expect(getInstanceInfo()).rejects.toThrow()
+    })
+  })
+
+  describe('getChangelog', () => {
+    const changelog = {
+      currentVersion: '2.7.2',
+      latestVersion: '2.8.0',
+      updateAvailable: true,
+      markdown: '## [2.8.0]\n- new stuff',
+    }
+
+    it('calls the correct endpoint', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(changelog))
+
+      await getChangelog()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/system/changelog')
+      expect(init?.method ?? 'GET').toBe('GET')
+    })
+
+    it('returns the changelog payload', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(changelog))
+
+      const result = await getChangelog()
+
+      expect(result).toEqual(changelog)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(getChangelog()).rejects.toThrow()
     })
   })
 

@@ -1,15 +1,17 @@
-import { ZPAN_CLOUD_URL_DEFAULT, ZPAN_GITHUB_URL } from '@shared/constants'
+import { githubCommitUrl, ZPAN_CLOUD_URL_DEFAULT, ZPAN_GITHUB_URL } from '@shared/constants'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { BadgeCheck, ExternalLink, Github, Server, Sparkles, Star } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ArrowUpCircle, BadgeCheck, ExternalLink, Github, History, Server, Sparkles, Star } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
+import { AnnouncementMarkdown } from '@/components/announcements/markdown-content'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { getInstanceInfo } from '@/lib/api'
+import { getChangelog, getInstanceInfo } from '@/lib/api'
 import { EDITION_COLORS, editionKey } from '@/lib/license-edition'
 
 export const Route = createFileRoute('/_authenticated/admin/about')({
@@ -28,10 +30,16 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
 function AboutPage() {
   const { t } = useTranslation()
   const { bound, active, edition, licenseId, cloudDashboardUrl } = useEntitlement()
+  const [changelogOpen, setChangelogOpen] = useState(false)
   const { data: instance, isLoading } = useQuery({
     queryKey: ['system', 'instance'],
     queryFn: getInstanceInfo,
     staleTime: 5 * 60 * 1000,
+  })
+  const { data: changelog, isError: changelogError } = useQuery({
+    queryKey: ['system', 'changelog'],
+    queryFn: getChangelog,
+    staleTime: 60 * 60 * 1000,
   })
 
   if (isLoading || !instance) return null
@@ -52,15 +60,31 @@ function AboutPage() {
       <AdminPageHeader
         title={t('admin.about.title')}
         description={t('admin.about.subtitle')}
-        badge={<Badge variant="secondary">v{instance.version}</Badge>}
+        badge={
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">v{instance.version}</Badge>
+            {changelog?.updateAvailable && (
+              <Badge className="border-transparent bg-[#1A73E8] text-white">
+                <ArrowUpCircle className="mr-1 h-3 w-3" />
+                {t('admin.about.updateAvailable')}
+              </Badge>
+            )}
+          </div>
+        }
       />
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Server className="h-4 w-4" />
-            {t('admin.about.instanceTitle')}
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Server className="h-4 w-4" />
+              {t('admin.about.instanceTitle')}
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={() => setChangelogOpen(true)}>
+              <History className="mr-2 h-4 w-4" />
+              {t('admin.about.viewChangelog')}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="divide-y">
           <InfoRow label={t('admin.about.instanceName')}>{instance.name}</InfoRow>
@@ -78,7 +102,36 @@ function AboutPage() {
               <ExternalLink className="h-3 w-3" />
             </a>
           </InfoRow>
-          <InfoRow label={t('admin.about.version')}>{instance.version}</InfoRow>
+          <InfoRow label={t('admin.about.version')}>
+            <span className="inline-flex items-center gap-1.5">
+              v{instance.version}
+              {instance.commit && (
+                <a
+                  href={githubCommitUrl(instance.commit)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-xs text-muted-foreground hover:text-primary hover:underline"
+                  title={t('admin.about.commitTooltip')}
+                >
+                  {instance.commit}
+                </a>
+              )}
+            </span>
+          </InfoRow>
+          {changelog && (
+            <InfoRow label={t('admin.about.latestVersion')}>
+              <span className="inline-flex items-center gap-2">
+                {changelog.latestVersion ? `v${changelog.latestVersion}` : '—'}
+                {changelog.updateAvailable ? (
+                  <Badge className="border-transparent bg-[#1A73E8] text-white">
+                    {t('admin.about.updateAvailable')}
+                  </Badge>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{t('admin.about.upToDate')}</span>
+                )}
+              </span>
+            </InfoRow>
+          )}
           <InfoRow label={t('admin.about.edition')}>
             <Badge style={{ backgroundColor: EDITION_COLORS[key], color: '#fff' }} className="border-transparent">
               {editionLabel}
@@ -140,6 +193,24 @@ function AboutPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Sheet open={changelogOpen} onOpenChange={setChangelogOpen}>
+        <SheetContent side="right" className="sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>{t('admin.about.changelogTitle')}</SheetTitle>
+            <SheetDescription>{t('admin.about.changelogSubtitle')}</SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-4 pb-6">
+            {changelogError ? (
+              <p className="text-sm text-muted-foreground">{t('admin.about.changelogError')}</p>
+            ) : changelog ? (
+              <AnnouncementMarkdown content={changelog.markdown} />
+            ) : (
+              <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

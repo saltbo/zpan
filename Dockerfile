@@ -13,9 +13,12 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 
 COPY . .
 # .git is excluded from the build context, so git describe cannot run here.
-# The release workflow passes the tag via APP_VERSION; resolveAppVersion reads it.
+# The release workflow passes the tag via APP_VERSION and the commit SHA via
+# APP_COMMIT; resolveAppVersion/resolveAppCommit read them.
 ARG APP_VERSION=dev
 ENV ZPAN_APP_VERSION=${APP_VERSION}
+ARG APP_COMMIT=
+ENV ZPAN_APP_COMMIT=${APP_COMMIT}
 RUN pnpm build:node \
  && pnpm prune --prod --ignore-scripts
 

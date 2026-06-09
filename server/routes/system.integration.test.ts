@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CAPTCHA_ENABLED_KEY,
   CAPTCHA_PROVIDER_KEY,
   CAPTCHA_SECRET_OPTION_KEY,
   CAPTCHA_SITE_KEY_KEY,
 } from '../../shared/captcha.js'
+import { resetChangelogCache } from '../services/changelog.js'
 import { adminHeaders, createTestApp } from '../test/setup.js'
 
 async function putOption(
@@ -132,6 +133,39 @@ describe('System API — options CRUD', () => {
     expect(body.id).toBeTruthy()
     expect(body.version).toBeTruthy()
     expect(body.runtime?.provider).toBe('node')
+  })
+
+  describe('changelog', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      resetChangelogCache()
+    })
+
+    it('serves the parsed changelog to admins only', async () => {
+      const { app } = await createTestApp()
+      resetChangelogCache()
+      const markdown = '## [Unreleased]\n- wip\n\n## [2.8.0] - 2026-07-01\n- shiny'
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({ ok: true, status: 200, text: async () => markdown }) as unknown as Response),
+      )
+
+      const anon = await app.request('/api/system/changelog')
+      expect(anon.status).toBe(401)
+
+      const admin = await adminHeaders(app)
+      const res = await app.request('/api/system/changelog', { headers: admin })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        currentVersion: string
+        latestVersion: string
+        updateAvailable: boolean
+        markdown: string
+      }
+      expect(body.latestVersion).toBe('2.8.0')
+      expect(body.currentVersion).toBe('test-version')
+      expect(body.markdown).toBe(markdown)
+    })
   })
 
   it('keeps captcha secret private and rejects enabling captcha before keys exist', async () => {

@@ -4,15 +4,17 @@ import tailwindcss from '@tailwindcss/vite'
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
-import { resolveAppVersion } from './scripts/app-version.mjs'
+import { resolveAppCommit, resolveAppVersion } from './scripts/app-version.mjs'
 
 const appPort = Number(process.env.E2E_APP_PORT ?? 5185)
 const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
 const appVersion = resolveAppVersion()
+const appCommit = resolveAppCommit()
 
 export default defineConfig(({ mode }) => ({
   define: {
     'globalThis.__ZPAN_APP_VERSION__': JSON.stringify(appVersion),
+    'globalThis.__ZPAN_APP_COMMIT__': JSON.stringify(appCommit),
   },
   build: {
     outDir: 'dist',

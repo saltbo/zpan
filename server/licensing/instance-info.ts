@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { systemOptions } from '../db/schema'
 import type { Database, Platform } from '../platform/interface'
 import type { CloudInstanceInfo } from '../services/licensing-cloud'
-import { getAppVersion } from '../version'
+import { getAppCommit, getAppVersion } from '../version'
 import { getOrCreateInstanceId } from './instance-id'
 
 type RuntimeInfo = Pick<CloudInstanceInfo, 'runtime' | 'server' | 'node'>
@@ -42,6 +42,7 @@ export async function buildCloudInstanceInfo(
     name: await getInstanceDisplayName(db),
     url: params.url,
     version: getAppVersion(),
+    commit: getAppCommit(),
     ...params.runtime,
   }
 }
