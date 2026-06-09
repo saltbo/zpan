@@ -11,8 +11,10 @@ import {
   grantUserPersonalEntitlement,
   listUserPersonalEntitlements,
   listUsers,
+  revokeUserPersonalEntitlement,
   setUserStatus,
   setUsersStatus,
+  updateUserPersonalEntitlement,
 } from '../services/user'
 
 const updateStatusSchema = z.object({
@@ -33,6 +35,12 @@ const batchPatchSchema = z.discriminatedUnion('action', [
 const grantEntitlementSchema = z.object({
   resourceType: z.literal('storage'),
   bytes: z.number().int().positive(),
+  expiresAt: z.string().datetime().nullable().optional(),
+  note: z.string().max(500).nullable().optional(),
+})
+
+const updateEntitlementSchema = z.object({
+  bytes: z.number().int().positive().optional(),
   expiresAt: z.string().datetime().nullable().optional(),
   note: z.string().max(500).nullable().optional(),
 })
@@ -115,6 +123,65 @@ const app = new Hono<Env>()
     })
 
     return c.json(result, 201)
+  })
+  .patch('/:id/entitlements/:eid', zValidator('json', updateEntitlementSchema), async (c) => {
+    const db = c.get('platform').db
+    const adminUserId = c.get('userId')!
+    const adminOrgId = c.get('orgId')!
+    const targetUserId = c.req.param('id')
+    const entitlementId = c.req.param('eid')
+    const body = c.req.valid('json')
+    const result = await updateUserPersonalEntitlement(db, {
+      adminUserId,
+      targetUserId,
+      entitlementId,
+      bytes: body.bytes,
+      expiresAt: 'expiresAt' in body ? (body.expiresAt ? new Date(body.expiresAt) : null) : undefined,
+      note: body.note,
+    })
+    if ('error' in result) return c.json({ error: result.error }, result.status)
+
+    await recordActivity(db, {
+      orgId: adminOrgId,
+      userId: adminUserId,
+      action: 'quota_entitlement_update',
+      targetType: 'quota',
+      targetId: result.orgId,
+      targetName: targetUserId,
+      metadata: {
+        targetUserId,
+        entitlementId: result.entitlement.id,
+        bytes: result.entitlement.bytes,
+        expiresAt: result.entitlement.expiresAt?.toISOString() ?? null,
+      },
+    })
+
+    return c.json(result)
+  })
+  .delete('/:id/entitlements/:eid', async (c) => {
+    const db = c.get('platform').db
+    const adminUserId = c.get('userId')!
+    const adminOrgId = c.get('orgId')!
+    const targetUserId = c.req.param('id')
+    const entitlementId = c.req.param('eid')
+    const result = await revokeUserPersonalEntitlement(db, { adminUserId, targetUserId, entitlementId })
+    if ('error' in result) return c.json({ error: result.error }, result.status)
+
+    await recordActivity(db, {
+      orgId: adminOrgId,
+      userId: adminUserId,
+      action: 'quota_entitlement_revoke',
+      targetType: 'quota',
+      targetId: result.orgId,
+      targetName: targetUserId,
+      metadata: {
+        targetUserId,
+        entitlementId: result.entitlement.id,
+        bytes: result.entitlement.bytes,
+      },
+    })
+
+    return c.json(result)
   })
   .delete('/batch', zValidator('json', userIdsSchema), async (c) => {
     const db = c.get('platform').db

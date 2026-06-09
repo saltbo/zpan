@@ -1,15 +1,25 @@
-import { useQuery } from '@tanstack/react-query'
+import type { OrgQuotaEntitlement } from '@shared/types'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowLeft, BadgeCent, CalendarDays, Mail } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { GrantUserEntitlementDialog } from '@/components/admin/grant-user-entitlement-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { getUser, listUserEntitlements } from '@/lib/api'
+import { getUser, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/users/$userId')({
@@ -18,12 +28,29 @@ export const Route = createFileRoute('/_authenticated/admin/users/$userId')({
 
 function AdminUserDetailPage() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { userId } = Route.useParams()
   const [grantOpen, setGrantOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<OrgQuotaEntitlement | null>(null)
+  const [revokeTarget, setRevokeTarget] = useState<OrgQuotaEntitlement | null>(null)
 
   const userQuery = useQuery({
     queryKey: ['admin', 'users', userId],
     queryFn: () => getUser(userId),
+  })
+
+  const revokeMutation = useMutation({
+    mutationFn: (entitlementId: string) => revokeUserEntitlement(userId, entitlementId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', userId] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', userId, 'entitlements'] })
+      toast.success(t('admin.users.entitlementRevoked'))
+      setRevokeTarget(null)
+    },
+    onError: (err) => {
+      toast.error(err.message)
+    },
   })
 
   const entitlementsQuery = useQuery({
@@ -134,6 +161,7 @@ function AdminUserDetailPage() {
                 <TableHead>{t('admin.users.entitlementSource')}</TableHead>
                 <TableHead>{t('admin.users.entitlementExpires')}</TableHead>
                 <TableHead>{t('admin.users.entitlementStatus')}</TableHead>
+                <TableHead className="text-right">{t('admin.users.entitlementActions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -148,11 +176,28 @@ function AdminUserDetailPage() {
                     {item.expiresAt ? formatDate(item.expiresAt) : t('admin.users.noExpiry')}
                   </TableCell>
                   <TableCell>{formatStatus(item.status, t)}</TableCell>
+                  <TableCell className="text-right">
+                    {isEditable(item) && (
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => setEditTarget(item)}>
+                          {t('admin.users.editEntitlement')}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setRevokeTarget(item)}
+                        >
+                          {t('admin.users.revokeEntitlement')}
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
               {items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                     {entitlementsQuery.isLoading ? t('common.loading') : t('admin.users.noEntitlements')}
                   </TableCell>
                 </TableRow>
@@ -167,8 +212,40 @@ function AdminUserDetailPage() {
         onOpenChange={setGrantOpen}
         user={{ id: user.id, name: displayName }}
       />
+
+      <GrantUserEntitlementDialog
+        open={!!editTarget}
+        onOpenChange={(open) => !open && setEditTarget(null)}
+        user={{ id: user.id, name: displayName }}
+        entitlement={editTarget}
+      />
+
+      <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('admin.users.revokeEntitlementTitle')}</DialogTitle>
+            <DialogDescription>{t('admin.users.revokeEntitlementConfirm', { name: displayName })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRevokeTarget(null)} disabled={revokeMutation.isPending}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => revokeTarget && revokeMutation.mutate(revokeTarget.id)}
+              disabled={revokeMutation.isPending}
+            >
+              {revokeMutation.isPending ? t('common.loading') : t('admin.users.revokeEntitlement')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
+}
+
+function isEditable(item: OrgQuotaEntitlement): boolean {
+  return item.source === 'admin_grant' && item.status === 'active'
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

@@ -436,6 +436,22 @@ export function grantUserEntitlement(
   )
 }
 
+export function updateUserEntitlement(
+  userId: string,
+  entitlementId: string,
+  data: { bytes?: number; expiresAt?: string | null; note?: string | null },
+) {
+  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
+    users[':id'].entitlements[':eid'].$patch({ param: { id: userId, eid: entitlementId }, json: data }),
+  )
+}
+
+export function revokeUserEntitlement(userId: string, entitlementId: string) {
+  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
+    users[':id'].entitlements[':eid'].$delete({ param: { id: userId, eid: entitlementId } }),
+  )
+}
+
 // Admin Quotas API
 
 export type QuotaItem = Pick<
