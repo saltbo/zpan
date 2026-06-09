@@ -137,6 +137,21 @@ jobs:
           echo "url=https://$DOMAIN" >> "$GITHUB_OUTPUT"
           echo "R2 public URL: https://$DOMAIN"
 
+      - name: Ensure Queue exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          OUTPUT=$(pnpm exec wrangler queues create zpan-archive-jobs 2>&1) || true
+          if echo "$OUTPUT" | grep -q "already taken"; then
+            echo "Queue already exists, skipping"
+          elif echo "$OUTPUT" | grep -q "ERROR"; then
+            echo "$OUTPUT"
+            exit 1
+          else
+            echo "Created queue: zpan-archive-jobs"
+          fi
+
       - name: Patch wrangler.toml with D1 database ID
         run: sed -i "s/database_id = \"[^\"]*\"/database_id = \"${{ steps.d1.outputs.id }}\"/" wrangler.toml
 
@@ -164,6 +179,17 @@ jobs:
         run: |
           echo "${{ steps.r2.outputs.url }}" | pnpm exec wrangler secret put PUBLIC_IMAGES_URL
           echo "Set PUBLIC_IMAGES_URL = ${{ steps.r2.outputs.url }}"
+
+      # vite build runs the @cloudflare/vite-plugin, which writes the deploy
+      # config (dist/zpan/wrangler.json) that the subsequent wrangler deploy
+      # consumes: it resolves the assets directory to dist/client and inlines
+      # build-time defines. Must run after the D1 id patch so the generated
+      # config carries the real database_id. ZPAN_APP_VERSION sidesteps a git
+      # describe on the shallow tag checkout.
+      - name: Build
+        env:
+          ZPAN_APP_VERSION: ${{ steps.release.outputs.version }}
+        run: pnpm build
 
       - name: Deploy
         env:
