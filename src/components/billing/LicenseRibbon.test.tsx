@@ -16,7 +16,7 @@ interface RibbonConfig {
 }
 
 function resolveRibbon(bound: boolean, edition: string | null, cloudDashboardUrl: string | undefined): RibbonConfig {
-  if (!bound) {
+  if (!bound || !edition) {
     return {
       labelKey: 'admin.ribbon.community',
       color: '#64748B',
@@ -38,7 +38,7 @@ function resolveRibbon(bound: boolean, edition: string | null, cloudDashboardUrl
 }
 
 // ---------------------------------------------------------------------------
-// Community (unbound)
+// Community (unbound or edition unknown)
 // ---------------------------------------------------------------------------
 
 describe('resolveRibbon — Community', () => {
@@ -57,14 +57,21 @@ describe('resolveRibbon — Community', () => {
     expect(result.href).toBe(GITHUB_URL)
   })
 
-  it('ignores edition when not bound', () => {
+  it('ignores edition value when not bound', () => {
     const result = resolveRibbon(false, 'pro', undefined)
+    expect(result.labelKey).toBe('admin.ribbon.community')
+  })
+
+  it('falls back to community when bound but edition is null (transient state)', () => {
+    // When the server returns bound=true but no edition yet (e.g., refresh in progress
+    // or license error), the ribbon shows Community to avoid incorrectly advertising Pro.
+    const result = resolveRibbon(true, null, undefined)
     expect(result.labelKey).toBe('admin.ribbon.community')
   })
 })
 
 // ---------------------------------------------------------------------------
-// Pro (bound, edition !== 'business')
+// Pro (bound, edition === 'pro')
 // ---------------------------------------------------------------------------
 
 describe('resolveRibbon — Pro', () => {
@@ -78,14 +85,9 @@ describe('resolveRibbon — Pro', () => {
     expect(result.color).toBe('#1A73E8')
   })
 
-  it('links to GitHub for pro', () => {
+  it('links to GitHub for pro (per product spec)', () => {
     const result = resolveRibbon(true, 'pro', undefined)
     expect(result.href).toBe(GITHUB_URL)
-  })
-
-  it('treats null edition as pro when bound', () => {
-    const result = resolveRibbon(true, null, undefined)
-    expect(result.labelKey).toBe('admin.ribbon.pro')
   })
 })
 

@@ -11,7 +11,7 @@ interface RibbonConfig {
 }
 
 function resolveRibbon(bound: boolean, edition: string | null, cloudDashboardUrl: string | undefined): RibbonConfig {
-  if (!bound) {
+  if (!bound || !edition) {
     return {
       labelKey: 'admin.ribbon.community',
       color: '#64748B',
@@ -22,9 +22,12 @@ function resolveRibbon(bound: boolean, edition: string | null, cloudDashboardUrl
     return {
       labelKey: 'admin.ribbon.business',
       color: '#F59E0B',
+      // Task spec: use cloud_dashboard_url with fallback to the canonical dashboard URL
       href: cloudDashboardUrl ?? CLOUD_DASHBOARD_FALLBACK,
     }
   }
+  // Pro — and any future edition that is not 'business'
+  // Both Pro and Community link to GitHub per product spec
   return {
     labelKey: 'admin.ribbon.pro',
     color: '#1A73E8',
@@ -42,11 +45,9 @@ export function LicenseRibbon() {
   const label = t(labelKey)
 
   return (
-    <div
-      className="pointer-events-none fixed right-0 top-0 z-50 overflow-hidden"
-      style={{ width: 120, height: 120 }}
-      aria-hidden="true"
-    >
+    // z-40: above the desktop sidebar (z-10) but below modal sheets (z-50),
+    // so it does not intercept taps when the mobile sheet overlay is open.
+    <div className="pointer-events-none fixed right-0 top-0 z-40 overflow-hidden" style={{ width: 120, height: 120 }}>
       <a
         href={href}
         target="_blank"
