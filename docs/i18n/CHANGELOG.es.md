@@ -10,6 +10,34 @@
   <a href="CHANGELOG.pt-BR.md">Português (BR)</a>
 </p>
 
+## v2.7.3 — 2026-06-09
+
+### Funcionalidades
+- **Página «Acerca de»** — una nueva página de administración que muestra la
+  información de la instancia, la edición y la versión, con un panel de registro
+  de cambios integrado y comprobación de la última versión contra GitHub
+  Releases.
+- **Licenciamiento comercial** — autorización comercial independiente, una cinta
+  de edición en el diseño de administración y una tabla comparativa de ediciones
+  agrupada por capacidades (con restricciones de inicio de sesión social y del
+  descargador).
+- **Gestión de derechos** — los administradores ahora pueden editar y revocar
+  los derechos de cuota otorgados.
+- **Telemetría de la instancia** — envío opcional y anónimo de información del
+  despliegue (con región por GeoIP) para entender cómo se usa ZPan.
+
+### Correcciones
+- Facturación de uso de descargas remotas más resiliente.
+- Se reparó el arranque de la imagen Docker (ahora protegido en CI) y se usa el
+  nombre de host del anfitrión para registrar el descargador.
+- Listado de cuotas de administración más rápido — consultas por lotes
+  (fragmentadas bajo el límite de 100 parámetros de D1), con el reinicio mensual
+  movido a una tarea programada.
+- La versión de la app ahora se resuelve desde `package.json` y se inyecta en
+  tiempo de compilación.
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.3)
+
 ## v2.7.2 — 2026-06-07
 
 ### Funcionalidades

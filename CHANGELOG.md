@@ -10,6 +10,30 @@
   <a href="docs/i18n/CHANGELOG.pt-BR.md">Português (BR)</a>
 </p>
 
+## v2.7.3 — 2026-06-09
+
+### Features
+- **About page** — a new admin About page showing instance info, edition, and
+  version, with a built-in changelog drawer and a latest-version check against
+  GitHub Releases.
+- **Business licensing** — independent business authorization, an edition ribbon
+  in the admin layout, and a capability-grouped edition comparison (with
+  social-login and downloader gating).
+- **Entitlement management** — admins can now edit and revoke granted quota
+  entitlements.
+- **Instance telemetry** — optional, anonymous reporting of deployment info
+  (with GeoIP region) to help us understand how ZPan is run.
+
+### Fixes
+- More resilient remote-download usage billing.
+- Repaired Docker image startup (now guarded in CI) and use the host hostname
+  for downloader registration.
+- Faster admin quota listing — batched queries (chunked under D1's 100-param
+  cap), with the monthly reset moved to a scheduled job.
+- App version now resolves from `package.json` and is injected at build time.
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.3)
+
 ## v2.7.2 — 2026-06-07
 
 ### Features
