@@ -6,10 +6,12 @@ import { createTestApp } from '../test/setup.js'
 import {
   consumeTrafficIfQuotaAllows,
   getEffectiveQuota,
+  getEffectiveQuotasByOrg,
   hasQuotaForBytes,
   hasTrafficQuotaForBytes,
   incrementUsageIfEffectiveQuotaAllows,
   refundTraffic,
+  resetExpiredTrafficQuotas,
 } from './effective-quota.js'
 
 describe('effective quota', () => {
@@ -271,7 +273,7 @@ describe('effective quota', () => {
     })
   })
 
-  it('resets monthly traffic usage when the period changes', async () => {
+  it('normalizes monthly traffic usage in memory without persisting when the period changes', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     await db.insert(orgQuotas).values({
@@ -288,9 +290,109 @@ describe('effective quota', () => {
     expect(quota.trafficUsed).toBe(0)
     expect(quota.trafficPeriod).toBe('2026-05')
 
+    // getEffectiveQuota is a pure read: the stale row is left untouched. The
+    // monthly reset is persisted by resetExpiredTrafficQuotas (cron) or the
+    // consume write path, not by reads.
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
-    expect(rows[0].trafficUsed).toBe(0)
-    expect(rows[0].trafficPeriod).toBe('2026-05')
+    expect(rows[0].trafficUsed).toBe(1500)
+    expect(rows[0].trafficPeriod).toBe('2026-04')
+  })
+
+  it('persists the monthly traffic reset for stale periods and leaves current rows untouched', async () => {
+    const { db } = await createTestApp()
+    const staleOrg = nanoid()
+    const currentOrg = nanoid()
+    await db.insert(orgQuotas).values([
+      {
+        id: nanoid(),
+        orgId: staleOrg,
+        quota: 1000,
+        used: 0,
+        trafficQuota: 2000,
+        trafficUsed: 1500,
+        trafficPeriod: '2026-04',
+      },
+      {
+        id: nanoid(),
+        orgId: currentOrg,
+        quota: 1000,
+        used: 0,
+        trafficQuota: 2000,
+        trafficUsed: 700,
+        trafficPeriod: '2026-05',
+      },
+    ])
+
+    await resetExpiredTrafficQuotas(db, new Date('2026-05-01T00:00:00Z'))
+
+    const stale = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, staleOrg))
+    expect(stale[0].trafficUsed).toBe(0)
+    expect(stale[0].trafficPeriod).toBe('2026-05')
+
+    const current = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, currentOrg))
+    expect(current[0].trafficUsed).toBe(700)
+    expect(current[0].trafficPeriod).toBe('2026-05')
+  })
+
+  it('aggregates effective quotas for many orgs in a single batch matching the per-org result', async () => {
+    const { db } = await createTestApp()
+    const planOrg = nanoid()
+    const staleOrg = nanoid()
+    const emptyOrg = nanoid()
+    const now = new Date('2026-05-06T00:00:00Z')
+
+    await db.insert(orgQuotas).values([
+      {
+        id: nanoid(),
+        orgId: planOrg,
+        quota: 0,
+        used: 120,
+        trafficQuota: 0,
+        trafficUsed: 300,
+        trafficPeriod: '2026-05',
+      },
+      { id: nanoid(), orgId: staleOrg, quota: 0, used: 0, trafficQuota: 0, trafficUsed: 999, trafficPeriod: '2026-04' },
+      { id: nanoid(), orgId: emptyOrg, quota: 0, used: 0, trafficQuota: 0, trafficUsed: 0, trafficPeriod: '2026-05' },
+    ])
+    await db
+      .insert(orgQuotaEntitlements)
+      .values([
+        entitlement(planOrg, 'storage', `stripe_subscription:sub_storage:${planOrg}`, 3000, 'active', now, 'Team Plan'),
+        entitlement(planOrg, 'storage', 'order-storage-pack', 500, 'active', now, 'Storage Pack'),
+        entitlement(planOrg, 'traffic', `stripe_subscription:sub_traffic:${planOrg}`, 4000, 'active', now, 'Team Plan'),
+        entitlement(planOrg, 'traffic', 'order-traffic-pack', 700, 'active', now, 'Traffic Boost'),
+      ])
+
+    const batch = await getEffectiveQuotasByOrg(db, [planOrg, staleOrg, emptyOrg], now)
+
+    expect(batch.size).toBe(3)
+    // Batch result must match the per-org function exactly.
+    for (const orgId of [planOrg, staleOrg, emptyOrg]) {
+      expect(batch.get(orgId)).toEqual(await getEffectiveQuota(db, orgId, now))
+    }
+
+    expect(batch.get(planOrg)).toMatchObject({
+      baseQuota: 3000,
+      entitlementQuota: 500,
+      quota: 3500,
+      used: 120,
+      baseTrafficQuota: 4000,
+      entitlementTrafficQuota: 700,
+      trafficQuota: 4700,
+      trafficUsed: 300,
+      storagePlanName: 'Team Plan',
+      storageExtraNames: ['Storage Pack'],
+      trafficPlanName: 'Team Plan',
+      trafficExtraNames: ['Traffic Boost'],
+    })
+    // Stale period normalized in memory.
+    expect(batch.get(staleOrg)).toMatchObject({ trafficUsed: 0, trafficPeriod: '2026-05' })
+    expect(batch.get(emptyOrg)).toMatchObject({ baseQuota: 0, quota: 0, trafficQuota: 0, currentPlan: null })
+  })
+
+  it('returns an empty map for no orgs', async () => {
+    const { db } = await createTestApp()
+    await expect(getEffectiveQuotasByOrg(db, [], new Date('2026-05-06T00:00:00Z'))).resolves.toEqual(new Map())
   })
 
   it('consumes traffic within the monthly quota and rejects overage', async () => {

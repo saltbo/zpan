@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { syncPendingCloudTrafficReports } from '../server/services/cloud-traffic-metering'
+import { resetExpiredTrafficQuotas } from '../server/services/effective-quota'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/services/instance-telemetry'
 import { runLicensingRefresh } from '../server/services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from '../server/services/remote-download-usage'
@@ -13,6 +14,10 @@ vi.mock('../server/platform/cloudflare', () => ({
 
 vi.mock('../server/services/cloud-traffic-metering', () => ({
   syncPendingCloudTrafficReports: vi.fn(),
+}))
+
+vi.mock('../server/services/effective-quota', () => ({
+  resetExpiredTrafficQuotas: vi.fn(),
 }))
 
 vi.mock('../server/services/instance-telemetry', () => ({
@@ -34,6 +39,7 @@ describe('handleScheduled', () => {
     vi.mocked(syncPendingRemoteDownloadUsageReports).mockReset()
     vi.mocked(reportInstanceTelemetry).mockReset()
     vi.mocked(runLicensingRefresh).mockReset()
+    vi.mocked(resetExpiredTrafficQuotas).mockReset()
   })
 
   it('syncs usage reports on the traffic cron only', async () => {
@@ -52,6 +58,16 @@ describe('handleScheduled', () => {
     await handleScheduled({ cron: '0 */6 * * *' }, { DB: {} as D1Database, ZPAN_CLOUD_URL: 'https://cloud.example' })
 
     expect(runLicensingRefresh).toHaveBeenCalledWith('db', 'https://cloud.example')
+    expect(syncPendingCloudTrafficReports).not.toHaveBeenCalled()
+    expect(syncPendingRemoteDownloadUsageReports).not.toHaveBeenCalled()
+    expect(reportInstanceTelemetry).not.toHaveBeenCalled()
+  })
+
+  it('resets expired traffic quotas on the monthly reset cron only', async () => {
+    await handleScheduled({ cron: '0 0 1 * *' }, { DB: {} as D1Database, ZPAN_CLOUD_URL: 'https://cloud.example' })
+
+    expect(resetExpiredTrafficQuotas).toHaveBeenCalledWith('db')
+    expect(runLicensingRefresh).not.toHaveBeenCalled()
     expect(syncPendingCloudTrafficReports).not.toHaveBeenCalled()
     expect(syncPendingRemoteDownloadUsageReports).not.toHaveBeenCalled()
     expect(reportInstanceTelemetry).not.toHaveBeenCalled()

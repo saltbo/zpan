@@ -9,6 +9,7 @@ import { buildCloudInstanceInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
+import { resetExpiredTrafficQuotas } from './services/effective-quota'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
 import { runLicensingRefresh } from './services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
@@ -17,6 +18,7 @@ import { getSitePublicOrigin } from './services/site-public-origin'
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 const INSTANCE_TELEMETRY_INTERVAL_MS = 12 * 60 * 60 * 1000 // 12 hours
+const QUOTA_RESET_INTERVAL_MS = 24 * 60 * 60 * 1000 // daily; idempotent, resets only stale periods
 const appVersionGlobalKey = '__ZPAN_APP_VERSION__'
 
 // tsx runs this entry directly (dev + E2E) without the tsup build-time define,
@@ -113,3 +115,10 @@ function reportNodeInstanceTelemetry(): void {
 console.log('instance.telemetry.scheduler.started interval=12h')
 reportNodeInstanceTelemetry()
 setInterval(reportNodeInstanceTelemetry, INSTANCE_TELEMETRY_INTERVAL_MS)
+
+console.log('quota.reset.scheduler.started interval=24h')
+// Run once at boot to catch a month boundary crossed while the server was down.
+void resetExpiredTrafficQuotas(platform.db)
+setInterval(() => {
+  void resetExpiredTrafficQuotas(platform.db)
+}, QUOTA_RESET_INTERVAL_MS)

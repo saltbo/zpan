@@ -1,4 +1,4 @@
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { orgQuotaEntitlements, orgQuotas, storages } from '../db/schema'
 import type { Database } from '../platform/interface'
 
@@ -38,10 +38,6 @@ export function currentTrafficPeriod(now = new Date()): string {
 
 export async function getEffectiveQuota(db: Database, orgId: string, now = new Date()): Promise<EffectiveQuota> {
   const period = currentTrafficPeriod(now)
-  await db
-    .update(orgQuotas)
-    .set({ trafficUsed: 0, trafficPeriod: period })
-    .where(sql`${orgQuotas.orgId} = ${orgId} AND ${orgQuotas.trafficPeriod} != ${period}`)
 
   const quotaRows = await db
     .select({
@@ -85,6 +81,142 @@ export async function getEffectiveQuota(db: Database, orgId: string, now = new D
     trafficExtraNames,
     currentPlan,
   }
+}
+
+// Batch variant of getEffectiveQuota for list views. Resolves every org with two
+// queries total (quota rows + active entitlements) instead of ~8 per org, then
+// aggregates in memory. Returns one entry per requested orgId, even with no rows.
+export async function getEffectiveQuotasByOrg(
+  db: Database,
+  orgIds: string[],
+  now = new Date(),
+): Promise<Map<string, EffectiveQuota>> {
+  const result = new Map<string, EffectiveQuota>()
+  if (orgIds.length === 0) return result
+
+  const period = currentTrafficPeriod(now)
+  const timestamp = now.getTime()
+
+  const quotaRows = await db
+    .select({
+      orgId: orgQuotas.orgId,
+      used: orgQuotas.used,
+      trafficUsed: orgQuotas.trafficUsed,
+      trafficPeriod: orgQuotas.trafficPeriod,
+    })
+    .from(orgQuotas)
+    .where(inArray(orgQuotas.orgId, orgIds))
+  const quotaByOrg = new Map(quotaRows.map((r) => [r.orgId, r]))
+
+  const entRows = await db
+    .select({
+      orgId: orgQuotaEntitlements.orgId,
+      resourceType: orgQuotaEntitlements.resourceType,
+      entitlementType: orgQuotaEntitlements.entitlementType,
+      sourceId: orgQuotaEntitlements.sourceId,
+      bytes: orgQuotaEntitlements.bytes,
+      startsAt: orgQuotaEntitlements.startsAt,
+      expiresAt: orgQuotaEntitlements.expiresAt,
+      metadata: orgQuotaEntitlements.metadata,
+    })
+    .from(orgQuotaEntitlements)
+    .where(
+      and(
+        inArray(orgQuotaEntitlements.orgId, orgIds),
+        eq(orgQuotaEntitlements.status, 'active'),
+        sql`${orgQuotaEntitlements.startsAt} <= ${timestamp}`,
+        or(sql`${orgQuotaEntitlements.expiresAt} IS NULL`, sql`${orgQuotaEntitlements.expiresAt} > ${timestamp}`),
+      ),
+    )
+
+  const entByOrg = new Map<string, typeof entRows>()
+  for (const row of entRows) {
+    const list = entByOrg.get(row.orgId)
+    if (list) list.push(row)
+    else entByOrg.set(row.orgId, [row])
+  }
+
+  for (const orgId of orgIds) {
+    const quotaRow = quotaByOrg.get(orgId)
+    const ents = entByOrg.get(orgId) ?? []
+
+    const storagePlan = pickPlanEntitlement(ents, 'storage')
+    const trafficPlan = pickPlanEntitlement(ents, 'traffic')
+    const entitlementQuota = sumExtraEntitlementBytes(ents, 'storage')
+    const entitlementTrafficQuota = sumExtraEntitlementBytes(ents, 'traffic')
+
+    const trafficUsed = quotaRow && quotaRow.trafficPeriod === period ? quotaRow.trafficUsed : 0
+    const trafficPeriod = quotaRow?.trafficPeriod === period ? quotaRow.trafficPeriod : period
+    const baseQuota = storagePlan?.bytes ?? 0
+    const baseTrafficQuota = trafficPlan?.bytes ?? 0
+
+    result.set(orgId, {
+      orgId,
+      baseQuota,
+      entitlementQuota,
+      quota: baseQuota + entitlementQuota,
+      used: quotaRow?.used ?? 0,
+      baseTrafficQuota,
+      entitlementTrafficQuota,
+      trafficQuota: baseTrafficQuota + entitlementTrafficQuota,
+      trafficUsed,
+      trafficPeriod,
+      storagePlanName: storagePlan?.name ?? null,
+      storageExtraNames: extraEntitlementNames(ents, 'storage'),
+      trafficPlanName: trafficPlan?.name ?? null,
+      trafficExtraNames: extraEntitlementNames(ents, 'traffic'),
+      currentPlan: buildCurrentPlan(storagePlan, trafficPlan),
+    })
+  }
+
+  return result
+}
+
+interface EntitlementRow {
+  resourceType: string
+  entitlementType: string
+  sourceId: string
+  bytes: number
+  startsAt: Date
+  expiresAt: Date | null
+  metadata: string | null
+}
+
+// Mirrors activePlanEntitlement's ORDER BY bytes DESC, startsAt DESC LIMIT 1.
+function pickPlanEntitlement(ents: EntitlementRow[], resourceType: 'storage' | 'traffic'): PlanEntitlement | null {
+  const plans = ents
+    .filter((e) => e.resourceType === resourceType && e.entitlementType === 'plan')
+    .sort((a, b) => b.bytes - a.bytes || b.startsAt.getTime() - a.startsAt.getTime())
+  const row = plans[0]
+  return row ? toPlanEntitlement(row) : null
+}
+
+function sumExtraEntitlementBytes(ents: EntitlementRow[], resourceType: 'storage' | 'traffic'): number {
+  return ents
+    .filter((e) => e.resourceType === resourceType && e.entitlementType !== 'plan')
+    .reduce((sum, e) => sum + e.bytes, 0)
+}
+
+function extraEntitlementNames(ents: EntitlementRow[], resourceType: 'storage' | 'traffic'): string[] {
+  const names = ents
+    .filter((e) => e.resourceType === resourceType && e.entitlementType !== 'plan')
+    .flatMap((e) => {
+      const name = entitlementName(e.metadata)
+      return name ? [name] : []
+    })
+  return Array.from(new Set(names))
+}
+
+// Persists the monthly traffic reset for every org whose recorded period is stale.
+// Idempotent: the WHERE clause matches nothing once a period has been reset, so it
+// is safe to run on a schedule. getEffectiveQuota already normalizes stale periods
+// in memory, so reads stay correct even between scheduled runs.
+export async function resetExpiredTrafficQuotas(db: Database, now = new Date()): Promise<void> {
+  const period = currentTrafficPeriod(now)
+  await db
+    .update(orgQuotas)
+    .set({ trafficUsed: 0, trafficPeriod: period })
+    .where(sql`${orgQuotas.trafficPeriod} != ${period}`)
 }
 
 export async function hasQuotaForBytes(db: Database, orgId: string, bytes: number): Promise<boolean> {
@@ -251,7 +383,15 @@ async function activePlanEntitlement(
 
   const row = rows[0]
   if (!row) return null
+  return toPlanEntitlement(row)
+}
 
+function toPlanEntitlement(row: {
+  sourceId: string
+  bytes: number
+  expiresAt: Date | null
+  metadata: string | null
+}): PlanEntitlement {
   const metadata = entitlementMetadata(row.metadata)
   return {
     sourceId: row.sourceId,

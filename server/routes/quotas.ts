@@ -1,21 +1,15 @@
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { organization } from '../db/auth-schema'
 import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { currentTrafficPeriod, getEffectiveQuota } from '../services/effective-quota'
+import { getEffectiveQuota, getEffectiveQuotasByOrg } from '../services/effective-quota'
 import { findPersonalOrg } from '../services/org'
 
 const adminQuotas = new Hono<Env>().use(requireAdmin).get('/', async (c) => {
   const db = c.get('platform').db
-  const period = currentTrafficPeriod()
   const now = new Date()
-
-  await db
-    .update(orgQuotas)
-    .set({ trafficUsed: 0, trafficPeriod: period })
-    .where(sql`${orgQuotas.trafficPeriod} != ${period}`)
 
   const rows = await db
     .select({
@@ -28,14 +22,18 @@ const adminQuotas = new Hono<Env>().use(requireAdmin).get('/', async (c) => {
     .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
     .orderBy(organization.name)
 
-  const items = await Promise.all(
-    rows.map(async (r) => ({
-      id: r.id,
-      ...(await getEffectiveQuota(db, r.orgId, now)),
-      orgName: r.orgName,
-      orgType: parseOrgType(r.orgMetadata),
-    })),
+  const quotas = await getEffectiveQuotasByOrg(
+    db,
+    rows.map((r) => r.orgId),
+    now,
   )
+
+  const items = rows.map((r) => ({
+    id: r.id,
+    ...quotas.get(r.orgId)!,
+    orgName: r.orgName,
+    orgType: parseOrgType(r.orgMetadata),
+  }))
 
   return c.json({ items, total: items.length })
 })
