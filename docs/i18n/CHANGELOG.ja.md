@@ -1,15 +1,5 @@
 # Changelog
 
-<p align="center">
-  <a href="../../CHANGELOG.md">English</a> ·
-  <a href="CHANGELOG.zh-CN.md">简体中文</a> ·
-  <strong>日本語</strong> ·
-  <a href="CHANGELOG.ko.md">한국어</a> ·
-  <a href="CHANGELOG.ru.md">Русский</a> ·
-  <a href="CHANGELOG.es.md">Español</a> ·
-  <a href="CHANGELOG.pt-BR.md">Português (BR)</a>
-</p>
-
 ## v2.7.3 — 2026-06-09
 
 ### 新機能

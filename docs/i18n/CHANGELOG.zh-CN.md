@@ -1,15 +1,5 @@
 # 更新日志
 
-<p align="center">
-  <a href="../../CHANGELOG.md">English</a> ·
-  <strong>简体中文</strong> ·
-  <a href="CHANGELOG.ja.md">日本語</a> ·
-  <a href="CHANGELOG.ko.md">한국어</a> ·
-  <a href="CHANGELOG.ru.md">Русский</a> ·
-  <a href="CHANGELOG.es.md">Español</a> ·
-  <a href="CHANGELOG.pt-BR.md">Português (BR)</a>
-</p>
-
 ## v2.7.3 — 2026-06-09
 
 ### 新功能

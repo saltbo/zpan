@@ -1,15 +1,5 @@
 # Changelog
 
-<p align="center">
-  <strong>English</strong> ·
-  <a href="docs/i18n/CHANGELOG.zh-CN.md">简体中文</a> ·
-  <a href="docs/i18n/CHANGELOG.ja.md">日本語</a> ·
-  <a href="docs/i18n/CHANGELOG.ko.md">한국어</a> ·
-  <a href="docs/i18n/CHANGELOG.ru.md">Русский</a> ·
-  <a href="docs/i18n/CHANGELOG.es.md">Español</a> ·
-  <a href="docs/i18n/CHANGELOG.pt-BR.md">Português (BR)</a>
-</p>
-
 ## v2.7.3 — 2026-06-09
 
 ### Features
