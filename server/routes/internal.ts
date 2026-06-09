@@ -1,6 +1,7 @@
 import { release as osRelease } from 'node:os'
 import { Hono } from 'hono'
 import type { Env } from '../middleware/platform'
+import { getDeployPlatform } from '../runtime-platform'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../services/instance-telemetry'
 
 const INTERNAL_API_TOKEN_ENV = 'ZPAN_INTERNAL_API_TOKEN'
@@ -21,12 +22,12 @@ internal.post('/instance-telemetry/report', async (c) => {
 
   const runtime = platform.getBinding('DB')
     ? {
-        target: 'cloudflare-worker' as const,
-        provider: 'cloudflare' as const,
+        runtime: 'workerd' as const,
+        platform: 'cloudflare-workers' as const,
       }
     : {
-        target: 'node/docker' as const,
-        provider: 'node' as const,
+        runtime: 'node' as const,
+        platform: getDeployPlatform() ?? 'node',
         osPlatform: process.platform,
         osArch: process.arch,
         osRelease: osRelease(),

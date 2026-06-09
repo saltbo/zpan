@@ -39,6 +39,7 @@ import { publicTeams, teams } from './routes/teams'
 import trash from './routes/trash'
 import users from './routes/users'
 import webdav from './routes/webdav'
+import { getDeployPlatform } from './runtime-platform'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
 import { ensureSitePublicOrigin } from './services/site-public-origin'
 
@@ -159,14 +160,14 @@ function envAllowsIp(value: string | undefined): boolean {
 function instanceTelemetryRuntime(platform: Platform) {
   if (platform.getBinding('DB')) {
     return {
-      target: 'cloudflare-worker' as const,
-      provider: 'cloudflare' as const,
+      runtime: 'workerd' as const,
+      platform: 'cloudflare-workers' as const,
     }
   }
 
   return {
-    target: 'node/docker' as const,
-    provider: 'node' as const,
+    runtime: 'node' as const,
+    platform: getDeployPlatform() ?? 'node',
     osPlatform: process.platform,
     osArch: process.arch,
     osRelease: osRelease(),

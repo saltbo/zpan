@@ -1336,6 +1336,7 @@
   "admin.about.edition": "Edition",
   "admin.about.inactive": "Inactive",
   "admin.about.runtime": "Runtime",
+  "admin.about.platform": "Platform",
   "admin.about.server": "Server",
   "admin.about.nodeVersion": "Node.js",
   "admin.about.latestVersion": "Latest version",

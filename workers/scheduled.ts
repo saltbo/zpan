@@ -48,8 +48,8 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
       cron: event.cron,
       trigger: 'scheduled',
       runtime: {
-        target: 'cloudflare-worker',
-        provider: 'cloudflare',
+        runtime: 'workerd',
+        platform: 'cloudflare-workers',
       },
     })
     return

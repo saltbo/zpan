@@ -1,6 +1,9 @@
 import { handle } from 'hono/vercel'
 import { createBootstrap } from './bootstrap'
 import { createLibsqlPlatform } from './platform/libsql'
+import { setDeployPlatform } from './runtime-platform'
+
+setDeployPlatform('vercel')
 
 const tursoUrl = process.env.TURSO_DATABASE_URL
 if (!tursoUrl) {

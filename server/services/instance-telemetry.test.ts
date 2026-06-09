@@ -51,7 +51,7 @@ describe('instance telemetry', () => {
       db: {} as Database,
       config: { posthogProjectToken: '' },
       cron: INSTANCE_TELEMETRY_CRON,
-      runtime: { target: 'cloudflare-worker', provider: 'cloudflare' },
+      runtime: { runtime: 'workerd', platform: 'cloudflare-workers' },
     })
 
     expect(result).toEqual({ reported: false, reason: 'disabled' })
@@ -70,8 +70,8 @@ describe('instance telemetry', () => {
       },
       cron: INSTANCE_TELEMETRY_CRON,
       runtime: {
-        target: 'node/docker',
-        provider: 'node',
+        runtime: 'node',
+        platform: 'docker',
         osPlatform: 'linux',
         osArch: 'arm64',
         osRelease: '6.8.0',
@@ -102,10 +102,8 @@ describe('instance telemetry', () => {
           name: 'Test Instance',
           url: 'https://zpan.example.com',
           version: 'test-version',
-          runtime: {
-            provider: 'node',
-            target: 'node/docker',
-          },
+          runtime: 'node',
+          platform: 'docker',
           server: {
             os: {
               platform: 'linux',
@@ -128,10 +126,8 @@ describe('instance telemetry', () => {
             name: 'Test Instance',
             url: 'https://zpan.example.com',
             version: 'test-version',
-            runtime: {
-              provider: 'node',
-              target: 'node/docker',
-            },
+            runtime: 'node',
+            platform: 'docker',
             server: {
               os: {
                 platform: 'linux',
@@ -151,10 +147,8 @@ describe('instance telemetry', () => {
             name: 'Test Instance',
             url: 'https://zpan.example.com',
             version: 'test-version',
-            runtime: {
-              provider: 'node',
-              target: 'node/docker',
-            },
+            runtime: 'node',
+            platform: 'docker',
             server: {
               os: {
                 platform: 'linux',
@@ -184,8 +178,8 @@ describe('instance telemetry', () => {
       },
       cron: INSTANCE_TELEMETRY_CRON,
       runtime: {
-        target: 'cloudflare-worker',
-        provider: 'cloudflare',
+        runtime: 'workerd',
+        platform: 'cloudflare-workers',
       },
       now: new Date('2026-06-08T12:00:00.000Z'),
     })

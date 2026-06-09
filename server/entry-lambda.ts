@@ -4,6 +4,9 @@ import { Hono } from 'hono'
 import { handle } from 'hono/aws-lambda'
 import { createBootstrap } from './bootstrap'
 import { createLibsqlPlatform } from './platform/libsql'
+import { setDeployPlatform } from './runtime-platform'
+
+setDeployPlatform('aws-lambda')
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

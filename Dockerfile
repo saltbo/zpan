@@ -84,6 +84,9 @@ USER zpan
 ENV NODE_ENV=production
 ENV HOME=/home/zpan
 ENV PORT=8222
+# Lets the app report its deployment platform as "docker" (Cloud Run overrides
+# this via K_SERVICE, which entry-node checks first).
+ENV ZPAN_RUNTIME=docker
 EXPOSE 8222
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]

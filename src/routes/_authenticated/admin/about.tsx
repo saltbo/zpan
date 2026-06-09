@@ -1,4 +1,5 @@
 import { ZPAN_CLOUD_URL_DEFAULT, ZPAN_GITHUB_URL } from '@shared/constants'
+import type { InstanceInfo } from '@shared/types'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { ArrowUpCircle, BadgeCheck, ExternalLink, Github, RefreshCw, Server, Sparkles, Star } from 'lucide-react'
@@ -17,6 +18,22 @@ import { EDITION_COLORS, editionKey } from '@/lib/license-edition'
 export const Route = createFileRoute('/_authenticated/admin/about')({
   component: AboutPage,
 })
+
+const RUNTIME_LABELS: Record<NonNullable<InstanceInfo['runtime']>, string> = {
+  node: 'Node.js',
+  workerd: 'workerd',
+}
+
+const PLATFORM_LABELS: Record<NonNullable<InstanceInfo['platform']>, string> = {
+  'cloudflare-workers': 'Cloudflare Workers',
+  'aws-lambda': 'AWS Lambda',
+  vercel: 'Vercel',
+  netlify: 'Netlify',
+  'azure-functions': 'Azure Functions',
+  'cloud-run': 'Google Cloud Run',
+  docker: 'Docker',
+  node: 'Node.js',
+}
 
 function InfoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -60,7 +77,6 @@ function AboutPage() {
 
   const key = editionKey(bound, edition)
   const editionLabel = t(`admin.licenseRibbon.${key}`)
-  const runtime = instance.runtime
   const os = instance.server?.os
 
   // When the instance holds a valid license, deep-link the cloud CTA straight to
@@ -144,10 +160,9 @@ function AboutPage() {
               <span className="ml-2 text-xs text-muted-foreground">{t('admin.about.inactive')}</span>
             )}
           </InfoRow>
-          {runtime && (
-            <InfoRow label={t('admin.about.runtime')}>
-              {runtime.provider} · {runtime.target}
-            </InfoRow>
+          {instance.runtime && <InfoRow label={t('admin.about.runtime')}>{RUNTIME_LABELS[instance.runtime]}</InfoRow>}
+          {instance.platform && (
+            <InfoRow label={t('admin.about.platform')}>{PLATFORM_LABELS[instance.platform]}</InfoRow>
           )}
           {os && (
             <InfoRow label={t('admin.about.server')}>

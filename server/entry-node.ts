@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { release as osRelease } from 'node:os'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
@@ -5,9 +6,10 @@ import { Hono } from 'hono'
 import { resolveAppCommit, resolveAppVersion } from '../scripts/app-version.mjs'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 import { createBootstrap } from './bootstrap'
-import { buildCloudInstanceInfo } from './licensing/instance-info'
+import { buildCloudInstanceInfo, runtimeInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
+import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
 import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
 import { resetExpiredTrafficQuotas } from './services/effective-quota'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
@@ -33,6 +35,16 @@ if (!globalThis.__ZPAN_APP_VERSION__) {
 if (globalThis.__ZPAN_APP_COMMIT__ === undefined) {
   globalThis[appCommitGlobalKey] = resolveAppCommit()
 }
+
+// The Node entry serves Cloud Run, Docker, and bare Node. Cloud Run sets
+// K_SERVICE; the Docker image sets ZPAN_RUNTIME=docker (falling back to the
+// /.dockerenv marker); otherwise it is plain Node.
+function detectNodePlatform(): DeployPlatform {
+  if (process.env.K_SERVICE) return 'cloud-run'
+  if (process.env.ZPAN_RUNTIME === 'docker' || existsSync('/.dockerenv')) return 'docker'
+  return 'node'
+}
+setDeployPlatform(detectNodePlatform())
 
 const platform = process.env.TURSO_DATABASE_URL
   ? await createLibsqlPlatform({
@@ -71,11 +83,7 @@ setInterval(() => {
     const instance = instanceUrl
       ? await buildCloudInstanceInfo(platform.db, {
           url: instanceUrl,
-          runtime: {
-            runtime: { provider: 'node', target: 'node/docker' },
-            server: { os: { platform: process.platform, arch: process.arch, release: osRelease() } },
-            node: { version: process.version },
-          },
+          runtime: runtimeInfo(platform),
         })
       : undefined
     await runLicensingRefresh(platform.db, cloudBaseUrl, instance)
@@ -101,8 +109,8 @@ function reportNodeInstanceTelemetry(): void {
         cron: INSTANCE_TELEMETRY_CRON,
         trigger: 'runtime',
         runtime: {
-          target: 'node/docker',
-          provider: 'node',
+          runtime: 'node',
+          platform: detectNodePlatform(),
           osPlatform: process.platform,
           osArch: process.arch,
           osRelease: osRelease(),

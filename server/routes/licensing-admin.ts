@@ -1,9 +1,8 @@
-import { release as osRelease } from 'node:os'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { invalidateEntitlementCache } from '../licensing/entitlement'
 import { getOrCreateInstanceId } from '../licensing/instance-id'
-import { buildCloudInstanceInfo } from '../licensing/instance-info'
+import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { clearLicenseBinding, createLicenseBinding, loadLicenseState } from '../licensing/license-state'
 import { performRefresh } from '../licensing/refresh'
 import { normalizeHost, verifyCertificate } from '../licensing/verify'
@@ -15,21 +14,6 @@ import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-publ
 
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
-}
-
-function runtimeInfo(c: {
-  get(key: 'platform'): {
-    getBinding<T = unknown>(key: string): T | undefined
-  }
-}) {
-  if (c.get('platform').getBinding('DB')) {
-    return { runtime: { provider: 'cloudflare' as const, target: 'cloudflare-worker' as const } }
-  }
-  return {
-    runtime: { provider: 'node' as const, target: 'node/docker' as const },
-    server: { os: { platform: process.platform, arch: process.arch, release: osRelease() } },
-    node: { version: process.version },
-  }
 }
 
 async function getInstanceOrigin(c: {
@@ -60,7 +44,7 @@ const app = new Hono<Env>()
 
     const instance = await buildCloudInstanceInfo(db, {
       url: await getInstanceOrigin(c),
-      runtime: runtimeInfo(c),
+      runtime: runtimeInfo(c.get('platform')),
     })
 
     const pairing = await createPairing(baseUrl, instance)
@@ -138,7 +122,7 @@ const app = new Hono<Env>()
     const baseUrl = getCloudBaseUrl(c)
     const instance = await buildCloudInstanceInfo(db, {
       url: await getInstanceOrigin(c),
-      runtime: runtimeInfo(c),
+      runtime: runtimeInfo(c.get('platform')),
     })
 
     await performRefresh(db, baseUrl, instance)

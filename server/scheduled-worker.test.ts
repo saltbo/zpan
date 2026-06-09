@@ -91,8 +91,8 @@ describe('handleScheduled', () => {
       cron: '0 */12 * * *',
       trigger: 'scheduled',
       runtime: {
-        target: 'cloudflare-worker',
-        provider: 'cloudflare',
+        runtime: 'workerd',
+        platform: 'cloudflare-workers',
       },
     })
     expect(runLicensingRefresh).not.toHaveBeenCalled()

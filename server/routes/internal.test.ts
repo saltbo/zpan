@@ -57,8 +57,8 @@ describe('POST /api/internal/instance-telemetry/report', () => {
       cron: '0 */12 * * *',
       trigger: 'deploy',
       runtime: expect.objectContaining({
-        target: 'node/docker',
-        provider: 'node',
+        runtime: 'node',
+        platform: 'node',
       }),
     })
   })

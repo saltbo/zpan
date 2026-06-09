@@ -1,6 +1,9 @@
 import { handle } from 'hono/netlify'
 import { createBootstrap } from './bootstrap'
 import { createLibsqlPlatform } from './platform/libsql'
+import { setDeployPlatform } from './runtime-platform'
+
+setDeployPlatform('netlify')
 
 // Migrations are applied by the deploy workflow (drizzle-kit migrate) before
 // function deployment. createLibsqlPlatform also runs migrate() at cold start —

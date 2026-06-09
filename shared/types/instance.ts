@@ -5,10 +5,19 @@ export interface InstanceInfo {
   url: string
   version: string
   commit?: string | null
-  runtime?: {
-    provider: 'cloudflare' | 'node'
-    target: 'cloudflare-worker' | 'node/docker'
-  } | null
+  // JS runtime engine.
+  runtime?: 'node' | 'workerd' | null
+  // Deployment platform / host.
+  platform?:
+    | 'cloudflare-workers'
+    | 'aws-lambda'
+    | 'vercel'
+    | 'netlify'
+    | 'azure-functions'
+    | 'cloud-run'
+    | 'docker'
+    | 'node'
+    | null
   server?: {
     os?: {
       platform?: string | null

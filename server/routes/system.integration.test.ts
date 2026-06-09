@@ -129,10 +129,11 @@ describe('System API — options CRUD', () => {
     const admin = await adminHeaders(app)
     const res = await app.request('/api/system/instance', { headers: admin })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { id: string; version: string; runtime?: { provider: string } }
+    const body = (await res.json()) as { id: string; version: string; runtime?: string; platform?: string }
     expect(body.id).toBeTruthy()
     expect(body.version).toBeTruthy()
-    expect(body.runtime?.provider).toBe('node')
+    expect(body.runtime).toBe('node')
+    expect(body.platform).toBe('node')
   })
 
   describe('changelog', () => {

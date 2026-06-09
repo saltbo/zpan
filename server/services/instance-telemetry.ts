@@ -2,6 +2,7 @@ import { PostHog } from 'posthog-node'
 import { getOrCreateInstanceId } from '../licensing/instance-id'
 import { getInstanceDisplayName } from '../licensing/instance-info'
 import type { Database } from '../platform/interface'
+import type { DeployPlatform } from '../runtime-platform'
 import { getAppVersion } from '../version'
 import { getSitePublicOrigin, normalizePublicOrigin } from './site-public-origin'
 
@@ -19,8 +20,8 @@ export interface InstanceTelemetryConfig {
 }
 
 export interface InstanceTelemetryRuntime {
-  target: 'cloudflare-worker' | 'node/docker'
-  provider: 'cloudflare' | 'node'
+  runtime: 'node' | 'workerd'
+  platform: DeployPlatform
   osPlatform?: string
   osArch?: string
   osRelease?: string
@@ -97,10 +98,8 @@ function buildTelemetryProperties(params: {
     name: params.instanceName,
     url: params.instanceUrl,
     version: params.appVersion,
-    runtime: compactObject({
-      provider: params.runtime.provider,
-      target: params.runtime.target,
-    }),
+    runtime: params.runtime.runtime,
+    platform: params.runtime.platform,
     server: optionalNestedObject({
       os: optionalObject({
         platform: params.runtime.osPlatform,

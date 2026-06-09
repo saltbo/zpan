@@ -4,6 +4,9 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { createBootstrap } from './bootstrap'
 import { createLibsqlPlatform } from './platform/libsql'
+import { setDeployPlatform } from './runtime-platform'
+
+setDeployPlatform('azure-functions')
 
 const TURSO_DATABASE_URL = process.env.TURSO_DATABASE_URL
 if (!TURSO_DATABASE_URL) {

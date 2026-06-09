@@ -1336,6 +1336,7 @@
   "admin.about.edition": "版本类型",
   "admin.about.inactive": "未激活",
   "admin.about.runtime": "运行时",
+  "admin.about.platform": "部署平台",
   "admin.about.server": "服务器",
   "admin.about.nodeVersion": "Node.js",
   "admin.about.latestVersion": "最新版本",

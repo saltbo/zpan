@@ -2899,7 +2899,8 @@ describe('api', () => {
       name: 'My ZPan',
       url: 'https://files.example.com',
       version: '2.5.0',
-      runtime: { provider: 'node', target: 'node/docker' },
+      runtime: 'node',
+      platform: 'docker',
       server: { os: { platform: 'linux', arch: 'x64', release: '6.1.0' } },
       node: { version: 'v24.0.0' },
     }
