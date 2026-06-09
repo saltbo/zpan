@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
 
 const publishedAnnouncement = {
   title: 'Maintenance window',
@@ -12,7 +12,7 @@ type TestContext = Awaited<ReturnType<typeof createTestApp>>
 
 async function createPublishedAnnouncement(ctx: TestContext) {
   const headers = await adminHeaders(ctx.app)
-  await seedProLicense(ctx.db)
+  await seedBusinessLicense(ctx.db)
   const res = await ctx.app.request('/api/admin/announcements', {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -50,7 +50,7 @@ describe('Admin Announcements API', () => {
   it('creates, lists, updates, and deletes an announcement', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
 
     const createRes = await app.request('/api/admin/announcements', {
       method: 'POST',
@@ -116,7 +116,7 @@ describe('User Announcements API', () => {
   it('keeps archived announcements in history but not active list', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     const createRes = await app.request('/api/admin/announcements', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },
@@ -145,7 +145,7 @@ describe('User Announcements API', () => {
   it('does not include draft announcements in history', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
-    await seedProLicense(db)
+    await seedBusinessLicense(db)
     await app.request('/api/admin/announcements', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/json' },

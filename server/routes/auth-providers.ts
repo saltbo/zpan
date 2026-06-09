@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { eq, like } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { FREE_SOCIAL_LOGIN_LIMIT } from '../../shared/constants'
 import {
   BUILTIN_PROVIDER_IDS,
   isValidProviderId,
@@ -11,6 +12,7 @@ import {
   parseProviderConfig,
 } from '../../shared/oauth-providers'
 import { systemOptions } from '../db/schema'
+import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 
@@ -90,6 +92,25 @@ export const adminAuthProviders = new Hono<Env>()
     if (existing.length > 0) {
       await db.update(systemOptions).set({ value, public: false }).where(eq(systemOptions.key, key))
     } else {
+      const [configured, state] = await Promise.all([
+        db
+          .select({ key: systemOptions.key })
+          .from(systemOptions)
+          .where(like(systemOptions.key, OAUTH_PROVIDER_KEY_PATTERN)),
+        loadBindingState(db),
+      ])
+      if (!hasFeature('social_login_unlimited', state) && configured.length >= FREE_SOCIAL_LOGIN_LIMIT) {
+        return c.json(
+          {
+            error: 'feature_not_available',
+            feature: 'social_login_unlimited',
+            currentCount: configured.length,
+            limit: FREE_SOCIAL_LOGIN_LIMIT,
+            upgrade_url: '/settings/billing',
+          },
+          402,
+        )
+      }
       await db.insert(systemOptions).values({ key, value, public: false })
     }
 

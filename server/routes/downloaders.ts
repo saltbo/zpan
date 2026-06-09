@@ -9,6 +9,7 @@ import {
   updateDownloaderSchema,
 } from '@shared/schemas'
 import type { Context } from 'hono'
+import { FREE_DOWNLOADER_LIMIT } from '../../shared/constants'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin, requireDownloader } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -52,6 +53,7 @@ const createRouteDoc = createRoute({
   responses: {
     201: jsonResponse(createDownloaderResponseSchema, 'Downloader registration'),
     401: jsonResponse(errorSchema, 'Unauthorized'),
+    402: jsonResponse(errorSchema, 'Feature not available'),
   },
 })
 
@@ -99,8 +101,22 @@ const downloadersRoute = new OpenAPIHono<Env>()
   .openapi(createRouteDoc, (async (c: OpenAPIContext) => {
     const userId = c.get('userId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
+    const platform = c.get('platform')
+    const [existing, state] = await Promise.all([listDownloaders(platform), loadBindingState(platform.db)])
+    if (!hasFeature('downloaders_unlimited', state) && existing.length >= FREE_DOWNLOADER_LIMIT) {
+      return c.json(
+        {
+          error: 'feature_not_available',
+          feature: 'downloaders_unlimited',
+          currentCount: existing.length,
+          limit: FREE_DOWNLOADER_LIMIT,
+          upgrade_url: '/settings/billing',
+        },
+        402,
+      )
+    }
     const result = await createDownloader(
-      c.get('platform'),
+      platform,
       c.req.valid('json') as z.infer<typeof createDownloaderSchema>,
       userId,
     )

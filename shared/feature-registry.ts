@@ -1,4 +1,4 @@
-import { FREE_EXTRA_TEAM_LIMIT, FREE_STORAGE_LIMIT } from './constants'
+import { FREE_DOWNLOADER_LIMIT, FREE_EXTRA_TEAM_LIMIT, FREE_SOCIAL_LOGIN_LIMIT, FREE_STORAGE_LIMIT } from './constants'
 
 // ---------------------------------------------------------------------------
 // Cell values for the comparison table
@@ -11,15 +11,16 @@ export type CellValue = boolean | { i18nKey: string; params?: Record<string, unk
 // Feature categories
 // ---------------------------------------------------------------------------
 
-export const FEATURE_CATEGORIES = ['core', 'pro', 'business'] as const
+// Functional grouping for the comparison table — NOT a tier. Which edition a
+// feature is available in is expressed by its community/pro/business cells.
+export const FEATURE_CATEGORIES = ['core', 'advanced'] as const
 
 export type FeatureCategory = (typeof FEATURE_CATEGORIES)[number]
 
 /** i18n key for each category header. */
 export const CATEGORY_I18N: Record<FeatureCategory, string> = {
   core: 'features.category.core',
-  pro: 'features.category.pro',
-  business: 'features.category.business',
+  advanced: 'features.category.advanced',
 }
 
 // ---------------------------------------------------------------------------
@@ -29,7 +30,7 @@ export const CATEGORY_I18N: Record<FeatureCategory, string> = {
 export interface FeatureDefinition {
   /** i18n key for the feature name shown in the comparison table. */
   i18nKey: string
-  /** Which section this feature belongs to. */
+  /** Functional group this feature belongs to (core vs advanced) — not a tier. */
   category: FeatureCategory
   /** What Community plan gets — true (included), false (not included), or structured value. */
   community: CellValue
@@ -51,7 +52,7 @@ export interface FeatureDefinition {
 // ---------------------------------------------------------------------------
 
 export const FEATURE_REGISTRY = [
-  // ── Core Features ───────────────────────────────────────────────────
+  // ── Core capabilities (available in every edition, some with free limits) ──
   {
     i18nKey: 'features.coreFileManagement',
     category: 'core',
@@ -76,9 +77,10 @@ export const FEATURE_REGISTRY = [
   {
     i18nKey: 'features.socialLoginOidc',
     category: 'core',
-    community: true,
-    pro: true,
-    business: true,
+    community: { i18nKey: 'features.socialLoginOidc.limit', params: { count: FREE_SOCIAL_LOGIN_LIMIT } },
+    pro: { i18nKey: 'features.socialLoginOidc.unlimited' },
+    business: { i18nKey: 'features.socialLoginOidc.unlimited' },
+    gateKey: 'social_login_unlimited',
   },
   {
     i18nKey: 'features.inviteCodes',
@@ -88,10 +90,10 @@ export const FEATURE_REGISTRY = [
     business: true,
   },
 
-  // ── Pro Features ────────────────────────────────────────────────────
+  // ── Advanced capabilities (edition availability shown per-cell) ──────
   {
     i18nKey: 'features.whiteLabel',
-    category: 'pro',
+    category: 'advanced',
     community: false,
     pro: true,
     business: true,
@@ -99,7 +101,7 @@ export const FEATURE_REGISTRY = [
   },
   {
     i18nKey: 'features.openRegistration',
-    category: 'pro',
+    category: 'advanced',
     community: false,
     pro: true,
     business: true,
@@ -107,7 +109,7 @@ export const FEATURE_REGISTRY = [
   },
   {
     i18nKey: 'features.teamWorkspaces',
-    category: 'pro',
+    category: 'advanced',
     community: { i18nKey: 'features.teamWorkspaces.limit', params: { count: FREE_EXTRA_TEAM_LIMIT } },
     pro: { i18nKey: 'features.teamWorkspaces.unlimited' },
     business: { i18nKey: 'features.teamWorkspaces.unlimited' },
@@ -115,47 +117,31 @@ export const FEATURE_REGISTRY = [
   },
   {
     i18nKey: 'features.storageBackends',
-    category: 'pro',
+    category: 'advanced',
     community: { i18nKey: 'features.storageBackends.limit', params: { count: FREE_STORAGE_LIMIT } },
     pro: { i18nKey: 'features.storageBackends.unlimited' },
     business: { i18nKey: 'features.storageBackends.unlimited' },
     gateKey: 'storages_unlimited',
   },
   {
+    i18nKey: 'features.downloaders',
+    category: 'advanced',
+    community: { i18nKey: 'features.downloaders.limit', params: { count: FREE_DOWNLOADER_LIMIT } },
+    pro: { i18nKey: 'features.downloaders.unlimited' },
+    business: { i18nKey: 'features.downloaders.unlimited' },
+    gateKey: 'downloaders_unlimited',
+  },
+  {
     i18nKey: 'features.cloudStore',
-    category: 'business',
+    category: 'advanced',
     community: false,
     pro: false,
     business: true,
     gateKey: 'quota_store',
   },
   {
-    i18nKey: 'features.siteAnnouncements',
-    category: 'pro',
-    community: false,
-    pro: true,
-    business: true,
-    gateKey: 'site_announcements',
-  },
-  {
-    i18nKey: 'features.multiIdpSso',
-    category: 'pro',
-    community: false,
-    pro: true,
-    business: true,
-    comingSoon: true,
-  },
-  {
-    i18nKey: 'features.ldapScim',
-    category: 'pro',
-    community: false,
-    pro: true,
-    business: true,
-    comingSoon: true,
-  },
-  {
     i18nKey: 'features.auditLog',
-    category: 'pro',
+    category: 'advanced',
     community: false,
     pro: true,
     business: true,
@@ -163,17 +149,41 @@ export const FEATURE_REGISTRY = [
   },
   {
     i18nKey: 'features.webhooks',
-    category: 'pro',
+    category: 'advanced',
     community: false,
     pro: true,
     business: true,
     comingSoon: true,
   },
   {
-    i18nKey: 'features.analytics',
-    category: 'pro',
+    i18nKey: 'features.siteAnnouncements',
+    category: 'advanced',
     community: false,
-    pro: true,
+    pro: false,
+    business: true,
+    gateKey: 'site_announcements',
+  },
+  {
+    i18nKey: 'features.multiIdpSso',
+    category: 'advanced',
+    community: false,
+    pro: false,
+    business: true,
+    comingSoon: true,
+  },
+  {
+    i18nKey: 'features.ldapScim',
+    category: 'advanced',
+    community: false,
+    pro: false,
+    business: true,
+    comingSoon: true,
+  },
+  {
+    i18nKey: 'features.analytics',
+    category: 'advanced',
+    community: false,
+    pro: false,
     business: true,
     comingSoon: true,
   },

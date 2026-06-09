@@ -603,7 +603,7 @@ function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-const BUSINESS_ONLY_TEST_FEATURES = new Set<ProFeature>(['quota_store'])
+const BUSINESS_ONLY_TEST_FEATURES = new Set<ProFeature>(['quota_store', 'site_announcements'])
 
 /**
  * Insert a Pro license binding row so that non-commercial Pro feature gates resolve as enabled.

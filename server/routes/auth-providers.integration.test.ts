@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 const githubConfig = {
   type: 'builtin' as const,
@@ -40,8 +40,9 @@ describe('Auth Providers — public list', () => {
   })
 
   it('returns only enabled providers', async () => {
-    const { app } = await createTestApp()
+    const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
+    await seedProLicense(db) // 2nd provider requires social_login_unlimited
 
     await putProvider(app, admin, 'github', { ...githubConfig, enabled: true })
     await putProvider(app, admin, 'google', { ...githubConfig, clientId: 'google-id', enabled: false })
@@ -134,8 +135,9 @@ describe('Auth Providers — admin list', () => {
   })
 
   it('returns all configs including disabled providers', async () => {
-    const { app } = await createTestApp()
+    const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
+    await seedProLicense(db) // 2nd provider requires social_login_unlimited
 
     await putProvider(app, admin, 'github', { ...githubConfig, enabled: true })
     await putProvider(app, admin, 'google', { ...githubConfig, clientId: 'google-id', enabled: false })
@@ -192,6 +194,38 @@ describe('Auth Providers — admin upsert (PUT)', () => {
     expect(body.type).toBe('builtin')
     expect(body.clientId).toBe(githubConfig.clientId)
     expect(body.enabled).toBe(true)
+  })
+
+  it('blocks the second provider on the free plan with 402', async () => {
+    const { app } = await createTestApp()
+    const admin = await adminHeaders(app)
+
+    const first = await putProvider(app, admin, 'github', githubConfig)
+    expect(first.status).toBe(200)
+
+    const second = await putProvider(app, admin, 'google', { ...githubConfig, clientId: 'google-id' })
+    expect(second.status).toBe(402)
+    const body = (await second.json()) as Record<string, unknown>
+    expect(body.feature).toBe('social_login_unlimited')
+    expect(body.limit).toBe(1)
+  })
+
+  it('allows additional providers with the social_login_unlimited entitlement', async () => {
+    const { app, db } = await createTestApp()
+    const admin = await adminHeaders(app)
+    await seedProLicense(db)
+
+    expect((await putProvider(app, admin, 'github', githubConfig)).status).toBe(200)
+    expect((await putProvider(app, admin, 'google', { ...githubConfig, clientId: 'google-id' })).status).toBe(200)
+  })
+
+  it('updating the only provider is not blocked by the free limit', async () => {
+    const { app } = await createTestApp()
+    const admin = await adminHeaders(app)
+
+    await putProvider(app, admin, 'github', githubConfig)
+    const res = await putProvider(app, admin, 'github', { ...githubConfig, clientId: 'updated' })
+    expect(res.status).toBe(200)
   })
 
   it('returns masked secret on create response', async () => {

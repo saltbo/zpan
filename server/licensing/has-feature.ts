@@ -46,7 +46,7 @@ export function hasFeature(feature: LicenseFeature, state: BindingState | null):
   )
 }
 
-const BUSINESS_ONLY_FEATURES = new Set<LicenseFeature>(['quota_store'])
+const BUSINESS_ONLY_FEATURES = new Set<LicenseFeature>(['quota_store', 'site_announcements'])
 
 export function effectiveFeatures(edition: BindingState['edition'], features?: LicenseFeature[]): LicenseFeature[] {
   if (features) return features
