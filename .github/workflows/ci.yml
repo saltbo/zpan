@@ -96,6 +96,30 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.yml down -v
 
+  cf-deploy-dry-run:
+    name: CF deploy dry-run
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        env:
+          ZPAN_APP_VERSION: ci-dry-run
+        run: pnpm build
+      # --dry-run compiles the Worker and validates wrangler.toml + the
+      # vite-plugin deploy config (assets dir, queues, bindings) without
+      # contacting Cloudflare, so it needs no secrets and runs on fork PRs.
+      # Guards the deploy regressions a unit test can't: a dropped build step
+      # (#417) or an unprovisioned binding added to wrangler.toml.
+      - name: Validate Cloudflare deploy config
+        run: pnpm exec wrangler deploy --dry-run
+
   e2e-node:
     name: E2E (Node)
     runs-on: ubuntu-latest
