@@ -1164,7 +1164,6 @@
   "share.copyShareText": "Copy share text",
   "share.textCopied": "Share text copied to clipboard",
   "share.shareTextTemplate": "Link: {{url}}\nPassword: {{password}}",
-
   "ihost.title": "Image Hosting",
   "ihost.enableCta.title": "Enable Image Hosting",
   "ihost.enableCta.description": "Upload images via PicGo, uPic, ShareX or the Web UI. Get permanent URLs on your own domain.",
@@ -1186,7 +1185,6 @@
   "ihost.upload.failed": "Failed to upload {{name}}",
   "ihost.table.dimensions": "Dimensions",
   "ihost.table.accessCount": "Views",
-
   "settings.ihost.title": "Image Hosting Settings",
   "settings.ihost.lockedTitle": "Admin Access Required",
   "settings.ihost.lockedDescription": "Only workspace owners and admins can manage Image Hosting settings.",
@@ -1242,9 +1240,8 @@
   "settings.ihost.tools.upic.instructions": "In uPic, go to Preferences → Host → Add → Custom. Fill in each field below. Add the Authorization header via the Headers button:",
   "settings.ihost.tools.sharex.instructions": "Download the .sxcu file and double-click it to import into ShareX. ShareX will automatically set ZPan as a custom uploader.",
   "settings.ihost.tools.sharex.download": "Download .sxcu",
-
   "settings.tabBilling": "Billing",
-  "settings.billing.intro": "ZPan Pro — unlock operator-grade features. Purchase or redeem on ZPan Cloud.",
+  "settings.billing.intro": "Unlock the operator-grade and commercial features of ZPan Pro and Business. Purchase or redeem a license on ZPan Cloud, then connect to activate.",
   "settings.billing.connectButton": "Connect to ZPan Cloud",
   "settings.billing.comparison.title": "Feature Comparison",
   "settings.billing.comparison.feature": "Feature",
@@ -1261,17 +1258,17 @@
   "features.openRegistration": "Open Registration",
   "features.multiIdpSso": "Multi-IdP SSO (SAML)",
   "features.ldapScim": "LDAP & SCIM Sync",
-  "features.teamWorkspaces": "Unlimited Team Workspaces",
+  "features.teamWorkspaces": "Team Workspaces",
   "features.teamWorkspaces.limit": "Up to {{count}} team",
   "features.teamWorkspaces.unlimited": "Unlimited",
-  "features.storageBackends": "Unlimited Storages",
+  "features.storageBackends": "Storages",
   "features.storageBackends.limit": "Up to {{count}} storages",
   "features.storageBackends.unlimited": "Unlimited",
   "features.shareLinks": "Link Sharing",
   "features.imageHosting": "Image Hosting",
   "features.whiteLabel": "Custom Branding",
   "features.auditLog": "Audit Logs",
-  "features.cloudStore": "Storage Plans",
+  "features.cloudStore": "Sell Storage & Traffic",
   "features.siteAnnouncements": "Site Announcements",
   "features.webhooks": "Event Webhooks",
   "features.analytics": "Analytics",
@@ -1325,12 +1322,10 @@
   "settings.billing.bound.pro.disconnectSuccess": "Pro license removed",
   "settings.billing.bound.business.disconnectSuccess": "Business license removed",
   "settings.billing.bound.disconnectError": "Failed to remove license",
-
   "admin.licenseRibbon.community": "Free",
   "admin.licenseRibbon.pro": "Pro",
   "admin.licenseRibbon.business": "Business",
   "admin.licenseRibbon.ariaLabel": "{{edition}} edition",
-
   "admin.about.title": "About ZPan",
   "admin.about.subtitle": "Version, instance details, and helpful links.",
   "admin.about.instanceTitle": "Instance",
@@ -1351,7 +1346,6 @@
   "admin.about.cloud.descriptionBound": "View your license certificate and manage the binding on ZPan Cloud.",
   "admin.about.cloud.cta": "Upgrade to Pro",
   "admin.about.cloud.viewCert": "View Certificate",
-
   "admin.cloudStore.title": "Storage Plans",
   "admin.cloudStore.subtitle": "Manage purchasable storage plans and gift cards for personal and team workspaces.",
   "admin.cloudStore.enabled": "Enabled",
@@ -1598,7 +1592,6 @@
   "storage.quotaChip": "{{size}} storage",
   "storage.creditDiscount": "Discount {{amount}}",
   "storage.giftCardCode": "Gift card code",
-
   "storage.historyTitle": "Recent orders",
   "storage.historyDescription": "Recent storage plan orders for the current workspace.",
   "storage.noPackages": "No subscription plans are available right now.",
@@ -1616,5 +1609,11 @@
   "device.denied": "Downloader denied.",
   "device.failed": "Device authorization failed.",
   "device.approvedMessage": "Authorization complete. You can return to the downloader CLI.",
-  "device.deniedMessage": "Authorization denied. You can close this page."
+  "device.deniedMessage": "Authorization denied. You can close this page.",
+  "features.socialLoginOidc.limit": "Up to {{count}} provider",
+  "features.socialLoginOidc.unlimited": "Unlimited",
+  "features.category.advanced": "Advanced Features",
+  "features.downloaders": "Downloaders",
+  "features.downloaders.limit": "Up to {{count}} downloader",
+  "features.downloaders.unlimited": "Unlimited"
 }

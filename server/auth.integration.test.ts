@@ -74,7 +74,7 @@ describe('registration gate — open mode', () => {
 
   it('second user can register when auth_signup_mode is explicitly open and instance has Pro license', async () => {
     const ctx = await createTestApp()
-    await seedProLicense(ctx.db, ['open_registration'])
+    await seedProLicense(ctx.db)
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'open' })
     await signUp(ctx, 'first@example.com')
     const res = await signUp(ctx, 'second@example.com')

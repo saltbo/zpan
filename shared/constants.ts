@@ -60,3 +60,11 @@ export const FREE_EXTRA_TEAM_LIMIT = 1
 // Free plan allows up to this many storage backends per instance.
 // The 4th storage requires the storages_unlimited feature.
 export const FREE_STORAGE_LIMIT = 3
+
+// Free plan allows up to this many social login / OIDC providers per instance.
+// The 2nd provider requires the social_login_unlimited feature.
+export const FREE_SOCIAL_LOGIN_LIMIT = 1
+
+// Free plan allows up to this many downloaders per instance.
+// The 2nd downloader requires the downloaders_unlimited feature.
+export const FREE_DOWNLOADER_LIMIT = 1

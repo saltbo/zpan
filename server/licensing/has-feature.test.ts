@@ -17,28 +17,19 @@ describe('hasFeature', () => {
     expect(hasFeature('white_label', state)).toBe(false)
   })
 
-  it('returns true for local Pro gates when binding is active', () => {
-    const state: BindingState = {
-      bound: true,
-      active: true,
-      edition: 'pro',
-      features: ['white_label', 'teams_unlimited', 'storages_unlimited'],
-    }
+  it('grants non-commercial Pro gates for an active Pro binding, but not business-only gates', () => {
+    const state: BindingState = { bound: true, active: true, edition: 'pro' }
     expect(hasFeature('white_label', state)).toBe(true)
     expect(hasFeature('teams_unlimited', state)).toBe(true)
     expect(hasFeature('storages_unlimited', state)).toBe(true)
     expect(hasFeature('quota_store', state)).toBe(false)
+    expect(hasFeature('site_announcements', state)).toBe(false)
   })
 
-  it('falls back to non-commercial Pro gates for legacy Pro certificates without features', () => {
-    const state: BindingState = { bound: true, active: true, edition: 'pro' }
-    expect(hasFeature('white_label', state)).toBe(true)
-    expect(hasFeature('quota_store', state)).toBe(false)
-  })
-
-  it('allows business gates when a Business binding is active', () => {
-    const state: BindingState = { bound: true, active: true, edition: 'business', features: ['quota_store'] }
+  it('grants all gates for an active Business binding', () => {
+    const state: BindingState = { bound: true, active: true, edition: 'business' }
     expect(hasFeature('quota_store', state)).toBe(true)
-    expect(hasFeature('white_label', state)).toBe(false)
+    expect(hasFeature('site_announcements', state)).toBe(true)
+    expect(hasFeature('white_label', state)).toBe(true)
   })
 })

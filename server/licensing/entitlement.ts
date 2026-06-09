@@ -34,7 +34,7 @@ export async function loadEntitlement(db: Database): Promise<EntitlementSummary 
   cachedSummary = assertion
     ? {
         edition: assertion.edition,
-        features: effectiveFeatures(assertion.edition, assertion.features),
+        features: effectiveFeatures(assertion.edition),
         licenseId: assertion.licenseId,
         certificateExpiresAt: assertion.expiresAt,
         licenseValidUntil: assertion.licenseValidUntil,

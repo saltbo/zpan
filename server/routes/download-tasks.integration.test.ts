@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { remoteDownloadUsageReports } from '../db/schema'
 import { S3Service } from '../services/s3.js'
-import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
+import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
 
 type DownloadTaskList = { items: DownloadTask[] }
 
@@ -194,6 +194,7 @@ describe('Download tasks API integration', () => {
   it('does not assign new tasks to downloaders with stale heartbeats', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
+    await seedProLicense(db) // 2nd downloader requires downloaders_unlimited
     const admin = await adminHeaders(app)
     const staleDownloader = await registerDownloaderThroughDeviceLogin(app, 'stale-downloader', admin)
     const liveDownloader = await registerDownloaderThroughDeviceLogin(app, 'live-downloader', admin)
@@ -321,6 +322,7 @@ describe('Download tasks API integration', () => {
   it('reassigns unfinished tasks from stale downloaders on live heartbeat', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
+    await seedProLicense(db) // 2nd downloader requires downloaders_unlimited
     const admin = await adminHeaders(app)
     const staleDownloader = await registerDownloaderThroughDeviceLogin(app, 'reassign-stale-downloader', admin)
     const staleHeaders = {
@@ -1561,5 +1563,41 @@ describe('Download tasks API integration', () => {
     expect(tagFiltered.items[0]).toMatchObject({
       spec: { source: { uri: 'https://example.com/b.bin' }, labels: { tags: ['bulk', 'movie'] } },
     })
+  })
+})
+
+describe('Downloaders — free plan limit', () => {
+  async function postDownloader(
+    app: Awaited<ReturnType<typeof createTestApp>>['app'],
+    admin: Record<string, string>,
+    name: string,
+  ) {
+    return app.request('/api/admin/downloaders', {
+      method: 'POST',
+      headers: { ...admin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, heartbeat }),
+    })
+  }
+
+  it('blocks the second downloader on the free plan with 402', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const admin = await adminHeaders(app)
+
+    expect((await postDownloader(app, admin, 'first')).status).toBe(201)
+
+    const second = await postDownloader(app, admin, 'second')
+    expect(second.status).toBe(402)
+    const body = (await second.json()) as Record<string, unknown>
+    expect(body.feature).toBe('downloaders_unlimited')
+    expect(body.limit).toBe(1)
+  })
+
+  it('allows additional downloaders with the downloaders_unlimited entitlement', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await seedProLicense(db)
+    const admin = await adminHeaders(app)
+
+    expect((await postDownloader(app, admin, 'first')).status).toBe(201)
+    expect((await postDownloader(app, admin, 'second')).status).toBe(201)
   })
 })

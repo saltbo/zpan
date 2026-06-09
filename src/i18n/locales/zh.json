@@ -1164,7 +1164,6 @@
   "share.copyShareText": "复制分享文案",
   "share.textCopied": "分享文案已复制",
   "share.shareTextTemplate": "链接：{{url}}\n密码：{{password}}",
-
   "ihost.title": "图床",
   "ihost.enableCta.title": "启用图床",
   "ihost.enableCta.description": "通过 PicGo、uPic、ShareX 或网页上传图片，获取绑定到你自己域名的永久链接。",
@@ -1186,7 +1185,6 @@
   "ihost.upload.failed": "上传 {{name}} 失败",
   "ihost.table.dimensions": "尺寸",
   "ihost.table.accessCount": "访问次数",
-
   "settings.ihost.title": "图床设置",
   "settings.ihost.lockedTitle": "需要管理员权限",
   "settings.ihost.lockedDescription": "只有工作区所有者和管理员才能管理图床设置。",
@@ -1242,9 +1240,8 @@
   "settings.ihost.tools.upic.instructions": "在 uPic 中前往 偏好设置 → 图床 → 添加 → 自定义，逐个填入以下字段。通过「请求头」按钮添加 Authorization：",
   "settings.ihost.tools.sharex.instructions": "下载 .sxcu 文件并双击以导入 ShareX，ShareX 将自动将 ZPan 设置为自定义上传器。",
   "settings.ihost.tools.sharex.download": "下载 .sxcu",
-
   "settings.tabBilling": "账单",
-  "settings.billing.intro": "ZPan Pro — 解锁运营级功能。在 ZPan Cloud 购买或兑换。",
+  "settings.billing.intro": "解锁 ZPan Pro 与 Business 的运营级与商业化功能。在 ZPan Cloud 购买或兑换授权后，连接即可启用。",
   "settings.billing.connectButton": "连接 ZPan Cloud",
   "settings.billing.comparison.title": "功能对比",
   "settings.billing.comparison.feature": "功能",
@@ -1261,17 +1258,17 @@
   "features.openRegistration": "开放用户注册",
   "features.multiIdpSso": "多 IdP SSO (SAML)",
   "features.ldapScim": "LDAP & SCIM 同步",
-  "features.teamWorkspaces": "无限团队空间",
+  "features.teamWorkspaces": "团队空间",
   "features.teamWorkspaces.limit": "最多 {{count}} 个团队空间",
   "features.teamWorkspaces.unlimited": "无限制",
-  "features.storageBackends": "无限存储",
+  "features.storageBackends": "存储",
   "features.storageBackends.limit": "最多 {{count}} 个存储",
   "features.storageBackends.unlimited": "无限制",
   "features.shareLinks": "外链分享",
   "features.imageHosting": "基础图床功能",
   "features.whiteLabel": "自定义品牌",
   "features.auditLog": "审计日志",
-  "features.cloudStore": "存储套餐",
+  "features.cloudStore": "售卖存储与流量",
   "features.siteAnnouncements": "站点公告",
   "features.webhooks": "事件 Webhooks",
   "features.analytics": "统计分析",
@@ -1325,12 +1322,10 @@
   "settings.billing.bound.pro.disconnectSuccess": "已移除 Pro 授权",
   "settings.billing.bound.business.disconnectSuccess": "已移除 Business 授权",
   "settings.billing.bound.disconnectError": "移除授权失败",
-
   "admin.licenseRibbon.community": "Free",
   "admin.licenseRibbon.pro": "专业版",
   "admin.licenseRibbon.business": "商业版",
   "admin.licenseRibbon.ariaLabel": "{{edition}}",
-
   "admin.about.title": "关于 ZPan",
   "admin.about.subtitle": "版本、实例信息及相关链接。",
   "admin.about.instanceTitle": "实例信息",
@@ -1351,7 +1346,6 @@
   "admin.about.cloud.descriptionBound": "在 ZPan Cloud 查看授权证书并管理绑定。",
   "admin.about.cloud.cta": "升级到专业版",
   "admin.about.cloud.viewCert": "查看授权证书",
-
   "admin.cloudStore.title": "存储套餐",
   "admin.cloudStore.subtitle": "管理个人空间和团队工作空间可购买的存储套餐及礼品卡。",
   "admin.cloudStore.enabled": "启用",
@@ -1598,7 +1592,6 @@
   "storage.quotaChip": "{{size}} 存储",
   "storage.creditDiscount": "订单优惠 {{amount}}",
   "storage.giftCardCode": "礼品卡代码",
-
   "storage.historyTitle": "最近订单",
   "storage.historyDescription": "当前工作空间近期的存储计划订单。",
   "storage.noPackages": "当前暂无可用订阅套餐。",
@@ -1616,5 +1609,11 @@
   "device.denied": "已拒绝下载器授权。",
   "device.failed": "设备授权失败。",
   "device.approvedMessage": "授权已完成，可以回到下载器 CLI。",
-  "device.deniedMessage": "已拒绝授权，可以关闭此页面。"
+  "device.deniedMessage": "已拒绝授权，可以关闭此页面。",
+  "features.socialLoginOidc.limit": "最多 {{count}} 个登录方式",
+  "features.socialLoginOidc.unlimited": "无限制",
+  "features.category.advanced": "高级功能",
+  "features.downloaders": "下载器",
+  "features.downloaders.limit": "最多 {{count}} 个下载器",
+  "features.downloaders.unlimited": "无限制"
 }

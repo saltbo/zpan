@@ -3843,6 +3843,9 @@ type PostApiAdminDownloadersResponse struct {
 	JSON401 *struct {
 		Error string `json:"error"`
 	}
+	JSON402 *struct {
+		Error string `json:"error"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -5334,6 +5337,15 @@ func ParsePostApiAdminDownloadersResponse(rsp *http.Response) (*PostApiAdminDown
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
 
 	}
 
