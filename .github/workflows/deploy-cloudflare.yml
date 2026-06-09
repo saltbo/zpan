@@ -180,6 +180,17 @@ jobs:
           echo "${{ steps.r2.outputs.url }}" | pnpm exec wrangler secret put PUBLIC_IMAGES_URL
           echo "Set PUBLIC_IMAGES_URL = ${{ steps.r2.outputs.url }}"
 
+      # vite build runs the @cloudflare/vite-plugin, which writes the deploy
+      # config (dist/zpan/wrangler.json) that the subsequent wrangler deploy
+      # consumes: it resolves the assets directory to dist/client and inlines
+      # build-time defines. Must run after the D1 id patch so the generated
+      # config carries the real database_id. ZPAN_APP_VERSION sidesteps a git
+      # describe on the shallow tag checkout.
+      - name: Build
+        env:
+          ZPAN_APP_VERSION: ${{ steps.release.outputs.version }}
+        run: pnpm build
+
       - name: Deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
