@@ -1,0 +1,211 @@
+# Changelog
+
+<p align="center">
+  <a href="../../CHANGELOG.md">English</a> ·
+  <a href="CHANGELOG.zh-CN.md">简体中文</a> ·
+  <strong>日本語</strong> ·
+  <a href="CHANGELOG.ko.md">한국어</a> ·
+  <a href="CHANGELOG.ru.md">Русский</a> ·
+  <a href="CHANGELOG.es.md">Español</a> ·
+  <a href="CHANGELOG.pt-BR.md">Português (BR)</a>
+</p>
+
+## v2.7.2 — 2026-06-07
+
+### 新機能
+- ZPan のロゴとブランディングを刷新。
+
+### 修正
+- リモートダウンローダーのデータボリュームが Docker で書き込み可能になりました。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.2)
+
+## v2.7.1 — 2026-06-07
+
+### 新機能
+- 管理 UI からリモートダウンローダーの名前を変更できるようになりました。
+
+### 修正
+- ダウンローダーの割り当てをより確実にし、転送速度のレポートを正確化。
+- torrent のリッスンポートを公開し、Docker のダウンローダーでホストのホスト名を使用するようにしました。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.1)
+
+## v2.7.0 — 2026-06-06 · リモートダウンロード、WebDAV ほか
+
+### 新機能
+- **リモートダウンロードマネージャー** — torrent/HTTP ダウンロードをリモートワーカーへオフロードし、
+  詳細なタスクインスペクター、ピアの地理的リージョン、BT のシード保持、
+  ドライブへフォルダ構造を保ったままアップロードする機能を提供。
+- **`zpan` CLI ダウンローダー** — ワンコマンドのデバイスログインと設定可能なサーバー URL。
+- **WebDAV アクセス** — ユーザーごとのアプリパスワードで WebDAV 経由でドライブをマウント
+  （RFC 4918 Class 2 互換）。
+- **サーバーサイドアーカイブ** — ストリーミング ZIP ジョブをキューに入れ、新しい
+  バックグラウンドタスクページで追跡。
+- ウェブ UI での**フォルダアップロード**。
+- **クラウドクレジット** — クレジットで課金される従量制のストレージ送信、クレジットストア付き。
+- サインインとサインアップ向けの **Captcha** 保護。
+- 統一された API キー管理。
+
+### 修正
+- リモートダウンロードのライフサイクル（リセット、リカバリー、シード処理）を堅牢化し、
+  プレビューとアップロードに関する各種修正を実施。
+
+> **破壊的変更：** より厳格な RESTful API ルート。公開ダウンロードリンクが
+> `/dl/:token` から `/r/:token` へ移動。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.0)
+
+## v2.6.2 — 2026-05-11
+
+### 新機能
+- 管理：クラウド注文詳細ドロワー。
+
+### 修正
+- ストレージプランのテーブルレイアウト、ギフトカードのマスキング、チェックアウト/注文履歴ダイアログ。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.6.2)
+
+## v2.6.1 — 2026-05-10
+
+### 修正
+- チェックアウトのリダイレクトフローと、サイドバーのストレージクォータ表示。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.6.1)
+
+## v2.6.0 — 2026-05-10 · Pro ライセンスとクォータストア
+
+### 新機能
+- **Pro ライセンス** — インスタンスを ZPan Cloud とペアリング（QR + ペアリングモーダル）、
+  Ed25519 で検証されたエンタイトルメントとバックグラウンド更新、そして Pro 機能のゲーティング。
+- **ホワイトラベルブランディング** — カスタムロゴ、ファビコン、ワードマーク、フッターの非表示。
+- **クォータストア** — 引き換えコード、月間トラフィッククォータ、サブスクリプションおよび
+  固定クォータパッケージ、通貨ごとの従量制価格、トラフィック超過課金。
+- **管理** — 状態を変更する操作にまたがる監査ログ、サイトのお知らせ、
+  招待ベースのサインアップ、再設計された設定と概要ダッシュボード。
+- ファイルプレビューに Microsoft Office ビューア、音楽プレーヤー、複数ファイルの
+  アップロード進捗キューを追加。
+
+### 修正
+- Billing を管理パネルへ移動。管理画面でのクォータ単位、ユーザークォータ、アバター。
+- クラウドのトラフィック使用量をバックグラウンド同期。ダウンロードリンクで月間トラフィックを強制。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.6.0)
+
+## v2.5.0 — 2026-04-23 · どこへでもデプロイ
+
+### 新機能
+- **新しいデプロイ先** — AWS Lambda、Vercel、Netlify、Azure Functions、
+  Google Cloud Run。
+- **libSQL（Turso）** データベースアダプター、オプトイン式の Docker 構成付き。
+- Settings → Profile でのアバターアップロード。
+- 画像アップロードに Cloudflare R2 バインディングを優先し、S3 へフォールバック。
+
+### 修正
+- 設定タブ全体のビジュアルデザインを統一し、不足していたアバターの i18n を追加。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.5.0)
+
+## v2.4.1 — 2026-04-22
+
+### 修正
+- ポート 8222 での Docker 404 を解消し、イメージビルドを簡素化。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.4.1)
+
+## v2.4.0 — 2026-04-22 · 画像ホスティング
+
+### 新機能
+- **画像ホスティング** — 二段階/ストリームプロキシアップロード、カスタムドメイン
+  （Cloudflare for SaaS）、設定ページを備えた専用ギャラリー。
+- **ツール連携** — PicGo、uPic、ShareX 向けの既製設定。
+- プログラムによるアップロードのための API キー認証。
+
+### 修正
+- PicGo / uPic / ShareX の設定、下書き画像のフィルタリング、
+  大容量/マルチパートアップロードのエラーを修正。
+
+> **破壊的変更：** 公開リンクを `/r/:token` の下に統一。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.4.0)
+
+## v2.3.0 — 2026-04-21 · 共有
+
+### 新機能
+- **ファイル＆フォルダ共有** — ランディングモードとダイレクトモードを備えた
+  公開共有ページ（`/s/:token`）、任意で自動生成されるパスワード、フォルダブラウジング。
+- **ドライブへ保存** — クォータと名前の競合を処理しながら、ワークスペース間で
+  共有ファイルをコピー。
+- **アプリ内通知**と専用の Shares ダッシュボード。
+- Google パレットの UI 再設計。通知ベルをヘッダーへ移動。
+
+### 修正
+- Finder スタイルの名前競合解決、共有パスワード誤りでの正しい 403、
+  公開ビューカウントの重複排除。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.3.0)
+
+## v2.2.0 — 2026-04-19 · チーム
+
+### 新機能
+- **チームワークスペース** — 組織レベルの RBAC でチーム、メンバー、ロールを
+  作成・管理。
+- サイドバーのワークスペース切り替えと、チームごとのアクティビティフィード。
+- メールと招待リンクによる**チーム招待**。
+- `/u/:username` の公開ユーザーホームページ。
+
+### 修正
+- チームリストのフィルタリングとメンバー数。Teams エントリをアバターメニューへ移動。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.2.0)
+
+## v2.1.0 — 2026-04-14 · 認証とオンボーディング
+
+### 新機能
+- **動的 OAuth プロバイダー**、検証付きのメール/パスワード、設定可能な
+  登録モード。
+- **招待コード**による登録ゲーティング。
+- メールサービスの抽象化（SMTP + HTTP API ドライバー）。
+- サインイン/サインアップ UI の刷新と、管理者向け認証設定ページ。
+
+### 修正
+- 招待コードの検証と、サイドバーのダークモード描画。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.1.0)
+
+## v2.0.2 — 2026-04-12
+
+### 新機能
+- デスクトップ、タブレット、モバイル向けのレスポンシブレイアウトと、適応的なモバイルプレビュー。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.0.2)
+
+## v2.0.1 — 2026-04-12
+
+### 新機能
+- ワンクリックデプロイボタンを備えた Cloudflare Workers への移行。
+
+### 修正
+- Cloudflare Workers のデプロイと認証設定（baseURL/trusted
+  origins の推論、`nodejs_compat_v2`）。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.0.1)
+
+## v2.0.0 — 2026-04-12 · TypeScript への書き直し
+
+### 新機能
+- Go から TypeScript への完全な書き直し：Hono API + React SPA で、
+  Cloudflare Workers と Node/Docker の両方にデプロイ可能。
+- presigned URL による S3 への直接アップロード、フォルダツリー、検索、
+  ゴミ箱を備えたカスタムファイルマネージャー。
+- 画像、PDF、コード、音声、動画のファイルプレビュー。
+- 管理者向けのユーザー/ストレージ/クォータ管理、組織ごとのストレージクォータ、i18n（en/zh）。
+
+### 修正
+- サーバーサイドのグローバル検索（Enter でトリガー）とメディアプレビューの描画。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.0.0)
+
+---
+
+v1 の変更履歴については [v1 ブランチ](https://github.com/saltbo/zpan/tree/v1/CHANGELOG.md) を参照してください。

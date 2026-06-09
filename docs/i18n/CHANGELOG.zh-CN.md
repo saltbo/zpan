@@ -1,0 +1,211 @@
+# 更新日志
+
+<p align="center">
+  <a href="../../CHANGELOG.md">English</a> ·
+  <strong>简体中文</strong> ·
+  <a href="CHANGELOG.ja.md">日本語</a> ·
+  <a href="CHANGELOG.ko.md">한국어</a> ·
+  <a href="CHANGELOG.ru.md">Русский</a> ·
+  <a href="CHANGELOG.es.md">Español</a> ·
+  <a href="CHANGELOG.pt-BR.md">Português (BR)</a>
+</p>
+
+## v2.7.2 — 2026-06-07
+
+### 新功能
+- 全新的 ZPan logo 与品牌形象。
+
+### 修复
+- 远程下载节点的数据卷现在在 Docker 中可写。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.2)
+
+## v2.7.1 — 2026-06-07
+
+### 新功能
+- 可在管理界面中重命名你的远程下载节点。
+
+### 修复
+- 更可靠的下载节点分配以及更准确的传输速度上报。
+- 暴露 torrent 监听端口，并在 Docker 中为下载节点使用宿主机主机名。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.1)
+
+## v2.7.0 — 2026-06-06 · 远程下载、WebDAV 及更多
+
+### 新功能
+- **远程下载管理器** — 将 torrent/HTTP 下载卸载到远程节点，
+  配有详尽的任务检视器、节点地理区域、BT 做种保留，以及
+  保留文件夹结构地回传到你的网盘。
+- **`zpan` CLI 下载器** — 一条命令完成设备登录，并支持自定义服务器 URL。
+- **WebDAV 访问** — 通过 WebDAV 挂载你的网盘，支持每用户应用密码
+  （兼容 RFC 4918 Class 2）。
+- **服务端打包** — 将流式 ZIP 任务排入队列，并在全新的
+  后台任务页面中跟踪它们。
+- 在 Web 界面中支持**文件夹上传**。
+- **云端积分** — 计量的存储出口流量通过积分计费，并配有积分商店。
+- 为登录和注册提供**验证码**保护。
+- 统一的 API 密钥管理。
+
+### 修复
+- 加固了远程下载的生命周期（重置、恢复和做种处理），
+  以及若干预览和上传修复。
+
+> **破坏性变更：** 更严格的 RESTful API 路由；公开下载链接从
+> `/dl/:token` 改为 `/r/:token`。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.7.0)
+
+## v2.6.2 — 2026-05-11
+
+### 新功能
+- 管理端：云端订单详情抽屉。
+
+### 修复
+- 存储套餐表格布局、礼品卡掩码，以及结账/订单历史对话框。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.6.2)
+
+## v2.6.1 — 2026-05-10
+
+### 修复
+- 结账跳转流程以及侧边栏存储配额显示。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.6.1)
+
+## v2.6.0 — 2026-05-10 · Pro 授权与配额商店
+
+### 新功能
+- **Pro 授权** — 将你的实例与 ZPan Cloud 配对（二维码 + 配对弹窗），
+  基于 Ed25519 验证的权益并支持后台刷新，以及 Pro 功能门控。
+- **白标品牌** — 自定义 logo、favicon、文字标识，以及隐藏页脚。
+- **配额商店** — 兑换码、每月流量配额、订阅制与
+  固定配额套餐、按币种计量的定价，以及流量超额。
+- **管理端** — 覆盖状态变更操作的审计日志、站点公告、
+  基于邀请的注册，以及重新设计的设置与概览仪表盘。
+- 文件预览新增 Microsoft Office 查看器、音乐播放器，以及多文件
+  上传进度队列。
+
+### 修复
+- 将计费移入管理面板；管理端中的配额单位、用户配额和头像。
+- 后台同步云端流量用量；对下载链接强制执行每月流量限制。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.6.0)
+
+## v2.5.0 — 2026-04-23 · 随处部署
+
+### 新功能
+- **新的部署目标** — AWS Lambda、Vercel、Netlify、Azure Functions，以及
+  Google Cloud Run。
+- **libSQL (Turso)** 数据库适配器，并提供可选的 Docker 配置。
+- 在设置 → 个人资料中支持头像上传。
+- 图片上传优先使用 Cloudflare R2 绑定，回退到 S3。
+
+### 修复
+- 统一了各设置标签页的视觉设计，并补齐了缺失的头像 i18n。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.5.0)
+
+## v2.4.1 — 2026-04-22
+
+### 修复
+- 解决了 Docker 在 8222 端口上的 404，并简化了镜像构建。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.4.1)
+
+## v2.4.0 — 2026-04-22 · 图床
+
+### 新功能
+- **图床** — 专属图库，支持两阶段/流式代理上传、
+  自定义域名（Cloudflare for SaaS），以及设置页面。
+- **工具集成** — 为 PicGo、uPic 和 ShareX 提供开箱即用的配置。
+- 用于程序化上传的 API 密钥认证。
+
+### 修复
+- 修正了 PicGo / uPic / ShareX 配置、草稿图片过滤，以及
+  大文件/分片上传错误。
+
+> **破坏性变更：** 公开链接统一到 `/r/:token` 下。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.4.0)
+
+## v2.3.0 — 2026-04-21 · 分享
+
+### 新功能
+- **文件与文件夹分享** — 公开分享页面（`/s/:token`），支持落地页与
+  直链模式、可选的自动生成密码，以及文件夹浏览。
+- **转存到网盘** — 跨工作区复制分享文件，并处理配额与
+  命名冲突。
+- **应用内通知**以及专属的分享仪表盘。
+- Google 配色 UI 重新设计；通知铃移至顶部栏。
+
+### 修复
+- Finder 风格的命名冲突解决、分享密码错误时返回正确的 403，
+  以及对公开浏览量去重。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.3.0)
+
+## v2.2.0 — 2026-04-19 · 团队
+
+### 新功能
+- **团队工作区** — 创建和管理团队、成员和角色，配有
+  组织级 RBAC。
+- 侧边栏中的工作区切换器以及每团队活动流。
+- 通过邮件和邀请链接发起**团队邀请**。
+- 位于 `/u/:username` 的公开用户主页。
+
+### 修复
+- 团队列表筛选与成员计数；将团队入口移入头像菜单。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.2.0)
+
+## v2.1.0 — 2026-04-14 · 认证与入门引导
+
+### 新功能
+- **动态 OAuth 提供商**、带验证的邮箱/密码登录，以及可配置的
+  注册模式。
+- **邀请码**注册门控。
+- 邮件服务抽象（SMTP + HTTP API 驱动）。
+- 登录/注册 UI 大改版以及管理端认证设置页面。
+
+### 修复
+- 邀请码校验以及侧边栏深色模式渲染。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.1.0)
+
+## v2.0.2 — 2026-04-12
+
+### 新功能
+- 适配桌面、平板和移动端的响应式布局，并提供自适应的移动端预览。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.0.2)
+
+## v2.0.1 — 2026-04-12
+
+### 新功能
+- 迁移到 Cloudflare Workers，并提供一键部署按钮。
+
+### 修复
+- Cloudflare Workers 的部署与认证配置（baseURL/受信任
+  来源推断、`nodejs_compat_v2`）。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.0.1)
+
+## v2.0.0 — 2026-04-12 · TypeScript 重写
+
+### 新功能
+- 从 Go 完全重写为 TypeScript：Hono API + React SPA，可同时部署在
+  Cloudflare Workers 和 Node/Docker 上。
+- 通过预签名 URL 实现直传 S3，配有自定义文件管理器（含文件夹树、
+  搜索）以及回收站。
+- 支持图片、PDF、代码、音频和视频的文件预览。
+- 管理端用户/存储/配额管理、每组织存储配额，以及 i18n（en/zh）。
+
+### 修复
+- 服务端全局搜索（按回车触发）以及媒体预览渲染。
+
+[Full release notes ↗](https://github.com/saltbo/zpan/releases/tag/v2.0.0)
+
+---
+
+v1 的更新日志请查看 [v1 分支](https://github.com/saltbo/zpan/tree/v1/CHANGELOG.md)。
