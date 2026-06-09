@@ -1585,5 +1585,8 @@
   "device.denied": "已拒绝下载器授权。",
   "device.failed": "设备授权失败。",
   "device.approvedMessage": "授权已完成，可以回到下载器 CLI。",
-  "device.deniedMessage": "已拒绝授权，可以关闭此页面。"
+  "device.deniedMessage": "已拒绝授权，可以关闭此页面。",
+  "admin.ribbon.community": "社区版",
+  "admin.ribbon.pro": "专业版",
+  "admin.ribbon.business": "商业版"
 }

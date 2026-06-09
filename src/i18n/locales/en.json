@@ -1585,5 +1585,8 @@
   "device.denied": "Downloader denied.",
   "device.failed": "Device authorization failed.",
   "device.approvedMessage": "Authorization complete. You can return to the downloader CLI.",
-  "device.deniedMessage": "Authorization denied. You can close this page."
+  "device.deniedMessage": "Authorization denied. You can close this page.",
+  "admin.ribbon.community": "Community",
+  "admin.ribbon.pro": "Pro",
+  "admin.ribbon.business": "Business"
 }
