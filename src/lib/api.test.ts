@@ -46,6 +46,7 @@ import {
   getCloudCredits,
   getEmailConfig,
   getIhostConfig,
+  getInstanceInfo,
   getLicensingStatus,
   getObject,
   getProfile,
@@ -2888,6 +2889,42 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Internal Server Error' }, false, 500))
 
       await expect(getLicensingStatus()).rejects.toThrow()
+    })
+  })
+
+  describe('getInstanceInfo', () => {
+    const instance = {
+      id: 'inst-123',
+      name: 'My ZPan',
+      url: 'https://files.example.com',
+      version: '2.5.0',
+      runtime: { provider: 'node', target: 'node/docker' },
+      server: { os: { platform: 'linux', arch: 'x64', release: '6.1.0' } },
+      node: { version: 'v24.0.0' },
+    }
+
+    it('calls the correct endpoint', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(instance))
+
+      await getInstanceInfo()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/system/instance')
+      expect(init?.method ?? 'GET').toBe('GET')
+    })
+
+    it('returns the instance info', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(instance))
+
+      const result = await getInstanceInfo()
+
+      expect(result).toEqual(instance)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(getInstanceInfo()).rejects.toThrow()
     })
   })
 

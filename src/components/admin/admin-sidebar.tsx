@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Database,
   HardDriveDownload,
+  Info,
   KeyRound,
   LayoutDashboard,
   Mail,
@@ -39,6 +40,7 @@ const adminNavItems = [
   { titleKey: 'admin.nav.announcement', url: '/admin/announcement', icon: Megaphone },
   { titleKey: 'admin.nav.audit', url: '/admin/audit', icon: ShieldCheck },
   { titleKey: 'admin.nav.licensing', url: '/admin/licensing', icon: BadgeCheck },
+  { titleKey: 'admin.nav.about', url: '/admin/about', icon: Info },
 ]
 
 export function AdminSidebar() {

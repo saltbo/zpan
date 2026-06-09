@@ -16,6 +16,16 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+// TanStack Router's <Link> needs a router context; render a plain anchor instead.
+vi.mock('@tanstack/react-router', () => ({
+  // biome-ignore lint/suspicious/noExplicitAny: minimal test stub
+  Link: ({ to, children, ...props }: any) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+}))
+
 const useEntitlementMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/hooks/useEntitlement', () => ({
@@ -64,7 +74,7 @@ describe('LicenseRibbon — loading state', () => {
   })
 })
 
-describe('LicenseRibbon — Community edition (unbound)', () => {
+describe('LicenseRibbon — Free edition (unbound)', () => {
   beforeEach(() => {
     useEntitlementMock.mockReturnValue(makeEntitlement({ bound: false }))
   })
@@ -75,24 +85,16 @@ describe('LicenseRibbon — Community edition (unbound)', () => {
     expect(container.querySelector('[data-slot="license-ribbon"]')).toBeTruthy()
   })
 
-  it('displays the Community label key', () => {
+  it('displays the Free (community) label key', () => {
     const { getByText } = render(<LicenseRibbon />)
 
     expect(getByText('admin.licenseRibbon.community')).toBeTruthy()
   })
 
-  it('links to the GitHub repo', () => {
+  it('links to the About page', () => {
     const { getByRole } = render(<LicenseRibbon />)
 
-    expect(getByRole('link').getAttribute('href')).toBe('https://github.com/saltbo/zpan')
-  })
-
-  it('opens link in a new tab with rel="noopener noreferrer"', () => {
-    const { getByRole } = render(<LicenseRibbon />)
-    const link = getByRole('link')
-
-    expect(link.getAttribute('target')).toBe('_blank')
-    expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(getByRole('link').getAttribute('href')).toBe('/admin/about')
   })
 
   it('has an accessible aria-label naming the edition', () => {
@@ -123,54 +125,42 @@ describe('LicenseRibbon — Pro edition', () => {
     expect(getByText('admin.licenseRibbon.pro')).toBeTruthy()
   })
 
-  it('links to the GitHub repo', () => {
+  it('links to the About page', () => {
     const { getByRole } = render(<LicenseRibbon />)
 
-    expect(getByRole('link').getAttribute('href')).toBe('https://github.com/saltbo/zpan')
+    expect(getByRole('link').getAttribute('href')).toBe('/admin/about')
   })
 
-  it('applies brand blue color (#1A73E8)', () => {
+  it('applies gold color (#D8AB44)', () => {
     const { getByRole } = render(<LicenseRibbon />)
     const link = getByRole('link') as HTMLElement
 
-    expect(link.style.backgroundColor).toBe('rgb(26, 115, 232)')
+    expect(link.style.backgroundColor).toBe('rgb(216, 171, 68)')
   })
 })
 
 describe('LicenseRibbon — Business edition', () => {
-  it('displays the Business label key', () => {
+  beforeEach(() => {
     useEntitlementMock.mockReturnValue(makeEntitlement({ bound: true, edition: 'business' }))
+  })
 
+  it('displays the Business label key', () => {
     const { getByText } = render(<LicenseRibbon />)
 
     expect(getByText('admin.licenseRibbon.business')).toBeTruthy()
   })
 
-  it('links to cloud_dashboard_url when provided', () => {
-    useEntitlementMock.mockReturnValue(
-      makeEntitlement({ bound: true, edition: 'business', cloudDashboardUrl: 'https://cloud.example.com/dash' }),
-    )
-
+  it('links to the About page', () => {
     const { getByRole } = render(<LicenseRibbon />)
 
-    expect(getByRole('link').getAttribute('href')).toBe('https://cloud.example.com/dash')
+    expect(getByRole('link').getAttribute('href')).toBe('/admin/about')
   })
 
-  it('falls back to the default cloud dashboard URL when cloud_dashboard_url is absent', () => {
-    useEntitlementMock.mockReturnValue(makeEntitlement({ bound: true, edition: 'business', cloudDashboardUrl: null }))
-
-    const { getByRole } = render(<LicenseRibbon />)
-
-    expect(getByRole('link').getAttribute('href')).toBe('https://cloud.zpan.space/dashboard')
-  })
-
-  it('applies gold color (#F59E0B)', () => {
-    useEntitlementMock.mockReturnValue(makeEntitlement({ bound: true, edition: 'business' }))
-
+  it('applies indigo color (#5B73E8)', () => {
     const { getByRole } = render(<LicenseRibbon />)
     const link = getByRole('link') as HTMLElement
 
-    expect(link.style.backgroundColor).toBe('rgb(245, 158, 11)')
+    expect(link.style.backgroundColor).toBe('rgb(91, 115, 232)')
   })
 })
 
