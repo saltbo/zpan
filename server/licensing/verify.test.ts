@@ -53,17 +53,12 @@ describe('verifyCertificate', () => {
     expect(result?.authorizedHosts).toEqual(['zpan.example.com'])
   })
 
-  it('returns assertion for a valid business cert and sanitizes feature keys', () => {
-    const cert = signCert({
-      edition: 'business',
-      features: ['white_label', 'quota_store', 'unknown_feature'],
-      licenseId: 'lic-1',
-    })
+  it('returns assertion for a valid business cert', () => {
+    const cert = signCert({ edition: 'business', licenseId: 'lic-1' })
     const result = verifyCertificate(cert, { instanceId: 'inst-abc', currentHost: 'zpan.example.com' })
 
     expect(result).not.toBeNull()
     expect(result?.edition).toBe('business')
-    expect(result?.features).toEqual(['white_label', 'quota_store'])
     expect(result?.licenseId).toBe('lic-1')
   })
 

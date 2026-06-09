@@ -2,8 +2,7 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { PRO_GATE_KEYS } from '../../shared/feature-registry'
-import type { LicenseEdition, ProFeature } from '../../shared/types'
+import type { LicenseEdition } from '../../shared/types'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
 import * as authSchema from '../db/auth-schema'
@@ -603,34 +602,24 @@ function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-const BUSINESS_ONLY_TEST_FEATURES = new Set<ProFeature>(['quota_store', 'site_announcements'])
-
 /**
  * Insert a Pro license binding row so that non-commercial Pro feature gates resolve as enabled.
  */
-export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp>>['db'], features?: string[]) {
-  return seedLicense(db, {
-    edition: 'pro',
-    features:
-      normalizeTestFeatures(features) ?? PRO_GATE_KEYS.filter((feature) => !BUSINESS_ONLY_TEST_FEATURES.has(feature)),
-  })
+export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+  return seedLicense(db, { edition: 'pro' })
 }
 
 /**
  * Insert a Business license binding row so commercial feature gates resolve as enabled.
  */
-export async function seedBusinessLicense(db: Awaited<ReturnType<typeof createTestApp>>['db'], features?: string[]) {
-  return seedLicense(db, {
-    edition: 'business',
-    features: normalizeTestFeatures(features) ?? [...PRO_GATE_KEYS],
-  })
+export async function seedBusinessLicense(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+  return seedLicense(db, { edition: 'business' })
 }
 
 async function seedLicense(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
   input: {
     edition: LicenseEdition
-    features: ProFeature[]
   },
 ) {
   const { PUBLIC_KEYS } = await import('../licensing/public-keys.js')
@@ -649,7 +638,6 @@ async function seedLicense(
     instanceId: 'test-instance',
     storeId: 'store-test-binding',
     edition: input.edition,
-    features: input.features,
     licenseId: 'test-license-unit',
     authorizedHosts: ['localhost', 'zpan.example', 'auth.example.com', 'files.example.com'],
     licenseValidUntil: issuedAt + 365 * 24 * 60 * 60,
@@ -668,10 +656,4 @@ async function seedLicense(
     cachedExpiresAt: expiresAt,
     lastRefreshAt: issuedAt,
   })
-}
-
-function normalizeTestFeatures(features: string[] | undefined): ProFeature[] | undefined {
-  if (!features) return undefined
-  const allowed = new Set(PRO_GATE_KEYS)
-  return features.filter((feature): feature is ProFeature => allowed.has(feature as ProFeature))
 }

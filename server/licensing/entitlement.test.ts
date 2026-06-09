@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
 import { invalidateEntitlementCache, loadEntitlement } from './entitlement'
+import { effectiveFeatures } from './has-feature'
 import { createLicenseBinding } from './license-state'
 import { PUBLIC_KEYS } from './public-keys'
 
@@ -126,7 +127,6 @@ describe('loadEntitlement', () => {
     await seedBinding(
       db,
       signAssertion({
-        features: ['white_label', 'quota_store'],
         licenseId: 'lic-1',
         licenseValidUntil,
         expiresAt: certificateExpiresAt,
@@ -136,7 +136,7 @@ describe('loadEntitlement', () => {
     const result = await loadEntitlement(db)
     expect(result).not.toBeNull()
     expect(result?.edition).toBe('pro')
-    expect(result?.features).toEqual(['white_label', 'quota_store'])
+    expect(result?.features).toEqual(effectiveFeatures('pro'))
     expect(result?.licenseId).toBe('lic-1')
     expect(result?.licenseValidUntil).toBe(licenseValidUntil)
     expect(result?.certificateExpiresAt).toBe(certificateExpiresAt)
@@ -149,7 +149,6 @@ describe('loadEntitlement', () => {
       db,
       signAssertion({
         edition: 'business',
-        features: ['white_label', 'quota_store'],
         licenseId: 'lic-business',
       }),
     )
@@ -157,7 +156,7 @@ describe('loadEntitlement', () => {
     const result = await loadEntitlement(db)
     expect(result).toMatchObject({
       edition: 'business',
-      features: ['white_label', 'quota_store'],
+      features: effectiveFeatures('business'),
       licenseId: 'lic-business',
     })
   })

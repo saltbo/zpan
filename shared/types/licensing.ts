@@ -11,7 +11,6 @@ export interface LicenseAssertion {
   accountId: string
   instanceId: string
   edition: LicenseEdition
-  features?: LicenseFeature[]
   licenseId?: string
   authorizedHosts: string[]
   licenseValidUntil: number

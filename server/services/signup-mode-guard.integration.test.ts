@@ -13,8 +13,8 @@ async function signUp(ctx: TestCtx, email: string, extra?: Record<string, unknow
   })
 }
 
-async function seedProLicense(ctx: TestCtx, features: string[] = ['open_registration']) {
-  await seedProLicenseRow(ctx.db, features)
+async function seedProLicense(ctx: TestCtx) {
+  await seedProLicenseRow(ctx.db)
 }
 
 async function seedFirstUser(ctx: TestCtx) {
