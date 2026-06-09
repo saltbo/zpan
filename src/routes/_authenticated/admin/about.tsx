@@ -5,7 +5,7 @@ import { ArrowUpCircle, BadgeCheck, ExternalLink, Github, Server, Sparkles, Star
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
-import { AnnouncementMarkdown } from '@/components/announcements/markdown-content'
+import { ChangelogMarkdown } from '@/components/admin/changelog-markdown'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -203,7 +203,7 @@ function AboutPage() {
             {changelogError ? (
               <p className="text-sm text-muted-foreground">{t('admin.about.changelogError')}</p>
             ) : changelog ? (
-              <AnnouncementMarkdown content={changelog.markdown} />
+              <ChangelogMarkdown content={changelog.markdown} />
             ) : (
               <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
             )}
