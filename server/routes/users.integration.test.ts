@@ -379,6 +379,134 @@ describe('Admin Users API', () => {
     expect(rows[0].status).toBe('revoked')
   })
 
+  it('PATCH /api/admin/users/:id/entitlements/:eid preserves unspecified fields', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const user = (await signUpUser(app, 'patch-partial@example.com')) as { user: { id: string } }
+    const userId = user.user.id
+
+    const grant = await app.request(`/api/admin/users/${userId}/entitlements`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resourceType: 'storage', bytes: 1000, expiresAt: '2030-01-01T00:00:00.000Z' }),
+    })
+    const { entitlement } = (await grant.json()) as { entitlement: { id: string } }
+
+    const bytesOnly = await app.request(`/api/admin/users/${userId}/entitlements/${entitlement.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytes: 7000 }),
+    })
+    expect(bytesOnly.status).toBe(200)
+    let rows = await db.all<{ bytes: number; expiresAt: number | null }>(
+      sql`SELECT bytes, expires_at AS expiresAt FROM org_quota_entitlements WHERE id = ${entitlement.id}`,
+    )
+    expect(rows[0].bytes).toBe(7000)
+    expect(rows[0].expiresAt).toBe(new Date('2030-01-01T00:00:00.000Z').getTime())
+
+    const expiryOnly = await app.request(`/api/admin/users/${userId}/entitlements/${entitlement.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresAt: null }),
+    })
+    expect(expiryOnly.status).toBe(200)
+    rows = await db.all<{ bytes: number; expiresAt: number | null }>(
+      sql`SELECT bytes, expires_at AS expiresAt FROM org_quota_entitlements WHERE id = ${entitlement.id}`,
+    )
+    expect(rows[0].bytes).toBe(7000)
+    expect(rows[0].expiresAt).toBeNull()
+  })
+
+  it('PATCH /api/admin/users/:id/entitlements/:eid handles a grant with no metadata', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'no-metadata-grant@example.com')
+    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'no-metadata-grant@example.com'`)
+    const userId = users[0].id
+    const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
+      VALUES
+        ('ent-no-meta', ${orgs[0].id}, 'storage', 'grant', 'admin_grant', 'admin_grant:no-meta', 1000, ${now}, NULL, 'active', NULL, ${now}, ${now})
+    `)
+
+    const res = await app.request(`/api/admin/users/${userId}/entitlements/ent-no-meta`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'first note' }),
+    })
+
+    expect(res.status).toBe(200)
+    const rows = await db.all<{ metadata: string }>(
+      sql`SELECT metadata FROM org_quota_entitlements WHERE id = 'ent-no-meta'`,
+    )
+    expect(JSON.parse(rows[0].metadata)).toMatchObject({ note: 'first note' })
+  })
+
+  it('PATCH and DELETE entitlement return 404 for an unknown entitlement id', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const user = (await signUpUser(app, 'unknown-ent@example.com')) as { user: { id: string } }
+    const userId = user.user.id
+
+    const patch = await app.request(`/api/admin/users/${userId}/entitlements/does-not-exist`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytes: 1 }),
+    })
+    expect(patch.status).toBe(404)
+
+    const del = await app.request(`/api/admin/users/${userId}/entitlements/does-not-exist`, {
+      method: 'DELETE',
+      headers,
+    })
+    expect(del.status).toBe(404)
+  })
+
+  it('PATCH and DELETE entitlement return 404 when the user has no personal org', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'no-org-edit@example.com')
+    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'no-org-edit@example.com'`)
+    const userId = users[0].id
+    await db.run(sql`DELETE FROM member WHERE user_id = ${userId}`)
+
+    const patch = await app.request(`/api/admin/users/${userId}/entitlements/any`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytes: 1 }),
+    })
+    expect(patch.status).toBe(404)
+
+    const del = await app.request(`/api/admin/users/${userId}/entitlements/any`, {
+      method: 'DELETE',
+      headers,
+    })
+    expect(del.status).toBe(404)
+  })
+
+  it('DELETE /api/admin/users/:id/entitlements/:eid rejects non-admin-grant sources', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'free-plan-revoke@example.com')
+    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'free-plan-revoke@example.com'`)
+    const userId = users[0].id
+    const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
+    const free = await db.all<{ id: string }>(
+      sql`SELECT id FROM org_quota_entitlements WHERE org_id = ${orgs[0].id} AND source = 'free_plan' LIMIT 1`,
+    )
+
+    const res = await app.request(`/api/admin/users/${userId}/entitlements/${free[0].id}`, {
+      method: 'DELETE',
+      headers,
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Only admin-granted entitlements can be modified' })
+  })
+
   it('PATCH /api/admin/users/:id/entitlements/:eid rejects non-admin-grant sources', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
