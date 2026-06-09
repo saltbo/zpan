@@ -1,10 +1,11 @@
+import type { LicenseEdition } from '@shared/types'
 import { useTranslation } from 'react-i18next'
 import { useEntitlement } from '@/hooks/useEntitlement'
 
 const GITHUB_URL = 'https://github.com/saltbo/zpan'
 const CLOUD_DASHBOARD_FALLBACK = 'https://cloud.zpan.space/dashboard'
 
-function editionKey(bound: boolean, edition: string | null): 'community' | 'pro' | 'business' {
+function editionKey(bound: boolean, edition: LicenseEdition | null): 'community' | 'pro' | 'business' {
   if (!bound) return 'community'
   return edition === 'business' ? 'business' : 'pro'
 }
@@ -33,7 +34,7 @@ export function LicenseRibbon() {
   }
 
   return (
-    <div data-slot="license-ribbon" className="pointer-events-none fixed right-0 top-0 z-50 h-20 w-20 overflow-hidden">
+    <div data-slot="license-ribbon" className="pointer-events-none fixed right-0 top-0 z-50 h-24 w-24 overflow-hidden">
       <a
         href={href}
         target="_blank"

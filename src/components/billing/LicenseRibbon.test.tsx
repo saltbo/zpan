@@ -95,11 +95,13 @@ describe('LicenseRibbon — Community edition (unbound)', () => {
     expect(link.getAttribute('rel')).toBe('noopener noreferrer')
   })
 
-  it('has an accessible aria-label', () => {
+  it('has an accessible aria-label naming the edition', () => {
     const { getByRole } = render(<LicenseRibbon />)
     const link = getByRole('link')
 
-    expect(link.getAttribute('aria-label')).toBeTruthy()
+    // t('admin.licenseRibbon.ariaLabel', { edition: 'admin.licenseRibbon.community' })
+    // → 'admin.licenseRibbon.ariaLabel:admin.licenseRibbon.community'
+    expect(link.getAttribute('aria-label')).toBe('admin.licenseRibbon.ariaLabel:admin.licenseRibbon.community')
   })
 
   it('applies gray color (#64748B)', () => {
