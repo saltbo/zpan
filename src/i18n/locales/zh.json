@@ -1321,6 +1321,12 @@
   "settings.billing.bound.pro.disconnectSuccess": "已移除 Pro 授权",
   "settings.billing.bound.business.disconnectSuccess": "已移除 Business 授权",
   "settings.billing.bound.disconnectError": "移除授权失败",
+
+  "admin.licenseRibbon.community": "社区版",
+  "admin.licenseRibbon.pro": "专业版",
+  "admin.licenseRibbon.business": "商业版",
+  "admin.licenseRibbon.ariaLabel": "{{edition}}",
+
   "admin.cloudStore.title": "存储套餐",
   "admin.cloudStore.subtitle": "管理个人空间和团队工作空间可购买的存储套餐及礼品卡。",
   "admin.cloudStore.enabled": "启用",

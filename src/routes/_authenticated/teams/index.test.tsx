@@ -259,6 +259,7 @@ function makeEntitlement(hasTeamsUnlimited: boolean) {
     bound: true,
     active: hasTeamsUnlimited,
     edition: hasTeamsUnlimited ? 'pro' : null,
+    cloudDashboardUrl: null,
     hasFeature: (name: string) => hasTeamsUnlimited && name === 'teams_unlimited',
     isLoading: false,
     isError: false,
