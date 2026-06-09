@@ -20,6 +20,7 @@ export function useEntitlement() {
     bound: data?.bound ?? false,
     active: data?.active ?? false,
     edition: data?.edition ?? null,
+    licenseId: data?.license_id ?? null,
     cloudDashboardUrl: data?.cloud_dashboard_url ?? null,
     hasFeature,
     isLoading,

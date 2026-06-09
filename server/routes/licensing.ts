@@ -1,11 +1,10 @@
 import { timingSafeEqual } from 'node:crypto'
-import { release as osRelease } from 'node:os'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { BindingState } from '../../shared/types'
 import { loadBindingState } from '../licensing/has-feature'
-import { buildCloudInstanceInfo } from '../licensing/instance-info'
+import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { normalizeHost } from '../licensing/verify'
 import type { Env } from '../middleware/platform'
 import { syncPendingCloudTrafficReports } from '../services/cloud-traffic-metering'
@@ -20,17 +19,6 @@ async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
 
 async function getInstanceOrigin(c: Context<Env>): Promise<string | null> {
   return (await getSitePublicOrigin(c.get('platform').db)) ?? originFromRequestUrl(c.req.url)
-}
-
-function runtimeInfo(c: Context<Env>) {
-  if (c.get('platform').getBinding('DB')) {
-    return { runtime: { provider: 'cloudflare' as const, target: 'cloudflare-worker' as const } }
-  }
-  return {
-    runtime: { provider: 'node' as const, target: 'node/docker' as const },
-    server: { os: { platform: process.platform, arch: process.arch, release: osRelease() } },
-    node: { version: process.version },
-  }
 }
 
 function cloudDashboardUrl(cloudBaseUrl: string): string {
@@ -71,7 +59,7 @@ const app = new Hono<Env>()
     const instance = origin
       ? await buildCloudInstanceInfo(db, {
           url: origin,
-          runtime: runtimeInfo(c),
+          runtime: runtimeInfo(c.get('platform')),
         })
       : undefined
     await runLicensingRefresh(db, cloudBaseUrl, instance)

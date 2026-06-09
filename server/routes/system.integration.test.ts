@@ -119,6 +119,21 @@ describe('System API — options CRUD', () => {
     await expect(updated.json()).resolves.toMatchObject({ value: '0' })
   })
 
+  it('exposes instance info to admins only', async () => {
+    const { app } = await createTestApp()
+
+    const anon = await app.request('/api/system/instance')
+    expect(anon.status).toBe(401)
+
+    const admin = await adminHeaders(app)
+    const res = await app.request('/api/system/instance', { headers: admin })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { id: string; version: string; runtime?: { provider: string } }
+    expect(body.id).toBeTruthy()
+    expect(body.version).toBeTruthy()
+    expect(body.runtime?.provider).toBe('node')
+  })
+
   it('keeps captcha secret private and rejects enabling captcha before keys exist', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)

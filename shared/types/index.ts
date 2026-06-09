@@ -584,6 +584,7 @@ export interface ImageHosting {
   createdAt: string
 }
 
+export type { InstanceInfo } from './instance'
 export type { BindingState, LicenseAssertion, LicenseEdition, LicenseFeature, ProFeature } from './licensing'
 
 export type BrandingThemePresetId = 'default' | 'ocean' | 'forest' | 'rose'

@@ -44,6 +44,7 @@ export const SignupMode = {
 export type SignupMode = (typeof SignupMode)[keyof typeof SignupMode]
 
 export const ZPAN_CLOUD_URL_DEFAULT = 'https://cloud.zpan.space'
+export const ZPAN_GITHUB_URL = 'https://github.com/saltbo/zpan'
 export const DEFAULT_SITE_NAME = 'ZPan'
 export const DEFAULT_SITE_DESCRIPTION = ''
 export const DEFAULT_ORG_QUOTA = 10 * 1024 * 1024

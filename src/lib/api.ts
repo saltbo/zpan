@@ -40,6 +40,7 @@ import type {
   DownloadTask,
   IhostConfigResponse,
   ImageHosting,
+  InstanceInfo,
   Notification,
   ObjectUploadSession,
   OrgQuota,
@@ -1021,6 +1022,10 @@ export interface PairingPollResult {
 
 export function getLicensingStatus() {
   return unwrap<BindingState>(licensingApi.status.$get())
+}
+
+export function getInstanceInfo() {
+  return unwrap<InstanceInfo>(system.instance.$get())
 }
 
 export function connectCloud() {
