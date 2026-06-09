@@ -1,4 +1,4 @@
-import { githubCommitUrl, ZPAN_CLOUD_URL_DEFAULT, ZPAN_GITHUB_URL } from '@shared/constants'
+import { ZPAN_CLOUD_URL_DEFAULT, ZPAN_GITHUB_URL } from '@shared/constants'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { ArrowUpCircle, BadgeCheck, ExternalLink, Github, RefreshCw, Server, Sparkles, Star } from 'lucide-react'
@@ -133,16 +133,7 @@ function AboutPage() {
           </InfoRow>
           {instance.commit && (
             <InfoRow label={t('admin.about.commit')}>
-              <a
-                href={githubCommitUrl(instance.commit)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
-                title={t('admin.about.commitTooltip')}
-              >
-                {instance.commit}
-                <ExternalLink className="h-3 w-3" />
-              </a>
+              <code className="font-mono text-xs">{instance.commit}</code>
             </InfoRow>
           )}
           <InfoRow label={t('admin.about.edition')}>
@@ -208,8 +199,8 @@ function AboutPage() {
       </div>
 
       <Sheet open={changelogOpen} onOpenChange={setChangelogOpen}>
-        <SheetContent side="right" className="sm:max-w-lg">
-          <SheetHeader>
+        <SheetContent side="right" className="sm:max-w-xl">
+          <SheetHeader className="px-6 pt-6">
             <SheetTitle>{t('admin.about.changelogTitle')}</SheetTitle>
             <SheetDescription>{t('admin.about.changelogSubtitle')}</SheetDescription>
           </SheetHeader>
@@ -224,7 +215,7 @@ function AboutPage() {
             <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
             <span className="sr-only">{t('admin.about.refresh')}</span>
           </Button>
-          <div className="flex-1 overflow-y-auto px-4 pb-6">
+          <div className="flex-1 overflow-y-auto px-6 pb-8">
             {changelogError ? (
               <p className="text-sm text-muted-foreground">{t('admin.about.changelogError')}</p>
             ) : changelog ? (
