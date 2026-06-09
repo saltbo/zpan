@@ -1,5 +1,3 @@
-# Registro de cambios
-
 ## v2.7.3 — 2026-06-09
 
 ### Funcionalidades
