@@ -1,5 +1,6 @@
 import type { z } from 'zod'
 import { type CloudClient, createCloudClient } from 'zpan-cloud-sdk'
+import type { InstanceInfo } from '../../shared/types'
 
 const CLOUD_REQUEST_TIMEOUT_MS = 10_000
 const JSON_HEADERS = { 'content-type': 'application/json' }
@@ -38,12 +39,7 @@ export interface LicenseAccountInfo {
   email?: string | null
 }
 
-export interface CloudInstanceInfo {
-  id: string
-  name: string
-  url: string
-  version: string
-}
+export type CloudInstanceInfo = InstanceInfo
 
 export class CloudInvalidResponseError extends Error {
   constructor() {

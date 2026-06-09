@@ -49,7 +49,7 @@ describe('Admin Quotas API', () => {
     expect(body.items[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
   })
 
-  it('GET /api/admin/quotas normalizes stale monthly traffic period', async () => {
+  it('GET /api/admin/quotas normalizes stale monthly traffic period in the response without writing', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await db.run(sql`UPDATE org_quotas SET traffic_quota = 1000, traffic_used = 900, traffic_period = '1970-01'`)
@@ -60,11 +60,13 @@ describe('Admin Quotas API', () => {
     expect(body.items[0].trafficUsed).toBe(0)
     expect(body.items[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
 
+    // The listing is a pure read: it normalizes the stale period in the response
+    // but must not mutate the row. Persisting the reset is the cron's job.
     const rows = await db.all<{ trafficUsed: number; trafficPeriod: string }>(
       sql`SELECT traffic_used AS trafficUsed, traffic_period AS trafficPeriod FROM org_quotas LIMIT 1`,
     )
-    expect(rows[0].trafficUsed).toBe(0)
-    expect(rows[0].trafficPeriod).toBe(body.items[0].trafficPeriod)
+    expect(rows[0].trafficUsed).toBe(900)
+    expect(rows[0].trafficPeriod).toBe('1970-01')
   })
 
   it('GET /api/admin/quotas lists quotas with org info', async () => {

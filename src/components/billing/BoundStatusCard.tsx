@@ -87,6 +87,14 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
 
   const grantedFeatures = state.active ? (state.features ?? LOCAL_PRO_FEATURES) : []
   const hasSyncError = Boolean(state.last_refresh_error)
+
+  // With a valid license in hand, deep-link to its certificate detail page;
+  // otherwise fall back to the cloud dashboard.
+  const cloudBase = state.cloud_dashboard_url?.replace(/\/dashboard\/?$/, '') ?? 'https://cloud.zpan.space'
+  const manageUrl =
+    state.active && state.license_id
+      ? `${cloudBase}/licenses/${state.license_id}`
+      : (state.cloud_dashboard_url ?? 'https://cloud.zpan.space/dashboard')
   const issuedLabel = state.account_email
     ? t('settings.billing.bound.issuedTo', { email: state.account_email })
     : t('settings.billing.bound.issuedByCloud')
@@ -122,11 +130,7 @@ export function BoundStatusCard({ state }: BoundStatusCardProps) {
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
               <Button asChild>
-                <a
-                  href={state.cloud_dashboard_url ?? 'https://cloud.zpan.space/dashboard'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <a href={manageUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-2 size-4" />
                   {t('settings.billing.bound.manageButton')}
                 </a>

@@ -1,3 +1,8 @@
 {
-  "extends": "../tsconfig.server.json"
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": [".", "../shared", "../workers"],
+  "exclude": ["**/*.cf-test.ts", "../workers/**/*.cf-test.ts", "test/apply-migrations.ts"]
 }

@@ -15,12 +15,20 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { grantUserEntitlement } from '@/lib/api'
+import { grantUserEntitlement, updateUserEntitlement } from '@/lib/api'
+
+interface EditableEntitlement {
+  id: string
+  bytes: number
+  expiresAt: string | null
+  metadata: string | null
+}
 
 interface GrantUserEntitlementDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   user: { id: string; name: string } | null
+  entitlement?: EditableEntitlement | null
 }
 
 const QUOTA_UNITS = ['MB', 'GB', 'TB'] as const
@@ -31,40 +39,75 @@ const UNIT_BYTES: Record<QuotaUnit, number> = {
   TB: 1024 * 1024 * 1024 * 1024,
 }
 
-export function GrantUserEntitlementDialog({ open, onOpenChange, user }: GrantUserEntitlementDialogProps) {
+function bytesToAmountUnit(bytes: number): { amount: string; unit: QuotaUnit } {
+  for (const unit of ['TB', 'GB', 'MB'] as QuotaUnit[]) {
+    const factor = UNIT_BYTES[unit]
+    if (bytes % factor === 0) return { amount: String(bytes / factor), unit }
+  }
+  return { amount: String(bytes / UNIT_BYTES.GB), unit: 'GB' }
+}
+
+function isoToDatetimeLocal(iso: string | null): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function readNote(metadata: string | null): string {
+  if (!metadata) return ''
+  try {
+    const parsed = JSON.parse(metadata) as { note?: unknown }
+    return typeof parsed.note === 'string' ? parsed.note : ''
+  } catch {
+    return ''
+  }
+}
+
+export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitlement }: GrantUserEntitlementDialogProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const isEdit = !!entitlement
   const [amount, setAmount] = useState('')
   const [unit, setUnit] = useState<QuotaUnit>('GB')
   const [expiresAt, setExpiresAt] = useState('')
   const [note, setNote] = useState('')
 
   useEffect(() => {
-    if (!open) {
+    if (!open) return
+    if (entitlement) {
+      const { amount: prefillAmount, unit: prefillUnit } = bytesToAmountUnit(entitlement.bytes)
+      setAmount(prefillAmount)
+      setUnit(prefillUnit)
+      setExpiresAt(isoToDatetimeLocal(entitlement.expiresAt))
+      setNote(readNote(entitlement.metadata))
+    } else {
       setAmount('')
       setUnit('GB')
       setExpiresAt('')
       setNote('')
     }
-  }, [open])
+  }, [open, entitlement])
 
-  const grantMutation = useMutation({
+  const mutation = useMutation({
     mutationFn: () => {
       if (!user) throw new Error('user_required')
       const value = Number(amount)
       if (!Number.isFinite(value) || value <= 0) throw new Error(t('admin.users.positiveQuotaRequired'))
-      return grantUserEntitlement(user.id, {
-        resourceType: 'storage',
+      const payload = {
         bytes: Math.round(value * UNIT_BYTES[unit]),
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         note: note.trim() || null,
-      })
+      }
+      if (entitlement) return updateUserEntitlement(user.id, entitlement.id, payload)
+      return grantUserEntitlement(user.id, { resourceType: 'storage', ...payload })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'users', user?.id] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'users', user?.id, 'entitlements'] })
-      toast.success(t('admin.users.entitlementGranted'))
+      toast.success(isEdit ? t('admin.users.entitlementUpdated') : t('admin.users.entitlementGranted'))
       onOpenChange(false)
     },
     onError: (err) => {
@@ -78,15 +121,21 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user }: GrantUs
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t('admin.users.grantEntitlementFor', { name: user.name })}</DialogTitle>
-          <DialogDescription>{t('admin.users.grantEntitlementDescription')}</DialogDescription>
+          <DialogTitle>
+            {isEdit
+              ? t('admin.users.editEntitlementFor', { name: user.name })
+              : t('admin.users.grantEntitlementFor', { name: user.name })}
+          </DialogTitle>
+          <DialogDescription>
+            {isEdit ? t('admin.users.editEntitlementDescription') : t('admin.users.grantEntitlementDescription')}
+          </DialogDescription>
         </DialogHeader>
 
         <form
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault()
-            grantMutation.mutate()
+            mutation.mutate()
           }}
         >
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px]">
@@ -135,8 +184,12 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user }: GrantUs
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" disabled={grantMutation.isPending}>
-              {grantMutation.isPending ? t('common.loading') : t('admin.users.grantEntitlement')}
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending
+                ? t('common.loading')
+                : isEdit
+                  ? t('admin.users.saveEntitlement')
+                  : t('admin.users.grantEntitlement')}
             </Button>
           </DialogFooter>
         </form>

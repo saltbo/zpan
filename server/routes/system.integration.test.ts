@@ -63,8 +63,9 @@ describe('System API — options CRUD', () => {
     expect(anonBody.items[0].key).toBe('site_name')
 
     const adminList = await app.request('/api/system/options', { headers: admin })
-    const adminBody = (await adminList.json()) as { total: number }
-    expect(adminBody.total).toBe(2)
+    const adminBody = (await adminList.json()) as { items: { key: string }[]; total: number }
+    expect(adminBody.total).toBeGreaterThanOrEqual(2)
+    expect(adminBody.items.map((item) => item.key)).toEqual(expect.arrayContaining(['site_name', 'smtp_password']))
 
     // Non-string value rejected
     const bad = await putOption(app, admin, 'site_name', { value: 123 })
@@ -116,6 +117,21 @@ describe('System API — options CRUD', () => {
     const updated = await putOption(app, admin, 'default_org_monthly_traffic_quota', { value: '0' })
     expect(updated.status).toBe(200)
     await expect(updated.json()).resolves.toMatchObject({ value: '0' })
+  })
+
+  it('exposes instance info to admins only', async () => {
+    const { app } = await createTestApp()
+
+    const anon = await app.request('/api/system/instance')
+    expect(anon.status).toBe(401)
+
+    const admin = await adminHeaders(app)
+    const res = await app.request('/api/system/instance', { headers: admin })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { id: string; version: string; runtime?: { provider: string } }
+    expect(body.id).toBeTruthy()
+    expect(body.version).toBeTruthy()
+    expect(body.runtime?.provider).toBe('node')
   })
 
   it('keeps captcha secret private and rejects enabling captcha before keys exist', async () => {

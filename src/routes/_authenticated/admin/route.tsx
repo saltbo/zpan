@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { AdminSidebar } from '@/components/admin/admin-sidebar'
+import { LicenseRibbon } from '@/components/billing/LicenseRibbon'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 
@@ -28,6 +29,7 @@ function AdminLayout() {
           <Outlet />
         </main>
       </SidebarInset>
+      <LicenseRibbon />
     </SidebarProvider>
   )
 }

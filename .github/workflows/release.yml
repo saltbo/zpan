@@ -23,6 +23,7 @@ jobs:
           go-version-file: cmd/go.mod
           cache-dependency-path: cmd/go.sum
       - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check-version
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm openapi:downloader:check
@@ -60,6 +61,10 @@ jobs:
         id: cli-meta
         with:
           images: ghcr.io/${{ github.repository }}
+          # latest=false: the bare `latest` tag belongs to the server image. The
+          # metadata-action default (latest=auto) would re-add `latest` here and,
+          # since this build runs after the server build, overwrite it with the CLI image.
+          flavor: latest=false
           tags: |
             type=semver,pattern={{version}}-cli
             type=semver,pattern={{major}}.{{minor}}-cli
@@ -73,6 +78,8 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

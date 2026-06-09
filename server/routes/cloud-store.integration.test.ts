@@ -490,7 +490,7 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('uses https origin for non-local http request URLs', async () => {
+  it('uses the detected site origin for checkout return URLs', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
@@ -504,38 +504,16 @@ describe('Quota Store API', () => {
 
     expect(checkout.status).toBe(200)
     expect(orderPayload()).toMatchObject({
-      deliveryCallbackUrl: 'https://files.example.com/api/store/webhook',
+      deliveryCallbackUrl: 'http://localhost/api/store/webhook',
     })
     expect(paymentPayload()).toMatchObject({
-      successUrl: 'https://files.example.com/storage',
-      cancelUrl: 'https://files.example.com/storage',
+      successUrl: 'http://localhost/storage',
+      cancelUrl: 'http://localhost/storage',
     })
   })
 
-  it('uses configured auth URL origin for checkout return URLs', async () => {
+  it('does not use auth URL as checkout return URL configuration', async () => {
     const { app, db } = await createTestApp({ BETTER_AUTH_URL: 'https://auth.example.com/path' })
-    await seedBusinessLicense(db)
-    const headers = await authedHeaders(app, 'buyer@example.com')
-    const packageId = await seedPackage(db)
-
-    const checkout = await app.request('/api/store/checkouts', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ packageId }),
-    })
-
-    expect(checkout.status).toBe(200)
-    expect(orderPayload()).toMatchObject({
-      deliveryCallbackUrl: 'https://auth.example.com/api/store/webhook',
-    })
-    expect(paymentPayload()).toMatchObject({
-      successUrl: 'https://auth.example.com/storage',
-      cancelUrl: 'https://auth.example.com/storage',
-    })
-  })
-
-  it('falls back to request origin when public origin env is invalid', async () => {
-    const { app, db } = await createTestApp({ ZPAN_PUBLIC_ORIGIN: 'not a url' })
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     const packageId = await seedPackage(db)
@@ -556,8 +534,34 @@ describe('Quota Store API', () => {
     })
   })
 
-  it('falls back to request origin when public origin env uses an unsupported scheme', async () => {
-    const { app, db } = await createTestApp({ ZPAN_PUBLIC_ORIGIN: 'ftp://files.example.com' })
+  it('uses configured site public origin for checkout URLs', async () => {
+    const { app, db } = await createTestApp()
+    await db.run(sql`
+      INSERT INTO system_options (key, value, public)
+      VALUES ('site_public_origin', 'https://files.example.com/path', 0)
+    `)
+    await seedBusinessLicense(db)
+    const headers = await authedHeaders(app, 'buyer@example.com')
+    const packageId = await seedPackage(db)
+
+    const checkout = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId }),
+    })
+
+    expect(checkout.status).toBe(200)
+    expect(orderPayload()).toMatchObject({
+      deliveryCallbackUrl: 'https://files.example.com/api/store/webhook',
+    })
+    expect(paymentPayload()).toMatchObject({
+      successUrl: 'https://files.example.com/storage',
+      cancelUrl: 'https://files.example.com/storage',
+    })
+  })
+
+  it('falls back to request origin when site public origin is not configured', async () => {
+    const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
     const headers = await authedHeaders(app, 'buyer@example.com')
     const packageId = await seedPackage(db)

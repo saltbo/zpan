@@ -33,6 +33,7 @@ export function useSiteOptions() {
   return {
     siteName: optionMap.get('site_name') ?? DEFAULT_SITE_NAME,
     siteDescription: optionMap.get('site_description') ?? DEFAULT_SITE_DESCRIPTION,
+    sitePublicOrigin: optionMap.get('site_public_origin') ?? '',
     defaultOrgQuota: resolveDefaultOrgQuotaValue(optionMap.get('default_org_quota')),
     authSignupMode: (optionMap.get('auth_signup_mode') as SignupMode) ?? SignupMode.OPEN,
     captchaEnabled: optionMap.get(CAPTCHA_ENABLED_KEY) === 'true',

@@ -46,6 +46,7 @@ import {
   getCloudCredits,
   getEmailConfig,
   getIhostConfig,
+  getInstanceInfo,
   getLicensingStatus,
   getObject,
   getProfile,
@@ -98,6 +99,7 @@ import {
   revokeIhostApiKey,
   revokeRemoteDownloadApiKey,
   revokeSiteInvitation,
+  revokeUserEntitlement,
   revokeWebDavAppPassword,
   runDownloadTaskAction,
   saveBranding,
@@ -113,6 +115,7 @@ import {
   updateIhostConfig,
   updateObject,
   updateStorage,
+  updateUserEntitlement,
   updateUserStatus,
   uploadAvatar,
   uploadTeamLogo,
@@ -1376,6 +1379,66 @@ describe('api', () => {
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ resourceType: 'storage', bytes: 2048, expiresAt: null })
+    })
+
+    it('updates a user quota entitlement', async () => {
+      const payload = {
+        orgId: 'org-1',
+        entitlement: {
+          id: 'ent-2',
+          orgId: 'org-1',
+          resourceType: 'storage',
+          entitlementType: 'grant',
+          source: 'admin_grant',
+          sourceId: 'admin_grant:1',
+          bytes: 4096,
+          startsAt: '2026-05-01T00:00:00.000Z',
+          expiresAt: null,
+          status: 'active',
+          metadata: null,
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-02T00:00:00.000Z',
+        },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await updateUserEntitlement('u1', 'ent-2', { bytes: 4096, expiresAt: null })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/users/u1/entitlements/ent-2')
+      expect(init.method).toBe('PATCH')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ bytes: 4096, expiresAt: null })
+    })
+
+    it('revokes a user quota entitlement', async () => {
+      const payload = {
+        orgId: 'org-1',
+        entitlement: {
+          id: 'ent-2',
+          orgId: 'org-1',
+          resourceType: 'storage',
+          entitlementType: 'grant',
+          source: 'admin_grant',
+          sourceId: 'admin_grant:1',
+          bytes: 2048,
+          startsAt: '2026-05-01T00:00:00.000Z',
+          expiresAt: null,
+          status: 'revoked',
+          metadata: null,
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-02T00:00:00.000Z',
+        },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await revokeUserEntitlement('u1', 'ent-2')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/users/u1/entitlements/ent-2')
+      expect(init.method).toBe('DELETE')
     })
 
     it('throws on entitlement error response', async () => {
@@ -2826,6 +2889,42 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Internal Server Error' }, false, 500))
 
       await expect(getLicensingStatus()).rejects.toThrow()
+    })
+  })
+
+  describe('getInstanceInfo', () => {
+    const instance = {
+      id: 'inst-123',
+      name: 'My ZPan',
+      url: 'https://files.example.com',
+      version: '2.5.0',
+      runtime: { provider: 'node', target: 'node/docker' },
+      server: { os: { platform: 'linux', arch: 'x64', release: '6.1.0' } },
+      node: { version: 'v24.0.0' },
+    }
+
+    it('calls the correct endpoint', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(instance))
+
+      await getInstanceInfo()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/system/instance')
+      expect(init?.method ?? 'GET').toBe('GET')
+    })
+
+    it('returns the instance info', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(instance))
+
+      const result = await getInstanceInfo()
+
+      expect(result).toEqual(instance)
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(getInstanceInfo()).rejects.toThrow()
     })
   })
 

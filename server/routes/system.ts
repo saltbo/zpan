@@ -12,10 +12,12 @@ import {
 import { SignupMode } from '../../shared/constants'
 import { systemOptions } from '../db/schema'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
+import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
 import { loadCaptchaOptionValues, readCaptchaConfig } from '../services/captcha'
+import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
 
 const setOptionSchema = z.object({
   value: z.string(),
@@ -23,6 +25,13 @@ const setOptionSchema = z.object({
 })
 
 const app = new Hono<Env>()
+  .get('/instance', requireAdmin, async (c) => {
+    const platform = c.get('platform')
+    const db = platform.db
+    const origin = (await getSitePublicOrigin(db)) ?? originFromRequestUrl(c.req.url) ?? new URL(c.req.url).origin
+    const info = await buildCloudInstanceInfo(db, { url: origin, runtime: runtimeInfo(platform) })
+    return c.json(info)
+  })
   .get('/options', async (c) => {
     const db = c.get('platform').db
     const isAdmin = c.get('userRole') === 'admin'

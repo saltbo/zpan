@@ -1,17 +1,34 @@
+import { release as osRelease } from 'node:os'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
+import { resolveAppVersion } from '../scripts/app-version.mjs'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 import { createBootstrap } from './bootstrap'
 import { buildCloudInstanceInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
+import { resetExpiredTrafficQuotas } from './services/effective-quota'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
 import { runLicensingRefresh } from './services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
+import { getSitePublicOrigin } from './services/site-public-origin'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
+const INSTANCE_TELEMETRY_INTERVAL_MS = 12 * 60 * 60 * 1000 // 12 hours
+const QUOTA_RESET_INTERVAL_MS = 24 * 60 * 60 * 1000 // daily; idempotent, resets only stale periods
+const appVersionGlobalKey = '__ZPAN_APP_VERSION__'
+
+// tsx runs this entry directly (dev + E2E) without the tsup build-time define,
+// so resolve the version at runtime. In the built output the define inlines the
+// constant, turning this condition into `if (false)`, so resolveAppVersion is
+// never reached and git is never invoked in production. The assignment uses
+// bracket access so the define does not rewrite it into an invalid literal LHS.
+if (!globalThis.__ZPAN_APP_VERSION__) {
+  globalThis[appVersionGlobalKey] = resolveAppVersion()
+}
 
 const platform = process.env.TURSO_DATABASE_URL
   ? await createLibsqlPlatform({
@@ -34,27 +51,27 @@ serve({ fetch: server.fetch, port })
 // Start licensing refresh background scheduler
 const cloudBaseUrl = process.env.ZPAN_CLOUD_URL ?? ZPAN_CLOUD_URL_DEFAULT
 
-function configuredPublicOrigin(): string | null {
-  const value = process.env.ZPAN_PUBLIC_ORIGIN ?? process.env.BETTER_AUTH_URL
-  if (!value) return null
-  try {
-    const url = new URL(value)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.origin
-  } catch {
-    return null
-  }
+function envAllowsIp(value: string | undefined): boolean {
+  return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
+}
+
+function isGitHubActionsE2E(): boolean {
+  return process.env.GITHUB_ACTIONS === 'true' && process.env.BETTER_AUTH_URL === 'http://localhost:5185'
 }
 
 console.log('licensing.refresh.scheduler.started interval=6h')
 setInterval(() => {
   // runLicensingRefresh handles all errors internally and never rejects.
   void (async () => {
-    const instanceUrl = configuredPublicOrigin()
+    const instanceUrl = await getSitePublicOrigin(platform.db)
     const instance = instanceUrl
       ? await buildCloudInstanceInfo(platform.db, {
-          configuredInstanceId: process.env.ZPAN_INSTANCE_ID,
           url: instanceUrl,
+          runtime: {
+            runtime: { provider: 'node', target: 'node/docker' },
+            server: { os: { platform: process.platform, arch: process.arch, release: osRelease() } },
+            node: { version: process.version },
+          },
         })
       : undefined
     await runLicensingRefresh(platform.db, cloudBaseUrl, instance)
@@ -66,3 +83,42 @@ setInterval(() => {
   void syncPendingCloudTrafficReports({ db: platform.db, cloudBaseUrl })
   void syncPendingRemoteDownloadUsageReports({ db: platform.db, cloudBaseUrl })
 }, TRAFFIC_SYNC_INTERVAL_MS)
+
+function reportNodeInstanceTelemetry(): void {
+  if (isGitHubActionsE2E()) return
+
+  void (async () => {
+    try {
+      await reportInstanceTelemetry({
+        db: platform.db,
+        config: {
+          allowIp: envAllowsIp(process.env.ZPAN_TELEMETRY_ALLOW_IP),
+        },
+        cron: INSTANCE_TELEMETRY_CRON,
+        trigger: 'runtime',
+        runtime: {
+          target: 'node/docker',
+          provider: 'node',
+          osPlatform: process.platform,
+          osArch: process.arch,
+          osRelease: osRelease(),
+          nodeVersion: process.version,
+        },
+      })
+    } catch (err) {
+      const code = err instanceof Error ? err.message : String(err)
+      console.error(`instance.telemetry.error code=${code}`)
+    }
+  })()
+}
+
+console.log('instance.telemetry.scheduler.started interval=12h')
+reportNodeInstanceTelemetry()
+setInterval(reportNodeInstanceTelemetry, INSTANCE_TELEMETRY_INTERVAL_MS)
+
+console.log('quota.reset.scheduler.started interval=24h')
+// Run once at boot to catch a month boundary crossed while the server was down.
+void resetExpiredTrafficQuotas(platform.db)
+setInterval(() => {
+  void resetExpiredTrafficQuotas(platform.db)
+}, QUOTA_RESET_INTERVAL_MS)

@@ -68,6 +68,7 @@ describe('useSiteOptions — option map extraction logic', () => {
     expect(useSiteOptions()).toEqual({
       siteName: 'Custom Pan',
       siteDescription: 'Custom description',
+      sitePublicOrigin: '',
       defaultOrgQuota: DEFAULT_ORG_QUOTA,
       authSignupMode: SignupMode.CLOSED,
       captchaEnabled: true,
@@ -90,6 +91,7 @@ describe('useSiteOptions — option map extraction logic', () => {
     expect(useSiteOptions()).toEqual({
       siteName: DEFAULT_SITE_NAME,
       siteDescription: DEFAULT_SITE_DESCRIPTION,
+      sitePublicOrigin: '',
       defaultOrgQuota: DEFAULT_ORG_QUOTA,
       authSignupMode: SignupMode.OPEN,
       captchaEnabled: false,

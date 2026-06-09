@@ -1,3 +1,5 @@
+import { release as osRelease } from 'node:os'
+import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
@@ -19,6 +21,7 @@ import downloaders, { downloaderSelfRoute } from './routes/downloaders'
 import emailConfig from './routes/email-config'
 import ihost from './routes/ihost'
 import ihostConfig from './routes/ihost-config'
+import internal from './routes/internal'
 import { adminInviteCodes, publicInviteCodes } from './routes/invite-codes'
 import licensing from './routes/licensing'
 import licensingAdmin from './routes/licensing-admin'
@@ -36,12 +39,40 @@ import { publicTeams, teams } from './routes/teams'
 import trash from './routes/trash'
 import users from './routes/users'
 import webdav from './routes/webdav'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
+import { ensureSitePublicOrigin } from './services/site-public-origin'
 
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
   const corsOrigins = getCorsOrigins(platform)
 
   app.use('/*', platformMiddleware(platform, auth))
+  app.use('/*', async (c, next) => {
+    const result = await ensureSitePublicOrigin(platform.db, c.req.url).catch((err) => {
+      const code = err instanceof Error ? err.message : String(err)
+      console.error(`site.public_origin.detect.error code=${code}`)
+      return { origin: null, created: false }
+    })
+
+    if (result.created && result.origin && shouldReportInitialTelemetry(c.req.url)) {
+      const task = reportInstanceTelemetry({
+        db: platform.db,
+        config: {
+          siteUrl: result.origin,
+          allowIp: envAllowsIp(platform.getEnv('ZPAN_TELEMETRY_ALLOW_IP')),
+        },
+        cron: INSTANCE_TELEMETRY_CRON,
+        trigger: 'runtime',
+        runtime: instanceTelemetryRuntime(platform),
+      }).catch((err) => {
+        const code = err instanceof Error ? err.message : String(err)
+        console.error(`instance.telemetry.initial_report.error code=${code}`)
+      })
+      waitUntil(c, task)
+    }
+
+    await next()
+  })
   app.use('/*', imageHostingDomain)
   app.use('/api/*', accessLog)
   app.use('/dav', accessLog)
@@ -80,6 +111,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/branding', publicBranding)
   app.route('/api/site-invitations', publicSiteInvitations)
   app.route('/api/store', cloudStoreWebhooks)
+  app.route('/api/internal', internal)
 
   app.use('/api/*', authMiddleware)
 
@@ -118,6 +150,43 @@ export function createApp(platform: Platform, auth: Auth) {
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
   return app
+}
+
+function envAllowsIp(value: string | undefined): boolean {
+  return !['0', 'false', 'no', 'off'].includes(value?.trim().toLowerCase() ?? '')
+}
+
+function instanceTelemetryRuntime(platform: Platform) {
+  if (platform.getBinding('DB')) {
+    return {
+      target: 'cloudflare-worker' as const,
+      provider: 'cloudflare' as const,
+    }
+  }
+
+  return {
+    target: 'node/docker' as const,
+    provider: 'node' as const,
+    osPlatform: process.platform,
+    osArch: process.arch,
+    osRelease: osRelease(),
+    nodeVersion: process.version,
+  }
+}
+
+function waitUntil(c: Context, task: Promise<unknown>): void {
+  try {
+    c.executionCtx.waitUntil(task)
+    return
+  } catch {
+    void task
+  }
+}
+
+function shouldReportInitialTelemetry(requestUrl: string): boolean {
+  const url = new URL(requestUrl)
+  if (url.pathname === '/api/internal/instance-telemetry/report') return false
+  return !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
 }
 
 function getCorsOrigins(platform: Platform): Set<string> {

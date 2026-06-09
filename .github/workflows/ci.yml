@@ -57,24 +57,44 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm openapi:downloader:check
-      - run: pnpm exec vitest run --project unit --coverage
+      - run: pnpm exec vitest run --project unit --coverage --coverage.reportsDirectory=coverage/unit
       - uses: codecov/codecov-action@v5
         if: always()
         with:
-          files: coverage/coverage-final.json
+          files: coverage/unit/coverage-final.json
           flags: unit
+          disable_search: true
           fail_ci_if_error: false
           handle_no_reports_found: true
-      - run: pnpm exec vitest run --project integration --coverage
+      - run: pnpm exec vitest run --project integration --coverage --coverage.reportsDirectory=coverage/integration
       - uses: codecov/codecov-action@v5
         if: always()
         with:
-          files: coverage/coverage-final.json
+          files: coverage/integration/coverage-final.json
           flags: integration
+          disable_search: true
           fail_ci_if_error: false
           handle_no_reports_found: true
       - run: mkdir -p dist
       - run: pnpm test:cf
+
+  docker-smoke:
+    name: Docker image smoke test
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build & start the stack
+        run: docker compose -f docker-compose.yml up -d --build --wait --wait-timeout 300
+      - name: Assert server health from host
+        run: curl --fail --retry 5 --retry-delay 3 --retry-connrefused http://localhost:8222/api/health
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml logs --no-color
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
 
   e2e-node:
     name: E2E (Node)
@@ -92,17 +112,30 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Run E2E
+        run: |
+          E2E_APP_PORT=5185 \
+          E2E_BASE_URL=http://localhost:5185 \
+          E2E_LOCAL_BASE_URL=http://localhost:5185 \
+          E2E_S3_MOCK=1 \
+          E2E_STORAGE_ENDPOINT=http://127.0.0.1:9191 \
+          E2E_STORAGE_BUCKET=e2e-test \
+          E2E_STORAGE_REGION=auto \
+          E2E_STORAGE_ACCESS_KEY=e2e-access-key \
+          E2E_STORAGE_SECRET_KEY=e2e-secret-key \
+          BETTER_AUTH_URL=http://localhost:5185 \
+          TRUSTED_ORIGINS=http://localhost:5185 \
+          pnpm e2e --project=desktop --grep-invert "Cloud store|Archive jobs|Site announcements"
       - name: Install cloudflared
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_NODE != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_NODE != ''
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cloudflared
       - name: Run cloud E2E
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_NODE != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_NODE != ''
-        run: CLOUDFLARED_BIN=./cloudflared pnpm e2e:cloud -- --runtime node
-      - name: Skip cloud E2E
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_NODE == '' || env.E2E_CLOUD_BUSINESS_PASSWORD_NODE == ''
-        run: echo "Skipping Node cloud E2E because Business credentials are not configured."
+        run: |
+          ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
+          VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
+          CLOUDFLARED_BIN=./cloudflared \
+          pnpm e2e:cloud -- --runtime node
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -115,6 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: check
     env:
+      BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
       E2E_CLOUD_BUSINESS_EMAIL_CF: ${{ secrets.E2E_CLOUD_BUSINESS_EMAIL_CF }}
       E2E_CLOUD_BUSINESS_PASSWORD_CF: ${{ secrets.E2E_CLOUD_BUSINESS_PASSWORD_CF }}
     steps:
@@ -125,17 +159,47 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Prepare local D1
+        run: pnpm exec wrangler d1 migrations apply DB --local
+      - name: Prepare CF E2E env
+        run: |
+          cat > .dev.vars <<'EOF'
+          BETTER_AUTH_SECRET=ci-test-secret-that-is-at-least-32-chars
+          BETTER_AUTH_URL=http://localhost:5185
+          TRUSTED_ORIGINS=http://localhost:5185
+          ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev
+          VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev
+          E2E_STORAGE_ENDPOINT=http://127.0.0.1:9191
+          E2E_STORAGE_BUCKET=e2e-test
+          E2E_STORAGE_REGION=auto
+          E2E_STORAGE_ACCESS_KEY=e2e-access-key
+          E2E_STORAGE_SECRET_KEY=e2e-secret-key
+          EOF
+      - name: Run E2E
+        run: |
+          E2E_RUNTIME=cf \
+          E2E_APP_PORT=5185 \
+          E2E_BASE_URL=http://localhost:5185 \
+          E2E_LOCAL_BASE_URL=http://localhost:5185 \
+          E2E_S3_MOCK=1 \
+          E2E_STORAGE_ENDPOINT=http://127.0.0.1:9191 \
+          E2E_STORAGE_BUCKET=e2e-test \
+          E2E_STORAGE_REGION=auto \
+          E2E_STORAGE_ACCESS_KEY=e2e-access-key \
+          E2E_STORAGE_SECRET_KEY=e2e-secret-key \
+          BETTER_AUTH_URL=http://localhost:5185 \
+          TRUSTED_ORIGINS=http://localhost:5185 \
+          pnpm e2e --project=desktop --grep-invert "Cloud store|Archive jobs|Site announcements"
       - name: Install cloudflared
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_CF != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_CF != ''
         run: |
           curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cloudflared
       - name: Run cloud E2E
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_CF != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_CF != ''
-        run: CLOUDFLARED_BIN=./cloudflared pnpm e2e:cloud:cf
-      - name: Skip cloud E2E
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_CF == '' || env.E2E_CLOUD_BUSINESS_PASSWORD_CF == ''
-        run: echo "Skipping CF cloud E2E because Business credentials are not configured."
+        run: |
+          ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
+          VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
+          CLOUDFLARED_BIN=./cloudflared \
+          pnpm e2e:cloud:cf
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

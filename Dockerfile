@@ -12,6 +12,10 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
  && pnpm install --frozen-lockfile
 
 COPY . .
+# .git is excluded from the build context, so git describe cannot run here.
+# The release workflow passes the tag via APP_VERSION; resolveAppVersion reads it.
+ARG APP_VERSION=dev
+ENV ZPAN_APP_VERSION=${APP_VERSION}
 RUN pnpm build:node \
  && pnpm prune --prod --ignore-scripts
 
@@ -29,7 +33,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl gzip \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /out \
- && curl -fsSL "$GEOIP_DB_URL" -o /tmp/geoip.mmdb.gz \
+ && curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "$GEOIP_DB_URL" -o /tmp/geoip.mmdb.gz \
  && gzip -dc /tmp/geoip.mmdb.gz > /out/geoip.mmdb \
  && rm -f /tmp/geoip.mmdb.gz
 

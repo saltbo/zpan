@@ -42,6 +42,7 @@ import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminDownloadersRouteImport } from './routes/_authenticated/admin/downloaders'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
 import { Route as AuthenticatedAdminAnnouncementRouteImport } from './routes/_authenticated/admin/announcement'
+import { Route as AuthenticatedAdminAboutRouteImport } from './routes/_authenticated/admin/about'
 import { Route as AuthenticatedTeamsTeamIdRouteRouteImport } from './routes/_authenticated/teams/$teamId/route'
 import { Route as AuthenticatedTeamsTeamIdIndexRouteImport } from './routes/_authenticated/teams/$teamId/index'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
@@ -233,6 +234,11 @@ const AuthenticatedAdminAnnouncementRoute =
     path: '/announcement',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminAboutRoute = AuthenticatedAdminAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
 const AuthenticatedTeamsTeamIdRouteRoute =
   AuthenticatedTeamsTeamIdRouteRouteImport.update({
     id: '/teams/$teamId',
@@ -313,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/store/checkout': typeof StoreCheckoutRoute
   '/u/$username': typeof UUsernameRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
+  '/admin/about': typeof AuthenticatedAdminAboutRoute
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
@@ -355,6 +362,7 @@ export interface FileRoutesByTo {
   '/store/checkout': typeof StoreCheckoutRoute
   '/u/$username': typeof UUsernameRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/about': typeof AuthenticatedAdminAboutRoute
   '/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
@@ -402,6 +410,7 @@ export interface FileRoutesById {
   '/u/$username': typeof UUsernameRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
+  '/_authenticated/admin/about': typeof AuthenticatedAdminAboutRoute
   '/_authenticated/admin/announcement': typeof AuthenticatedAdminAnnouncementRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
@@ -449,6 +458,7 @@ export interface FileRouteTypes {
     | '/store/checkout'
     | '/u/$username'
     | '/teams/$teamId'
+    | '/admin/about'
     | '/admin/announcement'
     | '/admin/audit'
     | '/admin/downloaders'
@@ -491,6 +501,7 @@ export interface FileRouteTypes {
     | '/store/checkout'
     | '/u/$username'
     | '/'
+    | '/admin/about'
     | '/admin/announcement'
     | '/admin/audit'
     | '/admin/downloaders'
@@ -537,6 +548,7 @@ export interface FileRouteTypes {
     | '/u/$username'
     | '/_authenticated/'
     | '/_authenticated/teams/$teamId'
+    | '/_authenticated/admin/about'
     | '/_authenticated/admin/announcement'
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/downloaders'
@@ -813,6 +825,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnnouncementRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/about': {
+      id: '/_authenticated/admin/about'
+      path: '/about'
+      fullPath: '/admin/about'
+      preLoaderRoute: typeof AuthenticatedAdminAboutRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/teams/$teamId': {
       id: '/_authenticated/teams/$teamId'
       path: '/teams/$teamId'
@@ -894,6 +913,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAdminRouteRouteChildren {
+  AuthenticatedAdminAboutRoute: typeof AuthenticatedAdminAboutRoute
   AuthenticatedAdminAnnouncementRoute: typeof AuthenticatedAdminAnnouncementRoute
   AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
   AuthenticatedAdminDownloadersRoute: typeof AuthenticatedAdminDownloadersRoute
@@ -909,6 +929,7 @@ interface AuthenticatedAdminRouteRouteChildren {
 
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
   {
+    AuthenticatedAdminAboutRoute: AuthenticatedAdminAboutRoute,
     AuthenticatedAdminAnnouncementRoute: AuthenticatedAdminAnnouncementRoute,
     AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
     AuthenticatedAdminDownloadersRoute: AuthenticatedAdminDownloadersRoute,

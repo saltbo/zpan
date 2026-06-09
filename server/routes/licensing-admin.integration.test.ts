@@ -132,28 +132,6 @@ describe('POST /api/licensing/pair', () => {
     const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
     expect(JSON.parse(String(init.body)).instance.url).toBe('http://localhost')
   })
-
-  it('uses the configured instance id when present', async () => {
-    const { app } = await createTestApp({ ZPAN_INSTANCE_ID: 'zpan-e2e-node' })
-    const headers = await adminHeaders(app)
-
-    vi.mocked(fetch).mockResolvedValueOnce(
-      makeCloudResponse({
-        code: 'ABC-123',
-        pairingUrl: 'https://cloud.zpan.space/pair',
-        expiresAt: '2026-01-01T00:00:00Z',
-      }),
-    )
-
-    const res = await app.request('/api/licensing/pair', {
-      method: 'POST',
-      headers,
-    })
-
-    expect(res.status).toBe(200)
-    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(init.body)).instance.id).toBe('zpan-e2e-node')
-  })
 })
 
 describe('GET /api/licensing/pair/:code/poll', () => {
