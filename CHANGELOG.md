@@ -7,12 +7,6 @@ The admin **About** page renders this file straight from `master` on GitHub in a
 side drawer, so keep it product-facing. The "latest version" indicator on that
 page comes from the newest published **GitHub Release**, not this file.
 
-## Unreleased
-
-- **About page**: the version now shows the running build's commit hash and a
-  "latest version" badge (sourced from GitHub Releases); a side drawer displays
-  this changelog.
-
 ## v2.7.2 — 2026-06-07
 
 - Refreshed ZPan logo and branding.
