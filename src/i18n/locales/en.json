@@ -1321,6 +1321,12 @@
   "settings.billing.bound.pro.disconnectSuccess": "Pro license removed",
   "settings.billing.bound.business.disconnectSuccess": "Business license removed",
   "settings.billing.bound.disconnectError": "Failed to remove license",
+
+  "admin.licenseRibbon.community": "Community",
+  "admin.licenseRibbon.pro": "Pro",
+  "admin.licenseRibbon.business": "Business",
+  "admin.licenseRibbon.ariaLabel": "{{edition}} edition",
+
   "admin.cloudStore.title": "Storage Plans",
   "admin.cloudStore.subtitle": "Manage purchasable storage plans and gift cards for personal and team workspaces.",
   "admin.cloudStore.enabled": "Enabled",
