@@ -1,7 +1,7 @@
 import { githubCommitUrl, ZPAN_CLOUD_URL_DEFAULT, ZPAN_GITHUB_URL } from '@shared/constants'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { ArrowUpCircle, BadgeCheck, ExternalLink, Github, Server, Sparkles, Star } from 'lucide-react'
+import { ArrowUpCircle, BadgeCheck, ExternalLink, Github, RefreshCw, Server, Sparkles, Star } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
@@ -31,6 +31,8 @@ function AboutPage() {
   const { t } = useTranslation()
   const { bound, active, edition, licenseId, cloudDashboardUrl } = useEntitlement()
   const [changelogOpen, setChangelogOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const queryClient = useQueryClient()
   const { data: instance, isLoading } = useQuery({
     queryKey: ['system', 'instance'],
     queryFn: getInstanceInfo,
@@ -38,9 +40,21 @@ function AboutPage() {
   })
   const { data: changelog, isError: changelogError } = useQuery({
     queryKey: ['system', 'changelog'],
-    queryFn: getChangelog,
+    queryFn: () => getChangelog(),
     staleTime: 60 * 60 * 1000,
   })
+
+  // Bypass the server-side cache (?refresh=true) and replace the cached data so
+  // the drawer shows the freshly fetched changelog without a full refetch.
+  async function refreshChangelog() {
+    setRefreshing(true)
+    try {
+      const fresh = await getChangelog({ refresh: true })
+      queryClient.setQueryData(['system', 'changelog'], fresh)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   if (isLoading || !instance) return null
 
@@ -199,6 +213,17 @@ function AboutPage() {
             <SheetTitle>{t('admin.about.changelogTitle')}</SheetTitle>
             <SheetDescription>{t('admin.about.changelogSubtitle')}</SheetDescription>
           </SheetHeader>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={refreshChangelog}
+            disabled={refreshing}
+            title={t('admin.about.refresh')}
+            className="absolute top-4 right-12 h-7 w-7 text-muted-foreground"
+          >
+            <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+            <span className="sr-only">{t('admin.about.refresh')}</span>
+          </Button>
           <div className="flex-1 overflow-y-auto px-4 pb-6">
             {changelogError ? (
               <p className="text-sm text-muted-foreground">{t('admin.about.changelogError')}</p>

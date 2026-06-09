@@ -1342,6 +1342,7 @@
   "admin.about.updateAvailable": "有新版本",
   "admin.about.upToDate": "已是最新",
   "admin.about.commit": "提交",
+  "admin.about.refresh": "刷新更新日志",
   "admin.about.commitTooltip": "在 GitHub 上查看此提交",
   "admin.about.changelogTitle": "更新日志",
   "admin.about.changelogSubtitle": "了解每个版本的新增功能。",

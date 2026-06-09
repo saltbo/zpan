@@ -2955,6 +2955,16 @@ describe('api', () => {
       expect(result).toEqual(changelog)
     })
 
+    it('appends refresh=true to bypass the server cache', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(changelog))
+
+      await getChangelog({ refresh: true })
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/system/changelog')
+      expect(url).toContain('refresh=true')
+    })
+
     it('throws ApiError on failure', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
 

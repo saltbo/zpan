@@ -1342,6 +1342,7 @@
   "admin.about.updateAvailable": "Update available",
   "admin.about.upToDate": "Up to date",
   "admin.about.commit": "Commit",
+  "admin.about.refresh": "Refresh changelog",
   "admin.about.commitTooltip": "View this commit on GitHub",
   "admin.about.changelogTitle": "Changelog",
   "admin.about.changelogSubtitle": "What's new in each release.",

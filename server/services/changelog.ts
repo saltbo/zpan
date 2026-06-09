@@ -39,8 +39,11 @@ export function resetChangelogCache(): void {
   cache = null
 }
 
-export async function fetchChangelog(now: number = Date.now()): Promise<ChangelogSource> {
-  if (cache && now - cache.at < TTL_MS) {
+export async function fetchChangelog(
+  now: number = Date.now(),
+  opts: { force?: boolean } = {},
+): Promise<ChangelogSource> {
+  if (!opts.force && cache && now - cache.at < TTL_MS) {
     return cache.value
   }
   const [latestVersion, markdown] = await Promise.all([fetchLatestReleaseVersion(), fetchChangelogMarkdown()])

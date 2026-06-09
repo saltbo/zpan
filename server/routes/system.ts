@@ -35,8 +35,9 @@ const app = new Hono<Env>()
     const info = await buildCloudInstanceInfo(db, { url: origin, runtime: runtimeInfo(platform) })
     return c.json(info)
   })
-  .get('/changelog', requireAdmin, async (c) => {
-    const { latestVersion, markdown } = await fetchChangelog()
+  .get('/changelog', requireAdmin, zValidator('query', z.object({ refresh: z.string().optional() })), async (c) => {
+    const force = c.req.valid('query').refresh === 'true'
+    const { latestVersion, markdown } = await fetchChangelog(Date.now(), { force })
     const currentVersion = getAppVersion()
     const updateAvailable = latestVersion ? compareSemver(latestVersion, currentVersion) > 0 : false
     return c.json({ currentVersion, latestVersion, updateAvailable, markdown })

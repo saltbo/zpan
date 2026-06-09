@@ -1029,8 +1029,8 @@ export function getInstanceInfo() {
   return unwrap<InstanceInfo>(system.instance.$get())
 }
 
-export function getChangelog() {
-  return unwrap<ChangelogInfo>(system.changelog.$get())
+export function getChangelog(opts?: { refresh?: boolean }) {
+  return unwrap<ChangelogInfo>(system.changelog.$get({ query: opts?.refresh ? { refresh: 'true' } : {} }))
 }
 
 export function connectCloud() {
