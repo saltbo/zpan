@@ -1,12 +1,3 @@
-# Changelog
-
-Notable changes in each ZPan release, written from a user's perspective. Each
-entry links to its full GitHub release notes for the technical, commit-level log.
-
-The admin **About** page renders this file straight from `master` on GitHub in a
-side drawer, so keep it product-facing. The "latest version" indicator on that
-page comes from the newest published **GitHub Release**, not this file.
-
 ## v2.7.2 — 2026-06-07
 
 ### Features
