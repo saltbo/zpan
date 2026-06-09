@@ -1,7 +1,7 @@
 import { githubCommitUrl, ZPAN_CLOUD_URL_DEFAULT, ZPAN_GITHUB_URL } from '@shared/constants'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { ArrowUpCircle, BadgeCheck, ExternalLink, Github, History, Server, Sparkles, Star } from 'lucide-react'
+import { ArrowUpCircle, BadgeCheck, ExternalLink, Github, Server, Sparkles, Star } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
@@ -60,31 +60,15 @@ function AboutPage() {
       <AdminPageHeader
         title={t('admin.about.title')}
         description={t('admin.about.subtitle')}
-        badge={
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">v{instance.version}</Badge>
-            {changelog?.updateAvailable && (
-              <Badge className="border-transparent bg-[#1A73E8] text-white">
-                <ArrowUpCircle className="mr-1 h-3 w-3" />
-                {t('admin.about.updateAvailable')}
-              </Badge>
-            )}
-          </div>
-        }
+        badge={<Badge variant="secondary">v{instance.version}</Badge>}
       />
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Server className="h-4 w-4" />
-              {t('admin.about.instanceTitle')}
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => setChangelogOpen(true)}>
-              <History className="mr-2 h-4 w-4" />
-              {t('admin.about.viewChangelog')}
-            </Button>
-          </div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Server className="h-4 w-4" />
+            {t('admin.about.instanceTitle')}
+          </CardTitle>
         </CardHeader>
         <CardContent className="divide-y">
           <InfoRow label={t('admin.about.instanceName')}>{instance.name}</InfoRow>
@@ -103,33 +87,48 @@ function AboutPage() {
             </a>
           </InfoRow>
           <InfoRow label={t('admin.about.version')}>
-            <span className="inline-flex items-center gap-1.5">
-              v{instance.version}
-              {instance.commit && (
-                <a
-                  href={githubCommitUrl(instance.commit)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-xs text-muted-foreground hover:text-primary hover:underline"
-                  title={t('admin.about.commitTooltip')}
-                >
-                  {instance.commit}
-                </a>
-              )}
-            </span>
-          </InfoRow>
-          {changelog && (
-            <InfoRow label={t('admin.about.latestVersion')}>
-              <span className="inline-flex items-center gap-2">
-                {changelog.latestVersion ? `v${changelog.latestVersion}` : '—'}
-                {changelog.updateAvailable ? (
-                  <Badge className="border-transparent bg-[#1A73E8] text-white">
-                    {t('admin.about.updateAvailable')}
+            <span className="inline-flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setChangelogOpen(true)}
+                className="font-medium hover:text-primary hover:underline"
+              >
+                v{instance.version}
+              </button>
+              {changelog &&
+                (changelog.updateAvailable ? (
+                  <Badge
+                    onClick={() => setChangelogOpen(true)}
+                    title={t('admin.about.latestVersion')}
+                    className="cursor-pointer border-transparent bg-[#1A73E8] text-white"
+                  >
+                    <ArrowUpCircle />
+                    {changelog.latestVersion ? `v${changelog.latestVersion}` : t('admin.about.updateAvailable')}
                   </Badge>
                 ) : (
-                  <span className="text-xs text-muted-foreground">{t('admin.about.upToDate')}</span>
-                )}
-              </span>
+                  <Badge
+                    variant="secondary"
+                    onClick={() => setChangelogOpen(true)}
+                    title={t('admin.about.latestVersion')}
+                    className="cursor-pointer"
+                  >
+                    {t('admin.about.upToDate')}
+                  </Badge>
+                ))}
+            </span>
+          </InfoRow>
+          {instance.commit && (
+            <InfoRow label={t('admin.about.commit')}>
+              <a
+                href={githubCommitUrl(instance.commit)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+                title={t('admin.about.commitTooltip')}
+              >
+                {instance.commit}
+                <ExternalLink className="h-3 w-3" />
+              </a>
             </InfoRow>
           )}
           <InfoRow label={t('admin.about.edition')}>
