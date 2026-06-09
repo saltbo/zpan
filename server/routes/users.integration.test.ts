@@ -322,6 +322,86 @@ describe('Admin Users API', () => {
     expect(entitlements).toEqual([{ bytes: 123456, entitlementType: 'grant', source: 'admin_grant' }])
   })
 
+  it('PATCH /api/admin/users/:id/entitlements/:eid updates an admin grant', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const user = (await signUpUser(app, 'edit-grant@example.com')) as { user: { id: string } }
+    const userId = user.user.id
+
+    const grant = await app.request(`/api/admin/users/${userId}/entitlements`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resourceType: 'storage', bytes: 1000 }),
+    })
+    const { entitlement } = (await grant.json()) as { entitlement: { id: string } }
+
+    const expiresAt = '2030-01-01T00:00:00.000Z'
+    const res = await app.request(`/api/admin/users/${userId}/entitlements/${entitlement.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytes: 5000, expiresAt, note: 'bumped' }),
+    })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { entitlement: Record<string, unknown> }
+    expect(body.entitlement).toMatchObject({ id: entitlement.id, bytes: 5000, status: 'active' })
+    const rows = await db.all<{ bytes: number; expiresAt: number }>(
+      sql`SELECT bytes, expires_at AS expiresAt FROM org_quota_entitlements WHERE id = ${entitlement.id}`,
+    )
+    expect(rows[0].bytes).toBe(5000)
+    expect(rows[0].expiresAt).toBe(new Date(expiresAt).getTime())
+  })
+
+  it('DELETE /api/admin/users/:id/entitlements/:eid revokes an admin grant', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const user = (await signUpUser(app, 'revoke-grant@example.com')) as { user: { id: string } }
+    const userId = user.user.id
+
+    const grant = await app.request(`/api/admin/users/${userId}/entitlements`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resourceType: 'storage', bytes: 2000 }),
+    })
+    const { entitlement } = (await grant.json()) as { entitlement: { id: string } }
+
+    const res = await app.request(`/api/admin/users/${userId}/entitlements/${entitlement.id}`, {
+      method: 'DELETE',
+      headers,
+    })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { entitlement: Record<string, unknown> }
+    expect(body.entitlement).toMatchObject({ id: entitlement.id, status: 'revoked' })
+    const rows = await db.all<{ status: string }>(
+      sql`SELECT status FROM org_quota_entitlements WHERE id = ${entitlement.id}`,
+    )
+    expect(rows[0].status).toBe('revoked')
+  })
+
+  it('PATCH /api/admin/users/:id/entitlements/:eid rejects non-admin-grant sources', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'free-plan-edit@example.com')
+    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'free-plan-edit@example.com'`)
+    const userId = users[0].id
+    const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
+    const orgId = orgs[0].id
+
+    const free = await db.all<{ id: string }>(
+      sql`SELECT id FROM org_quota_entitlements WHERE org_id = ${orgId} AND source = 'free_plan' LIMIT 1`,
+    )
+
+    const res = await app.request(`/api/admin/users/${userId}/entitlements/${free[0].id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytes: 9999 }),
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Only admin-granted entitlements can be modified' })
+  })
+
   it('POST /api/admin/users/:id/entitlements rejects traffic grants', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)

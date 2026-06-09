@@ -38,7 +38,7 @@ export interface QuotaEntitlementItem {
 
 export interface UserOperationFailure {
   error: string
-  status: 404
+  status: 400 | 404
 }
 
 export async function listUsers(
@@ -236,6 +236,83 @@ export async function grantUserPersonalEntitlement(
     updatedAt: now,
   } satisfies typeof orgQuotaEntitlements.$inferInsert
   const rows = await db.insert(orgQuotaEntitlements).values(entitlement).returning()
+  return { orgId: org.orgId, entitlement: rows[0] }
+}
+
+async function findAdminGrant(
+  db: Database,
+  orgId: string,
+  entitlementId: string,
+): Promise<QuotaEntitlementItem | UserOperationFailure> {
+  const rows = await db
+    .select()
+    .from(orgQuotaEntitlements)
+    .where(and(eq(orgQuotaEntitlements.id, entitlementId), eq(orgQuotaEntitlements.orgId, orgId)))
+    .limit(1)
+  const row = rows[0]
+  if (!row) return { error: `Entitlement not found: ${entitlementId}`, status: 404 }
+  if (row.source !== 'admin_grant') {
+    return { error: 'Only admin-granted entitlements can be modified', status: 400 }
+  }
+  return row
+}
+
+function mergeGrantMetadata(existing: string | null, patch: Record<string, unknown>): string {
+  const base = existing ? (JSON.parse(existing) as Record<string, unknown>) : {}
+  return JSON.stringify({ ...base, ...patch })
+}
+
+export async function updateUserPersonalEntitlement(
+  db: Database,
+  input: {
+    adminUserId: string
+    targetUserId: string
+    entitlementId: string
+    bytes?: number
+    expiresAt?: Date | null
+    note?: string | null
+  },
+): Promise<{ orgId: string; entitlement: QuotaEntitlementItem } | UserOperationFailure> {
+  const org = await findUserPersonalOrg(db, input.targetUserId)
+  if ('error' in org) return org
+  const existing = await findAdminGrant(db, org.orgId, input.entitlementId)
+  if ('error' in existing) return existing
+
+  const metadata =
+    input.note === undefined
+      ? existing.metadata
+      : mergeGrantMetadata(existing.metadata, { note: input.note, updatedBy: input.adminUserId })
+  const rows = await db
+    .update(orgQuotaEntitlements)
+    .set({
+      bytes: input.bytes ?? existing.bytes,
+      expiresAt: input.expiresAt === undefined ? existing.expiresAt : input.expiresAt,
+      metadata,
+      updatedAt: new Date(),
+    })
+    .where(eq(orgQuotaEntitlements.id, input.entitlementId))
+    .returning()
+  return { orgId: org.orgId, entitlement: rows[0] }
+}
+
+export async function revokeUserPersonalEntitlement(
+  db: Database,
+  input: { adminUserId: string; targetUserId: string; entitlementId: string },
+): Promise<{ orgId: string; entitlement: QuotaEntitlementItem } | UserOperationFailure> {
+  const org = await findUserPersonalOrg(db, input.targetUserId)
+  if ('error' in org) return org
+  const existing = await findAdminGrant(db, org.orgId, input.entitlementId)
+  if ('error' in existing) return existing
+
+  const rows = await db
+    .update(orgQuotaEntitlements)
+    .set({
+      status: 'revoked',
+      metadata: mergeGrantMetadata(existing.metadata, { revokedBy: input.adminUserId }),
+      updatedAt: new Date(),
+    })
+    .where(eq(orgQuotaEntitlements.id, input.entitlementId))
+    .returning()
   return { orgId: org.orgId, entitlement: rows[0] }
 }
 
