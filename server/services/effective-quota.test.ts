@@ -390,6 +390,36 @@ describe('effective quota', () => {
     expect(batch.get(emptyOrg)).toMatchObject({ baseQuota: 0, quota: 0, trafficQuota: 0, currentPlan: null })
   })
 
+  it('aggregates across IN-chunk boundaries for more orgs than the per-query parameter cap', async () => {
+    const { db } = await createTestApp()
+    const now = new Date('2026-05-06T00:00:00Z')
+    // More than the 90-id chunk size to force multiple queries per table.
+    const orgIds = Array.from({ length: 200 }, () => nanoid())
+    await db.insert(orgQuotas).values(
+      orgIds.map((orgId, i) => ({
+        id: nanoid(),
+        orgId,
+        quota: 0,
+        used: i,
+        trafficQuota: 0,
+        trafficUsed: 0,
+        trafficPeriod: '2026-05',
+      })),
+    )
+    // Give an org that lands in a later chunk a plan entitlement.
+    const taggedOrg = orgIds[150]
+    await db
+      .insert(orgQuotaEntitlements)
+      .values(entitlement(taggedOrg, 'storage', `stripe_subscription:sub:${taggedOrg}`, 3000, 'active', now, 'Team'))
+
+    const batch = await getEffectiveQuotasByOrg(db, orgIds, now)
+
+    expect(batch.size).toBe(200)
+    expect(batch.get(orgIds[0])).toMatchObject({ used: 0, quota: 0 })
+    expect(batch.get(orgIds[199])).toMatchObject({ used: 199, quota: 0 })
+    expect(batch.get(taggedOrg)).toMatchObject({ baseQuota: 3000, quota: 3000, storagePlanName: 'Team' })
+  })
+
   it('returns an empty map for no orgs', async () => {
     const { db } = await createTestApp()
     await expect(getEffectiveQuotasByOrg(db, [], new Date('2026-05-06T00:00:00Z'))).resolves.toEqual(new Map())

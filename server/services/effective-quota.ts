@@ -97,40 +97,53 @@ export async function getEffectiveQuotasByOrg(
   const period = currentTrafficPeriod(now)
   const timestamp = now.getTime()
 
-  const quotaRows = await db
-    .select({
-      orgId: orgQuotas.orgId,
-      used: orgQuotas.used,
-      trafficUsed: orgQuotas.trafficUsed,
-      trafficPeriod: orgQuotas.trafficPeriod,
-    })
-    .from(orgQuotas)
-    .where(inArray(orgQuotas.orgId, orgIds))
-  const quotaByOrg = new Map(quotaRows.map((r) => [r.orgId, r]))
+  // D1 caps a query at 100 bound parameters, so chunk the IN lists. The
+  // entitlements query binds a few extra params (status + timestamps) on top of
+  // the org ids, so keep chunks comfortably below the cap.
+  const chunks = chunk(orgIds, 90)
 
-  const entRows = await db
-    .select({
-      orgId: orgQuotaEntitlements.orgId,
-      resourceType: orgQuotaEntitlements.resourceType,
-      entitlementType: orgQuotaEntitlements.entitlementType,
-      sourceId: orgQuotaEntitlements.sourceId,
-      bytes: orgQuotaEntitlements.bytes,
-      startsAt: orgQuotaEntitlements.startsAt,
-      expiresAt: orgQuotaEntitlements.expiresAt,
-      metadata: orgQuotaEntitlements.metadata,
-    })
-    .from(orgQuotaEntitlements)
-    .where(
-      and(
-        inArray(orgQuotaEntitlements.orgId, orgIds),
-        eq(orgQuotaEntitlements.status, 'active'),
-        sql`${orgQuotaEntitlements.startsAt} <= ${timestamp}`,
-        or(sql`${orgQuotaEntitlements.expiresAt} IS NULL`, sql`${orgQuotaEntitlements.expiresAt} > ${timestamp}`),
-      ),
-    )
+  const quotaChunks = await Promise.all(
+    chunks.map((ids) =>
+      db
+        .select({
+          orgId: orgQuotas.orgId,
+          used: orgQuotas.used,
+          trafficUsed: orgQuotas.trafficUsed,
+          trafficPeriod: orgQuotas.trafficPeriod,
+        })
+        .from(orgQuotas)
+        .where(inArray(orgQuotas.orgId, ids)),
+    ),
+  )
+  const quotaByOrg = new Map(quotaChunks.flat().map((r) => [r.orgId, r]))
 
-  const entByOrg = new Map<string, typeof entRows>()
-  for (const row of entRows) {
+  const entChunks = await Promise.all(
+    chunks.map((ids) =>
+      db
+        .select({
+          orgId: orgQuotaEntitlements.orgId,
+          resourceType: orgQuotaEntitlements.resourceType,
+          entitlementType: orgQuotaEntitlements.entitlementType,
+          sourceId: orgQuotaEntitlements.sourceId,
+          bytes: orgQuotaEntitlements.bytes,
+          startsAt: orgQuotaEntitlements.startsAt,
+          expiresAt: orgQuotaEntitlements.expiresAt,
+          metadata: orgQuotaEntitlements.metadata,
+        })
+        .from(orgQuotaEntitlements)
+        .where(
+          and(
+            inArray(orgQuotaEntitlements.orgId, ids),
+            eq(orgQuotaEntitlements.status, 'active'),
+            sql`${orgQuotaEntitlements.startsAt} <= ${timestamp}`,
+            or(sql`${orgQuotaEntitlements.expiresAt} IS NULL`, sql`${orgQuotaEntitlements.expiresAt} > ${timestamp}`),
+          ),
+        ),
+    ),
+  )
+
+  const entByOrg = new Map<string, EntitlementRow[]>()
+  for (const row of entChunks.flat()) {
     const list = entByOrg.get(row.orgId)
     if (list) list.push(row)
     else entByOrg.set(row.orgId, [row])
@@ -170,6 +183,14 @@ export async function getEffectiveQuotasByOrg(
   }
 
   return result
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size))
+  }
+  return out
 }
 
 interface EntitlementRow {
