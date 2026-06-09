@@ -5,9 +5,9 @@ All notable changes to ZPan are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The admin **About** page reads this file straight from `master` on GitHub to show
-the latest released version and surface this log in a side drawer. Keep the newest
-released version as the first `## [x.y.z]` heading so that detection stays correct.
+The admin **About** page renders this file straight from `master` on GitHub in a
+side drawer, so keep it product-facing. The "latest version" indicator on that
+page comes from the newest published **GitHub Release**, not this file.
 
 ## [Unreleased]
 

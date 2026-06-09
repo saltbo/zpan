@@ -1,15 +1,35 @@
-import { ZPAN_CHANGELOG_RAW_URL } from '../../shared/constants'
+import { ZPAN_CHANGELOG_RAW_URL, ZPAN_RELEASES_LATEST_API_URL } from '../../shared/constants'
 
 export interface ChangelogSource {
+  // Newest published release version (without the leading "v"), or null when the
+  // GitHub API is unreachable/rate-limited.
   latestVersion: string | null
+  // Raw, product-facing CHANGELOG.md markdown for the drawer.
   markdown: string
 }
 
-// Pull the newest released version from the first `## [x.y.z]` heading. The
-// `[Unreleased]` section carries no semver, so it is skipped automatically.
-export function parseLatestVersion(markdown: string): string | null {
-  const match = markdown.match(/^#{2,3}\s*\[?v?(\d+\.\d+\.\d+)\]?/m)
-  return match ? match[1] : null
+async function fetchLatestReleaseVersion(): Promise<string | null> {
+  // Best-effort: the unauthenticated GitHub API is rate-limited (60/hr/IP), so a
+  // failure here must not break the drawer — it only hides the version badge.
+  try {
+    const res = await fetch(ZPAN_RELEASES_LATEST_API_URL, {
+      headers: { 'user-agent': 'zpan', accept: 'application/vnd.github+json' },
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { tag_name?: string }
+    const tag = data.tag_name?.trim()
+    return tag ? tag.replace(/^v/, '') : null
+  } catch {
+    return null
+  }
+}
+
+async function fetchChangelogMarkdown(): Promise<string> {
+  const res = await fetch(ZPAN_CHANGELOG_RAW_URL, { headers: { 'user-agent': 'zpan' } })
+  if (!res.ok) {
+    throw new Error(`Failed to fetch changelog: ${res.status}`)
+  }
+  return res.text()
 }
 
 const TTL_MS = 60 * 60 * 1000 // 1 hour — releases are infrequent.
@@ -23,12 +43,8 @@ export async function fetchChangelog(now: number = Date.now()): Promise<Changelo
   if (cache && now - cache.at < TTL_MS) {
     return cache.value
   }
-  const res = await fetch(ZPAN_CHANGELOG_RAW_URL, { headers: { 'user-agent': 'zpan' } })
-  if (!res.ok) {
-    throw new Error(`Failed to fetch changelog: ${res.status}`)
-  }
-  const markdown = await res.text()
-  const value: ChangelogSource = { latestVersion: parseLatestVersion(markdown), markdown }
+  const [latestVersion, markdown] = await Promise.all([fetchLatestReleaseVersion(), fetchChangelogMarkdown()])
+  const value: ChangelogSource = { latestVersion, markdown }
   cache = { at: now, value }
   return value
 }

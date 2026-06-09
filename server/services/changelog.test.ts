@@ -1,59 +1,72 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchChangelog, parseLatestVersion, resetChangelogCache } from './changelog.js'
+import { fetchChangelog, resetChangelogCache } from './changelog.js'
 
-describe('parseLatestVersion', () => {
-  it('reads the first released version, skipping Unreleased', () => {
-    const md = ['# Changelog', '', '## [Unreleased]', '- wip', '', '## [2.7.2] - 2026-06-07', '- fix'].join('\n')
-    expect(parseLatestVersion(md)).toBe('2.7.2')
-  })
+const CHANGELOG_MD = '## [2.7.2] - 2026-06-07\n- product-facing notes'
 
-  it('tolerates a leading v and missing brackets', () => {
-    expect(parseLatestVersion('## v2.8.0\n- x')).toBe('2.8.0')
-    expect(parseLatestVersion('### 3.0.1\n- x')).toBe('3.0.1')
-  })
+function releaseResponse(tagName: string | undefined, ok = true, status = 200): Response {
+  return { ok, status, json: async () => ({ tag_name: tagName }) } as unknown as Response
+}
 
-  it('returns null when no version heading is present', () => {
-    expect(parseLatestVersion('# Changelog\n\n## [Unreleased]\n- wip')).toBeNull()
-  })
-})
+function markdownResponse(body: string, ok = true, status = 200): Response {
+  return { ok, status, text: async () => body } as unknown as Response
+}
+
+// Route the two outbound calls (release API vs raw changelog) to separate stubs.
+function stubFetch(opts: { release: () => Response; changelog: () => Response }) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => (String(url).includes('api.github.com') ? opts.release() : opts.changelog())),
+  )
+}
 
 describe('fetchChangelog', () => {
   beforeEach(() => {
     resetChangelogCache()
-    vi.stubGlobal('fetch', vi.fn())
   })
   afterEach(() => {
     vi.unstubAllGlobals()
     resetChangelogCache()
   })
 
-  function textResponse(body: string, ok = true, status = 200): Response {
-    return { ok, status, text: async () => body } as unknown as Response
-  }
+  it('takes the version from the release tag and the markdown from CHANGELOG.md', async () => {
+    stubFetch({ release: () => releaseResponse('v2.8.0'), changelog: () => markdownResponse(CHANGELOG_MD) })
 
-  it('fetches, parses, and caches within the TTL', async () => {
-    const md = '## [2.7.2] - 2026-06-07\n- fix'
-    vi.mocked(fetch).mockResolvedValue(textResponse(md))
+    const result = await fetchChangelog(1_000)
 
-    const first = await fetchChangelog(1_000)
-    expect(first).toEqual({ latestVersion: '2.7.2', markdown: md })
+    expect(result).toEqual({ latestVersion: '2.8.0', markdown: CHANGELOG_MD })
+  })
 
-    const second = await fetchChangelog(1_000 + 60_000)
-    expect(second).toEqual(first)
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+  it('caches both sources within the TTL', async () => {
+    stubFetch({ release: () => releaseResponse('v2.8.0'), changelog: () => markdownResponse(CHANGELOG_MD) })
+
+    await fetchChangelog(1_000)
+    await fetchChangelog(1_000 + 60_000)
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2) // one release + one changelog, then cached
   })
 
   it('refetches after the TTL expires', async () => {
-    vi.mocked(fetch).mockResolvedValue(textResponse('## [2.7.2]\n- fix'))
+    stubFetch({ release: () => releaseResponse('v2.8.0'), changelog: () => markdownResponse(CHANGELOG_MD) })
 
     await fetchChangelog(0)
     await fetchChangelog(60 * 60 * 1000 + 1)
 
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(4)
   })
 
-  it('throws when GitHub responds with an error', async () => {
-    vi.mocked(fetch).mockResolvedValue(textResponse('not found', false, 404))
+  it('degrades latestVersion to null when the release API fails, keeping the markdown', async () => {
+    stubFetch({
+      release: () => releaseResponse(undefined, false, 403),
+      changelog: () => markdownResponse(CHANGELOG_MD),
+    })
+
+    const result = await fetchChangelog(0)
+
+    expect(result).toEqual({ latestVersion: null, markdown: CHANGELOG_MD })
+  })
+
+  it('throws when the CHANGELOG.md fetch fails', async () => {
+    stubFetch({ release: () => releaseResponse('v2.8.0'), changelog: () => markdownResponse('not found', false, 404) })
 
     await expect(fetchChangelog(0)).rejects.toThrow(/404/)
   })

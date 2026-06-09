@@ -45,9 +45,13 @@ export type SignupMode = (typeof SignupMode)[keyof typeof SignupMode]
 
 export const ZPAN_CLOUD_URL_DEFAULT = 'https://cloud.zpan.space'
 export const ZPAN_GITHUB_URL = 'https://github.com/saltbo/zpan'
-// The About page fetches CHANGELOG.md straight from master to detect the latest
-// release and render the log; raw.githubusercontent.com serves the file with CORS.
+// The About page renders this hand-maintained, product-facing changelog in a
+// side drawer; raw.githubusercontent.com serves the file with CORS.
 export const ZPAN_CHANGELOG_RAW_URL = 'https://raw.githubusercontent.com/saltbo/zpan/master/CHANGELOG.md'
+// The latest-version indicator comes from the newest published GitHub Release
+// (tag_name), not the changelog file — releases are the source of truth for
+// "what's the latest shipped version".
+export const ZPAN_RELEASES_LATEST_API_URL = 'https://api.github.com/repos/saltbo/zpan/releases/latest'
 // Build a link to a specific commit on GitHub.
 export const githubCommitUrl = (sha: string) => `${ZPAN_GITHUB_URL}/commit/${sha}`
 export const DEFAULT_SITE_NAME = 'ZPan'

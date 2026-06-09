@@ -141,13 +141,19 @@ describe('System API — options CRUD', () => {
       resetChangelogCache()
     })
 
-    it('serves the parsed changelog to admins only', async () => {
+    it('serves the release version and changelog markdown to admins only', async () => {
       const { app } = await createTestApp()
       resetChangelogCache()
-      const markdown = '## [Unreleased]\n- wip\n\n## [2.8.0] - 2026-07-01\n- shiny'
+      const markdown = '## [2.8.0] - 2026-07-01\n- product-facing notes'
+      // The route fetches the latest release (api.github.com) and the raw
+      // CHANGELOG.md separately; route each to its own stub.
       vi.stubGlobal(
         'fetch',
-        vi.fn(async () => ({ ok: true, status: 200, text: async () => markdown }) as unknown as Response),
+        vi.fn(async (url: string) =>
+          String(url).includes('api.github.com')
+            ? ({ ok: true, status: 200, json: async () => ({ tag_name: 'v2.8.0' }) } as unknown as Response)
+            : ({ ok: true, status: 200, text: async () => markdown } as unknown as Response),
+        ),
       )
 
       const anon = await app.request('/api/system/changelog')
