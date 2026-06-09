@@ -33,7 +33,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl gzip \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /out \
- && curl -fsSL "$GEOIP_DB_URL" -o /tmp/geoip.mmdb.gz \
+ && curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "$GEOIP_DB_URL" -o /tmp/geoip.mmdb.gz \
  && gzip -dc /tmp/geoip.mmdb.gz > /out/geoip.mmdb \
  && rm -f /tmp/geoip.mmdb.gz
 

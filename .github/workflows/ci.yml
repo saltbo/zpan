@@ -78,6 +78,24 @@ jobs:
       - run: mkdir -p dist
       - run: pnpm test:cf
 
+  docker-smoke:
+    name: Docker image smoke test
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build & start the stack
+        run: docker compose -f docker-compose.yml up -d --build --wait --wait-timeout 300
+      - name: Assert server health from host
+        run: curl --fail --retry 5 --retry-delay 3 --retry-connrefused http://localhost:8222/api/health
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml logs --no-color
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
+
   e2e-node:
     name: E2E (Node)
     runs-on: ubuntu-latest

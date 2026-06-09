@@ -11,7 +11,3 @@ export function resolveAppVersion() {
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim()
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  process.stdout.write(resolveAppVersion())
-}
