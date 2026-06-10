@@ -13,10 +13,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { entitlementQueryKey } from '@/hooks/useEntitlement'
-import type { PairingInfo } from '@/lib/api'
-import { connectCloud, pollPairing } from '@/lib/api'
+import { ApiError, connectCloud, type PairingInfo, pollPairing } from '@/lib/api'
 
-type PairingState = 'loading' | 'waiting' | 'denied' | 'expired' | 'error'
+type PairingState = 'loading' | 'waiting' | 'denied' | 'expired' | 'certError' | 'error'
 
 interface PairingModalProps {
   open: boolean
@@ -89,9 +88,11 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
           } else {
             setState('expired')
           }
-        } catch {
+        } catch (err) {
           stopPolling()
-          setState('error')
+          // 502 = cloud approved the pairing but ZPan rejected the certificate
+          // (e.g. signed by an untrusted key). Distinct from a genuine timeout.
+          setState(err instanceof ApiError && err.status === 502 ? 'certError' : 'error')
         }
       }, 5000)
     },
@@ -127,7 +128,7 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
     onOpenChange(false)
   }
 
-  const isTerminal = state === 'denied' || state === 'expired' || state === 'error'
+  const isTerminal = state === 'denied' || state === 'expired' || state === 'certError' || state === 'error'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -179,9 +180,13 @@ export function PairingModal({ open, onOpenChange }: PairingModalProps) {
 
           {state === 'denied' && <p className="text-sm text-destructive">{t('settings.billing.pairing.denied')}</p>}
 
-          {(state === 'expired' || state === 'error') && (
-            <p className="text-sm text-destructive">{t('settings.billing.pairing.expired')}</p>
+          {state === 'expired' && <p className="text-sm text-destructive">{t('settings.billing.pairing.expired')}</p>}
+
+          {state === 'certError' && (
+            <p className="text-sm text-destructive">{t('settings.billing.pairing.certError')}</p>
           )}
+
+          {state === 'error' && <p className="text-sm text-destructive">{t('settings.billing.pairing.error')}</p>}
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
