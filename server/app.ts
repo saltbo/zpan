@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
+import { formatError } from './lib/errors'
 import { authMiddleware } from './middleware/auth'
 import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
@@ -50,8 +51,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.use('/*', platformMiddleware(platform, auth))
   app.use('/*', async (c, next) => {
     const result = await ensureSitePublicOrigin(platform.db, c.req.url).catch((err) => {
-      const code = err instanceof Error ? err.message : String(err)
-      console.error(`site.public_origin.detect.error code=${code}`)
+      console.error(`site.public_origin.detect.error code=${formatError(err)}`)
       return { origin: null, created: false }
     })
 
@@ -66,8 +66,7 @@ export function createApp(platform: Platform, auth: Auth) {
         trigger: 'runtime',
         runtime: instanceTelemetryRuntime(platform),
       }).catch((err) => {
-        const code = err instanceof Error ? err.message : String(err)
-        console.error(`instance.telemetry.initial_report.error code=${code}`)
+        console.error(`instance.telemetry.initial_report.error code=${formatError(err)}`)
       })
       waitUntil(c, task)
     }

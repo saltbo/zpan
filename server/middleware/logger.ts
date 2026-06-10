@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
+import { formatError } from '../lib/errors'
 import type { Env } from './platform'
 
 export const accessLog = createMiddleware<Env>(async (c, next) => {
@@ -44,10 +45,8 @@ function accessLogFields(
     )
   }
 
-  if (error instanceof Error) {
-    fields.push(['error', error.message])
-  } else if (error) {
-    fields.push(['error', String(error)])
+  if (error !== undefined) {
+    fields.push(['error', formatError(error)])
   }
 
   return fields
