@@ -3,7 +3,15 @@ import { Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { continueCloudOrderPayment, createCloudBillingPortalSession, createCloudCheckout, getSession } from '@/lib/api'
+import {
+  ApiError,
+  cancelCloudOrder,
+  continueCloudOrderPayment,
+  createCloudBillingPortalSession,
+  createCloudCheckout,
+  getSession,
+  listCloudOrders,
+} from '@/lib/api'
 import { redirectExternal } from '@/lib/browser-navigation'
 
 type CheckoutSearch = {
@@ -82,8 +90,31 @@ function normalizeCheckoutSearch(search: Record<string, unknown>): CheckoutSearc
 async function createCheckoutSession(search: CheckoutSearch) {
   if (search.action === 'checkout') {
     if (!search.packageId || !search.priceId) throw new Error('invalid_checkout_request')
-    const result = await createCloudCheckout(search.packageId, search.priceId)
-    return result.url
+    try {
+      const result = await createCloudCheckout(search.packageId, search.priceId)
+      return result.url
+    } catch (err) {
+      if (
+        err instanceof ApiError &&
+        (err.body.error === 'workspace_plan_exists' ||
+          (err.body.error &&
+            typeof err.body.error === 'object' &&
+            (err.body.error as Record<string, unknown>).code === 'workspace_plan_exists'))
+      ) {
+        const ordersRes = await listCloudOrders()
+        const pendingPlanOrder = ordersRes.items.find(
+          (order) =>
+            order.status === 'pending' &&
+            order.items?.some((item) => item.fulfillmentPayload?.deliverable?.type === 'zpan.plan'),
+        )
+        if (pendingPlanOrder) {
+          await cancelCloudOrder(pendingPlanOrder.id)
+          const result = await createCloudCheckout(search.packageId, search.priceId)
+          return result.url
+        }
+      }
+      throw err
+    }
   }
   if (search.action === 'payment') {
     if (!search.orderId) throw new Error('invalid_checkout_request')

@@ -1,4 +1,4 @@
-import type { CloudProduct } from '@shared/types'
+import type { CloudProduct, CurrentStoragePlan } from '@shared/types'
 import { BadgeCent, HardDrive, PlusCircle } from 'lucide-react'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +16,7 @@ export function StoragePackages({
 }: {
   packages: CloudProduct[]
   disabled: boolean
-  currentPlan?: { packageId: string | null; storageBytes: number } | null
+  currentPlan?: CurrentStoragePlan | null
   onCheckout: (packageId: string, priceId: string) => void
   onManagePlan?: () => void
 }) {
@@ -111,7 +111,7 @@ function PackageCard({
 }: {
   pkg: CloudProduct
   disabled: boolean
-  currentPlan?: { packageId: string | null; storageBytes: number } | null
+  currentPlan?: CurrentStoragePlan | null
   language: string
   onCheckout: (packageId: string, priceId: string) => void
   onManagePlan?: () => void
@@ -124,7 +124,7 @@ function PackageCard({
   const storageBytes = cloudProductStorageBytes(pkg)
   const includedCredits = cloudProductIncludedCredits(pkg)
   const isCurrent = currentPlan?.packageId === pkg.id
-  const hasPlan = Boolean(currentPlan)
+  const hasPlan = Boolean(currentPlan?.subscription)
   const isHigherPlan = hasPlan && storageBytes > (currentPlan?.storageBytes ?? 0)
   return (
     <ProductCardShell
