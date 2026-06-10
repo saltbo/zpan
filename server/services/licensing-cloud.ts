@@ -199,6 +199,19 @@ export async function unbindCloudLicense(baseUrl: string, licenseId: string, ref
   }
 }
 
+// Tell the cloud this instance verified + stored the certificate, so the pairing
+// page can resolve to success instead of claiming success the moment it approves.
+export async function confirmCloudLicense(baseUrl: string, licenseId: string, refreshToken: string): Promise<void> {
+  const res = await cloudResponse(
+    createBoundCloudClient(baseUrl, refreshToken).licenses[':id'].confirm.$post({ param: { id: licenseId } }),
+  )
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Cloud confirm failed: ${res.status} ${text}`)
+  }
+}
+
 function unwrapCloudData<T>(data: unknown): T {
   if (data && typeof data === 'object' && 'data' in data) return data.data as T
   return data as T

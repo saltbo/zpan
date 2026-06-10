@@ -1,6 +1,6 @@
 import { verify } from 'paseto-ts/v4'
 import { z } from 'zod'
-import { PUBLIC_KEYS } from './public-keys'
+import { getTrustedPublicKeys } from './public-keys'
 import { trustedIssuerFromCloudUrl } from './verify'
 
 const CLOUD_EVENT_TOKEN_MAX_TTL_SECONDS = 5 * 60
@@ -31,7 +31,7 @@ export interface VerifyCloudEventTokenOptions {
 }
 
 export function verifyCloudEventToken(token: string, options: VerifyCloudEventTokenOptions): CloudEventToken | null {
-  for (const key of PUBLIC_KEYS) {
+  for (const key of getTrustedPublicKeys()) {
     const event = tryVerifyCloudEventToken(token, key, options)
     if (event) return event
   }

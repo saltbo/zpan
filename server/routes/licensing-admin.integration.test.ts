@@ -22,9 +22,9 @@ function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-function signCert(instanceId: string): string {
+function signCert(instanceId: string, secret: string = TEST_SECRET): string {
   const now = nowSec()
-  return sign(TEST_SECRET, {
+  return sign(secret, {
     type: 'zpan.license',
     issuer: 'https://cloud.zpan.space',
     subject: 'bind-1',
@@ -195,15 +195,18 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     const instanceId = await getOrCreateInstanceId(db)
     const certificate = signCert(instanceId)
 
-    vi.mocked(fetch).mockResolvedValueOnce(
-      makeCloudResponse({
-        status: 'approved',
-        refreshToken: 'pair-rt',
-        certificate,
-        binding: { id: 'bind-1', storeId: 'store-1', instanceId, authorizedHosts: ['localhost'] },
-        account: { id: 'acct-1', email: 'acct@example.com' },
-      }),
-    )
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        makeCloudResponse({
+          status: 'approved',
+          refreshToken: 'pair-rt',
+          certificate,
+          binding: { id: 'bind-1', storeId: 'store-1', instanceId, authorizedHosts: ['localhost'] },
+          account: { id: 'acct-1', email: 'acct@example.com' },
+        }),
+      )
+      // The confirm callback to the cloud after the cert is verified + stored.
+      .mockResolvedValueOnce(makeCloudResponse(null, 204))
 
     const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
 
@@ -211,7 +214,9 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('pair-rt')
     expect(state.cachedCert).toBe(certificate)
-    expect(vi.mocked(fetch).mock.calls).toHaveLength(1)
+    // Poll + confirm.
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(2)
+    expect(String(vi.mocked(fetch).mock.calls.at(-1)?.[0])).toContain('bind-1/confirm')
   })
 
   it('rejects approved responses with an invalid certificate', async () => {
@@ -267,11 +272,50 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toEqual({ error: 'invalid_certificate' })
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'invalid_certificate',
+      reason: 'incomplete_response',
+    })
     const state = await loadLicenseState(db)
     expect(state.status).toBe('disconnected')
     expect(state.refreshToken).toBeNull()
     expect(state.cachedCert).toBeNull()
+  })
+
+  it('reports an untrusted signing key and rolls back the orphaned cloud binding', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const instanceId = await getOrCreateInstanceId(db)
+
+    // Sign with a key ZPan does not trust — simulates a rotated/mismatched cloud
+    // signing key (the real-world "lost private key" scenario).
+    const { secretKey: untrustedSecret } = generateKeys('public')
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        makeCloudResponse({
+          status: 'approved',
+          refreshToken: 'rt-secret',
+          certificate: signCert(instanceId, untrustedSecret),
+          binding: { id: 'cb-1', instanceId, storeId: 'store-1', authorizedHosts: [] },
+          account: { id: 'acct-1', email: 'owner@example.com' },
+        }),
+      )
+      // The rollback unbind call to the cloud.
+      .mockResolvedValueOnce(makeCloudResponse({ ok: true }))
+
+    const res = await app.request('/api/licensing/pair/CODE-1/poll', { headers })
+
+    expect(res.status).toBe(502)
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'invalid_certificate',
+      reason: 'signature',
+    })
+    // ZPan stored nothing; the cloud binding was released.
+    const state = await loadLicenseState(db)
+    expect(state.refreshToken).toBeNull()
+    const unbindCall = vi.mocked(fetch).mock.calls.at(-1)
+    expect(String(unbindCall?.[0])).toContain('cb-1')
   })
 })
 

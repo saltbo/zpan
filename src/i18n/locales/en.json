@@ -1283,6 +1283,8 @@
   "settings.billing.pairing.retry": "Retry",
   "settings.billing.pairing.denied": "Pairing was denied. Please try again.",
   "settings.billing.pairing.expired": "Pairing code has expired. Please try again.",
+  "settings.billing.pairing.error": "Pairing failed. Please try again.",
+  "settings.billing.pairing.certError": "Paired, but the license certificate could not be verified — the cloud signing key isn't trusted by this instance. Check your key configuration (ZPAN_LICENSE_PUBLIC_KEYS) and try again.",
   "settings.billing.pairing.connected": "Connected to ZPan Cloud ({{email}})",
   "settings.billing.bound.pro.title": "Pro License",
   "settings.billing.bound.business.title": "Business License",

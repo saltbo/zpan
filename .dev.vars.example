@@ -10,3 +10,9 @@ TRUSTED_ORIGINS=http://localhost:5185
 
 # Local ZPan Cloud URL.
 ZPAN_CLOUD_URL=http://localhost:5186
+
+# Trusted license signing public keys (PASERK k4.public.*, comma-separated).
+# Dev keys are configured here — NOT hardcoded in source — so a leaked dev key is
+# rotated via config and never trusted by production builds. Pair this with the
+# matching LICENSE_SIGNING_KEY in zpan-cloud/.dev.vars (run `npm run gen-keypair`).
+ZPAN_LICENSE_PUBLIC_KEYS=

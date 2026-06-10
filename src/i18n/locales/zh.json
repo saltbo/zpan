@@ -1283,6 +1283,8 @@
   "settings.billing.pairing.retry": "重试",
   "settings.billing.pairing.denied": "配对已被拒绝，请重试。",
   "settings.billing.pairing.expired": "配对码已过期，请重试。",
+  "settings.billing.pairing.error": "配对失败，请重试。",
+  "settings.billing.pairing.certError": "配对成功，但许可证书无法验证——云端的签名密钥未被本实例信任。请检查密钥配置（ZPAN_LICENSE_PUBLIC_KEYS）后重试。",
   "settings.billing.pairing.connected": "已连接到 ZPan Cloud（{{email}}）",
   "settings.billing.bound.pro.title": "Pro License",
   "settings.billing.bound.business.title": "Business License",

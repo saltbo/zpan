@@ -5,11 +5,17 @@ import { getOrCreateInstanceId } from '../licensing/instance-id'
 import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { clearLicenseBinding, createLicenseBinding, loadLicenseState } from '../licensing/license-state'
 import { performRefresh } from '../licensing/refresh'
-import { normalizeHost, verifyCertificate } from '../licensing/verify'
+import { normalizeHost, verifyCertificateResult } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
-import { createPairing, pollPairing, unbindCloudLicense } from '../services/licensing-cloud'
+import {
+  confirmCloudLicense,
+  createPairing,
+  type PairingPollResponse,
+  pollPairing,
+  unbindCloudLicense,
+} from '../services/licensing-cloud'
 import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
 
 function getCloudBaseUrl(c: { get(key: 'platform'): { getEnv(k: string): string | undefined } }): string {
@@ -35,6 +41,20 @@ async function getRequestHost(c: {
   return normalizeHost(forwardedHost) ?? new URL(c.req.url).host
 }
 
+// Best-effort release of a cloud binding ZPan couldn't accept. Returns the failure
+// message (surfaced for diagnostics) or null. Leaving the cloud binding orphaned is
+// the safe direction — ZPan stays unbound either way — so a failure here does not
+// change the user-facing outcome.
+async function rollbackCloudBinding(baseUrl: string, result: PairingPollResponse): Promise<string | null> {
+  if (!result.refreshToken || !result.binding?.id) return null
+  try {
+    await unbindCloudLicense(baseUrl, result.binding.id, result.refreshToken)
+    return null
+  } catch (error) {
+    return error instanceof Error ? error.message : 'Cloud unbind failed'
+  }
+}
+
 const app = new Hono<Env>()
   .use(requireAdmin)
 
@@ -58,37 +78,50 @@ const app = new Hono<Env>()
 
     const result = await pollPairing(baseUrl, code)
 
-    if (result.status === 'approved' && result.refreshToken && result.certificate) {
-      const entitlement = {
-        refreshToken: result.refreshToken,
-        certificate: result.certificate,
-        binding: result.binding,
-        account: result.account,
-      }
+    if (result.status === 'approved') {
       const instanceId = await getOrCreateInstanceId(db)
-      const cert = entitlement.certificate
-      const assertion = verifyCertificate(cert, {
-        instanceId,
-        currentHost: await getRequestHost(c),
-        cloudBaseUrl: baseUrl,
-      })
-      if (!assertion || !entitlement.binding?.storeId || !entitlement.account) {
-        return c.json({ error: 'invalid_certificate' }, 502)
+      const verification = result.certificate
+        ? verifyCertificateResult(result.certificate, {
+            instanceId,
+            currentHost: await getRequestHost(c),
+            cloudBaseUrl: baseUrl,
+          })
+        : null
+
+      if (!verification?.ok || !result.refreshToken || !result.binding?.storeId || !result.account) {
+        // The cloud approved and created a binding, but ZPan can't accept this
+        // certificate (most often: signed by a key ZPan doesn't trust). Roll back
+        // the orphaned cloud binding so the two sides don't drift and retries don't
+        // pile up dangling bindings.
+        const cloudUnbindError = await rollbackCloudBinding(baseUrl, result)
+        const reason = verification ? (verification.ok ? 'incomplete_response' : verification.reason) : 'no_certificate'
+        return c.json({ error: 'invalid_certificate', reason, cloud_unbind_error: cloudUnbindError }, 502)
       }
 
+      const assertion = verification.assertion
       await createLicenseBinding(db, {
-        cloudBindingId: entitlement.binding.id,
-        cloudStoreId: entitlement.binding.storeId,
+        cloudBindingId: result.binding.id,
+        cloudStoreId: result.binding.storeId,
         instanceId,
-        cloudAccountId: entitlement.account.id,
-        cloudAccountEmail: entitlement.account.email,
-        refreshToken: entitlement.refreshToken,
-        cachedCert: cert,
+        cloudAccountId: result.account.id,
+        cloudAccountEmail: result.account.email,
+        refreshToken: result.refreshToken,
+        cachedCert: result.certificate!,
         cachedExpiresAt: assertion.expiresAt,
         lastRefreshAt: Math.floor(Date.now() / 1000),
       })
 
       invalidateEntitlementCache()
+
+      // Report back that we verified + stored the certificate, so the cloud pairing
+      // page resolves to success instead of claiming it at approval time. Best-effort:
+      // the binding is already active locally, so a failed confirm only leaves the
+      // cloud page waiting — it does not break licensing here.
+      try {
+        await confirmCloudLicense(baseUrl, result.binding.id, result.refreshToken)
+      } catch {
+        // ignore — binding works regardless; cloud page falls back to its timeout state
+      }
 
       const userId = c.get('userId')!
       const orgId = c.get('orgId')!
@@ -97,19 +130,15 @@ const app = new Hono<Env>()
         userId,
         action: 'license_pair',
         targetType: 'license',
-        targetName: entitlement.account.email ?? entitlement.account.id,
-        metadata: { edition: assertion.edition, cloudAccountId: entitlement.account.id },
+        targetName: result.account.email ?? result.account.id,
+        metadata: { edition: assertion.edition, cloudAccountId: result.account.id },
       })
 
       return c.json({
         status: 'approved' as const,
         edition: assertion.edition,
-        cloud_store_id: entitlement.binding.storeId,
+        cloud_store_id: result.binding.storeId,
       })
-    }
-
-    if (result.status === 'approved') {
-      return c.json({ error: 'invalid_pairing_response' }, 502)
     }
 
     return c.json({ status: result.status })

@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/d1'
 import * as authSchema from '../db/auth-schema'
 import * as schema from '../db/schema'
+import { registerEnvPublicKeys } from '../licensing/public-keys'
 import type { Platform } from './interface'
 
 interface CloudflareEnv {
@@ -10,6 +11,8 @@ interface CloudflareEnv {
 
 export function createCloudflarePlatform(env: CloudflareEnv): Platform {
   const db = drizzle(env.DB, { schema: { ...schema, ...authSchema } })
+
+  registerEnvPublicKeys(typeof env.ZPAN_LICENSE_PUBLIC_KEYS === 'string' ? env.ZPAN_LICENSE_PUBLIC_KEYS : undefined)
 
   return {
     db,
