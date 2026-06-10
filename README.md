@@ -31,6 +31,10 @@
   <a href="docs/i18n/README.pt-BR.md">Português (BR)</a>
 </p>
 
+<p align="center">
+  🎉 <strong>ZPan v2 is here.</strong> To celebrate, we're giving away ZPan Pro three ways — for early stargazers, contributors, and new stars. See <a href="docs/v2-launch-offers.md"><strong>v2 Launch Offers</strong></a>.
+</p>
+
 ## What is ZPan?
 
 ZPan is a lightweight file hosting platform built on top of S3-compatible storage. Files upload directly from the client to S3 through presigned URLs, bypassing server bandwidth entirely. The server is the control plane: auth, metadata, shares, quotas, teams, WebDAV, tool integrations, and admin operations.
@@ -155,6 +159,7 @@ After startup:
 
 ## Documentation
 
+- [v2 Launch Offers](docs/v2-launch-offers.md) — earn ZPan Pro for free
 - [Roadmap](V2_ROADMAP.md)
 - [Contributing](CONTRIBUTING.md)
 
