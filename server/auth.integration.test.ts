@@ -522,7 +522,8 @@ describe('sendInvitationEmail — buildInvitationEmailHtml via invite-member wit
 
     const res = await ctx.app.request('/api/auth/organization/invite-member', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      // Cookie-bearing requests must carry an Origin, like real browser requests
+      headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: 'http://localhost:3000' },
       body: JSON.stringify({ email: 'invitee@example.com', role: 'member', organizationId: orgId }),
     })
     expect(res.status).toBe(200)
@@ -547,7 +548,7 @@ describe('sendInvitationEmail — buildInvitationEmailHtml via invite-member wit
 
     await ctx.app.request('/api/auth/organization/invite-member', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: 'http://localhost:3000' },
       body: JSON.stringify({ email: 'newmember@example.com', role: 'member', organizationId: orgId }),
     })
 
@@ -698,5 +699,35 @@ describe('OAuth username generation — before hook', () => {
       .where(eq(authSchema.user.id, body.user.id))
     // "a_b" sanitizes to "ab" (2 chars) → appends random suffix
     expect(row.username).toMatch(/^ab-[a-z0-9]{6}$/)
+  })
+})
+
+describe('origin check — loopback and LAN origins are trusted without config', () => {
+  // better-auth only enforces the Origin check on requests that carry cookies,
+  // so attach a dummy cookie to make validateOrigin run.
+  async function signInWithOrigin(ctx: TestCtx, origin: string) {
+    return ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin, Cookie: 'zp.dummy=1' },
+      body: JSON.stringify({ email: 'origin@example.com', password: 'password123456' }),
+    })
+  }
+
+  it.each([
+    'http://127.0.0.1:3000',
+    'http://192.168.1.50:3000',
+    'http://10.0.0.5:8080',
+  ])('allows sign-in with Origin %s when TRUSTED_ORIGINS is not set', async (origin) => {
+    const ctx = await createTestApp()
+    await signUp(ctx, 'origin@example.com')
+    const res = await signInWithOrigin(ctx, origin)
+    expect(res.status).toBe(200)
+  })
+
+  it('still rejects sign-in from an unknown public origin', async () => {
+    const ctx = await createTestApp()
+    await signUp(ctx, 'origin@example.com')
+    const res = await signInWithOrigin(ctx, 'https://evil.example.com')
+    expect(res.status).toBe(403)
   })
 })

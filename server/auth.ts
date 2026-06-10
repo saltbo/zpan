@@ -21,6 +21,7 @@ import {
 } from '../shared/oauth-providers'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
+import { isLocalNetworkOrigin } from './lib/local-origin'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
@@ -148,9 +149,20 @@ export async function createAuth(
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
     baseURL,
-    trustedOrigins,
+    // Function form: better-auth merges the result with baseURL per request.
+    // Loopback/LAN origins are trusted automatically so self-hosted users can
+    // log in via 127.0.0.1 or a LAN IP without configuring TRUSTED_ORIGINS.
+    trustedOrigins: (request?: Request) => {
+      const origin = request?.headers.get('origin')
+      const list = trustedOrigins ?? []
+      return origin && isLocalNetworkOrigin(origin) ? [...list, origin] : list
+    },
     advanced: {
       cookiePrefix: 'zp',
+      // Explicitly enable the origin check (production default). Without this,
+      // better-auth silently disables it under NODE_ENV=test, so tests would
+      // never exercise the real CSRF/origin behavior.
+      disableOriginCheck: false,
     },
     emailAndPassword: {
       enabled: true,

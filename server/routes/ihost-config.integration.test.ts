@@ -48,7 +48,7 @@ async function insertMember(db: TestDb, organizationId: string, userId: string, 
 async function setActiveOrg(app: TestApp, cookies: string, orgId: string): Promise<string> {
   const res = await app.request('/api/auth/organization/set-active', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookies },
+    headers: { 'Content-Type': 'application/json', Cookie: cookies, Origin: 'http://localhost:3000' },
     body: JSON.stringify({ organizationId: orgId }),
   })
   const setCookies = res.headers.getSetCookie()

@@ -579,7 +579,7 @@ export async function adminHeaders(app: ReturnType<typeof createApp>) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: 'admin@example.com', password: 'password123456' }),
   })
-  return { Cookie: signInRes.headers.getSetCookie().join('; ') }
+  return { Cookie: signInRes.headers.getSetCookie().join('; '), Origin: 'http://localhost:3000' }
 }
 
 export async function authedHeaders(
@@ -593,7 +593,9 @@ export async function authedHeaders(
     body: JSON.stringify({ name: 'Test User', email, password }),
   })
   const cookies = signUpRes.headers.getSetCookie()
-  return { Cookie: cookies.join('; ') }
+  // Origin matches the test app's baseURL: cookie-bearing requests to
+  // better-auth endpoints fail the origin check without it, like in a browser
+  return { Cookie: cookies.join('; '), Origin: 'http://localhost:3000' }
 }
 
 const { secretKey: TEST_LICENSE_SECRET, publicKey: TEST_LICENSE_PUBLIC } = generateKeys('public')

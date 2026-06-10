@@ -122,6 +122,7 @@ async function setActiveOrg(app: TestApp, cookies: string, orgId: string): Promi
     headers: {
       'Content-Type': 'application/json',
       Cookie: cookies,
+      Origin: 'http://localhost:3000',
     },
     body: JSON.stringify({ organizationId: orgId }),
   })

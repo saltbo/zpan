@@ -336,7 +336,7 @@ describe('Auth API', () => {
 
     const createRes = await app.request('/api/auth/organization/create', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: 'http://localhost:3000' },
       body: JSON.stringify({ name: 'Team Quota', slug: 'team-quota' }),
     })
     expect(createRes.status).toBe(200)
