@@ -11,6 +11,7 @@ import {
   UploadPartCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { attachmentContentDisposition } from '../../shared/content-disposition'
 import type { Storage } from '../../shared/types'
 
 const DEFAULT_EXPIRES_IN = 3600
@@ -51,11 +52,7 @@ export class S3Service {
       Bucket: storage.bucket,
       Key: key,
       ContentType: contentType,
-      ...(filename
-        ? {
-            ContentDisposition: `attachment; filename="${filename.replace(/"/g, '\\"')}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
-          }
-        : {}),
+      ...(filename ? { ContentDisposition: attachmentContentDisposition(filename) } : {}),
     })
     const url = await getSignedUrl(client, command, { expiresIn: ttl })
     return url
@@ -148,7 +145,7 @@ export class S3Service {
     const command = new GetObjectCommand({
       Bucket: storage.bucket,
       Key: key,
-      ResponseContentDisposition: `attachment; filename="${filename.replace(/"/g, '\\"')}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      ResponseContentDisposition: attachmentContentDisposition(filename),
     })
     const url = await getSignedUrl(client, command, { expiresIn })
     return this.applyCustomHost(storage, url)

@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { DirType } from '../../shared/constants'
+import { attachmentContentDisposition } from '../../shared/content-disposition'
 import {
   copyMatterSchema,
   createMatterSchema,
@@ -177,7 +178,7 @@ const app = new Hono<Env>()
         userId: actorId,
       })
       if (isFolder) return c.json(matter, 201)
-      const contentDisposition = `attachment; filename="${name.replace(/"/g, '\\"')}"; filename*=UTF-8''${encodeURIComponent(name)}`
+      const contentDisposition = attachmentContentDisposition(name)
       const uploadUrl = await s3.presignUpload(storage, objectKey, type, name)
       return c.json({ ...matter, uploadUrl, contentDisposition }, 201)
     } catch (e) {
