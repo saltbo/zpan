@@ -431,7 +431,7 @@ export function SettingsPage() {
         <StorageSettingsSection
           quotaUnit={quotaUnit}
           quotaError={form.formState.errors.quotaValue?.message}
-          quotaInputProps={form.register('quotaValue')}
+          quotaInputProps={form.register('quotaValue', { valueAsNumber: true })}
           pending={storageMutation.isPending}
           onQuotaUnitChange={(unit) => form.setValue('quotaUnit', unit)}
           onSave={() => storageMutation.mutate()}

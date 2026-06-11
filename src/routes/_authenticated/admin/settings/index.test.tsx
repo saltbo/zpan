@@ -159,6 +159,22 @@ describe('SettingsPage', () => {
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
   })
 
+  it('saves a newly typed quota value as bytes', async () => {
+    const view = renderSettingsPage()
+
+    const quotaInput = await view.findByLabelText('admin.settings.defaultOrgQuota')
+    await waitFor(() => expect(quotaInput).toHaveProperty('value', '1'))
+    fireEvent.change(quotaInput, { target: { value: '5' } })
+
+    const storageSection = view.getByText('admin.settings.storageSection').closest('[data-slot="card"]')
+    if (!storageSection) throw new Error('storage section not found')
+    fireEvent.click(within(storageSection as HTMLElement).getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('default_org_quota', '5368709120', false))
+    expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('saves captcha settings from the authentication protection section', async () => {
     const view = renderSettingsPage()
 
