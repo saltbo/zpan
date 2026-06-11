@@ -128,6 +128,8 @@ export class ApiError extends Error {
   }
 }
 
+const SESSION_REQUEST_TIMEOUT_MS = 10_000
+
 export interface NameConflictBody extends ApiErrorBody {
   code: 'NAME_CONFLICT'
   conflictingName: string
@@ -1051,9 +1053,22 @@ export function disconnectCloud() {
 
 // Auth API — Better Auth passthrough, not typed via Hono RPC
 export async function getSession(): Promise<{ session: unknown; user: unknown } | null> {
-  const res = await fetch('/api/auth/get-session', { credentials: 'include' })
-  if (!res.ok) return null
-  return res.json()
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), SESSION_REQUEST_TIMEOUT_MS)
+
+  try {
+    const res = await fetch('/api/auth/get-session', { credentials: 'include', signal: controller.signal })
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as ApiErrorBody
+      throw new ApiError(res.status, body)
+    }
+    return res.json()
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('Session request timed out')
+    throw error
+  } finally {
+    window.clearTimeout(timeout)
+  }
 }
 
 export interface UploadProgress {

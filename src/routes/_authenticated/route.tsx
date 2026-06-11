@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect, useMatchRoute } from '@tanstack/react-router'
 import { SiteAnnouncements } from '@/components/announcements/site-announcements'
+import { SessionGateError, SessionGatePending } from '@/components/auth/session-gate'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { GlobalSearchBar } from '@/components/layout/global-search-bar'
 import { MusicPlayerButton } from '@/components/music/music-player-button'
@@ -17,6 +18,8 @@ export const Route = createFileRoute('/_authenticated')({
     }
     return { user: data.user }
   },
+  pendingComponent: SessionGatePending,
+  errorComponent: SessionGateError,
   component: AuthenticatedLayout,
 })
 

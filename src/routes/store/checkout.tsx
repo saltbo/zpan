@@ -2,6 +2,7 @@ import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SessionGateError, SessionGatePending } from '@/components/auth/session-gate'
 import { Button } from '@/components/ui/button'
 import {
   ApiError,
@@ -30,6 +31,8 @@ export const Route = createFileRoute('/store/checkout')({
       throw redirect({ to: '/sign-in', search: { redirect: redirectUrl } as never })
     }
   },
+  pendingComponent: SessionGatePending,
+  errorComponent: SessionGateError,
   component: StorageCheckoutPage,
 })
 

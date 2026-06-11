@@ -1616,14 +1616,32 @@ describe('api', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/auth/get-session')
       expect(init.credentials).toBe('include')
+      expect(init.signal).toBeInstanceOf(AbortSignal)
     })
 
-    it('returns null when response is not ok', async () => {
+    it('throws ApiError when response is not ok', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
 
-      const result = await getSession()
+      const promise = getSession()
 
-      expect(result).toBeNull()
+      await expect(promise).rejects.toMatchObject({ name: 'ApiError', status: 401 })
+    })
+
+    it('aborts and throws when the session request times out', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockImplementationOnce(
+        (_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+          }),
+      )
+
+      const promise = getSession()
+      const assertion = expect(promise).rejects.toThrow('Session request timed out')
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      await assertion
+      vi.useRealTimers()
     })
   })
 

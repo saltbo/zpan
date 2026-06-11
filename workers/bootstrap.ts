@@ -16,11 +16,6 @@ interface Env {
   [key: string]: unknown
 }
 
-// Cache auth instance at isolate scope to avoid per-request DB queries
-// for OIDC config loading. Changes to OIDC provider configs or env vars
-// (BETTER_AUTH_URL, TRUSTED_ORIGINS) take effect on isolate recycle.
-let cachedAuth: Auth | null = null
-
 const SHARE_TOKEN_RE = /^\/s\/([^/?#]+)/
 
 export default {
@@ -30,24 +25,21 @@ export default {
       throw new Error('BETTER_AUTH_SECRET is not configured for this deployment.')
     }
     const platform = createCloudflarePlatform(env)
-
-    if (!cachedAuth) {
-      const origin = new URL(request.url).origin
-      const baseURL = env.BETTER_AUTH_URL || origin
-      const trustedOrigins = env.TRUSTED_ORIGINS?.split(',')
-        .map((o) => o.trim())
-        .filter(Boolean) || [origin]
-      cachedAuth = await createAuth(platform, BETTER_AUTH_SECRET, baseURL, trustedOrigins)
-    }
+    const origin = new URL(request.url).origin
+    const baseURL = env.BETTER_AUTH_URL || origin
+    const trustedOrigins = env.TRUSTED_ORIGINS?.split(',')
+      .map((o) => o.trim())
+      .filter(Boolean) || [origin]
+    const auth = await createAuth(platform, BETTER_AUTH_SECRET, baseURL, trustedOrigins)
 
     const url = new URL(request.url)
     const shareMatch = SHARE_TOKEN_RE.exec(url.pathname)
 
     if (shareMatch && request.method === 'GET') {
-      return handleShareSsr(request, env, ctx, shareMatch[1], platform, cachedAuth)
+      return handleShareSsr(request, env, ctx, shareMatch[1], platform, auth)
     }
 
-    return createApp(platform, cachedAuth).fetch(request, env, ctx)
+    return createApp(platform, auth).fetch(request, env, ctx)
   },
 
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
