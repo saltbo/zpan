@@ -1645,6 +1645,74 @@ describe('api', () => {
       await assertion
       vi.useRealTimers()
     })
+
+    it('shares one in-flight request across concurrent callers', async () => {
+      const session = { session: { id: 'sess1' }, user: { id: 'u1' } }
+      let resolveFetch: (res: Response) => void = () => {}
+      vi.mocked(fetch).mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve
+          }),
+      )
+
+      const first = getSession()
+      const second = getSession()
+      resolveFetch(makeResponse(session))
+
+      expect(await first).toEqual(session)
+      expect(await second).toEqual(session)
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+    })
+
+    it('serves a resolved session from cache within the TTL and refetches after it', async () => {
+      vi.useFakeTimers()
+      const session = { session: { id: 'sess1' }, user: { id: 'u1' } }
+      vi.mocked(fetch).mockResolvedValue(makeResponse(session))
+
+      await getSession()
+      await getSession()
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(5_001)
+      await getSession()
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
+      vi.useRealTimers()
+    })
+
+    it('keeps sharing a slow in-flight request past the TTL instead of piling up duplicates', async () => {
+      vi.useFakeTimers()
+      const session = { session: { id: 'sess1' }, user: { id: 'u1' } }
+      let resolveFetch: (res: Response) => void = () => {}
+      vi.mocked(fetch).mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve
+          }),
+      )
+
+      const first = getSession()
+      await vi.advanceTimersByTimeAsync(6_000)
+      const second = getSession()
+      resolveFetch(makeResponse(session))
+
+      expect(await first).toEqual(session)
+      expect(await second).toEqual(session)
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+      vi.useRealTimers()
+    })
+
+    it('does not cache failures — the next call retries', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse({ error: 'unavailable' }, false, 503))
+        .mockResolvedValueOnce(makeResponse({ session: { id: 'sess1' }, user: { id: 'u1' } }))
+
+      await expect(getSession()).rejects.toMatchObject({ name: 'ApiError', status: 503 })
+
+      const result = await getSession()
+      expect(result).toEqual({ session: { id: 'sess1' }, user: { id: 'u1' } })
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
+    })
   })
 
   describe('trashObject', () => {

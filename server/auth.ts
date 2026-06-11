@@ -17,6 +17,7 @@ import {
   BUILTIN_PROVIDER_IDS,
   OAUTH_PROVIDER_KEY_PATTERN,
   OAUTH_PROVIDER_KEY_PREFIX,
+  type OAuthProviderConfig,
   parseProviderConfig,
 } from '../shared/oauth-providers'
 import * as authSchema from './db/auth-schema'
@@ -26,7 +27,7 @@ import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/passwo
 import { createDbProxy, createPlatformProxy } from './platform/context'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
-import { loadCaptchaConfig, toBetterAuthCaptchaOptions } from './services/captcha'
+import { CAPTCHA_AUTH_ENDPOINTS, loadCaptchaConfig, toBetterAuthCaptchaOptions } from './services/captcha'
 import { executeWriteTransaction } from './services/db-transaction'
 import { currentTrafficPeriod } from './services/effective-quota'
 import { isEmailConfigured, sendEmail } from './services/email'
@@ -50,50 +51,45 @@ async function authVerifyPassword({ hash, password }: { hash: string; password: 
   return verifyPasswordHash(hash, password)
 }
 
-async function loadProviderConfig(db: Database, providerId: string) {
-  const rows = await db
-    .select({ value: systemOptions.value })
-    .from(systemOptions)
-    .where(eq(systemOptions.key, `${OAUTH_PROVIDER_KEY_PREFIX}${providerId}`))
-  const raw = rows[0]?.value
-  if (!raw) return null
-  return parseProviderConfig(raw)
+interface ProviderConfigs {
+  oidc: OAuthProviderConfig[]
+  builtin: Array<{ providerId: string; clientId: string; clientSecret: string }>
 }
 
-async function loadOidcConfigs(db: Database) {
+// One query loads every oauth_provider_* row. Configs are snapshotted at auth
+// instance creation: better-auth resolves social providers eagerly during its
+// context init, so per-request dynamic loading is not possible anyway. Admin
+// changes take effect on isolate recycle (CF Workers) or restart (Node).
+async function loadProviderConfigs(db: Database): Promise<ProviderConfigs> {
   const rows = await db
-    .select({ value: systemOptions.value })
+    .select({ key: systemOptions.key, value: systemOptions.value })
     .from(systemOptions)
     .where(like(systemOptions.key, OAUTH_PROVIDER_KEY_PATTERN))
-  const configs = []
-  for (const r of rows) {
-    const c = parseProviderConfig(r.value)
-    if (c && c.type === 'oidc' && c.enabled) configs.push(c)
-  }
-  return configs
-}
 
-// All 35 built-in providers are registered as async functions so better-auth
-// can resolve them on demand. Unconfigured providers return enabled: false
-// and are ignored by the framework.
-function buildDynamicSocialProviders(db: Database) {
-  const providers: Record<string, () => Promise<{ clientId: string; clientSecret: string; enabled: boolean }>> = {}
-  for (const id of BUILTIN_PROVIDER_IDS) {
-    providers[id] = async () => {
-      const config = await loadProviderConfig(db, id)
-      if (!config?.enabled || config.type !== 'builtin') {
-        return { clientId: '', clientSecret: '', enabled: false }
-      }
-      return { clientId: config.clientId, clientSecret: config.clientSecret, enabled: true }
+  const configs: ProviderConfigs = { oidc: [], builtin: [] }
+  for (const row of rows) {
+    const config = parseProviderConfig(row.value)
+    if (!config?.enabled) continue
+    if (config.type === 'oidc') {
+      configs.oidc.push(config)
+      continue
+    }
+    const providerId = row.key.slice(OAUTH_PROVIDER_KEY_PREFIX.length)
+    if (config.type === 'builtin' && BUILTIN_PROVIDER_IDS.includes(providerId)) {
+      configs.builtin.push({ providerId, clientId: config.clientId, clientSecret: config.clientSecret })
     }
   }
-  return providers
+  return configs
 }
 
 function dynamicCaptcha(db: Database): BetterAuthPlugin {
   return {
     id: 'dynamic-captcha',
     onRequest: async (request, ctx) => {
+      // Only captcha-protected endpoints need the config — skip the DB read
+      // for everything else (notably get-session, the hottest auth route).
+      const path = new URL(request.url).pathname
+      if (!CAPTCHA_AUTH_ENDPOINTS.some((endpoint) => path.endsWith(endpoint))) return
       const config = await loadCaptchaConfig(db)
       if (!config) return
       const plugin = captcha(toBetterAuthCaptchaOptions(config))
@@ -153,8 +149,8 @@ export async function createAuth(
 
   const db = dbProxy
   const source = platformProxy || dbProxy
-  const oidcConfigs = await loadOidcConfigs(rawDb)
-  return betterAuth({
+  const providerConfigs = await loadProviderConfigs(rawDb)
+  const auth = betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,
     baseURL,
@@ -197,7 +193,9 @@ export async function createAuth(
         maxAge: 60 * 5,
       },
     },
-    socialProviders: buildDynamicSocialProviders(db),
+    socialProviders: Object.fromEntries(
+      providerConfigs.builtin.map((c) => [c.providerId, { clientId: c.clientId, clientSecret: c.clientSecret }]),
+    ),
     plugins: [
       admin(),
       organization({
@@ -296,7 +294,7 @@ export async function createAuth(
       username(),
       dynamicCaptcha(db),
       genericOAuth({
-        config: oidcConfigs.map((c) => ({
+        config: providerConfigs.oidc.map((c) => ({
           providerId: c.providerId,
           clientId: c.clientId,
           clientSecret: c.clientSecret,
@@ -468,6 +466,14 @@ export async function createAuth(
       },
     },
   })
+
+  // betterAuth() starts its lazy $context init synchronously, inside whichever
+  // request constructs the instance. Resolve it here so a cached instance never
+  // carries a pending promise tied to its creating request — on Cloudflare
+  // Workers such a promise never settles when awaited from a later request,
+  // which would hang every auth call in the isolate.
+  await auth.$context
+  return auth
 }
 
 export type Auth = Awaited<ReturnType<typeof createAuth>>

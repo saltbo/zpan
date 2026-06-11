@@ -19,9 +19,12 @@ interface Env {
 
 const SHARE_TOKEN_RE = /^\/s\/([^/?#]+)/
 
-// Cache auth instance at isolate scope to avoid per-request DB queries
-// for OIDC config loading. Changes to OIDC provider configs or env vars
-// (BETTER_AUTH_URL, TRUSTED_ORIGINS) take effect on isolate recycle.
+// Cache auth instance at isolate scope to avoid per-request DB queries and
+// better-auth init CPU. createAuth resolves $context before returning, so the
+// cached instance never carries a pending promise tied to its creating request
+// (which would hang every later auth call in the isolate). Changes to OAuth
+// provider configs or env vars (BETTER_AUTH_URL, TRUSTED_ORIGINS) take effect
+// on isolate recycle.
 let cachedAuth: Auth | null = null
 
 export default {

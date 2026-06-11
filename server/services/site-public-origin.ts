@@ -4,8 +4,16 @@ import type { Database } from '../platform/interface'
 
 export const SITE_PUBLIC_ORIGIN_KEY = 'site_public_origin'
 
-const ensuredOrigins = new WeakMap<object, string>()
-const ensurePromises = new WeakMap<object, Promise<EnsureSitePublicOriginResult>>()
+// Resolved origin, cached for the lifetime of the isolate/process. Only the
+// settled value is cached — never a pending promise, which on Cloudflare
+// Workers would hang any request that awaited it after its creating request
+// ended. One worker serves one site, so a single slot is enough; staleness is
+// harmless because the middleware only acts when the row is first created.
+let cachedOrigin: string | null = null
+
+export function resetSitePublicOriginCache() {
+  cachedOrigin = null
+}
 
 export interface EnsureSitePublicOriginResult {
   origin: string | null
@@ -23,36 +31,26 @@ export async function getSitePublicOrigin(db: Database): Promise<string | null> 
 }
 
 export async function ensureSitePublicOrigin(db: Database, requestUrl: string): Promise<EnsureSitePublicOriginResult> {
-  const cached = ensuredOrigins.get(db)
-  if (cached) return { origin: cached, created: false }
-  const pending = ensurePromises.get(db)
-  if (pending) return pending
+  if (cachedOrigin) return { origin: cachedOrigin, created: false }
 
-  const promise = ensureSitePublicOriginUncached(db, requestUrl).finally(() => {
-    ensurePromises.delete(db)
-  })
-  ensurePromises.set(db, promise)
-
-  return promise
-}
-
-async function ensureSitePublicOriginUncached(db: Database, requestUrl: string): Promise<EnsureSitePublicOriginResult> {
   const existing = await getSitePublicOrigin(db)
   if (existing) {
-    ensuredOrigins.set(db, existing)
+    cachedOrigin = existing
     return { origin: existing, created: false }
   }
 
   const origin = originFromRequestUrl(requestUrl)
   if (!origin) return { origin: null, created: false }
 
+  // Concurrent first requests may race here; onConflictDoNothing makes the
+  // insert idempotent and the re-read below settles on the winning value.
   await db
     .insert(systemOptions)
     .values({ key: SITE_PUBLIC_ORIGIN_KEY, value: origin, public: false })
     .onConflictDoNothing({ target: systemOptions.key })
 
   const saved = await getSitePublicOrigin(db)
-  if (saved) ensuredOrigins.set(db, saved)
+  if (saved) cachedOrigin = saved
   return { origin: saved, created: saved === origin }
 }
 

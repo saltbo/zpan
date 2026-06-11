@@ -8,6 +8,7 @@ import { createAuth } from '../auth'
 import * as authSchema from '../db/auth-schema'
 import * as schema from '../db/schema'
 import type { Platform } from '../platform/interface'
+import { resetSitePublicOriginCache } from '../services/site-public-origin'
 
 const AUTH_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS user (
@@ -554,6 +555,10 @@ export async function createTestApp(
   envOverrides: Record<string, string> = {},
   bindingOverrides: Record<string, unknown> = {},
 ) {
+  // Each test app is a brand-new site; drop origin state cached by a previous
+  // app in the same test file.
+  resetSitePublicOriginCache()
+
   const sqlite = new Database(':memory:')
   sqlite.exec(AUTH_SCHEMA_SQL)
   sqlite.exec(APP_SCHEMA_SQL)

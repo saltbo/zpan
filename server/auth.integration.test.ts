@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import { createApp } from './app.js'
 import { createAuth } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
@@ -348,7 +349,7 @@ describe('buildVerificationEmailHtml — via send-verification-email with email_
   })
 })
 
-describe('loadOidcConfigs — createAuth with OIDC provider pre-configured', () => {
+describe('loadProviderConfigs — createAuth with OIDC provider pre-configured', () => {
   it('createAuth succeeds when a valid enabled OIDC provider config is present', async () => {
     const ctx = await createTestApp()
     const oidcConfig = JSON.stringify({
@@ -388,17 +389,15 @@ describe('loadOidcConfigs — createAuth with OIDC provider pre-configured', () 
   })
 })
 
-describe('loadProviderConfig — builtin social provider resolution', () => {
-  it('social sign-in with an unconfigured provider returns non-200 (provider not enabled)', async () => {
+describe('loadProviderConfigs — builtin social provider resolution', () => {
+  it('social sign-in with an unconfigured provider returns non-200 (provider not registered)', async () => {
     const ctx = await createTestApp()
-    // Trigger the lazy provider resolver by initiating social sign-in.
-    // With no config in DB the provider returns enabled:false.
+    // With no config in DB the provider is not registered with better-auth.
     const res = await ctx.app.request('/api/auth/sign-in/social', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider: 'github', callbackURL: 'http://localhost:3000/callback' }),
     })
-    // better-auth returns an error because the provider is disabled
     expect(res.status).not.toBe(200)
   })
 
@@ -412,14 +411,44 @@ describe('loadProviderConfig — builtin social provider resolution', () => {
       enabled: true,
     })
     await ctx.db.insert(schema.systemOptions).values({ key: 'oauth_provider_github', value: builtinConfig })
-    // Trigger social sign-in — this calls the async provider loader which hits loadProviderConfig
-    const res = await ctx.app.request('/api/auth/sign-in/social', {
+    // Provider configs are snapshotted when the auth instance is created —
+    // build a fresh auth/app that sees the seeded config.
+    const auth = await createAuth(ctx.platform, 'test-secret', 'http://localhost:3000')
+    const app = createApp(ctx.platform, auth)
+    const res = await app.request('/api/auth/sign-in/social', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider: 'github', callbackURL: 'http://localhost:3000/callback' }),
     })
     // With a valid enabled provider, better-auth returns a redirect (302) to the OAuth provider
     expect([200, 302]).toContain(res.status)
+  })
+
+  it('createAuth runs exactly one DB query during init (no per-provider I/O)', async () => {
+    const ctx = await createTestApp()
+    let selectCalls = 0
+    const countingDb = new Proxy(ctx.db, {
+      get(target, prop, receiver) {
+        if (prop === 'select') selectCalls++
+        const val = Reflect.get(target, prop, receiver)
+        return typeof val === 'function' ? val.bind(target) : val
+      },
+    })
+    await createAuth(countingDb as typeof ctx.db, 'test-secret', 'http://localhost:3000')
+    expect(selectCalls).toBe(1)
+  })
+
+  it('createAuth resolves better-auth $context before returning', async () => {
+    // A cached auth instance must never carry a pending init promise: on
+    // Cloudflare Workers a promise created in one request never settles when
+    // awaited from another, hanging every auth call in the isolate.
+    const ctx = await createTestApp()
+    let settled = false
+    void ctx.auth.$context.then(() => {
+      settled = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(settled).toBe(true)
   })
 })
 
