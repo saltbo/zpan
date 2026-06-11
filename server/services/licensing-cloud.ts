@@ -203,7 +203,10 @@ export async function unbindCloudLicense(baseUrl: string, licenseId: string, ref
 // page can resolve to success instead of claiming success the moment it approves.
 export async function confirmCloudLicense(baseUrl: string, licenseId: string, refreshToken: string): Promise<void> {
   const res = await cloudResponse(
-    createBoundCloudClient(baseUrl, refreshToken).licenses[':id'].confirm.$post({ param: { id: licenseId } }),
+    createBoundCloudClient(baseUrl, refreshToken).licenses[':id'].$patch({
+      param: { id: licenseId },
+      json: { status: 'confirmed' },
+    }),
   )
 
   if (!res.ok) {
