@@ -214,9 +214,12 @@ describe('GET /api/licensing/pair/:code/poll', () => {
     const state = await loadLicenseState(db)
     expect(state.refreshToken).toBe('pair-rt')
     expect(state.cachedCert).toBe(certificate)
-    // Poll + confirm.
+    // Poll + confirm (PATCH /licenses/:id { status: 'confirmed' }).
     expect(vi.mocked(fetch).mock.calls).toHaveLength(2)
-    expect(String(vi.mocked(fetch).mock.calls.at(-1)?.[0])).toContain('bind-1/confirm')
+    const [confirmUrl, confirmInit] = vi.mocked(fetch).mock.calls.at(-1) as [string, RequestInit]
+    expect(String(confirmUrl)).toContain('/licenses/bind-1')
+    expect(confirmInit.method).toBe('PATCH')
+    expect(JSON.parse(confirmInit.body as string)).toEqual({ status: 'confirmed' })
   })
 
   it('rejects approved responses with an invalid certificate', async () => {
