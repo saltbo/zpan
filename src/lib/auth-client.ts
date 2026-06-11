@@ -7,14 +7,27 @@ export const authClient = createAuthClient({
   plugins: [usernameClient(), organizationClient(), apiKeyClient(), deviceAuthorizationClient()],
 })
 
-export const { signIn, signUp, signOut, useSession } = authClient
+import { clearSessionCache } from './api'
+
+export const { signIn, signUp, useSession } = authClient
+
+// biome-ignore lint/suspicious/noExplicitAny: generic wrapping requires any
+function wrapAuthFunction<T extends (...args: any[]) => any>(fn: T): T {
+  return new Proxy(fn, {
+    apply(target, thisArg, argArray) {
+      clearSessionCache()
+      return Reflect.apply(target, thisArg, argArray)
+    },
+  }) as unknown as T
+}
+
+export const signOut = wrapAuthFunction(authClient.signOut)
 
 export const {
   organization: {
     create: createOrganization,
     list: listOrganizations,
     getFullOrganization,
-    setActive,
     inviteMember,
     removeMember,
     updateMemberRole,
@@ -22,6 +35,8 @@ export const {
   useListOrganizations,
   useActiveOrganization,
 } = authClient
+
+export const setActive = wrapAuthFunction(authClient.organization.setActive)
 
 type DeviceStatus = 'pending' | 'approved' | 'denied'
 type AuthFetchResult<T> = { data?: T | null; error?: { message?: string } | null }

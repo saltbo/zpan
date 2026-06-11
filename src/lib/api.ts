@@ -1051,24 +1051,46 @@ export function disconnectCloud() {
   return unwrap<{ deleted: boolean }>(licensingAdminApi.binding.$delete())
 }
 
+let sessionPromise: Promise<{ session: unknown; user: unknown } | null> | null = null
+let sessionCacheTime = 0
+const SESSION_CACHE_TTL_MS = 5000 // 5 seconds
+
+export function clearSessionCache() {
+  sessionPromise = null
+  sessionCacheTime = 0
+}
+
 // Auth API — Better Auth passthrough, not typed via Hono RPC
 export async function getSession(): Promise<{ session: unknown; user: unknown } | null> {
-  const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), SESSION_REQUEST_TIMEOUT_MS)
-
-  try {
-    const res = await fetch('/api/auth/get-session', { credentials: 'include', signal: controller.signal })
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as ApiErrorBody
-      throw new ApiError(res.status, body)
-    }
-    return res.json()
-  } catch (error) {
-    if (controller.signal.aborted) throw new Error('Session request timed out')
-    throw error
-  } finally {
-    window.clearTimeout(timeout)
+  const now = Date.now()
+  if (sessionPromise && now - sessionCacheTime < SESSION_CACHE_TTL_MS) {
+    return sessionPromise
   }
+
+  sessionCacheTime = now
+  sessionPromise = (async () => {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), SESSION_REQUEST_TIMEOUT_MS)
+
+    try {
+      const res = await fetch('/api/auth/get-session', { credentials: 'include', signal: controller.signal })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as ApiErrorBody
+        throw new ApiError(res.status, body)
+      }
+      return res.json()
+    } catch (error) {
+      // Don't cache failures
+      sessionPromise = null
+      sessionCacheTime = 0
+      if (controller.signal.aborted) throw new Error('Session request timed out')
+      throw error
+    } finally {
+      window.clearTimeout(timeout)
+    }
+  })()
+
+  return sessionPromise
 }
 
 export interface UploadProgress {

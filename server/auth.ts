@@ -23,6 +23,7 @@ import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { isLocalNetworkOrigin } from './lib/local-origin'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
+import { createDbProxy, createPlatformProxy } from './platform/context'
 import type { Database, Platform } from './platform/interface'
 import { recordActivity } from './services/activity'
 import { loadCaptchaConfig, toBetterAuthCaptchaOptions } from './services/captcha'
@@ -138,13 +139,21 @@ function buildVerificationEmailHtml(url: string): string {
 }
 
 export async function createAuth(
-  source: Database | Platform,
+  initialSource: Database | Platform,
   secret: string,
   baseURL?: string,
   trustedOrigins?: string[],
 ) {
-  const db = 'db' in source ? source.db : source
-  const oidcConfigs = await loadOidcConfigs(db)
+  const isPlatform = 'db' in initialSource
+  const rawPlatform = isPlatform ? initialSource : null
+  const rawDb = isPlatform ? initialSource.db : initialSource
+
+  const platformProxy = rawPlatform ? createPlatformProxy(rawPlatform) : null
+  const dbProxy = platformProxy ? platformProxy.db : createDbProxy(rawDb)
+
+  const db = dbProxy
+  const source = platformProxy || dbProxy
+  const oidcConfigs = await loadOidcConfigs(rawDb)
   return betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     secret,

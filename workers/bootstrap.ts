@@ -2,6 +2,7 @@ import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
+import { platformContext } from '../server/platform/context'
 import { type ArchiveJobMessage, runArchiveJobMessage } from '../server/services/archive-jobs'
 import { resolveShareByToken } from '../server/services/share'
 import { DirType } from '../shared/constants'
@@ -18,6 +19,11 @@ interface Env {
 
 const SHARE_TOKEN_RE = /^\/s\/([^/?#]+)/
 
+// Cache auth instance at isolate scope to avoid per-request DB queries
+// for OIDC config loading. Changes to OIDC provider configs or env vars
+// (BETTER_AUTH_URL, TRUSTED_ORIGINS) take effect on isolate recycle.
+let cachedAuth: Auth | null = null
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { BETTER_AUTH_SECRET } = env
@@ -30,16 +36,21 @@ export default {
     const trustedOrigins = env.TRUSTED_ORIGINS?.split(',')
       .map((o) => o.trim())
       .filter(Boolean) || [origin]
-    const auth = await createAuth(platform, BETTER_AUTH_SECRET, baseURL, trustedOrigins)
 
-    const url = new URL(request.url)
-    const shareMatch = SHARE_TOKEN_RE.exec(url.pathname)
-
-    if (shareMatch && request.method === 'GET') {
-      return handleShareSsr(request, env, ctx, shareMatch[1], platform, auth)
+    if (!cachedAuth) {
+      cachedAuth = await createAuth(platform, BETTER_AUTH_SECRET, baseURL, trustedOrigins)
     }
 
-    return createApp(platform, auth).fetch(request, env, ctx)
+    return platformContext.run(platform, async () => {
+      const url = new URL(request.url)
+      const shareMatch = SHARE_TOKEN_RE.exec(url.pathname)
+
+      if (shareMatch && request.method === 'GET') {
+        return handleShareSsr(request, env, ctx, shareMatch[1], platform, cachedAuth!)
+      }
+
+      return createApp(platform, cachedAuth!).fetch(request, env, ctx)
+    })
   },
 
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {

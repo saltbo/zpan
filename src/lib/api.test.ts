@@ -7,6 +7,7 @@ import {
   cancelBackgroundJob,
   cancelCloudOrder,
   cancelUpload,
+  clearSessionCache,
   confirmIhostImage,
   confirmUpload,
   connectCloud,
@@ -136,6 +137,7 @@ function makeResponse(body: unknown, ok = true, status = 200): Response {
 describe('api', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    clearSessionCache()
   })
 
   afterEach(() => {
