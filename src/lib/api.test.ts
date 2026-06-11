@@ -17,6 +17,7 @@ import {
   createBackgroundJob,
   createCloudBillingPortalSession,
   createCloudCheckout,
+  createDiscountQuote,
   createDownloadTask,
   createIhostApiKey,
   createIhostImagePresign,
@@ -413,6 +414,38 @@ describe('api', () => {
       expect(JSON.parse(calls[4][1].body as string)).toEqual({ status: 'canceled' })
     })
 
+    it('sends the promotion code in the checkout body when provided', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ orderId: 'order-1', url: 'https://cloud.example/checkout' }),
+      )
+
+      const result = await createCloudCheckout('pkg-1', 'price-usd', 'SAVE10')
+
+      expect(result).toEqual({ orderId: 'order-1', url: 'https://cloud.example/checkout' })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/store/checkouts')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({
+        packageId: 'pkg-1',
+        priceId: 'price-usd',
+        promotionCode: 'SAVE10',
+      })
+    })
+
+    it('creates a discount quote for a price and code', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ code: 'SAVE10', currency: 'usd', subtotal: 9900, discount: 990, total: 8910 }),
+      )
+
+      const quote = await createDiscountQuote('SAVE10', 'price-usd')
+
+      expect(quote).toEqual({ code: 'SAVE10', currency: 'usd', subtotal: 9900, discount: 990, total: 8910 })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/store/discount-quotes')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ code: 'SAVE10', priceId: 'price-usd' })
+    })
+
     it.each([
       ['listCloudProducts', () => listCloudProducts()],
       ['listCloudStoreTargets', () => listCloudStoreTargets()],
@@ -420,6 +453,7 @@ describe('api', () => {
       ['listCloudCreditLedgerEntries', () => listCloudCreditLedgerEntries()],
       ['redeemCloudGiftCard', () => redeemCloudGiftCard('GIFT-123')],
       ['createCloudCheckout', () => createCloudCheckout('pkg-1')],
+      ['createDiscountQuote', () => createDiscountQuote('SAVE10', 'price-usd')],
       ['listCloudOrders', () => listCloudOrders()],
     ])('throws ApiError for %s failures', async (_name, call) => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'quota store failed' }, false, 400))

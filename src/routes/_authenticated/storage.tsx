@@ -1,8 +1,10 @@
+import type { CloudProduct } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { CheckoutConfirmDialog, type CheckoutSelection } from '@/components/store/checkout-confirm-dialog'
 import {
   CreditBalanceButton,
   CurrentPlanCard,
@@ -39,10 +41,11 @@ export const Route = createFileRoute('/_authenticated/storage')({
 })
 
 export function StoragePage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [checkoutRefreshActive, setCheckoutRefreshActive] = useState(false)
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null)
+  const [checkoutSelection, setCheckoutSelection] = useState<CheckoutSelection | null>(null)
   const { data: activeOrg } = useActiveOrganization()
   const cloudStoreQuery = useQuery({
     queryKey: ['cloud-store', 'packages'],
@@ -130,8 +133,18 @@ export function StoragePage() {
     },
   })
 
-  function startCheckout(packageId: string, priceId: string) {
-    openCheckoutTab({ action: 'checkout', packageId, priceId })
+  function requestCheckout(packageId: string, priceId: string) {
+    const products = [...(cloudStoreQuery.data?.items ?? []), ...(creditProductsQuery.data?.items ?? [])]
+    const selection = resolveCheckoutSelection(products, packageId, priceId)
+    if (!selection) {
+      startCheckout(packageId, priceId)
+      return
+    }
+    setCheckoutSelection(selection)
+  }
+
+  function startCheckout(packageId: string, priceId: string, promotionCode?: string) {
+    openCheckoutTab({ action: 'checkout', packageId, priceId, promotionCode })
     setCheckoutRefreshActive(true)
     queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
     queryClient.invalidateQueries({ queryKey: ['cloud-store', 'orders'] })
@@ -183,7 +196,7 @@ export function StoragePage() {
             entries={creditLedgerQuery.data?.items ?? []}
             loading={creditLedgerQuery.isLoading}
             onRedeem={(code) => redeemMutation.mutate(code)}
-            onCheckout={startCheckout}
+            onCheckout={requestCheckout}
             isRedeeming={redeemMutation.isPending}
             checkoutDisabled={!targetOrgId}
           />
@@ -218,7 +231,7 @@ export function StoragePage() {
           packages={cloudStoreQuery.data?.items ?? []}
           disabled={!targetOrgId}
           currentPlan={quotaQuery.data?.currentPlan ?? null}
-          onCheckout={startCheckout}
+          onCheckout={requestCheckout}
           onManagePlan={managePlan}
         />
       </div>
@@ -238,12 +251,19 @@ export function StoragePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CheckoutConfirmDialog
+        key={checkoutSelection?.priceId ?? 'none'}
+        selection={checkoutSelection}
+        language={i18n.resolvedLanguage ?? 'en'}
+        onOpenChange={(open) => !open && setCheckoutSelection(null)}
+        onConfirm={startCheckout}
+      />
     </div>
   )
 }
 
 type CheckoutTabInput =
-  | { action: 'checkout'; packageId: string; priceId: string }
+  | { action: 'checkout'; packageId: string; priceId: string; promotionCode?: string }
   | { action: 'payment'; orderId: string }
   | { action: 'portal' }
 
@@ -252,9 +272,29 @@ function openCheckoutTab(input: CheckoutTabInput) {
   if (input.action === 'checkout') {
     search.set('packageId', input.packageId)
     search.set('priceId', input.priceId)
+    if (input.promotionCode) search.set('promotionCode', input.promotionCode)
   }
   if (input.action === 'payment') search.set('orderId', input.orderId)
   openNewTab(`/store/checkout?${search.toString()}`)
+}
+
+function resolveCheckoutSelection(
+  products: CloudProduct[],
+  packageId: string,
+  priceId: string,
+): CheckoutSelection | null {
+  const product = products.find((item) => item.id === packageId)
+  const price = product?.prices.find((item) => item.id === priceId)
+  if (!product || !price) return null
+  const interval = price.recurring?.interval
+  return {
+    packageId,
+    priceId,
+    productName: product.name,
+    amount: price.amount,
+    currency: price.currency,
+    interval: interval === 'month' || interval === 'year' ? interval : null,
+  }
 }
 
 function isCloudStoreDisabledError(error: unknown) {

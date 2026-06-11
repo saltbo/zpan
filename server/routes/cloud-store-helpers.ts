@@ -1,5 +1,6 @@
 import {
   cloudOrderSchema,
+  discountQuoteSchema,
   giftCardStatusSchema,
   cloudOrdersResponseSchema as zpanCloudOrdersResponseSchema,
 } from '@shared/schemas'
@@ -29,6 +30,7 @@ export const cloudPackageResponseSchema = commerceProductSchema
 export const cloudPackageListResponseSchema = productListResponseSchema
 export const cloudOrdersResponseSchema = zpanCloudOrdersResponseSchema
 export const cloudOrderResponseSchema = cloudOrderSchema
+export const cloudDiscountQuoteResponseSchema = discountQuoteSchema
 export const cloudOrdersQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),

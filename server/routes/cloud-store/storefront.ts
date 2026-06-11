@@ -3,6 +3,7 @@ import {
   checkoutInputSchema,
   cloudCreditBalanceResponseSchema,
   cloudCreditLedgerResponseSchema,
+  discountQuoteInputSchema,
   redeemGiftCardInputSchema,
   redeemGiftCardResponseSchema,
 } from '@shared/schemas'
@@ -16,6 +17,7 @@ import { getEffectiveQuota } from '../../services/effective-quota'
 import {
   cloudBillingPortalSessionResponseSchema,
   cloudCheckoutResponseSchema,
+  cloudDiscountQuoteResponseSchema,
   cloudOrderResponseSchema,
   cloudPackageListResponseSchema,
   cloudPackageResponseSchema,
@@ -177,6 +179,7 @@ export const cloudStore = new Hono<Env>()
           json: {
             successUrl: `${origin}/storage`,
             cancelUrl: `${origin}/storage`,
+            ...(body.promotionCode ? { promotionCode: body.promotionCode } : {}),
           },
         }),
         cloudCheckoutResponseSchema,
@@ -184,6 +187,22 @@ export const cloudStore = new Hono<Env>()
     )
     if (isCloudError(payment)) return c.json(payment, 502)
     return c.json(payment)
+  })
+  .post('/discount-quotes', zValidator('json', discountQuoteInputSchema), async (c) => {
+    const store = await getUserStoreSettings(c.get('platform').db)
+    if ('error' in store) return c.json({ error: store.error }, 403)
+    const body = c.req.valid('json')
+    const result = await cloudRequest(c, async ({ client, storeId }) =>
+      unwrapCloudResponse(
+        await client.stores[':storeId']['discount-quotes'].$post({
+          param: { storeId },
+          json: body,
+        }),
+        cloudDiscountQuoteResponseSchema,
+      ),
+    )
+    if (isCloudError(result)) return c.json(result, 502)
+    return c.json(result)
   })
   .post('/billing-portal-sessions', async (c) => {
     const db = c.get('platform').db

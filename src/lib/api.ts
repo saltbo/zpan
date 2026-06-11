@@ -11,6 +11,7 @@ import type {
   CreateObjectUploadSessionInput,
   CreateShareRequest,
   CreateStorageInput,
+  DiscountQuote,
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
   PatchObjectUploadSessionInput,
@@ -511,10 +512,14 @@ export function redeemCloudGiftCard(code: string) {
   return unwrap<RedeemGiftCardResponse>(cloudStoreApi.credits.redemptions.$post({ json: { code } }))
 }
 
-export function createCloudCheckout(packageId: string, priceId?: string) {
+export function createCloudCheckout(packageId: string, priceId?: string, promotionCode?: string) {
   return unwrap<{ orderId: string; url: string; paymentId?: string }>(
-    cloudStoreApi.checkouts.$post({ json: { packageId, priceId } }),
+    cloudStoreApi.checkouts.$post({ json: { packageId, priceId, promotionCode } }),
   )
+}
+
+export function createDiscountQuote(code: string, priceId: string) {
+  return unwrap<DiscountQuote>(cloudStoreApi['discount-quotes'].$post({ json: { code, priceId } }))
 }
 
 export function createCloudBillingPortalSession() {

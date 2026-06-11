@@ -19,6 +19,7 @@ type CheckoutSearch = {
   action: 'checkout' | 'payment' | 'portal' | 'invalid'
   packageId?: string
   priceId?: string
+  promotionCode?: string
   orderId?: string
 }
 
@@ -83,6 +84,7 @@ function normalizeCheckoutSearch(search: Record<string, unknown>): CheckoutSearc
       action,
       packageId: stringValue(search.packageId),
       priceId: stringValue(search.priceId),
+      promotionCode: stringValue(search.promotionCode),
     }
   }
   if (action === 'payment') return { action, orderId: stringValue(search.orderId) }
@@ -94,7 +96,7 @@ async function createCheckoutSession(search: CheckoutSearch) {
   if (search.action === 'checkout') {
     if (!search.packageId || !search.priceId) throw new Error('invalid_checkout_request')
     try {
-      const result = await createCloudCheckout(search.packageId, search.priceId)
+      const result = await createCloudCheckout(search.packageId, search.priceId, search.promotionCode)
       return result.url
     } catch (err) {
       if (
@@ -112,7 +114,7 @@ async function createCheckoutSession(search: CheckoutSearch) {
         )
         if (pendingPlanOrder) {
           await cancelCloudOrder(pendingPlanOrder.id)
-          const result = await createCloudCheckout(search.packageId, search.priceId)
+          const result = await createCloudCheckout(search.packageId, search.priceId, search.promotionCode)
           return result.url
         }
       }

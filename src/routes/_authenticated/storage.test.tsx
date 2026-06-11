@@ -96,6 +96,7 @@ vi.mock('@/lib/api', () => {
     listCloudProducts: vi.fn(),
     listCloudOrders: vi.fn(),
     listCloudCreditLedgerEntries: vi.fn(),
+    createDiscountQuote: vi.fn(),
   }
 })
 
@@ -420,6 +421,7 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutMonthly/ }))
+    fireEvent.click(await view.findByRole('button', { name: 'storage.proceedToCheckout' }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
     expect(toast.info).not.toHaveBeenCalled()
@@ -457,6 +459,7 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutMonthly/ }))
+    fireEvent.click(await view.findByRole('button', { name: 'storage.proceedToCheckout' }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
   })
@@ -475,6 +478,7 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutMonthly/ }))
+    fireEvent.click(await view.findByRole('button', { name: 'storage.proceedToCheckout' }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
   })
@@ -493,6 +497,7 @@ describe('StoragePage', () => {
 
     await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
     fireEvent.click(view.getByRole('button', { name: /storage.checkoutMonthly/ }))
+    fireEvent.click(await view.findByRole('button', { name: 'storage.proceedToCheckout' }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
     expect(view.getByText('storage.checkoutPending')).toBeTruthy()
@@ -706,6 +711,7 @@ describe('StoragePage', () => {
     fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
     await waitFor(() => expect(view.queryByText('org-2')).toBeNull())
     fireEvent.click(await view.findByRole('button', { name: /storage.checkoutMonthly/ }))
+    fireEvent.click(await view.findByRole('button', { name: 'storage.proceedToCheckout' }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
   })
@@ -798,6 +804,7 @@ describe('StoragePage', () => {
     fireEvent.click(view.getByLabelText('storage.viewCreditActivity'))
     expect(await view.findByText('storage.creditTopUpTitle')).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: 'storage.buyCredits' }))
+    fireEvent.click(await view.findByRole('button', { name: 'storage.proceedToCheckout' }))
 
     expect(openNewTab).toHaveBeenCalledWith(
       '/store/checkout?action=checkout&packageId=pkg-credits&priceId=price-credits-usd',
