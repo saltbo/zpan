@@ -64,7 +64,23 @@ describe('StorageCheckoutRedirect', () => {
 
     render(<StorageCheckoutRedirect search={{ action: 'checkout', packageId: 'pkg-1', priceId: 'price-usd' }} />)
 
-    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'price-usd'))
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'price-usd', undefined))
+    expect(redirectExternal).toHaveBeenCalledWith('https://cloud.example.test/checkout')
+  })
+
+  it('forwards the promotion code to checkout when present', async () => {
+    vi.mocked(createCloudCheckout).mockResolvedValue({
+      orderId: 'order-1',
+      url: 'https://cloud.example.test/checkout',
+    })
+
+    render(
+      <StorageCheckoutRedirect
+        search={{ action: 'checkout', packageId: 'pkg-1', priceId: 'price-usd', promotionCode: 'SAVE10' }}
+      />,
+    )
+
+    await waitFor(() => expect(createCloudCheckout).toHaveBeenCalledWith('pkg-1', 'price-usd', 'SAVE10'))
     expect(redirectExternal).toHaveBeenCalledWith('https://cloud.example.test/checkout')
   })
 
