@@ -61,6 +61,7 @@ import {
   adminDownloadersApi,
   adminQuotas,
   adminSiteInvitations,
+  adminTeams,
   announcementsApi,
   authedSharesApi,
   authProviders,
@@ -492,6 +493,28 @@ export type QuotaItem = Pick<
 
 export function listQuotas() {
   return unwrap<{ items: QuotaItem[]; total: number }>(adminQuotas.index.$get())
+}
+
+// Admin Teams API
+
+export interface TeamSummary {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  memberCount: number
+  ownerName: string | null
+  quotaUsed: number
+  quotaTotal: number
+  createdAt: number
+}
+
+export function listTeams() {
+  return unwrap<{ items: TeamSummary[]; total: number }>(adminTeams.index.$get())
+}
+
+export function getTeam(orgId: string) {
+  return unwrap<TeamSummary>(adminTeams[':orgId'].$get({ param: { orgId } }))
 }
 
 export function listOrgEntitlements(orgId: string) {

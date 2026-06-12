@@ -58,6 +58,7 @@ import {
   getSiteInvitation,
   getStorage,
   getSystemOption,
+  getTeam,
   getUnreadCount,
   getUserQuota,
   grantOrgEntitlement,
@@ -88,6 +89,7 @@ import {
   listSiteInvitations,
   listStorages,
   listSystemOptions,
+  listTeams,
   listUserEntitlements,
   listUsers,
   listWebDavAppPasswords,
@@ -1553,6 +1555,36 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
 
       await expect(listQuotas()).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('teams', () => {
+    it('lists teams', async () => {
+      const payload = { items: [{ id: 'team-1', name: 'Alpha' }], total: 1 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listTeams()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/admin/teams')
+    })
+
+    it('gets a team detail', async () => {
+      const payload = { id: 'team-1', name: 'Alpha', quotaTotal: 20971520 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getTeam('team-1')
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/admin/teams/team-1')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(getTeam('missing')).rejects.toThrow('not found')
     })
   })
 

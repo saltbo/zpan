@@ -38,7 +38,6 @@ import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
 import { Route as AuthenticatedSettingsIhostRouteImport } from './routes/_authenticated/settings/ihost'
 import { Route as AuthenticatedSettingsApiKeysRouteImport } from './routes/_authenticated/settings/api-keys'
-import { Route as AuthenticatedAdminQuotasRouteImport } from './routes/_authenticated/admin/quotas'
 import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authenticated/admin/licensing'
 import { Route as AuthenticatedAdminDownloadersRouteImport } from './routes/_authenticated/admin/downloaders'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
@@ -47,12 +46,14 @@ import { Route as AuthenticatedAdminAboutRouteImport } from './routes/_authentic
 import { Route as AuthenticatedTeamsTeamIdRouteRouteImport } from './routes/_authenticated/teams/$teamId/route'
 import { Route as AuthenticatedTeamsTeamIdIndexRouteImport } from './routes/_authenticated/teams/$teamId/index'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
+import { Route as AuthenticatedAdminTeamsIndexRouteImport } from './routes/_authenticated/admin/teams/index'
 import { Route as AuthenticatedAdminStoragesIndexRouteImport } from './routes/_authenticated/admin/storages/index'
 import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_authenticated/admin/settings/index'
 import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_authenticated/teams/$teamId/settings'
 import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
 import { Route as AuthenticatedTeamsTeamIdActivityRouteImport } from './routes/_authenticated/teams/$teamId/activity'
 import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users/$userId'
+import { Route as AuthenticatedAdminTeamsOrgIdRouteImport } from './routes/_authenticated/admin/teams/$orgId'
 import { Route as AuthenticatedAdminSettingsOauthRouteImport } from './routes/_authenticated/admin/settings/oauth'
 import { Route as AuthenticatedAdminSettingsEmailRouteImport } from './routes/_authenticated/admin/settings/email'
 
@@ -212,12 +213,6 @@ const AuthenticatedSettingsApiKeysRoute =
     path: '/api-keys',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
-const AuthenticatedAdminQuotasRoute =
-  AuthenticatedAdminQuotasRouteImport.update({
-    id: '/quotas',
-    path: '/quotas',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
 const AuthenticatedAdminLicensingRoute =
   AuthenticatedAdminLicensingRouteImport.update({
     id: '/licensing',
@@ -264,6 +259,12 @@ const AuthenticatedAdminUsersIndexRoute =
     path: '/users/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminTeamsIndexRoute =
+  AuthenticatedAdminTeamsIndexRouteImport.update({
+    id: '/teams/',
+    path: '/teams/',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminStoragesIndexRoute =
   AuthenticatedAdminStoragesIndexRouteImport.update({
     id: '/storages/',
@@ -300,6 +301,12 @@ const AuthenticatedAdminUsersUserIdRoute =
     path: '/users/$userId',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminTeamsOrgIdRoute =
+  AuthenticatedAdminTeamsOrgIdRouteImport.update({
+    id: '/teams/$orgId',
+    path: '/teams/$orgId',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminSettingsOauthRoute =
   AuthenticatedAdminSettingsOauthRouteImport.update({
     id: '/settings/oauth',
@@ -331,7 +338,6 @@ export interface FileRoutesByFullPath {
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/admin/quotas': typeof AuthenticatedAdminQuotasRoute
   '/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -351,12 +357,14 @@ export interface FileRoutesByFullPath {
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/email': typeof AuthenticatedAdminSettingsEmailRoute
   '/admin/settings/oauth': typeof AuthenticatedAdminSettingsOauthRoute
+  '/admin/teams/$orgId': typeof AuthenticatedAdminTeamsOrgIdRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
   '/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
+  '/admin/teams/': typeof AuthenticatedAdminTeamsIndexRoute
   '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
   '/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
@@ -375,7 +383,6 @@ export interface FileRoutesByTo {
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/admin/quotas': typeof AuthenticatedAdminQuotasRoute
   '/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
   '/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -395,12 +402,14 @@ export interface FileRoutesByTo {
   '/users': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/email': typeof AuthenticatedAdminSettingsEmailRoute
   '/admin/settings/oauth': typeof AuthenticatedAdminSettingsOauthRoute
+  '/admin/teams/$orgId': typeof AuthenticatedAdminTeamsOrgIdRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages': typeof AuthenticatedAdminStoragesIndexRoute
+  '/admin/teams': typeof AuthenticatedAdminTeamsIndexRoute
   '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
@@ -424,7 +433,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/_authenticated/admin/licensing': typeof AuthenticatedAdminLicensingRoute
-  '/_authenticated/admin/quotas': typeof AuthenticatedAdminQuotasRoute
   '/_authenticated/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
   '/_authenticated/settings/ihost': typeof AuthenticatedSettingsIhostRoute
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -444,12 +452,14 @@ export interface FileRoutesById {
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/admin/settings/email': typeof AuthenticatedAdminSettingsEmailRoute
   '/_authenticated/admin/settings/oauth': typeof AuthenticatedAdminSettingsOauthRoute
+  '/_authenticated/admin/teams/$orgId': typeof AuthenticatedAdminTeamsOrgIdRoute
   '/_authenticated/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/_authenticated/teams/$teamId/activity': typeof AuthenticatedTeamsTeamIdActivityRoute
   '/_authenticated/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/_authenticated/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
   '/_authenticated/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/_authenticated/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
+  '/_authenticated/admin/teams/': typeof AuthenticatedAdminTeamsIndexRoute
   '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
   '/_authenticated/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
@@ -473,7 +483,6 @@ export interface FileRouteTypes {
     | '/admin/audit'
     | '/admin/downloaders'
     | '/admin/licensing'
-    | '/admin/quotas'
     | '/settings/api-keys'
     | '/settings/ihost'
     | '/settings/password'
@@ -493,12 +502,14 @@ export interface FileRouteTypes {
     | '/users/'
     | '/admin/settings/email'
     | '/admin/settings/oauth'
+    | '/admin/teams/$orgId'
     | '/admin/users/$userId'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
     | '/admin/settings/'
     | '/admin/storages/'
+    | '/admin/teams/'
     | '/admin/users/'
     | '/teams/$teamId/'
   fileRoutesByTo: FileRoutesByTo
@@ -517,7 +528,6 @@ export interface FileRouteTypes {
     | '/admin/audit'
     | '/admin/downloaders'
     | '/admin/licensing'
-    | '/admin/quotas'
     | '/settings/api-keys'
     | '/settings/ihost'
     | '/settings/password'
@@ -537,12 +547,14 @@ export interface FileRouteTypes {
     | '/users'
     | '/admin/settings/email'
     | '/admin/settings/oauth'
+    | '/admin/teams/$orgId'
     | '/admin/users/$userId'
     | '/teams/$teamId/activity'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
     | '/admin/settings'
     | '/admin/storages'
+    | '/admin/teams'
     | '/admin/users'
     | '/teams/$teamId'
   id:
@@ -565,7 +577,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/downloaders'
     | '/_authenticated/admin/licensing'
-    | '/_authenticated/admin/quotas'
     | '/_authenticated/settings/api-keys'
     | '/_authenticated/settings/ihost'
     | '/_authenticated/settings/password'
@@ -585,12 +596,14 @@ export interface FileRouteTypes {
     | '/_authenticated/users/'
     | '/_authenticated/admin/settings/email'
     | '/_authenticated/admin/settings/oauth'
+    | '/_authenticated/admin/teams/$orgId'
     | '/_authenticated/admin/users/$userId'
     | '/_authenticated/teams/$teamId/activity'
     | '/_authenticated/teams/$teamId/members'
     | '/_authenticated/teams/$teamId/settings'
     | '/_authenticated/admin/settings/'
     | '/_authenticated/admin/storages/'
+    | '/_authenticated/admin/teams/'
     | '/_authenticated/admin/users/'
     | '/_authenticated/teams/$teamId/'
   fileRoutesById: FileRoutesById
@@ -810,13 +823,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsApiKeysRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
-    '/_authenticated/admin/quotas': {
-      id: '/_authenticated/admin/quotas'
-      path: '/quotas'
-      fullPath: '/admin/quotas'
-      preLoaderRoute: typeof AuthenticatedAdminQuotasRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
     '/_authenticated/admin/licensing': {
       id: '/_authenticated/admin/licensing'
       path: '/licensing'
@@ -873,6 +879,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/teams/': {
+      id: '/_authenticated/admin/teams/'
+      path: '/teams'
+      fullPath: '/admin/teams/'
+      preLoaderRoute: typeof AuthenticatedAdminTeamsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/storages/': {
       id: '/_authenticated/admin/storages/'
       path: '/storages'
@@ -915,6 +928,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersUserIdRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/teams/$orgId': {
+      id: '/_authenticated/admin/teams/$orgId'
+      path: '/teams/$orgId'
+      fullPath: '/admin/teams/$orgId'
+      preLoaderRoute: typeof AuthenticatedAdminTeamsOrgIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/settings/oauth': {
       id: '/_authenticated/admin/settings/oauth'
       path: '/settings/oauth'
@@ -938,13 +958,14 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
   AuthenticatedAdminDownloadersRoute: typeof AuthenticatedAdminDownloadersRoute
   AuthenticatedAdminLicensingRoute: typeof AuthenticatedAdminLicensingRoute
-  AuthenticatedAdminQuotasRoute: typeof AuthenticatedAdminQuotasRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminSettingsEmailRoute: typeof AuthenticatedAdminSettingsEmailRoute
   AuthenticatedAdminSettingsOauthRoute: typeof AuthenticatedAdminSettingsOauthRoute
+  AuthenticatedAdminTeamsOrgIdRoute: typeof AuthenticatedAdminTeamsOrgIdRoute
   AuthenticatedAdminUsersUserIdRoute: typeof AuthenticatedAdminUsersUserIdRoute
   AuthenticatedAdminSettingsIndexRoute: typeof AuthenticatedAdminSettingsIndexRoute
   AuthenticatedAdminStoragesIndexRoute: typeof AuthenticatedAdminStoragesIndexRoute
+  AuthenticatedAdminTeamsIndexRoute: typeof AuthenticatedAdminTeamsIndexRoute
   AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
 }
 
@@ -955,13 +976,14 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
     AuthenticatedAdminDownloadersRoute: AuthenticatedAdminDownloadersRoute,
     AuthenticatedAdminLicensingRoute: AuthenticatedAdminLicensingRoute,
-    AuthenticatedAdminQuotasRoute: AuthenticatedAdminQuotasRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
     AuthenticatedAdminSettingsEmailRoute: AuthenticatedAdminSettingsEmailRoute,
     AuthenticatedAdminSettingsOauthRoute: AuthenticatedAdminSettingsOauthRoute,
+    AuthenticatedAdminTeamsOrgIdRoute: AuthenticatedAdminTeamsOrgIdRoute,
     AuthenticatedAdminUsersUserIdRoute: AuthenticatedAdminUsersUserIdRoute,
     AuthenticatedAdminSettingsIndexRoute: AuthenticatedAdminSettingsIndexRoute,
     AuthenticatedAdminStoragesIndexRoute: AuthenticatedAdminStoragesIndexRoute,
+    AuthenticatedAdminTeamsIndexRoute: AuthenticatedAdminTeamsIndexRoute,
     AuthenticatedAdminUsersIndexRoute: AuthenticatedAdminUsersIndexRoute,
   }
 

@@ -94,7 +94,7 @@ export function GrantOrgEntitlementDialog({ open, onOpenChange, org, entitlement
     mutationFn: () => {
       if (!org) throw new Error('org_required')
       const value = Number(amount)
-      if (!Number.isFinite(value) || value <= 0) throw new Error(t('admin.quotas.positiveQuotaRequired'))
+      if (!Number.isFinite(value) || value <= 0) throw new Error(t('admin.teams.positiveQuotaRequired'))
       const payload = {
         bytes: Math.round(value * UNIT_BYTES[unit]),
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
@@ -104,9 +104,9 @@ export function GrantOrgEntitlementDialog({ open, onOpenChange, org, entitlement
       return grantOrgEntitlement(org.orgId, { resourceType: 'storage', ...payload })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'quotas'] })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'quotas', org?.orgId, 'entitlements'] })
-      toast.success(isEdit ? t('admin.quotas.entitlementUpdated') : t('admin.quotas.entitlementGranted'))
+      queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'teams', org?.orgId, 'entitlements'] })
+      toast.success(isEdit ? t('admin.teams.entitlementUpdated') : t('admin.teams.entitlementGranted'))
       onOpenChange(false)
     },
     onError: (err) => {
@@ -122,11 +122,11 @@ export function GrantOrgEntitlementDialog({ open, onOpenChange, org, entitlement
         <DialogHeader>
           <DialogTitle>
             {isEdit
-              ? t('admin.quotas.editEntitlementFor', { name: org.name })
-              : t('admin.quotas.grantEntitlementFor', { name: org.name })}
+              ? t('admin.teams.editEntitlementFor', { name: org.name })
+              : t('admin.teams.grantEntitlementFor', { name: org.name })}
           </DialogTitle>
           <DialogDescription>
-            {isEdit ? t('admin.quotas.editEntitlementDescription') : t('admin.quotas.grantEntitlementDescription')}
+            {isEdit ? t('admin.teams.editEntitlementDescription') : t('admin.teams.grantEntitlementDescription')}
           </DialogDescription>
         </DialogHeader>
 
@@ -139,7 +139,7 @@ export function GrantOrgEntitlementDialog({ open, onOpenChange, org, entitlement
         >
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px]">
             <div className="space-y-2">
-              <Label htmlFor="org-entitlement-amount">{t('admin.quotas.entitlementAmount')}</Label>
+              <Label htmlFor="org-entitlement-amount">{t('admin.teams.entitlementAmount')}</Label>
               <Input
                 id="org-entitlement-amount"
                 type="number"
@@ -151,7 +151,7 @@ export function GrantOrgEntitlementDialog({ open, onOpenChange, org, entitlement
               />
             </div>
             <div className="space-y-2">
-              <Label>{t('admin.quotas.quotaUnit')}</Label>
+              <Label>{t('admin.teams.quotaUnit')}</Label>
               <Select value={unit} onValueChange={(value) => setUnit(value as QuotaUnit)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -167,7 +167,7 @@ export function GrantOrgEntitlementDialog({ open, onOpenChange, org, entitlement
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="org-entitlement-expires">{t('admin.quotas.entitlementExpires')}</Label>
+            <Label htmlFor="org-entitlement-expires">{t('admin.teams.entitlementExpires')}</Label>
             <Input
               id="org-entitlement-expires"
               type="datetime-local"
@@ -176,7 +176,7 @@ export function GrantOrgEntitlementDialog({ open, onOpenChange, org, entitlement
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="org-entitlement-note">{t('admin.quotas.entitlementNote')}</Label>
+            <Label htmlFor="org-entitlement-note">{t('admin.teams.entitlementNote')}</Label>
             <Textarea
               id="org-entitlement-note"
               value={note}
@@ -192,8 +192,8 @@ export function GrantOrgEntitlementDialog({ open, onOpenChange, org, entitlement
               {mutation.isPending
                 ? t('common.loading')
                 : isEdit
-                  ? t('admin.quotas.saveEntitlement')
-                  : t('admin.quotas.grantEntitlement')}
+                  ? t('admin.teams.saveEntitlement')
+                  : t('admin.teams.grantEntitlement')}
             </Button>
           </DialogFooter>
         </form>
