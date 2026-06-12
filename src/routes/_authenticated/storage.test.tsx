@@ -12,6 +12,7 @@ import {
   listCloudCreditProducts,
   listCloudOrders,
   listCloudProducts,
+  listCloudStoreTargets,
   redeemCloudGiftCard,
 } from '@/lib/api'
 import { openNewTab } from '@/lib/browser-navigation'
@@ -96,6 +97,7 @@ vi.mock('@/lib/api', () => {
     listCloudProducts: vi.fn(),
     listCloudOrders: vi.fn(),
     listCloudCreditLedgerEntries: vi.fn(),
+    listCloudStoreTargets: vi.fn(),
     createDiscountQuote: vi.fn(),
   }
 })
@@ -250,6 +252,13 @@ function renderStoragePage(queryClient: QueryClient) {
     </QueryClientProvider>,
   )
 }
+
+beforeEach(() => {
+  vi.mocked(listCloudStoreTargets).mockResolvedValue({
+    items: [{ orgId: 'org-1', name: 'Personal Space', type: 'personal', role: 'owner' }],
+    total: 1,
+  })
+})
 
 afterEach(() => {
   cleanup()
@@ -632,7 +641,7 @@ describe('StoragePage', () => {
     const view = renderStoragePage(queryClient)
 
     await waitFor(() => expect(view.getByText('storage.availablePlansTitle')).toBeTruthy())
-    expect(view.getByText('Team Plan')).toBeTruthy()
+    expect(view.getAllByText('Team Plan').length).toBeGreaterThan(0)
     expect(view.getByText('Business Plan')).toBeTruthy()
     await waitFor(() => expect(view.getByText('storage.currentPlanBadge')).toBeTruthy())
     await waitFor(() => expect(view.getAllByRole('button', { name: 'storage.managePlan' }).length).toBeGreaterThan(0))
@@ -714,6 +723,53 @@ describe('StoragePage', () => {
     fireEvent.click(await view.findByRole('button', { name: 'storage.proceedToCheckout' }))
 
     expect(openNewTab).toHaveBeenCalledWith('/store/checkout?action=checkout&packageId=pkg-1&priceId=price-usd')
+  })
+
+  it('hides purchase surfaces for team members who are not the owner', async () => {
+    activeOrganization.value = { id: 'team-1' }
+    vi.mocked(listCloudStoreTargets).mockResolvedValue({
+      items: [
+        { orgId: 'org-1', name: 'Personal Space', type: 'personal', role: 'owner' },
+        { orgId: 'team-1', name: 'Design Team', type: 'team', role: 'editor' },
+      ],
+      total: 2,
+    })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByText('storage.teamMemberNotice')).toBeTruthy())
+    expect(view.queryByRole('button', { name: /storage.checkoutMonthly/ })).toBeNull()
+    expect(view.queryByRole('button', { name: 'storage.historyTitle' })).toBeNull()
+    expect(listCloudOrders).not.toHaveBeenCalled()
+    expect(getCloudCredits).not.toHaveBeenCalled()
+  })
+
+  it('keeps purchase surfaces for the team owner', async () => {
+    activeOrganization.value = { id: 'team-1' }
+    vi.mocked(listCloudStoreTargets).mockResolvedValue({
+      items: [{ orgId: 'team-1', name: 'Design Team', type: 'team', role: 'owner' }],
+      total: 1,
+    })
+    vi.mocked(listCloudProducts).mockResolvedValue({ items: [quotaPackage()], total: 1 })
+    vi.mocked(listCloudOrders).mockResolvedValue({ items: [], total: 0 })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const view = renderStoragePage(queryClient)
+
+    await waitFor(() => expect(view.getByRole('button', { name: /storage.checkoutMonthly/ })).toBeTruthy())
+    expect(view.queryByText('storage.teamMemberNotice')).toBeNull()
   })
 
   it('requires an active organization to checkout', async () => {

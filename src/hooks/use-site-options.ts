@@ -20,6 +20,12 @@ export function resolveDefaultOrgQuotaValue(raw: string | undefined): number {
   return Number.isFinite(quota) && quota > 0 ? quota : DEFAULT_ORG_QUOTA
 }
 
+// Team default falls back to the org default when unset, mirroring the server.
+export function resolveDefaultTeamQuotaValue(raw: string | undefined, orgQuota: number): number {
+  const quota = Number(raw)
+  return Number.isFinite(quota) && quota > 0 ? quota : orgQuota
+}
+
 export function useSiteOptions() {
   const { data, isLoading, isError } = useQuery({
     queryKey: siteOptionsQueryKey,
@@ -29,12 +35,14 @@ export function useSiteOptions() {
 
   const items = data?.items ?? []
   const optionMap = new Map(items.map((item) => [item.key, item.value]))
+  const defaultOrgQuota = resolveDefaultOrgQuotaValue(optionMap.get('default_org_quota'))
 
   return {
     siteName: optionMap.get('site_name') ?? DEFAULT_SITE_NAME,
     siteDescription: optionMap.get('site_description') ?? DEFAULT_SITE_DESCRIPTION,
     sitePublicOrigin: optionMap.get('site_public_origin') ?? '',
-    defaultOrgQuota: resolveDefaultOrgQuotaValue(optionMap.get('default_org_quota')),
+    defaultOrgQuota,
+    defaultTeamQuota: resolveDefaultTeamQuotaValue(optionMap.get('default_team_quota'), defaultOrgQuota),
     authSignupMode: (optionMap.get('auth_signup_mode') as SignupMode) ?? SignupMode.OPEN,
     captchaEnabled: optionMap.get(CAPTCHA_ENABLED_KEY) === 'true',
     captchaProvider: (optionMap.get(CAPTCHA_PROVIDER_KEY) as CaptchaProvider | undefined) ?? DEFAULT_CAPTCHA_PROVIDER,

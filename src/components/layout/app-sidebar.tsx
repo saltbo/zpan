@@ -133,7 +133,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={activeShares}>
-                  <Link to="/shares" search={{ status: 'all', page: 1 }}>
+                  <Link to="/shares" search={{ status: 'all', page: 1, box: 'sent' }}>
                     <Share2 className="h-4 w-4" />
                     <span>{t('nav.shares')}</span>
                   </Link>

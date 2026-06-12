@@ -19,15 +19,6 @@ export async function getAccessibleTargets(db: Database, userId: string): Promis
   return rows.map((r) => ({ orgId: r.orgId, name: r.name, type: parseOrgType(r.metadata), role: r.role }))
 }
 
-export async function canAccessTargetOrg(db: Database, userId: string, orgId: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, orgId)))
-    .limit(1)
-  return rows.length > 0
-}
-
 export async function getCloudStoreBinding(
   db: Database,
 ): Promise<{ boundLicenseId: string; storeId: string; refreshToken: string; instanceId: string }> {
@@ -41,7 +32,18 @@ export async function getCloudStoreBinding(
   }
 }
 
-export async function getCustomerLabel(db: Database, userId: string): Promise<string | null> {
+// Cloud-side accounting label for an order. Team purchases are labeled with
+// the team name (the org is the customer); personal purchases keep the
+// purchaser's email. Personal orgs are identified by their `personal-` slug.
+export async function getCustomerLabel(db: Database, userId: string, orgId: string): Promise<string | null> {
+  const orgs = await db
+    .select({ name: organization.name, slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.id, orgId))
+    .limit(1)
+  const org = orgs[0]
+  if (org && !org.slug.startsWith('personal-')) return org.name
+
   const rows = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1)
   return rows[0]?.email ?? null
 }

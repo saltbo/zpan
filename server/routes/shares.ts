@@ -13,7 +13,7 @@ import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
 import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import { listMatters } from '../services/matter'
-import { getMemberRole, isPersonalOrg } from '../services/org'
+import { canWriteToOrg } from '../services/org'
 import {
   computeSourceBytes,
   isQuotaSufficient,
@@ -27,6 +27,7 @@ import {
   incrementDownloadsAtomic,
   incrementViews,
   isAccessibleByUser,
+  listReceivedSharesForApi,
   listSharesForApi,
   resolveShareByToken,
   revokeShareByToken,
@@ -48,8 +49,6 @@ import {
   viewCookieName,
 } from './share-utils'
 import { reportTrafficForDownload } from './traffic-metering-utils'
-
-const ROLE_LEVELS: Record<string, number> = { owner: 3, editor: 2, viewer: 1, member: 1 }
 
 function shareUrls(kind: string, token: string): { landing?: string; direct?: string } {
   return kind === 'landing' ? { landing: `/s/${token}` } : { direct: `/r/${token}` }
@@ -339,7 +338,13 @@ export const authedShares = new Hono<Env>()
   .get('/', zValidator('query', listSharesQuerySchema), async (c) => {
     const userId = c.get('userId')!
     const db = c.get('platform').db
-    const { page, pageSize, status } = c.req.valid('query')
+    const { page, pageSize, status, box } = c.req.valid('query')
+
+    if (box === 'received') {
+      const emails = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1)
+      const result = await listReceivedSharesForApi(db, userId, emails[0]?.email ?? null, { page, pageSize })
+      return c.json({ ...result, page, pageSize })
+    }
 
     const result = await listSharesForApi(db, userId, { page, pageSize, status })
     return c.json({ ...result, page, pageSize })
@@ -471,12 +476,7 @@ export const authedShares = new Hono<Env>()
       return c.json({ error: 'Authentication required for password-protected share' }, 401)
     }
 
-    const role = await getMemberRole(db, targetOrgId, currentUserId)
-    if (role !== null) {
-      if ((ROLE_LEVELS[role] ?? 0) < ROLE_LEVELS.editor) {
-        return c.json({ error: 'Forbidden' }, 403)
-      }
-    } else if (!(await isPersonalOrg(db, targetOrgId))) {
+    if (!(await canWriteToOrg(db, currentUserId, targetOrgId))) {
       return c.json({ error: 'Forbidden' }, 403)
     }
 

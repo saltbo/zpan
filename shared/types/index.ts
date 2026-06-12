@@ -453,6 +453,8 @@ export interface ShareMatter {
 export interface ShareListItem extends Share {
   matter: ShareMatter
   recipientCount: number
+  // Present on received shares: display name of the user who shared it.
+  creatorName?: string
 }
 
 export interface ShareView {

@@ -19,6 +19,7 @@ const siteOptionsState = vi.hoisted(() => ({
     siteDescription: 'File hosting',
     sitePublicOrigin: 'https://zpan.example.com',
     defaultOrgQuota: 1073741824,
+    defaultTeamQuota: 1073741824,
     authSignupMode: 'open',
     captchaEnabled: false,
     captchaProvider: 'cloudflare-turnstile',
@@ -100,6 +101,7 @@ afterEach(() => {
     siteDescription: 'File hosting',
     sitePublicOrigin: 'https://zpan.example.com',
     defaultOrgQuota: 1073741824,
+    defaultTeamQuota: 1073741824,
     authSignupMode: SignupMode.OPEN,
     captchaEnabled: false,
     captchaProvider: 'cloudflare-turnstile',
@@ -173,6 +175,21 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('default_org_quota', '5368709120', false))
     expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('saves the default team quota alongside the org quota', async () => {
+    const view = renderSettingsPage()
+
+    const teamQuotaInput = await view.findByLabelText('admin.settings.defaultTeamQuota')
+    await waitFor(() => expect(teamQuotaInput).toHaveProperty('value', '1'))
+    fireEvent.change(teamQuotaInput, { target: { value: '10' } })
+
+    const storageSection = view.getByText('admin.settings.storageSection').closest('[data-slot="card"]')
+    if (!storageSection) throw new Error('storage section not found')
+    fireEvent.click(within(storageSection as HTMLElement).getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => expect(setSystemOption).toHaveBeenCalledWith('default_team_quota', '10737418240', false))
+    expect(toast.success).toHaveBeenCalledWith('admin.settings.saved')
   })
 
   it('saves captcha settings from the authentication protection section', async () => {

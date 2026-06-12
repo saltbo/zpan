@@ -18,17 +18,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useClipboard } from '@/hooks/use-clipboard'
-import { deleteShare, listShares, type ShareListItem } from '@/lib/api'
+import { deleteShare, listReceivedShares, listShares, type ShareListItem } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/shares/')({
   validateSearch: (search: Record<string, unknown>) => ({
     status: (search.status as StatusFilter) ?? 'all',
     page: Number(search.page) || 1,
+    box: (search.box as ShareBox) ?? 'sent',
   }),
   component: SharesPage,
 })
 
 type StatusFilter = 'all' | 'active' | 'revoked' | 'expired'
+type ShareBox = 'sent' | 'received'
 
 const PAGE_SIZE = 20
 
@@ -49,7 +51,7 @@ function SharesPage() {
   const { copy } = useClipboard()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { status: statusFilter, page } = useSearch({ from: '/_authenticated/shares/' })
+  const { status: statusFilter, page, box } = useSearch({ from: '/_authenticated/shares/' })
 
   const [detailShare, setDetailShare] = useState<ShareListItem | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<ShareListItem | null>(null)
@@ -57,8 +59,9 @@ function SharesPage() {
   const backendStatus = getBackendStatus(statusFilter)
 
   const sharesQuery = useQuery({
-    queryKey: ['shares', page, PAGE_SIZE, backendStatus],
-    queryFn: () => listShares(page, PAGE_SIZE, backendStatus),
+    queryKey: ['shares', box, page, PAGE_SIZE, backendStatus],
+    queryFn: () =>
+      box === 'received' ? listReceivedShares(page, PAGE_SIZE) : listShares(page, PAGE_SIZE, backendStatus),
   })
 
   const revokeMutation = useMutation({
@@ -88,11 +91,15 @@ function SharesPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   function setPage(newPage: number) {
-    navigate({ to: '/shares', search: { status: statusFilter, page: newPage } })
+    navigate({ to: '/shares', search: { status: statusFilter, page: newPage, box } })
   }
 
   function setStatus(status: StatusFilter) {
-    navigate({ to: '/shares', search: { status, page: 1 } })
+    navigate({ to: '/shares', search: { status, page: 1, box } })
+  }
+
+  function setBox(nextBox: ShareBox) {
+    navigate({ to: '/shares', search: { status: 'all', page: 1, box: nextBox } })
   }
 
   const statusLabel = {
@@ -127,77 +134,123 @@ function SharesPage() {
           className="flex items-center justify-between gap-2 border-b bg-background px-3 py-2"
         >
           <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" aria-label={t('shares.colStatus')}>
-                  <span className="text-muted-foreground">{t('shares.colStatus')}:</span>
-                  <span className="font-medium">{statusLabel}</span>
-                  <ChevronDown className="text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuLabel>{t('shares.colStatus')}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {(['all', 'active', 'revoked', 'expired'] as const).map((key) => (
-                  <DropdownMenuCheckboxItem
-                    key={key}
-                    checked={statusFilter === key}
-                    onCheckedChange={() => setStatus(key)}
-                  >
-                    {
+            <div className="flex items-center rounded-md border p-0.5">
+              <Button
+                variant={box === 'sent' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7"
+                onClick={() => setBox('sent')}
+              >
+                {t('shares.boxSent')}
+              </Button>
+              <Button
+                variant={box === 'received' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7"
+                onClick={() => setBox('received')}
+              >
+                {t('shares.boxReceived')}
+              </Button>
+            </div>
+            {box === 'sent' && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" aria-label={t('shares.colStatus')}>
+                    <span className="text-muted-foreground">{t('shares.colStatus')}:</span>
+                    <span className="font-medium">{statusLabel}</span>
+                    <ChevronDown className="text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuLabel>{t('shares.colStatus')}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {(['all', 'active', 'revoked', 'expired'] as const).map((key) => (
+                    <DropdownMenuCheckboxItem
+                      key={key}
+                      checked={statusFilter === key}
+                      onCheckedChange={() => setStatus(key)}
+                    >
                       {
-                        all: t('shares.filterAll'),
-                        active: t('shares.filterActive'),
-                        revoked: t('shares.filterRevoked'),
-                        expired: t('shares.filterExpired'),
-                      }[key]
-                    }
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                        {
+                          all: t('shares.filterAll'),
+                          active: t('shares.filterActive'),
+                          revoked: t('shares.filterRevoked'),
+                          expired: t('shares.filterExpired'),
+                        }[key]
+                      }
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
           <span className="text-sm text-muted-foreground">{t('shares.count', { count: total })}</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 text-left font-medium">{t('shares.colFile')}</th>
-                <th className="px-4 py-3 text-left font-medium">{t('shares.colType')}</th>
-                <th className="px-4 py-3 text-left font-medium">{t('shares.colAccess')}</th>
-                <th className="px-4 py-3 text-left font-medium">{t('shares.colViews')}</th>
-                <th className="px-4 py-3 text-left font-medium">{t('shares.colDownloads')}</th>
-                <th className="px-4 py-3 text-left font-medium">{t('shares.colExpires')}</th>
-                <th className="px-4 py-3 text-left font-medium">{t('shares.colStatus')}</th>
-                <th className="px-4 py-3 text-right font-medium">{t('shares.colActions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredItems.map((share) => (
-                <ShareTableRow
-                  key={share.token}
-                  share={share}
-                  displayStatus={computeDisplayStatus(share)}
-                  onRowClick={() => setDetailShare(share)}
-                  onCopyUrl={() => {
-                    const base = window.location.origin
-                    const url = share.kind === 'landing' ? `${base}/s/${share.token}` : `${base}/r/${share.token}`
-                    copy(url, 'shares.urlCopied')
-                  }}
-                  onRevoke={() => setRevokeTarget(share)}
-                />
-              ))}
-              {filteredItems.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
-                    <p className="font-medium">{t('shares.emptyState')}</p>
-                    <p className="mt-1 text-xs">{t('shares.emptyStateHint')}</p>
-                  </td>
+          {box === 'received' ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colFile')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colFrom')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colExpires')}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t('shares.colActions')}</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(sharesQuery.data?.items ?? []).map((share) => (
+                  <ReceivedShareRow key={share.token} share={share} />
+                ))}
+                {(sharesQuery.data?.items ?? []).length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
+                      <p className="font-medium">{t('shares.receivedEmptyState')}</p>
+                      <p className="mt-1 text-xs">{t('shares.receivedEmptyStateHint')}</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colFile')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colType')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colAccess')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colViews')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colDownloads')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colExpires')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('shares.colStatus')}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t('shares.colActions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((share) => (
+                  <ShareTableRow
+                    key={share.token}
+                    share={share}
+                    displayStatus={computeDisplayStatus(share)}
+                    onRowClick={() => setDetailShare(share)}
+                    onCopyUrl={() => {
+                      const base = window.location.origin
+                      const url = share.kind === 'landing' ? `${base}/s/${share.token}` : `${base}/r/${share.token}`
+                      copy(url, 'shares.urlCopied')
+                    }}
+                    onRevoke={() => setRevokeTarget(share)}
+                  />
+                ))}
+                {filteredItems.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
+                      <p className="font-medium">{t('shares.emptyState')}</p>
+                      <p className="mt-1 text-xs">{t('shares.emptyStateHint')}</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </Card>
 
@@ -223,6 +276,35 @@ function SharesPage() {
         onConfirm={() => revokeTarget && revokeMutation.mutate(revokeTarget.token)}
       />
     </div>
+  )
+}
+
+// A received share is a link inbox entry: it opens the sharer's landing page,
+// where the user can view, download, or save a copy to their own space.
+function ReceivedShareRow({ share }: { share: ShareListItem }) {
+  const { t } = useTranslation()
+  const FileTypeIcon = share.matter.dirtype === 1 ? FolderIcon : FileIcon
+
+  return (
+    <tr className="border-b last:border-0 hover:bg-muted/30">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileTypeIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="truncate max-w-[200px] font-medium" title={share.matter.name}>
+            {share.matter.name}
+          </span>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">{share.creatorName ?? '—'}</td>
+      <td className="px-4 py-3 text-muted-foreground">{formatExpires(share.expiresAt, t)}</td>
+      <td className="px-4 py-3 text-right">
+        <Button asChild variant="outline" size="sm">
+          <a href={`/s/${share.token}`} target="_blank" rel="noopener noreferrer">
+            {t('shares.openShare')}
+          </a>
+        </Button>
+      </td>
+    </tr>
   )
 }
 

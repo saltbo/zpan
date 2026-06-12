@@ -499,6 +499,51 @@ describe('createPersonalOrg — org name and quota edge cases', () => {
     expect(res.status).toBe(200)
   })
 
+  it('team creation uses default_team_quota while personal orgs keep default_org_quota', async () => {
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '1000000' })
+    await ctx.db.insert(schema.systemOptions).values({ key: 'default_team_quota', value: '5000000' })
+
+    const res = await signUp(ctx, 'team-quota@example.com')
+    expect(res.status).toBe(200)
+    const cookies = res.headers.getSetCookie().join('; ')
+
+    const createOrg = await ctx.app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookies, Origin: 'http://localhost:3000' },
+      body: JSON.stringify({ name: 'My Team', slug: 'my-team', metadata: { type: 'team' } }),
+    })
+    expect(createOrg.status).toBe(200)
+    const org = (await createOrg.json()) as { id: string }
+
+    const rows = await ctx.db.select().from(schema.orgQuotaEntitlements)
+    const teamStorage = rows.find((row) => row.orgId === org.id && row.resourceType === 'storage')
+    expect(teamStorage?.bytes).toBe(5000000)
+    const personalStorage = rows.find((row) => row.orgId !== org.id && row.resourceType === 'storage')
+    expect(personalStorage?.bytes).toBe(1000000)
+  })
+
+  it('team creation falls back to default_org_quota when default_team_quota is unset', async () => {
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: '2000000' })
+
+    const res = await signUp(ctx, 'team-quota-fallback@example.com')
+    expect(res.status).toBe(200)
+    const cookies = res.headers.getSetCookie().join('; ')
+
+    const createOrg = await ctx.app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookies, Origin: 'http://localhost:3000' },
+      body: JSON.stringify({ name: 'Fallback Team', slug: 'fallback-team', metadata: { type: 'team' } }),
+    })
+    expect(createOrg.status).toBe(200)
+    const org = (await createOrg.json()) as { id: string }
+
+    const rows = await ctx.db.select().from(schema.orgQuotaEntitlements)
+    const teamStorage = rows.find((row) => row.orgId === org.id && row.resourceType === 'storage')
+    expect(teamStorage?.bytes).toBe(2000000)
+  })
+
   it('sign-up falls back to DEFAULT_ORG_QUOTA when default_org_quota is non-numeric', async () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'default_org_quota', value: 'not-a-number' })

@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import {
   ArrowLeft,
   BadgeCheck,
+  Building2,
   Database,
   HardDriveDownload,
   Info,
@@ -32,6 +33,7 @@ import {
 const adminNavItems = [
   { titleKey: 'admin.nav.overview', url: '/admin', icon: LayoutDashboard },
   { titleKey: 'admin.nav.users', url: '/admin/users', icon: Users },
+  { titleKey: 'admin.nav.teams', url: '/admin/teams', icon: Building2 },
   { titleKey: 'admin.nav.storages', url: '/admin/storages', icon: Database },
   { titleKey: 'admin.nav.downloaders', url: '/admin/downloaders', icon: HardDriveDownload },
   { titleKey: 'admin.nav.auth', url: '/admin/settings/oauth', icon: KeyRound },

@@ -58,8 +58,10 @@ import {
   getSiteInvitation,
   getStorage,
   getSystemOption,
+  getTeam,
   getUnreadCount,
   getUserQuota,
+  grantOrgEntitlement,
   grantUserEntitlement,
   listActiveAnnouncements,
   listAdminAnnouncements,
@@ -78,13 +80,16 @@ import {
   listIhostImages,
   listNotifications,
   listObjects,
+  listOrgEntitlements,
   listQuotas,
+  listReceivedShares,
   listRemoteDownloadApiKeys,
   listShareObjects,
   listShares,
   listSiteInvitations,
   listStorages,
   listSystemOptions,
+  listTeams,
   listUserEntitlements,
   listUsers,
   listWebDavAppPasswords,
@@ -100,6 +105,7 @@ import {
   restoreObject,
   retryBackgroundJob,
   revokeIhostApiKey,
+  revokeOrgEntitlement,
   revokeRemoteDownloadApiKey,
   revokeSiteInvitation,
   revokeUserEntitlement,
@@ -111,12 +117,14 @@ import {
   sendDownloaderHeartbeat,
   setSystemOption,
   testEmail,
+  transferObject,
   trashObject,
   updateAnnouncement,
   updateDownloader,
   updateDownloadTask,
   updateIhostConfig,
   updateObject,
+  updateOrgEntitlement,
   updateStorage,
   updateUserEntitlement,
   updateUserStatus,
@@ -610,6 +618,32 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'conflict' }, false, 409))
 
       await expect(copyObject('id1', 'folder2')).rejects.toThrow('conflict')
+    })
+  })
+
+  describe('transferObject', () => {
+    it('posts to /:id/transfers with target org, parent, and mode', async () => {
+      const payload = { saved: [{ id: 'new1' }], skipped: [], sourceTrashed: true }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await transferObject('id1', { targetOrgId: 'org-team', targetParent: 'photos', mode: 'move' })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/id1/transfers')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ targetOrgId: 'org-team', targetParent: 'photos', mode: 'move' })
+    })
+
+    it('throws on quota exceeded response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, false, 422),
+      )
+
+      await expect(transferObject('id1', { targetOrgId: 'org-team', targetParent: '', mode: 'copy' })).rejects.toThrow(
+        'Quota exceeded',
+      )
     })
   })
 
@@ -1524,6 +1558,95 @@ describe('api', () => {
     })
   })
 
+  describe('teams', () => {
+    it('lists teams', async () => {
+      const payload = { items: [{ id: 'team-1', name: 'Alpha' }], total: 1 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listTeams()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/admin/teams')
+    })
+
+    it('gets a team detail', async () => {
+      const payload = { id: 'team-1', name: 'Alpha', quotaTotal: 20971520 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await getTeam('team-1')
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/admin/teams/team-1')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(getTeam('missing')).rejects.toThrow('not found')
+    })
+  })
+
+  describe('org entitlements', () => {
+    it('lists entitlements for an org', async () => {
+      const payload = { orgId: 'team-1', items: [] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listOrgEntitlements('team-1')
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/admin/quotas/team-1/entitlements')
+    })
+
+    it('grants an entitlement to an org', async () => {
+      const payload = { orgId: 'team-1', entitlement: { id: 'ent-1', bytes: 1024 } }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await grantOrgEntitlement('team-1', { resourceType: 'storage', bytes: 1024, note: 'starter' })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/quotas/team-1/entitlements')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ resourceType: 'storage', bytes: 1024, note: 'starter' })
+    })
+
+    it('updates an org entitlement', async () => {
+      const payload = { orgId: 'team-1', entitlement: { id: 'ent-1', bytes: 4096 } }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await updateOrgEntitlement('team-1', 'ent-1', { bytes: 4096 })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/quotas/team-1/entitlements/ent-1')
+      expect(init.method).toBe('PATCH')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ bytes: 4096 })
+    })
+
+    it('revokes an org entitlement', async () => {
+      const payload = { orgId: 'team-1', entitlement: { id: 'ent-1', status: 'revoked' } }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await revokeOrgEntitlement('team-1', 'ent-1')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/quotas/team-1/entitlements/ent-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(listOrgEntitlements('missing')).rejects.toThrow('not found')
+    })
+  })
+
   describe('getUserQuota', () => {
     it('fetches the current user quota', async () => {
       const payload = {
@@ -2118,6 +2241,26 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
 
       await expect(listShares()).rejects.toThrow('unauthorized')
+    })
+  })
+
+  describe('listReceivedShares', () => {
+    it('calls /api/shares with box=received', async () => {
+      const payload = { items: [], total: 0, page: 1, pageSize: 20 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listReceivedShares()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/shares')
+      expect(url).toContain('box=received')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
+
+      await expect(listReceivedShares()).rejects.toThrow('unauthorized')
     })
   })
 

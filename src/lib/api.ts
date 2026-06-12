@@ -61,6 +61,7 @@ import {
   adminDownloadersApi,
   adminQuotas,
   adminSiteInvitations,
+  adminTeams,
   announcementsApi,
   authedSharesApi,
   authProviders,
@@ -164,11 +165,12 @@ export function listObjectsByPath(
   status = 'active',
   page = 1,
   pageSize = 500,
-  opts?: { type?: string; search?: string },
+  opts?: { type?: string; search?: string; orgId?: string },
 ) {
   const query: Record<string, string> = { path, status, page: String(page), pageSize: String(pageSize) }
   if (opts?.type) query.type = opts.type
   if (opts?.search) query.search = opts.search
+  if (opts?.orgId) query.orgId = opts.orgId
   return unwrap<PaginatedResponse<StorageObject>>(objects.index.$get({ query }))
 }
 
@@ -214,6 +216,19 @@ export function deleteObject(id: string) {
 
 export function copyObject(id: string, parent: string, onConflict?: ConflictStrategy) {
   return unwrap<StorageObject>(objects.copy.$post({ json: { copyFrom: id, parent, onConflict } }))
+}
+
+export interface TransferObjectResult {
+  saved: StorageObject[]
+  skipped: Array<{ name: string; reason: string }>
+  sourceTrashed: boolean
+}
+
+export function transferObject(
+  id: string,
+  input: { targetOrgId: string; targetParent: string; mode: 'copy' | 'move' },
+) {
+  return unwrap<TransferObjectResult>(objects[':id'].transfers.$post({ param: { id }, json: input }))
 }
 
 export function trashObject(id: string) {
@@ -478,6 +493,59 @@ export type QuotaItem = Pick<
 
 export function listQuotas() {
   return unwrap<{ items: QuotaItem[]; total: number }>(adminQuotas.index.$get())
+}
+
+// Admin Teams API
+
+export interface TeamSummary {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  memberCount: number
+  ownerName: string | null
+  quotaUsed: number
+  quotaTotal: number
+  createdAt: number
+}
+
+export function listTeams() {
+  return unwrap<{ items: TeamSummary[]; total: number }>(adminTeams.index.$get())
+}
+
+export function getTeam(orgId: string) {
+  return unwrap<TeamSummary>(adminTeams[':orgId'].$get({ param: { orgId } }))
+}
+
+export function listOrgEntitlements(orgId: string) {
+  return unwrap<{ orgId: string; items: OrgQuotaEntitlement[] }>(
+    adminQuotas[':orgId'].entitlements.$get({ param: { orgId } }),
+  )
+}
+
+export function grantOrgEntitlement(
+  orgId: string,
+  data: { resourceType: 'storage'; bytes: number; expiresAt?: string | null; note?: string | null },
+) {
+  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
+    adminQuotas[':orgId'].entitlements.$post({ param: { orgId }, json: data }),
+  )
+}
+
+export function updateOrgEntitlement(
+  orgId: string,
+  entitlementId: string,
+  data: { bytes?: number; expiresAt?: string | null; note?: string | null },
+) {
+  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
+    adminQuotas[':orgId'].entitlements[':eid'].$patch({ param: { orgId, eid: entitlementId }, json: data }),
+  )
+}
+
+export function revokeOrgEntitlement(orgId: string, entitlementId: string) {
+  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
+    adminQuotas[':orgId'].entitlements[':eid'].$delete({ param: { orgId, eid: entitlementId } }),
+  )
 }
 
 // User Quotas API
@@ -794,6 +862,13 @@ export type { ShareListItem, ShareView }
 export function listShares(page = 1, pageSize = 20, status?: 'active' | 'revoked') {
   const query: Record<string, string> = { page: String(page), pageSize: String(pageSize) }
   if (status) query.status = status
+  return unwrap<{ items: ShareListItem[]; total: number; page: number; pageSize: number }>(
+    authedSharesApi.index.$get({ query }),
+  )
+}
+
+export function listReceivedShares(page = 1, pageSize = 20) {
+  const query: Record<string, string> = { page: String(page), pageSize: String(pageSize), box: 'received' }
   return unwrap<{ items: ShareListItem[]; total: number; page: number; pageSize: number }>(
     authedSharesApi.index.$get({ query }),
   )

@@ -37,6 +37,7 @@ import { adminSiteInvitations, publicSiteInvitations } from './routes/site-invit
 import storages from './routes/storages'
 import system from './routes/system'
 import { publicTeams, teams } from './routes/teams'
+import { adminTeams } from './routes/teams-admin'
 import trash from './routes/trash'
 import users from './routes/users'
 import webdav from './routes/webdav'
@@ -131,6 +132,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/invite-codes', publicInviteCodes)
   app.route('/api/admin/site-invitations', adminSiteInvitations)
   app.route('/api/admin/quotas', adminQuotas)
+  app.route('/api/admin/teams', adminTeams)
   app.route('/api/quotas', userQuotas)
   app.route('/api/store', cloudStore)
   app.route('/api/system', system)
@@ -218,6 +220,7 @@ export type TrashRoute = typeof trash
 export type StoragesRoute = typeof storages
 export type UsersRoute = typeof users
 export type AdminQuotasRoute = typeof adminQuotas
+export type AdminTeamsRoute = typeof adminTeams
 export type UserQuotasRoute = typeof userQuotas
 export type SystemRoute = typeof system
 export type EmailConfigRoute = typeof emailConfig

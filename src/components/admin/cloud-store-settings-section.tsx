@@ -13,15 +13,23 @@ export function StorageSettingsSection({
   quotaUnit,
   quotaError,
   quotaInputProps,
+  teamQuotaUnit,
+  teamQuotaError,
+  teamQuotaInputProps,
   pending,
   onQuotaUnitChange,
+  onTeamQuotaUnitChange,
   onSave,
 }: {
   quotaUnit: StorageQuotaUnit
   quotaError?: string
   quotaInputProps: UseFormRegisterReturn
+  teamQuotaUnit: StorageQuotaUnit
+  teamQuotaError?: string
+  teamQuotaInputProps: UseFormRegisterReturn
   pending: boolean
   onQuotaUnitChange: (unit: StorageQuotaUnit) => void
+  onTeamQuotaUnitChange: (unit: StorageQuotaUnit) => void
   onSave: () => void
 }) {
   const { t } = useTranslation()
@@ -56,6 +64,24 @@ export function StorageSettingsSection({
           </div>
           <p className="text-xs leading-5 text-muted-foreground">{t('admin.settings.defaultOrgQuotaHint')}</p>
           {quotaError && <p className="text-xs text-destructive">{quotaError}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="teamQuotaValue">{t('admin.settings.defaultTeamQuota')}</Label>
+          <div className="flex items-center gap-2">
+            <Input id="teamQuotaValue" type="number" min={1} step={1} className="flex-1" {...teamQuotaInputProps} />
+            <Select value={teamQuotaUnit} onValueChange={onTeamQuotaUnitChange}>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MB">MB</SelectItem>
+                <SelectItem value="GB">GB</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground">{t('admin.settings.defaultTeamQuotaHint')}</p>
+          {teamQuotaError && <p className="text-xs text-destructive">{teamQuotaError}</p>}
         </div>
 
         <div className="flex justify-end">

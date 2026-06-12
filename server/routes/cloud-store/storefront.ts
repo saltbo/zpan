@@ -9,10 +9,10 @@ import {
 } from '@shared/schemas'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { requireAuth } from '../../middleware/auth'
+import { requireAuth, requireTeamRole } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { canAccessTargetOrg, getAccessibleTargets, getCustomerLabel } from '../../services/cloud-store'
+import { getAccessibleTargets, getCustomerLabel } from '../../services/cloud-store'
 import { getEffectiveQuota } from '../../services/effective-quota'
 import {
   cloudBillingPortalSessionResponseSchema,
@@ -72,7 +72,7 @@ export const cloudStore = new Hono<Env>()
     const items = await getAccessibleTargets(db, c.get('userId')!)
     return c.json({ items, total: items.length })
   })
-  .get('/credits', async (c) => {
+  .get('/credits', requireTeamRole('owner'), async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
@@ -88,7 +88,7 @@ export const cloudStore = new Hono<Env>()
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
-  .get('/credits/ledger-entries', async (c) => {
+  .get('/credits/ledger-entries', requireTeamRole('owner'), async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
@@ -105,7 +105,7 @@ export const cloudStore = new Hono<Env>()
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
-  .post('/credits/redemptions', zValidator('json', redeemGiftCardInputSchema), async (c) => {
+  .post('/credits/redemptions', requireTeamRole('owner'), zValidator('json', redeemGiftCardInputSchema), async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const store = await getUserStoreSettings(c.get('platform').db)
@@ -122,13 +122,12 @@ export const cloudStore = new Hono<Env>()
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
-  .post('/checkouts', zValidator('json', checkoutInputSchema), async (c) => {
+  .post('/checkouts', requireTeamRole('owner'), zValidator('json', checkoutInputSchema), async (c) => {
     const body = c.req.valid('json')
     const db = c.get('platform').db
     const userId = c.get('userId')!
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
-    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
@@ -164,7 +163,7 @@ export const cloudStore = new Hono<Env>()
             target: {
               orgId: targetOrgId,
               customerId: targetOrgId,
-              customerLabel: await getCustomerLabel(db, userId),
+              customerLabel: await getCustomerLabel(db, userId, targetOrgId),
             },
           },
         }),
@@ -204,12 +203,10 @@ export const cloudStore = new Hono<Env>()
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
-  .post('/billing-portal-sessions', async (c) => {
+  .post('/billing-portal-sessions', requireTeamRole('owner'), async (c) => {
     const db = c.get('platform').db
-    const userId = c.get('userId')!
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
-    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
 
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
@@ -226,28 +223,23 @@ export const cloudStore = new Hono<Env>()
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
-  .get('/orders', zValidator('query', cloudStoreOrdersQuerySchema), async (c) => {
+  .get('/orders', requireTeamRole('owner'), zValidator('query', cloudStoreOrdersQuerySchema), async (c) => {
     const db = c.get('platform').db
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const userId = c.get('userId')
-    if (!userId) return c.json({ error: 'forbidden' }, 403)
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
     const query = c.req.valid('query')
-    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
     const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, customerId: targetOrgId })
     if ('error' in result) return c.json(result, 502)
     return c.json(result)
   })
-  .post('/orders/:orderId/payments', async (c) => {
+  .post('/orders/:orderId/payments', requireTeamRole('owner'), async (c) => {
     const db = c.get('platform').db
     const store = await getUserStoreSettings(db)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const userId = c.get('userId')!
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
-    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
     const orderId = c.req.param('orderId')
     if (!orderId) return c.json({ error: 'not_found' }, 404)
     const order = await getOrder(c, orderId)
@@ -269,31 +261,34 @@ export const cloudStore = new Hono<Env>()
     if (isCloudError(result)) return c.json(result, 502)
     return c.json(result)
   })
-  .patch('/orders/:orderId', zValidator('json', z.object({ status: z.literal('canceled') })), async (c) => {
-    const db = c.get('platform').db
-    const store = await getUserStoreSettings(db)
-    if ('error' in store) return c.json({ error: store.error }, 403)
-    const userId = c.get('userId')!
-    const targetOrgId = c.get('orgId')
-    if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
-    if (!(await canAccessTargetOrg(db, userId, targetOrgId))) return c.json({ error: 'Forbidden' }, 403)
-    const orderId = c.req.param('orderId')
-    if (!orderId) return c.json({ error: 'not_found' }, 404)
-    const order = await getOrder(c, orderId)
-    if (isCloudError(order)) return c.json(order, 502)
-    if (!orderBelongsToTarget(order.target, targetOrgId)) return c.json({ error: 'Forbidden' }, 403)
-    const result = await cloudRequest(c, async ({ client, storeId }) =>
-      unwrapCloudResponse(
-        await client.stores[':storeId'].orders[':orderId'].$patch({
-          param: { storeId, orderId },
-          json: c.req.valid('json'),
-        }),
-        cloudOrderResponseSchema,
-      ),
-    )
-    if (isCloudError(result)) return c.json(result, 502)
-    return c.json(result)
-  })
+  .patch(
+    '/orders/:orderId',
+    requireTeamRole('owner'),
+    zValidator('json', z.object({ status: z.literal('canceled') })),
+    async (c) => {
+      const db = c.get('platform').db
+      const store = await getUserStoreSettings(db)
+      if ('error' in store) return c.json({ error: store.error }, 403)
+      const targetOrgId = c.get('orgId')
+      if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
+      const orderId = c.req.param('orderId')
+      if (!orderId) return c.json({ error: 'not_found' }, 404)
+      const order = await getOrder(c, orderId)
+      if (isCloudError(order)) return c.json(order, 502)
+      if (!orderBelongsToTarget(order.target, targetOrgId)) return c.json({ error: 'Forbidden' }, 403)
+      const result = await cloudRequest(c, async ({ client, storeId }) =>
+        unwrapCloudResponse(
+          await client.stores[':storeId'].orders[':orderId'].$patch({
+            param: { storeId, orderId },
+            json: c.req.valid('json'),
+          }),
+          cloudOrderResponseSchema,
+        ),
+      )
+      if (isCloudError(result)) return c.json(result, 502)
+      return c.json(result)
+    },
+  )
 
 function getOrder(c: RouteContext, orderId: string) {
   return cloudRequest(c, async ({ client, storeId }) =>

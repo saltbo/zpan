@@ -31,6 +31,7 @@ import {
   listCloudCreditProducts,
   listCloudOrders,
   listCloudProducts,
+  listCloudStoreTargets,
   redeemCloudGiftCard,
 } from '@/lib/api'
 import { useActiveOrganization } from '@/lib/auth-client'
@@ -53,10 +54,21 @@ export function StoragePage() {
     retry: false,
   })
   const targetOrgId = activeOrg?.id ?? ''
+  const targetsQuery = useQuery({
+    queryKey: ['cloud-store', 'targets'],
+    queryFn: listCloudStoreTargets,
+    enabled: cloudStoreQuery.isSuccess,
+    retry: false,
+  })
+  // Billing surfaces are owner-only for team spaces (server enforces the same
+  // rule); members get a read-only view with guidance instead of buy buttons.
+  const currentTarget = targetsQuery.data?.items.find((item) => item.orgId === targetOrgId)
+  const isTeamSpace = currentTarget?.type === 'team'
+  const canManageBilling = targetsQuery.isSuccess && (!isTeamSpace || currentTarget?.role === 'owner')
   const ordersQuery = useQuery({
     queryKey: ['cloud-store', 'orders', targetOrgId],
     queryFn: () => listCloudOrders(),
-    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId && canManageBilling,
     retry: false,
   })
   const quotaQuery = useQuery({
@@ -68,7 +80,7 @@ export function StoragePage() {
   const creditsQuery = useQuery({
     queryKey: ['cloud-store', 'credits', targetOrgId],
     queryFn: getCloudCredits,
-    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId && canManageBilling,
     retry: false,
   })
   const creditProductsQuery = useQuery({
@@ -80,7 +92,7 @@ export function StoragePage() {
   const creditLedgerQuery = useQuery({
     queryKey: ['cloud-store', 'credits', 'ledger-entries', targetOrgId],
     queryFn: listCloudCreditLedgerEntries,
-    enabled: cloudStoreQuery.isSuccess && !!targetOrgId,
+    enabled: cloudStoreQuery.isSuccess && !!targetOrgId && canManageBilling,
     retry: false,
   })
   const currentOrders = ordersQuery.data?.items ?? []
@@ -189,25 +201,27 @@ export function StoragePage() {
           <h2 className="text-2xl font-semibold tracking-tight">{t('storage.title')}</h2>
           <p className="text-sm text-muted-foreground">{t('storage.subtitle')}</p>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          <CreditBalanceButton
-            credits={credits}
-            products={creditProductsQuery.data?.items ?? []}
-            entries={creditLedgerQuery.data?.items ?? []}
-            loading={creditLedgerQuery.isLoading}
-            onRedeem={(code) => redeemMutation.mutate(code)}
-            onCheckout={requestCheckout}
-            isRedeeming={redeemMutation.isPending}
-            checkoutDisabled={!targetOrgId}
-          />
-          <StorageOrderHistoryDialog
-            orders={currentOrders}
-            onContinuePayment={continuePayment}
-            onCancelOrder={cancelOrder}
-            continuingOrderId={null}
-            cancelingOrderId={cancelOrderMutation.isPending ? cancelOrderMutation.variables : null}
-          />
-        </div>
+        {canManageBilling && (
+          <div className="flex flex-wrap justify-end gap-2">
+            <CreditBalanceButton
+              credits={credits}
+              products={creditProductsQuery.data?.items ?? []}
+              entries={creditLedgerQuery.data?.items ?? []}
+              loading={creditLedgerQuery.isLoading}
+              onRedeem={(code) => redeemMutation.mutate(code)}
+              onCheckout={requestCheckout}
+              isRedeeming={redeemMutation.isPending}
+              checkoutDisabled={!targetOrgId}
+            />
+            <StorageOrderHistoryDialog
+              orders={currentOrders}
+              onContinuePayment={continuePayment}
+              onCancelOrder={cancelOrder}
+              continuingOrderId={null}
+              cancelingOrderId={cancelOrderMutation.isPending ? cancelOrderMutation.variables : null}
+            />
+          </div>
+        )}
       </div>
 
       {checkoutRefreshActive && (
@@ -221,19 +235,27 @@ export function StoragePage() {
           <CurrentPlanCard
             quota={quotaQuery.data}
             creditsBalance={creditsQuery.data?.balance}
-            onManagePlan={managePlan}
+            onManagePlan={canManageBilling ? managePlan : undefined}
             isManagingPlan={false}
           />
         ) : (
           <FreeQuotaCard quota={quotaQuery.data} creditsBalance={creditsQuery.data?.balance} />
         )}
-        <StoragePackages
-          packages={cloudStoreQuery.data?.items ?? []}
-          disabled={!targetOrgId}
-          currentPlan={quotaQuery.data?.currentPlan ?? null}
-          onCheckout={requestCheckout}
-          onManagePlan={managePlan}
-        />
+        {canManageBilling ? (
+          <StoragePackages
+            packages={cloudStoreQuery.data?.items ?? []}
+            disabled={!targetOrgId}
+            currentPlan={quotaQuery.data?.currentPlan ?? null}
+            onCheckout={requestCheckout}
+            onManagePlan={managePlan}
+          />
+        ) : (
+          targetsQuery.isSuccess && (
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-6 text-center">
+              <p className="text-sm text-muted-foreground">{t('storage.teamMemberNotice')}</p>
+            </div>
+          )
+        )}
       </div>
       <Dialog open={!!cancelOrderId} onOpenChange={(open) => !open && setCancelOrderId(null)}>
         <DialogContent>

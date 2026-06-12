@@ -5,6 +5,7 @@ import type {
   AdminInviteCodesRoute,
   AdminQuotasRoute,
   AdminSiteInvitationsRoute,
+  AdminTeamsRoute,
   AnnouncementsRoute,
   AuthedSharesRoute,
   AuthProvidersRoute,
@@ -51,6 +52,7 @@ export const storages = hc<StoragesRoute>('/api/admin/storages', opts)
 export const adminDownloadersApi = hc<DownloadersRoute>('/api/admin/downloaders', opts)
 export const users = hc<UsersRoute>('/api/admin/users', opts)
 export const adminQuotas = hc<AdminQuotasRoute>('/api/admin/quotas', opts)
+export const adminTeams = hc<AdminTeamsRoute>('/api/admin/teams', opts)
 export const userQuotas = hc<UserQuotasRoute>('/api/quotas', opts)
 export const cloudStoreApi = hc<CloudStoreRoute>('/api/store', opts)
 export const system = hc<SystemRoute>('/api/system', opts)

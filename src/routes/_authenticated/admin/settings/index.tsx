@@ -51,6 +51,8 @@ const settingsSchema = z.object({
     .refine((value) => value === '' || /^https?:\/\/[^/]+/.test(value), 'Site URL must start with http:// or https://'),
   quotaValue: z.coerce.number<number>().positive('Quota must be a positive number'),
   quotaUnit: z.enum(['MB', 'GB']),
+  teamQuotaValue: z.coerce.number<number>().positive('Quota must be a positive number'),
+  teamQuotaUnit: z.enum(['MB', 'GB']),
   registrationsEnabled: z.boolean(),
   captchaEnabled: z.boolean(),
   captchaProvider: z.enum(CAPTCHA_PROVIDERS),
@@ -81,6 +83,7 @@ export function SettingsPage() {
     siteDescription,
     sitePublicOrigin,
     defaultOrgQuota: quotaBytes,
+    defaultTeamQuota: teamQuotaBytes,
     authSignupMode,
     captchaEnabled,
     captchaProvider,
@@ -101,6 +104,8 @@ export function SettingsPage() {
       sitePublicOrigin: '',
       quotaValue: 0,
       quotaUnit: 'MB',
+      teamQuotaValue: 0,
+      teamQuotaUnit: 'MB',
       registrationsEnabled: false,
       captchaEnabled: false,
       captchaProvider: 'cloudflare-turnstile',
@@ -113,12 +118,15 @@ export function SettingsPage() {
   useEffect(() => {
     if (isLoading) return
     const { value, unit } = bytesToDisplay(quotaBytes)
+    const { value: teamValue, unit: teamUnit } = bytesToDisplay(teamQuotaBytes)
     form.reset({
       siteName,
       siteDescription,
       sitePublicOrigin,
       quotaValue: value,
       quotaUnit: unit,
+      teamQuotaValue: teamValue,
+      teamQuotaUnit: teamUnit,
       registrationsEnabled: authSignupMode === SignupMode.OPEN,
       captchaEnabled,
       captchaProvider,
@@ -132,6 +140,7 @@ export function SettingsPage() {
     siteDescription,
     sitePublicOrigin,
     quotaBytes,
+    teamQuotaBytes,
     authSignupMode,
     captchaEnabled,
     captchaProvider,
@@ -166,10 +175,20 @@ export function SettingsPage() {
         form.setError('quotaValue', { message: t('admin.settings.positiveQuotaRequired') })
         throw new Error(t('admin.settings.positiveQuotaRequired'))
       }
+      if (!Number.isFinite(values.teamQuotaValue) || values.teamQuotaValue <= 0) {
+        form.setError('teamQuotaValue', { message: t('admin.settings.positiveQuotaRequired') })
+        throw new Error(t('admin.settings.positiveQuotaRequired'))
+      }
       const unit =
         values.quotaUnit === 'MB' || values.quotaUnit === 'GB' ? values.quotaUnit : bytesToDisplay(quotaBytes).unit
       const bytes = Math.round(values.quotaValue * UNITS[unit])
       await setSystemOption('default_org_quota', String(bytes), false)
+      const teamUnit =
+        values.teamQuotaUnit === 'MB' || values.teamQuotaUnit === 'GB'
+          ? values.teamQuotaUnit
+          : bytesToDisplay(teamQuotaBytes).unit
+      const teamBytes = Math.round(values.teamQuotaValue * UNITS[teamUnit])
+      await setSystemOption('default_team_quota', String(teamBytes), false)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: siteOptionsQueryKey })
@@ -215,6 +234,7 @@ export function SettingsPage() {
   })
 
   const quotaUnit = form.watch('quotaUnit')
+  const teamQuotaUnit = form.watch('teamQuotaUnit')
   const registrationsEnabled = form.watch('registrationsEnabled')
   const captchaProtectionEnabled = form.watch('captchaEnabled')
   const selectedCaptchaProvider = form.watch('captchaProvider')
@@ -432,8 +452,12 @@ export function SettingsPage() {
           quotaUnit={quotaUnit}
           quotaError={form.formState.errors.quotaValue?.message}
           quotaInputProps={form.register('quotaValue', { valueAsNumber: true })}
+          teamQuotaUnit={teamQuotaUnit}
+          teamQuotaError={form.formState.errors.teamQuotaValue?.message}
+          teamQuotaInputProps={form.register('teamQuotaValue', { valueAsNumber: true })}
           pending={storageMutation.isPending}
           onQuotaUnitChange={(unit) => form.setValue('quotaUnit', unit)}
+          onTeamQuotaUnitChange={(unit) => form.setValue('teamQuotaUnit', unit)}
           onSave={() => storageMutation.mutate()}
         />
       </form>
