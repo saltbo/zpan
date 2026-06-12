@@ -5,7 +5,6 @@ import { getCookie, setCookie } from 'hono/cookie'
 import { z } from 'zod'
 import { DirType } from '../../shared/constants'
 import { createShareRequestSchema, listSharesQuerySchema, saveShareRequestSchema } from '../../shared/schemas/share'
-import type { Storage as S3Storage } from '../../shared/types'
 import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
@@ -270,7 +269,7 @@ export const publicShares = new Hono<Env>()
 
     if (!(await hasDownloadsAvailable(db, share.id))) return c.json({ error: 'Download limit exceeded' }, 410)
 
-    const storage = (await getStorage(db, targetMatter.storageId)) as unknown as S3Storage
+    const storage = await getStorage(db, targetMatter.storageId)
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
     const { ok } = await incrementDownloadsAtomic(db, share.id)

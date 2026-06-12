@@ -24,7 +24,6 @@ export interface StorageObject {
 
 export interface Storage {
   id: string
-  uid: string
   title: string
   mode: StorageMode
   bucket: string
@@ -32,7 +31,8 @@ export interface Storage {
   region: string
   accessKey: string
   secretKey: string
-  customHost: string
+  filePath: string
+  customHost: string | null
   capacity: number
   egressCreditBillingEnabled: boolean
   egressCreditUnitBytes: number

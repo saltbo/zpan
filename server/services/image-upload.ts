@@ -1,7 +1,6 @@
-import type { Storage as S3Storage } from '../../shared/types'
 import type { Platform } from '../platform/interface'
 import { S3Service } from './s3'
-import { selectStorage } from './storage'
+import { type Storage as S3Storage, selectStorage } from './storage'
 
 const s3 = new S3Service()
 
@@ -53,7 +52,7 @@ async function getBackend(platform: Platform): Promise<Backend> {
     return { kind: 'r2', bucket: r2, publicUrlBase: publicUrl.replace(/\/$/, '') }
   }
   try {
-    const storage = (await selectStorage(platform.db, 'public')) as unknown as S3Storage
+    const storage = await selectStorage(platform.db, 'public')
     return { kind: 's3', storage }
   } catch {
     return { kind: 'none' }

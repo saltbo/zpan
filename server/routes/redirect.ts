@@ -1,6 +1,5 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
-import type { Storage as S3Storage } from '../../shared/types'
 import type { Env } from '../middleware/platform'
 import type { Database } from '../platform/interface'
 import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
@@ -49,7 +48,7 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
 
   if (!(await hasDownloadsAvailable(db, share.id))) return c.json({ error: 'Download limit exceeded' }, 410)
 
-  const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage
+  const storage = await getStorage(db, matter.storageId)
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
   const { ok } = await incrementDownloadsAtomic(db, share.id)
@@ -100,7 +99,7 @@ async function handleImageHosting(c: Context<Env>, db: Database, token: string):
     return c.json({ error: 'forbidden referer' }, 403)
   }
 
-  const storage = (await getStorage(db, image.storageId)) as unknown as S3Storage
+  const storage = await getStorage(db, image.storageId)
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
   const trafficAllowed = await consumeTrafficIfQuotaAllows(db, image.orgId, image.size)

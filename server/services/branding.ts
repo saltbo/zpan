@@ -1,13 +1,9 @@
 import { eq, inArray } from 'drizzle-orm'
-// Shared type has uid field absent from DB schema — same mismatch as image-upload.ts.
-// Both use `as unknown as S3Storage` to bridge them. The fields used by S3Service
-// (endpoint, region, accessKey, secretKey, bucket, customHost) exist on both.
-import type { Storage as S3Storage } from '../../shared/types'
 import { type BrandingThemeConfig, type BrandingThemeMode, isBrandingThemePresetId } from '../../shared/types'
 import { systemOptions } from '../db/schema'
 import type { Database, Platform } from '../platform/interface'
 import { S3Service } from './s3'
-import { selectStorage } from './storage'
+import { type Storage as S3Storage, selectStorage } from './storage'
 
 const s3 = new S3Service()
 
@@ -87,7 +83,7 @@ export async function uploadBrandingImage(
 
   let storage: S3Storage
   try {
-    storage = (await selectStorage(platform.db, 'public')) as unknown as S3Storage
+    storage = await selectStorage(platform.db, 'public')
   } catch {
     return { ok: false, status: 503, error: 'No public storage configured' }
   }

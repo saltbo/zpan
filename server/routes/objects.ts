@@ -13,7 +13,6 @@ import {
   presignObjectUploadPartsSchema,
   transferMatterSchema,
 } from '../../shared/schemas'
-import type { Storage as S3Storage } from '../../shared/types'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
@@ -43,7 +42,7 @@ import { buildObjectKey } from '../services/path-template'
 import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
 import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
-import { getStorage, selectStorage } from '../services/storage'
+import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
 import { StorageQuotaExceededError, withStorageUsageReservation } from '../services/storage-usage'
 import { reportTrafficForDownload } from './traffic-metering-utils'
 
@@ -160,7 +159,7 @@ const app = new Hono<Env>()
 
     let storage: S3Storage
     try {
-      storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+      storage = await selectStorage(db, 'private')
     } catch (error) {
       if (error instanceof Error && error.message === 'No available storage') {
         return c.json({ error: 'Storage not configured' }, 500)
@@ -208,7 +207,7 @@ const app = new Hono<Env>()
         if (!matter || matter.status !== 'draft' || matter.dirtype !== DirType.FILE || !matter.object) {
           throw new ObjectUploadSessionError('not_found')
         }
-        const storage = (await getStorage(c.get('platform').db, matter.storageId)) as unknown as S3Storage | null
+        const storage = await getStorage(c.get('platform').db, matter.storageId)
         if (!storage) throw new ObjectUploadSessionError('not_found')
         const principal = c.get('principal')
         if (principal?.kind === 'download-task-upload') {
@@ -242,7 +241,7 @@ const app = new Hono<Env>()
         if (!orgId) throw new ObjectUploadSessionError('not_found')
         const matter = await getMatter(c.get('platform').db, c.req.param('id'), orgId)
         if (!matter) throw new ObjectUploadSessionError('not_found')
-        const storage = (await getStorage(c.get('platform').db, matter.storageId)) as unknown as S3Storage | null
+        const storage = await getStorage(c.get('platform').db, matter.storageId)
         if (!storage) throw new ObjectUploadSessionError('not_found')
         return presignObjectUploadParts(c.get('platform').db, s3, {
           orgId,
@@ -263,7 +262,7 @@ const app = new Hono<Env>()
         if (!orgId) throw new ObjectUploadSessionError('not_found')
         const matter = await getMatter(c.get('platform').db, c.req.param('id'), orgId)
         if (!matter) throw new ObjectUploadSessionError('not_found')
-        const storage = (await getStorage(c.get('platform').db, matter.storageId)) as unknown as S3Storage | null
+        const storage = await getStorage(c.get('platform').db, matter.storageId)
         if (!storage) throw new ObjectUploadSessionError('not_found')
         return patchObjectUploadSession(c.get('platform').db, s3, {
           orgId,
@@ -286,7 +285,7 @@ const app = new Hono<Env>()
       return c.json(matter)
     }
 
-    const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage
+    const storage = await getStorage(db, matter.storageId)
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
     const trafficAllowed = await consumeTrafficIfQuotaAllows(db, orgId, matter.size ?? 0)
@@ -360,7 +359,7 @@ const app = new Hono<Env>()
         const matter = await cancelDraftMatter(db, c.req.param('id'), orgId, userId)
         if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
         if (matter.object) {
-          const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage | null
+          const storage = await getStorage(db, matter.storageId)
           if (storage) {
             try {
               await s3.deleteObject(storage, matter.object)
@@ -421,7 +420,7 @@ const app = new Hono<Env>()
     if (!source) return c.json({ error: 'Not found' }, 404)
 
     const sourceSize = source.size ?? 0
-    const storage = source.object ? ((await getStorage(db, source.storageId)) as unknown as S3Storage | null) : null
+    const storage = source.object ? await getStorage(db, source.storageId) : null
     if (source.object && !storage) return c.json({ error: 'Storage not found' }, 404)
 
     try {
@@ -431,13 +430,16 @@ const app = new Hono<Env>()
         async (ctx) => {
           let newObject = ''
           if (source.object) {
+            // storage is non-null here: line 424 returns 404 when source.object
+            // is set but storage is missing.
+            const objectStorage = storage as S3Storage
             newObject = buildObjectKey({
               uid: userId,
               orgId,
               rawExt: fileExt(source.name),
             })
-            await s3.copyObject(storage as S3Storage, source.object, storage as S3Storage, newObject)
-            ctx.onRollback(() => s3.deleteObject(storage as S3Storage, newObject))
+            await s3.copyObject(objectStorage, source.object, objectStorage, newObject)
+            ctx.onRollback(() => s3.deleteObject(objectStorage, newObject))
           }
           return copyMatter(db, source, parent, newObject, { onConflict, userId })
         },

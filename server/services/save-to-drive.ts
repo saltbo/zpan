@@ -1,6 +1,5 @@
 import { and, eq, like, or } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
-import type { Storage as S3StorageType } from '../../shared/types'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { recordActivity } from './activity'
@@ -10,7 +9,7 @@ import { createMatter } from './matter'
 import { buildObjectKey } from './path-template'
 import { S3Service } from './s3'
 import type { Share, ShareResolution } from './share'
-import { getStorage, selectStorage } from './storage'
+import { getStorage, type Storage as S3StorageType, selectStorage } from './storage'
 import { withStorageUsageReservation } from './storage-usage'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -244,8 +243,8 @@ export async function copyMatterToOrg(db: Database, input: CopyMatterToOrgInput)
 
   const targetStorage = await selectStorage(db, 'private')
 
-  const src = sourceStorage as unknown as S3StorageType
-  const dst = targetStorage as unknown as S3StorageType
+  const src = sourceStorage
+  const dst = targetStorage
 
   if (sourceMatter.dirtype === DirType.FILE) {
     const newMatter = await saveFile(

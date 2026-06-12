@@ -2,7 +2,6 @@ import type { CreateBackgroundJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
 import { and, eq } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
-import type { Storage as S3StorageType } from '../../shared/types'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { createBackgroundJob, updateBackgroundJob } from './background-jobs'
@@ -10,7 +9,7 @@ import { createMatter, getMatter, purgeMatters } from './matter'
 import { createNotification } from './notification'
 import { buildObjectKey } from './path-template'
 import { S3Service } from './s3'
-import { getStorage, selectStorage } from './storage'
+import { getStorage, type Storage as S3StorageType, selectStorage } from './storage'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 import { collectCompressionPlan, createZipArchiveStream } from './zip-compress'
 import { streamValidatedZip, validateZipDirectory } from './zip-extract'
@@ -99,7 +98,7 @@ async function runCompressionJob(
     })
   }
 
-  const targetStorage = (await selectStorage(db, 'private')) as unknown as S3StorageType
+  const targetStorage = await selectStorage(db, 'private')
   const key = buildObjectKey({ uid: userId, orgId, rawExt: '.zip' })
   let objectWritten = false
   let outputBytes = 0
@@ -171,7 +170,7 @@ async function runExtractionJob(
   const progress = createArchiveProgressReporter(db, orgId, jobId, sourceHead.size, plan.fileCount)
   await progress.report(true)
   const targetFolder = request.targetFolder ?? zipMatter.parent
-  const targetStorage = (await selectStorage(db, 'private')) as unknown as S3StorageType
+  const targetStorage = await selectStorage(db, 'private')
   const writtenKeys: string[] = []
   const createdMatterIds: string[] = []
   const folderParents = new Map<string, string>()
@@ -337,7 +336,7 @@ function trackReadableStream(
 async function requireStorage(db: Database, storageId: string): Promise<S3StorageType> {
   const storage = await getStorage(db, storageId)
   if (!storage) throw new Error('Storage not found')
-  return storage as unknown as S3StorageType
+  return storage
 }
 
 async function requireTargetFolder(db: Database, orgId: string, targetFolder: string): Promise<void> {

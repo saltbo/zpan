@@ -1,10 +1,11 @@
 import type { PatchObjectUploadSessionInput } from '@shared/schemas'
-import type { ObjectUploadSession, Storage as S3Storage } from '@shared/types'
+import type { ObjectUploadSession } from '@shared/types'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { objectUploadSessions } from '../db/schema'
 import type { Database } from '../platform/interface'
 import type { S3Service } from './s3'
+import type { Storage as S3Storage } from './storage'
 
 const DEFAULT_PART_SIZE = 16 * 1024 * 1024
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000

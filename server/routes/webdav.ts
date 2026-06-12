@@ -3,7 +3,6 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ApiKeyTemplate } from '../../shared/api-key-templates'
 import { DirType, ObjectStatus } from '../../shared/constants'
-import type { Storage as S3Storage } from '../../shared/types'
 import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import type { Env } from '../middleware/platform'
@@ -13,7 +12,7 @@ import { copyMatter, createMatter, trashMatter, updateMatter } from '../services
 import { NameConflictError } from '../services/matter-name-conflict'
 import { buildObjectKey } from '../services/path-template'
 import { S3Service } from '../services/s3'
-import { getStorage, selectStorage } from '../services/storage'
+import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
 import {
   reconcileStorageUsage,
   StorageQuotaExceededError,
@@ -767,7 +766,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     const precondition = preconditionResponse(c, matter)
     if (precondition) return precondition
 
-    const storage = (await getStorage(db, matter.storageId)) as unknown as S3Storage | null
+    const storage = await getStorage(db, matter.storageId)
     if (!storage) return c.text('Storage not found', 404)
     const headers = fileHeaders(matter)
     if (isMountedWebDavRead(c)) {
@@ -870,9 +869,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (contentLength instanceof Response) return contentLength
     const body = contentLength === 0 ? new Uint8Array() : c.req.raw.body
     if (!body) return c.text('Request body required', 400)
-    const storage = target.matter
-      ? ((await getStorage(db, target.matter.storageId)) as unknown as S3Storage | null)
-      : ((await selectStorage(db, 'private')) as unknown as S3Storage)
+    const storage = target.matter ? await getStorage(db, target.matter.storageId) : await selectStorage(db, 'private')
     if (!storage) return c.text('Storage not found', 404)
     const objectKey =
       target.matter?.object && contentLength !== null
@@ -988,7 +985,7 @@ async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
     const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
     await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
-    const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+    const storage = await selectStorage(db, 'private')
     await createMatter(db, {
       orgId: workspace.id,
       userId: auth.userId,
@@ -1113,9 +1110,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
 
     let newObject = ''
     try {
-      const storage = sourceMatter.object
-        ? ((await getStorage(db, sourceMatter.storageId)) as unknown as S3Storage | null)
-        : null
+      const storage = sourceMatter.object ? await getStorage(db, sourceMatter.storageId) : null
       if (sourceMatter.object && !storage) return c.text('Storage not found', 404)
       const bytes = sourceMatter.size ?? 0
 
@@ -1196,7 +1191,7 @@ async function copyCollection(
           item.parent === sourceRoot ? targetRoot : `${targetRoot}${item.parent.slice(sourceRoot.length)}`
         let objectKey = ''
         if (item.dirtype === DirType.FILE && item.object) {
-          const storage = (await getStorage(db, item.storageId)) as unknown as S3Storage | null
+          const storage = await getStorage(db, item.storageId)
           if (!storage) return c.text('Storage not found', 404)
           objectKey = buildObjectKey({ uid: auth.userId, orgId: targetWorkspace.id, rawExt: fileExt(item.name) })
           await s3.copyObject(storage, item.object, storage, objectKey)
@@ -1286,7 +1281,7 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     const created = !target.matter && Boolean(target.name)
     if (created) {
       await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
-      const storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+      const storage = await selectStorage(db, 'private')
       const objectKey = buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
       await s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
       target.matter = await createMatter(db, {
