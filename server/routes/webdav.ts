@@ -10,7 +10,7 @@ import { ApiKeyRateLimitError, verifyApiKeyForPermission } from '../services/api
 import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
 import { NameConflictError } from '../services/matter-name-conflict'
-import { buildObjectKey } from '../services/path-template'
+import { buildObjectKey, fileExt } from '../services/path-template'
 import { S3Service } from '../services/s3'
 import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
 import {
@@ -153,11 +153,6 @@ function davError(c: DavContext, error: unknown): Response {
   if (error instanceof WebDavPathError) return new Response(error.message, { status: error.status })
   if (error instanceof NameConflictError) return c.text(error.message, 409)
   throw error
-}
-
-function fileExt(name: string): string {
-  const dot = name.lastIndexOf('.')
-  return dot >= 0 ? name.slice(dot) : ''
 }
 
 function destinationPath(c: DavContext): string | Response {

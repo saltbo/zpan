@@ -38,7 +38,7 @@ import {
   presignObjectUploadParts,
 } from '../services/object-upload-sessions'
 import { canReadOrg, canWriteToOrg, getMemberRole, isPersonalOrg } from '../services/org'
-import { buildObjectKey } from '../services/path-template'
+import { buildObjectKey, fileExt } from '../services/path-template'
 import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
 import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
@@ -47,11 +47,6 @@ import { StorageQuotaExceededError, withStorageUsageReservation } from '../servi
 import { reportTrafficForDownload } from './traffic-metering-utils'
 
 const s3 = new S3Service()
-
-function fileExt(name: string): string {
-  const dot = name.lastIndexOf('.')
-  return dot >= 0 ? name.slice(dot) : ''
-}
 
 function conflictBody(err: NameConflictError) {
   return {

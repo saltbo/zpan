@@ -6,7 +6,7 @@ import { recordActivity } from './activity'
 import { hasQuotaForBytes } from './effective-quota'
 import type { Matter } from './matter'
 import { createMatter } from './matter'
-import { buildObjectKey } from './path-template'
+import { buildObjectKey, fileExt } from './path-template'
 import { S3Service } from './s3'
 import type { Share, ShareResolution } from './share'
 import { getStorage, type Storage as S3StorageType, selectStorage } from './storage'
@@ -48,11 +48,6 @@ export interface CopyMatterToOrgInput {
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 const s3 = new S3Service()
-
-function fileExt(name: string): string {
-  const dot = name.lastIndexOf('.')
-  return dot >= 0 ? name.slice(dot) : ''
-}
 
 function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
