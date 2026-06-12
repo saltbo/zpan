@@ -844,6 +844,23 @@ describe('api', () => {
       await expect(promise).rejects.toThrow('Upload failed')
     })
 
+    it('rejects immediately when the signal is already aborted', async () => {
+      const controller = new AbortController()
+      controller.abort()
+      const promise = uploadPartToS3('https://s3/part-1', new Blob(['x']), { signal: controller.signal })
+
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+      expect(MockPartXHR.instances[0]?.body).toBeUndefined()
+    })
+
+    it('rejects on a network error', async () => {
+      const promise = uploadPartToS3('https://s3/part-1', new Blob(['x']))
+      const xhr = MockPartXHR.instances[0]
+      xhr.onerror?.()
+
+      await expect(promise).rejects.toThrow('Upload failed')
+    })
+
     it('reports progress and rejects on abort', async () => {
       const onProgress = vi.fn()
       const controller = new AbortController()

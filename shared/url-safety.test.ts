@@ -36,6 +36,12 @@ describe('isBlockedUrlHost', () => {
     expect(isBlockedUrlHost('8.8.8.8')).toBe(false)
     expect(isBlockedUrlHost('172.32.0.1')).toBe(false)
     expect(isBlockedUrlHost('173.16.0.1')).toBe(false)
+    expect(isBlockedUrlHost('[2001:db8::1]')).toBe(false) // public IPv6
+  })
+
+  it('treats malformed IPv4 (octet > 255) as a non-IP host', () => {
+    expect(isBlockedUrlHost('256.1.1.1')).toBe(false)
+    expect(isBlockedUrlHost('999.0.0.1')).toBe(false)
   })
 })
 

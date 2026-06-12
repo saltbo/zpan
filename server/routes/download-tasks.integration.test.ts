@@ -167,6 +167,18 @@ describe('Download tasks API integration', () => {
     }
   })
 
+  it('rejects a magnet task whose URI is not a magnet link', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const user = await authedHeaders(app, 'magnet-user@example.com')
+    const res = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: { type: 'magnet', uri: 'https://example.com/not-a-magnet' }, targetFolder: '' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
   it('deletes a downloader and returns unfinished tasks to the queue', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
