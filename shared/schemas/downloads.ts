@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi'
+import { isSafeHttpUrl } from '../url-safety'
 
 export const downloaderStatusSchema = z.enum(['online', 'offline', 'disabled'])
 export const downloaderEngineSchema = z.enum(['builtin', 'aria2', 'qbittorrent'])
@@ -238,10 +239,27 @@ const targetFolderSchema = z
   .refine((value) => !value.split('/').includes('..'), { message: 'Target folder cannot contain ..' })
 
 export const createDownloadTaskSchema = z.object({
-  source: z.object({
-    type: downloadSourceTypeSchema,
-    uri: downloadUriSchema,
-  }),
+  source: z
+    .object({
+      type: downloadSourceTypeSchema,
+      uri: downloadUriSchema,
+    })
+    .superRefine((source, ctx) => {
+      if (source.type === 'magnet') {
+        if (!/^magnet:\?/i.test(source.uri)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['uri'], message: 'Magnet source must be a magnet: URI' })
+        }
+        return
+      }
+      // http and torrent_url both fetch over http(s); block internal/metadata targets (SSRF).
+      if (!isSafeHttpUrl(source.uri)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['uri'],
+          message: 'URL must be a public http(s) address',
+        })
+      }
+    }),
   targetFolder: targetFolderSchema,
   name: z.string().min(1).max(255).optional(),
   category: downloadTaskCategorySchema.optional(),
