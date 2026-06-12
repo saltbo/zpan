@@ -111,6 +111,7 @@ import {
   sendDownloaderHeartbeat,
   setSystemOption,
   testEmail,
+  transferObject,
   trashObject,
   updateAnnouncement,
   updateDownloader,
@@ -610,6 +611,32 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'conflict' }, false, 409))
 
       await expect(copyObject('id1', 'folder2')).rejects.toThrow('conflict')
+    })
+  })
+
+  describe('transferObject', () => {
+    it('posts to /:id/transfers with target org, parent, and mode', async () => {
+      const payload = { saved: [{ id: 'new1' }], skipped: [], sourceTrashed: true }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await transferObject('id1', { targetOrgId: 'org-team', targetParent: 'photos', mode: 'move' })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects/id1/transfers')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ targetOrgId: 'org-team', targetParent: 'photos', mode: 'move' })
+    })
+
+    it('throws on quota exceeded response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, false, 422),
+      )
+
+      await expect(transferObject('id1', { targetOrgId: 'org-team', targetParent: '', mode: 'copy' })).rejects.toThrow(
+        'Quota exceeded',
+      )
     })
   })
 

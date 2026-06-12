@@ -233,6 +233,14 @@ export const copyMatterSchema = z.object({
   onConflict: conflictStrategySchema.optional(),
 })
 
+export const transferMatterSchema = z.object({
+  targetOrgId: z.string().min(1),
+  targetParent: z.string().default(''),
+  mode: z.enum(['copy', 'move']),
+})
+
+export type TransferMatterInput = z.infer<typeof transferMatterSchema>
+
 // ─── Image Hosting Config ─────────────────────────────────────────────────────
 
 // Valid hostname regex: lowercase labels separated by dots, max 253 chars total,

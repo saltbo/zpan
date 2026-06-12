@@ -31,6 +31,21 @@ export interface SaveShareResult {
   skipped: Array<{ name: string; reason: string }>
 }
 
+// Activity log entry recorded in the target org for each copied file.
+interface CopyActivity {
+  action: string
+  metadata: Record<string, unknown>
+}
+
+export interface CopyMatterToOrgInput {
+  sourceMatter: Matter
+  currentUserId: string
+  targetOrgId: string
+  targetParent: string
+  activity: CopyActivity
+  teamQuotaEnabled?: boolean
+}
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 const s3 = new S3Service()
@@ -85,7 +100,7 @@ async function saveFile(
   currentUserId: string,
   targetOrgId: string,
   targetParent: string,
-  shareId: string,
+  activity: CopyActivity,
   teamQuotaEnabled = true,
 ): Promise<Matter> {
   const bytes = sourceMatter.size ?? 0
@@ -119,11 +134,11 @@ async function saveFile(
       await recordActivity(db, {
         orgId: targetOrgId,
         userId: currentUserId,
-        action: 'save_from_share',
+        action: activity.action,
         targetType: 'file',
         targetId: newMatter.id,
         targetName: newMatter.name,
-        metadata: { sourceShareId: shareId },
+        metadata: activity.metadata,
       })
 
       return newMatter
@@ -141,7 +156,7 @@ async function saveFolderRecursive(
   currentUserId: string,
   targetOrgId: string,
   targetParent: string,
-  shareId: string,
+  activity: CopyActivity,
   teamQuotaEnabled = true,
 ): Promise<SaveShareResult> {
   const saved: Matter[] = []
@@ -184,7 +199,7 @@ async function saveFolderRecursive(
             currentUserId,
             targetOrgId,
             targetPath,
-            shareId,
+            activity,
             teamQuotaEnabled,
           )
           saved.push(newFile)
@@ -218,8 +233,11 @@ async function saveFolderRecursive(
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export async function saveShareToDrive(db: Database, input: SaveShareInput): Promise<SaveShareResult> {
-  const { share, matter: sourceMatter, currentUserId, targetOrgId, targetParent, teamQuotaEnabled = true } = input
+// Copy a file or folder (recursively) into another org. Quota is reserved in
+// the target org per file; files that fail (e.g. quota) are reported in
+// `skipped` rather than failing the whole operation.
+export async function copyMatterToOrg(db: Database, input: CopyMatterToOrgInput): Promise<SaveShareResult> {
+  const { sourceMatter, currentUserId, targetOrgId, targetParent, activity, teamQuotaEnabled = true } = input
 
   const sourceStorage = await getStorage(db, sourceMatter.storageId)
   if (!sourceStorage) throw new Error('Source storage not found')
@@ -238,7 +256,7 @@ export async function saveShareToDrive(db: Database, input: SaveShareInput): Pro
       currentUserId,
       targetOrgId,
       targetParent,
-      share.id,
+      activity,
       teamQuotaEnabled,
     )
     return { saved: [newMatter], skipped: [] }
@@ -252,7 +270,16 @@ export async function saveShareToDrive(db: Database, input: SaveShareInput): Pro
     currentUserId,
     targetOrgId,
     targetParent,
-    share.id,
+    activity,
     teamQuotaEnabled,
   )
+}
+
+export async function saveShareToDrive(db: Database, input: SaveShareInput): Promise<SaveShareResult> {
+  const { share, matter: sourceMatter, ...rest } = input
+  return copyMatterToOrg(db, {
+    ...rest,
+    sourceMatter,
+    activity: { action: 'save_from_share', metadata: { sourceShareId: share.id } },
+  })
 }

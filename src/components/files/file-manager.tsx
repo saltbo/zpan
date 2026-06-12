@@ -36,6 +36,7 @@ import { FilesToolbar } from './files-toolbar'
 import { useConflictResolver, withConflictRetry } from './hooks/use-conflict-resolver'
 import { useFileMutations } from './hooks/use-file-mutations'
 import { useViewMode } from './hooks/use-view-mode'
+import { TransferSpaceDialog } from './transfer-space-dialog'
 import type { BreadcrumbItem, FileActionHandlers } from './types'
 
 const FILES_PAGE_SIZE = 500
@@ -126,6 +127,7 @@ interface FileManagerProps {
     rename?: boolean
     copy?: boolean
     move?: boolean
+    transfer?: boolean
     trash?: boolean
     share?: boolean
     copyUrl?: boolean
@@ -174,6 +176,7 @@ export function FileManager({
       rename: capabilities?.rename ?? !dataSource,
       copy: capabilities?.copy ?? !dataSource,
       move: capabilities?.move ?? !dataSource,
+      transfer: capabilities?.transfer ?? !dataSource,
       trash: capabilities?.trash ?? !dataSource,
       share: capabilities?.share ?? !dataSource,
       copyUrl: capabilities?.copyUrl ?? false,
@@ -207,6 +210,7 @@ export function FileManager({
   const [moveTargetIds, setMoveTargetIds] = useState<string[]>([])
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [shareTarget, setShareTarget] = useState<StorageObject | null>(null)
+  const [transferTarget, setTransferTarget] = useState<StorageObject | null>(null)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false)
@@ -341,6 +345,7 @@ export function FileManager({
           }
         : undefined,
       onMove: resolvedCapabilities.move ? (item) => setMoveTargetIds([item.id]) : undefined,
+      onTransfer: resolvedCapabilities.transfer ? (item) => setTransferTarget(item) : undefined,
       onDownload: handleDownload,
       onShare: resolvedCapabilities.share ? (item) => setShareTarget(item) : undefined,
       onCopyUrl: resolvedCapabilities.copyUrl && onCopyUrl ? onCopyUrl : undefined,
@@ -711,6 +716,14 @@ export function FileManager({
           conflictDialogState={conflict.dialogState}
         />
       ) : null}
+
+      <TransferSpaceDialog
+        item={transferTarget}
+        onOpenChange={(open) => {
+          if (!open) setTransferTarget(null)
+        }}
+        onCompleted={() => mutations.invalidate()}
+      />
 
       <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />
     </div>

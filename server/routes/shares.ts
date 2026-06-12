@@ -13,7 +13,7 @@ import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
 import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import { listMatters } from '../services/matter'
-import { getMemberRole, isPersonalOrg } from '../services/org'
+import { canWriteToOrg } from '../services/org'
 import {
   computeSourceBytes,
   isQuotaSufficient,
@@ -48,8 +48,6 @@ import {
   viewCookieName,
 } from './share-utils'
 import { reportTrafficForDownload } from './traffic-metering-utils'
-
-const ROLE_LEVELS: Record<string, number> = { owner: 3, editor: 2, viewer: 1, member: 1 }
 
 function shareUrls(kind: string, token: string): { landing?: string; direct?: string } {
   return kind === 'landing' ? { landing: `/s/${token}` } : { direct: `/r/${token}` }
@@ -471,12 +469,7 @@ export const authedShares = new Hono<Env>()
       return c.json({ error: 'Authentication required for password-protected share' }, 401)
     }
 
-    const role = await getMemberRole(db, targetOrgId, currentUserId)
-    if (role !== null) {
-      if ((ROLE_LEVELS[role] ?? 0) < ROLE_LEVELS.editor) {
-        return c.json({ error: 'Forbidden' }, 403)
-      }
-    } else if (!(await isPersonalOrg(db, targetOrgId))) {
+    if (!(await canWriteToOrg(db, currentUserId, targetOrgId))) {
       return c.json({ error: 'Forbidden' }, 403)
     }
 

@@ -164,11 +164,12 @@ export function listObjectsByPath(
   status = 'active',
   page = 1,
   pageSize = 500,
-  opts?: { type?: string; search?: string },
+  opts?: { type?: string; search?: string; orgId?: string },
 ) {
   const query: Record<string, string> = { path, status, page: String(page), pageSize: String(pageSize) }
   if (opts?.type) query.type = opts.type
   if (opts?.search) query.search = opts.search
+  if (opts?.orgId) query.orgId = opts.orgId
   return unwrap<PaginatedResponse<StorageObject>>(objects.index.$get({ query }))
 }
 
@@ -214,6 +215,19 @@ export function deleteObject(id: string) {
 
 export function copyObject(id: string, parent: string, onConflict?: ConflictStrategy) {
   return unwrap<StorageObject>(objects.copy.$post({ json: { copyFrom: id, parent, onConflict } }))
+}
+
+export interface TransferObjectResult {
+  saved: StorageObject[]
+  skipped: Array<{ name: string; reason: string }>
+  sourceTrashed: boolean
+}
+
+export function transferObject(
+  id: string,
+  input: { targetOrgId: string; targetParent: string; mode: 'copy' | 'move' },
+) {
+  return unwrap<TransferObjectResult>(objects[':id'].transfers.$post({ param: { id }, json: input }))
 }
 
 export function trashObject(id: string) {

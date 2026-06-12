@@ -11,6 +11,7 @@ import {
   patchMatterSchema,
   patchObjectUploadSessionSchema,
   presignObjectUploadPartsSchema,
+  transferMatterSchema,
 } from '../../shared/schemas'
 import type { Storage as S3Storage } from '../../shared/types'
 import { requireTeamRole } from '../middleware/auth'
@@ -37,10 +38,11 @@ import {
   patchObjectUploadSession,
   presignObjectUploadParts,
 } from '../services/object-upload-sessions'
-import { getMemberRole, isPersonalOrg } from '../services/org'
+import { canReadOrg, canWriteToOrg, getMemberRole, isPersonalOrg } from '../services/org'
 import { buildObjectKey } from '../services/path-template'
 import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
+import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
 import { getStorage, selectStorage } from '../services/storage'
 import { StorageQuotaExceededError, withStorageUsageReservation } from '../services/storage-usage'
 import { reportTrafficForDownload } from './traffic-metering-utils'
@@ -112,8 +114,18 @@ const app = new Hono<Env>()
     return c.json({ error: 'Unauthorized' }, 401)
   })
   .get('/', requireTeamRole('viewer'), async (c) => {
-    const orgId = c.get('orgId')
+    let orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    // Optional org override so pickers (e.g. cross-space transfer) can browse
+    // folders of another space the user has access to.
+    const orgOverride = c.req.query('orgId')
+    if (orgOverride && orgOverride !== orgId) {
+      if (!(await canReadOrg(c.get('platform').db, c.get('userId')!, orgOverride))) {
+        return c.json({ error: 'Forbidden' }, 403)
+      }
+      orgId = orgOverride
+    }
 
     const parent = c.req.query('path') ?? c.req.query('parent') ?? ''
     const status = c.req.query('status') ?? 'active'
@@ -436,6 +448,62 @@ const app = new Hono<Env>()
       if (e instanceof NameConflictError) return c.json(conflictBody(e), 409)
       throw e
     }
+  })
+  .post('/:id/transfers', requireTeamRole('viewer'), zValidator('json', transferMatterSchema), async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) return c.json({ error: 'No active organization' }, 400)
+
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const { targetOrgId, targetParent, mode } = c.req.valid('json')
+    if (targetOrgId === orgId) return c.json({ error: 'Target must be a different space', code: 'SAME_ORG' }, 400)
+
+    const source = await getMatter(db, c.req.param('id'), orgId)
+    if (!source || source.status !== 'active') return c.json({ error: 'Not found' }, 404)
+
+    // Copying out only needs read access on the source space (granted by the
+    // route middleware); moving also trashes the source, which needs editor.
+    if (mode === 'move' && !(await hasEditorAccess(c))) {
+      return c.json({ error: 'Forbidden' }, 403)
+    }
+    if (!(await canWriteToOrg(db, userId, targetOrgId))) {
+      return c.json({ error: 'Forbidden' }, 403)
+    }
+
+    const totalBytes = await computeSourceBytes(db, source)
+    if (!(await isQuotaSufficient(db, targetOrgId, totalBytes))) {
+      return c.json({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, 422)
+    }
+
+    const result = await copyMatterToOrg(db, {
+      sourceMatter: source,
+      currentUserId: userId,
+      targetOrgId,
+      targetParent,
+      activity: {
+        action: mode === 'move' ? 'moved_from_org' : 'copied_from_org',
+        metadata: { sourceOrgId: orgId, sourceMatterId: source.id },
+      },
+    })
+
+    // Move = copy + trash source. Only trash when every file copied — a
+    // partial copy must never destroy the originals.
+    let sourceTrashed = false
+    if (mode === 'move' && result.skipped.length === 0) {
+      await trashMatter(db, orgId, source.id, userId)
+      sourceTrashed = true
+      await recordActivity(db, {
+        orgId,
+        userId,
+        action: 'moved_to_org',
+        targetType: source.dirtype === DirType.FILE ? 'file' : 'folder',
+        targetId: source.id,
+        targetName: source.name,
+        metadata: { targetOrgId },
+      })
+    }
+
+    return c.json({ ...result, sourceTrashed }, 201)
   })
 
 export default app

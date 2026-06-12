@@ -1190,3 +1190,173 @@ describe('Objects API — name conflict (409 responses)', () => {
     expect(body.name).toBe('photo (1).jpg')
   })
 })
+
+// ─── Cross-space transfer ─────────────────────────────────────────────────────
+
+type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
+type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
+
+async function getUserIdByEmail(db: TestDb, email: string): Promise<string> {
+  const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = ${email}`)
+  return rows[0].id
+}
+
+async function insertTeamOrg(db: TestDb, id: string): Promise<void> {
+  await db.run(sql`
+    INSERT INTO organization (id, name, slug, metadata)
+    VALUES (${id}, ${`Team ${id}`}, ${id}, '{"type":"team"}')
+  `)
+  await db.run(sql`
+    INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+    VALUES (${`quota-${id}`}, ${id}, 0, 0, 0, 0, '1970-01')
+  `)
+}
+
+async function insertMember(db: TestDb, orgId: string, userId: string, role: string): Promise<void> {
+  await db.run(sql`
+    INSERT INTO member (id, organization_id, user_id, role)
+    VALUES (${`member-${orgId}-${userId}`}, ${orgId}, ${userId}, ${role})
+  `)
+}
+
+async function insertStorageEntitlement(db: TestDb, orgId: string, bytes: number): Promise<void> {
+  const now = Date.now()
+  await db.run(sql`
+    INSERT INTO org_quota_entitlements
+      (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, status, created_at, updated_at)
+    VALUES
+      (${`ent-${orgId}`}, ${orgId}, 'storage', 'grant', 'test', ${`test-${orgId}`}, ${bytes}, ${now}, 'active', ${now}, ${now})
+  `)
+}
+
+function transferRequest(
+  app: TestApp,
+  headers: Record<string, string>,
+  id: string,
+  body: { targetOrgId: string; targetParent?: string; mode: 'copy' | 'move' },
+) {
+  return app.request(`/api/objects/${id}/transfers`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+describe('POST /api/objects/:id/transfers', () => {
+  it('copies a file into a team space the user can edit', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertTeamOrg(db, 'team-a')
+    await insertMember(db, 'team-a', userId, 'editor')
+    await insertFile(db, orgId, { id: 'src-copy', name: 'doc.txt' })
+
+    const res = await transferRequest(app, headers, 'src-copy', { targetOrgId: 'team-a', mode: 'copy' })
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { saved: Array<{ orgId: string; name: string }>; sourceTrashed: boolean }
+    expect(body.saved).toHaveLength(1)
+    expect(body.saved[0].orgId).toBe('team-a')
+    expect(body.sourceTrashed).toBe(false)
+    expect(S3Service.prototype.copyObject).toHaveBeenCalled()
+    const source = await getMatter(db, 'src-copy', orgId)
+    expect(source?.status).toBe('active')
+  })
+
+  it('moves a file into a team space and trashes the source', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertTeamOrg(db, 'team-b')
+    await insertMember(db, 'team-b', userId, 'owner')
+    await insertFile(db, orgId, { id: 'src-move', name: 'photo.jpg' })
+
+    const res = await transferRequest(app, headers, 'src-move', { targetOrgId: 'team-b', mode: 'move' })
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { saved: Array<{ orgId: string }>; sourceTrashed: boolean }
+    expect(body.sourceTrashed).toBe(true)
+    const source = await getMatter(db, 'src-move', orgId)
+    expect(source?.status).toBe('trashed')
+    const targetList = await listMatters(db, 'team-b', { parent: '', status: 'active', page: 1, pageSize: 10 })
+    expect(targetList.items.map((m) => m.name)).toContain('photo.jpg')
+  })
+
+  it('copies a folder recursively into the target space', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertTeamOrg(db, 'team-c')
+    await insertMember(db, 'team-c', userId, 'editor')
+    await insertFolder(db, orgId, { id: 'fold-1', name: 'Album' })
+    await insertFile(db, orgId, { id: 'in-fold', name: 'pic.png', parent: 'Album' })
+
+    const res = await transferRequest(app, headers, 'fold-1', { targetOrgId: 'team-c', mode: 'copy' })
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { saved: Array<{ name: string }> }
+    expect(body.saved.map((m) => m.name)).toEqual(expect.arrayContaining(['Album', 'pic.png']))
+  })
+
+  it('rejects transfer into a team the user is not a member of', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertTeamOrg(db, 'team-strange')
+    await insertFile(db, orgId, { id: 'src-403', name: 'doc.txt' })
+
+    const res = await transferRequest(app, headers, 'src-403', { targetOrgId: 'team-strange', mode: 'copy' })
+    expect(res.status).toBe(403)
+  })
+
+  it("rejects transfer into another user's personal space", async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await authedHeaders(app, 'victim@example.com')
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const victimId = await getUserIdByEmail(db, 'victim@example.com')
+    const victimOrgs = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE slug = ${`personal-${victimId}`}`,
+    )
+    await insertFile(db, orgId, { id: 'src-victim', name: 'doc.txt' })
+
+    const res = await transferRequest(app, headers, 'src-victim', { targetOrgId: victimOrgs[0].id, mode: 'copy' })
+    expect(res.status).toBe(403)
+  })
+
+  it('rejects transfer when the target space quota is exceeded', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const userId = await getUserIdByEmail(db, 'test@example.com')
+    await insertTeamOrg(db, 'team-small')
+    await insertMember(db, 'team-small', userId, 'editor')
+    await insertStorageEntitlement(db, 'team-small', 10)
+    await insertFile(db, orgId, { id: 'src-big', name: 'big.bin' })
+
+    const res = await transferRequest(app, headers, 'src-big', { targetOrgId: 'team-small', mode: 'copy' })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as { code: string }
+    expect(body.code).toBe('QUOTA_EXCEEDED')
+  })
+
+  it('rejects transfer to the same space', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'src-same', name: 'doc.txt' })
+
+    const res = await transferRequest(app, headers, 'src-same', { targetOrgId: orgId, mode: 'copy' })
+    expect(res.status).toBe(400)
+  })
+})

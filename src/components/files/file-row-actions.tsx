@@ -2,6 +2,7 @@ import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
 import {
   Archive,
+  ArrowRightLeft,
   Copy,
   Download,
   EllipsisVertical,
@@ -40,6 +41,7 @@ export function computeHasActions(item: StorageObject, handlers: Partial<FileAct
     handlers.onRename ||
     handlers.onCopy ||
     handlers.onMove ||
+    handlers.onTransfer ||
     handlers.onShare ||
     handlers.onCopyUrl ||
     handlers.onTrash ||
@@ -53,6 +55,7 @@ export function computeHasWriteActions(item: StorageObject, handlers: Partial<Fi
     handlers.onRename ||
     handlers.onCopy ||
     handlers.onMove ||
+    handlers.onTransfer ||
     handlers.onShare ||
     handlers.onCompress ||
     (isZipFile(item) && handlers.onExtract) ||
@@ -125,6 +128,12 @@ export function FileRowActions({ item, handlers }: FileRowActionsProps) {
           <DropdownMenuItem onClick={() => handlers.onMove?.(item)}>
             <FolderInput className="mr-2 h-4 w-4" />
             {t('files.moveTo')}
+          </DropdownMenuItem>
+        )}
+        {handlers.onTransfer && (
+          <DropdownMenuItem onClick={() => handlers.onTransfer?.(item)}>
+            <ArrowRightLeft className="mr-2 h-4 w-4" />
+            {t('files.transferToSpace')}
           </DropdownMenuItem>
         )}
         {handlers.onShare && (

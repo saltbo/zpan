@@ -693,6 +693,30 @@ describe('POST /api/shares/:token/objects', () => {
     expect(res.status).toBe(403)
   })
 
+  it("returns 403 when targetOrgId is another user's personal org", async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await authedHeaders(app, 'victim@example.com')
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'sv-victim', name: 'victim.txt' })
+
+    const victims = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'victim@example.com'`)
+    const victimOrgs = await db.all<{ id: string }>(
+      sql`SELECT id FROM organization WHERE slug = ${`personal-${victims[0].id}`}`,
+    )
+
+    const createRes = await createShare(app, headers, { matterId: 'sv-victim', kind: 'landing' })
+    const token = ((await createRes.json()) as Record<string, unknown>).token as string
+
+    const res = await app.request(`/api/shares/${token}/objects`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetOrgId: victimOrgs[0].id, targetParent: '' }),
+    })
+    expect(res.status).toBe(403)
+  })
+
   it('allows password-protected share save when the user is a listed recipient', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
