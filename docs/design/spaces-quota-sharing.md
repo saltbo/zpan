@@ -59,22 +59,39 @@ Hardening required (the current chain has no role/type check beyond membership):
 4. Tests: integration coverage for owner-buys-for-team (entitlement lands on team org),
    non-owner 403, and webhook delivery to a team org. None exist today.
 
-### 2.2 Quota allocation ("划拨")
+### 2.2 Quota allocation ("划拨") — NOT BUILT (deferred)
 
-For informal groups there is no "team budget" — the owner pays out of pocket and shouldn't
-have to think about two wallets. Mechanism: an entitlement is a discrete row with an
-`orgId`; allocation reassigns that row between orgs the user owns.
+The original idea (Google One family-sharing): buy a distributable pool once, hand parts of
+it to other spaces the owner controls. An entitlement is a discrete row with an `orgId`, so
+"allocation" would just reassign that row between orgs the user owns.
 
-Rules (v1):
+**This was implemented and then removed.** Two reasons converged:
 
-1. Allocation only between orgs where the user is **owner** (personal space qualifies).
-2. Whole packs only — no splitting. Packs are discrete; finer granularity = buy smaller packs.
-3. Moving out requires the source org's `used` to still fit its remaining quota; otherwise
-   block and ask the user to free space first. Prevents over-quota dirty states.
-4. **One-time packs only. Subscriptions are not allocatable.** Subscription lifecycle
-   (renewal, downgrade, cancellation) is keyed by `sourceId` in webhook processing; letting
-   the entitlement drift across orgs makes claw-back intractable. A team that wants a
-   subscription buys one directly in team context (§2.1).
+1. **No valid input exists.** The model only makes sense for a *distributable pool* — i.e.
+   one-time storage packs. The store only sells **per-workspace subscriptions** (the cloud
+   product catalog has month/year prices for `zpan.plan`; one-time prices exist only for
+   credit packs). There is no one-time storage pack to allocate, so the feature operated on
+   an empty set.
+
+2. **Subscriptions can't be safely allocated.** The webhook *increase* (renewal) path
+   upserts by `(source, sourceId, resourceType)` — org-independent, so renewal would follow
+   a moved entitlement. But the *decrease* (cancellation/downgrade) path matches on
+   `orgId = event.targetOrgId AND source AND sourceId` (`cloud-store.ts`
+   `quotaEntitlementSourceMatch`), locked to the org the subscription was bought for. Move
+   the entitlement to another org and a cancellation no longer matches it — the claw-back
+   silently fails and leaves ghost capacity. The base-quota fallback is org-locked the same
+   way.
+
+Crucially, allocation is also **redundant** now: a family owner who wants the team space to
+have capacity just subscribes the team space directly (§2.1, team purchase works), and a
+self-hosted admin grants capacity straight to the team space (§2.3). Both deliver capacity
+to the team without any cross-org entitlement movement.
+
+**Revisit only if** a one-time/distributable storage pack SKU is introduced. At that point
+allocation has a clear pool semantics and these packs carry no cancellation webhook, so the
+claw-back problem doesn't arise. If subscription allocation is ever wanted, the prerequisite
+is making the webhook decrease/base-quota paths match by `sourceId` alone (org-independent),
+which is a cloud-contract change to design carefully.
 
 ### 2.3 Admin grants (self-hosted)
 
@@ -179,12 +196,18 @@ Decisions:
    *inbox of share links*, not a mounted filesystem. Notifications already cover the
    moment of sharing; this only improves later retrieval.
 
-## 5. Implementation backlog (priority order)
+## 5. Implementation status
 
-1. **Team purchase hardening** (§2.1.1) — owner-role checks on checkout/billing-portal/credits. Security gap; do first.
-2. Store UX: purchase-target clarity + non-owner guidance (§2.1.2), `customerLabel` = org name (§2.1.3), integration tests (§2.1.4).
+Shipped:
+
+1. **Team purchase hardening** (§2.1.1) — owner-role checks on checkout/billing-portal/credits.
+2. Store UX: non-owner guidance (§2.1.2), `customerLabel` = org name (§2.1.3), integration tests (§2.1.4).
 3. **Cross-space copy/move** (§3) — API + file-manager actions, reusing the save-to-drive engine.
-4. Admin per-team quota management (§2.3.1) + `default_team_quota` (§2.3.2) + team-owner usage view (§2.3.3).
-5. **Quota allocation** (§2.2) — packs movable between owned orgs.
-6. "Received shares" list page (§4.4).
-7. (Later) same-storage copy dedup via refcounting (§3); v2.8 team RBAC per roadmap.
+4. Admin per-team quota management (§2.3.1) + `default_team_quota` (§2.3.2).
+5. **Received shares** list page (§4.4).
+
+Not built / deferred:
+
+- **Quota allocation** (§2.2) — built then removed; no valid input (only subscriptions are
+  sold) and redundant with team purchase + admin grant. Revisit only with a one-time pack SKU.
+- (Later) same-storage copy dedup via refcounting (§3); v2.8 team RBAC per roadmap.

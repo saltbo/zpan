@@ -531,18 +531,6 @@ export function getUserQuota() {
   return unwrap<UserQuota>(userQuotas.me.$get())
 }
 
-export type MyEntitlement = OrgQuotaEntitlement & { transferable: boolean }
-
-export function listMyEntitlements() {
-  return unwrap<{ orgId: string; items: MyEntitlement[] }>(userQuotas.me.entitlements.$get())
-}
-
-export function transferMyEntitlement(entitlementId: string, targetOrgId: string) {
-  return unwrap<{ entitlement: OrgQuotaEntitlement }>(
-    userQuotas.me.entitlements[':id'].transfers.$post({ param: { id: entitlementId }, json: { targetOrgId } }),
-  )
-}
-
 // Quota Store API
 
 export function listCloudProducts() {
