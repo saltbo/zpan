@@ -17,7 +17,7 @@ import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
 import { assertTaskUploadAllowed } from '../services/downloads'
-import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
+import { refundTraffic } from '../services/effective-quota'
 import {
   cancelDraftMatter,
   collectForPurge,
@@ -44,7 +44,7 @@ import { S3Service } from '../services/s3'
 import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
 import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
 import { StorageQuotaExceededError, withStorageUsageReservation } from '../services/storage-usage'
-import { reportTrafficForDownload } from './traffic-metering-utils'
+import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
 const s3 = new S3Service()
 
@@ -283,17 +283,15 @@ const app = new Hono<Env>()
     const storage = await getStorage(db, matter.storageId)
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
-    const trafficAllowed = await consumeTrafficIfQuotaAllows(db, orgId, matter.size ?? 0)
-    if (!trafficAllowed) return c.json({ error: 'Traffic quota exceeded' }, 422)
-
-    const trafficReportError = await reportTrafficForDownload(c, {
+    const trafficError = await consumeAndReportDownloadTraffic(c, {
       orgId,
       bytes: matter.size ?? 0,
       storage,
       source: 'object_download',
       sourceId: matter.id,
+      quotaExceeded: () => c.json({ error: 'Traffic quota exceeded' }, 422),
     })
-    if (trafficReportError) return trafficReportError
+    if (trafficError) return trafficError
 
     let downloadUrl: string
     try {

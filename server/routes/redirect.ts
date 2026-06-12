@@ -12,7 +12,7 @@ import {
 } from '../services/share'
 import { getStorage } from '../services/storage'
 import { PRESIGN_TTL_SECS, s3 } from './share-utils'
-import { reportTrafficForDownload } from './traffic-metering-utils'
+import { consumeAndReportDownloadTraffic, reportTrafficForDownload } from './traffic-metering-utils'
 
 // Strip optional file extension from token (e.g. "ih_aB3xK9.png" → "ih_aB3xK9")
 function stripExtension(token: string): string {
@@ -54,21 +54,16 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
   const { ok } = await incrementDownloadsAtomic(db, share.id)
   if (!ok) return c.json({ error: 'Download limit exceeded' }, 410)
 
-  const trafficAllowed = await consumeTrafficIfQuotaAllows(db, share.orgId, matter.size ?? 0)
-  if (!trafficAllowed) {
-    await decrementDownloads(db, share.id)
-    return c.json({ error: 'Traffic quota exceeded' }, 422)
-  }
-
-  const trafficReportError = await reportTrafficForDownload(c, {
+  const trafficError = await consumeAndReportDownloadTraffic(c, {
     orgId: share.orgId,
     bytes: matter.size ?? 0,
     storage,
     source: 'direct_share',
     sourceId: share.id,
+    quotaExceeded: () => c.json({ error: 'Traffic quota exceeded' }, 422),
     onRejected: () => decrementDownloads(db, share.id),
   })
-  if (trafficReportError) return trafficReportError
+  if (trafficError) return trafficError
 
   let url: string
   try {

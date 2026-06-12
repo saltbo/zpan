@@ -5,7 +5,49 @@ import {
   reportTrafficEgress,
   type TrafficReportSource,
 } from '../services/cloud-traffic-metering'
-import { refundTraffic } from '../services/effective-quota'
+import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
+
+interface DownloadTrafficParams {
+  orgId: string
+  bytes: number
+  storage: {
+    id: string
+    egressCreditBillingEnabled: boolean
+    egressCreditUnitBytes: number
+    egressCreditPerUnit: number
+  }
+  source: TrafficReportSource
+  sourceId: string
+  /** Renders the 422 response when the traffic quota is exceeded (JSON vs text varies by route). */
+  quotaExceeded: () => Response
+  /** Compensating action run if traffic is rejected at either the quota or the egress-report step. */
+  onRejected?: () => Promise<void>
+}
+
+/**
+ * Meters a download end to end: consume traffic quota (422 on exceed), then
+ * report egress to Cloud (402 on insufficient credits, refunding the quota).
+ * Returns a Response to send back, or null when metering succeeded and the
+ * caller should proceed to presign the object.
+ */
+export async function consumeAndReportDownloadTraffic(
+  c: Context<Env>,
+  params: DownloadTrafficParams,
+): Promise<Response | null> {
+  const allowed = await consumeTrafficIfQuotaAllows(c.get('platform').db, params.orgId, params.bytes)
+  if (!allowed) {
+    await params.onRejected?.()
+    return params.quotaExceeded()
+  }
+  return reportTrafficForDownload(c, {
+    orgId: params.orgId,
+    bytes: params.bytes,
+    storage: params.storage,
+    source: params.source,
+    sourceId: params.sourceId,
+    onRejected: params.onRejected,
+  })
+}
 
 export async function reportTrafficForDownload(
   c: Context<Env>,

@@ -7,7 +7,7 @@ import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import type { Env } from '../middleware/platform'
 import { ApiKeyRateLimitError, verifyApiKeyForPermission } from '../services/api-keys'
-import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
+import { refundTraffic } from '../services/effective-quota'
 import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
 import { NameConflictError } from '../services/matter-name-conflict'
 import { buildObjectKey, fileExt } from '../services/path-template'
@@ -56,7 +56,7 @@ import {
   workspaceEntry,
   xmlResponse,
 } from '../services/webdav-xml'
-import { reportTrafficForDownload } from './traffic-metering-utils'
+import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
 const s3 = new S3Service()
 const READ_METHODS = new Set(['OPTIONS', 'PROPFIND', 'GET', 'HEAD'])
@@ -832,15 +832,13 @@ async function reserveWebDavTraffic(
   bytes: number,
 ): Promise<Response | null> {
   if (bytes <= 0) return null
-  const db = c.get('platform').db
-  const trafficAllowed = await consumeTrafficIfQuotaAllows(db, orgId, bytes)
-  if (!trafficAllowed) return c.text('Traffic quota exceeded', 422)
-  return reportTrafficForDownload(c, {
+  return consumeAndReportDownloadTraffic(c, {
     orgId,
     bytes,
     storage,
     source: 'webdav_download',
     sourceId: matterId,
+    quotaExceeded: () => c.text('Traffic quota exceeded', 422),
   })
 }
 

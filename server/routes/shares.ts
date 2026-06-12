@@ -10,7 +10,7 @@ import { matters } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
-import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
+import { refundTraffic } from '../services/effective-quota'
 import { listMatters } from '../services/matter'
 import { canWriteToOrg } from '../services/org'
 import {
@@ -47,7 +47,7 @@ import {
   s3,
   viewCookieName,
 } from './share-utils'
-import { reportTrafficForDownload } from './traffic-metering-utils'
+import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
 function shareUrls(kind: string, token: string): { landing?: string; direct?: string } {
   return kind === 'landing' ? { landing: `/s/${token}` } : { direct: `/r/${token}` }
@@ -275,21 +275,16 @@ export const publicShares = new Hono<Env>()
     const { ok } = await incrementDownloadsAtomic(db, share.id)
     if (!ok) return c.json({ error: 'Download limit exceeded' }, 410)
 
-    const trafficAllowed = await consumeTrafficIfQuotaAllows(db, share.orgId, targetMatter.size ?? 0)
-    if (!trafficAllowed) {
-      await decrementDownloads(db, share.id)
-      return c.json({ error: 'Traffic quota exceeded' }, 422)
-    }
-
-    const trafficReportError = await reportTrafficForDownload(c, {
+    const trafficError = await consumeAndReportDownloadTraffic(c, {
       orgId: share.orgId,
       bytes: targetMatter.size ?? 0,
       storage,
       source: 'landing_share',
       sourceId: share.id,
+      quotaExceeded: () => c.json({ error: 'Traffic quota exceeded' }, 422),
       onRejected: () => decrementDownloads(db, share.id),
     })
-    if (trafficReportError) return trafficReportError
+    if (trafficError) return trafficError
 
     // Record download audit event. Use the authenticated viewer if available;
     // fall back to the share creator as the org-attributed actor for anonymous
