@@ -1597,7 +1597,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/admin/quotas/team-1/entitlements')
+      expect(url).toContain('/api/admin/teams/team-1/entitlements')
     })
 
     it('grants an entitlement to an org', async () => {
@@ -1608,7 +1608,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/quotas/team-1/entitlements')
+      expect(url).toContain('/api/admin/teams/team-1/entitlements')
       expect(init.method).toBe('POST')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ resourceType: 'storage', bytes: 1024, note: 'starter' })
@@ -1622,7 +1622,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/quotas/team-1/entitlements/ent-1')
+      expect(url).toContain('/api/admin/teams/team-1/entitlements/ent-1')
       expect(init.method).toBe('PATCH')
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
       expect(body).toMatchObject({ bytes: 4096 })
@@ -1636,7 +1636,7 @@ describe('api', () => {
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/admin/quotas/team-1/entitlements/ent-1')
+      expect(url).toContain('/api/admin/teams/team-1/entitlements/ent-1')
       expect(init.method).toBe('DELETE')
     })
 

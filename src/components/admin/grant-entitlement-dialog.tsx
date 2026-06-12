@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { grantUserEntitlement, updateUserEntitlement } from '@/lib/api'
+import { grantOrgEntitlement, grantUserEntitlement, updateOrgEntitlement, updateUserEntitlement } from '@/lib/api'
 
 interface EditableEntitlement {
   id: string
@@ -24,10 +24,16 @@ interface EditableEntitlement {
   metadata: string | null
 }
 
-interface GrantUserEntitlementDialogProps {
+// One dialog for both user and team entitlements — only the API calls and the
+// cache keys to invalidate differ between the two.
+export type EntitlementTarget =
+  | { kind: 'user'; id: string; name: string }
+  | { kind: 'team'; orgId: string; name: string }
+
+interface GrantEntitlementDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  user: { id: string; name: string } | null
+  target: EntitlementTarget | null
   entitlement?: EditableEntitlement | null
 }
 
@@ -37,6 +43,31 @@ const UNIT_BYTES: Record<QuotaUnit, number> = {
   MB: 1024 * 1024,
   GB: 1024 * 1024 * 1024,
   TB: 1024 * 1024 * 1024 * 1024,
+}
+
+type GrantPayload = { bytes: number; expiresAt: string | null; note: string | null }
+
+// Bind the target to its API calls and the query keys its pages depend on.
+function targetBinding(target: EntitlementTarget) {
+  if (target.kind === 'user') {
+    return {
+      grant: (data: GrantPayload) => grantUserEntitlement(target.id, { resourceType: 'storage', ...data }),
+      update: (id: string, data: GrantPayload) => updateUserEntitlement(target.id, id, data),
+      invalidate: [
+        ['admin', 'users'],
+        ['admin', 'users', target.id],
+        ['admin', 'users', target.id, 'entitlements'],
+      ],
+    }
+  }
+  return {
+    grant: (data: GrantPayload) => grantOrgEntitlement(target.orgId, { resourceType: 'storage', ...data }),
+    update: (id: string, data: GrantPayload) => updateOrgEntitlement(target.orgId, id, data),
+    invalidate: [
+      ['admin', 'teams'],
+      ['admin', 'teams', target.orgId, 'entitlements'],
+    ],
+  }
 }
 
 function bytesToAmountUnit(bytes: number): { amount: string; unit: QuotaUnit } {
@@ -65,7 +96,7 @@ function readNote(metadata: string | null): string {
   }
 }
 
-export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitlement }: GrantUserEntitlementDialogProps) {
+export function GrantEntitlementDialog({ open, onOpenChange, target, entitlement }: GrantEntitlementDialogProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isEdit = !!entitlement
@@ -92,22 +123,24 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitleme
 
   const mutation = useMutation({
     mutationFn: () => {
-      if (!user) throw new Error('user_required')
+      if (!target) throw new Error('target_required')
       const value = Number(amount)
-      if (!Number.isFinite(value) || value <= 0) throw new Error(t('admin.users.positiveQuotaRequired'))
-      const payload = {
+      if (!Number.isFinite(value) || value <= 0) throw new Error(t('admin.entitlement.positiveQuotaRequired'))
+      const payload: GrantPayload = {
         bytes: Math.round(value * UNIT_BYTES[unit]),
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         note: note.trim() || null,
       }
-      if (entitlement) return updateUserEntitlement(user.id, entitlement.id, payload)
-      return grantUserEntitlement(user.id, { resourceType: 'storage', ...payload })
+      const binding = targetBinding(target)
+      return entitlement ? binding.update(entitlement.id, payload) : binding.grant(payload)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users', user?.id] })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users', user?.id, 'entitlements'] })
-      toast.success(isEdit ? t('admin.users.entitlementUpdated') : t('admin.users.entitlementGranted'))
+      if (target) {
+        for (const key of targetBinding(target).invalidate) {
+          queryClient.invalidateQueries({ queryKey: key })
+        }
+      }
+      toast.success(isEdit ? t('admin.entitlement.updated') : t('admin.entitlement.granted'))
       onOpenChange(false)
     },
     onError: (err) => {
@@ -115,7 +148,7 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitleme
     },
   })
 
-  if (!user) return null
+  if (!target) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -123,11 +156,11 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitleme
         <DialogHeader>
           <DialogTitle>
             {isEdit
-              ? t('admin.users.editEntitlementFor', { name: user.name })
-              : t('admin.users.grantEntitlementFor', { name: user.name })}
+              ? t('admin.entitlement.editFor', { name: target.name })
+              : t('admin.entitlement.grantFor', { name: target.name })}
           </DialogTitle>
           <DialogDescription>
-            {isEdit ? t('admin.users.editEntitlementDescription') : t('admin.users.grantEntitlementDescription')}
+            {isEdit ? t('admin.entitlement.editDescription') : t('admin.entitlement.grantDescription')}
           </DialogDescription>
         </DialogHeader>
 
@@ -140,7 +173,7 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitleme
         >
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px]">
             <div className="space-y-2">
-              <Label htmlFor="entitlement-amount">{t('admin.users.entitlementAmount')}</Label>
+              <Label htmlFor="entitlement-amount">{t('admin.entitlement.amount')}</Label>
               <Input
                 id="entitlement-amount"
                 type="number"
@@ -152,7 +185,7 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitleme
               />
             </div>
             <div className="space-y-2">
-              <Label>{t('admin.users.quotaUnit')}</Label>
+              <Label>{t('admin.entitlement.unit')}</Label>
               <Select value={unit} onValueChange={(value) => setUnit(value as QuotaUnit)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -168,7 +201,7 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitleme
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="entitlement-expires">{t('admin.users.entitlementExpires')}</Label>
+            <Label htmlFor="entitlement-expires">{t('admin.entitlement.expires')}</Label>
             <Input
               id="entitlement-expires"
               type="datetime-local"
@@ -177,7 +210,7 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitleme
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="entitlement-note">{t('admin.users.entitlementNote')}</Label>
+            <Label htmlFor="entitlement-note">{t('admin.entitlement.note')}</Label>
             <Textarea id="entitlement-note" value={note} onChange={(event) => setNote(event.target.value)} rows={3} />
           </div>
           <DialogFooter>
@@ -188,8 +221,8 @@ export function GrantUserEntitlementDialog({ open, onOpenChange, user, entitleme
               {mutation.isPending
                 ? t('common.loading')
                 : isEdit
-                  ? t('admin.users.saveEntitlement')
-                  : t('admin.users.grantEntitlement')}
+                  ? t('admin.entitlement.save')
+                  : t('admin.entitlement.grant')}
             </Button>
           </DialogFooter>
         </form>

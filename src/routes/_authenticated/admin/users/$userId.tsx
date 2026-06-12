@@ -5,7 +5,7 @@ import { ArrowLeft, BadgeCent, CalendarDays, Mail } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { GrantUserEntitlementDialog } from '@/components/admin/grant-user-entitlement-dialog'
+import { GrantEntitlementDialog } from '@/components/admin/grant-entitlement-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getUser, listUserEntitlements, revokeUserEntitlement } from '@/lib/api'
-import { formatSize } from '@/lib/format'
+import { formatDate, formatSize, formatStorageUsage, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/users/$userId')({
   component: AdminUserDetailPage,
@@ -66,7 +66,7 @@ function AdminUserDetailPage() {
   const displayName = user ? user.name || user.username || user.email : ''
   const statusLabel = user?.banned ? t('admin.users.disabled') : t('admin.users.active')
   const statusVariant = user?.banned ? 'destructive' : 'secondary'
-  const quotaLabel = user ? formatQuota(user.quotaUsed, user.quotaTotal) : ''
+  const quotaLabel = user ? formatStorageUsage(user.quotaUsed, user.quotaTotal) : ''
 
   const activeItems = useMemo(() => items.filter((item) => item.status === 'active'), [items])
 
@@ -207,16 +207,16 @@ function AdminUserDetailPage() {
         </CardContent>
       </Card>
 
-      <GrantUserEntitlementDialog
+      <GrantEntitlementDialog
         open={grantOpen}
         onOpenChange={setGrantOpen}
-        user={{ id: user.id, name: displayName }}
+        target={{ kind: 'user', id: user.id, name: displayName }}
       />
 
-      <GrantUserEntitlementDialog
+      <GrantEntitlementDialog
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
-        user={{ id: user.id, name: displayName }}
+        target={{ kind: 'user', id: user.id, name: displayName }}
         entitlement={editTarget}
       />
 
@@ -257,16 +257,6 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function formatQuota(used: number, total: number): string {
-  if (total <= 0) return `${formatSize(used)} / --`
-  return `${formatSize(used)} / ${formatSize(total)}`
-}
-
-function formatDate(value: number | string): string {
-  const date = typeof value === 'number' ? new Date(value) : new Date(value)
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString()
-}
-
 function roleLabel(role: string | null, t: (key: string) => string): string {
   return role === 'admin' ? t('admin.users.roleAdmin') : t('admin.users.roleMember')
 }
@@ -287,13 +277,4 @@ function formatStatus(status: string, t: (key: string) => string): string {
   if (status === 'active') return t('admin.users.active')
   if (status === 'revoked') return t('admin.users.revoked')
   return status
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('')
 }

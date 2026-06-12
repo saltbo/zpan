@@ -20,8 +20,6 @@ const ADMIN_USERS_KEYS = [
   'admin.users.disabled',
   'admin.users.enable',
   'admin.users.disable',
-  'admin.users.quotaUnit',
-  'admin.users.positiveQuotaRequired',
   'admin.users.statusUpdated',
   'admin.users.selectedCount',
   'admin.users.selectedUsers',

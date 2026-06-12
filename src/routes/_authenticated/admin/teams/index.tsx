@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { listTeams, type TeamSummary } from '@/lib/api'
-import { formatSize } from '@/lib/format'
+import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/teams/')({
   component: TeamsPage,
@@ -93,30 +93,11 @@ function TeamTableRow({ team, onOpen }: { team: TeamSummary; onOpen: () => void 
         {t('admin.teams.memberCount', { count: team.memberCount })}
       </td>
       <td className="hidden whitespace-nowrap px-4 py-3 text-muted-foreground md:table-cell">
-        {formatUsage(team.quotaUsed, team.quotaTotal)}
+        {formatStorageUsage(team.quotaUsed, team.quotaTotal)}
       </td>
       <td className="hidden truncate px-4 py-3 text-muted-foreground lg:table-cell" title={formatDate(team.createdAt)}>
         {formatDate(team.createdAt)}
       </td>
     </tr>
   )
-}
-
-function formatUsage(used: number, total: number): string {
-  if (total <= 0) return `${formatSize(used)} / ∞`
-  return `${formatSize(used)} / ${formatSize(total)}`
-}
-
-function formatDate(timestamp: number): string {
-  const d = new Date(timestamp)
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString()
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }
