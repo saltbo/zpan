@@ -494,6 +494,37 @@ export function listQuotas() {
   return unwrap<{ items: QuotaItem[]; total: number }>(adminQuotas.index.$get())
 }
 
+export function listOrgEntitlements(orgId: string) {
+  return unwrap<{ orgId: string; items: OrgQuotaEntitlement[] }>(
+    adminQuotas[':orgId'].entitlements.$get({ param: { orgId } }),
+  )
+}
+
+export function grantOrgEntitlement(
+  orgId: string,
+  data: { resourceType: 'storage'; bytes: number; expiresAt?: string | null; note?: string | null },
+) {
+  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
+    adminQuotas[':orgId'].entitlements.$post({ param: { orgId }, json: data }),
+  )
+}
+
+export function updateOrgEntitlement(
+  orgId: string,
+  entitlementId: string,
+  data: { bytes?: number; expiresAt?: string | null; note?: string | null },
+) {
+  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
+    adminQuotas[':orgId'].entitlements[':eid'].$patch({ param: { orgId, eid: entitlementId }, json: data }),
+  )
+}
+
+export function revokeOrgEntitlement(orgId: string, entitlementId: string) {
+  return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
+    adminQuotas[':orgId'].entitlements[':eid'].$delete({ param: { orgId, eid: entitlementId } }),
+  )
+}
+
 // User Quotas API
 
 export function getUserQuota() {

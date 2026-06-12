@@ -229,7 +229,8 @@ export async function createAuth(
             }
           },
           afterCreateOrganization: async ({ organization }) => {
-            await createOrgQuota(db, organization.id, new Date())
+            const isTeam = !organization.slug.startsWith('personal-')
+            await createOrgQuota(db, organization.id, new Date(), isTeam)
           },
           afterAcceptInvitation: async ({ member, user, organization }) => {
             await recordActivity(db, {
@@ -527,7 +528,7 @@ async function createPersonalOrg(
   const displayName = user.name || user.username
   const orgName = displayName ? `${displayName}'s Space` : 'Personal Space'
   const quotaValues = await createOrgQuotaValues(db, orgId, now)
-  const entitlementValues = await createFreePlanEntitlementValues(db, orgId, now)
+  const entitlementValues = await createFreePlanEntitlementValues(db, orgId, now, false)
 
   await executeWriteTransaction(db, [
     db.insert(authSchema.organization).values({
@@ -563,10 +564,10 @@ async function createOrgQuotaValues(_db: Database, orgId: string, now: Date): Pr
   }
 }
 
-async function createOrgQuota(db: Database, orgId: string, now: Date): Promise<void> {
+async function createOrgQuota(db: Database, orgId: string, now: Date, isTeam = false): Promise<void> {
   await executeWriteTransaction(db, [
     db.insert(orgQuotas).values(await createOrgQuotaValues(db, orgId, now)),
-    ...(await createFreePlanEntitlementValues(db, orgId, now)).map((value) =>
+    ...(await createFreePlanEntitlementValues(db, orgId, now, isTeam)).map((value) =>
       db.insert(orgQuotaEntitlements).values(value),
     ),
   ])
@@ -576,12 +577,15 @@ async function createFreePlanEntitlementValues(
   db: Database,
   orgId: string,
   now: Date,
+  isTeam: boolean,
 ): Promise<(typeof orgQuotaEntitlements.$inferInsert)[]> {
-  const defaultQuota = await getDefaultOrgQuota(db)
+  const storageDefault = isTeam ? await getDefaultTeamQuota(db) : null
+  const defaultQuota = storageDefault?.bytes ?? (await getDefaultOrgQuota(db))
+  const storageSettingKey = storageDefault?.settingKey ?? 'default_org_quota'
   const defaultTrafficQuota = await getDefaultOrgTrafficQuota(db)
 
   return [
-    freePlanEntitlementValue(orgId, 'storage', defaultQuota, now, 'default_org_quota'),
+    freePlanEntitlementValue(orgId, 'storage', defaultQuota, now, storageSettingKey),
     freePlanEntitlementValue(orgId, 'traffic', defaultTrafficQuota, now, 'default_org_monthly_traffic_quota'),
   ]
 }
@@ -613,6 +617,20 @@ function freePlanEntitlementValue(
     createdAt: now,
     updatedAt: now,
   }
+}
+
+// Default storage quota for newly created team orgs. Returns null when the
+// option is unset so callers fall back to the personal-org default.
+async function getDefaultTeamQuota(db: Database): Promise<{ bytes: number; settingKey: string } | null> {
+  const rows = await db
+    .select({ value: systemOptions.value })
+    .from(systemOptions)
+    .where(eq(systemOptions.key, 'default_team_quota'))
+  const raw = rows[0]?.value
+  if (raw == null) return null
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return { bytes: n, settingKey: 'default_team_quota' }
 }
 
 async function getDefaultOrgQuota(db: Database): Promise<number> {

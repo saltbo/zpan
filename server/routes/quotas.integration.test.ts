@@ -242,3 +242,92 @@ describe('User Quotas API — /api/quotas', () => {
     })
   })
 })
+
+describe('Admin Org Entitlements API', () => {
+  async function insertTeamOrg(db: Awaited<ReturnType<typeof createTestApp>>['db'], id: string) {
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata)
+      VALUES (${id}, 'Quota Team', ${id}, '{"type":"team"}')
+    `)
+    await db.run(sql`
+      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+      VALUES (${`quota-${id}`}, ${id}, 0, 0, 0, 0, '1970-01')
+    `)
+  }
+
+  it('grants, lists, and revokes a storage entitlement for a team org', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await insertTeamOrg(db, 'team-q1')
+
+    const grant = await app.request('/api/admin/quotas/team-q1/entitlements', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resourceType: 'storage', bytes: 1024, note: 'starter' }),
+    })
+    expect(grant.status).toBe(201)
+    const granted = (await grant.json()) as { orgId: string; entitlement: { id: string; bytes: number } }
+    expect(granted.orgId).toBe('team-q1')
+    expect(granted.entitlement.bytes).toBe(1024)
+
+    const list = await app.request('/api/admin/quotas/team-q1/entitlements', { headers })
+    expect(list.status).toBe(200)
+    const listed = (await list.json()) as { items: Array<{ id: string; status: string }> }
+    expect(listed.items).toHaveLength(1)
+    expect(listed.items[0].status).toBe('active')
+
+    // Effective quota reflects the grant
+    const quotas = await app.request('/api/admin/quotas', { headers })
+    const quotasBody = (await quotas.json()) as { items: Array<{ orgId: string; entitlementQuota: number }> }
+    const teamRow = quotasBody.items.find((item) => item.orgId === 'team-q1')
+    expect(teamRow?.entitlementQuota).toBe(1024)
+
+    const revoke = await app.request(`/api/admin/quotas/team-q1/entitlements/${granted.entitlement.id}`, {
+      method: 'DELETE',
+      headers,
+    })
+    expect(revoke.status).toBe(200)
+    const afterRevoke = await app.request('/api/admin/quotas/team-q1/entitlements', { headers })
+    const afterBody = (await afterRevoke.json()) as { items: Array<{ status: string }> }
+    expect(afterBody.items[0].status).toBe('revoked')
+  })
+
+  it('updates an admin grant bytes', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await insertTeamOrg(db, 'team-q2')
+
+    const grant = await app.request('/api/admin/quotas/team-q2/entitlements', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resourceType: 'storage', bytes: 1024 }),
+    })
+    const granted = (await grant.json()) as { entitlement: { id: string } }
+
+    const update = await app.request(`/api/admin/quotas/team-q2/entitlements/${granted.entitlement.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytes: 4096 }),
+    })
+    expect(update.status).toBe(200)
+    const updated = (await update.json()) as { entitlement: { bytes: number } }
+    expect(updated.entitlement.bytes).toBe(4096)
+  })
+
+  it('returns 404 for an unknown org and 403 for non-admin callers', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const missing = await app.request('/api/admin/quotas/no-such-org/entitlements', { headers })
+    expect(missing.status).toBe(404)
+
+    await authedHeaders(app, 'plain@example.com')
+    const signInRes = await app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'plain@example.com', password: 'password123456' }),
+    })
+    const plainHeaders = { Cookie: signInRes.headers.getSetCookie().join('; ') }
+    const forbidden = await app.request('/api/admin/quotas/no-such-org/entitlements', { headers: plainHeaders })
+    expect(forbidden.status).toBe(403)
+  })
+})

@@ -101,7 +101,7 @@ const app = new Hono<Env>()
       }
     }
 
-    if (key === 'default_org_quota') {
+    if (key === 'default_org_quota' || key === 'default_team_quota') {
       const quota = Number(body.value)
       if (!Number.isInteger(quota) || quota <= 0) {
         return c.json({ error: 'Default organization quota must be a positive number' }, 400)
