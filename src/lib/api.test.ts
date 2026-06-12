@@ -138,6 +138,7 @@ import {
   updateUserEntitlement,
   updateUserStatus,
   uploadAvatar,
+  uploadPartToS3,
   uploadTeamLogo,
   uploadToS3,
   upsertAuthProvider,
@@ -777,6 +778,87 @@ describe('api', () => {
     })
   })
 
+  describe('uploadPartToS3', () => {
+    class MockPartXHR {
+      static instances: MockPartXHR[] = []
+      upload = { onprogress: null as ((event: ProgressEvent) => void) | null }
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      onabort: (() => void) | null = null
+      status = 200
+      method = ''
+      url = ''
+      body: unknown
+      responseHeaders: Record<string, string> = { ETag: '"etag-abc"' }
+
+      constructor() {
+        MockPartXHR.instances.push(this)
+      }
+      open(method: string, url: string) {
+        this.method = method
+        this.url = url
+      }
+      getResponseHeader(key: string) {
+        return this.responseHeaders[key] ?? null
+      }
+      send(body: unknown) {
+        this.body = body
+      }
+      abort() {
+        this.onabort?.()
+      }
+    }
+
+    beforeEach(() => {
+      MockPartXHR.instances = []
+      vi.stubGlobal('XMLHttpRequest', MockPartXHR)
+    })
+
+    it('PUTs the blob and resolves with the unquoted ETag', async () => {
+      const blob = new Blob(['chunk'])
+      const promise = uploadPartToS3('https://s3/part-1', blob)
+      const xhr = MockPartXHR.instances[0]
+      xhr.onload?.()
+
+      await expect(promise).resolves.toBe('etag-abc')
+      expect(xhr.method).toBe('PUT')
+      expect(xhr.url).toBe('https://s3/part-1')
+      expect(xhr.body).toBe(blob)
+    })
+
+    it('rejects when the ETag header is not exposed', async () => {
+      const promise = uploadPartToS3('https://s3/part-1', new Blob(['x']))
+      const xhr = MockPartXHR.instances[0]
+      xhr.responseHeaders = {}
+      xhr.onload?.()
+
+      await expect(promise).rejects.toThrow(/ETag/)
+    })
+
+    it('rejects when the part upload fails', async () => {
+      const promise = uploadPartToS3('https://s3/part-1', new Blob(['x']))
+      const xhr = MockPartXHR.instances[0]
+      xhr.status = 500
+      xhr.onload?.()
+
+      await expect(promise).rejects.toThrow('Upload failed')
+    })
+
+    it('reports progress and rejects on abort', async () => {
+      const onProgress = vi.fn()
+      const controller = new AbortController()
+      const promise = uploadPartToS3('https://s3/part-1', new Blob(['x']), {
+        onProgress,
+        signal: controller.signal,
+      })
+      const xhr = MockPartXHR.instances[0]
+      xhr.upload.onprogress?.({ loaded: 2, total: 8, lengthComputable: true } as ProgressEvent)
+      expect(onProgress).toHaveBeenCalledWith({ loaded: 2, total: 8 })
+      controller.abort()
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+    })
+  })
+
   describe('restoreObject', () => {
     it('sends PATCH with action: restore for the given id', async () => {
       const obj = { id: 'id1', status: 'active' }
@@ -836,7 +918,11 @@ describe('api', () => {
     })
 
     it('presigns upload session parts', async () => {
-      const payload = { parts: [{ partNumber: 1, uploadUrl: 'https://s3/part-1' }] }
+      const payload = {
+        uploadId: 'mp-1',
+        partSize: 5 * 1024 * 1024,
+        parts: [{ partNumber: 1, url: 'https://s3/part-1' }],
+      }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await presignObjectUploadParts('obj-1', 'upload-1', { partNumbers: [1] })

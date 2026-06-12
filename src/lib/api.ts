@@ -252,7 +252,7 @@ export function createObjectUploadSession(id: string, data: CreateObjectUploadSe
 }
 
 export function presignObjectUploadParts(id: string, uploadSessionId: string, data: PresignObjectUploadPartsInput) {
-  return unwrap<{ parts: Array<{ partNumber: number; uploadUrl: string }> }>(
+  return unwrap<{ uploadId: string; partSize: number; parts: Array<{ partNumber: number; url: string }> }>(
     objects[':id'].uploads[':uploadSessionId'].parts.$post({
       param: { id, uploadSessionId },
       json: data,
@@ -1237,6 +1237,59 @@ export function uploadToS3(url: string, file: File, options: UploadToS3Options =
       xhr.setRequestHeader('Content-Disposition', options.contentDisposition)
     }
     xhr.send(file)
+  })
+}
+
+export interface UploadPartOptions {
+  onProgress?: (progress: UploadProgress) => void
+  signal?: AbortSignal
+}
+
+/**
+ * PUTs a single multipart part (external presigned URL) and resolves with its
+ * ETag, which the multipart-complete call needs. The S3 bucket's CORS config
+ * must expose the ETag response header for this to be readable from the browser.
+ */
+export function uploadPartToS3(url: string, blob: Blob, options: UploadPartOptions = {}): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    const abort = () => {
+      xhr.abort()
+      reject(new DOMException('Upload cancelled', 'AbortError'))
+    }
+
+    if (options.signal?.aborted) {
+      reject(new DOMException('Upload cancelled', 'AbortError'))
+      return
+    }
+
+    options.signal?.addEventListener('abort', abort, { once: true })
+    xhr.upload.onprogress = (event) => {
+      options.onProgress?.({ loaded: event.loaded, total: event.lengthComputable ? event.total : blob.size })
+    }
+    xhr.onload = () => {
+      options.signal?.removeEventListener('abort', abort)
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const etag = xhr.getResponseHeader('ETag')
+        if (!etag) {
+          reject(new Error('Missing ETag — the storage bucket must expose the ETag header via CORS'))
+          return
+        }
+        options.onProgress?.({ loaded: blob.size, total: blob.size })
+        resolve(etag.replace(/"/g, ''))
+        return
+      }
+      reject(new Error('Upload failed'))
+    }
+    xhr.onerror = () => {
+      options.signal?.removeEventListener('abort', abort)
+      reject(new Error('Upload failed'))
+    }
+    xhr.onabort = () => {
+      options.signal?.removeEventListener('abort', abort)
+    }
+    xhr.open('PUT', url)
+    xhr.send(blob)
   })
 }
 
