@@ -486,12 +486,16 @@ const app = new Hono<Env>()
       },
     })
 
-    // Move = copy + trash source. Only trash when every file copied — a
-    // partial copy must never destroy the originals.
-    let sourceTrashed = false
+    // Move = copy + delete source. Only delete when every file copied — a
+    // partial copy must never destroy the originals. The source is purged (not
+    // trashed) so its quota is actually released: trashed files still count
+    // toward usage, which would otherwise double-charge the moved bytes in both
+    // spaces. The independent copy already lives in the target space.
+    let sourceDeleted = false
     if (mode === 'move' && result.skipped.length === 0) {
-      await trashMatter(db, orgId, source.id, userId)
-      sourceTrashed = true
+      const subtree = await collectForPurge(db, orgId, source)
+      await purgeRecursively(db, orgId, subtree)
+      sourceDeleted = true
       await recordActivity(db, {
         orgId,
         userId,
@@ -503,7 +507,7 @@ const app = new Hono<Env>()
       })
     }
 
-    return c.json({ ...result, sourceTrashed }, 201)
+    return c.json({ ...result, sourceDeleted }, 201)
   })
 
 export default app

@@ -221,7 +221,7 @@ export function copyObject(id: string, parent: string, onConflict?: ConflictStra
 export interface TransferObjectResult {
   saved: StorageObject[]
   skipped: Array<{ name: string; reason: string }>
-  sourceTrashed: boolean
+  sourceDeleted: boolean
 }
 
 export function transferObject(

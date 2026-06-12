@@ -63,7 +63,7 @@
   "files.transferFolderLabel": "目标文件夹",
   "files.transferConfirm": "确认转移",
   "files.transferCopyHint": "将在目标空间创建副本并占用其配额，两份文件相互独立。",
-  "files.transferMoveHint": "复制成功后，原件将移入当前空间的回收站。",
+  "files.transferMoveHint": "复制成功后，原件将从当前空间移除并释放其配额。",
   "files.transferSuccessCopy": "已复制到目标空间",
   "files.transferSuccessMove": "已移动到目标空间",
   "files.transferSkipped": "{{count}} 个文件未能转移",

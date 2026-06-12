@@ -63,7 +63,7 @@
   "files.transferFolderLabel": "Target folder",
   "files.transferConfirm": "Transfer",
   "files.transferCopyHint": "A copy will be created in the target space and count toward its quota. The two copies stay independent.",
-  "files.transferMoveHint": "The original will be moved to this space's trash after a successful copy.",
+  "files.transferMoveHint": "The original will be removed from this space and its quota freed after a successful copy.",
   "files.transferSuccessCopy": "Copied to the target space",
   "files.transferSuccessMove": "Moved to the target space",
   "files.transferSkipped": "{{count}} file(s) could not be transferred",

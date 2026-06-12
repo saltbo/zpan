@@ -70,14 +70,20 @@ async function insertFolder(
 async function insertFile(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
   orgId: string,
-  opts: { id: string; name: string; parent?: string; status?: string },
+  opts: { id: string; name: string; parent?: string; status?: string; size?: number },
 ) {
   const now = Date.now()
   const status = opts.status ?? 'active'
+  const size = opts.size ?? 100
   await db.run(sql`
     INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', 100, 0, ${opts.parent ?? ''}, 'some/key.txt', ${validStorage.id}, ${status}, ${now}, ${now})
+    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', ${size}, 0, ${opts.parent ?? ''}, 'some/key.txt', ${validStorage.id}, ${status}, ${now}, ${now})
   `)
+}
+
+async function getOrgQuota(db: Awaited<ReturnType<typeof createTestApp>>['db'], orgId: string) {
+  const rows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId} LIMIT 1`)
+  return rows[0] ?? null
 }
 
 async function getOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
@@ -1256,16 +1262,16 @@ describe('POST /api/objects/:id/transfers', () => {
     const res = await transferRequest(app, headers, 'src-copy', { targetOrgId: 'team-a', mode: 'copy' })
 
     expect(res.status).toBe(201)
-    const body = (await res.json()) as { saved: Array<{ orgId: string; name: string }>; sourceTrashed: boolean }
+    const body = (await res.json()) as { saved: Array<{ orgId: string; name: string }>; sourceDeleted: boolean }
     expect(body.saved).toHaveLength(1)
     expect(body.saved[0].orgId).toBe('team-a')
-    expect(body.sourceTrashed).toBe(false)
+    expect(body.sourceDeleted).toBe(false)
     expect(S3Service.prototype.copyObject).toHaveBeenCalled()
     const source = await getMatter(db, 'src-copy', orgId)
     expect(source?.status).toBe('active')
   })
 
-  it('moves a file into a team space and trashes the source', async () => {
+  it('moves a file into a team space, deleting the source and releasing its quota', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1273,15 +1279,21 @@ describe('POST /api/objects/:id/transfers', () => {
     const userId = await getUserIdByEmail(db, 'test@example.com')
     await insertTeamOrg(db, 'team-b')
     await insertMember(db, 'team-b', userId, 'owner')
-    await insertFile(db, orgId, { id: 'src-move', name: 'photo.jpg' })
+    await insertFile(db, orgId, { id: 'src-move', name: 'photo.jpg', size: 1024 })
+    await db.run(sql`
+      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+      VALUES (${`q-${orgId}`}, ${orgId}, ${1024 * 1024}, 1024, 0, 0, '1970-01')
+    `)
 
     const res = await transferRequest(app, headers, 'src-move', { targetOrgId: 'team-b', mode: 'move' })
 
     expect(res.status).toBe(201)
-    const body = (await res.json()) as { saved: Array<{ orgId: string }>; sourceTrashed: boolean }
-    expect(body.sourceTrashed).toBe(true)
+    const body = (await res.json()) as { saved: Array<{ orgId: string }>; sourceDeleted: boolean }
+    expect(body.sourceDeleted).toBe(true)
+    // Source is purged, not trashed — its quota must be released, not double-counted.
     const source = await getMatter(db, 'src-move', orgId)
-    expect(source?.status).toBe('trashed')
+    expect(source).toBeNull()
+    expect((await getOrgQuota(db, orgId))?.used ?? 0).toBe(0)
     const targetList = await listMatters(db, 'team-b', { parent: '', status: 'active', page: 1, pageSize: 10 })
     expect(targetList.items.map((m) => m.name)).toContain('photo.jpg')
   })
