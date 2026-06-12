@@ -19,6 +19,8 @@ import { Route as STokenRouteImport } from './routes/s/$token'
 import { Route as AuthenticatedStorageRouteImport } from './routes/_authenticated/storage'
 import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
+import { Route as authResetPasswordRouteImport } from './routes/(auth)/reset-password'
+import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
@@ -104,6 +106,16 @@ const authSignUpRoute = authSignUpRouteImport.update({
 const authSignInRoute = authSignInRouteImport.update({
   id: '/(auth)/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const authResetPasswordRoute = authResetPasswordRouteImport.update({
+  id: '/(auth)/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
+  id: '/(auth)/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSettingsRouteRoute =
@@ -326,6 +338,8 @@ export interface FileRoutesByFullPath {
   '/device': typeof DeviceRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
+  '/forgot-password': typeof authForgotPasswordRoute
+  '/reset-password': typeof authResetPasswordRoute
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
   '/storage': typeof AuthenticatedStorageRoute
@@ -371,6 +385,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/s': typeof SRouteRouteWithChildren
   '/device': typeof DeviceRoute
+  '/forgot-password': typeof authForgotPasswordRoute
+  '/reset-password': typeof authResetPasswordRoute
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
   '/storage': typeof AuthenticatedStorageRoute
@@ -420,6 +436,8 @@ export interface FileRoutesById {
   '/device': typeof DeviceRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
+  '/(auth)/forgot-password': typeof authForgotPasswordRoute
+  '/(auth)/reset-password': typeof authResetPasswordRoute
   '/(auth)/sign-in': typeof authSignInRoute
   '/(auth)/sign-up': typeof authSignUpRoute
   '/_authenticated/storage': typeof AuthenticatedStorageRoute
@@ -471,6 +489,8 @@ export interface FileRouteTypes {
     | '/device'
     | '/admin'
     | '/settings'
+    | '/forgot-password'
+    | '/reset-password'
     | '/sign-in'
     | '/sign-up'
     | '/storage'
@@ -516,6 +536,8 @@ export interface FileRouteTypes {
   to:
     | '/s'
     | '/device'
+    | '/forgot-password'
+    | '/reset-password'
     | '/sign-in'
     | '/sign-up'
     | '/storage'
@@ -564,6 +586,8 @@ export interface FileRouteTypes {
     | '/device'
     | '/_authenticated/admin'
     | '/_authenticated/settings'
+    | '/(auth)/forgot-password'
+    | '/(auth)/reset-password'
     | '/(auth)/sign-in'
     | '/(auth)/sign-up'
     | '/_authenticated/storage'
@@ -612,6 +636,8 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   SRouteRoute: typeof SRouteRouteWithChildren
   DeviceRoute: typeof DeviceRoute
+  authForgotPasswordRoute: typeof authForgotPasswordRoute
+  authResetPasswordRoute: typeof authResetPasswordRoute
   authSignInRoute: typeof authSignInRoute
   authSignUpRoute: typeof authSignUpRoute
   StoreCheckoutRoute: typeof StoreCheckoutRoute
@@ -688,6 +714,20 @@ declare module '@tanstack/react-router' {
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof authSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(auth)/reset-password': {
+      id: '/(auth)/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof authResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(auth)/forgot-password': {
+      id: '/(auth)/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof authForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/settings': {
@@ -1093,6 +1133,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   SRouteRoute: SRouteRouteWithChildren,
   DeviceRoute: DeviceRoute,
+  authForgotPasswordRoute: authForgotPasswordRoute,
+  authResetPasswordRoute: authResetPasswordRoute,
   authSignInRoute: authSignInRoute,
   authSignUpRoute: authSignUpRoute,
   StoreCheckoutRoute: StoreCheckoutRoute,

@@ -60,6 +60,23 @@ describe('Auth API', () => {
     expect(res.headers.get('set-cookie')).toBeTruthy()
   })
 
+  it('POST /api/auth/request-password-reset is accepted (password reset is wired)', async () => {
+    const { app } = await createTestApp()
+    await app.request('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Reset', email: 'reset@example.com', password: 'password123456' }),
+    })
+    const res = await app.request('/api/auth/request-password-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'reset@example.com', redirectTo: '/reset-password' }),
+    })
+    // Endpoint exists and the sendResetPassword hook runs without error (email
+    // is unconfigured in tests, so it no-ops). Not a 404 = the flow is mounted.
+    expect(res.status).toBe(200)
+  })
+
   it('POST /api/auth/sign-in/email rejects missing captcha token when captcha is enabled', async () => {
     const { app, db } = await createTestApp()
     await app.request('/api/auth/sign-up/email', {

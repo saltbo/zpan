@@ -104,7 +104,12 @@ function SignIn() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">{t('auth.password')}</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">{t('auth.password')}</Label>
+                <Link to="/forgot-password" className="text-xs text-muted-foreground underline hover:text-foreground">
+                  {t('auth.forgotPassword')}
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"
