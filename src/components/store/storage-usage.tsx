@@ -14,7 +14,7 @@ export function CurrentPlanCard({
 }: {
   quota: UserQuota
   creditsBalance?: number
-  onManagePlan: () => void
+  onManagePlan?: () => void
   isManagingPlan: boolean
 }) {
   const { t } = useTranslation()
@@ -34,9 +34,11 @@ export function CurrentPlanCard({
             </div>
           </div>
           <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{t('storage.currentPlanDescription')}</p>
-          <Button className="mt-3 h-8" size="sm" variant="outline" disabled={isManagingPlan} onClick={onManagePlan}>
-            {t('storage.managePlan')}
-          </Button>
+          {onManagePlan && (
+            <Button className="mt-3 h-8" size="sm" variant="outline" disabled={isManagingPlan} onClick={onManagePlan}>
+              {t('storage.managePlan')}
+            </Button>
+          )}
         </div>
         <PlanUsageOverview quota={quota} />
       </div>

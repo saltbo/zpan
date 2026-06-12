@@ -32,7 +32,18 @@ export async function getCloudStoreBinding(
   }
 }
 
-export async function getCustomerLabel(db: Database, userId: string): Promise<string | null> {
+// Cloud-side accounting label for an order. Team purchases are labeled with
+// the team name (the org is the customer); personal purchases keep the
+// purchaser's email. Personal orgs are identified by their `personal-` slug.
+export async function getCustomerLabel(db: Database, userId: string, orgId: string): Promise<string | null> {
+  const orgs = await db
+    .select({ name: organization.name, slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.id, orgId))
+    .limit(1)
+  const org = orgs[0]
+  if (org && !org.slug.startsWith('personal-')) return org.name
+
   const rows = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1)
   return rows[0]?.email ?? null
 }

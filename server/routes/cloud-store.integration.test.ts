@@ -625,9 +625,10 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(200)
-    const target = orderPayload().target as { orgId: string; customerId: string }
+    const target = orderPayload().target as { orgId: string; customerId: string; customerLabel: string }
     expect(target.orgId).toBe(teamOrgId)
     expect(target.customerId).toBe(teamOrgId)
+    expect(target.customerLabel).toBe('Test Team')
   })
 
   it('rejects team billing and credit endpoints for non-owner members', async () => {

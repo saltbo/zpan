@@ -163,7 +163,7 @@ export const cloudStore = new Hono<Env>()
             target: {
               orgId: targetOrgId,
               customerId: targetOrgId,
-              customerLabel: await getCustomerLabel(db, userId),
+              customerLabel: await getCustomerLabel(db, userId, targetOrgId),
             },
           },
         }),
