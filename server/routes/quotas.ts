@@ -8,13 +8,14 @@ import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { recordActivity } from '../services/activity'
 import { getEffectiveQuota, getEffectiveQuotasByOrg } from '../services/effective-quota'
-import { findPersonalOrg } from '../services/org'
+import { findPersonalOrg, isOrgOwner } from '../services/org'
 import {
   grantOrgEntitlement,
   listOrgEntitlements,
   revokeOrgEntitlement,
   updateOrgEntitlement,
 } from '../services/org-entitlements'
+import { isTransferableEntitlement, transferEntitlementToOrg } from '../services/quota-allocation'
 
 const grantEntitlementSchema = z.object({
   resourceType: z.literal('storage'),
@@ -163,18 +164,67 @@ const adminQuotas = new Hono<Env>()
     return c.json(result)
   })
 
-const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {
-  const db = c.get('platform').db
-  const userId = c.get('userId')!
-  const orgId = c.get('orgId') ?? (await findPersonalOrg(db, userId))
-
-  if (!orgId) {
-    return c.json({ error: 'No organization found' }, 404)
-  }
-
-  const quota = await getEffectiveQuota(db, orgId)
-  return c.json(quota)
+const transferEntitlementSchema = z.object({
+  targetOrgId: z.string().min(1),
 })
+
+const userQuotas = new Hono<Env>()
+  .use(requireAuth)
+  .get('/me', async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId') ?? (await findPersonalOrg(db, userId))
+
+    if (!orgId) {
+      return c.json({ error: 'No organization found' }, 404)
+    }
+
+    const quota = await getEffectiveQuota(db, orgId)
+    return c.json(quota)
+  })
+  .get('/me/entitlements', async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId') ?? (await findPersonalOrg(db, userId))
+    if (!orgId) return c.json({ error: 'No organization found' }, 404)
+    if (!(await isOrgOwner(db, userId, orgId))) return c.json({ error: 'Forbidden' }, 403)
+
+    const result = await listOrgEntitlements(db, orgId)
+    if ('error' in result) return c.json({ error: result.error }, result.status)
+    const items = result.items.map((item) => ({ ...item, transferable: isTransferableEntitlement(item) }))
+    return c.json({ orgId, items })
+  })
+  .post('/me/entitlements/:id/transfers', zValidator('json', transferEntitlementSchema), async (c) => {
+    const db = c.get('platform').db
+    const userId = c.get('userId')!
+    const orgId = c.get('orgId') ?? (await findPersonalOrg(db, userId))
+    if (!orgId) return c.json({ error: 'No organization found' }, 404)
+
+    const { targetOrgId } = c.req.valid('json')
+    const result = await transferEntitlementToOrg(db, {
+      userId,
+      entitlementId: c.req.param('id'),
+      sourceOrgId: orgId,
+      targetOrgId,
+    })
+    if ('error' in result) return c.json({ error: result.error, code: result.code }, result.status)
+
+    await recordActivity(db, {
+      orgId,
+      userId,
+      action: 'quota_entitlement_allocate',
+      targetType: 'quota',
+      targetId: result.entitlement.id,
+      targetName: targetOrgId,
+      metadata: {
+        entitlementId: result.entitlement.id,
+        bytes: result.entitlement.bytes,
+        targetOrgId,
+      },
+    })
+
+    return c.json(result)
+  })
 
 export { adminQuotas, userQuotas }
 

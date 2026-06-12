@@ -331,3 +331,113 @@ describe('Admin Org Entitlements API', () => {
     expect(forbidden.status).toBe(403)
   })
 })
+
+describe('Quota allocation API', () => {
+  type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
+  type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
+
+  async function setup(app: TestApp, db: TestDb, opts: { teamRole?: string } = {}) {
+    const headers = await adminHeaders(app)
+    const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'admin@example.com'`)
+    const userId = users[0].id
+    const orgs = await db.all<{ id: string }>(sql`SELECT id FROM organization WHERE slug = ${`personal-${userId}`}`)
+    const personalOrgId = orgs[0].id
+
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata)
+      VALUES ('alloc-team', 'Alloc Team', 'alloc-team', '{"type":"team"}')
+    `)
+    await db.run(sql`
+      INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+      VALUES ('quota-alloc-team', 'alloc-team', 0, 0, 0, 0, '1970-01')
+    `)
+    await db.run(sql`
+      INSERT INTO member (id, organization_id, user_id, role)
+      VALUES ('member-alloc-team', 'alloc-team', ${userId}, ${opts.teamRole ?? 'owner'})
+    `)
+
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO org_quota_entitlements
+        (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, status, created_at, updated_at)
+      VALUES
+        ('pack-1', ${personalOrgId}, 'storage', 'grant', 'cloud_order', 'order-pack-1', 5242880, ${now}, 'active', ${now}, ${now})
+    `)
+
+    return { headers, userId, personalOrgId }
+  }
+
+  it('lists my entitlements with a transferable flag for the space owner', async () => {
+    const { app, db } = await createTestApp()
+    const { headers } = await setup(app, db)
+
+    const res = await app.request('/api/quotas/me/entitlements', { headers })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ id: string; transferable: boolean; source: string }> }
+    const pack = body.items.find((item) => item.id === 'pack-1')
+    expect(pack?.transferable).toBe(true)
+    const plan = body.items.find((item) => item.source === 'free_plan')
+    expect(plan?.transferable).toBe(false)
+  })
+
+  it('moves a purchased pack to an owned team space', async () => {
+    const { app, db } = await createTestApp()
+    const { headers } = await setup(app, db)
+
+    const res = await app.request('/api/quotas/me/entitlements/pack-1/transfers', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetOrgId: 'alloc-team' }),
+    })
+    expect(res.status).toBe(200)
+
+    const rows = await db.all<{ org_id: string }>(sql`SELECT org_id FROM org_quota_entitlements WHERE id = 'pack-1'`)
+    expect(rows[0].org_id).toBe('alloc-team')
+  })
+
+  it('rejects moving a pack when the source space would end up over quota', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, personalOrgId } = await setup(app, db)
+    // Personal org: free plan 10MB + pack 5MB = 15MB quota; used 12MB > 10MB after the move.
+    await db.run(sql`UPDATE org_quotas SET used = 12582912 WHERE org_id = ${personalOrgId}`)
+
+    const res = await app.request('/api/quotas/me/entitlements/pack-1/transfers', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetOrgId: 'alloc-team' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { code: string }
+    expect(body.code).toBe('SOURCE_OVER_QUOTA')
+  })
+
+  it('rejects moving non-pack entitlements', async () => {
+    const { app, db } = await createTestApp()
+    const { headers, personalOrgId } = await setup(app, db)
+    const plans = await db.all<{ id: string }>(sql`
+      SELECT id FROM org_quota_entitlements
+      WHERE org_id = ${personalOrgId} AND source = 'free_plan' AND resource_type = 'storage'
+    `)
+
+    const res = await app.request(`/api/quotas/me/entitlements/${plans[0].id}/transfers`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetOrgId: 'alloc-team' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { code: string }
+    expect(body.code).toBe('NOT_TRANSFERABLE')
+  })
+
+  it('rejects moving a pack into a team the user does not own', async () => {
+    const { app, db } = await createTestApp()
+    const { headers } = await setup(app, db, { teamRole: 'editor' })
+
+    const res = await app.request('/api/quotas/me/entitlements/pack-1/transfers', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetOrgId: 'alloc-team' }),
+    })
+    expect(res.status).toBe(403)
+  })
+})

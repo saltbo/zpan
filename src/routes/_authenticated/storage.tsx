@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CheckoutConfirmDialog, type CheckoutSelection } from '@/components/store/checkout-confirm-dialog'
+import { QuotaPacksPanel } from '@/components/store/quota-packs-panel'
 import {
   CreditBalanceButton,
   CurrentPlanCard,
@@ -247,6 +248,9 @@ export function StoragePage() {
           />
         ) : (
           <FreeQuotaCard quota={quotaQuery.data} creditsBalance={creditsQuery.data?.balance} />
+        )}
+        {canManageBilling && targetOrgId && (
+          <QuotaPacksPanel targets={targetsQuery.data?.items ?? []} currentOrgId={targetOrgId} />
         )}
         {canManageBilling ? (
           <StoragePackages

@@ -77,6 +77,7 @@ import {
   listDownloadTasks,
   listIhostApiKeys,
   listIhostImages,
+  listMyEntitlements,
   listNotifications,
   listObjects,
   listOrgEntitlements,
@@ -114,6 +115,7 @@ import {
   sendDownloaderHeartbeat,
   setSystemOption,
   testEmail,
+  transferMyEntitlement,
   transferObject,
   trashObject,
   updateAnnouncement,
@@ -1611,6 +1613,41 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
 
       await expect(listOrgEntitlements('missing')).rejects.toThrow('not found')
+    })
+  })
+
+  describe('my entitlements', () => {
+    it('lists my entitlements with transferable flag', async () => {
+      const payload = { orgId: 'org-1', items: [{ id: 'ent-1', bytes: 1024, transferable: true }] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listMyEntitlements()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/quotas/me/entitlements')
+    })
+
+    it('transfers a pack to another owned space', async () => {
+      const payload = { entitlement: { id: 'ent-1', orgId: 'team-1' } }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await transferMyEntitlement('ent-1', 'team-1')
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/quotas/me/entitlements/ent-1/transfers')
+      expect(init.method).toBe('POST')
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      expect(body).toMatchObject({ targetOrgId: 'team-1' })
+    })
+
+    it('throws on over-quota transfer', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: 'over quota', code: 'SOURCE_OVER_QUOTA' }, false, 400),
+      )
+
+      await expect(transferMyEntitlement('ent-1', 'team-1')).rejects.toThrow('over quota')
     })
   })
 

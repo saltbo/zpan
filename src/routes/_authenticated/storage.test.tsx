@@ -13,6 +13,7 @@ import {
   listCloudOrders,
   listCloudProducts,
   listCloudStoreTargets,
+  listMyEntitlements,
   redeemCloudGiftCard,
 } from '@/lib/api'
 import { openNewTab } from '@/lib/browser-navigation'
@@ -98,6 +99,8 @@ vi.mock('@/lib/api', () => {
     listCloudOrders: vi.fn(),
     listCloudCreditLedgerEntries: vi.fn(),
     listCloudStoreTargets: vi.fn(),
+    listMyEntitlements: vi.fn(),
+    transferMyEntitlement: vi.fn(),
     createDiscountQuote: vi.fn(),
   }
 })
@@ -258,6 +261,7 @@ beforeEach(() => {
     items: [{ orgId: 'org-1', name: 'Personal Space', type: 'personal', role: 'owner' }],
     total: 1,
   })
+  vi.mocked(listMyEntitlements).mockResolvedValue({ orgId: 'org-1', items: [] })
 })
 
 afterEach(() => {

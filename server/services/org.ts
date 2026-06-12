@@ -51,6 +51,14 @@ export async function canWriteToOrg(db: Database, userId: string, orgId: string)
   return orgId === (await findPersonalOrg(db, userId))
 }
 
+// Whether the user owns the given org: owner membership role, or the org is
+// the user's own personal org.
+export async function isOrgOwner(db: Database, userId: string, orgId: string): Promise<boolean> {
+  const role = await getMemberRole(db, orgId, userId)
+  if (role !== null) return role === 'owner'
+  return orgId === (await findPersonalOrg(db, userId))
+}
+
 // Personal orgs use a deterministic slug `personal-${userId}`. Checking the
 // slug is sufficient — no additional query is needed.
 export async function isPersonalOrg(db: Database, orgId: string): Promise<boolean> {
