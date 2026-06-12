@@ -38,7 +38,7 @@ max_retries = 3
 enabled = true
 
 [triggers]
-crons = ["*/10 * * * *", "0 */6 * * *", "0 */12 * * *", "0 0 1 * *"]
+crons = ["*/10 * * * *", "0 */6 * * *", "0 */12 * * *", "0 0 1 * *", "0 4 * * *"]
 
 # ----------------------------------------------------------------------------
 # Staging environment — used by non-production branch builds.
