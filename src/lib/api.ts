@@ -519,7 +519,7 @@ export function getTeam(orgId: string) {
 
 export function listOrgEntitlements(orgId: string) {
   return unwrap<{ orgId: string; items: OrgQuotaEntitlement[] }>(
-    adminQuotas[':orgId'].entitlements.$get({ param: { orgId } }),
+    adminTeams[':orgId'].entitlements.$get({ param: { orgId } }),
   )
 }
 
@@ -528,7 +528,7 @@ export function grantOrgEntitlement(
   data: { resourceType: 'storage'; bytes: number; expiresAt?: string | null; note?: string | null },
 ) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    adminQuotas[':orgId'].entitlements.$post({ param: { orgId }, json: data }),
+    adminTeams[':orgId'].entitlements.$post({ param: { orgId }, json: data }),
   )
 }
 
@@ -538,13 +538,13 @@ export function updateOrgEntitlement(
   data: { bytes?: number; expiresAt?: string | null; note?: string | null },
 ) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    adminQuotas[':orgId'].entitlements[':eid'].$patch({ param: { orgId, eid: entitlementId }, json: data }),
+    adminTeams[':orgId'].entitlements[':eid'].$patch({ param: { orgId, eid: entitlementId }, json: data }),
   )
 }
 
 export function revokeOrgEntitlement(orgId: string, entitlementId: string) {
   return unwrap<{ orgId: string; entitlement: OrgQuotaEntitlement }>(
-    adminQuotas[':orgId'].entitlements[':eid'].$delete({ param: { orgId, eid: entitlementId } }),
+    adminTeams[':orgId'].entitlements[':eid'].$delete({ param: { orgId, eid: entitlementId } }),
   )
 }
 

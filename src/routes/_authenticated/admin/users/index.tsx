@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { batchDeleteUsers, batchUpdateUserStatus, listUsers, type UserWithOrg, updateUserStatus } from '@/lib/api'
-import { formatSize } from '@/lib/format'
+import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/users/')({
   component: UsersPage,
@@ -307,7 +307,7 @@ function UserTableRow({
     : 'bg-green-500/10 text-green-700 dark:text-green-400'
 
   const roleLabel = user.role === 'admin' ? t('admin.users.roleAdmin') : t('admin.users.roleMember')
-  const quotaLabel = formatQuota(user.quotaUsed, user.quotaTotal)
+  const quotaLabel = formatStorageUsage(user.quotaUsed, user.quotaTotal)
 
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
@@ -368,23 +368,4 @@ function UserTableRow({
       </td>
     </tr>
   )
-}
-
-function formatQuota(used: number, total: number): string {
-  if (total <= 0) return `${formatSize(used)} / --`
-  return `${formatSize(used)} / ${formatSize(total)}`
-}
-
-function formatDate(timestamp: number): string {
-  const d = new Date(timestamp)
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString()
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('')
 }

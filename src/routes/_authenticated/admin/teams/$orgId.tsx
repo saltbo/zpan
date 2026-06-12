@@ -5,7 +5,7 @@ import { ArrowLeft, BadgeCent, CalendarDays, UsersRound } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { GrantOrgEntitlementDialog } from '@/components/admin/grant-org-entitlement-dialog'
+import { GrantEntitlementDialog } from '@/components/admin/grant-entitlement-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getTeam, listOrgEntitlements, revokeOrgEntitlement } from '@/lib/api'
-import { formatSize } from '@/lib/format'
+import { formatDate, formatSize, formatStorageUsage, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/admin/teams/$orgId')({
   component: AdminTeamDetailPage,
@@ -123,7 +123,7 @@ function AdminTeamDetailPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-3 md:min-w-[420px]">
               <Metric label={t('admin.teams.colOwner')} value={team.ownerName ?? '—'} />
-              <Metric label={t('admin.teams.colUsage')} value={formatUsage(team.quotaUsed, team.quotaTotal)} />
+              <Metric label={t('admin.teams.colUsage')} value={formatStorageUsage(team.quotaUsed, team.quotaTotal)} />
               <Metric label={t('admin.teams.activeEntitlements')} value={String(activeItems.length)} />
             </div>
           </div>
@@ -195,16 +195,16 @@ function AdminTeamDetailPage() {
         </CardContent>
       </Card>
 
-      <GrantOrgEntitlementDialog
+      <GrantEntitlementDialog
         open={grantOpen}
         onOpenChange={setGrantOpen}
-        org={{ orgId: team.id, name: team.name }}
+        target={{ kind: 'team', orgId: team.id, name: team.name }}
       />
 
-      <GrantOrgEntitlementDialog
+      <GrantEntitlementDialog
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
-        org={{ orgId: team.id, name: team.name }}
+        target={{ kind: 'team', orgId: team.id, name: team.name }}
         entitlement={
           editTarget
             ? {
@@ -254,16 +254,6 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function formatUsage(used: number, total: number): string {
-  if (total <= 0) return `${formatSize(used)} / ∞`
-  return `${formatSize(used)} / ${formatSize(total)}`
-}
-
-function formatDate(value: number | string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString()
-}
-
 function formatEntitlementType(type: string, t: (key: string) => string): string {
   if (type === 'plan') return t('admin.teams.entitlementTypePlan')
   return t('admin.teams.entitlementTypeGrant')
@@ -280,13 +270,4 @@ function formatStatus(status: string, t: (key: string) => string): string {
   if (status === 'active') return t('admin.teams.active')
   if (status === 'revoked') return t('admin.teams.revoked')
   return status
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
 }
