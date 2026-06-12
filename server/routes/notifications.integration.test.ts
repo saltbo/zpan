@@ -61,7 +61,7 @@ describe('GET /api/notifications', () => {
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 
     for (let i = 0; i < 5; i++) {
-      await createNotification(db, { userId, type: 'test', title: `Notification ${i}` })
+      await createNotification(db, { userId, type: 'share_received', title: `Notification ${i}` })
     }
 
     const res = await app.request('/api/notifications?page=1&pageSize=3', { headers })
@@ -77,8 +77,8 @@ describe('GET /api/notifications', () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 
-    const n1 = await createNotification(db, { userId, type: 'test', title: 'Read' })
-    await createNotification(db, { userId, type: 'test', title: 'Unread' })
+    const n1 = await createNotification(db, { userId, type: 'share_received', title: 'Read' })
+    await createNotification(db, { userId, type: 'share_received', title: 'Unread' })
 
     await app.request(`/api/notifications/${n1.id}`, {
       method: 'PATCH',
@@ -97,7 +97,7 @@ describe('GET /api/notifications', () => {
     const { app, db } = await createTestApp()
     const { headers } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
     const otherId = await insertUser(db)
-    await createNotification(db, { userId: otherId, type: 'test', title: 'Other' })
+    await createNotification(db, { userId: otherId, type: 'share_received', title: 'Other' })
 
     const res = await app.request('/api/notifications', { headers })
     expect(res.status).toBe(200)
@@ -113,8 +113,8 @@ describe('GET /api/notifications/stats', () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 
-    await createNotification(db, { userId, type: 'test', title: 'A' })
-    await createNotification(db, { userId, type: 'test', title: 'B' })
+    await createNotification(db, { userId, type: 'share_received', title: 'A' })
+    await createNotification(db, { userId, type: 'share_received', title: 'B' })
 
     const res = await app.request('/api/notifications/stats', { headers })
     expect(res.status).toBe(200)
@@ -129,7 +129,7 @@ describe('PATCH /api/notifications/:id', () => {
   it('marks notification as read and returns 204', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
-    const n = await createNotification(db, { userId, type: 'test', title: 'Test' })
+    const n = await createNotification(db, { userId, type: 'share_received', title: 'Test' })
 
     const res = await app.request(`/api/notifications/${n.id}`, {
       method: 'PATCH',
@@ -146,7 +146,7 @@ describe('PATCH /api/notifications/:id', () => {
   it('is idempotent', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
-    const n = await createNotification(db, { userId, type: 'test', title: 'Test' })
+    const n = await createNotification(db, { userId, type: 'share_received', title: 'Test' })
 
     await app.request(`/api/notifications/${n.id}`, {
       method: 'PATCH',
@@ -165,7 +165,7 @@ describe('PATCH /api/notifications/:id', () => {
     const { app, db } = await createTestApp()
     const { headers } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
     const otherId = await insertUser(db)
-    const n = await createNotification(db, { userId: otherId, type: 'test', title: 'Other' })
+    const n = await createNotification(db, { userId: otherId, type: 'share_received', title: 'Other' })
 
     const res = await app.request(`/api/notifications/${n.id}`, {
       method: 'PATCH',
@@ -195,8 +195,8 @@ describe('PATCH /api/notifications', () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 
-    await createNotification(db, { userId, type: 'test', title: 'A' })
-    await createNotification(db, { userId, type: 'test', title: 'B' })
+    await createNotification(db, { userId, type: 'share_received', title: 'A' })
+    await createNotification(db, { userId, type: 'share_received', title: 'B' })
 
     const res = await app.request('/api/notifications', {
       method: 'PATCH',
@@ -216,7 +216,7 @@ describe('PATCH /api/notifications', () => {
     const { app, db } = await createTestApp()
     const { headers } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
     const otherId = await insertUser(db)
-    await createNotification(db, { userId: otherId, type: 'test', title: 'Other' })
+    await createNotification(db, { userId: otherId, type: 'share_received', title: 'Other' })
 
     const res = await app.request('/api/notifications', {
       method: 'PATCH',

@@ -32,6 +32,7 @@ import { executeWriteTransaction } from './services/db-transaction'
 import { currentTrafficPeriod } from './services/effective-quota'
 import { isEmailConfigured, sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
+import { createNotification } from './services/notification'
 import { findPersonalOrg } from './services/org'
 import { getEffectiveSignupMode } from './services/signup-mode-guard'
 import { acceptSiteInvitation, validateSiteInvitation } from './services/site-invitations'
@@ -261,6 +262,15 @@ export async function createAuth(
               targetId: organization.id,
               targetName: organization.name,
               metadata: { role: member.role },
+            })
+            await createNotification(db, {
+              userId: user.id,
+              type: 'team_join',
+              title: `You joined ${organization.name}`,
+              body: "You now have access to this team's space.",
+              refType: 'team',
+              refId: organization.id,
+              metadata: JSON.stringify({ teamName: organization.name }),
             })
           },
           afterRemoveMember: async ({ member, organization }) => {

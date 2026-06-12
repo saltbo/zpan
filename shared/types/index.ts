@@ -481,10 +481,12 @@ export interface ShareView {
   recipients?: ShareRecipient[]
 }
 
+export type NotificationType = 'share_received' | 'archive_job_completed' | 'archive_job_failed' | 'team_join'
+
 export interface Notification {
   id: string
   userId: string
-  type: string
+  type: NotificationType
   title: string
   body: string
   refType: string | null

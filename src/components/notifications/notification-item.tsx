@@ -2,6 +2,7 @@ import type { Notification } from '@shared/types'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { markNotificationRead } from '@/lib/api'
+import { notificationContent } from '@/lib/notification-content'
 
 function diffMinutes(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 60_000)
@@ -29,6 +30,7 @@ export function NotificationItem({ notification, onRead }: NotificationItemProps
   const navigate = useNavigate()
   const isUnread = !notification.readAt
   const href = resolveHref(notification)
+  const { title, body } = notificationContent(notification, t)
 
   function relativeTime(): string {
     const mins = diffMinutes(notification.createdAt)
@@ -57,8 +59,8 @@ export function NotificationItem({ notification, onRead }: NotificationItemProps
         {isUnread && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}
         {!isUnread && <span className="mt-1.5 h-2 w-2 shrink-0" />}
         <div className="min-w-0 flex-1">
-          <p className={`text-sm truncate ${isUnread ? 'font-semibold' : 'font-medium'}`}>{notification.title}</p>
-          {notification.body && <p className="text-xs text-muted-foreground truncate">{notification.body}</p>}
+          <p className={`text-sm truncate ${isUnread ? 'font-semibold' : 'font-medium'}`}>{title}</p>
+          {body && <p className="text-xs text-muted-foreground truncate">{body}</p>}
           <p className="text-xs text-muted-foreground mt-0.5">{relativeTime()}</p>
         </div>
       </div>

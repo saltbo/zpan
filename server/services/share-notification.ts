@@ -52,7 +52,7 @@ export async function dispatchShareCreated(
         body: 'Click to open the share',
         refType: 'share',
         refId: share.id,
-        metadata: JSON.stringify({ token: share.token, kind: share.kind }),
+        metadata: JSON.stringify({ token: share.token, kind: share.kind, creatorName, matterName }),
       })
     }
 
