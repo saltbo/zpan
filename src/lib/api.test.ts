@@ -1,6 +1,7 @@
 // Tests for src/lib/api.ts — covers all public API helper functions
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ApiError,
   batchDeleteUsers,
   batchUpdateUserStatus,
   buildShareObjectUrl,
@@ -29,10 +30,12 @@ import {
   createStorage,
   createWebDavAppPassword,
   deleteAnnouncement,
+  deleteAuthProvider,
   deleteAvatar,
   deleteDownloader,
   deleteIhostConfig,
   deleteIhostImage,
+  deleteInviteCode,
   deleteObject,
   deleteShare,
   deleteStorage,
@@ -42,6 +45,7 @@ import {
   downloadTaskEventsUrl,
   emptyTrash,
   enableIhostFeature,
+  generateInviteCodes,
   getAnnouncement,
   getBackgroundJob,
   getBranding,
@@ -63,9 +67,11 @@ import {
   getUserQuota,
   grantOrgEntitlement,
   grantUserEntitlement,
+  isNameConflictError,
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
+  listAdminAuthProviders,
   listAnnouncements,
   listAuthProviders,
   listBackgroundJobs,
@@ -78,8 +84,10 @@ import {
   listDownloadTasks,
   listIhostApiKeys,
   listIhostImages,
+  listInviteCodes,
   listNotifications,
   listObjects,
+  listObjectsByPath,
   listOrgEntitlements,
   listQuotas,
   listReceivedShares,
@@ -89,6 +97,7 @@ import {
   listSiteInvitations,
   listStorages,
   listSystemOptions,
+  listTeamActivities,
   listTeams,
   listUserEntitlements,
   listUsers,
@@ -131,6 +140,7 @@ import {
   uploadAvatar,
   uploadTeamLogo,
   uploadToS3,
+  upsertAuthProvider,
   verifySharePassword,
 } from './api'
 
@@ -3644,6 +3654,166 @@ describe('api', () => {
       )
 
       await expect(listAdminAuditLogs()).rejects.toMatchObject({ status: 402 })
+    })
+  })
+
+  describe('listObjectsByPath', () => {
+    it('sends path and optional filters as query params', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+
+      await listObjectsByPath('a/b', 'trashed', 2, 50, { type: 'dir', search: 'doc', orgId: 'org-1' })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/objects?')
+      expect(url).toContain('path=a%2Fb')
+      expect(url).toContain('status=trashed')
+      expect(url).toContain('page=2')
+      expect(url).toContain('pageSize=50')
+      expect(url).toContain('type=dir')
+      expect(url).toContain('search=doc')
+      expect(url).toContain('orgId=org-1')
+      expect(init.method).toBe('GET')
+    })
+
+    it('omits absent optional filters', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 500 }))
+
+      await listObjectsByPath('root')
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).not.toContain('type=')
+      expect(url).not.toContain('search=')
+      expect(url).not.toContain('orgId=')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listObjectsByPath('root')).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('isNameConflictError', () => {
+    it('returns true only for 409 NAME_CONFLICT ApiErrors', () => {
+      const conflict = new ApiError(409, { code: 'NAME_CONFLICT', conflictingName: 'a', conflictingId: 'id1' })
+      expect(isNameConflictError(conflict)).toBe(true)
+    })
+
+    it('returns false for other ApiErrors and non-errors', () => {
+      expect(isNameConflictError(new ApiError(409, { code: 'OTHER' }))).toBe(false)
+      expect(isNameConflictError(new ApiError(404, { code: 'NAME_CONFLICT' }))).toBe(false)
+      expect(isNameConflictError(new Error('nope'))).toBe(false)
+      expect(isNameConflictError(null)).toBe(false)
+    })
+  })
+
+  describe('admin auth providers api', () => {
+    it('lists admin auth providers', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [] }))
+
+      await listAdminAuthProviders()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/admin/auth-providers')
+      expect(init.method).toBe('GET')
+    })
+
+    it('upserts an auth provider', async () => {
+      const data = { enabled: true, clientId: 'cid', clientSecret: 'secret' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ providerId: 'google', ...data }))
+
+      await upsertAuthProvider('google', data as never)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/admin/auth-providers/google')
+      expect(init.method).toBe('PUT')
+      expect(init.body).toBe(JSON.stringify(data))
+    })
+
+    it('deletes an auth provider', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ providerId: 'google', deleted: true }))
+
+      await deleteAuthProvider('google')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/admin/auth-providers/google')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listAdminAuthProviders()).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('invite codes api', () => {
+    it('lists invite codes with pagination', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+
+      await listInviteCodes(3, 25)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/admin/invite-codes?')
+      expect(url).toContain('page=3')
+      expect(url).toContain('pageSize=25')
+      expect(init.method).toBe('GET')
+    })
+
+    it('generates invite codes with count only', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ codes: [] }))
+
+      await generateInviteCodes(5)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/admin/invite-codes')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ count: 5 }))
+    })
+
+    it('includes expiresInDays when provided', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ codes: [] }))
+
+      await generateInviteCodes(2, 7)
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(init.body).toBe(JSON.stringify({ count: 2, expiresInDays: 7 }))
+    })
+
+    it('deletes an invite code', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'code-1', deleted: true }))
+
+      await deleteInviteCode('code-1')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/admin/invite-codes/code-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(generateInviteCodes(1)).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('listTeamActivities', () => {
+    it('fetches team activity with pagination', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 20 }))
+
+      await listTeamActivities('team-1', 2, 15)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/teams/team-1/activity?')
+      expect(url).toContain('page=2')
+      expect(url).toContain('pageSize=15')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listTeamActivities('team-1')).rejects.toThrow('forbidden')
     })
   })
 })
