@@ -38,12 +38,17 @@ export async function listTeams(db: Database): Promise<TeamSummary[]> {
   const orgIds = rows.map((r) => r.id)
   const quotas = await getEffectiveQuotasByOrg(db, orgIds)
 
-  const memberRows = await db
-    .select({ orgId: member.organizationId, total: count() })
-    .from(member)
-    .where(inArray(member.organizationId, orgIds))
-    .groupBy(member.organizationId)
-  const memberByOrg = new Map(memberRows.map((r) => [r.orgId, r.total]))
+  // D1 caps a query at 100 bound params; chunk the IN lists below the cap.
+  const memberChunks = await Promise.all(
+    chunk(orgIds, 90).map((ids) =>
+      db
+        .select({ orgId: member.organizationId, total: count() })
+        .from(member)
+        .where(inArray(member.organizationId, ids))
+        .groupBy(member.organizationId),
+    ),
+  )
+  const memberByOrg = new Map(memberChunks.flat().map((r) => [r.orgId, r.total]))
 
   const owners = await listOwnerNames(db, orgIds)
 
@@ -97,21 +102,34 @@ export async function getTeam(db: Database, orgId: string): Promise<TeamSummary 
 
 // First owner per org (by member creation order), for a display label.
 async function listOwnerNames(db: Database, orgIds: string[]): Promise<Map<string, string>> {
-  const rows = await db
-    .select({
-      orgId: member.organizationId,
-      name: user.name,
-      email: user.email,
-      createdAt: member.createdAt,
-    })
-    .from(member)
-    .innerJoin(user, eq(user.id, member.userId))
-    .where(and(eq(member.role, 'owner'), inArray(member.organizationId, orgIds)))
-    .orderBy(member.createdAt)
+  // D1 caps a query at 100 bound params; chunk the IN list (plus the role param).
+  const chunks = await Promise.all(
+    chunk(orgIds, 90).map((ids) =>
+      db
+        .select({
+          orgId: member.organizationId,
+          name: user.name,
+          email: user.email,
+          createdAt: member.createdAt,
+        })
+        .from(member)
+        .innerJoin(user, eq(user.id, member.userId))
+        .where(and(eq(member.role, 'owner'), inArray(member.organizationId, ids)))
+        .orderBy(member.createdAt),
+    ),
+  )
 
   const byOrg = new Map<string, string>()
-  for (const r of rows) {
+  for (const r of chunks.flat()) {
     if (!byOrg.has(r.orgId)) byOrg.set(r.orgId, r.name || r.email)
   }
   return byOrg
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size))
+  }
+  return out
 }
