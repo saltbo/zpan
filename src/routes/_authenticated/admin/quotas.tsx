@@ -53,7 +53,9 @@ function AdminQuotasPage() {
     },
   })
 
-  const items = quotasQuery.data?.items ?? []
+  // Team spaces only: personal-space quotas are managed from the user detail
+  // page, this page covers the spaces that have no user page to live on.
+  const items = (quotasQuery.data?.items ?? []).filter((item) => item.orgType === 'team')
 
   return (
     <div className="space-y-6">
@@ -66,7 +68,6 @@ function AdminQuotasPage() {
         <TableHeader>
           <TableRow>
             <TableHead>{t('admin.quotas.orgColumn')}</TableHead>
-            <TableHead>{t('admin.quotas.typeColumn')}</TableHead>
             <TableHead>{t('admin.quotas.usageColumn')}</TableHead>
             <TableHead className="text-right">{t('admin.quotas.actionsColumn')}</TableHead>
           </TableRow>
@@ -75,11 +76,6 @@ function AdminQuotasPage() {
           {items.map((item) => (
             <TableRow key={item.orgId}>
               <TableCell className="font-medium">{item.orgName ?? item.orgId}</TableCell>
-              <TableCell>
-                <Badge variant={item.orgType === 'team' ? 'default' : 'outline'}>
-                  {item.orgType === 'team' ? t('admin.quotas.typeTeam') : t('admin.quotas.typePersonal')}
-                </Badge>
-              </TableCell>
               <TableCell className="tabular-nums">{formatUsage(item)}</TableCell>
               <TableCell className="text-right">
                 <Button
@@ -94,7 +90,7 @@ function AdminQuotasPage() {
           ))}
           {items.length === 0 && (
             <TableRow>
-              <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
+              <TableCell colSpan={3} className="py-10 text-center text-muted-foreground">
                 {quotasQuery.isLoading ? t('common.loading') : t('admin.quotas.empty')}
               </TableCell>
             </TableRow>

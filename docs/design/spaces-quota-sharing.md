@@ -52,8 +52,8 @@ Hardening required (the current chain has no role/type check beyond membership):
    when the target org is a team (`canAccessTargetOrg` currently only checks membership —
    any viewer can buy/subscribe/see invoices for the team). This is the only real
    security gap; fix first.
-2. UX: the store page must state which space is being purchased for ("Buying storage for
-   *Team X*"). Non-owner members see "ask your team owner" guidance instead of buy buttons.
+2. UX: owners see the store normally (the active-space switcher already provides context);
+   non-owner members see "ask your team owner" guidance instead of buy buttons.
 3. `customerLabel` sent to cloud should be the org name for team purchases (currently the
    purchaser's email), so cloud-side accounting is readable.
 4. Tests: integration coverage for owner-buys-for-team (entitlement lands on team org),
@@ -85,6 +85,8 @@ quota** (the v2.2 roadmap item "Per-team storage quota set by admin" shipped the
 model only). Required:
 
 1. Generalize the entitlements admin API to any org (e.g. `/api/admin/teams/:id/entitlements`).
+   The admin UI splits by surface to avoid duplication: personal-space quotas live on the
+   user detail page, team-space quotas on a team-scoped admin Quotas page.
 2. Separate defaults: add a `default_team_quota` system option; org creation picks the
    default by `metadata.type === 'team'` vs personal. Today both share `default_org_quota`.
 3. Team-owner read view: team settings should show used/quota so owners know when to ask

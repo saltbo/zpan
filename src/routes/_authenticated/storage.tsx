@@ -201,13 +201,6 @@ export function StoragePage() {
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold tracking-tight">{t('storage.title')}</h2>
           <p className="text-sm text-muted-foreground">{t('storage.subtitle')}</p>
-          {currentTarget && (
-            <p className="text-sm font-medium text-primary">
-              {isTeamSpace
-                ? t('storage.purchasingForTeam', { name: currentTarget.name })
-                : t('storage.purchasingForPersonal')}
-            </p>
-          )}
         </div>
         {canManageBilling && (
           <div className="flex flex-wrap justify-end gap-2">
