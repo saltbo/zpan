@@ -597,6 +597,83 @@ describe('Quota Store API', () => {
     expect(res.status).toBe(200)
   })
 
+  it('rejects team checkout from non-owner members', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const { headers } = await memberInTeamOrg(app, db, 'editor')
+    const packageId = await seedPackage(db)
+
+    const res = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId }),
+    })
+
+    expect(res.status).toBe(403)
+  })
+
+  it('allows team checkout for the team owner and targets the team org', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const { headers, teamOrgId } = await memberInTeamOrg(app, db, 'owner')
+    const packageId = await seedPackage(db)
+
+    const res = await app.request('/api/store/checkouts', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId }),
+    })
+
+    expect(res.status).toBe(200)
+    const target = orderPayload().target as { orgId: string; customerId: string }
+    expect(target.orgId).toBe(teamOrgId)
+    expect(target.customerId).toBe(teamOrgId)
+  })
+
+  it('rejects team billing and credit endpoints for non-owner members', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const { headers } = await memberInTeamOrg(app, db, 'viewer')
+
+    const portal = await app.request('/api/store/billing-portal-sessions', { method: 'POST', headers })
+    expect(portal.status).toBe(403)
+
+    const credits = await app.request('/api/store/credits', { headers })
+    expect(credits.status).toBe(403)
+
+    const ledger = await app.request('/api/store/credits/ledger-entries', { headers })
+    expect(ledger.status).toBe(403)
+
+    const redemption = await app.request('/api/store/credits/redemptions', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'ZS-TEST-1' }),
+    })
+    expect(redemption.status).toBe(403)
+
+    const orders = await app.request('/api/store/orders', { headers })
+    expect(orders.status).toBe(403)
+  })
+
+  it('allows team billing portal for the team owner', async () => {
+    const { app, db } = await createTestApp()
+    await seedBusinessLicense(db)
+    const { headers, teamOrgId } = await memberInTeamOrg(app, db, 'owner')
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ url: 'https://billing.stripe.test/team', stripeSubscriptionId: 'sub_team' }),
+    } as Response)
+
+    const res = await app.request('/api/store/billing-portal-sessions', { method: 'POST', headers })
+    expect(res.status).toBe(200)
+    const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes('portal-sessions')) as
+      | [URL, RequestInit]
+      | undefined
+    expect(call).toBeDefined()
+    expect(JSON.parse(String(call![1].body))).toMatchObject({ customerId: teamOrgId })
+  })
+
   it('omits credit discount fields when checking out recurring packages', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)
@@ -2180,6 +2257,59 @@ describe('Quota Store API', () => {
     await expect(res.json()).resolves.toMatchObject({ error: 'invalid_payload' })
   })
 })
+
+// Sign up a fresh user, create a team org, add the user as a member with the
+// given role, and switch their session's active organization to the team.
+async function memberInTeamOrg(
+  app: Awaited<ReturnType<typeof createTestApp>>['app'],
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  role: 'owner' | 'editor' | 'viewer',
+): Promise<{ headers: Record<string, string>; teamOrgId: string; userId: string }> {
+  const email = `${role}-${Math.random().toString(36).slice(2)}@example.com`
+  const headers = await authedHeaders(app, email)
+  const users = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = ${email}`)
+  const userId = users[0]!.id
+
+  const teamOrgId = `team-org-${Math.random().toString(36).slice(2)}`
+  await db.run(sql`
+    INSERT INTO organization (id, name, slug, metadata)
+    VALUES (${teamOrgId}, 'Test Team', ${teamOrgId}, '{"type":"team"}')
+  `)
+  await db.run(sql`
+    INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
+    VALUES (${`quota-${teamOrgId}`}, ${teamOrgId}, 10485760, 0, 0, 0, '1970-01')
+  `)
+  await db.run(sql`
+    INSERT INTO member (id, organization_id, user_id, role)
+    VALUES (${`member-${teamOrgId}`}, ${teamOrgId}, ${userId}, ${role})
+  `)
+
+  const setActive = await app.request('/api/auth/organization/set-active', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ organizationId: teamOrgId }),
+  })
+  expect(setActive.status).toBe(200)
+  const updatedCookies = setActive.headers.getSetCookie()
+  if (updatedCookies.length > 0) {
+    headers.Cookie = mergeCookies(headers.Cookie, updatedCookies)
+  }
+  return { headers, teamOrgId, userId }
+}
+
+function mergeCookies(existing: string, setCookies: string[]): string {
+  const jar = new Map<string, string>()
+  for (const pair of existing.split('; ')) {
+    const idx = pair.indexOf('=')
+    if (idx >= 0) jar.set(pair.slice(0, idx), pair.slice(idx + 1))
+  }
+  for (const cookie of setCookies) {
+    const [pair] = cookie.split(';')
+    const idx = pair.indexOf('=')
+    if (idx >= 0) jar.set(pair.slice(0, idx).trim(), pair.slice(idx + 1).trim())
+  }
+  return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
+}
 
 async function getFirstOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Promise<string> {
   const rows = await db.all<{ id: string }>(sql`SELECT id FROM organization LIMIT 1`)

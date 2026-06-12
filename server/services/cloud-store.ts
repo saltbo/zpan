@@ -19,15 +19,6 @@ export async function getAccessibleTargets(db: Database, userId: string): Promis
   return rows.map((r) => ({ orgId: r.orgId, name: r.name, type: parseOrgType(r.metadata), role: r.role }))
 }
 
-export async function canAccessTargetOrg(db: Database, userId: string, orgId: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, orgId)))
-    .limit(1)
-  return rows.length > 0
-}
-
 export async function getCloudStoreBinding(
   db: Database,
 ): Promise<{ boundLicenseId: string; storeId: string; refreshToken: string; instanceId: string }> {
