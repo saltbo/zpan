@@ -73,7 +73,7 @@ Set these in your fork's GitHub repository under **Settings → Secrets and vari
 
 5. **Add the required secrets** to your fork (see table above). `BETTER_AUTH_URL` and `BETTER_AUTH_SECRET` are both optional — the workflow handles them automatically on first deploy.
 
-6. **Push to `master`** — the `deploy-cloud-run.yml` workflow runs automatically. Cloud Build builds the image, Turso migrations run, `service.yaml` drives the Cloud Run deploy, and `BETTER_AUTH_URL` is auto-wired from the assigned service URL.
+6. **Push to `main`** — the `deploy-cloud-run.yml` workflow runs automatically. Cloud Build builds the image, Turso migrations run, `service.yaml` drives the Cloud Run deploy, and `BETTER_AUTH_URL` is auto-wired from the assigned service URL.
 
 ## Workflow Steps
 

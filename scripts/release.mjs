@@ -21,4 +21,4 @@ execFileSync('git', ['add', 'package.json'], { stdio: 'inherit' })
 execFileSync('git', ['commit', '-m', `chore(release): ${tag}`], { stdio: 'inherit' })
 execFileSync('git', ['tag', tag], { stdio: 'inherit' })
 
-console.log(`Created release commit and tag ${tag}. Push with: git push origin master ${tag}`)
+console.log(`Created release commit and tag ${tag}. Push with: git push origin main ${tag}`)

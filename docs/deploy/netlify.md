@@ -55,7 +55,7 @@ In your fork, go to **Settings → Secrets and variables → Actions → New rep
 
 ## Trigger Deploy
 
-Push to `master` or go to **Actions → Deploy to Netlify → Run workflow**.
+Push to `main` or go to **Actions → Deploy to Netlify → Run workflow**.
 
 The workflow will:
 1. Resolve the latest ZPan release from the upstream repo

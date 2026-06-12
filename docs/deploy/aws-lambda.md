@@ -58,7 +58,7 @@ For production, scope the `Resource` fields to specific ARNs. The workflow creat
 2. Add the secrets above
 3. Go to the **Actions** tab → **Deploy to AWS Lambda** → **Run workflow**
 
-The workflow runs automatically on every push to `master` after initial setup. Re-running is idempotent — it redeploys without recreating existing resources.
+The workflow runs automatically on every push to `main` after initial setup. Re-running is idempotent — it redeploys without recreating existing resources.
 
 ## First-boot storage setup
 

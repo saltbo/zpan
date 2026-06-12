@@ -52,7 +52,7 @@ Set these in your fork's GitHub repository under **Settings → Secrets and vari
 
 4. **Add the required secrets** to your fork (see table above). `BETTER_AUTH_SECRET` is optional — the workflow auto-generates one on first deploy and stores it in your Vercel project env.
 
-5. **Push to `master`** — the `deploy-vercel.yml` workflow runs automatically and deploys to production.
+5. **Push to `main`** — the `deploy-vercel.yml` workflow runs automatically and deploys to production.
 
 ## Local Development
 

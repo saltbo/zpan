@@ -2,7 +2,7 @@ name: Deploy
 
 # Fan-out dispatcher for ZPan's 6 deployment targets.
 #
-# On push to master (or manual trigger), a quick `detect` job probes which
+# On push to main (or manual trigger), a quick `detect` job probes which
 # platform secrets are configured and sets one output per platform. Each
 # platform's reusable child workflow (deploy-<target>.yml) is invoked only
 # when its flag is `true` — platforms you haven't configured are shown as
@@ -14,7 +14,7 @@ name: Deploy
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:

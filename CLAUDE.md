@@ -31,7 +31,7 @@ This is a full-stack project. When implementing a feature or fixing a bug, think
 
 ## Commit Convention
 
-Conventional Commits (`feat:`, `fix:`, `docs:`, etc.). PRs target `master`.
+Conventional Commits (`feat:`, `fix:`, `docs:`, etc.). PRs target `main`.
 
 ## Pre-commit Hooks
 

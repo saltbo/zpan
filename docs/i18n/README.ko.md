@@ -18,7 +18,7 @@
   <a href="https://github.com/saltbo/zpan/actions/workflows/release.yml"><img src="https://github.com/saltbo/zpan/actions/workflows/release.yml/badge.svg" alt="Release" /></a>
   <a href="https://github.com/saltbo/zpan/releases/latest"><img src="https://img.shields.io/github/v/release/saltbo/zpan" alt="GitHub Release" /></a>
   <a href="https://ghcr.io/saltbo/zpan"><img src="https://img.shields.io/badge/ghcr.io-saltbo%2Fzpan-blue" alt="Docker Image" /></a>
-  <a href="https://github.com/saltbo/zpan/blob/master/LICENSE"><img src="https://img.shields.io/github/license/saltbo/zpan.svg" alt="License" /></a>
+  <a href="https://github.com/saltbo/zpan/blob/main/LICENSE"><img src="https://img.shields.io/github/license/saltbo/zpan.svg" alt="License" /></a>
 </p>
 
 <p align="center">
@@ -130,14 +130,14 @@ SAM을 사용하여 GitHub Actions를 통해 배포합니다. Lambda Function UR
 **빠른 시작** — 미리 빌드된 이미지를 가져오고 직접 보유한 S3 스토리지를 사용합니다:
 
 ```bash
-curl -O https://raw.githubusercontent.com/saltbo/zpan/master/deploy/docker-compose.yml
+curl -O https://raw.githubusercontent.com/saltbo/zpan/main/deploy/docker-compose.yml
 docker compose up -d
 ```
 
 **RustFS 사용** (셀프 호스팅 S3 호환 스토리지, 외부 의존성 없음):
 
 ```bash
-curl -O https://raw.githubusercontent.com/saltbo/zpan/master/deploy/docker-compose.rustfs.yml
+curl -O https://raw.githubusercontent.com/saltbo/zpan/main/deploy/docker-compose.rustfs.yml
 docker compose -f docker-compose.rustfs.yml up -d
 ```
 

@@ -77,7 +77,7 @@ In your fork go to **Settings → Secrets and variables → Actions** and add:
 
 ## 4 — Run the workflow
 
-The workflow triggers automatically on every push to `master` **and** can be triggered manually via **Actions → Deploy to Azure Functions → Run workflow**.
+The workflow triggers automatically on every push to `main` **and** can be triggered manually via **Actions → Deploy to Azure Functions → Run workflow**.
 
 > The workflow includes `if: github.repository != 'saltbo/zpan'` so it is a no-op in the upstream repo. It only runs in your fork.
 

@@ -18,7 +18,7 @@
   <a href="https://github.com/saltbo/zpan/actions/workflows/release.yml"><img src="https://github.com/saltbo/zpan/actions/workflows/release.yml/badge.svg" alt="Release" /></a>
   <a href="https://github.com/saltbo/zpan/releases/latest"><img src="https://img.shields.io/github/v/release/saltbo/zpan" alt="GitHub Release" /></a>
   <a href="https://ghcr.io/saltbo/zpan"><img src="https://img.shields.io/badge/ghcr.io-saltbo%2Fzpan-blue" alt="Docker Image" /></a>
-  <a href="https://github.com/saltbo/zpan/blob/master/LICENSE"><img src="https://img.shields.io/github/license/saltbo/zpan.svg" alt="License" /></a>
+  <a href="https://github.com/saltbo/zpan/blob/main/LICENSE"><img src="https://img.shields.io/github/license/saltbo/zpan.svg" alt="License" /></a>
 </p>
 
 <p align="center">
@@ -134,14 +134,14 @@ See [docs/deploy/aws-lambda.md](docs/deploy/aws-lambda.md) for full setup instru
 **Quick start** — pull the pre-built image and bring your own S3 storage:
 
 ```bash
-curl -O https://raw.githubusercontent.com/saltbo/zpan/master/deploy/docker-compose.yml
+curl -O https://raw.githubusercontent.com/saltbo/zpan/main/deploy/docker-compose.yml
 docker compose up -d
 ```
 
 **With RustFS** (self-hosted S3-compatible storage, no external dependencies):
 
 ```bash
-curl -O https://raw.githubusercontent.com/saltbo/zpan/master/deploy/docker-compose.rustfs.yml
+curl -O https://raw.githubusercontent.com/saltbo/zpan/main/deploy/docker-compose.rustfs.yml
 docker compose -f docker-compose.rustfs.yml up -d
 ```
 

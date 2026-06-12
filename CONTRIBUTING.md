@@ -38,7 +38,7 @@ pnpm e2e              # Playwright E2E tests
 3. **Run checks** — `pnpm lint && pnpm typecheck && pnpm test && pnpm test:cf`
 4. **Coverage** — new code must maintain 90%+ line coverage on `server/`
 5. **Commit** — use [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `docs:`, etc.)
-6. **PR** — target the `master` branch
+6. **PR** — target the `main` branch
 7. **Preview verification** — every PR must be verified in the preview environment (see below)
 
 ## Preview Verification

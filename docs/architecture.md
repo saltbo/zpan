@@ -143,7 +143,7 @@ GitHub Actions:
 - `pnpm test` — Vitest unit + API tests
 - `pnpm e2e` — Playwright tests
 
-**On merge to master:**
+**On merge to main:**
 - Build + deploy to CF Workers (preview / production)
 - Build Docker image + push to Docker Hub (planned)
 

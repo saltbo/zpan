@@ -16,14 +16,14 @@ Don't tag manually — use the release script, which bumps package.json, commits
 and tags in one step:
 
     pnpm release ${version}
-    git push origin master ${tag}
+    git push origin main ${tag}
 
 To recover from this failed release, delete the bad tag and redo it properly:
 
     git tag -d ${tag}
     git push origin :refs/tags/${tag}
     pnpm release ${version}
-    git push origin master ${tag}
+    git push origin main ${tag}
 `)
   process.exit(1)
 }
