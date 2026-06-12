@@ -17,15 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenuButton } from '@/components/ui/sidebar'
 import { signOut, useSession } from '@/lib/auth-client'
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
+import { getInitials } from '@/lib/format'
 
 export function UserAccountMenu({
   showAdminLink = false,

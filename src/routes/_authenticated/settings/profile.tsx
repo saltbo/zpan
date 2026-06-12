@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input'
 import { deleteAvatar, uploadAvatar } from '@/lib/api'
 import { authClient, useSession } from '@/lib/auth-client'
+import { getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/settings/profile')({
   component: ProfilePage,
@@ -25,15 +26,6 @@ const profileSchema = z.object({
 })
 
 type ProfileFormValues = z.infer<typeof profileSchema>
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
 
 // Refresh the session so useSession() sees DB changes made outside
 // better-auth.updateUser (e.g. avatar commit / delete).

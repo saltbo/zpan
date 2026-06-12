@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 import { setActive, useActiveOrganization, useListOrganizations, useSession } from '@/lib/auth-client'
+import { getInitials } from '@/lib/format'
 
 type Organization = {
   id: string
@@ -20,15 +21,6 @@ type Organization = {
   slug: string
   logo?: string | null
   metadata?: Record<string, unknown>
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
 }
 
 export function OrgSwitcher() {
