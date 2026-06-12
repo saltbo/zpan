@@ -82,6 +82,7 @@ import {
   listObjects,
   listOrgEntitlements,
   listQuotas,
+  listReceivedShares,
   listRemoteDownloadApiKeys,
   listShareObjects,
   listShares,
@@ -2245,6 +2246,26 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
 
       await expect(listShares()).rejects.toThrow('unauthorized')
+    })
+  })
+
+  describe('listReceivedShares', () => {
+    it('calls /api/shares with box=received', async () => {
+      const payload = { items: [], total: 0, page: 1, pageSize: 20 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listReceivedShares()
+
+      expect(result).toEqual(payload)
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('/api/shares')
+      expect(url).toContain('box=received')
+    })
+
+    it('throws on error response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'unauthorized' }, false, 401))
+
+      await expect(listReceivedShares()).rejects.toThrow('unauthorized')
     })
   })
 

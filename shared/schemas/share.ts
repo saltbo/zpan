@@ -26,6 +26,7 @@ export const listSharesQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().default(20),
   status: z.enum(['active', 'revoked']).optional(),
+  box: z.enum(['sent', 'received']).default('sent'),
 })
 
 export const createShareRequestSchema = z.object({

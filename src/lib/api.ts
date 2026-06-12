@@ -856,6 +856,13 @@ export function listShares(page = 1, pageSize = 20, status?: 'active' | 'revoked
   )
 }
 
+export function listReceivedShares(page = 1, pageSize = 20) {
+  const query: Record<string, string> = { page: String(page), pageSize: String(pageSize), box: 'received' }
+  return unwrap<{ items: ShareListItem[]; total: number; page: number; pageSize: number }>(
+    authedSharesApi.index.$get({ query }),
+  )
+}
+
 export function getShare(token: string) {
   return unwrap<ShareView>(publicSharesApi[':token'].$get({ param: { token } }))
 }

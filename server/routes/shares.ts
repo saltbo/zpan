@@ -27,6 +27,7 @@ import {
   incrementDownloadsAtomic,
   incrementViews,
   isAccessibleByUser,
+  listReceivedSharesForApi,
   listSharesForApi,
   resolveShareByToken,
   revokeShareByToken,
@@ -337,7 +338,13 @@ export const authedShares = new Hono<Env>()
   .get('/', zValidator('query', listSharesQuerySchema), async (c) => {
     const userId = c.get('userId')!
     const db = c.get('platform').db
-    const { page, pageSize, status } = c.req.valid('query')
+    const { page, pageSize, status, box } = c.req.valid('query')
+
+    if (box === 'received') {
+      const emails = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1)
+      const result = await listReceivedSharesForApi(db, userId, emails[0]?.email ?? null, { page, pageSize })
+      return c.json({ ...result, page, pageSize })
+    }
 
     const result = await listSharesForApi(db, userId, { page, pageSize, status })
     return c.json({ ...result, page, pageSize })

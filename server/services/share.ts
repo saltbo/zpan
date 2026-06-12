@@ -17,6 +17,7 @@ export type ShareWithDetails = Share & {
 export type ShareListItem = Omit<Share, 'passwordHash'> & {
   matter: { name: string; type: string; dirtype: number }
   recipientCount: number
+  creatorName?: string
 }
 
 export function verifyPassword(share: Share, plaintext: string): boolean {
@@ -235,6 +236,66 @@ export async function listSharesForApi(
     ...share,
     matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
     recipientCount,
+  }))
+
+  return { items, total }
+}
+
+// Shares directed at the user, matched by user id or by the email the share
+// was addressed to. This is an inbox of share links — the items still live in
+// (and are revocable by) the sharer's space.
+export async function listReceivedSharesForApi(
+  db: Database,
+  userId: string,
+  userEmail: string | null,
+  opts: { page: number; pageSize: number },
+): Promise<{ items: ShareListItem[]; total: number }> {
+  const recipientMatch = userEmail
+    ? or(eq(shareRecipients.recipientUserId, userId), eq(shareRecipients.recipientEmail, userEmail))
+    : eq(shareRecipients.recipientUserId, userId)
+  const where = and(eq(shares.status, 'active'), recipientMatch)
+
+  const [countRow] = await db
+    .select({ count: sql<number>`COUNT(DISTINCT ${shares.id})` })
+    .from(shares)
+    .innerJoin(shareRecipients, eq(shareRecipients.shareId, shares.id))
+    .where(where)
+  const total = countRow?.count ?? 0
+
+  const offset = (opts.page - 1) * opts.pageSize
+  const rows = await db
+    .select({
+      id: shares.id,
+      token: shares.token,
+      kind: shares.kind,
+      matterId: shares.matterId,
+      orgId: shares.orgId,
+      creatorId: shares.creatorId,
+      expiresAt: shares.expiresAt,
+      downloadLimit: shares.downloadLimit,
+      views: shares.views,
+      downloads: shares.downloads,
+      status: shares.status,
+      createdAt: shares.createdAt,
+      matterName: matters.name,
+      matterType: matters.type,
+      matterDirtype: matters.dirtype,
+      creatorName: sql<string | null>`(SELECT name FROM user WHERE user.id = ${shares.creatorId})`,
+    })
+    .from(shares)
+    .innerJoin(shareRecipients, eq(shareRecipients.shareId, shares.id))
+    .leftJoin(matters, eq(shares.matterId, matters.id))
+    .where(where)
+    .groupBy(shares.id)
+    .orderBy(desc(shares.createdAt))
+    .limit(opts.pageSize)
+    .offset(offset)
+
+  const items: ShareListItem[] = rows.map(({ matterName, matterType, matterDirtype, creatorName, ...share }) => ({
+    ...share,
+    matter: { name: matterName ?? '', type: matterType ?? '', dirtype: matterDirtype ?? 0 },
+    recipientCount: 0,
+    creatorName: creatorName ?? undefined,
   }))
 
   return { items, total }

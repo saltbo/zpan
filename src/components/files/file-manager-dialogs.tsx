@@ -109,7 +109,7 @@ export function FileManagerDialogs(props: FileManagerDialogsProps) {
         }}
         onViewShares={() => {
           props.onShareClose()
-          navigate({ to: '/shares', search: { status: 'all', page: 1 } })
+          navigate({ to: '/shares', search: { status: 'all', page: 1, box: 'sent' } })
         }}
       />
     </>

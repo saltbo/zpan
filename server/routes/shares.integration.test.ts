@@ -920,3 +920,76 @@ describe('DELETE /api/shares/:token', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('GET /api/shares?box=received', () => {
+  async function getUserId(db: TestDb, email: string): Promise<string> {
+    const rows = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = ${email}`)
+    return rows[0].id
+  }
+
+  it('lists shares addressed to the user by id and by email, hiding unrelated shares', async () => {
+    const { app, db } = await createTestApp()
+    const creatorHeaders = await authedHeaders(app)
+    const recipientHeaders = await authedHeaders(app, 'recipient@example.com')
+    const bystanderHeaders = await authedHeaders(app, 'bystander@example.com')
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const recipientId = await getUserId(db, 'recipient@example.com')
+
+    await insertFile(db, orgId, { id: 'rcv-1', name: 'for-user.txt' })
+    await insertFile(db, orgId, { id: 'rcv-2', name: 'for-email.txt' })
+    await insertFile(db, orgId, { id: 'rcv-3', name: 'for-nobody.txt' })
+
+    const byUser = await createShare(app, creatorHeaders, {
+      matterId: 'rcv-1',
+      kind: 'landing',
+      recipients: [{ recipientUserId: recipientId }],
+    })
+    expect(byUser.status).toBe(201)
+    const byEmail = await createShare(app, creatorHeaders, {
+      matterId: 'rcv-2',
+      kind: 'landing',
+      recipients: [{ recipientEmail: 'recipient@example.com' }],
+    })
+    expect(byEmail.status).toBe(201)
+    const unrelated = await createShare(app, creatorHeaders, { matterId: 'rcv-3', kind: 'landing' })
+    expect(unrelated.status).toBe(201)
+
+    const res = await app.request('/api/shares?box=received', { headers: recipientHeaders })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      items: Array<{ matter: { name: string }; creatorName?: string }>
+      total: number
+    }
+    expect(body.total).toBe(2)
+    expect(body.items.map((item) => item.matter.name).sort()).toEqual(['for-email.txt', 'for-user.txt'])
+    expect(body.items[0].creatorName).toBeTruthy()
+
+    const bystander = await app.request('/api/shares?box=received', { headers: bystanderHeaders })
+    const bystanderBody = (await bystander.json()) as { total: number }
+    expect(bystanderBody.total).toBe(0)
+  })
+
+  it('excludes revoked shares from the received list', async () => {
+    const { app, db } = await createTestApp()
+    const creatorHeaders = await authedHeaders(app)
+    const recipientHeaders = await authedHeaders(app, 'revoked-recipient@example.com')
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const recipientId = await getUserId(db, 'revoked-recipient@example.com')
+    await insertFile(db, orgId, { id: 'rcv-revoked', name: 'gone.txt' })
+
+    const created = await createShare(app, creatorHeaders, {
+      matterId: 'rcv-revoked',
+      kind: 'landing',
+      recipients: [{ recipientUserId: recipientId }],
+    })
+    const token = ((await created.json()) as Record<string, unknown>).token as string
+    const revoke = await app.request(`/api/shares/${token}`, { method: 'DELETE', headers: creatorHeaders })
+    expect(revoke.status).toBe(204)
+
+    const res = await app.request('/api/shares?box=received', { headers: recipientHeaders })
+    const body = (await res.json()) as { total: number }
+    expect(body.total).toBe(0)
+  })
+})
