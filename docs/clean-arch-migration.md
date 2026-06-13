@@ -64,7 +64,8 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
 
 ### Repos to extract (drizzle services → adapters/repos)
 - [ ] captcha, site-invitations, site-public-origin
-- [ ] matter-name-conflict, user, org-entitlements, instance-telemetry, purge
+- [x] `user` + `org-entitlements` -> UserAdminRepo (combined; resolves the user/org-entitlements cycle)
+- [ ] matter-name-conflict, instance-telemetry, purge
 
 ### Deferred (not plain repos — handled with their cluster)
 - `download-tokens` (crypto+zod+db), `api-keys` (better-auth) → auth cluster

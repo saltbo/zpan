@@ -3,12 +3,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import {
-  grantOrgEntitlement,
-  listOrgEntitlements,
-  revokeOrgEntitlement,
-  updateOrgEntitlement,
-} from '../services/org-entitlements'
 
 const grantEntitlementSchema = z.object({
   resourceType: z.literal('storage'),
@@ -39,7 +33,7 @@ export const adminTeams = new Hono<Env>()
     return c.json(team)
   })
   .get('/:orgId/entitlements', async (c) => {
-    const result = await listOrgEntitlements(c.get('platform').db, c.req.param('orgId'))
+    const result = await c.get('deps').userAdmin.listOrgEntitlements(c.req.param('orgId'))
     if ('error' in result) return c.json({ error: result.error }, result.status)
     return c.json(result)
   })
@@ -49,7 +43,7 @@ export const adminTeams = new Hono<Env>()
     const adminOrgId = c.get('orgId')!
     const targetOrgId = c.req.param('orgId')
     const body = c.req.valid('json')
-    const result = await grantOrgEntitlement(db, {
+    const result = await c.get('deps').userAdmin.grantOrgEntitlement({
       adminUserId,
       orgId: targetOrgId,
       resourceType: body.resourceType,
@@ -83,7 +77,7 @@ export const adminTeams = new Hono<Env>()
     const adminOrgId = c.get('orgId')!
     const targetOrgId = c.req.param('orgId')
     const body = c.req.valid('json')
-    const result = await updateOrgEntitlement(db, {
+    const result = await c.get('deps').userAdmin.updateOrgEntitlement({
       adminUserId,
       orgId: targetOrgId,
       entitlementId: c.req.param('eid'),
@@ -115,7 +109,7 @@ export const adminTeams = new Hono<Env>()
     const adminUserId = c.get('userId')!
     const adminOrgId = c.get('orgId')!
     const targetOrgId = c.req.param('orgId')
-    const result = await revokeOrgEntitlement(db, {
+    const result = await c.get('deps').userAdmin.revokeOrgEntitlement({
       adminUserId,
       orgId: targetOrgId,
       entitlementId: c.req.param('eid'),

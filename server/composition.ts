@@ -15,6 +15,7 @@ import { createQuotaRepo } from './adapters/repos/quota'
 import { createStorageRepo } from './adapters/repos/storage'
 import { createTeamRepo } from './adapters/repos/team'
 import { createTeamInviteRepo } from './adapters/repos/team-invite'
+import { createUserAdminRepo } from './adapters/repos/user-admin'
 import type { Platform } from './platform/interface'
 import type { Deps } from './usecases/deps'
 
@@ -32,5 +33,6 @@ export function createDeps(platform: Platform): Deps {
     storages: createStorageRepo(db),
     teams: createTeamRepo(db),
     teamInvites: createTeamInviteRepo(db),
+    userAdmin: createUserAdminRepo(db),
   }
 }

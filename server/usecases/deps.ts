@@ -14,6 +14,7 @@ import type {
   StorageRepo,
   TeamInviteRepo,
   TeamRepo,
+  UserAdminRepo,
 } from './ports'
 
 export interface Deps {
@@ -28,4 +29,5 @@ export interface Deps {
   storages: StorageRepo
   teams: TeamRepo
   teamInvites: TeamInviteRepo
+  userAdmin: UserAdminRepo
 }

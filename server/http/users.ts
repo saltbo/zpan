@@ -3,18 +3,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import {
-  deleteUser,
-  deleteUsers,
-  getUser,
-  grantUserPersonalEntitlement,
-  listUserPersonalEntitlements,
-  listUsers,
-  revokeUserPersonalEntitlement,
-  setUserStatus,
-  setUsersStatus,
-  updateUserPersonalEntitlement,
-} from '../services/user'
 
 const updateStatusSchema = z.object({
   status: z.enum(['active', 'disabled']),
@@ -52,13 +40,13 @@ const app = new Hono<Env>()
     const pageSize = Math.min(100, Math.max(1, Number(c.req.query('pageSize') ?? '20')))
     const search = c.req.query('search')
 
-    const result = await listUsers(db, page, pageSize, search)
+    const result = await c.get('deps').userAdmin.listUsers(page, pageSize, search)
     return c.json(result)
   })
   .get('/:id', async (c) => {
     const db = c.get('platform').db
     const userId = c.req.param('id')
-    const result = await getUser(db, userId)
+    const result = await c.get('deps').userAdmin.getUser(userId)
     if ('error' in result) return c.json({ error: result.error }, result.status)
     return c.json(result)
   })
@@ -69,7 +57,7 @@ const app = new Hono<Env>()
     const body = c.req.valid('json')
 
     const status = body.action === 'disable' ? 'disabled' : 'active'
-    const result = await setUsersStatus(db, body.ids, status)
+    const result = await c.get('deps').userAdmin.setUsersStatus(body.ids, status)
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
     await c.get('deps').activity.record({
@@ -85,7 +73,7 @@ const app = new Hono<Env>()
   .get('/:id/entitlements', async (c) => {
     const db = c.get('platform').db
     const userId = c.req.param('id')
-    const result = await listUserPersonalEntitlements(db, userId)
+    const result = await c.get('deps').userAdmin.listUserPersonalEntitlements(userId)
     if ('error' in result) return c.json({ error: result.error }, result.status)
     return c.json(result)
   })
@@ -95,7 +83,7 @@ const app = new Hono<Env>()
     const adminOrgId = c.get('orgId')!
     const targetUserId = c.req.param('id')
     const body = c.req.valid('json')
-    const result = await grantUserPersonalEntitlement(db, {
+    const result = await c.get('deps').userAdmin.grantUserPersonalEntitlement({
       adminUserId,
       targetUserId,
       resourceType: body.resourceType,
@@ -130,7 +118,7 @@ const app = new Hono<Env>()
     const targetUserId = c.req.param('id')
     const entitlementId = c.req.param('eid')
     const body = c.req.valid('json')
-    const result = await updateUserPersonalEntitlement(db, {
+    const result = await c.get('deps').userAdmin.updateUserPersonalEntitlement({
       adminUserId,
       targetUserId,
       entitlementId,
@@ -163,7 +151,9 @@ const app = new Hono<Env>()
     const adminOrgId = c.get('orgId')!
     const targetUserId = c.req.param('id')
     const entitlementId = c.req.param('eid')
-    const result = await revokeUserPersonalEntitlement(db, { adminUserId, targetUserId, entitlementId })
+    const result = await c
+      .get('deps')
+      .userAdmin.revokeUserPersonalEntitlement({ adminUserId, targetUserId, entitlementId })
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
     await c.get('deps').activity.record({
@@ -188,7 +178,7 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')!
     const { ids } = c.req.valid('json')
 
-    const result = await deleteUsers(db, ids)
+    const result = await c.get('deps').userAdmin.deleteUsers(ids)
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
     await c.get('deps').activity.record({
@@ -208,7 +198,7 @@ const app = new Hono<Env>()
     const userId = c.req.param('id')
     const { status } = c.req.valid('json')
 
-    const updated = await setUserStatus(db, userId, status)
+    const updated = await c.get('deps').userAdmin.setUserStatus(userId, status)
     if (!updated) {
       return c.json({ error: 'User not found' }, 404)
     }
@@ -232,7 +222,7 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')!
     const userId = c.req.param('id')
 
-    const deleted = await deleteUser(db, userId)
+    const deleted = await c.get('deps').userAdmin.deleteUser(userId)
     if (!deleted) {
       return c.json({ error: 'User not found' }, 404)
     }
