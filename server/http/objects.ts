@@ -17,7 +17,6 @@ import { mapDomainError } from '../lib/http-errors'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { assertTaskUploadAllowed } from '../services/downloads'
-import { refundTraffic } from '../services/effective-quota'
 import {
   cancelDraftMatter,
   collectForPurge,
@@ -287,7 +286,7 @@ const app = new Hono<Env>()
     try {
       downloadUrl = await s3.presignDownload(storage, matter.object, matter.name)
     } catch (e) {
-      await refundTraffic(db, orgId, matter.size ?? 0)
+      await c.get('deps').quota.refundTraffic(orgId, matter.size ?? 0)
       throw e
     }
 

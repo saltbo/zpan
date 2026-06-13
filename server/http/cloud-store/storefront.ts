@@ -13,7 +13,6 @@ import { requireAuth, requireTeamRole } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { getAccessibleTargets, getCustomerLabel } from '../../services/cloud-store'
-import { getEffectiveQuota } from '../../services/effective-quota'
 import {
   cloudBillingPortalSessionResponseSchema,
   cloudCheckoutResponseSchema,
@@ -148,7 +147,7 @@ export const cloudStore = new Hono<Env>()
       : product.prices.find((item) => item.currency === currency && item.recurring?.usageType !== 'metered')
     if (!price) return c.json({ error: 'package_price_missing' }, 400)
     if (price.recurring) {
-      const quota = await getEffectiveQuota(db, targetOrgId)
+      const quota = await c.get('deps').quota.getEffectiveQuota(targetOrgId)
       if (quota.currentPlan?.subscription) return c.json({ error: 'workspace_plan_exists' }, 409)
     }
     const origin = await getInstanceOrigin(c)

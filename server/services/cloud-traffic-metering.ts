@@ -3,10 +3,10 @@ import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { cloudTrafficReports } from '../db/schema'
+import { currentTrafficPeriod } from '../domain/quota'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database, Platform } from '../platform/interface'
-import { currentTrafficPeriod } from './effective-quota'
 import { createBoundCloudClient, requestCloudJson } from './licensing-cloud'
 
 export type TrafficReportSource =

@@ -11,6 +11,7 @@ import { createInviteRepo } from './adapters/repos/invite'
 import { createNotificationRepo } from './adapters/repos/notification'
 import { createOrgRepo } from './adapters/repos/org'
 import { createProfileRepo } from './adapters/repos/profile'
+import { createQuotaRepo } from './adapters/repos/quota'
 import { createStorageRepo } from './adapters/repos/storage'
 import type { Platform } from './platform/interface'
 import type { Deps } from './usecases/deps'
@@ -25,6 +26,7 @@ export function createDeps(platform: Platform): Deps {
     notifications: createNotificationRepo(db),
     org: createOrgRepo(db),
     profiles: createProfileRepo(db),
+    quota: createQuotaRepo(db),
     storages: createStorageRepo(db),
   }
 }

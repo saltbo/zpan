@@ -5,13 +5,13 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { resolveAppCommit, resolveAppVersion } from '../scripts/app-version.mjs'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
+import { createQuotaRepo } from './adapters/repos/quota'
 import { createBootstrap } from './bootstrap'
 import { buildCloudInstanceInfo, runtimeInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
 import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
-import { resetExpiredTrafficQuotas } from './services/effective-quota'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
 import { runLicensingRefresh } from './services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
@@ -132,9 +132,9 @@ setInterval(reportNodeInstanceTelemetry, INSTANCE_TELEMETRY_INTERVAL_MS)
 
 console.log('quota.reset.scheduler.started interval=24h')
 // Run once at boot to catch a month boundary crossed while the server was down.
-void resetExpiredTrafficQuotas(platform.db)
+void createQuotaRepo(platform.db).resetExpiredTrafficQuotas()
 setInterval(() => {
-  void resetExpiredTrafficQuotas(platform.db)
+  void createQuotaRepo(platform.db).resetExpiredTrafficQuotas()
 }, QUOTA_RESET_INTERVAL_MS)
 
 console.log('trash.purge.scheduler.started interval=24h')

@@ -1,42 +1,10 @@
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
-import { orgQuotaEntitlements, orgQuotas, storages } from '../db/schema'
-import type { Database } from '../platform/interface'
+import { orgQuotaEntitlements, orgQuotas, storages } from '../../db/schema'
+import { currentTrafficPeriod } from '../../domain/quota'
+import type { Database } from '../../platform/interface'
+import type { CurrentStoragePlan, EffectiveQuota, QuotaRepo } from '../../usecases/ports'
 
-export interface EffectiveQuota {
-  orgId: string
-  baseQuota: number
-  entitlementQuota: number
-  quota: number
-  used: number
-  baseTrafficQuota: number
-  entitlementTrafficQuota: number
-  trafficQuota: number
-  trafficUsed: number
-  trafficPeriod: string
-  storagePlanName: string | null
-  storageExtraNames: string[]
-  trafficPlanName: string | null
-  trafficExtraNames: string[]
-  currentPlan: CurrentStoragePlan | null
-}
-
-export interface CurrentStoragePlan {
-  sourceId: string
-  packageId: string | null
-  name: string
-  storageBytes: number
-  trafficBytes: number
-  trafficOveragePriceCents: number | null
-  expiresAt: string | null
-  subscription: boolean
-}
-
-export function currentTrafficPeriod(now = new Date()): string {
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0')
-  return `${now.getUTCFullYear()}-${month}`
-}
-
-export async function getEffectiveQuota(db: Database, orgId: string, now = new Date()): Promise<EffectiveQuota> {
+async function getEffectiveQuota(db: Database, orgId: string, now = new Date()): Promise<EffectiveQuota> {
   // Delegate to the batch path's single in-memory aggregation. It always
   // returns an entry for every requested orgId (zero-filled when absent).
   const byOrg = await getEffectiveQuotasByOrg(db, [orgId], now)
@@ -46,7 +14,7 @@ export async function getEffectiveQuota(db: Database, orgId: string, now = new D
 // Batch variant of getEffectiveQuota for list views. Resolves every org with two
 // queries total (quota rows + active entitlements) instead of ~8 per org, then
 // aggregates in memory. Returns one entry per requested orgId, even with no rows.
-export async function getEffectiveQuotasByOrg(
+async function getEffectiveQuotasByOrg(
   db: Database,
   orgIds: string[],
   now = new Date(),
@@ -192,7 +160,7 @@ function extraEntitlementNames(ents: EntitlementRow[], resourceType: 'storage' |
 // Idempotent: the WHERE clause matches nothing once a period has been reset, so it
 // is safe to run on a schedule. getEffectiveQuota already normalizes stale periods
 // in memory, so reads stay correct even between scheduled runs.
-export async function resetExpiredTrafficQuotas(db: Database, now = new Date()): Promise<void> {
+async function resetExpiredTrafficQuotas(db: Database, now = new Date()): Promise<void> {
   const period = currentTrafficPeriod(now)
   await db
     .update(orgQuotas)
@@ -200,19 +168,14 @@ export async function resetExpiredTrafficQuotas(db: Database, now = new Date()):
     .where(sql`${orgQuotas.trafficPeriod} != ${period}`)
 }
 
-export async function hasQuotaForBytes(db: Database, orgId: string, bytes: number): Promise<boolean> {
+async function hasQuotaForBytes(db: Database, orgId: string, bytes: number): Promise<boolean> {
   if (bytes <= 0) return true
   const quota = await getEffectiveQuota(db, orgId)
   if (quota.baseQuota === 0 && quota.entitlementQuota === 0) return true
   return quota.used + bytes <= quota.quota
 }
 
-export async function hasTrafficQuotaForBytes(
-  db: Database,
-  orgId: string,
-  bytes: number,
-  now = new Date(),
-): Promise<boolean> {
+async function hasTrafficQuotaForBytes(db: Database, orgId: string, bytes: number, now = new Date()): Promise<boolean> {
   if (bytes <= 0) return true
   const quota = await getEffectiveQuota(db, orgId, now)
   if (quota.baseTrafficQuota === 0 && quota.entitlementTrafficQuota === 0) return true
@@ -220,7 +183,7 @@ export async function hasTrafficQuotaForBytes(
   return quota.trafficUsed + bytes <= quota.trafficQuota
 }
 
-export async function consumeTrafficIfQuotaAllows(
+async function consumeTrafficIfQuotaAllows(
   db: Database,
   orgId: string,
   bytes: number,
@@ -291,7 +254,7 @@ async function hasActiveTrafficOverage(db: Database, orgId: string, now: Date) {
   return (trafficPlan?.trafficOveragePriceCents ?? 0) > 0
 }
 
-export async function refundTraffic(db: Database, orgId: string, bytes: number, now = new Date()): Promise<void> {
+async function refundTraffic(db: Database, orgId: string, bytes: number, now = new Date()): Promise<void> {
   if (bytes <= 0) return
   const period = currentTrafficPeriod(now)
   await db
@@ -302,7 +265,7 @@ export async function refundTraffic(db: Database, orgId: string, bytes: number, 
     .where(sql`${orgQuotas.orgId} = ${orgId} AND ${orgQuotas.trafficPeriod} = ${period}`)
 }
 
-export async function incrementUsageIfEffectiveQuotaAllows(
+async function incrementUsageIfEffectiveQuotaAllows(
   db: Database,
   orgId: string,
   storageId: string,
@@ -482,4 +445,18 @@ function entitlementName(metadata: string | null) {
 
 function isSubscriptionSourceId(sourceId: string) {
   return sourceId.startsWith('stripe_subscription:')
+}
+
+export function createQuotaRepo(db: Database): QuotaRepo {
+  return {
+    getEffectiveQuota: (orgId, now) => getEffectiveQuota(db, orgId, now),
+    getEffectiveQuotasByOrg: (orgIds, now) => getEffectiveQuotasByOrg(db, orgIds, now),
+    resetExpiredTrafficQuotas: (now) => resetExpiredTrafficQuotas(db, now),
+    hasQuotaForBytes: (orgId, bytes) => hasQuotaForBytes(db, orgId, bytes),
+    hasTrafficQuotaForBytes: (orgId, bytes, now) => hasTrafficQuotaForBytes(db, orgId, bytes, now),
+    consumeTrafficIfQuotaAllows: (orgId, bytes, now) => consumeTrafficIfQuotaAllows(db, orgId, bytes, now),
+    refundTraffic: (orgId, bytes, now) => refundTraffic(db, orgId, bytes, now),
+    incrementUsageIfEffectiveQuotaAllows: (orgId, storageId, bytes, teamQuotaEnabled, now) =>
+      incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, bytes, teamQuotaEnabled, now),
+  }
 }

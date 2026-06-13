@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
+import { createQuotaRepo } from '../adapters/repos/quota'
 import { imageHostings, matters, orgQuotas, storages } from '../db/schema'
 import type { Database } from '../platform/interface'
-import { incrementUsageIfEffectiveQuotaAllows } from './effective-quota'
 
 export class StorageQuotaExceededError extends Error {
   constructor() {
@@ -68,8 +68,7 @@ export async function reserveStorageUsage(
   input: ReserveStorageUsageInput,
 ): Promise<StorageUsageReservation | null> {
   if (input.bytes <= 0) return null
-  const allowed = await incrementUsageIfEffectiveQuotaAllows(
-    db,
+  const allowed = await createQuotaRepo(db).incrementUsageIfEffectiveQuotaAllows(
     input.orgId,
     input.storageId,
     input.bytes,

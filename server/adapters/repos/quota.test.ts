@@ -1,18 +1,9 @@
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
-import { createTestApp } from '../test/setup.js'
-import {
-  consumeTrafficIfQuotaAllows,
-  getEffectiveQuota,
-  getEffectiveQuotasByOrg,
-  hasQuotaForBytes,
-  hasTrafficQuotaForBytes,
-  incrementUsageIfEffectiveQuotaAllows,
-  refundTraffic,
-  resetExpiredTrafficQuotas,
-} from './effective-quota.js'
+import { orgQuotaEntitlements, orgQuotas } from '../../db/schema.js'
+import { createTestApp } from '../../test/setup.js'
+import { createQuotaRepo } from './quota.js'
 
 describe('effective quota', () => {
   it('returns storage and traffic quota state', async () => {
@@ -34,15 +25,17 @@ describe('effective quota', () => {
         entitlement(orgId, 'traffic', 'free-traffic-plan', 2000, 'active', new Date('2026-05-06T00:00:00Z'), 'Free'),
       ])
 
-    await expect(getEffectiveQuota(db, orgId, new Date('2026-05-06T00:00:00Z'))).resolves.toMatchObject({
-      orgId,
-      baseQuota: 1000,
-      quota: 1000,
-      used: 250,
-      trafficQuota: 2000,
-      trafficUsed: 500,
-      trafficPeriod: '2026-05',
-    })
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, new Date('2026-05-06T00:00:00Z'))).resolves.toMatchObject(
+      {
+        orgId,
+        baseQuota: 1000,
+        quota: 1000,
+        used: 250,
+        trafficQuota: 2000,
+        trafficUsed: 500,
+        trafficPeriod: '2026-05',
+      },
+    )
   })
 
   it('adds active entitlement bytes to effective storage and traffic quota', async () => {
@@ -70,7 +63,7 @@ describe('effective quota', () => {
       },
     ])
 
-    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, now)).resolves.toMatchObject({
       baseQuota: 1000,
       entitlementQuota: 300,
       quota: 1300,
@@ -104,7 +97,7 @@ describe('effective quota', () => {
         entitlement(orgId, 'traffic', 'order-traffic-pack', 700, 'active', now),
       ])
 
-    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, now)).resolves.toMatchObject({
       baseQuota: 3000,
       entitlementQuota: 500,
       quota: 3500,
@@ -138,7 +131,7 @@ describe('effective quota', () => {
         entitlement(orgId, 'traffic', `stripe_subscription:sub_traffic:${orgId}`, 4000, 'active', now),
       ])
 
-    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, now)).resolves.toMatchObject({
       baseQuota: 3000,
       quota: 3000,
       baseTrafficQuota: 4000,
@@ -170,7 +163,7 @@ describe('effective quota', () => {
         entitlement(orgId, 'traffic', 'order-traffic-pack-2', 200, 'active', now, 'Burst Pack'),
       ])
 
-    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, now)).resolves.toMatchObject({
       entitlementQuota: 800,
       quota: 3800,
       entitlementTrafficQuota: 900,
@@ -217,7 +210,7 @@ describe('effective quota', () => {
       },
     ])
 
-    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, now)).resolves.toMatchObject({
       currentPlan: {
         sourceId,
         packageId: 'pkg-team',
@@ -263,7 +256,7 @@ describe('effective quota', () => {
       },
     ])
 
-    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, now)).resolves.toMatchObject({
       baseQuota: 0,
       entitlementQuota: 0,
       quota: 0,
@@ -286,7 +279,7 @@ describe('effective quota', () => {
       trafficPeriod: '2026-04',
     })
 
-    const quota = await getEffectiveQuota(db, orgId, new Date('2026-05-01T00:00:00Z'))
+    const quota = await createQuotaRepo(db).getEffectiveQuota(orgId, new Date('2026-05-01T00:00:00Z'))
     expect(quota.trafficUsed).toBe(0)
     expect(quota.trafficPeriod).toBe('2026-05')
 
@@ -323,7 +316,7 @@ describe('effective quota', () => {
       },
     ])
 
-    await resetExpiredTrafficQuotas(db, new Date('2026-05-01T00:00:00Z'))
+    await createQuotaRepo(db).resetExpiredTrafficQuotas(new Date('2026-05-01T00:00:00Z'))
 
     const stale = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, staleOrg))
     expect(stale[0].trafficUsed).toBe(0)
@@ -363,12 +356,12 @@ describe('effective quota', () => {
         entitlement(planOrg, 'traffic', 'order-traffic-pack', 700, 'active', now, 'Traffic Boost'),
       ])
 
-    const batch = await getEffectiveQuotasByOrg(db, [planOrg, staleOrg, emptyOrg], now)
+    const batch = await createQuotaRepo(db).getEffectiveQuotasByOrg([planOrg, staleOrg, emptyOrg], now)
 
     expect(batch.size).toBe(3)
     // Batch result must match the per-org function exactly.
     for (const orgId of [planOrg, staleOrg, emptyOrg]) {
-      expect(batch.get(orgId)).toEqual(await getEffectiveQuota(db, orgId, now))
+      expect(batch.get(orgId)).toEqual(await createQuotaRepo(db).getEffectiveQuota(orgId, now))
     }
 
     expect(batch.get(planOrg)).toMatchObject({
@@ -412,7 +405,7 @@ describe('effective quota', () => {
       .insert(orgQuotaEntitlements)
       .values(entitlement(taggedOrg, 'storage', `stripe_subscription:sub:${taggedOrg}`, 3000, 'active', now, 'Team'))
 
-    const batch = await getEffectiveQuotasByOrg(db, orgIds, now)
+    const batch = await createQuotaRepo(db).getEffectiveQuotasByOrg(orgIds, now)
 
     expect(batch.size).toBe(200)
     expect(batch.get(orgIds[0])).toMatchObject({ used: 0, quota: 0 })
@@ -422,7 +415,9 @@ describe('effective quota', () => {
 
   it('returns an empty map for no orgs', async () => {
     const { db } = await createTestApp()
-    await expect(getEffectiveQuotasByOrg(db, [], new Date('2026-05-06T00:00:00Z'))).resolves.toEqual(new Map())
+    await expect(createQuotaRepo(db).getEffectiveQuotasByOrg([], new Date('2026-05-06T00:00:00Z'))).resolves.toEqual(
+      new Map(),
+    )
   })
 
   it('consumes traffic within the monthly quota and rejects overage', async () => {
@@ -442,9 +437,9 @@ describe('effective quota', () => {
       .insert(orgQuotaEntitlements)
       .values(entitlement(orgId, 'traffic', 'free-traffic-plan', 1000, 'active', now, 'Free'))
 
-    await expect(hasTrafficQuotaForBytes(db, orgId, 600, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 600, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1, now)).resolves.toBe(false)
+    await expect(createQuotaRepo(db).hasTrafficQuotaForBytes(orgId, 600, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 600, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 1, now)).resolves.toBe(false)
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(1000)
@@ -470,8 +465,8 @@ describe('effective quota', () => {
         entitlement(orgId, 'traffic', 'traffic-overage', 500, 'active', now),
       ])
 
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 400, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 201, now)).resolves.toBe(false)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 400, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 201, now)).resolves.toBe(false)
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(1300)
@@ -498,8 +493,8 @@ describe('effective quota', () => {
         entitlement(orgId, 'traffic', 'traffic-pack', 500, 'active', now),
       ])
 
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1600, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1, now)).resolves.toBe(false)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 1600, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 1, now)).resolves.toBe(false)
   })
 
   it('allows subscription traffic overage when the active plan has an overage price', async () => {
@@ -532,10 +527,10 @@ describe('effective quota', () => {
         ),
       ])
 
-    await expect(hasTrafficQuotaForBytes(db, orgId, 1600, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1600, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 100, now)).resolves.toBe(true)
-    await expect(getEffectiveQuota(db, orgId, now)).resolves.toMatchObject({
+    await expect(createQuotaRepo(db).hasTrafficQuotaForBytes(orgId, 1600, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 1600, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 100, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId, now)).resolves.toMatchObject({
       currentPlan: {
         name: 'Pro Plan',
         trafficBytes: 2000,
@@ -561,9 +556,9 @@ describe('effective quota', () => {
     })
     await db.insert(orgQuotaEntitlements).values(entitlement(orgId, 'traffic', 'traffic-zero-base', 500, 'active', now))
 
-    await expect(hasTrafficQuotaForBytes(db, orgId, 100, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 100, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1, now)).resolves.toBe(false)
+    await expect(createQuotaRepo(db).hasTrafficQuotaForBytes(orgId, 100, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 100, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 1, now)).resolves.toBe(false)
   })
 
   it('refunds current monthly traffic usage', async () => {
@@ -580,7 +575,7 @@ describe('effective quota', () => {
       trafficPeriod: '2026-05',
     })
 
-    await refundTraffic(db, orgId, 300, now)
+    await createQuotaRepo(db).refundTraffic(orgId, 300, now)
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(400)
@@ -600,7 +595,7 @@ describe('effective quota', () => {
       trafficPeriod: '2026-05',
     })
 
-    await refundTraffic(db, orgId, 300, now)
+    await createQuotaRepo(db).refundTraffic(orgId, 300, now)
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(0)
@@ -623,8 +618,8 @@ describe('effective quota', () => {
       .insert(orgQuotaEntitlements)
       .values(entitlement(orgId, 'traffic', 'free-traffic-plan', 1000, 'active', now, 'Free'))
 
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 600, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 401, now)).resolves.toBe(false)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 600, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 401, now)).resolves.toBe(false)
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(600)
@@ -654,7 +649,7 @@ describe('effective quota', () => {
       END
     `)
 
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 400, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 400, now)).resolves.toBe(true)
 
     const rows = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
     expect(rows[0].trafficUsed).toBe(700)
@@ -666,8 +661,8 @@ describe('effective quota', () => {
     const orgId = nanoid()
     const now = new Date('2026-05-06T00:00:00Z')
 
-    await expect(hasTrafficQuotaForBytes(db, orgId, 1024, now)).resolves.toBe(true)
-    await expect(consumeTrafficIfQuotaAllows(db, orgId, 1024, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).hasTrafficQuotaForBytes(orgId, 1024, now)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).consumeTrafficIfQuotaAllows(orgId, 1024, now)).resolves.toBe(true)
   })
 
   it('treats zero base storage quota as limited when storage entitlements exist', async () => {
@@ -685,8 +680,8 @@ describe('effective quota', () => {
     })
     await db.insert(orgQuotaEntitlements).values(entitlement(orgId, 'storage', 'storage-zero-base', 500, 'active', now))
 
-    await expect(hasQuotaForBytes(db, orgId, 100)).resolves.toBe(true)
-    await expect(hasQuotaForBytes(db, orgId, 101)).resolves.toBe(false)
+    await expect(createQuotaRepo(db).hasQuotaForBytes(orgId, 100)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).hasQuotaForBytes(orgId, 101)).resolves.toBe(false)
   })
 
   it('enforces storage against subscription plan plus extra entitlements', async () => {
@@ -710,8 +705,8 @@ describe('effective quota', () => {
         entitlement(orgId, 'storage', 'storage-pack', 500, 'active', now),
       ])
 
-    await expect(hasQuotaForBytes(db, orgId, 1600)).resolves.toBe(true)
-    await expect(hasQuotaForBytes(db, orgId, 1601)).resolves.toBe(false)
+    await expect(createQuotaRepo(db).hasQuotaForBytes(orgId, 1600)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).hasQuotaForBytes(orgId, 1601)).resolves.toBe(false)
   })
 
   it('atomically enforces storage against the largest active subscription plan plus extra entitlements', async () => {
@@ -736,8 +731,12 @@ describe('effective quota', () => {
         entitlement(orgId, 'storage', 'storage-pack', 500, 'active', now),
       ])
 
-    await expect(incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, 1600, true, now)).resolves.toBe(true)
-    await expect(incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, 1, true, now)).resolves.toBe(false)
+    await expect(
+      createQuotaRepo(db).incrementUsageIfEffectiveQuotaAllows(orgId, storageId, 1600, true, now),
+    ).resolves.toBe(true)
+    await expect(
+      createQuotaRepo(db).incrementUsageIfEffectiveQuotaAllows(orgId, storageId, 1, true, now),
+    ).resolves.toBe(false)
   })
 })
 

@@ -5,7 +5,6 @@ import {
   reportTrafficEgress,
   type TrafficReportSource,
 } from '../services/cloud-traffic-metering'
-import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 
 interface DownloadTrafficParams {
   orgId: string
@@ -34,7 +33,7 @@ export async function consumeAndReportDownloadTraffic(
   c: Context<Env>,
   params: DownloadTrafficParams,
 ): Promise<Response | null> {
-  const allowed = await consumeTrafficIfQuotaAllows(c.get('platform').db, params.orgId, params.bytes)
+  const allowed = await c.get('deps').quota.consumeTrafficIfQuotaAllows(params.orgId, params.bytes)
   if (!allowed) {
     await params.onRejected?.()
     return params.quotaExceeded()
@@ -79,7 +78,7 @@ export async function reportTrafficForDownload(
     })
     return null
   } catch (error) {
-    await refundTraffic(c.get('platform').db, params.orgId, params.bytes)
+    await c.get('deps').quota.refundTraffic(params.orgId, params.bytes)
     await params.onRejected?.()
     if (error instanceof CloudTrafficBlockedError) {
       return c.json({ error: 'insufficient_credits', code: 'insufficient_credits', resource: 'storage_egress' }, 402)

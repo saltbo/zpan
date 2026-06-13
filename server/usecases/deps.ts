@@ -10,6 +10,7 @@ import type {
   NotificationRepo,
   OrgRepo,
   ProfileRepo,
+  QuotaRepo,
   StorageRepo,
 } from './ports'
 
@@ -21,5 +22,6 @@ export interface Deps {
   notifications: NotificationRepo
   org: OrgRepo
   profiles: ProfileRepo
+  quota: QuotaRepo
   storages: StorageRepo
 }

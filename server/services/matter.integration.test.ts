@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
+import { createQuotaRepo } from '../adapters/repos/quota.js'
 import { orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
 import { createTestApp } from '../test/setup.js'
-import { getEffectiveQuota, hasQuotaForBytes } from './effective-quota.js'
 import { confirmUpload, listTrashedRoots, updateMatter } from './matter.js'
 import {
   reconcileStorageUsage,
@@ -111,8 +111,8 @@ describe('reserveStorageUsage', () => {
     const orgId = nanoid()
     await insertOrgQuota(db, orgId, 0, 5000)
 
-    await expect(hasQuotaForBytes(db, orgId, 10_000_000)).resolves.toBe(true)
-    await expect(getEffectiveQuota(db, orgId)).resolves.toMatchObject({ baseQuota: 0, quota: 0 })
+    await expect(createQuotaRepo(db).hasQuotaForBytes(orgId, 10_000_000)).resolves.toBe(true)
+    await expect(createQuotaRepo(db).getEffectiveQuota(orgId)).resolves.toMatchObject({ baseQuota: 0, quota: 0 })
   })
 
   it('reserves when used + bytes is within quota', async () => {

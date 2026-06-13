@@ -1,8 +1,8 @@
 // CF Workers scheduled() handler.
 
+import { createQuotaRepo } from '../server/adapters/repos/quota'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { syncPendingCloudTrafficReports } from '../server/services/cloud-traffic-metering'
-import { resetExpiredTrafficQuotas } from '../server/services/effective-quota'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/services/instance-telemetry'
 import { runLicensingRefresh } from '../server/services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from '../server/services/remote-download-usage'
@@ -38,7 +38,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
   }
 
   if (event.cron === QUOTA_RESET_CRON) {
-    await resetExpiredTrafficQuotas(platform.db)
+    await createQuotaRepo(platform.db).resetExpiredTrafficQuotas()
     return
   }
 

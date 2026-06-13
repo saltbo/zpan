@@ -55,6 +55,10 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
       cross-boundary module spies, e.g. events SSE unread-count failure)
 
 - [x] `org` → OrgRepo (authz queries) · `invite` → InviteRepo
+- [x] `background-jobs` → BackgroundJobRepo (+ BackgroundJobError to ports)
+- [x] `effective-quota` → QuotaRepo (`currentTrafficPeriod` → domain/quota); unblocks
+      team / storage-usage / matter / cloud-traffic-metering. 14 callers + entry-node
+      + workers/scheduled rewired.
 
 ### Repos to extract (drizzle services → adapters/repos)
 - [ ] background-jobs, branding, captcha, site-invitations, site-public-origin

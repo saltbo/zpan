@@ -1,7 +1,7 @@
 import { and, count, eq, inArray, like, not } from 'drizzle-orm'
+import { createQuotaRepo } from '../adapters/repos/quota'
 import { member, organization, user } from '../db/auth-schema'
 import type { Database } from '../platform/interface'
-import { getEffectiveQuota, getEffectiveQuotasByOrg } from './effective-quota'
 
 export interface TeamSummary {
   id: string
@@ -36,7 +36,7 @@ export async function listTeams(db: Database): Promise<TeamSummary[]> {
   if (rows.length === 0) return []
 
   const orgIds = rows.map((r) => r.id)
-  const quotas = await getEffectiveQuotasByOrg(db, orgIds)
+  const quotas = await createQuotaRepo(db).getEffectiveQuotasByOrg(orgIds)
 
   // D1 caps a query at 100 bound params; chunk the IN lists below the cap.
   const memberChunks = await Promise.all(
@@ -83,7 +83,7 @@ export async function getTeam(db: Database, orgId: string): Promise<TeamSummary 
   const org = rows[0]
   if (!org) return null
 
-  const quota = await getEffectiveQuota(db, orgId)
+  const quota = await createQuotaRepo(db).getEffectiveQuota(orgId)
   const [memberRow] = await db.select({ total: count() }).from(member).where(eq(member.organizationId, orgId))
   const owners = await listOwnerNames(db, [orgId])
 

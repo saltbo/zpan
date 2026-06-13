@@ -9,7 +9,6 @@ import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { refundTraffic } from '../services/effective-quota'
 import { listMatters } from '../services/matter'
 import {
   computeSourceBytes,
@@ -291,7 +290,7 @@ export const publicShares = new Hono<Env>()
     try {
       url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
     } catch (e) {
-      await refundTraffic(db, share.orgId, targetMatter.size ?? 0)
+      await c.get('deps').quota.refundTraffic(share.orgId, targetMatter.size ?? 0)
       await decrementDownloads(db, share.id)
       throw e
     }

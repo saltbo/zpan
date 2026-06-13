@@ -2,7 +2,6 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import type { Env } from '../middleware/platform'
 import type { Database } from '../platform/interface'
-import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import { incrementAccessCount, resolveActiveImageByToken } from '../services/image-hosting'
 import {
   decrementDownloads,
@@ -68,7 +67,7 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
   try {
     url = await s3.presignDownload(storage, matter.object, matter.name, PRESIGN_TTL_SECS)
   } catch (e) {
-    await refundTraffic(db, share.orgId, matter.size ?? 0)
+    await c.get('deps').quota.refundTraffic(share.orgId, matter.size ?? 0)
     await decrementDownloads(db, share.id)
     throw e
   }
@@ -96,14 +95,14 @@ async function handleImageHosting(c: Context<Env>, db: Database, token: string):
   const storage = await c.get('deps').storages.get(image.storageId)
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
-  const trafficAllowed = await consumeTrafficIfQuotaAllows(db, image.orgId, image.size)
+  const trafficAllowed = await c.get('deps').quota.consumeTrafficIfQuotaAllows(image.orgId, image.size)
   if (!trafficAllowed) return c.json({ error: 'Traffic quota exceeded' }, 422)
 
   let url: string
   try {
     url = await s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
   } catch (e) {
-    await refundTraffic(db, image.orgId, image.size)
+    await c.get('deps').quota.refundTraffic(image.orgId, image.size)
     throw e
   }
 

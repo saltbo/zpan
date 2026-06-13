@@ -4,7 +4,6 @@ import { organization } from '../db/auth-schema'
 import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { getEffectiveQuota, getEffectiveQuotasByOrg } from '../services/effective-quota'
 
 // Quota overview across all orgs (personal + team), used by the admin dashboard.
 // Per-team entitlement management lives under /api/admin/teams.
@@ -23,8 +22,7 @@ const adminQuotas = new Hono<Env>().use(requireAdmin).get('/', async (c) => {
     .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
     .orderBy(organization.name)
 
-  const quotas = await getEffectiveQuotasByOrg(
-    db,
+  const quotas = await c.get('deps').quota.getEffectiveQuotasByOrg(
     rows.map((r) => r.orgId),
     now,
   )
@@ -48,7 +46,7 @@ const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {
     return c.json({ error: 'No organization found' }, 404)
   }
 
-  const quota = await getEffectiveQuota(db, orgId)
+  const quota = await c.get('deps').quota.getEffectiveQuota(orgId)
   return c.json(quota)
 })
 

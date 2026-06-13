@@ -1,11 +1,11 @@
 import { and, eq, like, or } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
 import { createActivityRepo } from '../adapters/repos/activity'
+import { createQuotaRepo } from '../adapters/repos/quota'
 import { createStorageRepo } from '../adapters/repos/storage'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import type { StorageRecord as S3StorageType } from '../usecases/ports'
-import { hasQuotaForBytes } from './effective-quota'
 import type { Matter } from './matter'
 import { createMatter } from './matter'
 import { buildObjectKey, fileExt } from './path-template'
@@ -82,7 +82,7 @@ export async function computeSourceBytes(db: Database, matter: Matter): Promise<
 }
 
 export async function isQuotaSufficient(db: Database, orgId: string, bytes: number): Promise<boolean> {
-  return hasQuotaForBytes(db, orgId, bytes)
+  return createQuotaRepo(db).hasQuotaForBytes(orgId, bytes)
 }
 
 // ─── File copy ────────────────────────────────────────────────────────────────

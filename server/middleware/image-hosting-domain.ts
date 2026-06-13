@@ -4,7 +4,6 @@ import { imageHostingConfigs } from '../db/schema'
 import { PRESIGN_TTL_SECS, s3 } from '../http/share-utils'
 import { reportTrafficForDownload } from '../http/traffic-metering-utils'
 import type { Env } from '../middleware/platform'
-import { consumeTrafficIfQuotaAllows, refundTraffic } from '../services/effective-quota'
 import { getImageByOrgPath, incrementAccessCount, resolveCustomDomain } from '../services/image-hosting'
 
 function stripPort(host: string): string {
@@ -63,14 +62,14 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
   const storage = await c.get('deps').storages.get(image.storageId)
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
-  const trafficAllowed = await consumeTrafficIfQuotaAllows(db, image.orgId, image.size)
+  const trafficAllowed = await c.get('deps').quota.consumeTrafficIfQuotaAllows(image.orgId, image.size)
   if (!trafficAllowed) return c.json({ error: 'Traffic quota exceeded' }, 422)
 
   let url: string
   try {
     url = await s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
   } catch (e) {
-    await refundTraffic(db, image.orgId, image.size)
+    await c.get('deps').quota.refundTraffic(image.orgId, image.size)
     throw e
   }
 

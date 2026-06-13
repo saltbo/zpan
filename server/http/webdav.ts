@@ -8,7 +8,6 @@ import { matters } from '../db/schema'
 import { mapDomainError } from '../lib/http-errors'
 import type { Env } from '../middleware/platform'
 import { ApiKeyRateLimitError, verifyApiKeyForPermission } from '../services/api-keys'
-import { refundTraffic } from '../services/effective-quota'
 import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
 import { buildObjectKey, fileExt } from '../services/path-template'
 import { S3Service } from '../services/s3'
@@ -783,7 +782,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
         const body = await s3.getObjectBody(storage, matter.object)
         return new Response(fixedLengthResponseBody(body, size), { headers })
       } catch (e) {
-        await refundTraffic(db, workspace.id, size)
+        await c.get('deps').quota.refundTraffic(workspace.id, size)
         throw e
       }
     }
@@ -809,7 +808,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     try {
       body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
     } catch (e) {
-      await refundTraffic(db, workspace.id, contentLength)
+      await c.get('deps').quota.refundTraffic(workspace.id, contentLength)
       throw e
     }
     headers.set('Content-Length', String(contentLength))

@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { currentTrafficPeriod } from '../services/effective-quota'
+import { currentTrafficPeriod } from '../domain/quota'
 import { S3Service } from '../services/s3'
 import { authedHeaders, createTestApp } from '../test/setup'
 

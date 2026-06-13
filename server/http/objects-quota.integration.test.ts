@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
-import { currentTrafficPeriod } from '../services/effective-quota.js'
+import { currentTrafficPeriod } from '../domain/quota.js'
 import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
