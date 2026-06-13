@@ -34,7 +34,7 @@ async function authedOrg(app: Awaited<ReturnType<typeof createTestApp>>) {
 }
 
 describe('GET /api/events', () => {
-  it('requires authentication', async () => {
+  it('requires authentication [spec: events/auth-required]', async () => {
     const { app } = await createTestApp()
 
     const res = await app.request('/api/events')
@@ -42,7 +42,7 @@ describe('GET /api/events', () => {
     expect(res.status).toBe(401)
   })
 
-  it('streams jobs and notifications events for an authed user', async () => {
+  it('streams jobs and notifications events for an authed user [spec: events/stream]', async () => {
     const testApp = await createTestApp()
     const { headers, userId, orgId } = await authedOrg(testApp)
     expect(orgId).toBeTruthy()
@@ -59,7 +59,7 @@ describe('GET /api/events', () => {
     expect(text).toContain('"unreadCount":0')
   })
 
-  it('closes the stream when the request is aborted', async () => {
+  it('closes the stream when the request is aborted [spec: events/abort]', async () => {
     const testApp = await createTestApp()
     const { headers } = await authedOrg(testApp)
 
@@ -76,7 +76,7 @@ describe('GET /api/events', () => {
     expect(next.done).toBe(true)
   })
 
-  it('emits an error event when a domain query fails', async () => {
+  it('emits an error event when a domain query fails [spec: events/error-event]', async () => {
     const testApp = await createTestApp()
     const { headers } = await authedOrg(testApp)
     vi.spyOn(testApp.deps.notifications, 'unreadCount').mockRejectedValueOnce(new Error('boom'))

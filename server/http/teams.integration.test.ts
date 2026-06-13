@@ -57,7 +57,7 @@ async function signUpAndGetUser(app: TestApp, email: string) {
 // ─── Public invite-info ────────────────────────────────────────────────────────
 
 describe('GET /api/teams/invite-info', () => {
-  it('returns 400 when token is missing', async () => {
+  it('returns 400 when token is missing [spec: teams/invite-token-missing]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/teams/invite-info')
     expect(res.status).toBe(400)
@@ -69,7 +69,7 @@ describe('GET /api/teams/invite-info', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns invite info for a valid token without auth', async () => {
+  it('returns invite info for a valid token without auth [spec: teams/invite-info-public]', async () => {
     const { app, db } = await createTestApp()
     const orgId = await insertOrg(db, { name: 'My Team' })
     const inviterId = await insertUser(db)
@@ -112,7 +112,7 @@ describe('POST /api/teams/:teamId/invite-link', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns 201 with token when owner creates an invite link', async () => {
+  it('returns 201 with token when owner creates an invite link [spec: teams/create-invite]', async () => {
     const { app, db } = await createTestApp()
     const email = `owner-${nanoid()}@example.com`
     const { headers, userId } = await signUpAndGetUser(app, email)
@@ -153,7 +153,7 @@ describe('GET /api/teams/:teamId/invitations', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns empty list when no pending invitations', async () => {
+  it('returns empty list when no pending invitations [spec: teams/list-pending-empty]', async () => {
     const { app, db } = await createTestApp()
     const email = `owner2-${nanoid()}@example.com`
     const { headers, userId } = await signUpAndGetUser(app, email)
@@ -194,7 +194,7 @@ describe('POST /api/teams/:teamId/members', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 200 and joins the team with a valid token', async () => {
+  it('returns 200 and joins the team with a valid token [spec: teams/join]', async () => {
     const { app, db } = await createTestApp()
     const orgId = await insertOrg(db)
     const inviterId = await insertUser(db)
@@ -211,7 +211,7 @@ describe('POST /api/teams/:teamId/members', () => {
     expect(res.status).toBe(200)
   })
 
-  it('returns 409 when user is already a member', async () => {
+  it('returns 409 when user is already a member [spec: teams/join-already-member]', async () => {
     const { app, db } = await createTestApp()
     const orgId = await insertOrg(db)
     const inviterId = await insertUser(db)
@@ -291,7 +291,7 @@ describe('GET /api/teams/:teamId/activity — auth', () => {
 // ─── Access control ────────────────────────────────────────────────────────────
 
 describe('GET /api/teams/:teamId/activity — access control', () => {
-  it('returns 403 when authed user is not a member of a non-personal org', async () => {
+  it('returns 403 when authed user is not a member of a non-personal org [spec: teams/access-non-member]', async () => {
     const { app, db } = await createTestApp()
 
     // Sign up a user (their personal org is created automatically)
@@ -326,7 +326,7 @@ describe('GET /api/teams/:teamId/activity — access control', () => {
     expect(res.status).toBe(200)
   })
 
-  it('returns 200 when authed user accesses any personal org (personal orgs are public to auth users)', async () => {
+  it('returns 200 when authed user accesses any personal org (personal orgs are public to auth users) [spec: teams/access-personal-public]', async () => {
     const { app, db } = await createTestApp()
 
     // Sign up user1
@@ -346,7 +346,7 @@ describe('GET /api/teams/:teamId/activity — access control', () => {
     expect(res.status).toBe(200)
   })
 
-  it('returns 200 when authed user is a member of a non-personal team org', async () => {
+  it('returns 200 when authed user is a member of a non-personal team org [spec: teams/access-team-member]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const userId = await getUserId(db)
@@ -379,7 +379,7 @@ describe('GET /api/teams/:teamId/activity — happy path', () => {
     expect(body.total).toBe(0)
   })
 
-  it('returns activity items with user info when events exist', async () => {
+  it('returns activity items with user info when events exist [spec: teams/activity-feed]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
@@ -465,7 +465,7 @@ describe('GET /api/teams/:teamId/activity — pagination', () => {
     expect(body.pageSize).toBe(20)
   })
 
-  it('respects explicit page and pageSize query params', async () => {
+  it('respects explicit page and pageSize query params [spec: teams/activity-pagination]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
@@ -535,7 +535,7 @@ describe('GET /api/teams/:teamId/activity — pagination', () => {
 // ─── Ordering ─────────────────────────────────────────────────────────────────
 
 describe('GET /api/teams/:teamId/activity — ordering', () => {
-  it('returns items ordered by newest first', async () => {
+  it('returns items ordered by newest first [spec: teams/activity-newest-first]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)

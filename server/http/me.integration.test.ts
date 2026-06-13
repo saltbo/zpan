@@ -23,7 +23,7 @@ describe('PUT /api/me/avatar', () => {
     vi.spyOn(S3Service.prototype, 'putObject').mockResolvedValue(16)
   })
 
-  it('returns 401 without auth', async () => {
+  it('returns 401 without auth [spec: avatar/auth-required]', async () => {
     const { app } = await createTestApp()
     const form = new FormData()
     form.set('file', makeFile('image/png'))
@@ -31,7 +31,7 @@ describe('PUT /api/me/avatar', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 415 when Content-Type is not multipart', async () => {
+  it('returns 415 when Content-Type is not multipart [spec: avatar/multipart-required]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/me/avatar', {
@@ -42,7 +42,7 @@ describe('PUT /api/me/avatar', () => {
     expect(res.status).toBe(415)
   })
 
-  it('returns 400 when file field is missing', async () => {
+  it('returns 400 when file field is missing [spec: avatar/file-required]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const form = new FormData()
@@ -51,7 +51,7 @@ describe('PUT /api/me/avatar', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when mime is not PNG/JPG/WebP', async () => {
+  it('returns 400 when mime is not PNG/JPG/WebP [spec: avatar/mime-validated]', async () => {
     const { app, db } = await createTestApp()
     await insertPublicStorage(db)
     const headers = await authedHeaders(app)
@@ -61,7 +61,7 @@ describe('PUT /api/me/avatar', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 413 when file exceeds 2 MiB', async () => {
+  it('returns 413 when file exceeds 2 MiB [spec: avatar/size-limit]', async () => {
     const { app, db } = await createTestApp()
     await insertPublicStorage(db)
     const headers = await authedHeaders(app)
@@ -71,7 +71,7 @@ describe('PUT /api/me/avatar', () => {
     expect(res.status).toBe(413)
   })
 
-  it('returns 503 when no public storage is configured', async () => {
+  it('returns 503 when no public storage is configured [spec: avatar/needs-storage]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const form = new FormData()
@@ -80,7 +80,7 @@ describe('PUT /api/me/avatar', () => {
     expect(res.status).toBe(503)
   })
 
-  it('uploads the file to S3, writes user.image, returns the URL', async () => {
+  it('uploads the file to S3, writes user.image, returns the URL [spec: avatar/upload]', async () => {
     const { app, db } = await createTestApp()
     await insertPublicStorage(db)
     const headers = await authedHeaders(app)
@@ -98,7 +98,7 @@ describe('PUT /api/me/avatar', () => {
     expect(rows[0]?.image).toBe(body.url)
   })
 
-  it('is idempotent — re-PUT with same mime returns the same URL', async () => {
+  it('is idempotent — re-PUT with same mime returns the same URL [spec: avatar/idempotent]', async () => {
     const { app, db } = await createTestApp()
     await insertPublicStorage(db)
     const headers = await authedHeaders(app)
@@ -129,7 +129,7 @@ describe('DELETE /api/me/avatar', () => {
     expect(res.status).toBe(401)
   })
 
-  it('clears user.image and removes all mime variants from S3', async () => {
+  it('clears user.image and removes all mime variants from S3 [spec: avatar/delete]', async () => {
     const { app, db } = await createTestApp()
     await insertPublicStorage(db)
     const headers = await authedHeaders(app)
@@ -144,7 +144,7 @@ describe('DELETE /api/me/avatar', () => {
     expect(S3Service.prototype.deleteObject).toHaveBeenCalledTimes(3)
   })
 
-  it('succeeds when no public storage exists (DB cleared, S3 skipped)', async () => {
+  it('succeeds when no public storage exists (DB cleared, S3 skipped) [spec: avatar/delete-no-storage]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await db.run(sql`UPDATE user SET image = 'https://example.com/old.png'`)

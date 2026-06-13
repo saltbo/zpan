@@ -30,7 +30,7 @@ describe('background jobs API', () => {
     vi.restoreAllMocks()
   })
 
-  it('creates archive jobs through POST and completes them after the response', async () => {
+  it('creates archive jobs through POST and completes them after the response [spec: background-jobs/create-and-complete]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-create@example.com')
     const { orgId } = await getUserOrg(db, 'jobs-create@example.com')
@@ -93,7 +93,7 @@ describe('background jobs API', () => {
     expect(putKeys).toHaveLength(1)
   })
 
-  it('dispatches archive jobs to Cloudflare Queue bindings and lets the consumer complete them', async () => {
+  it('dispatches archive jobs to Cloudflare Queue bindings and lets the consumer complete them [spec: background-jobs/queue-dispatch]', async () => {
     const messages: ArchiveJobMessage[] = []
     const queue = { send: async (message: ArchiveJobMessage) => messages.push(message) }
     const { app, db, platform } = await createTestApp({}, { [ARCHIVE_QUEUE_BINDING]: queue })
@@ -153,7 +153,7 @@ describe('background jobs API', () => {
     })
   })
 
-  it('returns a failed archive job for a missing explicit target folder', async () => {
+  it('returns a failed archive job for a missing explicit target folder [spec: background-jobs/missing-target]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-missing-target@example.com')
     const { orgId } = await getUserOrg(db, 'jobs-missing-target@example.com')
@@ -187,7 +187,7 @@ describe('background jobs API', () => {
     })
   })
 
-  it('returns a failed archive job when explicit target folder points to a file', async () => {
+  it('returns a failed archive job when explicit target folder points to a file [spec: background-jobs/target-is-file]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-file-target@example.com')
     const { orgId } = await getUserOrg(db, 'jobs-file-target@example.com')
@@ -225,7 +225,7 @@ describe('background jobs API', () => {
     })
   })
 
-  it('lists current org jobs with status/type filters and pagination', async () => {
+  it('lists current org jobs with status/type filters and pagination [spec: background-jobs/list-filter]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-list@example.com')
     const { orgId, userId } = await getUserOrg(db, 'jobs-list@example.com')
@@ -246,7 +246,7 @@ describe('background jobs API', () => {
     })
   })
 
-  it('rejects detail access across organizations', async () => {
+  it('rejects detail access across organizations [spec: background-jobs/cross-org-guard]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app, 'jobs-owner@example.com')
     const viewerHeaders = await authedHeaders(app, 'jobs-viewer@example.com')
@@ -263,7 +263,7 @@ describe('background jobs API', () => {
     await expect(res.json()).resolves.toEqual({ error: 'Not found' })
   })
 
-  it('cancels only queued or running jobs', async () => {
+  it('cancels only queued or running jobs [spec: background-jobs/cancel]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-cancel@example.com')
     const { orgId, userId } = await getUserOrg(db, 'jobs-cancel@example.com')
@@ -280,7 +280,7 @@ describe('background jobs API', () => {
     await expect(rejectedRes.json()).resolves.toEqual({ error: 'Background job cannot be canceled' })
   })
 
-  it('retries only failed retryable jobs without hiding the failed job', async () => {
+  it('retries only failed retryable jobs without hiding the failed job [spec: background-jobs/retry]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-retry@example.com')
     const { orgId, userId } = await getUserOrg(db, 'jobs-retry@example.com')
@@ -320,7 +320,7 @@ describe('background jobs API', () => {
     })
   })
 
-  it('lets non-domain service errors surface at the route boundary', async () => {
+  it('lets non-domain service errors surface at the route boundary [spec: background-jobs/error-surfacing]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-invalid-json@example.com')
     const { orgId, userId } = await getUserOrg(db, 'jobs-invalid-json@example.com')

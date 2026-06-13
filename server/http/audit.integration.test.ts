@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 describe('GET /api/admin/audit — auth guards', () => {
-  it('returns 401 without auth', async () => {
+  it('returns 401 without auth [spec: audit/auth-required]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/admin/audit')
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 for authenticated non-admin', async () => {
+  it('returns 403 for authenticated non-admin [spec: audit/admin-only]', async () => {
     const { app } = await createTestApp()
     await adminHeaders(app)
     const headers = await authedHeaders(app, 'user@example.com')
@@ -16,7 +16,7 @@ describe('GET /api/admin/audit — auth guards', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns 402 when admin lacks audit_log feature', async () => {
+  it('returns 402 when admin lacks audit_log feature [spec: audit/feature-gated]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     // No Pro license seeded — feature gate should block
@@ -28,7 +28,7 @@ describe('GET /api/admin/audit — auth guards', () => {
 })
 
 describe('GET /api/admin/audit — licensed admin', () => {
-  it('returns empty list when no events exist', async () => {
+  it('returns empty list when no events exist [spec: audit/empty]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -42,7 +42,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     expect(body.pageSize).toBe(20)
   })
 
-  it('lists events across multiple orgs, newest first', async () => {
+  it('lists events across multiple orgs, newest first [spec: audit/list-newest-first]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -85,7 +85,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     expect(body.items[1].id).toBe('evt-a')
   })
 
-  it('filters by orgId', async () => {
+  it('filters by orgId [spec: audit/filter-org]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -123,7 +123,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     expect(body.items[0].orgId).toBe('org-x')
   })
 
-  it('filters by userId', async () => {
+  it('filters by userId [spec: audit/filter-user]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -160,7 +160,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     expect(body.items[0].userId).toBe('alice')
   })
 
-  it('filters by action', async () => {
+  it('filters by action [spec: audit/filter-action]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -197,7 +197,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     expect(body.items[0].action).toBe('upload')
   })
 
-  it('filters by targetType', async () => {
+  it('filters by targetType [spec: audit/filter-target-type]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -234,7 +234,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     expect(body.items[0].targetType).toBe('folder')
   })
 
-  it('respects pagination params and returns correct page/pageSize', async () => {
+  it('respects pagination params and returns correct page/pageSize [spec: audit/pagination]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
@@ -268,7 +268,7 @@ describe('GET /api/admin/audit — licensed admin', () => {
     expect(body.items).toHaveLength(1)
   })
 
-  it('response items include actor display info and orgName', async () => {
+  it('response items include actor display info and orgName [spec: audit/actor-info]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)

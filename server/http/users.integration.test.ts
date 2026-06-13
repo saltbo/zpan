@@ -24,13 +24,13 @@ async function signUpUser(app: ReturnType<typeof import('../app')['createApp']>,
 }
 
 describe('Admin Users API', () => {
-  it('returns 401 without auth', async () => {
+  it('returns 401 without auth [spec: users/auth-required]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/admin/users')
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 for non-admin user', async () => {
+  it('returns 403 for non-admin user [spec: users/admin-only]', async () => {
     const { app } = await createTestApp()
     // Create first user (auto-admin), then second user (non-admin)
     await authedHeaders(app, 'admin@example.com')
@@ -46,7 +46,7 @@ describe('Admin Users API', () => {
     expect(res.status).toBe(403)
   })
 
-  it('GET /api/admin/users lists users with pagination', async () => {
+  it('GET /api/admin/users lists users with pagination [spec: users/list]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -59,7 +59,7 @@ describe('Admin Users API', () => {
     expect(body.items[0].orgName).toBeTruthy()
   })
 
-  it('GET /api/admin/users returns quota from the personal organization', async () => {
+  it('GET /api/admin/users returns quota from the personal organization [spec: users/quota-personal-org]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'quota-list@example.com')
@@ -98,7 +98,7 @@ describe('Admin Users API', () => {
     })
   })
 
-  it('GET /api/admin/users computes quota total from active plan and extra storage entitlements', async () => {
+  it('GET /api/admin/users computes quota total from active plan and extra storage entitlements [spec: users/quota-entitlements]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'quota-plan@example.com')
@@ -135,7 +135,7 @@ describe('Admin Users API', () => {
     })
   })
 
-  it('GET /api/admin/users filters by name, username, or email with filtered totals', async () => {
+  it('GET /api/admin/users filters by name, username, or email with filtered totals [spec: users/filter]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'match-email@example.com', 'Email Match')
@@ -159,7 +159,7 @@ describe('Admin Users API', () => {
     expect(byEmailBody.items[0].email).toBe('other@example.com')
   })
 
-  it('PATCH /api/admin/users/:id disables a user', async () => {
+  it('PATCH /api/admin/users/:id disables a user [spec: users/disable]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -184,7 +184,7 @@ describe('Admin Users API', () => {
     expect(updated[0].banned).toBe(1)
   })
 
-  it('PATCH /api/admin/users/:id rejects invalid status', async () => {
+  it('PATCH /api/admin/users/:id rejects invalid status [spec: users/invalid-status]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/users/someid', {
@@ -195,7 +195,7 @@ describe('Admin Users API', () => {
     expect(res.status).toBe(400)
   })
 
-  it('PATCH /api/admin/users/:id returns 404 for missing user', async () => {
+  it('PATCH /api/admin/users/:id returns 404 for missing user [spec: users/patch-missing]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/users/nonexistent', {
@@ -206,7 +206,7 @@ describe('Admin Users API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /api/admin/users/:id deletes a user', async () => {
+  it('DELETE /api/admin/users/:id deletes a user [spec: users/delete]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -227,7 +227,7 @@ describe('Admin Users API', () => {
     expect(remaining).toHaveLength(0)
   })
 
-  it('disabled user is rejected by auth middleware on existing session', async () => {
+  it('disabled user is rejected by auth middleware on existing session [spec: users/disabled-session-rejected]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -261,7 +261,7 @@ describe('Admin Users API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/admin/users/batch disables and enables users', async () => {
+  it('PATCH /api/admin/users/batch disables and enables users [spec: users/batch]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'batch1@example.com')
@@ -291,7 +291,7 @@ describe('Admin Users API', () => {
     expect(enabled.every((row) => row.banned === 0)).toBe(true)
   })
 
-  it('POST /api/admin/users/:id/entitlements grants storage entitlement for a personal org', async () => {
+  it('POST /api/admin/users/:id/entitlements grants storage entitlement for a personal org [spec: users/grant-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'grant-storage@example.com')
@@ -322,7 +322,7 @@ describe('Admin Users API', () => {
     expect(entitlements).toEqual([{ bytes: 123456, entitlementType: 'grant', source: 'admin_grant' }])
   })
 
-  it('PATCH /api/admin/users/:id/entitlements/:eid updates an admin grant', async () => {
+  it('PATCH /api/admin/users/:id/entitlements/:eid updates an admin grant [spec: users/update-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const user = (await signUpUser(app, 'edit-grant@example.com')) as { user: { id: string } }
@@ -352,7 +352,7 @@ describe('Admin Users API', () => {
     expect(rows[0].expiresAt).toBe(new Date(expiresAt).getTime())
   })
 
-  it('DELETE /api/admin/users/:id/entitlements/:eid revokes an admin grant', async () => {
+  it('DELETE /api/admin/users/:id/entitlements/:eid revokes an admin grant [spec: users/revoke-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const user = (await signUpUser(app, 'revoke-grant@example.com')) as { user: { id: string } }
@@ -487,7 +487,7 @@ describe('Admin Users API', () => {
     expect(del.status).toBe(404)
   })
 
-  it('DELETE /api/admin/users/:id/entitlements/:eid rejects non-admin-grant sources', async () => {
+  it('DELETE /api/admin/users/:id/entitlements/:eid rejects non-admin-grant sources [spec: users/entitlement-source-guard]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await signUpUser(app, 'free-plan-revoke@example.com')
