@@ -13,21 +13,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useSiteOptions } from '@/hooks/use-site-options'
 import { signOut, useSession } from '@/lib/auth-client'
+import { getInitials } from '@/lib/format'
 
 interface ShareLayoutProps {
   children: ReactNode
   title?: string
   subtitle?: string
   meta?: string[]
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
 }
 
 export function ShareLayout({ children }: ShareLayoutProps) {

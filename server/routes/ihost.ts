@@ -8,7 +8,6 @@ import {
   MAX_IMAGE_SIZE,
   patchIhostImageSchema,
 } from '../../shared/schemas'
-import type { Storage as S3Storage } from '../../shared/types'
 import { imageHostings } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import { requirePermission } from '../middleware/authz'
@@ -25,7 +24,7 @@ import {
   validatePath,
 } from '../services/image-hosting'
 import { S3Service } from '../services/s3'
-import { getStorage, selectStorage } from '../services/storage'
+import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
 import { StorageQuotaExceededError, withStorageUsageReservation } from '../services/storage-usage'
 import { PRESIGN_TTL_SECS } from './share-utils'
 
@@ -78,7 +77,7 @@ const app = new Hono<Env>()
 
     let storage: S3Storage
     try {
-      storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+      storage = await selectStorage(db, 'private')
     } catch {
       return c.json({ error: 'No storage configured' }, 503)
     }
@@ -242,7 +241,7 @@ const app = new Hono<Env>()
 
       let storage: S3Storage
       try {
-        storage = (await selectStorage(db, 'private')) as unknown as S3Storage
+        storage = await selectStorage(db, 'private')
       } catch {
         return c.json({ error: 'No storage configured' }, 503)
       }
@@ -334,7 +333,7 @@ const app = new Hono<Env>()
     const storage = await getStorage(db, existing.storageId)
     if (storage) {
       try {
-        await s3.deleteObject(storage as unknown as S3Storage, existing.storageKey)
+        await s3.deleteObject(storage, existing.storageKey)
       } catch {
         // Best-effort S3 delete — proceed with DB cleanup regardless
       }

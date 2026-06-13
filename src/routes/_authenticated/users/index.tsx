@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { listUsers, type UserWithOrg, updateUserStatus } from '@/lib/api'
-import { formatSize } from '@/lib/format'
+import { formatSize, getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/users/')({
   component: UsersPage,
@@ -232,13 +232,4 @@ function formatQuota(used: number, total: number): string {
 function formatDate(timestamp: number): string {
   const d = new Date(timestamp)
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString()
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('')
 }

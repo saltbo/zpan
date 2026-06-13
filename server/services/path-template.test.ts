@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildObjectKey } from './path-template.js'
+import { buildObjectKey, fileExt } from './path-template.js'
 
 const baseVars = {
   uid: 'user123',
@@ -45,5 +45,18 @@ describe('buildObjectKey', () => {
     const a = buildObjectKey(baseVars)
     const b = buildObjectKey(baseVars)
     expect(a).not.toBe(b)
+  })
+})
+
+describe('fileExt', () => {
+  it('returns the extension with the leading dot', () => {
+    expect(fileExt('photo.jpg')).toBe('.jpg')
+    expect(fileExt('archive.tar.gz')).toBe('.gz')
+    expect(fileExt('.hidden')).toBe('.hidden')
+  })
+
+  it('returns empty string when there is no extension', () => {
+    expect(fileExt('README')).toBe('')
+    expect(fileExt('')).toBe('')
   })
 })

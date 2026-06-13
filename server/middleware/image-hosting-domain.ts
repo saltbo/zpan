@@ -1,6 +1,5 @@
 import { eq } from 'drizzle-orm'
 import type { Context, Next } from 'hono'
-import type { Storage as S3Storage } from '../../shared/types'
 import { imageHostingConfigs } from '../db/schema'
 import type { Env } from '../middleware/platform'
 import { PRESIGN_TTL_SECS, s3 } from '../routes/share-utils'
@@ -62,7 +61,7 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
     return c.json({ error: 'forbidden referer' }, 403)
   }
 
-  const storage = (await getStorage(db, image.storageId)) as unknown as S3Storage
+  const storage = await getStorage(db, image.storageId)
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
   const trafficAllowed = await consumeTrafficIfQuotaAllows(db, image.orgId, image.size)

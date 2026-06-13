@@ -23,6 +23,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { deleteTeamLogo, uploadTeamLogo } from '@/lib/api'
 import { authClient, useSession } from '@/lib/auth-client'
+import { getInitials } from '@/lib/format'
 
 export const Route = createFileRoute('/_authenticated/teams/$teamId/settings')({
   component: TeamSettingsPage,
@@ -49,15 +50,6 @@ type FullOrganization = {
   logo?: string | null
   metadata?: Record<string, unknown>
   members: Array<{ userId: string; role: string }>
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
 }
 
 function LogoCard({ org }: { org: FullOrganization }) {

@@ -6,6 +6,12 @@ export interface TemplateVars {
   rawExt: string
 }
 
+/** Returns the file extension including the leading dot, or '' when there is none. */
+export function fileExt(name: string): string {
+  const dot = name.lastIndexOf('.')
+  return dot >= 0 ? name.slice(dot) : ''
+}
+
 export function buildObjectKey(vars: TemplateVars): string {
   const now = new Date()
   const year = String(now.getFullYear())

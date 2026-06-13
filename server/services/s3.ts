@@ -12,14 +12,27 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { attachmentContentDisposition } from '../../shared/content-disposition'
-import type { Storage } from '../../shared/types'
+
+/**
+ * The subset of a storage row the S3 client needs. A DB storage row
+ * (`typeof storages.$inferSelect`) structurally satisfies this, so callers pass
+ * rows straight from `getStorage` without casting.
+ */
+export interface S3StorageCredentials {
+  bucket: string
+  endpoint: string
+  region: string
+  accessKey: string
+  secretKey: string
+  customHost: string | null
+}
 
 const DEFAULT_EXPIRES_IN = 3600
 const MULTIPART_PART_SIZE = 5 * 1024 * 1024
 const SMALL_STREAM_PUT_BUFFER_SIZE = 256 * 1024
 
 export class S3Service {
-  createClient(storage: Storage): S3Client {
+  createClient(storage: S3StorageCredentials): S3Client {
     return new S3Client({
       region: storage.region,
       endpoint: storage.endpoint,
@@ -33,7 +46,7 @@ export class S3Service {
   }
 
   async presignUpload(
-    storage: Storage,
+    storage: S3StorageCredentials,
     key: string,
     contentType: string,
     filenameOrExpiresIn?: string | number,
@@ -58,7 +71,7 @@ export class S3Service {
     return url
   }
 
-  async createMultipartUpload(storage: Storage, key: string, contentType: string): Promise<string> {
+  async createMultipartUpload(storage: S3StorageCredentials, key: string, contentType: string): Promise<string> {
     const client = this.createClient(storage)
     const url = await getSignedUrl(
       client,
@@ -74,7 +87,7 @@ export class S3Service {
   }
 
   async presignUploadPart(
-    storage: Storage,
+    storage: S3StorageCredentials,
     key: string,
     uploadId: string,
     partNumber: number,
@@ -89,7 +102,7 @@ export class S3Service {
   }
 
   async completeMultipartUpload(
-    storage: Storage,
+    storage: S3StorageCredentials,
     key: string,
     uploadId: string,
     parts: Array<{ etag: string; partNumber: number }>,
@@ -121,7 +134,7 @@ export class S3Service {
     }
   }
 
-  async abortMultipartUpload(storage: Storage, key: string, uploadId: string): Promise<void> {
+  async abortMultipartUpload(storage: S3StorageCredentials, key: string, uploadId: string): Promise<void> {
     const client = this.createClient(storage)
     const url = await getSignedUrl(
       client,
@@ -136,7 +149,7 @@ export class S3Service {
   }
 
   async presignDownload(
-    storage: Storage,
+    storage: S3StorageCredentials,
     key: string,
     filename: string,
     expiresIn = DEFAULT_EXPIRES_IN,
@@ -151,7 +164,12 @@ export class S3Service {
     return this.applyCustomHost(storage, url)
   }
 
-  async presignInline(storage: Storage, key: string, mime: string, expiresIn = DEFAULT_EXPIRES_IN): Promise<string> {
+  async presignInline(
+    storage: S3StorageCredentials,
+    key: string,
+    mime: string,
+    expiresIn = DEFAULT_EXPIRES_IN,
+  ): Promise<string> {
     const client = this.createClient(storage)
     const command = new GetObjectCommand({
       Bucket: storage.bucket,
@@ -163,7 +181,7 @@ export class S3Service {
     return this.applyCustomHost(storage, url)
   }
 
-  private applyCustomHost(storage: Storage, url: string): string {
+  private applyCustomHost(storage: S3StorageCredentials, url: string): string {
     if (!storage.customHost) return url
 
     let customHost = storage.customHost.trim()
@@ -187,14 +205,14 @@ export class S3Service {
     return parsed.toString()
   }
 
-  getPublicUrl(storage: Storage, key: string): string {
+  getPublicUrl(storage: S3StorageCredentials, key: string): string {
     if (storage.customHost) {
       return `${storage.customHost.replace(/\/$/, '')}/${key}`
     }
     return `${storage.endpoint.replace(/\/$/, '')}/${storage.bucket}/${key}`
   }
 
-  async headObject(storage: Storage, key: string): Promise<{ size: number; contentType: string }> {
+  async headObject(storage: S3StorageCredentials, key: string): Promise<{ size: number; contentType: string }> {
     const client = this.createClient(storage)
     const result = await client.send(new HeadObjectCommand({ Bucket: storage.bucket, Key: key }))
     return {
@@ -203,11 +221,11 @@ export class S3Service {
     }
   }
 
-  async getObjectBytes(storage: Storage, key: string, range?: string): Promise<Uint8Array> {
+  async getObjectBytes(storage: S3StorageCredentials, key: string, range?: string): Promise<Uint8Array> {
     return bodyToBytes(await this.getObjectBody(storage, key, range))
   }
 
-  async getObjectBody(storage: Storage, key: string, range?: string): Promise<BodyInit> {
+  async getObjectBody(storage: S3StorageCredentials, key: string, range?: string): Promise<BodyInit> {
     const client = this.createClient(storage)
     const url = await getSignedUrl(client, new GetObjectCommand({ Bucket: storage.bucket, Key: key }), {
       expiresIn: DEFAULT_EXPIRES_IN,
@@ -218,12 +236,21 @@ export class S3Service {
     return response.body
   }
 
-  async getObjectStream(storage: Storage, key: string, range?: string): Promise<ReadableStream<Uint8Array>> {
+  async getObjectStream(
+    storage: S3StorageCredentials,
+    key: string,
+    range?: string,
+  ): Promise<ReadableStream<Uint8Array>> {
     const body = await this.getObjectBody(storage, key, range)
     return bodyToReadableStream(body)
   }
 
-  async copyObject(srcStorage: Storage, srcKey: string, dstStorage: Storage, dstKey: string): Promise<void> {
+  async copyObject(
+    srcStorage: S3StorageCredentials,
+    srcKey: string,
+    dstStorage: S3StorageCredentials,
+    dstKey: string,
+  ): Promise<void> {
     const client = this.createClient(dstStorage)
     await client.send(
       new CopyObjectCommand({
@@ -234,7 +261,12 @@ export class S3Service {
     )
   }
 
-  async streamCopy(srcStorage: Storage, srcKey: string, dstStorage: Storage, dstKey: string): Promise<void> {
+  async streamCopy(
+    srcStorage: S3StorageCredentials,
+    srcKey: string,
+    dstStorage: S3StorageCredentials,
+    dstKey: string,
+  ): Promise<void> {
     const srcClient = this.createClient(srcStorage)
     const getResult = await srcClient.send(new GetObjectCommand({ Bucket: srcStorage.bucket, Key: srcKey }))
     if (!getResult.Body) throw new Error('Empty body from source object')
@@ -253,7 +285,7 @@ export class S3Service {
   }
 
   async putObject(
-    storage: Storage,
+    storage: S3StorageCredentials,
     key: string,
     body: ReadableStream | Uint8Array,
     contentType: string,
@@ -284,7 +316,7 @@ export class S3Service {
   }
 
   private async putObjectStream(
-    storage: Storage,
+    storage: S3StorageCredentials,
     key: string,
     body: ReadableStream,
     contentType: string,
@@ -303,7 +335,7 @@ export class S3Service {
   }
 
   private async putObjectMultipartStream(
-    storage: Storage,
+    storage: S3StorageCredentials,
     key: string,
     body: ReadableStream,
     contentType: string,
@@ -382,12 +414,12 @@ export class S3Service {
     return { ETag: result.ETag ?? `"part-${partNumber}"`, PartNumber: partNumber }
   }
 
-  async deleteObject(storage: Storage, key: string): Promise<void> {
+  async deleteObject(storage: S3StorageCredentials, key: string): Promise<void> {
     const client = this.createClient(storage)
     await client.send(new DeleteObjectCommand({ Bucket: storage.bucket, Key: key }))
   }
 
-  async deleteObjects(storage: Storage, keys: string[]): Promise<void> {
+  async deleteObjects(storage: S3StorageCredentials, keys: string[]): Promise<void> {
     if (keys.length === 0) return
     // DeleteObjectsCommand returns XML which requires DOMParser to parse.
     // Cloudflare Workers doesn't have DOMParser, so we delete one-by-one.

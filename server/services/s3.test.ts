@@ -94,7 +94,6 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
 function makeStorage(overrides: Partial<Storage> = {}): Storage {
   return {
     id: 's1',
-    uid: 'u1',
     title: 'Test',
     mode: 'private',
     bucket: 'my-bucket',
@@ -102,6 +101,7 @@ function makeStorage(overrides: Partial<Storage> = {}): Storage {
     region: 'us-east-1',
     accessKey: 'AKID',
     secretKey: 'SECRET',
+    filePath: '',
     customHost: '',
     capacity: 0,
     egressCreditBillingEnabled: false,
