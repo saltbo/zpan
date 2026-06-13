@@ -598,6 +598,50 @@ export function createMatterRepo(db: Database): MatterRepo {
       }
     },
 
+    async listActiveDescendants(orgId, parentPath): Promise<Matter[]> {
+      const rows = await db
+        .select()
+        .from(matters)
+        .where(
+          and(
+            eq(matters.orgId, orgId),
+            eq(matters.status, ObjectStatus.ACTIVE),
+            like(matters.parent, `${parentPath}/%`),
+          ),
+        )
+      return rows.map(toMatter)
+    },
+
+    async trashByIds(orgId, ids): Promise<void> {
+      if (ids.length === 0) return
+      await db
+        .update(matters)
+        .set({ status: ObjectStatus.TRASHED, trashedAt: Date.now(), updatedAt: new Date() })
+        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
+    },
+
+    async restoreActiveByIds(orgId, ids): Promise<void> {
+      if (ids.length === 0) return
+      await db
+        .update(matters)
+        .set({ status: ObjectStatus.ACTIVE, trashedAt: null, updatedAt: new Date() })
+        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids)))
+    },
+
+    async touch(orgId, id): Promise<void> {
+      await db
+        .update(matters)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
+    },
+
+    async applyUpload(orgId, id, fields): Promise<void> {
+      await db
+        .update(matters)
+        .set({ type: fields.type, size: fields.size, object: fields.object, updatedAt: new Date() })
+        .where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
+    },
+
     async listTrashedRoots(orgId): Promise<Matter[]> {
       const all = await db
         .select()

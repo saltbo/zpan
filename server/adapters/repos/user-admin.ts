@@ -125,6 +125,22 @@ async function setUserStatus(db: Database, userId: string, status: 'active' | 'd
   return true
 }
 
+async function isBanned(db: Database, userId: string): Promise<boolean> {
+  const rows = await db.select({ banned: user.banned }).from(user).where(eq(user.id, userId))
+  return Boolean(rows[0]?.banned)
+}
+
+async function matchesUsername(db: Database, userId: string, username: string): Promise<boolean> {
+  const rows = await db
+    .select({ email: user.email, username: user.username })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  const account = rows[0]
+  if (!account) return false
+  return account.email.toLowerCase() === username.toLowerCase() || account.username === username
+}
+
 async function deleteUser(db: Database, userId: string): Promise<boolean> {
   const existing = await db.select({ id: user.id }).from(user).where(eq(user.id, userId))
   if (existing.length === 0) return false
@@ -355,6 +371,8 @@ export function createUserAdminRepo(db: Database): UserAdminRepo {
   return {
     listUsers: (page, pageSize, search) => listUsers(db, page, pageSize, search),
     getUser: (userId) => getUser(db, userId),
+    isBanned: (userId) => isBanned(db, userId),
+    matchesUsername: (userId, username) => matchesUsername(db, userId, username),
     setUserStatus: (userId, status) => setUserStatus(db, userId, status),
     deleteUser: (userId) => deleteUser(db, userId),
     setUsersStatus: (userIds, status) => setUsersStatus(db, userIds, status),

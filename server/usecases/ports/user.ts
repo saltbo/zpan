@@ -64,6 +64,11 @@ export interface EntitlementResult {
 export interface UserAdminRepo {
   listUsers(page: number, pageSize: number, search?: string): Promise<{ items: UserWithOrg[]; total: number }>
   getUser(userId: string): Promise<UserWithOrg | UserOperationFailure>
+  // Whether the user is banned/disabled — checked by the auth middleware on every
+  // authenticated request to reject sessions of users disabled mid-session.
+  isBanned(userId: string): Promise<boolean>
+  // Whether `username` matches the user's email or username (WebDAV Basic Auth check).
+  matchesUsername(userId: string, username: string): Promise<boolean>
   setUserStatus(userId: string, status: 'active' | 'disabled'): Promise<boolean>
   deleteUser(userId: string): Promise<boolean>
   setUsersStatus(

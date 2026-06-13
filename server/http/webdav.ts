@@ -1,10 +1,7 @@
-import { and, eq, like, or } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ApiKeyTemplate } from '../../shared/api-key-templates'
 import { DirType, ObjectStatus } from '../../shared/constants'
-import { user } from '../db/auth-schema'
-import { matters } from '../db/schema'
 import { joinMatterPath } from '../domain/webdav'
 import {
   type DavEntry,
@@ -64,7 +61,7 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
         ApiKeyTemplate.WEBDAV,
       )
     if (!key) return unauthorized()
-    if (!(await usernameMatches(db, key.referenceId, credentials.username))) return unauthorized()
+    if (!(await c.get('deps').userAdmin.matchesUsername(key.referenceId, credentials.username))) return unauthorized()
     c.set('userId', key.referenceId)
     return { userId: key.referenceId }
   } catch (error) {
@@ -102,21 +99,6 @@ function parseBasicAuth(header: string | null): { username: string; password: st
   const password = decoded.slice(separator + 1)
   if (!password) return null
   return { username, password }
-}
-
-async function usernameMatches(
-  db: Env['Variables']['platform']['db'],
-  userId: string,
-  username: string,
-): Promise<boolean> {
-  const rows = await db
-    .select({ email: user.email, username: user.username })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1)
-  const account = rows[0]
-  if (!account) return false
-  return account.email.toLowerCase() === username.toLowerCase() || account.username === username
 }
 
 function davPath(c: DavContext): string {
@@ -587,28 +569,6 @@ async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEn
   return entries
 }
 
-async function listDescendants(db: Env['Variables']['platform']['db'], orgId: string, rootPath: string) {
-  return db
-    .select()
-    .from(matters)
-    .where(
-      and(eq(matters.orgId, orgId), eq(matters.status, ObjectStatus.ACTIVE), like(matters.parent, `${rootPath}/%`)),
-    )
-}
-
-async function restoreActiveMatterRows(
-  db: Env['Variables']['platform']['db'],
-  rows: NonNullable<WebDavTarget['matter']>[],
-): Promise<void> {
-  const now = new Date()
-  for (const row of rows) {
-    await db
-      .update(matters)
-      .set({ status: ObjectStatus.ACTIVE, trashedAt: null, updatedAt: now })
-      .where(and(eq(matters.id, row.id), eq(matters.orgId, row.orgId)))
-  }
-}
-
 const app = new Hono<Env>().on(
   ['OPTIONS', 'PROPFIND', 'PROPPATCH', 'GET', 'HEAD', 'PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY', 'LOCK', 'UNLOCK'],
   ['/', '/*'],
@@ -702,7 +662,6 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
 }
 
 async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
   try {
     const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, davPath(c))
     if (target.name && !target.matter) throw new WebDavPathError('Not found', 404)
@@ -714,10 +673,7 @@ async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
     const operations = parseProppatchXml(await c.req.text())
     await c.get('deps').webdavState.applyDeadPropertyUpdate(workspace.id, resourcePath(target), operations)
     if (target.matter) {
-      await db
-        .update(matters)
-        .set({ updatedAt: new Date() })
-        .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, workspace.id)))
+      await c.get('deps').matter.touch(workspace.id, target.matter.id)
     }
     const properties = operations.map((operation) => operation.property)
     return xmlResponse(proppatchMultistatus(targetHref(target), properties), 207)
@@ -823,7 +779,6 @@ async function reserveWebDavTraffic(
 }
 
 async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
   try {
     const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
@@ -875,7 +830,6 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
               async () => {
                 return persistWebDavUpload(
                   s3,
-                  db,
                   c.get('deps').matter,
                   workspace.id,
                   auth.userId,
@@ -891,7 +845,6 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
           const response = await persistWebDavUpload(
             s3,
-            db,
             c.get('deps').matter,
             workspace.id,
             auth.userId,
@@ -917,7 +870,6 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
 async function persistWebDavUpload(
   s3: S3Gateway,
-  db: Env['Variables']['platform']['db'],
   matterRepo: MatterRepo,
   orgId: string,
   userId: string,
@@ -928,11 +880,7 @@ async function persistWebDavUpload(
   uploadedSize: number,
 ): Promise<Response> {
   if (target.matter) {
-    const now = new Date()
-    await db
-      .update(matters)
-      .set({ type: contentType, size: uploadedSize, object: objectKey, updatedAt: now })
-      .where(and(eq(matters.id, target.matter.id), eq(matters.orgId, orgId)))
+    await matterRepo.applyUpload(orgId, target.matter.id, { type: contentType, size: uploadedSize, object: objectKey })
     if (objectKey !== target.matter.object) await s3.deleteObject(storage, target.matter.object)
     return new Response(null, { status: 204 })
   }
@@ -1138,7 +1086,6 @@ async function copyCollection(
   target: WebDavTarget,
   replacingTarget: boolean,
 ): Promise<Response> {
-  const db = c.get('platform').db
   const sourceWorkspace = requireWorkspace(source)
   const targetWorkspace = requireWorkspace(target)
   if (!source.matter) throw new WebDavPathError('Not found', 404)
@@ -1152,7 +1099,7 @@ async function copyCollection(
   const sourceRoot = joinMatterPath(sourceMatter.parent, sourceMatter.name)
   const targetRoot = joinMatterPath(target.parent, target.name)
   const children = await webdavPath.listChildren(sourceWorkspace.id, sourceRoot)
-  const descendants = await listDescendants(db, sourceWorkspace.id, sourceRoot)
+  const descendants = await c.get('deps').matter.listActiveDescendants(sourceWorkspace.id, sourceRoot)
   const ordered =
     depth === 'infinity' ? [...children, ...descendants].sort((a, b) => a.parent.length - b.parent.length) : []
   const preparedCopies: Array<{ item: (typeof ordered)[number]; targetParent: string; objectKey: string }> = []
@@ -1162,7 +1109,7 @@ async function copyCollection(
       ? [
           target.matter,
           ...(await webdavPath.listChildren(targetWorkspace.id, resourcePath(target))),
-          ...(await listDescendants(db, targetWorkspace.id, resourcePath(target))),
+          ...(await c.get('deps').matter.listActiveDescendants(targetWorkspace.id, resourcePath(target))),
         ]
       : target.matter
         ? [target.matter]
@@ -1225,13 +1172,14 @@ async function copyCollection(
     })
   } catch (e) {
     if (createdIds.length > 0) {
-      await db
-        .update(matters)
-        .set({ status: ObjectStatus.TRASHED, trashedAt: Date.now(), updatedAt: new Date() })
-        .where(and(eq(matters.orgId, targetWorkspace.id), or(...createdIds.map((id) => eq(matters.id, id)))))
+      await c.get('deps').matter.trashByIds(targetWorkspace.id, createdIds)
       await webdavState.deleteWebDavState(targetWorkspace.id, targetRoot)
     }
-    if (targetRows.length > 0) await restoreActiveMatterRows(db, targetRows)
+    if (targetRows.length > 0)
+      await c.get('deps').matter.restoreActiveByIds(
+        targetWorkspace.id,
+        targetRows.map((r) => r.id),
+      )
     const mapped = mapDomainError(e)
     if (mapped) return c.text(mapped.message, mapped.status)
     throw e

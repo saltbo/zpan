@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm'
 import { createMiddleware } from 'hono/factory'
 import { ApiKeyRateLimitError } from '../usecases/ports'
 import type { Env } from './platform'
@@ -77,9 +76,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   const result = (await auth.api.getSession({ headers: c.req.raw.headers })) as SessionWithPlugins | null
 
   if (result?.user?.id) {
-    const db = c.get('platform').db
-    const rows = await db.all<{ banned: number }>(sql`SELECT banned FROM user WHERE id = ${result.user.id}`)
-    if (rows[0]?.banned) {
+    if (await c.get('deps').userAdmin.isBanned(result.user.id)) {
       return c.json({ error: 'Account disabled' }, 403)
     }
   }

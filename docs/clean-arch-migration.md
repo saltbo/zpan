@@ -78,17 +78,19 @@ rewired callers to `c.get('deps')`), the orchestrator wired the 3 barrels and ra
 - [x] **Wave 4** — the **matter keystone** (MatterRepo + matter usecase + matter-name-conflict→domain) + site-public-origin
 - [x] **Wave 5** — downloads (DownloaderRepo + DownloadTaskRepo + state-machine usecase); then the **s3 shim deleted**
 
-### Status: COMPLETE
+### Status: COMPLETE — architecture fully locked
 `server/services/` is empty and removed. Every drizzle access lives in `adapters/repos/`; every route
-gets its dependencies from `c.get('deps')`. Gates green: `typecheck`, `lint:arch` (267 modules, **no-circular
-fully enforced, no path exemptions**), `lint:spec`, `lint`, `test` (3810), `test:cf` (57).
+gets its dependencies from `c.get('deps')`. **The ratchet is empty and removed** — including the final two
+files: `http/webdav.ts` (listDescendants/proppatch/PUT-overwrite/Basic-Auth → MatterRepo.{listActiveDescendants,
+trashByIds,restoreActiveByIds,touch,applyUpload} + UserAdminRepo.{isBanned,matchesUsername}) and
+`middleware/auth.ts` (disabled-user check → UserAdminRepo.isBanned). Gates green: `typecheck`,
+`lint:arch` (267 modules, **no-circular + drizzle-only-in-repos fully enforced, zero exemptions**),
+`lint:spec`, `lint`, `test` (3810), `test:cf` (57).
 
 ### Enforcement — DONE, fully locked
-- [x] `.dependency-cruiser.cjs` + `lint:arch` in CI. All clean-arch rules active.
-- [x] Ratchet shrunk from the whole `services/` dir to **2 deliberately-deferred files**: `http/webdav.ts`
-      (inline listDescendants/proppatch drizzle) and `middleware/auth.ts` (session + disabled-user lookup).
-      Each is a self-contained future slice; drop its `MIGRATION_PENDING` entry when its drizzle moves to a repo.
-- [x] `platform/` (Database driver type) + `auth.ts` are permanent named exceptions.
+- [x] `.dependency-cruiser.cjs` + `lint:arch` in CI. All clean-arch rules active with **no migration allowlist**.
+- [x] `platform/` (Database driver type), `server/test`, and `auth.ts` (better-auth owns its tables) are the only
+      permanent named exceptions to `drizzle-only-in-repos`.
 
 ### Product specs (BDD-lite) — DONE
 - [x] `spec/` Gherkin `.feature` (one per capability) + `spec/README.md`; `[spec: <id>]` breadcrumbs on home
@@ -99,6 +101,4 @@ fully enforced, no path exemptions**), `lint:spec`, `lint`, `test` (3810), `test
       shares, objects.
 
 ### Optional follow-ups (not blocking; tracked for later)
-- [ ] Migrate the 2 ratchet files (webdav listDescendants → a repo; auth-middleware session lookup → a repo),
-      then delete `MIGRATION_PENDING` entirely.
 - [ ] Remove the ~21 pre-existing dead `const db = c.get('platform').db` locals (non-blocking biome warnings).

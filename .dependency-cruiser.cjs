@@ -3,13 +3,12 @@
  *
  *   pnpm lint:arch
  *
- * The `drizzle-only-in-repos` rule below carries a RATCHET: a shrinking allowlist
- * of files that still import drizzle outside adapters/repos because they have not
- * been migrated yet (see docs/clean-arch-migration.md). Every migration commit
- * removes entries from MIGRATION_PENDING. When it is empty, delete it — the
- * architecture is then fully locked.
+ * The hono-cf-clean-arch migration is COMPLETE (see docs/clean-arch-migration.md):
+ * server/services/ is gone, every route uses `c.get('deps')`, and the ratchet that
+ * tracked not-yet-migrated drizzle importers is empty and removed. All rules below
+ * are fully enforced with no migration allowlist.
  *
- * Permanent exceptions (NOT part of the ratchet):
+ * Permanent exceptions to `drizzle-only-in-repos`:
  *  - server/db            : the schema + client live here by definition
  *  - server/platform      : the runtime DB/env/binding abstraction owns the
  *                           `Database` driver type
@@ -17,17 +16,11 @@
  *  - server/test          : test harness/helpers (the suites are exempt anyway)
  */
 
-// --- RATCHET: the last two files that still touch drizzle outside adapters/repos.
-// The legacy services/ dir is fully migrated and gone. These two are deliberate
-// deferrals, each a self-contained slice; drop the entry when its drizzle moves
-// into a repo and the architecture is then fully locked.
-const MIGRATION_PENDING = [
-  '^server/http/webdav\\.ts', // inline listDescendants/proppatch drizzle in the WebDAV route
-  '^server/middleware/auth\\.ts', // session + disabled-user lookup in the auth middleware
-].join('|')
-// -----------------------------------------------------------------------------
-
-const DRIZZLE_ALLOWED = `^server/(adapters/repos|db|platform|test)|^server/auth\\.ts|${MIGRATION_PENDING}`
+// MIGRATION COMPLETE — the ratchet is empty and gone. Persistence is confined to
+// adapters/repos/ + db/, plus three permanent exceptions: platform/ (owns the
+// `Database` driver type), the test harness, and auth.ts (better-auth owns its own
+// tables and handles raw requests). The architecture is now fully locked.
+const DRIZZLE_ALLOWED = `^server/(adapters/repos|db|platform|test)|^server/auth\\.ts`
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {

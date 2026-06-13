@@ -111,6 +111,16 @@ export interface MatterRepo {
   collectForPurge(orgId: string, idOrMatter: string): Promise<Matter[] | null>
   collectForPurge(orgId: string, idOrMatter: Matter): Promise<Matter[]>
   purge(orgId: string, ids: string[]): Promise<void>
+  // Active descendants of a folder path (parent LIKE `${parentPath}/%`). Used by the
+  // WebDAV recursive COPY/MOVE to enumerate a subtree.
+  listActiveDescendants(orgId: string, parentPath: string): Promise<Matter[]>
+  // Raw bulk status flips for WebDAV COPY rollback/overwrite (no conflict handling).
+  trashByIds(orgId: string, ids: string[]): Promise<void>
+  restoreActiveByIds(orgId: string, ids: string[]): Promise<void>
+  // Bump updatedAt only (WebDAV PROPPATCH touches the matter's mtime).
+  touch(orgId: string, id: string): Promise<void>
+  // Overwrite a file matter's content fields after a WebDAV PUT to an existing path.
+  applyUpload(orgId: string, id: string, fields: { type: string; size: number; object: string }): Promise<void>
   listTrashedRoots(orgId: string): Promise<Matter[]>
   /** Distinct orgIds holding at least one trashed matter older than the cutoff (epoch ms). */
   listOrgIdsWithExpiredTrash(cutoff: number): Promise<string[]>
