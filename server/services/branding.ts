@@ -1,6 +1,7 @@
 import { eq, inArray } from 'drizzle-orm'
 import { type BrandingThemeConfig, type BrandingThemeMode, isBrandingThemePresetId } from '../../shared/types'
 import { systemOptions } from '../db/schema'
+import { mimeToExt } from '../lib/mime-utils'
 import type { Database, Platform } from '../platform/interface'
 import { S3Service } from './s3'
 import { type Storage as S3Storage, selectStorage } from './storage'
@@ -10,15 +11,6 @@ const s3 = new S3Service()
 const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'] as const
 const FAVICON_MIMES = ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/svg+xml'] as const
 export const MAX_BRANDING_FILE_SIZE = 2 * 1024 * 1024 // 2 MiB
-
-const MIME_TO_EXT: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/webp': 'webp',
-  'image/svg+xml': 'svg',
-  'image/x-icon': 'ico',
-  'image/vnd.microsoft.icon': 'ico',
-}
 
 export const BRANDING_KEYS = {
   logo: 'branding_logo_url',
@@ -88,7 +80,7 @@ export async function uploadBrandingImage(
     return { ok: false, status: 503, error: 'No public storage configured' }
   }
 
-  const ext = MIME_TO_EXT[file.type] ?? 'bin'
+  const ext = mimeToExt(file.type)
   const key = `_system/branding/${field}.${ext}`
   const bytes = new Uint8Array(await file.arrayBuffer())
   await s3.putObject(storage, key, bytes, file.type)
