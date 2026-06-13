@@ -1,10 +1,10 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createShareRepo } from '../adapters/repos/share'
 import { cloudTrafficReports } from '../db/schema'
 import { currentTrafficPeriod } from '../domain/quota'
 import type { Database } from '../platform/interface'
 import { S3Service } from '../services/s3'
-import { createShare } from '../services/share'
 import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup'
 import { encodeChildRef } from './share-utils'
 
@@ -207,7 +207,12 @@ describe('public redirect cloud traffic reporting', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, 'm-cloud-direct-share')
-    const share = await createShare(db, { matterId: 'm-cloud-direct-share', orgId, creatorId, kind: 'direct' })
+    const share = await createShareRepo(db).create({
+      matterId: 'm-cloud-direct-share',
+      orgId,
+      creatorId,
+      kind: 'direct',
+    })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
 
@@ -230,7 +235,12 @@ describe('public redirect cloud traffic reporting', () => {
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, 'm-cloud-direct-blocked')
     await setTrafficQuota(db, orgId)
-    const share = await createShare(db, { matterId: 'm-cloud-direct-blocked', orgId, creatorId, kind: 'direct' })
+    const share = await createShareRepo(db).create({
+      matterId: 'm-cloud-direct-blocked',
+      orgId,
+      creatorId,
+      kind: 'direct',
+    })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
 
@@ -263,7 +273,12 @@ describe('public redirect cloud traffic reporting', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, 'm-cloud-landing-share')
-    const share = await createShare(db, { matterId: 'm-cloud-landing-share', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({
+      matterId: 'm-cloud-landing-share',
+      orgId,
+      creatorId,
+      kind: 'landing',
+    })
     const ref = encodeChildRef(share.token, 'm-cloud-landing-share')
 
     const res = await app.request(`/api/shares/${share.token}/objects/${ref}?downloadUrl=1`, { redirect: 'manual' })
@@ -287,7 +302,12 @@ describe('public redirect cloud traffic reporting', () => {
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, 'm-cloud-landing-blocked')
     await setTrafficQuota(db, orgId)
-    const share = await createShare(db, { matterId: 'm-cloud-landing-blocked', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({
+      matterId: 'm-cloud-landing-blocked',
+      orgId,
+      creatorId,
+      kind: 'landing',
+    })
     const ref = encodeChildRef(share.token, 'm-cloud-landing-blocked')
 
     const res = await app.request(`/api/shares/${share.token}/objects/${ref}?downloadUrl=1`, { redirect: 'manual' })
@@ -322,7 +342,12 @@ describe('public redirect cloud traffic reporting', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, 'm-cloud-landing-audit-fail')
-    const share = await createShare(db, { matterId: 'm-cloud-landing-audit-fail', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({
+      matterId: 'm-cloud-landing-audit-fail',
+      orgId,
+      creatorId,
+      kind: 'landing',
+    })
     const ref = encodeChildRef(share.token, 'm-cloud-landing-audit-fail')
     await db.run(sql`DROP TABLE activity_events`)
 

@@ -1,10 +1,9 @@
 import { DirType } from '@shared/constants'
 import type { Database } from '../platform/interface'
 import { type Matter, purgeMatters } from '../services/matter'
-import { cascadeDeleteByMatter } from '../services/share'
-import type { S3Gateway, StorageRecord, StorageRepo, StorageUsageRepo } from './ports'
+import type { S3Gateway, ShareRepo, StorageRecord, StorageRepo, StorageUsageRepo } from './ports'
 
-export type PurgeDeps = { s3: S3Gateway; storages: StorageRepo; storageUsage: StorageUsageRepo }
+export type PurgeDeps = { s3: S3Gateway; storages: StorageRepo; storageUsage: StorageUsageRepo; share: ShareRepo }
 
 export async function purgeRecursively(
   deps: PurgeDeps,
@@ -37,7 +36,7 @@ export async function purgeRecursively(
   }
 
   for (const m of matters) {
-    await cascadeDeleteByMatter(db, m.id)
+    await deps.share.cascadeDeleteByMatter(m.id)
   }
 
   await purgeMatters(

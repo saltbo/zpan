@@ -1,8 +1,9 @@
 import { createHmac } from 'node:crypto'
 import type { Context } from 'hono'
+import { isAccessibleByUser } from '../domain/share'
 import type { Env } from '../middleware/platform'
 import { S3Service } from '../services/s3'
-import { isAccessibleByUser, type ShareRecipient } from '../services/share'
+import type { ShareRecipientRecord } from '../usecases/ports'
 
 export const s3 = new S3Service()
 export const PRESIGN_TTL_SECS = 5 * 60
@@ -63,7 +64,7 @@ export async function readUserId(c: Context<Env>): Promise<string | null> {
 
 export function checkAccessGate(
   passwordHash: string | null,
-  recipients: ShareRecipient[],
+  recipients: ShareRecipientRecord[],
   userId: string | null,
   cookieValue: string | undefined,
 ): 'ok' | 'password_required' {

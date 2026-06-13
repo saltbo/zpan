@@ -13,11 +13,11 @@ import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
 import { getSitePublicOrigin } from './services/site-public-origin'
-import { purgeExpiredTrash, resolveTrashRetentionDays } from './services/trash-retention'
 import { syncPendingCloudTrafficReports } from './usecases/cloud-traffic-metering'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
 import { runLicensingRefresh } from './usecases/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './usecases/remote-download-usage'
+import { purgeExpiredTrash, resolveTrashRetentionDays } from './usecases/trash-retention'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
@@ -143,6 +143,7 @@ function purgeExpiredTrashJob(): void {
   void (async () => {
     try {
       const purged = await purgeExpiredTrash(
+        deps,
         platform.db,
         resolveTrashRetentionDays(process.env.ZPAN_TRASH_RETENTION_DAYS),
       )

@@ -5,7 +5,7 @@ import { Hono } from 'hono'
 import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { enqueueArchiveJob } from '../services/archive-processing'
+import { enqueueArchiveJob } from '../usecases/archive-processing'
 import { BackgroundJobError } from '../usecases/ports'
 
 const backgroundJobs = new Hono<Env>()
@@ -25,9 +25,8 @@ const backgroundJobs = new Hono<Env>()
         const orgId = requireOrg(c)
         const userId = c.get('userId')
         if (!userId) throw new BackgroundJobError('not_found')
-        const db = c.get('platform').db
         const request = c.req.valid('json')
-        const job = await enqueueArchiveJob(db, {
+        const job = await enqueueArchiveJob(c.get('deps'), {
           orgId,
           userId,
           request,

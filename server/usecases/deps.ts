@@ -7,6 +7,7 @@ import type {
   AnnouncementRepo,
   ApiKeyGateway,
   ArchiveJobsGateway,
+  ArchiveTargetFolderRepo,
   BackgroundJobRepo,
   CfHostnamesProvider,
   ChangelogProvider,
@@ -30,6 +31,7 @@ import type {
   RemoteDownloadUsageRepo,
   S3Gateway,
   ShareNotificationRepo,
+  ShareRepo,
   SiteInvitationRepo,
   StorageRepo,
   StorageUsageRepo,
@@ -48,6 +50,7 @@ export interface Deps {
   announcements: AnnouncementRepo
   apiKeys: ApiKeyGateway
   archiveJobs: ArchiveJobsGateway
+  archiveTargetFolders: ArchiveTargetFolderRepo
   backgroundJobs: BackgroundJobRepo
   cfHostnames: CfHostnamesProvider
   changelog: ChangelogProvider
@@ -71,6 +74,7 @@ export interface Deps {
   remoteDownloadUsage: RemoteDownloadUsageRepo
   s3: S3Gateway
   shareNotifications: ShareNotificationRepo
+  share: ShareRepo
   siteInvitations: SiteInvitationRepo
   storages: StorageRepo
   storageUsage: StorageUsageRepo

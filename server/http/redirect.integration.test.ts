@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createShareRepo } from '../adapters/repos/share'
 import { currentTrafficPeriod } from '../domain/quota.js'
 import { S3Service } from '../services/s3.js'
-import { createShare } from '../services/share.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 const MOCK_PRESIGN_URL = 'https://presigned-download.example.com/file'
@@ -111,7 +111,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'ds-f1', name: 'file.bin' })
-    const share = await createShare(db, { matterId: 'ds-f1', orgId, creatorId, kind: 'direct' })
+    const share = await createShareRepo(db).create({ matterId: 'ds-f1', orgId, creatorId, kind: 'direct' })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
@@ -132,7 +132,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'ds-f2', name: 'landing.txt' })
-    const share = await createShare(db, { matterId: 'ds-f2', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'ds-f2', orgId, creatorId, kind: 'landing' })
 
     // Landing share token does not start with ds_ so falls through to 404
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
@@ -153,7 +153,13 @@ describe('GET /r/:token (ds_ direct shares)', () => {
       WHERE org_id = ${orgId}
     `)
     await setTrafficPlanEntitlement(db, orgId, 512)
-    const share = await createShare(db, { matterId: 'ds-quota', orgId, creatorId, kind: 'direct', downloadLimit: 1 })
+    const share = await createShareRepo(db).create({
+      matterId: 'ds-quota',
+      orgId,
+      creatorId,
+      kind: 'direct',
+      downloadLimit: 1,
+    })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(422)
@@ -177,7 +183,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
       SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
     `)
-    const share = await createShare(db, { matterId: 'ds-quota-ok', orgId, creatorId, kind: 'direct' })
+    const share = await createShareRepo(db).create({ matterId: 'ds-quota-ok', orgId, creatorId, kind: 'direct' })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
@@ -202,7 +208,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
       WHERE org_id = ${orgId}
     `)
     vi.mocked(S3Service.prototype.presignDownload).mockRejectedValueOnce(new Error('sign failed'))
-    const share = await createShare(db, { matterId: 'ds-sign-fail', orgId, creatorId, kind: 'direct' })
+    const share = await createShareRepo(db).create({ matterId: 'ds-sign-fail', orgId, creatorId, kind: 'direct' })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(500)

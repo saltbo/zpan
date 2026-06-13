@@ -31,7 +31,6 @@ import {
   updateMatter,
 } from '../services/matter'
 import { S3Service } from '../services/s3'
-import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
 import {
   createObjectUploadSession,
   ObjectUploadSessionError,
@@ -40,6 +39,7 @@ import {
 } from '../usecases/object-upload-session'
 import type { StorageRecord as S3Storage } from '../usecases/ports'
 import { purgeRecursively } from '../usecases/purge'
+import { copyMatterToOrg } from '../usecases/save-to-drive'
 import { withStorageUsageReservation } from '../usecases/storage-usage'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
@@ -458,12 +458,12 @@ const app = new Hono<Env>()
       return c.json({ error: 'Forbidden' }, 403)
     }
 
-    const totalBytes = await computeSourceBytes(db, source)
-    if (!(await isQuotaSufficient(db, targetOrgId, totalBytes))) {
+    const totalBytes = await c.get('deps').share.computeSourceBytes(source)
+    if (!(await c.get('deps').share.hasQuotaForBytes(targetOrgId, totalBytes))) {
       return c.json({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, 422)
     }
 
-    const result = await copyMatterToOrg(db, {
+    const result = await copyMatterToOrg(c.get('deps'), db, {
       sourceMatter: source,
       currentUserId: userId,
       targetOrgId,

@@ -6,9 +6,9 @@
  */
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createShareRepo } from '../adapters/repos/share'
 import { activityEvents } from '../db/schema.js'
 import { S3Service } from '../services/s3.js'
-import { createShare } from '../services/share.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -682,7 +682,7 @@ describe('Share download audit events', () => {
     const orgId = await getPersonalOrgId(db)
     const creatorId = (await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`))[0].id
     await insertFile(db, orgId, { id: 'dl-audit-1', name: 'report.pdf' })
-    const share = await createShare(db, { matterId: 'dl-audit-1', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'dl-audit-1', orgId, creatorId, kind: 'landing' })
 
     // Fetch rootRef from share metadata
     const metaRes = await app.request(`/api/shares/${share.token}`)
@@ -710,7 +710,7 @@ describe('Share download audit events', () => {
     const orgId = await getPersonalOrgId(db)
     const creatorId = (await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`))[0].id
     await insertFile(db, orgId, { id: 'dl-audit-2', name: 'anon.pdf' })
-    const share = await createShare(db, { matterId: 'dl-audit-2', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'dl-audit-2', orgId, creatorId, kind: 'landing' })
 
     const metaRes = await app.request(`/api/shares/${share.token}`)
     const meta = (await metaRes.json()) as { rootRef: string }

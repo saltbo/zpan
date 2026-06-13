@@ -1,10 +1,10 @@
 import { createArchiveJobsGateway } from '../server/adapters/gateways/archive-jobs'
+import { createShareRepo } from '../server/adapters/repos/share'
 import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { platformContext } from '../server/platform/context'
-import { resolveShareByToken } from '../server/services/share'
 import type { ArchiveJobMessage } from '../server/usecases/ports'
 import { DirType } from '../shared/constants'
 import { handleScheduled } from './scheduled'
@@ -89,7 +89,7 @@ async function fetchShareMeta(
   }
 
   try {
-    const resolved = await resolveShareByToken(platform.db, token)
+    const resolved = await createShareRepo(platform.db).resolveByToken(token)
     if (resolved.status !== 'ok') return fallback
     if (resolved.share.kind !== 'landing') return fallback
 

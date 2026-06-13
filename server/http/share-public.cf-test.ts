@@ -1,10 +1,10 @@
 import { env } from 'cloudflare:workers'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import { createShareRepo } from '../adapters/repos/share'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { createCloudflarePlatform } from '../platform/cloudflare'
-import { createShare } from '../services/share'
 
 // ─── CF routing regression guard ─────────────────────────────────────────────
 // Verifies that public share JSON endpoints live under /api/* (Worker-handled)
@@ -90,7 +90,7 @@ describe('[CF] Public share routes — no requireAuth', () => {
 
     const rows = await db.all<{ id: string }>(sql`SELECT id FROM matters WHERE name = 'cf-file.txt' LIMIT 1`)
     const matterId = rows[0].id
-    const share = await createShare(db, { matterId, orgId, creatorId: userId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId, orgId, creatorId: userId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(200)
@@ -116,7 +116,7 @@ describe('[CF] Concurrent downloads — atomic limit enforcement', () => {
     await insertFile(db, orgId, { id: fileId, name: 'concurrent.bin' })
 
     // Spy on presignDownload to return a fake URL without hitting real S3
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: fileId,
       orgId,
       creatorId: userId,

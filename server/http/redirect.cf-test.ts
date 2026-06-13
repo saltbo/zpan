@@ -1,11 +1,11 @@
 import { env } from 'cloudflare:workers'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+import { createShareRepo } from '../adapters/repos/share'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { createCloudflarePlatform } from '../platform/cloudflare'
 import { S3Service } from '../services/s3'
-import { createShare } from '../services/share'
 
 const STORAGE_ID = 'st-cf-redirect'
 const MOCK_PRESIGN_URL = 'https://presigned-cf.example.com/file'
@@ -97,7 +97,7 @@ describe('[CF] /r/:token ds_ direct shares', () => {
 
     const rows = await db.all<{ id: string }>(sql`SELECT id FROM matters WHERE name = 'cf-direct.bin' LIMIT 1`)
     const matterId = rows[0].id
-    const share = await createShare(db, { matterId, orgId, creatorId: userId, kind: 'direct' })
+    const share = await createShareRepo(db).create({ matterId, orgId, creatorId: userId, kind: 'direct' })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
@@ -148,7 +148,7 @@ describe('[CF] Concurrent downloads — atomic limit enforcement via /r/', () =>
     const fileId = `cf-dlc-r-${Date.now()}`
     await insertFile(db, orgId, { id: fileId, name: 'concurrent-r.bin' })
 
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: fileId,
       orgId,
       creatorId: userId,

@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createShareRepo } from '../adapters/repos/share'
 import { currentTrafficPeriod } from '../domain/quota.js'
 import { S3Service } from '../services/s3.js'
-import { createShare } from '../services/share.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 const MOCK_PRESIGN_URL = 'https://presigned-download.example.com/file'
@@ -103,7 +103,7 @@ describe('GET /api/shares/:token', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'f1', name: 'photo.jpg' })
-    const share = await createShare(db, { matterId: 'f1', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'f1', orgId, creatorId, kind: 'landing' })
 
     // Call without auth headers to simulate a public visitor
     void headers
@@ -134,7 +134,7 @@ describe('GET /api/shares/:token', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'f1v', name: 'visit-count.txt' })
-    const share = await createShare(db, { matterId: 'f1v', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'f1v', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(200)
@@ -150,7 +150,7 @@ describe('GET /api/shares/:token', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'f1vd', name: 'visit-dedupe.txt' })
-    const share = await createShare(db, { matterId: 'f1vd', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'f1vd', orgId, creatorId, kind: 'landing' })
 
     const first = await app.request(`/api/shares/${share.token}`)
     expect(first.status).toBe(200)
@@ -173,7 +173,7 @@ describe('GET /api/shares/:token', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'f2', name: 'direct.txt' })
-    const share = await createShare(db, { matterId: 'f2', orgId, creatorId, kind: 'direct' })
+    const share = await createShareRepo(db).create({ matterId: 'f2', orgId, creatorId, kind: 'direct' })
 
     const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(404)
@@ -203,7 +203,7 @@ describe('GET /api/shares/:token', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'f4', name: 'revoked.txt' })
-    const share = await createShare(db, { matterId: 'f4', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'f4', orgId, creatorId, kind: 'landing' })
     await db.run(sql`UPDATE shares SET status = 'revoked' WHERE id = ${share.id}`)
 
     const res = await app.request(`/api/shares/${share.token}`)
@@ -217,7 +217,7 @@ describe('GET /api/shares/:token', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'f5', name: 'secret.txt' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'f5',
       orgId,
       creatorId,
@@ -238,7 +238,7 @@ describe('GET /api/shares/:token', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'f6', name: 'limited.txt' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'f6',
       orgId,
       creatorId,
@@ -264,7 +264,7 @@ describe('POST /api/shares/:token/sessions', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'vf1', name: 'vault.txt' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'vf1',
       orgId,
       creatorId,
@@ -291,7 +291,7 @@ describe('POST /api/shares/:token/sessions', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'vf2', name: 'vault2.txt' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'vf2',
       orgId,
       creatorId,
@@ -324,7 +324,7 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
       SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
     `)
-    const share = await createShare(db, { matterId: 'dl1', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'dl1', orgId, creatorId, kind: 'landing' })
 
     const rootRef = await fetchRootRef(app, share.token)
     const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
@@ -345,7 +345,7 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dl-url1', name: 'report.docx' })
-    const share = await createShare(db, { matterId: 'dl-url1', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'dl-url1', orgId, creatorId, kind: 'landing' })
 
     const rootRef = await fetchRootRef(app, share.token)
     const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
@@ -368,7 +368,7 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
       SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
       WHERE org_id = ${orgId}
     `)
-    const share = await createShare(db, { matterId: 'dl-traffic-ok', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'dl-traffic-ok', orgId, creatorId, kind: 'landing' })
 
     const rootRef = await fetchRootRef(app, share.token)
     const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
@@ -394,7 +394,7 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
       WHERE org_id = ${orgId}
     `)
     vi.mocked(S3Service.prototype.presignDownload).mockRejectedValueOnce(new Error('sign failed'))
-    const share = await createShare(db, { matterId: 'dl-sign-fail', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'dl-sign-fail', orgId, creatorId, kind: 'landing' })
 
     const rootRef = await fetchRootRef(app, share.token)
     const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
@@ -423,7 +423,13 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
       WHERE org_id = ${orgId}
     `)
     await setTrafficPlanEntitlement(db, orgId, 512)
-    const share = await createShare(db, { matterId: 'dl-traffic', orgId, creatorId, kind: 'landing', downloadLimit: 1 })
+    const share = await createShareRepo(db).create({
+      matterId: 'dl-traffic',
+      orgId,
+      creatorId,
+      kind: 'landing',
+      downloadLimit: 1,
+    })
 
     const rootRef = await fetchRootRef(app, share.token)
     const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, { redirect: 'manual' })
@@ -443,7 +449,7 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dl2', name: 'secret.txt' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'dl2',
       orgId,
       creatorId,
@@ -463,7 +469,7 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dl3', name: 'guarded.txt' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'dl3',
       orgId,
       creatorId,
@@ -486,7 +492,7 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dl4', name: 'recipient.txt' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'dl4',
       orgId,
       creatorId: userId,
@@ -510,7 +516,7 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dl5', name: 'limited.txt' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'dl5',
       orgId,
       creatorId,
@@ -535,7 +541,7 @@ describe('GET /api/shares/:token/objects/:ref — root file', () => {
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dl6', name: 'expired.txt' })
     const pastDate = new Date(Date.now() - 1000)
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'dl6',
       orgId,
       creatorId,
@@ -581,7 +587,7 @@ describe('GET /api/shares/:token/objects', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'ch1', name: 'flat.txt' })
-    const share = await createShare(db, { matterId: 'ch1', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'ch1', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}/objects`)
     expect(res.status).toBe(400)
@@ -596,7 +602,7 @@ describe('GET /api/shares/:token/objects', () => {
     await insertFolder(db, orgId, { id: 'dir1', name: 'Photos' })
     await insertFile(db, orgId, { id: 'img1', name: 'cat.jpg', parent: 'Photos' })
     await insertFolder(db, orgId, { id: 'dir2', name: 'vacation', parent: 'Photos' })
-    const share = await createShare(db, { matterId: 'dir1', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'dir1', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}/objects`)
     expect(res.status).toBe(200)
@@ -624,7 +630,7 @@ describe('GET /api/shares/:token/objects', () => {
     await insertFolder(db, orgId, { id: 'root1', name: 'Docs' })
     await insertFolder(db, orgId, { id: 'sub1', name: 'Reports', parent: 'Docs' })
     await insertFile(db, orgId, { id: 'rpt1', name: 'q1.pdf', parent: 'Docs/Reports' })
-    const share = await createShare(db, { matterId: 'root1', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'root1', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}/objects?parent=Reports`)
     expect(res.status).toBe(200)
@@ -647,7 +653,7 @@ describe('GET /api/shares/:token/objects', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFolder(db, orgId, { id: 'locked1', name: 'Private' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'locked1',
       orgId,
       creatorId,
@@ -666,7 +672,7 @@ describe('GET /api/shares/:token/objects', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFolder(db, orgId, { id: 'traversal-dir', name: 'Safe' })
-    const share = await createShare(db, { matterId: 'traversal-dir', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'traversal-dir', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}/objects?parent=../etc`)
     expect(res.status).toBe(400)
@@ -681,7 +687,7 @@ describe('GET /api/shares/:token/objects', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFolder(db, orgId, { id: 'pg-dir', name: 'Paged' })
-    const share = await createShare(db, { matterId: 'pg-dir', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'pg-dir', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}/objects?page=2&pageSize=10`)
     expect(res.status).toBe(200)
@@ -697,7 +703,7 @@ describe('GET /api/shares/:token/objects', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFolder(db, orgId, { id: 'nan-dir', name: 'NaN' })
-    const share = await createShare(db, { matterId: 'nan-dir', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'nan-dir', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}/objects?page=abc&pageSize=xyz`)
     expect(res.status).toBe(200)
@@ -718,7 +724,7 @@ describe('GET /api/shares/:token/objects/:ref — descendant', () => {
     const creatorId = await getUserId(db)
     await insertFolder(db, orgId, { id: 'fld1', name: 'Archive' })
     await insertFile(db, orgId, { id: 'arc1', name: 'old.zip', parent: 'Archive' })
-    const share = await createShare(db, { matterId: 'fld1', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'fld1', orgId, creatorId, kind: 'landing' })
 
     const childrenRes = await app.request(`/api/shares/${share.token}/objects`)
     const childrenBody = (await childrenRes.json()) as { items: Array<{ ref: string }> }
@@ -737,7 +743,7 @@ describe('GET /api/shares/:token/objects/:ref — descendant', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFolder(db, orgId, { id: 'fld2', name: 'Safe' })
-    const share = await createShare(db, { matterId: 'fld2', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'fld2', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}/objects/invalid-ref`, { redirect: 'manual' })
     expect(res.status).toBe(400)
@@ -751,7 +757,7 @@ describe('GET /api/shares/:token/objects/:ref — descendant', () => {
     const creatorId = await getUserId(db)
     await insertFolder(db, orgId, { id: 'fld3', name: 'Folder3' })
     await insertFile(db, orgId, { id: 'out1', name: 'outside.txt' })
-    const share = await createShare(db, { matterId: 'fld3', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'fld3', orgId, creatorId, kind: 'landing' })
 
     const { createHmac } = await import('node:crypto')
     const sig = createHmac('sha256', share.token).update('out1').digest('hex').slice(0, 16)
@@ -772,7 +778,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dlx1', name: 'direct.bin' })
-    const share = await createShare(db, { matterId: 'dlx1', orgId, creatorId, kind: 'direct' })
+    const share = await createShareRepo(db).create({ matterId: 'dlx1', orgId, creatorId, kind: 'direct' })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
@@ -787,7 +793,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dlx2', name: 'landing.txt' })
-    const share = await createShare(db, { matterId: 'dlx2', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'dlx2', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(404)
@@ -823,7 +829,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dlx4', name: 'limited.bin' })
-    const share = await createShare(db, {
+    const share = await createShareRepo(db).create({
       matterId: 'dlx4',
       orgId,
       creatorId,
@@ -843,7 +849,7 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'dlx5', name: 'public.bin' })
-    const share = await createShare(db, { matterId: 'dlx5', orgId, creatorId, kind: 'direct' })
+    const share = await createShareRepo(db).create({ matterId: 'dlx5', orgId, creatorId, kind: 'direct' })
 
     const res = await app.request(`/r/${share.token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
@@ -860,7 +866,7 @@ describe('public routes require no auth', () => {
     const orgId = await getOrgId(db)
     const creatorId = await getUserId(db)
     await insertFile(db, orgId, { id: 'pub1', name: 'open.txt' })
-    const share = await createShare(db, { matterId: 'pub1', orgId, creatorId, kind: 'landing' })
+    const share = await createShareRepo(db).create({ matterId: 'pub1', orgId, creatorId, kind: 'landing' })
 
     const res = await app.request(`/api/shares/${share.token}`)
     expect(res.status).toBe(200)

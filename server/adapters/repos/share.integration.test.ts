@@ -1,20 +1,28 @@
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { DirType } from '../../shared/constants'
-import { matters } from '../db/schema'
-import { createTestApp } from '../test/setup.js'
-import {
-  cascadeDeleteByMatter,
-  createShare,
-  incrementDownloadsAtomic,
-  incrementViews,
-  isAccessibleByUser,
-  listShareRecipientUserIds,
-  resolveShareByToken,
-  revokeShareByToken,
-  verifyPassword,
-} from './share.js'
+import { DirType } from '../../../shared/constants'
+import type { CreateShareInput } from '../../../shared/schemas/share'
+import { matters } from '../../db/schema'
+import { isAccessibleByUser } from '../../domain/share'
+import { verifyPassword as verifyPasswordHash } from '../../lib/password'
+import type { Database } from '../../platform/interface'
+import { createTestApp } from '../../test/setup.js'
+import { createShareRepo } from './share.js'
+
+// Thin adapters so the existing call sites stay readable: the repo is the unit
+// under test, constructed per call from the test db.
+const createShare = (db: Database, input: CreateShareInput) => createShareRepo(db).create(input)
+const resolveShareByToken = (db: Database, token: string) => createShareRepo(db).resolveByToken(token)
+const incrementViews = (db: Database, shareId: string) => createShareRepo(db).incrementViews(shareId)
+const incrementDownloadsAtomic = (db: Database, shareId: string) =>
+  createShareRepo(db).incrementDownloadsAtomic(shareId)
+const revokeShareByToken = (db: Database, token: string, creatorId: string) =>
+  createShareRepo(db).revokeByToken(token, creatorId)
+const listShareRecipientUserIds = (db: Database, shareId: string) => createShareRepo(db).listRecipientUserIds(shareId)
+const cascadeDeleteByMatter = (db: Database, matterId: string) => createShareRepo(db).cascadeDeleteByMatter(matterId)
+const verifyPassword = (share: { passwordHash: string | null }, plaintext: string): boolean =>
+  share.passwordHash ? verifyPasswordHash(share.passwordHash, plaintext) : false
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

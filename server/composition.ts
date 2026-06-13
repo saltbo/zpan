@@ -15,6 +15,7 @@ import { createChangelogProvider } from './adapters/providers/changelog'
 import { createActivityRepo } from './adapters/repos/activity'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
 import { createApiKeyGateway } from './adapters/repos/api-keys'
+import { createArchiveTargetFolderRepo } from './adapters/repos/archive-target-folder'
 import { createBackgroundJobRepo } from './adapters/repos/background-job'
 import { createCloudStoreRepo } from './adapters/repos/cloud-store'
 import { createCloudTrafficReportRepo } from './adapters/repos/cloud-traffic-report'
@@ -31,6 +32,7 @@ import { createOrgRepo } from './adapters/repos/org'
 import { createProfileRepo } from './adapters/repos/profile'
 import { createQuotaRepo } from './adapters/repos/quota'
 import { createRemoteDownloadUsageRepo } from './adapters/repos/remote-download-usage'
+import { createShareRepo } from './adapters/repos/share'
 import { createShareNotificationRepo } from './adapters/repos/share-notification'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { createStorageRepo } from './adapters/repos/storage'
@@ -52,6 +54,7 @@ export function createDeps(platform: Platform): Deps {
     announcements: createAnnouncementRepo(db),
     apiKeys: createApiKeyGateway(),
     archiveJobs: createArchiveJobsGateway(platform),
+    archiveTargetFolders: createArchiveTargetFolderRepo(db),
     backgroundJobs: createBackgroundJobRepo(db),
     cfHostnames: createCfClient((key) => platform.getEnv(key)),
     changelog: createChangelogProvider(),
@@ -75,6 +78,7 @@ export function createDeps(platform: Platform): Deps {
     remoteDownloadUsage: createRemoteDownloadUsageRepo(db),
     s3: new S3Service(),
     shareNotifications: createShareNotificationRepo(db),
+    share: createShareRepo(db),
     siteInvitations: createSiteInvitationRepo(db),
     storages: createStorageRepo(db),
     storageUsage: createStorageUsageRepo(db),

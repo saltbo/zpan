@@ -20,7 +20,7 @@
 // --- RATCHET: not-yet-migrated drizzle importers (shrink me) -----------------
 const MIGRATION_PENDING = [
   '^server/services', // the legacy services/ dir; only the matter crown + s3 shim remain
-  '^server/http/(shares|webdav)\\.ts', // inline drizzle pending the matter/share crown
+  '^server/http/webdav\\.ts', // inline drizzle (listDescendants) pending the matter crown
   '^server/middleware/auth\\.ts', // session/disabled-user lookup pending its own slice
 ].join('|')
 // -----------------------------------------------------------------------------

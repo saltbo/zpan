@@ -1,27 +1,44 @@
+import { DirType } from '@shared/constants'
 import type { CreateBackgroundJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
-import { and, eq } from 'drizzle-orm'
-import { DirType } from '../../shared/constants'
-import { createZipGateway } from '../adapters/gateways/zip'
-import { createBackgroundJobRepo } from '../adapters/repos/background-job'
-import { createNotificationRepo } from '../adapters/repos/notification'
-import { createQuotaRepo } from '../adapters/repos/quota'
-import { createStorageRepo } from '../adapters/repos/storage'
-import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
-import { createZipPlanRepo } from '../adapters/repos/zip'
-import { matters } from '../db/schema'
 import { buildObjectKey } from '../lib/path-template'
 import type { Database } from '../platform/interface'
-import type { StorageRecord as S3StorageType } from '../usecases/ports'
-import { StorageQuotaExceededError, withStorageUsageReservation } from '../usecases/storage-usage'
-import { createMatter, getMatter, purgeMatters } from './matter'
-import { S3Service } from './s3'
+import { createMatter, getMatter, purgeMatters } from '../services/matter'
+import type {
+  ArchiveTargetFolderRepo,
+  BackgroundJobRepo,
+  NotificationRepo,
+  QuotaRepo,
+  S3Gateway,
+  StorageRecord,
+  StorageRepo,
+  StorageUsageRepo,
+  ZipGateway,
+  ZipPlanRepo,
+} from './ports'
+import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
+
+// Existing ports the archive orchestration composes. No new persistence beyond
+// the target-folder lookup; everything else is reused (matter service, zip
+// gateway/plan, s3, quota/usage reservation, background-job + notification repos).
+export type ArchiveProcessingDeps = {
+  s3: S3Gateway
+  storages: StorageRepo
+  quota: QuotaRepo
+  storageUsage: StorageUsageRepo
+  backgroundJobs: BackgroundJobRepo
+  notifications: NotificationRepo
+  zip: ZipGateway
+  zipPlan: ZipPlanRepo
+  archiveTargetFolders: ArchiveTargetFolderRepo
+}
 
 export interface CreateArchiveJobInput {
   orgId: string
   userId: string
   request: CreateBackgroundJobRequest
-  s3?: S3Service
+  // Overrides deps.s3 for tests; production paths use the wired gateway.
+  s3?: S3Gateway
 }
 
 const ZIP_MIME = 'application/zip'
@@ -29,14 +46,21 @@ const DEFAULT_FILE_MIME = 'application/octet-stream'
 const PROGRESS_REPORT_INTERVAL_MS = 1000
 const PROGRESS_REPORT_BYTES = 5 * 1024 * 1024
 
-export async function createArchiveJob(db: Database, input: CreateArchiveJobInput): Promise<BackgroundJob> {
-  const job = await enqueueArchiveJob(db, input)
-  return processArchiveJob(db, { ...input, jobId: job.id })
+export async function createArchiveJob(
+  deps: ArchiveProcessingDeps,
+  db: Database,
+  input: CreateArchiveJobInput,
+): Promise<BackgroundJob> {
+  const job = await enqueueArchiveJob(deps, input)
+  return processArchiveJob(deps, db, { ...input, jobId: job.id })
 }
 
-export async function enqueueArchiveJob(db: Database, input: CreateArchiveJobInput): Promise<BackgroundJob> {
+export async function enqueueArchiveJob(
+  deps: ArchiveProcessingDeps,
+  input: CreateArchiveJobInput,
+): Promise<BackgroundJob> {
   const targetFolder = input.request.targetFolder ?? null
-  return createBackgroundJobRepo(db).create({
+  return deps.backgroundJobs.create({
     orgId: input.orgId,
     userId: input.userId,
     type: input.request.type,
@@ -47,49 +71,52 @@ export async function enqueueArchiveJob(db: Database, input: CreateArchiveJobInp
 }
 
 export async function processArchiveJob(
+  deps: ArchiveProcessingDeps,
   db: Database,
   input: CreateArchiveJobInput & { jobId: string },
 ): Promise<BackgroundJob> {
-  const s3 = input.s3 ?? new S3Service()
+  const s3 = input.s3 ?? deps.s3
   try {
-    await createBackgroundJobRepo(db).update(input.orgId, input.jobId, { status: 'running', startedAt: new Date() })
+    await deps.backgroundJobs.update(input.orgId, input.jobId, { status: 'running', startedAt: new Date() })
     const finished =
       input.request.type === 'archive_compress'
-        ? await runCompressionJob(db, s3, input.jobId, input.orgId, input.userId, input.request)
-        : await runExtractionJob(db, s3, input.jobId, input.orgId, input.userId, input.request)
-    await notifyArchiveJobFinished(db, finished)
+        ? await runCompressionJob(deps, db, s3, input.jobId, input.orgId, input.userId, input.request)
+        : await runExtractionJob(deps, db, s3, input.jobId, input.orgId, input.userId, input.request)
+    await notifyArchiveJobFinished(deps, finished)
     return finished
   } catch (error) {
-    const failed = await createBackgroundJobRepo(db).update(input.orgId, input.jobId, {
+    const failed = await deps.backgroundJobs.update(input.orgId, input.jobId, {
       status: 'failed',
       errorMessage: (error as Error).message,
       retryable: false,
       cancelable: false,
     })
-    await notifyArchiveJobFinished(db, failed)
+    await notifyArchiveJobFinished(deps, failed)
     return failed
   }
 }
 
 async function runCompressionJob(
+  deps: ArchiveProcessingDeps,
   db: Database,
-  s3: S3Service,
+  s3: S3Gateway,
   jobId: string,
   orgId: string,
   userId: string,
   request: Extract<CreateBackgroundJobRequest, { type: 'archive_compress' }>,
 ): Promise<BackgroundJob> {
-  if (request.targetFolder !== undefined) await requireTargetFolder(db, orgId, request.targetFolder)
-  const plan = await createZipPlanRepo(db).collectCompressionPlan(orgId, request.matterIds, {
+  if (request.targetFolder !== undefined)
+    await deps.archiveTargetFolders.requireTargetFolder(orgId, request.targetFolder)
+  const plan = await deps.zipPlan.collectCompressionPlan(orgId, request.matterIds, {
     targetFolder: request.targetFolder,
     outputName: request.outputName,
   })
-  const progress = createArchiveProgressReporter(db, orgId, jobId, plan.inputBytes, plan.files.length)
+  const progress = createArchiveProgressReporter(deps, orgId, jobId, plan.inputBytes, plan.files.length)
   await progress.report(true)
 
   const sources = []
   for (const file of plan.files) {
-    const storage = await requireStorage(db, file.matter.storageId)
+    const storage = await requireStorage(deps, file.matter.storageId)
     sources.push({
       archivePath: file.archivePath,
       openStream: async () => {
@@ -101,7 +128,7 @@ async function runCompressionJob(
     })
   }
 
-  const targetStorage = await createStorageRepo(db).select('private')
+  const targetStorage = await deps.storages.select('private')
   const key = buildObjectKey({ uid: userId, orgId, rawExt: '.zip' })
   let objectWritten = false
   let outputBytes = 0
@@ -109,12 +136,12 @@ async function runCompressionJob(
     outputBytes = await s3.putObject(
       targetStorage,
       key,
-      createZipGateway().createZipArchiveStream(sources, plan.directories),
+      deps.zip.createZipArchiveStream(sources, plan.directories),
       ZIP_MIME,
     )
     objectWritten = true
     const job = await withStorageUsageReservation(
-      { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
+      { quota: deps.quota, storageUsage: deps.storageUsage },
       { orgId, storageId: targetStorage.id, bytes: outputBytes },
       async (ctx) => {
         ctx.onRollback(() => s3.deleteObject(targetStorage, key))
@@ -132,7 +159,7 @@ async function runCompressionJob(
           onConflict: 'rename',
         })
 
-        return createBackgroundJobRepo(db).update(orgId, jobId, {
+        return deps.backgroundJobs.update(orgId, jobId, {
           status: 'completed',
           progress: {
             inputBytes: plan.inputBytes,
@@ -156,8 +183,9 @@ async function runCompressionJob(
 }
 
 async function runExtractionJob(
+  deps: ArchiveProcessingDeps,
   db: Database,
-  s3: S3Service,
+  s3: S3Gateway,
   jobId: string,
   orgId: string,
   userId: string,
@@ -169,23 +197,24 @@ async function runExtractionJob(
     throw new Error('Extraction source must be a .zip file')
   }
 
-  if (request.targetFolder !== undefined) await requireTargetFolder(db, orgId, request.targetFolder)
-  const sourceStorage = await requireStorage(db, zipMatter.storageId)
-  const zip = createZipGateway()
+  if (request.targetFolder !== undefined)
+    await deps.archiveTargetFolders.requireTargetFolder(orgId, request.targetFolder)
+  const sourceStorage = await requireStorage(deps, zipMatter.storageId)
+  const zip = deps.zip
   const sourceHead = await s3.headObject(sourceStorage, zipMatter.object)
   const plan = await zip.validateZipDirectory(sourceHead.size, (start, end) =>
     s3.getObjectBytes(sourceStorage, zipMatter.object, `bytes=${start}-${end}`),
   )
-  const progress = createArchiveProgressReporter(db, orgId, jobId, sourceHead.size, plan.fileCount)
+  const progress = createArchiveProgressReporter(deps, orgId, jobId, sourceHead.size, plan.fileCount)
   await progress.report(true)
   const targetFolder = request.targetFolder ?? zipMatter.parent
-  const targetStorage = await createStorageRepo(db).select('private')
+  const targetStorage = await deps.storages.select('private')
   const writtenKeys: string[] = []
   const createdMatterIds: string[] = []
   const folderParents = new Map<string, string>()
   try {
     return await withStorageUsageReservation(
-      { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
+      { quota: deps.quota, storageUsage: deps.storageUsage },
       { orgId, storageId: targetStorage.id, bytes: plan.totalBytes },
       async (ctx) => {
         ctx.onRollback(async () => {
@@ -223,7 +252,7 @@ async function runExtractionJob(
           createdMatterIds.push(matter.id)
         })
 
-        return createBackgroundJobRepo(db).update(orgId, jobId, {
+        return deps.backgroundJobs.update(orgId, jobId, {
           status: 'completed',
           progress: {
             inputBytes: sourceHead.size,
@@ -270,7 +299,7 @@ async function runExtractionJob(
 }
 
 function createArchiveProgressReporter(
-  db: Database,
+  deps: ArchiveProcessingDeps,
   orgId: string,
   jobId: string,
   inputBytes: number,
@@ -296,7 +325,7 @@ function createArchiveProgressReporter(
     lastReportedBytes = snapshot.processedBytes
     lastReportedFilename = snapshot.currentFilename
     writes = writes.then(() =>
-      createBackgroundJobRepo(db)
+      deps.backgroundJobs
         .update(orgId, jobId, {
           progress: {
             inputBytes,
@@ -344,28 +373,10 @@ function trackReadableStream(
   })
 }
 
-async function requireStorage(db: Database, storageId: string): Promise<S3StorageType> {
-  const storage = await createStorageRepo(db).get(storageId)
+async function requireStorage(deps: ArchiveProcessingDeps, storageId: string): Promise<StorageRecord> {
+  const storage = await deps.storages.get(storageId)
   if (!storage) throw new Error('Storage not found')
   return storage
-}
-
-async function requireTargetFolder(db: Database, orgId: string, targetFolder: string): Promise<void> {
-  if (targetFolder === '') return
-
-  const slash = targetFolder.lastIndexOf('/')
-  const parent = slash >= 0 ? targetFolder.slice(0, slash) : ''
-  const name = slash >= 0 ? targetFolder.slice(slash + 1) : targetFolder
-  const rows = await db
-    .select()
-    .from(matters)
-    .where(
-      and(eq(matters.orgId, orgId), eq(matters.parent, parent), eq(matters.name, name), eq(matters.status, 'active')),
-    )
-    .limit(1)
-  const target = rows[0]
-  if (!target) throw new Error('Target folder not found')
-  if (target.dirtype === DirType.FILE) throw new Error('Target folder must be a folder')
 }
 
 function buildMatterPath(parent: string, name: string): string {
@@ -377,10 +388,10 @@ function extension(name: string): string {
   return dot >= 0 ? name.slice(dot) : ''
 }
 
-async function notifyArchiveJobFinished(db: Database, job: BackgroundJob): Promise<void> {
+async function notifyArchiveJobFinished(deps: ArchiveProcessingDeps, job: BackgroundJob): Promise<void> {
   const completed = job.status === 'completed'
   const action = job.type === 'archive_extract' ? 'extraction' : 'compression'
-  await createNotificationRepo(db).create({
+  await deps.notifications.create({
     userId: job.userId,
     type: completed ? 'archive_job_completed' : 'archive_job_failed',
     title: completed ? `File ${action} completed` : `File ${action} failed`,

@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3.js'
+import { getMatter } from '../services/matter.js'
 import { createTestApp } from '../test/setup.js'
-import { getMatter } from './matter.js'
-import { S3Service } from './s3.js'
 import { DEFAULT_TRASH_RETENTION_DAYS, purgeExpiredTrash, resolveTrashRetentionDays } from './trash-retention.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -67,7 +67,7 @@ describe('resolveTrashRetentionDays', () => {
 
 describe('purgeExpiredTrash', () => {
   it('purges trash older than the window and reclaims quota, keeping recent trash and active files', async () => {
-    const { db } = await createTestApp()
+    const { db, deps } = await createTestApp()
     await insertStorage(db)
     const orgId = nanoid()
     await insertOrg(db, orgId)
@@ -76,7 +76,7 @@ describe('purgeExpiredTrash', () => {
     await insertFile(db, orgId, { id: 'recent', size: 200, status: 'trashed', trashedAt: now - 5 * DAY_MS })
     await insertFile(db, orgId, { id: 'active', size: 300, status: 'active' })
 
-    const purged = await purgeExpiredTrash(db, 30, now)
+    const purged = await purgeExpiredTrash(deps, db, 30, now)
 
     expect(purged).toBe(1)
     expect(await getMatter(db, 'old', orgId)).toBeNull()
@@ -88,13 +88,13 @@ describe('purgeExpiredTrash', () => {
   })
 
   it('is a no-op when retention is 0 (disabled)', async () => {
-    const { db } = await createTestApp()
+    const { db, deps } = await createTestApp()
     await insertStorage(db)
     const orgId = nanoid()
     await insertOrg(db, orgId)
     await insertFile(db, orgId, { id: 'old', size: 100, status: 'trashed', trashedAt: Date.now() - 400 * DAY_MS })
 
-    const purged = await purgeExpiredTrash(db, 0)
+    const purged = await purgeExpiredTrash(deps, db, 0)
 
     expect(purged).toBe(0)
     expect(await getMatter(db, 'old', orgId)).not.toBeNull()

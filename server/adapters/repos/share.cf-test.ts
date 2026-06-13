@@ -1,16 +1,20 @@
 import { env } from 'cloudflare:workers'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import { DirType } from '../../shared/constants'
-import { matters } from '../db/schema'
-import { createCloudflarePlatform } from '../platform/cloudflare'
-import {
-  cascadeDeleteByMatter,
-  createShare,
-  incrementDownloadsAtomic,
-  resolveShareByToken,
-  revokeShareByToken,
-} from './share'
+import { DirType } from '../../../shared/constants'
+import type { CreateShareInput } from '../../../shared/schemas/share'
+import { matters } from '../../db/schema'
+import { createCloudflarePlatform } from '../../platform/cloudflare'
+import type { Database } from '../../platform/interface'
+import { createShareRepo } from './share'
+
+const createShare = (db: Database, input: CreateShareInput) => createShareRepo(db).create(input)
+const resolveShareByToken = (db: Database, token: string) => createShareRepo(db).resolveByToken(token)
+const incrementDownloadsAtomic = (db: Database, shareId: string) =>
+  createShareRepo(db).incrementDownloadsAtomic(shareId)
+const revokeShareByToken = (db: Database, token: string, creatorId: string) =>
+  createShareRepo(db).revokeByToken(token, creatorId)
+const cascadeDeleteByMatter = (db: Database, matterId: string) => createShareRepo(db).cascadeDeleteByMatter(matterId)
 
 function buildDb() {
   return createCloudflarePlatform(env).db

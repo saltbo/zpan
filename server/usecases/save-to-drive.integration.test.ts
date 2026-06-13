@@ -2,11 +2,42 @@ import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
+import type { CreateShareInput } from '../../shared/schemas/share'
+import { S3Service } from '../adapters/gateways/s3.js'
+import { createActivityRepo } from '../adapters/repos/activity.js'
+import { createQuotaRepo } from '../adapters/repos/quota.js'
+import { createShareRepo } from '../adapters/repos/share.js'
+import { createStorageRepo } from '../adapters/repos/storage.js'
+import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
 import { activityEvents, matters, orgQuotaEntitlements, orgQuotas, shares } from '../db/schema'
-import { S3Service } from '../services/s3.js'
+import type { Database } from '../platform/interface'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
-import { computeSourceBytes, isQuotaSufficient, saveShareToDrive } from './save-to-drive.js'
-import { createShare, resolveShareByToken } from './share.js'
+import type { ShareMatterRow } from './ports'
+import {
+  type SaveShareInput,
+  type SaveToDriveDeps,
+  saveShareToDrive as saveShareToDriveUseCase,
+} from './save-to-drive.js'
+
+const createShare = (db: Database, input: CreateShareInput) => createShareRepo(db).create(input)
+const resolveShareByToken = (db: Database, token: string) => createShareRepo(db).resolveByToken(token)
+const computeSourceBytes = (db: Database, matter: ShareMatterRow) => createShareRepo(db).computeSourceBytes(matter)
+const isQuotaSufficient = (db: Database, orgId: string, bytes: number) =>
+  createShareRepo(db).hasQuotaForBytes(orgId, bytes)
+// The usecase reaches the world through deps; build the subset it needs from the
+// same db so reservation/storage/activity side effects land in the test database.
+function saveToDriveDeps(db: Database): SaveToDriveDeps {
+  return {
+    s3: new S3Service(),
+    storages: createStorageRepo(db),
+    storageUsage: createStorageUsageRepo(db),
+    quota: createQuotaRepo(db),
+    activity: createActivityRepo(db),
+    share: createShareRepo(db),
+  }
+}
+const saveShareToDrive = (db: Database, input: SaveShareInput) =>
+  saveShareToDriveUseCase(saveToDriveDeps(db), db, input)
 
 // ─── Test fixtures ────────────────────────────────────────────────────────────
 

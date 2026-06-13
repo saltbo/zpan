@@ -1,6 +1,15 @@
 import type { Platform } from '../../platform/interface'
-import { processArchiveJob } from '../../services/archive-processing'
+import { processArchiveJob } from '../../usecases/archive-processing'
 import type { ArchiveJobMessage, ArchiveJobsGateway } from '../../usecases/ports'
+import { createArchiveTargetFolderRepo } from '../repos/archive-target-folder'
+import { createBackgroundJobRepo } from '../repos/background-job'
+import { createNotificationRepo } from '../repos/notification'
+import { createQuotaRepo } from '../repos/quota'
+import { createStorageRepo } from '../repos/storage'
+import { createStorageUsageRepo } from '../repos/storage-usage'
+import { createZipPlanRepo } from '../repos/zip'
+import { S3Service } from './s3'
+import { createZipGateway } from './zip'
 
 export const ARCHIVE_QUEUE_BINDING = 'ARCHIVE_QUEUE'
 
@@ -44,8 +53,24 @@ class LocalArchiveQueue {
 }
 
 export function createArchiveJobsGateway(platform: Platform): ArchiveJobsGateway {
+  const { db } = platform
+  // The archive usecase composes existing ports; assemble exactly the subset it
+  // needs from the platform here (the queue consumer entrypoint), so composition
+  // can keep constructing this gateway with only the platform.
+  const deps = {
+    s3: new S3Service(),
+    storages: createStorageRepo(db),
+    quota: createQuotaRepo(db),
+    storageUsage: createStorageUsageRepo(db),
+    backgroundJobs: createBackgroundJobRepo(db),
+    notifications: createNotificationRepo(db),
+    zip: createZipGateway(),
+    zipPlan: createZipPlanRepo(db),
+    archiveTargetFolders: createArchiveTargetFolderRepo(db),
+  }
+
   async function runMessage(message: ArchiveJobMessage): Promise<void> {
-    await processArchiveJob(platform.db, {
+    await processArchiveJob(deps, db, {
       orgId: message.orgId,
       userId: message.userId,
       request: message.request,

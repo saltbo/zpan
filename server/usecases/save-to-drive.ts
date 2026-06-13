@@ -1,26 +1,36 @@
-import { and, eq, like, or } from 'drizzle-orm'
-import { DirType } from '../../shared/constants'
-import { createActivityRepo } from '../adapters/repos/activity'
-import { createQuotaRepo } from '../adapters/repos/quota'
-import { createStorageRepo } from '../adapters/repos/storage'
-import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
-import { matters } from '../db/schema'
+import { DirType } from '@shared/constants'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import type { Database } from '../platform/interface'
-import type { StorageRecord as S3StorageType } from '../usecases/ports'
-import { withStorageUsageReservation } from '../usecases/storage-usage'
-import type { Matter } from './matter'
-import { createMatter } from './matter'
-import { S3Service } from './s3'
-import type { Share, ShareResolution } from './share'
+import { createMatter, type Matter } from '../services/matter'
+import type {
+  ActivityRepo,
+  QuotaRepo,
+  S3Gateway,
+  ShareMatterRow,
+  ShareRepo,
+  StorageRecord,
+  StorageRepo,
+  StorageUsageRepo,
+} from './ports'
+import { withStorageUsageReservation } from './storage-usage'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Pure orchestration: copies a shared matter (file or folder) into another org,
+// reserving target-org quota per file via withStorageUsageReservation. Reaches
+// the outside world only through deps; matter creation is the (still-unmigrated)
+// matter service, imported transitionally.
 
-export type { ShareResolution }
+export type SaveToDriveDeps = {
+  s3: S3Gateway
+  storages: StorageRepo
+  storageUsage: StorageUsageRepo
+  quota: QuotaRepo
+  activity: ActivityRepo
+  share: ShareRepo
+}
 
 export interface SaveShareInput {
-  share: Share
-  matter: Matter
+  share: { id: string }
+  matter: ShareMatterRow
   currentUserId: string
   targetOrgId: string
   targetParent: string
@@ -32,14 +42,13 @@ export interface SaveShareResult {
   skipped: Array<{ name: string; reason: string }>
 }
 
-// Activity log entry recorded in the target org for each copied file.
 interface CopyActivity {
   action: string
   metadata: Record<string, unknown>
 }
 
 export interface CopyMatterToOrgInput {
-  sourceMatter: Matter
+  sourceMatter: ShareMatterRow
   currentUserId: string
   targetOrgId: string
   targetParent: string
@@ -47,52 +56,16 @@ export interface CopyMatterToOrgInput {
   teamQuotaEnabled?: boolean
 }
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
-const s3 = new S3Service()
-
 function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
 }
 
-async function getDirectActiveChildren(db: Database, orgId: string, folderPath: string): Promise<Matter[]> {
-  return db
-    .select()
-    .from(matters)
-    .where(and(eq(matters.orgId, orgId), eq(matters.parent, folderPath), eq(matters.status, 'active')))
-}
-
-// ─── Quota helpers ────────────────────────────────────────────────────────────
-
-export async function computeSourceBytes(db: Database, matter: Matter): Promise<number> {
-  if (matter.dirtype === DirType.FILE) return matter.size ?? 0
-
-  const folderPath = buildPath(matter.parent, matter.name)
-  const rows = await db
-    .select({ size: matters.size })
-    .from(matters)
-    .where(
-      and(
-        eq(matters.orgId, matter.orgId),
-        eq(matters.status, 'active'),
-        eq(matters.dirtype, DirType.FILE),
-        or(eq(matters.parent, folderPath), like(matters.parent, `${folderPath}/%`)),
-      ),
-    )
-  return rows.reduce((acc, r) => acc + (r.size ?? 0), 0)
-}
-
-export async function isQuotaSufficient(db: Database, orgId: string, bytes: number): Promise<boolean> {
-  return createQuotaRepo(db).hasQuotaForBytes(orgId, bytes)
-}
-
-// ─── File copy ────────────────────────────────────────────────────────────────
-
 async function saveFile(
+  deps: SaveToDriveDeps,
   db: Database,
-  sourceMatter: Matter,
-  sourceStorage: S3StorageType,
-  targetStorage: S3StorageType,
+  sourceMatter: ShareMatterRow,
+  sourceStorage: StorageRecord,
+  targetStorage: StorageRecord,
   currentUserId: string,
   targetOrgId: string,
   targetParent: string,
@@ -100,19 +73,18 @@ async function saveFile(
   teamQuotaEnabled = true,
 ): Promise<Matter> {
   const bytes = sourceMatter.size ?? 0
-
   const dstKey = buildObjectKey({ uid: currentUserId, orgId: targetOrgId, rawExt: fileExt(sourceMatter.name) })
 
   return withStorageUsageReservation(
-    { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
+    { quota: deps.quota, storageUsage: deps.storageUsage },
     { orgId: targetOrgId, storageId: targetStorage.id, bytes, teamQuotaEnabled },
     async (ctx) => {
       if (sourceStorage.id === targetStorage.id) {
-        await s3.copyObject(sourceStorage, sourceMatter.object, targetStorage, dstKey)
+        await deps.s3.copyObject(sourceStorage, sourceMatter.object, targetStorage, dstKey)
       } else {
-        await s3.streamCopy(sourceStorage, sourceMatter.object, targetStorage, dstKey)
+        await deps.s3.streamCopy(sourceStorage, sourceMatter.object, targetStorage, dstKey)
       }
-      ctx.onRollback(() => s3.deleteObject(targetStorage, dstKey))
+      ctx.onRollback(() => deps.s3.deleteObject(targetStorage, dstKey))
 
       const newMatter = await createMatter(db, {
         orgId: targetOrgId,
@@ -127,7 +99,7 @@ async function saveFile(
         onConflict: 'rename',
       })
 
-      await createActivityRepo(db).record({
+      await deps.activity.record({
         orgId: targetOrgId,
         userId: currentUserId,
         action: activity.action,
@@ -142,13 +114,12 @@ async function saveFile(
   )
 }
 
-// ─── Folder recursive copy ────────────────────────────────────────────────────
-
 async function saveFolderRecursive(
+  deps: SaveToDriveDeps,
   db: Database,
-  sourceFolderMatter: Matter,
-  sourceStorage: S3StorageType,
-  targetStorage: S3StorageType,
+  sourceFolderMatter: ShareMatterRow,
+  sourceStorage: StorageRecord,
+  targetStorage: StorageRecord,
   currentUserId: string,
   targetOrgId: string,
   targetParent: string,
@@ -175,19 +146,19 @@ async function saveFolderRecursive(
   const sourceRootPath = buildPath(sourceFolderMatter.parent, sourceFolderMatter.name)
   const targetRootPath = buildPath(targetParent, rootFolder.name)
 
-  // BFS: pairs of (source folder path, target folder path)
   const queue: Array<{ sourcePath: string; targetPath: string }> = [
     { sourcePath: sourceRootPath, targetPath: targetRootPath },
   ]
 
   while (queue.length > 0) {
     const { sourcePath, targetPath } = queue.shift()!
-    const children = await getDirectActiveChildren(db, sourceFolderMatter.orgId, sourcePath)
+    const children = await deps.share.listDirectActiveChildren(sourceFolderMatter.orgId, sourcePath)
 
     for (const child of children) {
       if (child.dirtype === DirType.FILE) {
         try {
           const newFile = await saveFile(
+            deps,
             db,
             child,
             sourceStorage,
@@ -227,28 +198,28 @@ async function saveFolderRecursive(
   return { saved, skipped }
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-// Copy a file or folder (recursively) into another org. Quota is reserved in
-// the target org per file; files that fail (e.g. quota) are reported in
-// `skipped` rather than failing the whole operation.
-export async function copyMatterToOrg(db: Database, input: CopyMatterToOrgInput): Promise<SaveShareResult> {
+// Copy a file or folder (recursively) into another org. Quota is reserved in the
+// target org per file; files that fail (e.g. quota) are reported in `skipped`
+// rather than failing the whole operation.
+export async function copyMatterToOrg(
+  deps: SaveToDriveDeps,
+  db: Database,
+  input: CopyMatterToOrgInput,
+): Promise<SaveShareResult> {
   const { sourceMatter, currentUserId, targetOrgId, targetParent, activity, teamQuotaEnabled = true } = input
 
-  const sourceStorage = await createStorageRepo(db).get(sourceMatter.storageId)
+  const sourceStorage = await deps.storages.get(sourceMatter.storageId)
   if (!sourceStorage) throw new Error('Source storage not found')
 
-  const targetStorage = await createStorageRepo(db).select('private')
-
-  const src = sourceStorage
-  const dst = targetStorage
+  const targetStorage = await deps.storages.select('private')
 
   if (sourceMatter.dirtype === DirType.FILE) {
     const newMatter = await saveFile(
+      deps,
       db,
       sourceMatter,
-      src,
-      dst,
+      sourceStorage,
+      targetStorage,
       currentUserId,
       targetOrgId,
       targetParent,
@@ -259,10 +230,11 @@ export async function copyMatterToOrg(db: Database, input: CopyMatterToOrgInput)
   }
 
   return saveFolderRecursive(
+    deps,
     db,
     sourceMatter,
-    src,
-    dst,
+    sourceStorage,
+    targetStorage,
     currentUserId,
     targetOrgId,
     targetParent,
@@ -271,9 +243,13 @@ export async function copyMatterToOrg(db: Database, input: CopyMatterToOrgInput)
   )
 }
 
-export async function saveShareToDrive(db: Database, input: SaveShareInput): Promise<SaveShareResult> {
+export async function saveShareToDrive(
+  deps: SaveToDriveDeps,
+  db: Database,
+  input: SaveShareInput,
+): Promise<SaveShareResult> {
   const { share, matter: sourceMatter, ...rest } = input
-  return copyMatterToOrg(db, {
+  return copyMatterToOrg(deps, db, {
     ...rest,
     sourceMatter,
     activity: { action: 'save_from_share', metadata: { sourceShareId: share.id } },

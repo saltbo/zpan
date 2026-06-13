@@ -2,15 +2,39 @@ import { env } from 'cloudflare:workers'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
+import type { CreateShareInput } from '../../shared/schemas/share'
+import { S3Service } from '../adapters/gateways/s3'
+import { createActivityRepo } from '../adapters/repos/activity'
+import { createQuotaRepo } from '../adapters/repos/quota'
+import { createShareRepo } from '../adapters/repos/share'
+import { createStorageRepo } from '../adapters/repos/storage'
+import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
 import { matters } from '../db/schema'
 import { createCloudflarePlatform } from '../platform/cloudflare'
-import { S3Service } from './s3'
-import { saveShareToDrive } from './save-to-drive'
-import { createShare, resolveShareByToken, revokeShareByToken } from './share'
+import type { Database } from '../platform/interface'
+import { type SaveShareInput, type SaveToDriveDeps, saveShareToDrive as saveShareToDriveUseCase } from './save-to-drive'
 
 function buildDb() {
   return createCloudflarePlatform(env).db
 }
+
+const createShare = (db: Database, input: CreateShareInput) => createShareRepo(db).create(input)
+const resolveShareByToken = (db: Database, token: string) => createShareRepo(db).resolveByToken(token)
+const revokeShareByToken = (db: Database, token: string, creatorId: string) =>
+  createShareRepo(db).revokeByToken(token, creatorId)
+
+function saveToDriveDeps(db: Database): SaveToDriveDeps {
+  return {
+    s3: new S3Service(),
+    storages: createStorageRepo(db),
+    storageUsage: createStorageUsageRepo(db),
+    quota: createQuotaRepo(db),
+    activity: createActivityRepo(db),
+    share: createShareRepo(db),
+  }
+}
+const saveShareToDrive = (db: Database, input: SaveShareInput) =>
+  saveShareToDriveUseCase(saveToDriveDeps(db), db, input)
 
 async function seedStorage(db: ReturnType<typeof buildDb>, id: string) {
   await db.run(

@@ -1,34 +1,16 @@
 import { zValidator } from '@hono/zod-validator'
-import { and, eq, or, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { z } from 'zod'
 import { DirType } from '../../shared/constants'
 import { createShareRequestSchema, listSharesQuerySchema, saveShareRequestSchema } from '../../shared/schemas/share'
-import { user } from '../db/auth-schema'
-import { matters } from '../db/schema'
+import { isAccessibleByUser } from '../domain/share'
+import { verifyPassword as verifyPasswordHash } from '../lib/password'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { listMatters } from '../services/matter'
-import {
-  computeSourceBytes,
-  isQuotaSufficient,
-  saveShareToDrive as saveShareToDriveService,
-} from '../services/save-to-drive'
-import {
-  createShare,
-  decrementDownloads,
-  getShareCreatorByToken,
-  hasDownloadsAvailable,
-  incrementDownloadsAtomic,
-  incrementViews,
-  isAccessibleByUser,
-  listReceivedSharesForApi,
-  listSharesForApi,
-  resolveShareByToken,
-  revokeShareByToken,
-  verifyPassword,
-} from '../services/share'
+import { CreateShareError, type ShareRecord } from '../usecases/ports'
+import { saveShareToDrive } from '../usecases/save-to-drive'
 import { dispatchShareCreated } from '../usecases/share-notification'
 import {
   buildBreadcrumb,
@@ -36,7 +18,6 @@ import {
   cookieName,
   decodeChildRef,
   encodeChildRef,
-  escapeLike,
   folderRootPath,
   PRESIGN_TTL_SECS,
   readUserId,
@@ -64,9 +45,8 @@ const VIEW_DEDUP_TTL_SECS = 30
 export const publicShares = new Hono<Env>()
   .get('/:token', async (c) => {
     const token = c.req.param('token')
-    const db = c.get('platform').db
 
-    const resolved = await resolveShareByToken(db, token)
+    const resolved = await c.get('deps').share.resolveByToken(token)
     if (resolved.status !== 'ok') {
       if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
       return c.json({ error: 'Share not found or revoked' }, 404)
@@ -83,7 +63,7 @@ export const publicShares = new Hono<Env>()
 
     const viewCookie = getCookie(c, viewCookieName(token))
     if (!isCreator && viewCookie !== 'seen') {
-      await incrementViews(db, share.id)
+      await c.get('deps').share.incrementViews(share.id)
       setCookie(c, viewCookieName(token), 'seen', {
         httpOnly: true,
         sameSite: 'Lax',
@@ -99,8 +79,7 @@ export const publicShares = new Hono<Env>()
     const exhausted = !!(share.downloadLimit != null && share.downloads >= share.downloadLimit)
     const isFolder = matter.dirtype !== DirType.FILE
 
-    const creatorRows = await db.select({ name: user.name }).from(user).where(eq(user.id, share.creatorId))
-    const creatorName = creatorRows[0]?.name ?? ''
+    const creatorName = (await c.get('deps').share.getCreatorName(share.creatorId)) ?? ''
 
     const base = {
       token: share.token,
@@ -134,16 +113,16 @@ export const publicShares = new Hono<Env>()
   })
   .post('/:token/sessions', zValidator('json', verifyPasswordSchema), async (c) => {
     const token = c.req.param('token')
-    const db = c.get('platform').db
     const { password } = c.req.valid('json')
 
-    const resolved = await resolveShareByToken(db, token)
+    const resolved = await c.get('deps').share.resolveByToken(token)
     if (resolved.status !== 'ok') return c.json({ error: 'Share not found or revoked' }, 404)
 
     const { share } = resolved
     if (share.kind !== 'landing') return c.json({ error: 'Share not found or revoked' }, 404)
 
-    if (!verifyPassword(share, password)) return c.json({ error: 'Invalid password' }, 403)
+    if (!share.passwordHash || !verifyPasswordHash(share.passwordHash, password))
+      return c.json({ error: 'Invalid password' }, 403)
 
     const now = new Date()
     const oneDayMs = 24 * 60 * 60 * 1000
@@ -164,7 +143,7 @@ export const publicShares = new Hono<Env>()
     const token = c.req.param('token')
     const db = c.get('platform').db
 
-    const resolved = await resolveShareByToken(db, token)
+    const resolved = await c.get('deps').share.resolveByToken(token)
     if (resolved.status !== 'ok') {
       if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
       return c.json({ error: 'Share not found or revoked' }, 404)
@@ -219,9 +198,8 @@ export const publicShares = new Hono<Env>()
     const token = c.req.param('token')
     const ref = c.req.param('ref')
     const returnUrl = c.req.query('downloadUrl') === '1'
-    const db = c.get('platform').db
 
-    const resolved = await resolveShareByToken(db, token)
+    const resolved = await c.get('deps').share.resolveByToken(token)
     if (resolved.status !== 'ok') {
       if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
       return c.json({ error: 'Share not found or revoked' }, 404)
@@ -243,32 +221,20 @@ export const publicShares = new Hono<Env>()
     let targetMatter = matter
     if (matterId !== matter.id) {
       if (matter.dirtype === DirType.FILE) return c.json({ error: 'File not found or not accessible' }, 404)
-      const root = folderRootPath(matter)
-      const likePattern = `${escapeLike(root)}/%`
-      const rows = await db
-        .select()
-        .from(matters)
-        .where(
-          and(
-            eq(matters.id, matterId),
-            eq(matters.orgId, matter.orgId),
-            eq(matters.status, 'active'),
-            or(eq(matters.parent, root), sql`${matters.parent} LIKE ${likePattern} ESCAPE '\\'`),
-          ),
-        )
-      const child = rows[0]
+      const child = await c.get('deps').share.findShareChildMatter(matter, matterId)
       if (!child) return c.json({ error: 'File not found or not accessible' }, 404)
       targetMatter = child
     } else if (matter.dirtype !== DirType.FILE) {
       return c.json({ error: 'Cannot download a folder directly' }, 400)
     }
 
-    if (!(await hasDownloadsAvailable(db, share.id))) return c.json({ error: 'Download limit exceeded' }, 410)
+    if (!(await c.get('deps').share.hasDownloadsAvailable(share.id)))
+      return c.json({ error: 'Download limit exceeded' }, 410)
 
     const storage = await c.get('deps').storages.get(targetMatter.storageId)
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
-    const { ok } = await incrementDownloadsAtomic(db, share.id)
+    const { ok } = await c.get('deps').share.incrementDownloadsAtomic(share.id)
     if (!ok) return c.json({ error: 'Download limit exceeded' }, 410)
 
     const trafficError = await consumeAndReportDownloadTraffic(c, {
@@ -278,7 +244,7 @@ export const publicShares = new Hono<Env>()
       source: 'landing_share',
       sourceId: share.id,
       quotaExceeded: () => c.json({ error: 'Traffic quota exceeded' }, 422),
-      onRejected: () => decrementDownloads(db, share.id),
+      onRejected: () => c.get('deps').share.decrementDownloads(share.id),
     })
     if (trafficError) return trafficError
 
@@ -291,7 +257,7 @@ export const publicShares = new Hono<Env>()
       url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
     } catch (e) {
       await c.get('deps').quota.refundTraffic(share.orgId, targetMatter.size ?? 0)
-      await decrementDownloads(db, share.id)
+      await c.get('deps').share.decrementDownloads(share.id)
       throw e
     }
 
@@ -327,37 +293,34 @@ export const authedShares = new Hono<Env>()
   .use(requireAuth)
   .get('/', zValidator('query', listSharesQuerySchema), async (c) => {
     const userId = c.get('userId')!
-    const db = c.get('platform').db
     const { page, pageSize, status, box } = c.req.valid('query')
 
     if (box === 'received') {
-      const emails = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1)
-      const result = await listReceivedSharesForApi(db, userId, emails[0]?.email ?? null, { page, pageSize })
+      const email = await c.get('deps').share.getUserEmail(userId)
+      const result = await c.get('deps').share.listReceivedForApi(userId, email, { page, pageSize })
       return c.json({ ...result, page, pageSize })
     }
 
-    const result = await listSharesForApi(db, userId, { page, pageSize, status })
+    const result = await c.get('deps').share.listForApi(userId, { page, pageSize, status })
     return c.json({ ...result, page, pageSize })
   })
   .post('/', requireTeamRole('editor'), zValidator('json', createShareRequestSchema), async (c) => {
     const orgId = c.get('orgId')!
     const userId = c.get('userId')!
-    const db = c.get('platform').db
     const body = c.req.valid('json')
 
     let expiresAt: Date | undefined
     if (body.expiresAt) expiresAt = new Date(body.expiresAt)
 
-    const [creatorRow, matterRow] = await Promise.all([
-      db.select({ name: user.name }).from(user).where(eq(user.id, userId)).limit(1),
-      db.select({ name: matters.name }).from(matters).where(eq(matters.id, body.matterId)).limit(1),
+    const [creatorNameRaw, matterName] = await Promise.all([
+      c.get('deps').share.getCreatorName(userId),
+      c.get('deps').share.getMatterName(body.matterId),
     ])
-    const creatorName = creatorRow[0]?.name ?? 'Unknown'
-    const matterName = matterRow[0]?.name
+    const creatorName = creatorNameRaw ?? 'Unknown'
 
-    let share: Awaited<ReturnType<typeof createShare>>
+    let share: ShareRecord
     try {
-      share = await createShare(db, {
+      share = await c.get('deps').share.create({
         matterId: body.matterId,
         orgId,
         creatorId: userId,
@@ -368,14 +331,15 @@ export const authedShares = new Hono<Env>()
         recipients: body.recipients,
       })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : ''
-      if (msg === 'MATTER_NOT_FOUND') return c.json({ error: 'Matter not found', code: 'MATTER_NOT_FOUND' }, 404)
-      if (msg === 'DIRECT_NO_FOLDER')
-        return c.json({ error: 'Direct shares cannot be folders', code: 'DIRECT_NO_FOLDER' }, 400)
-      if (msg === 'DIRECT_NO_PASSWORD')
-        return c.json({ error: 'Direct shares cannot have a password', code: 'DIRECT_NO_PASSWORD' }, 400)
-      if (msg === 'DIRECT_NO_RECIPIENTS')
-        return c.json({ error: 'Direct shares cannot have recipients', code: 'DIRECT_NO_RECIPIENTS' }, 400)
+      if (err instanceof CreateShareError) {
+        if (err.code === 'MATTER_NOT_FOUND') return c.json({ error: 'Matter not found', code: 'MATTER_NOT_FOUND' }, 404)
+        if (err.code === 'DIRECT_NO_FOLDER')
+          return c.json({ error: 'Direct shares cannot be folders', code: 'DIRECT_NO_FOLDER' }, 400)
+        if (err.code === 'DIRECT_NO_PASSWORD')
+          return c.json({ error: 'Direct shares cannot have a password', code: 'DIRECT_NO_PASSWORD' }, 400)
+        if (err.code === 'DIRECT_NO_RECIPIENTS')
+          return c.json({ error: 'Direct shares cannot have recipients', code: 'DIRECT_NO_RECIPIENTS' }, 400)
+      }
       throw err
     }
 
@@ -417,17 +381,16 @@ export const authedShares = new Hono<Env>()
   .delete('/:token', async (c) => {
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
-    const db = c.get('platform').db
     const token = c.req.param('token')
 
-    const creatorId = await getShareCreatorByToken(db, token)
+    const creatorId = await c.get('deps').share.getCreatorByToken(token)
     if (creatorId === null) return c.json({ error: 'Not found' }, 404)
     if (creatorId !== userId) return c.json({ error: 'Forbidden' }, 403)
 
-    // Race-safe: revokeShareByToken scopes the UPDATE to (token, creatorId).
+    // Race-safe: revokeByToken scopes the UPDATE to (token, creatorId).
     // A concurrent revoke or ownership change between the check above and this
     // call returns false — translate to 404 at the boundary.
-    const revoked = await revokeShareByToken(db, token, userId)
+    const revoked = await c.get('deps').share.revokeByToken(token, userId)
     if (!revoked) return c.json({ error: 'Not found' }, 404)
 
     await c.get('deps').activity.record({
@@ -445,8 +408,9 @@ export const authedShares = new Hono<Env>()
     const { targetOrgId, targetParent } = c.req.valid('json')
     const currentUserId = c.get('userId')!
     const db = c.get('platform').db
+    const deps = c.get('deps')
 
-    const resolution = await resolveShareByToken(db, token)
+    const resolution = await deps.share.resolveByToken(token)
     if (resolution.status === 'matter_trashed') {
       return c.json({ error: 'Share target has been deleted' }, 410)
     }
@@ -471,17 +435,17 @@ export const authedShares = new Hono<Env>()
       return c.json({ error: 'Authentication required for password-protected share' }, 401)
     }
 
-    if (!(await c.get('deps').org.canWriteToOrg(currentUserId, targetOrgId))) {
+    if (!(await deps.org.canWriteToOrg(currentUserId, targetOrgId))) {
       return c.json({ error: 'Forbidden' }, 403)
     }
 
-    const totalBytes = await computeSourceBytes(db, matter)
-    const quotaOk = await isQuotaSufficient(db, targetOrgId, totalBytes)
+    const totalBytes = await deps.share.computeSourceBytes(matter)
+    const quotaOk = await deps.share.hasQuotaForBytes(targetOrgId, totalBytes)
     if (!quotaOk) {
       return c.json({ error: 'Quota exceeded', code: 'QUOTA_EXCEEDED' }, 400)
     }
 
-    const result = await saveShareToDriveService(db, {
+    const result = await saveShareToDrive(deps, db, {
       share,
       matter,
       currentUserId,

@@ -1,13 +1,6 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import type { Env } from '../middleware/platform'
-import type { Database } from '../platform/interface'
-import {
-  decrementDownloads,
-  hasDownloadsAvailable,
-  incrementDownloadsAtomic,
-  resolveShareByToken,
-} from '../services/share'
 import { PRESIGN_TTL_SECS, s3 } from './share-utils'
 import { consumeAndReportDownloadTraffic, reportTrafficForDownload } from './traffic-metering-utils'
 
@@ -31,8 +24,8 @@ function checkReferer(refererAllowlist: string[], refererHeader: string | null):
   }
 }
 
-async function handleDirectShare(c: Context<Env>, db: Database, token: string): Promise<Response> {
-  const resolved = await resolveShareByToken(db, token)
+async function handleDirectShare(c: Context<Env>, token: string): Promise<Response> {
+  const resolved = await c.get('deps').share.resolveByToken(token)
   if (resolved.status !== 'ok') {
     if (resolved.status === 'matter_trashed') return c.json({ error: 'File no longer available' }, 410)
     return c.json({ error: 'Share not found or revoked' }, 404)
@@ -43,12 +36,13 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
 
   if (share.expiresAt && share.expiresAt < new Date()) return c.json({ error: 'Share has expired' }, 410)
 
-  if (!(await hasDownloadsAvailable(db, share.id))) return c.json({ error: 'Download limit exceeded' }, 410)
+  if (!(await c.get('deps').share.hasDownloadsAvailable(share.id)))
+    return c.json({ error: 'Download limit exceeded' }, 410)
 
   const storage = await c.get('deps').storages.get(matter.storageId)
   if (!storage) return c.json({ error: 'Storage not found' }, 404)
 
-  const { ok } = await incrementDownloadsAtomic(db, share.id)
+  const { ok } = await c.get('deps').share.incrementDownloadsAtomic(share.id)
   if (!ok) return c.json({ error: 'Download limit exceeded' }, 410)
 
   const trafficError = await consumeAndReportDownloadTraffic(c, {
@@ -58,7 +52,7 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
     source: 'direct_share',
     sourceId: share.id,
     quotaExceeded: () => c.json({ error: 'Traffic quota exceeded' }, 422),
-    onRejected: () => decrementDownloads(db, share.id),
+    onRejected: () => c.get('deps').share.decrementDownloads(share.id),
   })
   if (trafficError) return trafficError
 
@@ -67,7 +61,7 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
     url = await s3.presignDownload(storage, matter.object, matter.name, PRESIGN_TTL_SECS)
   } catch (e) {
     await c.get('deps').quota.refundTraffic(share.orgId, matter.size ?? 0)
-    await decrementDownloads(db, share.id)
+    await c.get('deps').share.decrementDownloads(share.id)
     throw e
   }
 
@@ -127,9 +121,8 @@ async function handleImageHosting(c: Context<Env>, token: string): Promise<Respo
 const app = new Hono<Env>().get('/:token', async (c) => {
   const raw = c.req.param('token')
   const token = stripExtension(raw)
-  const db = c.get('platform').db
 
-  if (token.startsWith('ds_')) return handleDirectShare(c, db, token)
+  if (token.startsWith('ds_')) return handleDirectShare(c, token)
   if (token.startsWith('ih_')) return handleImageHosting(c, token)
 
   return c.json({ error: 'Not found' }, 404)

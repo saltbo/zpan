@@ -275,14 +275,13 @@ describe('POST /api/shares', () => {
   })
 
   it('returns 500 when createShare throws an unexpected error', async () => {
-    const { app, db } = await createTestApp()
+    const { app, db, deps } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
     const matterId = nanoid()
     await insertFile(db, orgId, { id: matterId, name: 'file.txt' })
 
-    const shareService = await import('../services/share.js')
-    vi.spyOn(shareService, 'createShare').mockRejectedValueOnce(new Error('unexpected db error'))
+    vi.spyOn(deps.share, 'create').mockRejectedValueOnce(new Error('unexpected db error'))
 
     const res = await createShare(app, headers, { matterId, kind: 'landing' })
     expect(res.status).toBe(500)

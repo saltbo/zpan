@@ -3,11 +3,11 @@
 import { createQuotaRepo } from '../server/adapters/repos/quota'
 import { createDeps } from '../server/composition'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
-import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/services/trash-retention'
 import { syncPendingCloudTrafficReports } from '../server/usecases/cloud-traffic-metering'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/instance-telemetry'
 import { runLicensingRefresh } from '../server/usecases/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/remote-download-usage'
+import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/usecases/trash-retention'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 
 // Subset of the worker Env used by the scheduled handler.
@@ -45,7 +45,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
   }
 
   if (event.cron === TRASH_PURGE_CRON) {
-    await purgeExpiredTrash(platform.db, resolveTrashRetentionDays(env.ZPAN_TRASH_RETENTION_DAYS))
+    await purgeExpiredTrash(deps, platform.db, resolveTrashRetentionDays(env.ZPAN_TRASH_RETENTION_DAYS))
     return
   }
 
