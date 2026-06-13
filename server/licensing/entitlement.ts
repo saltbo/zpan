@@ -20,7 +20,14 @@ let cachedAt = 0
 export async function loadEntitlement(db: Database): Promise<EntitlementSummary | null> {
   const now = Date.now()
   if (cachedAt > 0 && now - cachedAt < CACHE_TTL_MS) {
-    return cachedSummary
+    // The 60s TTL must not outlive the certificate itself: a cert that expires
+    // mid-window would otherwise keep granting features until the cache lapses.
+    if (!cachedSummary) return null
+    const nowSeconds = Math.floor(now / 1000)
+    if (nowSeconds < cachedSummary.certificateExpiresAt && nowSeconds < cachedSummary.licenseValidUntil) {
+      return cachedSummary
+    }
+    // Cached cert has since expired — fall through to re-verify (yields null).
   }
 
   const state = await loadLicenseState(db)
