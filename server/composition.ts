@@ -6,7 +6,9 @@
 
 import { createActivityRepo } from './adapters/repos/activity'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
+import { createInviteRepo } from './adapters/repos/invite'
 import { createNotificationRepo } from './adapters/repos/notification'
+import { createOrgRepo } from './adapters/repos/org'
 import { createProfileRepo } from './adapters/repos/profile'
 import { createStorageRepo } from './adapters/repos/storage'
 import type { Platform } from './platform/interface'
@@ -17,7 +19,9 @@ export function createDeps(platform: Platform): Deps {
   return {
     activity: createActivityRepo(db),
     announcements: createAnnouncementRepo(db),
+    invites: createInviteRepo(db),
     notifications: createNotificationRepo(db),
+    org: createOrgRepo(db),
     profiles: createProfileRepo(db),
     storages: createStorageRepo(db),
   }

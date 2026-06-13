@@ -21,7 +21,9 @@ import {
   parseProviderConfig,
 } from '../shared/oauth-providers'
 import { createActivityRepo } from './adapters/repos/activity'
+import { createInviteRepo } from './adapters/repos/invite'
 import { createNotificationRepo } from './adapters/repos/notification'
+import { createOrgRepo } from './adapters/repos/org'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { isLocalNetworkOrigin } from './lib/local-origin'
@@ -32,8 +34,6 @@ import { CAPTCHA_AUTH_ENDPOINTS, loadCaptchaConfig, toBetterAuthCaptchaOptions }
 import { executeWriteTransaction } from './services/db-transaction'
 import { currentTrafficPeriod } from './services/effective-quota'
 import { isEmailConfigured, sendEmail } from './services/email'
-import { redeemInviteCode, validateInviteCode } from './services/invite'
-import { findPersonalOrg } from './services/org'
 import { getEffectiveSignupMode } from './services/signup-mode-guard'
 import { acceptSiteInvitation, validateSiteInvitation } from './services/site-invitations'
 import { checkTeamLimit } from './services/team-count-guard'
@@ -403,7 +403,7 @@ export async function createAuth(
                 if (!inviteCode) {
                   throw new Error('An invite code is required to register')
                 }
-                const validation = await validateInviteCode(db, inviteCode)
+                const validation = await createInviteRepo(db).validate(inviteCode)
                 if (!validation.valid) {
                   throw new Error(validation.error ?? 'Invalid invite code')
                 }
@@ -433,7 +433,7 @@ export async function createAuth(
             if (mode === SignupMode.INVITE_ONLY) {
               const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
               if (inviteCode) {
-                await redeemInviteCode(db, inviteCode, user.id)
+                await createInviteRepo(db).redeem(inviteCode, user.id)
               }
             }
 
@@ -450,7 +450,7 @@ export async function createAuth(
             // when autoSignIn is enabled the org is actually created by
             // session.create.before (which runs earlier, inside the txn).
             // The idempotent check ensures no duplicate is created.
-            const existing = await findPersonalOrg(db, user.id)
+            const existing = await createOrgRepo(db).findPersonalOrg(user.id)
             if (!existing) {
               await createPersonalOrg(db, user)
             }
@@ -461,7 +461,7 @@ export async function createAuth(
         create: {
           before: async (session) => {
             // Look up existing personal org (returning users)
-            let orgId = await findPersonalOrg(db, session.userId)
+            let orgId = await createOrgRepo(db).findPersonalOrg(session.userId)
 
             // For new sign-ups the org doesn't exist yet — create it now.
             // This runs inside the sign-up transaction, after the user row

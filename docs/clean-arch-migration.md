@@ -54,10 +54,20 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
       `deps`, so tests fake a port by spying on `testApp.deps.<x>` (replaces
       cross-boundary module spies, e.g. events SSE unread-count failure)
 
+- [x] `org` → OrgRepo (authz queries) · `invite` → InviteRepo
+
 ### Repos to extract (drizzle services → adapters/repos)
-- [ ] api-keys, background-jobs, branding, captcha
-- [ ] download-tokens, object-upload-sessions, storage-usage
-- [ ] share-notification, invite, site-invitations, site-public-origin
+- [ ] background-jobs, branding, captcha, site-invitations, site-public-origin
+- [ ] team, team-invite, matter-name-conflict
+
+### Deferred (not plain repos — handled with their cluster)
+- `download-tokens` (crypto+zod+db), `api-keys` (better-auth) → auth cluster
+- `object-upload-sessions`, `storage-usage` (s3/quota orchestration + error class) → upload/quota cluster
+- `signup-mode-guard`, `team-count-guard` (licensing dep) → after licensing port
+
+### Cleanup deferred to a final sweep
+- [ ] Remove dead `const db = c.get('platform').db` locals left in rewired handlers
+      (non-blocking biome warnings)
 - [ ] org, org-entitlements, team, team-invite, team-count-guard, user
 - [ ] matter, matter-name-conflict, share, effective-quota
 - [ ] cloud-store, cloud-traffic-metering, remote-download-usage, download (downloads/core)

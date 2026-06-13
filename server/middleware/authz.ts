@@ -1,6 +1,5 @@
 import { createMiddleware } from 'hono/factory'
 import { hasApiKeyPermission } from '../services/api-keys'
-import { getMemberRole, isPersonalOrg } from '../services/org'
 import type { Env } from './platform'
 
 const ROLE_LEVELS: Record<string, number> = {
@@ -41,12 +40,12 @@ export function requirePermission(
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
     const db = c.get('platform').db
-    const role = await getMemberRole(db, orgId, userId)
+    const role = await c.get('deps').org.getMemberRole(orgId, userId)
     if (role !== null) {
       if ((ROLE_LEVELS[role] ?? 0) < ROLE_LEVELS[opts.minTeamRole]) return c.json({ error: 'Forbidden' }, 403)
       return next()
     }
-    if (await isPersonalOrg(db, orgId)) return next()
+    if (await c.get('deps').org.isPersonalOrg(orgId)) return next()
     return c.json({ error: 'Forbidden' }, 403)
   })
 }

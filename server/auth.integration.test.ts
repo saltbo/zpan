@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import { createInviteRepo } from './adapters/repos/invite.js'
 import { createApp } from './app.js'
 import { createAuth } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
 import { inviteCodes, siteInvitations } from './db/schema.js'
-import { generateInviteCodes } from './services/invite.js'
 import { createSiteInvitation } from './services/site-invitations.js'
 import { createTestApp, seedProLicense } from './test/setup.js'
 
@@ -203,7 +203,7 @@ describe('registration gate — invite_only mode', () => {
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
     await signUp(ctx, 'first@example.com')
     const pastDate = new Date(Date.now() - 1000)
-    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1, pastDate)
+    const [codeRow] = await createInviteRepo(ctx.db).generate('admin-1', 1, pastDate)
     const res = await signUp(ctx, 'expired@example.com', { inviteCode: codeRow.code })
     expect(res.status).not.toBe(200)
   })
@@ -212,7 +212,7 @@ describe('registration gate — invite_only mode', () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
     await signUp(ctx, 'first@example.com')
-    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1)
+    const [codeRow] = await createInviteRepo(ctx.db).generate('admin-1', 1)
     const res = await signUp(ctx, 'invited@example.com', { inviteCode: codeRow.code })
     expect(res.status).toBe(200)
   })
@@ -221,7 +221,7 @@ describe('registration gate — invite_only mode', () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
     await signUp(ctx, 'first@example.com')
-    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1)
+    const [codeRow] = await createInviteRepo(ctx.db).generate('admin-1', 1)
     const res = await signUp(ctx, 'invited2@example.com', { inviteCode: codeRow.code })
     const body = (await res.json()) as { user: { id: string } }
     const [row] = await ctx.db.select().from(inviteCodes).where(eq(inviteCodes.code, codeRow.code))
@@ -233,7 +233,7 @@ describe('registration gate — invite_only mode', () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
     await signUp(ctx, 'first@example.com')
-    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1)
+    const [codeRow] = await createInviteRepo(ctx.db).generate('admin-1', 1)
     await signUp(ctx, 'user1@example.com', { inviteCode: codeRow.code })
     const res = await signUp(ctx, 'user2@example.com', { inviteCode: codeRow.code })
     expect(res.status).not.toBe(200)

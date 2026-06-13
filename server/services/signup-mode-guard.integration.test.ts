@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { createInviteRepo } from '../adapters/repos/invite.js'
 import * as schema from '../db/schema.js'
 import { createTestApp, seedProLicense as seedProLicenseRow } from '../test/setup.js'
-import { generateInviteCodes } from './invite.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
 
@@ -67,7 +67,7 @@ describe('open mode (non-Pro instance) — retroactive gate', () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'open' })
     await seedFirstUser(ctx)
-    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1)
+    const [codeRow] = await createInviteRepo(ctx.db).generate('admin-1', 1)
     const res = await signUp(ctx, 'invited@example.com', { inviteCode: codeRow.code })
     expect(res.status).toBe(200)
   })
@@ -90,7 +90,7 @@ describe('invite_only mode (Pro instance)', () => {
     await seedProLicense(ctx)
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
     await seedFirstUser(ctx)
-    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1)
+    const [codeRow] = await createInviteRepo(ctx.db).generate('admin-1', 1)
     const res = await signUp(ctx, 'invited@example.com', { inviteCode: codeRow.code })
     expect(res.status).toBe(200)
   })
@@ -111,7 +111,7 @@ describe('invite_only mode (non-Pro instance)', () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
     await seedFirstUser(ctx)
-    const [codeRow] = await generateInviteCodes(ctx.db, 'admin-1', 1)
+    const [codeRow] = await createInviteRepo(ctx.db).generate('admin-1', 1)
     const res = await signUp(ctx, 'invited@example.com', { inviteCode: codeRow.code })
     expect(res.status).toBe(200)
   })

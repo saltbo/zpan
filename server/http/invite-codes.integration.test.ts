@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generateInviteCodes, redeemInviteCode } from '../services/invite.js'
+import { createInviteRepo } from '../adapters/repos/invite.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
 // ─── Admin routes ─────────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
   it('deletes an unused code and returns deleted:true', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    const [row] = await generateInviteCodes(db, 'admin-user', 1)
+    const [row] = await createInviteRepo(db).generate('admin-user', 1)
 
     const res = await app.request(`/api/admin/invite-codes/${row.id}`, {
       method: 'DELETE',
@@ -171,8 +171,8 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
   it('returns 400 when trying to delete an already-used code', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    const [row] = await generateInviteCodes(db, 'admin-user', 1)
-    await redeemInviteCode(db, row.code, 'user-123')
+    const [row] = await createInviteRepo(db).generate('admin-user', 1)
+    await createInviteRepo(db).redeem(row.code, 'user-123')
 
     const res = await app.request(`/api/admin/invite-codes/${row.id}`, {
       method: 'DELETE',
@@ -187,7 +187,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
 describe('Public Invite Codes API — POST /validate', () => {
   it('returns valid:true for a valid unused code', async () => {
     const { app, db } = await createTestApp()
-    const [row] = await generateInviteCodes(db, 'admin-1', 1)
+    const [row] = await createInviteRepo(db).generate('admin-1', 1)
 
     const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
@@ -214,8 +214,8 @@ describe('Public Invite Codes API — POST /validate', () => {
 
   it('returns valid:false for a used code', async () => {
     const { app, db } = await createTestApp()
-    const [row] = await generateInviteCodes(db, 'admin-1', 1)
-    await redeemInviteCode(db, row.code, 'user-99')
+    const [row] = await createInviteRepo(db).generate('admin-1', 1)
+    await createInviteRepo(db).redeem(row.code, 'user-99')
 
     const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
@@ -230,7 +230,7 @@ describe('Public Invite Codes API — POST /validate', () => {
   it('returns valid:false for an expired code', async () => {
     const { app, db } = await createTestApp()
     const past = new Date(Date.now() - 1000)
-    const [row] = await generateInviteCodes(db, 'admin-1', 1, past)
+    const [row] = await createInviteRepo(db).generate('admin-1', 1, past)
 
     const res = await app.request('/api/invite-codes/validations', {
       method: 'POST',
@@ -294,7 +294,7 @@ describe('Public Invite Codes API — POST /validate', () => {
 
   it('is accessible without authentication', async () => {
     const { app, db } = await createTestApp()
-    const [row] = await generateInviteCodes(db, 'admin-1', 1)
+    const [row] = await createInviteRepo(db).generate('admin-1', 1)
 
     // No auth headers — should still work
     const res = await app.request('/api/invite-codes/validations', {

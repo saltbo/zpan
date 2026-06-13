@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+import { createOrgRepo } from '../adapters/repos/org.js'
 import * as authSchema from '../db/auth-schema.js'
 import { createBackgroundJob } from '../services/background-jobs.js'
-import { findPersonalOrg } from '../services/org.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 const decoder = new TextDecoder()
@@ -29,7 +29,7 @@ async function authedOrg(app: Awaited<ReturnType<typeof createTestApp>>) {
     .select({ id: authSchema.user.id })
     .from(authSchema.user)
     .where(eq(authSchema.user.email, 'test@example.com'))
-  const orgId = await findPersonalOrg(app.db, user.id)
+  const orgId = await createOrgRepo(app.db).findPersonalOrg(user.id)
   return { headers, userId: user.id, orgId: orgId as string }
 }
 

@@ -5,7 +5,6 @@ import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { getEffectiveQuota, getEffectiveQuotasByOrg } from '../services/effective-quota'
-import { findPersonalOrg } from '../services/org'
 
 // Quota overview across all orgs (personal + team), used by the admin dashboard.
 // Per-team entitlement management lives under /api/admin/teams.
@@ -43,7 +42,7 @@ const adminQuotas = new Hono<Env>().use(requireAdmin).get('/', async (c) => {
 const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {
   const db = c.get('platform').db
   const userId = c.get('userId')!
-  const orgId = c.get('orgId') ?? (await findPersonalOrg(db, userId))
+  const orgId = c.get('orgId') ?? (await c.get('deps').org.findPersonalOrg(userId))
 
   if (!orgId) {
     return c.json({ error: 'No organization found' }, 404)

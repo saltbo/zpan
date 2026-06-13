@@ -11,7 +11,6 @@ import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { refundTraffic } from '../services/effective-quota'
 import { listMatters } from '../services/matter'
-import { canWriteToOrg } from '../services/org'
 import {
   computeSourceBytes,
   isQuotaSufficient,
@@ -468,7 +467,7 @@ export const authedShares = new Hono<Env>()
       return c.json({ error: 'Authentication required for password-protected share' }, 401)
     }
 
-    if (!(await canWriteToOrg(db, currentUserId, targetOrgId))) {
+    if (!(await c.get('deps').org.canWriteToOrg(currentUserId, targetOrgId))) {
       return c.json({ error: 'Forbidden' }, 403)
     }
 

@@ -6,7 +6,6 @@ import { organization } from '../db/auth-schema'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deletePublicImageVariants, uploadPublicImage } from '../services/image-upload'
-import { getMemberRole, isPersonalOrg } from '../services/org'
 import { acceptInviteLink, createInviteLink, getInviteLinkInfo, listPendingInvitations } from '../services/team-invite'
 
 const LOGO_PREFIX = '_system/org-logos'
@@ -45,7 +44,7 @@ export const teams = new Hono<Env>()
     const { teamId } = c.req.param()
     const { role, expiresIn } = c.req.valid('json')
 
-    const memberRole = await getMemberRole(db, teamId, userId)
+    const memberRole = await c.get('deps').org.getMemberRole(teamId, userId)
     if (memberRole !== 'owner') return c.json({ error: 'Forbidden' }, 403)
 
     const link = await createInviteLink(db, teamId, userId, role, expiresIn)
@@ -67,7 +66,7 @@ export const teams = new Hono<Env>()
     const userId = c.get('userId')!
     const { teamId } = c.req.param()
 
-    const memberRole = await getMemberRole(db, teamId, userId)
+    const memberRole = await c.get('deps').org.getMemberRole(teamId, userId)
     if (memberRole !== 'owner') return c.json({ error: 'Forbidden' }, 403)
 
     const invitations = await listPendingInvitations(db, teamId)
@@ -100,8 +99,8 @@ export const teams = new Hono<Env>()
     const teamId = c.req.param('teamId')
     const db = c.get('platform').db
 
-    const role = await getMemberRole(db, teamId, userId)
-    if (role === null && !(await isPersonalOrg(db, teamId))) {
+    const role = await c.get('deps').org.getMemberRole(teamId, userId)
+    if (role === null && !(await c.get('deps').org.isPersonalOrg(teamId))) {
       return c.json({ error: 'Forbidden' }, 403)
     }
 
@@ -117,7 +116,7 @@ export const teams = new Hono<Env>()
     const userId = c.get('userId') as string
     const { teamId } = c.req.param()
 
-    const role = await getMemberRole(platform.db, teamId, userId)
+    const role = await c.get('deps').org.getMemberRole(teamId, userId)
     if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
 
     const form = await c.req.formData().catch(() => null)
@@ -146,7 +145,7 @@ export const teams = new Hono<Env>()
     const userId = c.get('userId') as string
     const { teamId } = c.req.param()
 
-    const role = await getMemberRole(platform.db, teamId, userId)
+    const role = await c.get('deps').org.getMemberRole(teamId, userId)
     if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
 
     await platform.db.update(organization).set({ logo: null }).where(eq(organization.id, teamId))

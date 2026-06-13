@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { deleteInviteCode, generateInviteCodes, listInviteCodes, validateInviteCode } from '../services/invite'
 
 const generateSchema = z.object({
   count: z.number().int().min(1).max(100),
@@ -27,7 +26,7 @@ export const adminInviteCodes = new Hono<Env>()
   .get('/', zValidator('query', paginationSchema), async (c) => {
     const db = c.get('platform').db
     const { page, pageSize } = c.req.valid('query')
-    const result = await listInviteCodes(db, page, pageSize)
+    const result = await c.get('deps').invites.list(page, pageSize)
     return c.json(result)
   })
   .post('/', zValidator('json', generateSchema), async (c) => {
@@ -37,7 +36,7 @@ export const adminInviteCodes = new Hono<Env>()
     const orgId = c.get('orgId')!
     const { count, expiresInDays } = c.req.valid('json')
     const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 86400000) : undefined
-    const codes = await generateInviteCodes(db, userId, count, expiresAt)
+    const codes = await c.get('deps').invites.generate(userId, count, expiresAt)
     await c.get('deps').activity.record({
       orgId,
       userId,
@@ -53,7 +52,7 @@ export const adminInviteCodes = new Hono<Env>()
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const id = c.req.param('id')
-    const result = await deleteInviteCode(db, id)
+    const result = await c.get('deps').invites.delete(id)
     if (result === 'not_found') return c.json({ error: 'Invite code not found' }, 404)
     if (result === 'already_used') return c.json({ error: 'Cannot delete a used invite code' }, 400)
     await c.get('deps').activity.record({
@@ -70,6 +69,6 @@ export const adminInviteCodes = new Hono<Env>()
 export const publicInviteCodes = new Hono<Env>().post('/validations', zValidator('json', validateSchema), async (c) => {
   const db = c.get('platform').db
   const { code } = c.req.valid('json')
-  const result = await validateInviteCode(db, code)
+  const result = await c.get('deps').invites.validate(code)
   return c.json(result)
 })

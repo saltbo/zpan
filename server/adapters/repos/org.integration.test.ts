@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import * as authSchema from '../db/auth-schema.js'
-import { createTestApp } from '../test/setup.js'
-import { findPersonalOrg } from './org.js'
+import * as authSchema from '../../db/auth-schema.js'
+import { createTestApp } from '../../test/setup.js'
+import { createOrgRepo } from './org.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -48,7 +48,7 @@ describe('findPersonalOrg', () => {
     const orgId = await insertOrg(db, { slug: `personal-${userId}` })
     await insertMember(db, orgId, userId)
 
-    const result = await findPersonalOrg(db, userId)
+    const result = await createOrgRepo(db).findPersonalOrg(userId)
     expect(result).toBe(orgId)
   })
 
@@ -56,7 +56,7 @@ describe('findPersonalOrg', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    const result = await findPersonalOrg(db, userId)
+    const result = await createOrgRepo(db).findPersonalOrg(userId)
     expect(result).toBeNull()
   })
 
@@ -66,7 +66,7 @@ describe('findPersonalOrg', () => {
     const orgId = await insertOrg(db, { slug: 'some-team-org' })
     await insertMember(db, orgId, userId)
 
-    const result = await findPersonalOrg(db, userId)
+    const result = await createOrgRepo(db).findPersonalOrg(userId)
     expect(result).toBeNull()
   })
 
@@ -78,7 +78,7 @@ describe('findPersonalOrg', () => {
     await insertMember(db, teamOrgId, userId)
     await insertMember(db, personalOrgId, userId)
 
-    const result = await findPersonalOrg(db, userId)
+    const result = await createOrgRepo(db).findPersonalOrg(userId)
     expect(result).toBe(personalOrgId)
   })
 
@@ -88,7 +88,7 @@ describe('findPersonalOrg', () => {
     await insertOrg(db, { slug: `personal-${userId}` })
     // No member row inserted — membership is load-bearing
 
-    const result = await findPersonalOrg(db, userId)
+    const result = await createOrgRepo(db).findPersonalOrg(userId)
     expect(result).toBeNull()
   })
 })

@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import * as authSchema from '../db/auth-schema.js'
-import { createTestApp } from '../test/setup.js'
-import { getMemberRole, isPersonalOrg } from './org.js'
+import * as authSchema from '../../db/auth-schema.js'
+import { createTestApp } from '../../test/setup.js'
+import { createOrgRepo } from './org.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -47,7 +47,7 @@ describe('getMemberRole', () => {
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'owner')
 
-    const result = await getMemberRole(db, orgId, userId)
+    const result = await createOrgRepo(db).getMemberRole(orgId, userId)
     expect(result).toBe('owner')
   })
 
@@ -57,7 +57,7 @@ describe('getMemberRole', () => {
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'editor')
 
-    const result = await getMemberRole(db, orgId, userId)
+    const result = await createOrgRepo(db).getMemberRole(orgId, userId)
     expect(result).toBe('editor')
   })
 
@@ -67,7 +67,7 @@ describe('getMemberRole', () => {
     const orgId = await insertOrg(db)
     await insertMember(db, orgId, userId, 'viewer')
 
-    const result = await getMemberRole(db, orgId, userId)
+    const result = await createOrgRepo(db).getMemberRole(orgId, userId)
     expect(result).toBe('viewer')
   })
 
@@ -76,7 +76,7 @@ describe('getMemberRole', () => {
     const userId = await insertUser(db)
     const orgId = await insertOrg(db)
 
-    const result = await getMemberRole(db, orgId, userId)
+    const result = await createOrgRepo(db).getMemberRole(orgId, userId)
     expect(result).toBeNull()
   })
 
@@ -84,7 +84,7 @@ describe('getMemberRole', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    const result = await getMemberRole(db, 'nonexistent-org', userId)
+    const result = await createOrgRepo(db).getMemberRole('nonexistent-org', userId)
     expect(result).toBeNull()
   })
 
@@ -92,7 +92,7 @@ describe('getMemberRole', () => {
     const { db } = await createTestApp()
     const orgId = await insertOrg(db)
 
-    const result = await getMemberRole(db, orgId, 'nonexistent-user')
+    const result = await createOrgRepo(db).getMemberRole(orgId, 'nonexistent-user')
     expect(result).toBeNull()
   })
 
@@ -104,8 +104,8 @@ describe('getMemberRole', () => {
     await insertMember(db, orgA, userId, 'editor')
     await insertMember(db, orgB, userId, 'viewer')
 
-    expect(await getMemberRole(db, orgA, userId)).toBe('editor')
-    expect(await getMemberRole(db, orgB, userId)).toBe('viewer')
+    expect(await createOrgRepo(db).getMemberRole(orgA, userId)).toBe('editor')
+    expect(await createOrgRepo(db).getMemberRole(orgB, userId)).toBe('viewer')
   })
 })
 
@@ -115,7 +115,7 @@ describe('isPersonalOrg', () => {
     const userId = nanoid()
     const orgId = await insertOrg(db, { slug: `personal-${userId}` })
 
-    const result = await isPersonalOrg(db, orgId)
+    const result = await createOrgRepo(db).isPersonalOrg(orgId)
     expect(result).toBe(true)
   })
 
@@ -123,7 +123,7 @@ describe('isPersonalOrg', () => {
     const { db } = await createTestApp()
     const orgId = await insertOrg(db, { slug: 'team-org-slug' })
 
-    const result = await isPersonalOrg(db, orgId)
+    const result = await createOrgRepo(db).isPersonalOrg(orgId)
     expect(result).toBe(false)
   })
 
@@ -131,14 +131,14 @@ describe('isPersonalOrg', () => {
     const { db } = await createTestApp()
     const orgId = await insertOrg(db, { slug: 'personal' })
 
-    const result = await isPersonalOrg(db, orgId)
+    const result = await createOrgRepo(db).isPersonalOrg(orgId)
     expect(result).toBe(false)
   })
 
   it('returns false when the org does not exist', async () => {
     const { db } = await createTestApp()
 
-    const result = await isPersonalOrg(db, 'nonexistent-org-id')
+    const result = await createOrgRepo(db).isPersonalOrg('nonexistent-org-id')
     expect(result).toBe(false)
   })
 
@@ -146,7 +146,7 @@ describe('isPersonalOrg', () => {
     const { db } = await createTestApp()
     const orgId = await insertOrg(db, { slug: 'team-personal-space' })
 
-    const result = await isPersonalOrg(db, orgId)
+    const result = await createOrgRepo(db).isPersonalOrg(orgId)
     expect(result).toBe(false)
   })
 })

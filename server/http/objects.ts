@@ -36,7 +36,6 @@ import {
   patchObjectUploadSession,
   presignObjectUploadParts,
 } from '../services/object-upload-sessions'
-import { canReadOrg, canWriteToOrg, getMemberRole, isPersonalOrg } from '../services/org'
 import { buildObjectKey, fileExt } from '../services/path-template'
 import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
@@ -105,7 +104,7 @@ const app = new Hono<Env>()
     // folders of another space the user has access to.
     const orgOverride = c.req.query('orgId')
     if (orgOverride && orgOverride !== orgId) {
-      if (!(await canReadOrg(c.get('platform').db, c.get('userId')!, orgOverride))) {
+      if (!(await c.get('deps').org.canReadOrg(c.get('userId')!, orgOverride))) {
         return c.json({ error: 'Forbidden' }, 403)
       }
       orgId = orgOverride
@@ -456,7 +455,7 @@ const app = new Hono<Env>()
     if (mode === 'move' && !(await hasEditorAccess(c))) {
       return c.json({ error: 'Forbidden' }, 403)
     }
-    if (!(await canWriteToOrg(db, userId, targetOrgId))) {
+    if (!(await c.get('deps').org.canWriteToOrg(userId, targetOrgId))) {
       return c.json({ error: 'Forbidden' }, 403)
     }
 
@@ -506,9 +505,9 @@ async function hasEditorAccess(c: Context<Env>): Promise<boolean> {
   const orgId = c.get('orgId')
   const userId = c.get('userId')
   if (!orgId || !userId) return false
-  const role = await getMemberRole(c.get('platform').db, orgId, userId)
+  const role = await c.get('deps').org.getMemberRole(orgId, userId)
   if (role !== null) return (ROLE_LEVELS[role] ?? 0) >= ROLE_LEVELS.editor
-  return isPersonalOrg(c.get('platform').db, orgId)
+  return c.get('deps').org.isPersonalOrg(orgId)
 }
 
 function actorId(c: Context<Env>): string {
