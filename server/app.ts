@@ -20,6 +20,7 @@ import { cloudStore, cloudStoreWebhooks } from './routes/cloud-store'
 import downloadTasks from './routes/download-tasks'
 import downloaders, { downloaderSelfRoute } from './routes/downloaders'
 import emailConfig from './routes/email-config'
+import { events } from './routes/events'
 import ihost from './routes/ihost'
 import ihostConfig from './routes/ihost-config'
 import internal from './routes/internal'
@@ -140,6 +141,7 @@ export function createApp(platform: Platform, auth: Auth) {
   app.route('/api/notifications', notifications)
   app.route('/api/background-jobs', backgroundJobs)
   app.route('/api/download-tasks', downloadTasks)
+  app.route('/api/events', events)
   app.route('/api/downloader', downloaderSelfRoute)
   app.route('/api/ihost', ihost)
   app.route('/api/ihost/config', ihostConfig)
@@ -238,6 +240,7 @@ export type PublicTeamsRoute = typeof publicTeams
 export type NotificationsRoute = typeof notifications
 export type BackgroundJobsRoute = typeof backgroundJobs
 export type DownloadTasksRoute = typeof downloadTasks
+export type EventsRoute = typeof events
 export type DownloadersRoute = typeof downloaders
 export type DownloaderSelfRoute = typeof downloaderSelfRoute
 export type IhostRoute = typeof ihost

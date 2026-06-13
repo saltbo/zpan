@@ -83,7 +83,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createDownloadTask, downloadTaskEventsUrl, listDownloadTasks, runDownloadTaskAction } from '@/lib/api'
+import { useServerEventSubscription } from '@/hooks/useServerEvents'
+import { createDownloadTask, listDownloadTasks, runDownloadTaskAction } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/downloads/')({
@@ -240,25 +241,18 @@ function DownloadsPage() {
     return () => observer.disconnect()
   }, [])
 
-  useEffect(() => {
-    const events = new EventSource(
-      downloadTaskEventsUrl({
-        status: statusFilterValue,
-        category: categoryFilterValue,
-        tag: tagFilterValue,
-        sortBy,
-        sortDir,
-      }),
-      {
-        withCredentials: true,
-      },
-    )
-    events.addEventListener('snapshot', (event) => {
-      const data = JSON.parse((event as MessageEvent<string>).data)
-      queryClient.setQueryData(queryKey, data)
-    })
-    return () => events.close()
-  }, [categoryFilterValue, queryClient, queryKey, sortBy, sortDir, statusFilterValue, tagFilterValue])
+  useServerEventSubscription(
+    'download-tasks',
+    {
+      downloadTasks: '1',
+      ...(statusFilterValue ? { dtStatus: statusFilterValue } : {}),
+      ...(categoryFilterValue ? { dtCategory: categoryFilterValue } : {}),
+      ...(tagFilterValue ? { dtTag: tagFilterValue } : {}),
+      dtSortBy: sortBy,
+      dtSortDir: sortDir,
+    },
+    (data) => queryClient.setQueryData(queryKey, data as Awaited<ReturnType<typeof listDownloadTasks>>),
+  )
 
   useEffect(() => {
     if (!panelDrag) return

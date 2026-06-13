@@ -33,12 +33,3 @@ describe('NotificationBell — badge label', () => {
     expect(badgeLabel(Number.MAX_SAFE_INTEGER)).toBe('9+')
   })
 })
-
-// Polling interval constant — mirrors UNREAD_POLL_INTERVAL in notification-bell.tsx
-const UNREAD_POLL_INTERVAL = 30_000
-
-describe('NotificationBell — polling interval', () => {
-  it('polls every 30 seconds', () => {
-    expect(UNREAD_POLL_INTERVAL).toBe(30_000)
-  })
-})

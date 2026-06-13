@@ -57,7 +57,6 @@ export function AppSidebar() {
       return queued.total + running.total
     },
     enabled: !!session,
-    refetchInterval: 5000,
   })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const fileType = useRouterState({ select: (s) => (s.location.search as { type?: string })?.type })

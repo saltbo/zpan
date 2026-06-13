@@ -16,6 +16,7 @@ import type {
   DownloadersRoute,
   DownloadTasksRoute,
   EmailConfigRoute,
+  EventsRoute,
   IhostConfigRoute,
   IhostRoute,
   LicensingAdminRoute,
@@ -45,7 +46,6 @@ const absoluteUrlBase = (path: string) => {
 
 export const objects = hc<ObjectsRoute>('/api/objects', opts)
 export const downloadTasksApi = hc<DownloadTasksRoute>('/api/download-tasks', opts)
-export const downloadTasksUrlApi = hc<DownloadTasksRoute>(absoluteUrlBase('/api/download-tasks'), opts)
 export const downloaderSelfApi = hc<DownloaderSelfRoute>('/api/downloader', opts)
 export const trash = hc<TrashRoute>('/api/trash', opts)
 export const storages = hc<StoragesRoute>('/api/admin/storages', opts)
@@ -69,6 +69,7 @@ export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opt
 export const announcementsApi = hc<AnnouncementsRoute>('/api/announcements', opts)
 export const adminAnnouncementsApi = hc<AdminAnnouncementsRoute>('/api/admin/announcements', opts)
 export const backgroundJobsApi = hc<BackgroundJobsRoute>('/api/background-jobs', opts)
+export const eventsUrlApi = hc<EventsRoute>(absoluteUrlBase('/api/events'), opts)
 
 // Shares are a single resource; separate clients only because Hono RPC types
 // are split across two sub-apps (public vs. authed) mounted at the same path.

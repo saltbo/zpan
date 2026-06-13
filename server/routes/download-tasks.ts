@@ -28,9 +28,6 @@ type OpenAPIContext = Context<Env> & {
   }
 }
 
-const sseEncoder = new TextEncoder()
-const downloadTaskEventIntervalMs = 2000
-
 function jsonResponse(schema: z.ZodType, description: string) {
   return { content: { 'application/json': { schema } }, description }
 }
@@ -56,20 +53,6 @@ const createRouteDoc = createRoute({
     401: jsonResponse(errorSchema, 'Unauthorized'),
     402: jsonResponse(errorSchema, 'Insufficient credits'),
     409: jsonResponse(errorSchema, 'Download task conflict'),
-  },
-})
-
-const eventsRoute = createRoute({
-  method: 'get',
-  path: '/events',
-  middleware: [requirePermission('remoteDownload', 'read')] as const,
-  request: { query: listDownloadTasksQuerySchema },
-  responses: {
-    200: {
-      content: { 'text/event-stream': { schema: z.string() } },
-      description: 'Download task events',
-    },
-    401: jsonResponse(errorSchema, 'Unauthorized'),
   },
 })
 
@@ -171,62 +154,6 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
         ),
       201,
     )
-  }) as never)
-  .openapi(eventsRoute, (async (c: OpenAPIContext) => {
-    const orgId = c.get('orgId')
-    if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
-    const query = c.req.valid('query') as z.infer<typeof listDownloadTasksQuerySchema>
-    const signal = c.req.raw.signal
-    let closed = false
-    let lastFingerprint = ''
-
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        const send = (event: string, data: unknown) => {
-          controller.enqueue(sseEncoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
-        }
-        const tick = async () => {
-          if (closed) return
-          try {
-            const result = await listDownloadTasks(c.get('platform'), {
-              orgId,
-              status: query.status,
-              category: query.category,
-              tag: query.tag,
-              sortBy: query.sortBy,
-              sortDir: query.sortDir,
-              page: query.page,
-              pageSize: query.pageSize,
-            })
-            const fingerprint = result.items.map((task) => `${task.id}:${task.status.updatedAt}`).join('|')
-            if (fingerprint !== lastFingerprint) {
-              lastFingerprint = fingerprint
-              send('snapshot', { items: result.items, total: result.total, page: query.page, pageSize: query.pageSize })
-            } else {
-              send('heartbeat', { at: new Date().toISOString() })
-            }
-          } catch (error) {
-            send('error', { message: error instanceof Error ? error.message : 'unknown error' })
-          }
-          if (!closed) setTimeout(tick, downloadTaskEventIntervalMs)
-        }
-        signal.addEventListener('abort', () => {
-          closed = true
-          controller.close()
-        })
-        void tick()
-      },
-      cancel() {
-        closed = true
-      },
-    })
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    })
   }) as never)
   .openapi(getRoute, (async (c: OpenAPIContext) => {
     const orgId = c.get('orgId')
