@@ -606,4 +606,44 @@ describe('PATCH /api/objects/:id (action: confirm) — quota enforcement via con
     const body = (await res.json()) as Record<string, unknown>
     expect(body.status).toBe('active')
   })
+
+  it('replaces a same-size file at full quota — net-neutral, incumbent purged', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    // Quota exactly full: the 100-byte incumbent fills the 100-byte quota.
+    await insertFile(db, orgId, { id: 'incumbent', name: 'doc.txt', size: 100 })
+    await setOrgQuota(db, orgId, 100, 100)
+
+    // Create the replacement draft (incumbent stays active — overwrite deferred).
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'doc.txt',
+        type: 'text/plain',
+        size: 100,
+        parent: '',
+        dirtype: 0,
+        onConflict: 'replace',
+      }),
+    })
+    expect(createRes.status).toBe(201)
+    const draft = (await createRes.json()) as { id: string }
+
+    // Confirm with replace. Before the fix this 422'd (headroom for both copies).
+    const confirmRes = await app.request(`/api/objects/${draft.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'confirm', onConflict: 'replace' }),
+    })
+    expect(confirmRes.status).toBe(200)
+
+    // Incumbent purged (overwritten, not trashed) and usage unchanged.
+    const incumbent = await db.all(sql`SELECT id FROM matters WHERE id = 'incumbent'`)
+    expect(incumbent).toHaveLength(0)
+    const quotaRows = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${orgId}`)
+    expect(quotaRows[0].used).toBe(100)
+  })
 })

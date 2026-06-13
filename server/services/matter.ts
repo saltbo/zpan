@@ -11,7 +11,7 @@ import {
   commitConflictPlan,
   planConflictResolution,
 } from './matter-name-conflict'
-import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
+import { reconcileStorageUsage, StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 
 export type Matter = typeof matters.$inferSelect
 
@@ -37,12 +37,21 @@ export async function createMatter(db: Database, input: CreateMatterInput): Prom
 
   // Resolve name collisions against existing active siblings BEFORE inserting —
   // for folders this prevents duplicates at creation; for files it catches the
-  // conflict before the client wastes a large S3 upload. confirmUpload does a
-  // second check to guard against draft-vs-active races during upload.
-  const finalName = await applyConflictResolution(db, input.orgId, parent, input.name, input.onConflict ?? 'fail', {
+  // conflict before the client wastes a large S3 upload.
+  const plan = await planConflictResolution(db, input.orgId, parent, input.name, input.onConflict ?? 'fail', {
     isFolder,
     userId: input.userId,
   })
+  // Overwriting the incumbent for a draft-file 'replace' is deferred to
+  // confirmUpload (which purges it after the new bytes land). That keeps a
+  // failed/abandoned upload from destroying the existing file, and lets the
+  // replace be charged as a net-size change. Folders, active creates, and
+  // rename commit their plan immediately.
+  const deferOverwrite = !isFolder && input.status === 'draft' && plan.toTrash !== null
+  if (!deferOverwrite) {
+    await commitConflictPlan(db, input.orgId, plan, input.userId)
+  }
+  const finalName = plan.finalName
 
   const row: Matter = {
     id: nanoid(),
@@ -267,18 +276,28 @@ export async function confirmUpload(
   db: Database,
   id: string,
   orgId: string,
-  opts: { onConflict?: ConflictStrategy; userId?: string; teamQuotaEnabled?: boolean } = {},
+  opts: {
+    onConflict?: ConflictStrategy
+    userId?: string
+    teamQuotaEnabled?: boolean
+    /**
+     * Overwrites the file being replaced: hard-purge it (delete row, S3 object,
+     * shares). With it, a 'replace' frees the incumbent's quota so the upload is
+     * charged as a net-size change — matching normal overwrite semantics. Without
+     * it, replace falls back to trashing the incumbent.
+     */
+    purgeReplaced?: (incumbent: Matter) => Promise<void>
+  } = {},
 ): Promise<{ matter: Matter | null; quotaExceeded?: boolean }> {
   try {
     const existing = await getMatter(db, id, orgId)
     if (!existing) return { matter: null }
     if (existing.status !== 'draft') return { matter: null }
 
-    // Plan-then-commit: between draft creation and now, another user may have
-    // created a conflicting active row. We plan (side-effect-free) first so the
-    // quota check below can short-circuit without ever trashing an incumbent
-    // file. The DB's partial unique index fires on the status update as a final
-    // safety net against concurrent confirms.
+    // Plan the overwrite now (side-effect-free). createMatter deferred it for
+    // draft 'replace', so the incumbent is still active and the quota check
+    // below accounts for its bytes being freed. The DB's partial unique index
+    // fires on the status update as a final safety net against concurrent confirms.
     const plan = await planConflictResolution(db, orgId, existing.parent, existing.name, opts.onConflict ?? 'fail', {
       excludeId: existing.id,
       isFolder: false,
@@ -286,12 +305,31 @@ export async function confirmUpload(
     })
 
     const bytes = existing.size ?? 0
+    // Purging the incumbent frees its bytes, so only the net size increase needs
+    // headroom; a final reconcile then sets usage to the exact active+trashed sum.
+    const overwrites = plan.toTrash != null && opts.purgeReplaced != null
+    const reserveBytes = overwrites ? Math.max(0, bytes - (plan.toTrash?.size ?? 0)) : bytes
+
     return await withStorageUsageReservation(
       db,
-      { orgId, storageId: existing.storageId, bytes, teamQuotaEnabled: opts.teamQuotaEnabled ?? true },
+      { orgId, storageId: existing.storageId, bytes: reserveBytes, teamQuotaEnabled: opts.teamQuotaEnabled ?? true },
       async () => {
-        // Quota reserved — now safe to execute the replace (if any).
-        await commitConflictPlan(db, orgId, plan, opts.userId)
+        // Quota reserved — now safe to execute the overwrite (if any).
+        if (plan.toTrash && opts.purgeReplaced) {
+          await opts.purgeReplaced(plan.toTrash)
+          if (opts.userId) {
+            await recordActivity(db, {
+              orgId,
+              userId: opts.userId,
+              action: 'replace',
+              targetType: 'file',
+              targetId: plan.toTrash.id,
+              targetName: plan.toTrash.name,
+            })
+          }
+        } else {
+          await commitConflictPlan(db, orgId, plan, opts.userId)
+        }
 
         const now = new Date()
         const updated = await db
@@ -303,6 +341,10 @@ export async function confirmUpload(
         if (updated.length === 0) {
           throw new Error('CONFIRM_UPLOAD_RACE')
         }
+
+        // The purge reconciled usage before this row became active; recompute
+        // once more so the new file's bytes are reflected.
+        if (overwrites) await reconcileStorageUsage(db, orgId, [existing.storageId])
 
         const confirmed = { ...existing, name: plan.finalName, status: 'active', updatedAt: now }
 

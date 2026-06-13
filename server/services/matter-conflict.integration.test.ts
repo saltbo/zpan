@@ -8,7 +8,7 @@ import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { ObjectStatus } from '../../shared/constants'
 import { createTestApp } from '../test/setup.js'
-import { confirmUpload, copyMatter, createMatter, restoreMatter, updateMatter } from './matter.js'
+import { cancelDraftMatter, confirmUpload, copyMatter, createMatter, restoreMatter, updateMatter } from './matter.js'
 import { NameConflictError } from './matter-name-conflict.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -147,7 +147,7 @@ describe('createMatter — name conflict', () => {
     expect(matter.name).toBe('photo (1).jpg')
   })
 
-  it('replaces existing file with onConflict: replace (existing becomes trashed)', async () => {
+  it('defers the overwrite for a draft replace — incumbent stays active until confirm', async () => {
     const { db } = await createTestApp()
     await insertStorage(db)
     const orgId = nanoid()
@@ -163,9 +163,37 @@ describe('createMatter — name conflict', () => {
       onConflict: 'replace',
     })
 
+    // The incumbent is left untouched: a failed/abandoned upload must not
+    // destroy it. confirmUpload performs the actual overwrite.
     expect(matter.name).toBe('data.csv')
     const rows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = ${existingId}`)
-    expect(rows[0].status).toBe(ObjectStatus.TRASHED)
+    expect(rows[0].status).toBe(ObjectStatus.ACTIVE)
+  })
+
+  it('keeps the incumbent intact when a deferred-replace upload is cancelled', async () => {
+    const { db } = await createTestApp()
+    await insertStorage(db)
+    const orgId = nanoid()
+    const existingId = await makeFile(db, orgId, 'data.csv')
+
+    const draft = await createMatter(db, {
+      orgId,
+      name: 'data.csv',
+      type: 'text/csv',
+      object: 'some/data.csv',
+      storageId: STORAGE_ID,
+      status: 'draft',
+      onConflict: 'replace',
+    })
+
+    // Upload aborted before confirm: cancelling the draft must leave the
+    // existing file fully intact (it was never trashed).
+    await cancelDraftMatter(db, draft.id, orgId)
+
+    const rows = await db.all<{ status: string }>(sql`SELECT status FROM matters WHERE id = ${existingId}`)
+    expect(rows[0].status).toBe(ObjectStatus.ACTIVE)
+    const draftRows = await db.all(sql`SELECT id FROM matters WHERE id = ${draft.id}`)
+    expect(draftRows).toHaveLength(0)
   })
 })
 

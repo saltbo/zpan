@@ -1,4 +1,5 @@
 import { DirType } from '@shared/constants'
+import type { ConflictStrategy } from '@shared/schemas'
 import { Upload } from 'lucide-react'
 import { forwardRef, useCallback, useImperativeHandle } from 'react'
 import { useDropzone } from 'react-dropzone'
@@ -130,20 +131,25 @@ async function uploadFile(
   ctx: UploadRunnerContext,
 ): Promise<boolean | 'cancelled'> {
   ctx.setStatus('preparing')
-  // Step 1: create draft (resolves conflict against existing actives BEFORE the S3 PUT).
+  // Step 1: create draft (detects the conflict against existing actives BEFORE
+  // the S3 PUT). For 'replace' the backend defers the overwrite to confirm, so
+  // remember the chosen strategy to reuse there without prompting again.
+  let resolvedStrategy: ConflictStrategy | undefined
   const created = prompt
     ? await withConflictRetry(
         prompt,
         'file',
-        (strategy) =>
-          createObject({
+        (strategy) => {
+          resolvedStrategy = strategy
+          return createObject({
             name: file.name,
             type: file.type || 'application/octet-stream',
             size: file.size,
             parent,
             dirtype: DirType.FILE,
             onConflict: strategy,
-          }),
+          })
+        },
         { showApplyToAll },
       )
     : await createObject({
@@ -174,11 +180,12 @@ async function uploadFile(
   }
   if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
 
-  // Step 2: confirm. Another client may have activated the same name during our
-  // S3 PUT — repeat the resolver here so replace/rename still works.
+  // Step 2: confirm using the strategy already chosen at create, so the user is
+  // not prompted twice. A conflict can still surface here if another client
+  // activated the same name during our S3 PUT — the resolver handles that.
   ctx.setStatus('confirming')
   try {
-    await confirmUpload(created.id)
+    await confirmUpload(created.id, resolvedStrategy)
   } catch (e) {
     if (!prompt || !isNameConflictError(e)) throw e
     const res = await prompt({ kind: 'file', name: e.body.conflictingName, showApplyToAll })
