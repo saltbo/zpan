@@ -7,13 +7,7 @@ import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { dispatchArchiveJob } from '../services/archive-jobs'
 import { enqueueArchiveJob } from '../services/archive-processing'
-import {
-  BackgroundJobError,
-  cancelBackgroundJob,
-  getBackgroundJob,
-  listBackgroundJobs,
-  retryBackgroundJob,
-} from '../services/background-jobs'
+import { BackgroundJobError } from '../usecases/ports'
 
 const backgroundJobs = new Hono<Env>()
   .use(requireAuth)
@@ -23,7 +17,7 @@ const backgroundJobs = new Hono<Env>()
     if (!orgId) return c.json({ error: 'No organization found' }, 404)
 
     const query = c.req.valid('query')
-    const result = await listBackgroundJobs(db, orgId, query)
+    const result = await c.get('deps').backgroundJobs.list(orgId, query)
     return c.json({ ...result, page: query.page, pageSize: query.pageSize })
   })
   .post('/', zValidator('json', createBackgroundJobRequestSchema), async (c) =>
@@ -49,13 +43,13 @@ const backgroundJobs = new Hono<Env>()
   .get('/:id', async (c) =>
     backgroundJobResponse(c, async () => {
       const orgId = requireOrg(c)
-      return getBackgroundJob(c.get('platform').db, orgId, c.req.param('id'))
+      return c.get('deps').backgroundJobs.get(orgId, c.req.param('id'))
     }),
   )
   .post('/:id/cancel', async (c) =>
     backgroundJobResponse(c, async () => {
       const orgId = requireOrg(c)
-      return cancelBackgroundJob(c.get('platform').db, orgId, c.req.param('id'))
+      return c.get('deps').backgroundJobs.cancel(orgId, c.req.param('id'))
     }),
   )
   .post('/:id/retry', async (c) =>
@@ -64,7 +58,7 @@ const backgroundJobs = new Hono<Env>()
       async () => {
         const orgId = requireOrg(c)
         const db = c.get('platform').db
-        const job = await retryBackgroundJob(db, orgId, c.req.param('id'))
+        const job = await c.get('deps').backgroundJobs.retry(orgId, c.req.param('id'))
         const request = createBackgroundJobRequestSchema.safeParse(job.metadata)
         if (request.success) {
           await dispatchArchiveJob(c.get('platform'), {

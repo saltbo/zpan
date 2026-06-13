@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+import { createBackgroundJobRepo } from '../adapters/repos/background-job.js'
 import { createOrgRepo } from '../adapters/repos/org.js'
 import * as authSchema from '../db/auth-schema.js'
-import { createBackgroundJob } from '../services/background-jobs.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 const decoder = new TextDecoder()
@@ -46,7 +46,7 @@ describe('GET /api/events', () => {
     const testApp = await createTestApp()
     const { headers, userId, orgId } = await authedOrg(testApp)
     expect(orgId).toBeTruthy()
-    await createBackgroundJob(testApp.db, { orgId, userId, type: 'archive_compress' })
+    await createBackgroundJobRepo(testApp.db).create({ orgId, userId, type: 'archive_compress' })
 
     const res = await testApp.app.request('/api/events?downloadTasks=1', { headers })
     expect(res.status).toBe(200)

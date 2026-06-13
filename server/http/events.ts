@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { listBackgroundJobs } from '../services/background-jobs'
 import { listDownloadTasks } from '../services/downloads'
 
 const encoder = new TextEncoder()
@@ -72,8 +71,8 @@ export const events = new Hono<Env>().use(requireAuth).get('/', (c) => {
 
           if (orgId) {
             const [queued, running] = await Promise.all([
-              listBackgroundJobs(platform.db, orgId, { status: 'queued', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
-              listBackgroundJobs(platform.db, orgId, { status: 'running', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
+              deps.backgroundJobs.list(orgId, { status: 'queued', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
+              deps.backgroundJobs.list(orgId, { status: 'running', page: 1, pageSize: ACTIVE_JOB_SCAN_SIZE }),
             ])
             const fingerprint = [...queued.items, ...running.items]
               .map((job) => `${job.id}:${job.status}:${job.updatedAt}:${job.progress.processedBytes}`)

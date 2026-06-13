@@ -6,6 +6,7 @@
 
 import { createActivityRepo } from './adapters/repos/activity'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
+import { createBackgroundJobRepo } from './adapters/repos/background-job'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createNotificationRepo } from './adapters/repos/notification'
 import { createOrgRepo } from './adapters/repos/org'
@@ -19,6 +20,7 @@ export function createDeps(platform: Platform): Deps {
   return {
     activity: createActivityRepo(db),
     announcements: createAnnouncementRepo(db),
+    backgroundJobs: createBackgroundJobRepo(db),
     invites: createInviteRepo(db),
     notifications: createNotificationRepo(db),
     org: createOrgRepo(db),

@@ -2,12 +2,12 @@ import type { CreateBackgroundJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
 import { and, eq } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
+import { createBackgroundJobRepo } from '../adapters/repos/background-job'
 import { createNotificationRepo } from '../adapters/repos/notification'
 import { createStorageRepo } from '../adapters/repos/storage'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import type { StorageRecord as S3StorageType } from '../usecases/ports'
-import { createBackgroundJob, updateBackgroundJob } from './background-jobs'
 import { createMatter, getMatter, purgeMatters } from './matter'
 import { buildObjectKey } from './path-template'
 import { S3Service } from './s3'
@@ -34,7 +34,7 @@ export async function createArchiveJob(db: Database, input: CreateArchiveJobInpu
 
 export async function enqueueArchiveJob(db: Database, input: CreateArchiveJobInput): Promise<BackgroundJob> {
   const targetFolder = input.request.targetFolder ?? null
-  return createBackgroundJob(db, {
+  return createBackgroundJobRepo(db).create({
     orgId: input.orgId,
     userId: input.userId,
     type: input.request.type,
@@ -50,7 +50,7 @@ export async function processArchiveJob(
 ): Promise<BackgroundJob> {
   const s3 = input.s3 ?? new S3Service()
   try {
-    await updateBackgroundJob(db, input.orgId, input.jobId, { status: 'running', startedAt: new Date() })
+    await createBackgroundJobRepo(db).update(input.orgId, input.jobId, { status: 'running', startedAt: new Date() })
     const finished =
       input.request.type === 'archive_compress'
         ? await runCompressionJob(db, s3, input.jobId, input.orgId, input.userId, input.request)
@@ -58,7 +58,7 @@ export async function processArchiveJob(
     await notifyArchiveJobFinished(db, finished)
     return finished
   } catch (error) {
-    const failed = await updateBackgroundJob(db, input.orgId, input.jobId, {
+    const failed = await createBackgroundJobRepo(db).update(input.orgId, input.jobId, {
       status: 'failed',
       errorMessage: (error as Error).message,
       retryable: false,
@@ -125,7 +125,7 @@ async function runCompressionJob(
           onConflict: 'rename',
         })
 
-        return updateBackgroundJob(db, orgId, jobId, {
+        return createBackgroundJobRepo(db).update(orgId, jobId, {
           status: 'completed',
           progress: {
             inputBytes: plan.inputBytes,
@@ -215,7 +215,7 @@ async function runExtractionJob(
           createdMatterIds.push(matter.id)
         })
 
-        return updateBackgroundJob(db, orgId, jobId, {
+        return createBackgroundJobRepo(db).update(orgId, jobId, {
           status: 'completed',
           progress: {
             inputBytes: sourceHead.size,
@@ -288,14 +288,16 @@ function createArchiveProgressReporter(
     lastReportedBytes = snapshot.processedBytes
     lastReportedFilename = snapshot.currentFilename
     writes = writes.then(() =>
-      updateBackgroundJob(db, orgId, jobId, {
-        progress: {
-          inputBytes,
-          fileCount,
-          processedBytes: snapshot.processedBytes,
-          currentFilename: snapshot.currentFilename,
-        },
-      }).then(() => undefined),
+      createBackgroundJobRepo(db)
+        .update(orgId, jobId, {
+          progress: {
+            inputBytes,
+            fileCount,
+            processedBytes: snapshot.processedBytes,
+            currentFilename: snapshot.currentFilename,
+          },
+        })
+        .then(() => undefined),
     )
     await writes
   }

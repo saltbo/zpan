@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { BackgroundJob } from '../../shared/types'
+import { createBackgroundJobRepo } from '../adapters/repos/background-job'
 import { createTestApp } from '../test/setup.js'
 import { createArchiveJob, enqueueArchiveJob, processArchiveJob } from './archive-processing'
-import { getBackgroundJob } from './background-jobs'
 import type { S3Service } from './s3'
 import { collectCompressionPlan, createZipArchiveStream, ZIP_COMPRESS_LIMITS } from './zip-compress'
 import { validateAndExtractZip, ZIP_EXTRACT_LIMITS } from './zip-extract'
@@ -832,7 +832,7 @@ async function waitForJobProgress(
 ): Promise<BackgroundJob> {
   const deadline = Date.now() + 3000
   for (;;) {
-    const job = await getBackgroundJob(db, ORG_ID, jobId)
+    const job = await createBackgroundJobRepo(db).get(ORG_ID, jobId)
     if (predicate(job)) return job
     if (Date.now() >= deadline) throw new Error('Timed out waiting for archive job progress')
     await sleep(20)

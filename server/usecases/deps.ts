@@ -5,6 +5,7 @@
 import type {
   ActivityRepo,
   AnnouncementRepo,
+  BackgroundJobRepo,
   InviteRepo,
   NotificationRepo,
   OrgRepo,
@@ -15,6 +16,7 @@ import type {
 export interface Deps {
   activity: ActivityRepo
   announcements: AnnouncementRepo
+  backgroundJobs: BackgroundJobRepo
   invites: InviteRepo
   notifications: NotificationRepo
   org: OrgRepo

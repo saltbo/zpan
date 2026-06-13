@@ -1,12 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createBackgroundJobRepo } from '../adapters/repos/background-job'
 import { ARCHIVE_QUEUE_BINDING, type ArchiveJobMessage, runArchiveJobMessage } from '../services/archive-jobs'
-import {
-  cancelBackgroundJob,
-  createBackgroundJob,
-  getBackgroundJob,
-  updateBackgroundJob,
-} from '../services/background-jobs'
 import { S3Service } from '../services/s3'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
@@ -147,11 +142,11 @@ describe('background jobs API', () => {
     const created = (await res.json()) as { id: string; status: string }
     expect(created.status).toBe('queued')
     expect(messages).toHaveLength(1)
-    await expect(getBackgroundJob(db, orgId, created.id)).resolves.toMatchObject({ status: 'queued' })
+    await expect(createBackgroundJobRepo(db).get(orgId, created.id)).resolves.toMatchObject({ status: 'queued' })
 
     await runArchiveJobMessage(platform, messages[0])
 
-    await expect(getBackgroundJob(db, orgId, created.id)).resolves.toMatchObject({
+    await expect(createBackgroundJobRepo(db).get(orgId, created.id)).resolves.toMatchObject({
       status: 'completed',
       progress: { outputBytes: 2, fileCount: 1 },
     })
@@ -233,9 +228,9 @@ describe('background jobs API', () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-list@example.com')
     const { orgId, userId } = await getUserOrg(db, 'jobs-list@example.com')
-    await createBackgroundJob(db, { orgId, userId, type: 'archive_compress' })
-    const running = await createBackgroundJob(db, { orgId, userId, type: 'archive_extract' })
-    await updateBackgroundJob(db, orgId, running.id, { status: 'running' })
+    await createBackgroundJobRepo(db).create({ orgId, userId, type: 'archive_compress' })
+    const running = await createBackgroundJobRepo(db).create({ orgId, userId, type: 'archive_extract' })
+    await createBackgroundJobRepo(db).update(orgId, running.id, { status: 'running' })
 
     const res = await app.request('/api/background-jobs?status=running&type=archive_extract&page=1&pageSize=1', {
       headers,
@@ -255,7 +250,11 @@ describe('background jobs API', () => {
     await authedHeaders(app, 'jobs-owner@example.com')
     const viewerHeaders = await authedHeaders(app, 'jobs-viewer@example.com')
     const owner = await getUserOrg(db, 'jobs-owner@example.com')
-    const job = await createBackgroundJob(db, { orgId: owner.orgId, userId: owner.userId, type: 'archive_compress' })
+    const job = await createBackgroundJobRepo(db).create({
+      orgId: owner.orgId,
+      userId: owner.userId,
+      type: 'archive_compress',
+    })
 
     const res = await app.request(`/api/background-jobs/${job.id}`, { headers: viewerHeaders })
 
@@ -267,9 +266,9 @@ describe('background jobs API', () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-cancel@example.com')
     const { orgId, userId } = await getUserOrg(db, 'jobs-cancel@example.com')
-    const queued = await createBackgroundJob(db, { orgId, userId, type: 'archive_compress' })
-    const completed = await createBackgroundJob(db, { orgId, userId, type: 'archive_extract' })
-    await updateBackgroundJob(db, orgId, completed.id, { status: 'completed' })
+    const queued = await createBackgroundJobRepo(db).create({ orgId, userId, type: 'archive_compress' })
+    const completed = await createBackgroundJobRepo(db).create({ orgId, userId, type: 'archive_extract' })
+    await createBackgroundJobRepo(db).update(orgId, completed.id, { status: 'completed' })
 
     const canceledRes = await app.request(`/api/background-jobs/${queued.id}/cancel`, { method: 'POST', headers })
     const rejectedRes = await app.request(`/api/background-jobs/${completed.id}/cancel`, { method: 'POST', headers })
@@ -284,15 +283,20 @@ describe('background jobs API', () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-retry@example.com')
     const { orgId, userId } = await getUserOrg(db, 'jobs-retry@example.com')
-    const retryable = await createBackgroundJob(db, {
+    const retryable = await createBackgroundJobRepo(db).create({
       orgId,
       userId,
       type: 'archive_extract',
       targetPath: '/imports/archive.zip',
       retryable: true,
     })
-    const notFailed = await createBackgroundJob(db, { orgId, userId, type: 'archive_compress', retryable: true })
-    await updateBackgroundJob(db, orgId, retryable.id, {
+    const notFailed = await createBackgroundJobRepo(db).create({
+      orgId,
+      userId,
+      type: 'archive_compress',
+      retryable: true,
+    })
+    await createBackgroundJobRepo(db).update(orgId, retryable.id, {
       status: 'failed',
       errorMessage: 'zip_crc_error',
       progress: { inputBytes: 128, fileCount: 4 },
@@ -308,16 +312,18 @@ describe('background jobs API', () => {
     expect(rejectedRes.status).toBe(409)
     await expect(rejectedRes.json()).resolves.toEqual({ error: 'Background job cannot be retried' })
 
-    const original = await getBackgroundJob(db, orgId, retryable.id)
+    const original = await createBackgroundJobRepo(db).get(orgId, retryable.id)
     expect(original).toMatchObject({ status: 'failed', errorMessage: 'zip_crc_error', retriedFromJobId: null })
-    await expect(cancelBackgroundJob(db, orgId, retryable.id)).rejects.toMatchObject({ code: 'not_cancelable' })
+    await expect(createBackgroundJobRepo(db).cancel(orgId, retryable.id)).rejects.toMatchObject({
+      code: 'not_cancelable',
+    })
   })
 
   it('lets non-domain service errors surface at the route boundary', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app, 'jobs-invalid-json@example.com')
     const { orgId, userId } = await getUserOrg(db, 'jobs-invalid-json@example.com')
-    const job = await createBackgroundJob(db, { orgId, userId, type: 'archive_compress' })
+    const job = await createBackgroundJobRepo(db).create({ orgId, userId, type: 'archive_compress' })
     await db.run(sql`UPDATE background_jobs SET metadata = '{invalid-json' WHERE id = ${job.id}`)
 
     const res = await app.request(`/api/background-jobs/${job.id}`, { headers })
@@ -339,9 +345,9 @@ async function waitForJob(
   orgId: string,
   jobId: string,
   status: 'completed' | 'failed',
-): Promise<Awaited<ReturnType<typeof getBackgroundJob>>> {
+): Promise<Awaited<ReturnType<ReturnType<typeof createBackgroundJobRepo>['get']>>> {
   for (let i = 0; i < 20; i++) {
-    const job = await getBackgroundJob(db, orgId, jobId)
+    const job = await createBackgroundJobRepo(db).get(orgId, jobId)
     if (job.status === status) return job
     await new Promise((resolve) => setTimeout(resolve, 10))
   }

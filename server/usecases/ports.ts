@@ -5,6 +5,7 @@
 
 export * from './ports/activity'
 export * from './ports/announcement'
+export * from './ports/background-job'
 export * from './ports/invite'
 export * from './ports/notification'
 export * from './ports/org'
