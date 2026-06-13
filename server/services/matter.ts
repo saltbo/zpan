@@ -3,15 +3,17 @@ import { and, asc, count, desc, eq, inArray, isNotNull, like, lt, or, sql } from
 import { nanoid } from 'nanoid'
 import { DirType } from '../../shared/constants'
 import { createActivityRepo } from '../adapters/repos/activity'
+import { createQuotaRepo } from '../adapters/repos/quota'
+import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
+import { StorageQuotaExceededError, withStorageUsageReservation } from '../usecases/storage-usage'
 import {
   applyConflictResolution,
   type ConflictStrategy,
   commitConflictPlan,
   planConflictResolution,
 } from './matter-name-conflict'
-import { reconcileStorageUsage, StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 
 export type Matter = typeof matters.$inferSelect
 
@@ -311,7 +313,7 @@ export async function confirmUpload(
     const reserveBytes = overwrites ? Math.max(0, bytes - (plan.toTrash?.size ?? 0)) : bytes
 
     return await withStorageUsageReservation(
-      db,
+      { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
       { orgId, storageId: existing.storageId, bytes: reserveBytes, teamQuotaEnabled: opts.teamQuotaEnabled ?? true },
       async () => {
         // Quota reserved — now safe to execute the overwrite (if any).
@@ -344,7 +346,7 @@ export async function confirmUpload(
 
         // The purge reconciled usage before this row became active; recompute
         // once more so the new file's bytes are reflected.
-        if (overwrites) await reconcileStorageUsage(db, orgId, [existing.storageId])
+        if (overwrites) await createStorageUsageRepo(db).reconcile(orgId, [existing.storageId])
 
         const confirmed = { ...existing, name: plan.finalName, status: 'active', updatedAt: now }
 

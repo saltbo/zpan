@@ -2,10 +2,12 @@ import { and, asc, eq, gt, isNotNull, like, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { AllowedImageMime } from '../../shared/schemas'
 import type { ImageHosting } from '../../shared/types'
+import { createQuotaRepo } from '../adapters/repos/quota'
+import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
 import { imageHostingConfigs, imageHostings } from '../db/schema'
 import { mimeToExt } from '../lib/mime-utils'
 import type { Database } from '../platform/interface'
-import { reconcileStorageUsage, StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
+import { StorageQuotaExceededError, withStorageUsageReservation } from '../usecases/storage-usage'
 
 // ── Token-based redirect helpers (used by /r/:token route) ───────────────────
 
@@ -245,19 +247,23 @@ export async function confirmImageHosting(
     if (existing.status !== 'draft') return { row: null }
 
     const bytes = existing.size
-    return await withStorageUsageReservation(db, { orgId, storageId: existing.storageId, bytes }, async () => {
-      const updated = await db
-        .update(imageHostings)
-        .set({ status: 'active' })
-        .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId), eq(imageHostings.status, 'draft')))
-        .returning({ id: imageHostings.id })
+    return await withStorageUsageReservation(
+      { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
+      { orgId, storageId: existing.storageId, bytes },
+      async () => {
+        const updated = await db
+          .update(imageHostings)
+          .set({ status: 'active' })
+          .where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId), eq(imageHostings.status, 'draft')))
+          .returning({ id: imageHostings.id })
 
-      if (updated.length === 0) {
-        throw new Error('CONFIRM_IMAGE_RACE')
-      }
+        if (updated.length === 0) {
+          throw new Error('CONFIRM_IMAGE_RACE')
+        }
 
-      return { row: { ...existing, status: 'active' } }
-    })
+        return { row: { ...existing, status: 'active' } }
+      },
+    )
   } catch (error) {
     if (error instanceof StorageQuotaExceededError) return { row: null, quotaExceeded: true }
     if (error instanceof Error && error.message === 'CONFIRM_IMAGE_RACE') return { row: null }
@@ -272,7 +278,7 @@ export async function deleteImageHosting(db: Database, id: string, orgId: string
   await db.delete(imageHostings).where(and(eq(imageHostings.id, id), eq(imageHostings.orgId, orgId)))
 
   if (existing.status === 'active' && existing.size > 0) {
-    await reconcileStorageUsage(db, orgId, [existing.storageId])
+    await createStorageUsageRepo(db).reconcile(orgId, [existing.storageId])
   }
 
   return existing

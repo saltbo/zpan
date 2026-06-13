@@ -4,14 +4,16 @@ import { and, eq } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
 import { createBackgroundJobRepo } from '../adapters/repos/background-job'
 import { createNotificationRepo } from '../adapters/repos/notification'
+import { createQuotaRepo } from '../adapters/repos/quota'
 import { createStorageRepo } from '../adapters/repos/storage'
+import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
 import { matters } from '../db/schema'
 import { buildObjectKey } from '../lib/path-template'
 import type { Database } from '../platform/interface'
 import type { StorageRecord as S3StorageType } from '../usecases/ports'
+import { StorageQuotaExceededError, withStorageUsageReservation } from '../usecases/storage-usage'
 import { createMatter, getMatter, purgeMatters } from './matter'
 import { S3Service } from './s3'
-import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 import { collectCompressionPlan, createZipArchiveStream } from './zip-compress'
 import { streamValidatedZip, validateZipDirectory } from './zip-extract'
 
@@ -107,7 +109,7 @@ async function runCompressionJob(
     outputBytes = await s3.putObject(targetStorage, key, createZipArchiveStream(sources, plan.directories), ZIP_MIME)
     objectWritten = true
     const job = await withStorageUsageReservation(
-      db,
+      { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
       { orgId, storageId: targetStorage.id, bytes: outputBytes },
       async (ctx) => {
         ctx.onRollback(() => s3.deleteObject(targetStorage, key))
@@ -177,7 +179,7 @@ async function runExtractionJob(
   const folderParents = new Map<string, string>()
   try {
     return await withStorageUsageReservation(
-      db,
+      { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
       { orgId, storageId: targetStorage.id, bytes: plan.totalBytes },
       async (ctx) => {
         ctx.onRollback(async () => {

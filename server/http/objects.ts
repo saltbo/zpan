@@ -39,8 +39,8 @@ import {
 import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
 import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
-import { withStorageUsageReservation } from '../services/storage-usage'
 import type { StorageRecord as S3Storage } from '../usecases/ports'
+import { withStorageUsageReservation } from '../usecases/storage-usage'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
 const s3 = new S3Service()
@@ -411,7 +411,7 @@ const app = new Hono<Env>()
 
     try {
       const copy = await withStorageUsageReservation(
-        db,
+        c.get('deps'),
         { orgId, storageId: source.storageId, bytes: sourceSize },
         async (ctx) => {
           let newObject = ''

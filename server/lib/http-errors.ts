@@ -1,7 +1,7 @@
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { NameConflictError } from '../services/matter-name-conflict'
-import { StorageQuotaExceededError } from '../services/storage-usage'
 import { WebDavPathError } from '../services/webdav-path'
+import { StorageQuotaExceededError } from '../usecases/ports'
 
 export interface DomainErrorMapping {
   status: ContentfulStatusCode

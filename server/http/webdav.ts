@@ -11,7 +11,6 @@ import type { Env } from '../middleware/platform'
 import { ApiKeyRateLimitError, verifyApiKeyForPermission } from '../services/api-keys'
 import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
 import { S3Service } from '../services/s3'
-import { reconcileStorageUsage, withStorageUsageReservation } from '../services/storage-usage'
 import {
   ensureFolder,
   joinMatterPath,
@@ -51,6 +50,7 @@ import {
   xmlResponse,
 } from '../services/webdav-xml'
 import type { StorageRecord as S3Storage } from '../usecases/ports'
+import { withStorageUsageReservation } from '../usecases/storage-usage'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
 const s3 = new S3Service()
@@ -872,7 +872,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
     try {
       return await withStorageUsageReservation(
-        db,
+        c.get('deps'),
         { orgId: workspace.id, storageId: storage.id, bytes: Math.max(0, knownSizeDelta) },
         async (ctx) => {
           const uploadedSize = await s3.putObject(storage, objectKey, body, contentType, contentLength ?? undefined)
@@ -884,7 +884,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
 
           if (contentLength === null && sizeDelta > 0) {
             return withStorageUsageReservation(
-              db,
+              c.get('deps'),
               { orgId: workspace.id, storageId: storage.id, bytes: sizeDelta },
               async () => {
                 return persistWebDavUpload(
@@ -911,7 +911,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
             contentType,
             uploadedSize,
           )
-          if (sizeDelta < 0) await reconcileStorageUsage(db, workspace.id, [storage.id])
+          if (sizeDelta < 0) await c.get('deps').storageUsage.reconcile(workspace.id, [storage.id])
           return response
         },
       )
@@ -1106,7 +1106,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
       const bytes = sourceMatter.size ?? 0
 
       return await withStorageUsageReservation(
-        db,
+        c.get('deps'),
         { orgId: sourceWorkspace.id, storageId: sourceMatter.storageId, bytes },
         async (ctx) => {
           if (sourceMatter.object && storage) {
@@ -1177,7 +1177,7 @@ async function copyCollection(
     .map((item) => ({ orgId: targetWorkspace.id, storageId: item.storageId, bytes: item.size ?? 0 }))
 
   try {
-    return await withStorageUsageReservation(db, reservationInputs, async (ctx) => {
+    return await withStorageUsageReservation(c.get('deps'), reservationInputs, async (ctx) => {
       for (const item of ordered) {
         const targetParent =
           item.parent === sourceRoot ? targetRoot : `${targetRoot}${item.parent.slice(sourceRoot.length)}`

@@ -25,8 +25,8 @@ import {
   validatePath,
 } from '../services/image-hosting'
 import { S3Service } from '../services/s3'
-import { withStorageUsageReservation } from '../services/storage-usage'
 import type { StorageRecord as S3Storage } from '../usecases/ports'
+import { withStorageUsageReservation } from '../usecases/storage-usage'
 import { PRESIGN_TTL_SECS } from './share-utils'
 
 const s3 = new S3Service()
@@ -164,7 +164,7 @@ const app = new Hono<Env>()
 
     try {
       const row = await withStorageUsageReservation(
-        db,
+        c.get('deps'),
         { orgId, storageId: storage.id, bytes: fileBytes.byteLength },
         async (ctx) => {
           const row = await createImageHosting(db, {

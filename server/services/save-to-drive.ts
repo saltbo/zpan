@@ -3,15 +3,16 @@ import { DirType } from '../../shared/constants'
 import { createActivityRepo } from '../adapters/repos/activity'
 import { createQuotaRepo } from '../adapters/repos/quota'
 import { createStorageRepo } from '../adapters/repos/storage'
+import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
 import { matters } from '../db/schema'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import type { Database } from '../platform/interface'
 import type { StorageRecord as S3StorageType } from '../usecases/ports'
+import { withStorageUsageReservation } from '../usecases/storage-usage'
 import type { Matter } from './matter'
 import { createMatter } from './matter'
 import { S3Service } from './s3'
 import type { Share, ShareResolution } from './share'
-import { withStorageUsageReservation } from './storage-usage'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -103,7 +104,7 @@ async function saveFile(
   const dstKey = buildObjectKey({ uid: currentUserId, orgId: targetOrgId, rawExt: fileExt(sourceMatter.name) })
 
   return withStorageUsageReservation(
-    db,
+    { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
     { orgId: targetOrgId, storageId: targetStorage.id, bytes, teamQuotaEnabled },
     async (ctx) => {
       if (sourceStorage.id === targetStorage.id) {
