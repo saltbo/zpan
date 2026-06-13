@@ -18,6 +18,7 @@ import type {
   S3Gateway,
   SiteInvitationRepo,
   StorageRepo,
+  SystemOptionsRepo,
   TeamInviteRepo,
   TeamRepo,
   UserAdminRepo,
@@ -39,6 +40,7 @@ export interface Deps {
   s3: S3Gateway
   siteInvitations: SiteInvitationRepo
   storages: StorageRepo
+  systemOptions: SystemOptionsRepo
   teams: TeamRepo
   teamInvites: TeamInviteRepo
   userAdmin: UserAdminRepo

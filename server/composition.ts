@@ -19,6 +19,7 @@ import { createProfileRepo } from './adapters/repos/profile'
 import { createQuotaRepo } from './adapters/repos/quota'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { createStorageRepo } from './adapters/repos/storage'
+import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { createTeamRepo } from './adapters/repos/team'
 import { createTeamInviteRepo } from './adapters/repos/team-invite'
 import { createUserAdminRepo } from './adapters/repos/user-admin'
@@ -43,6 +44,7 @@ export function createDeps(platform: Platform): Deps {
     s3: new S3Service(),
     siteInvitations: createSiteInvitationRepo(db),
     storages: createStorageRepo(db),
+    systemOptions: createSystemOptionsRepo(db),
     teams: createTeamRepo(db),
     teamInvites: createTeamInviteRepo(db),
     userAdmin: createUserAdminRepo(db),

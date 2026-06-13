@@ -1,11 +1,10 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { systemOptions } from '../db/schema'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import type { Database } from '../platform/interface'
 import { type EmailConfig, getEmailSettings, sendEmail } from '../services/email'
+import type { SystemOptionsRepo } from '../usecases/ports'
 
 const smtpConfigSchema = z.object({
   enabled: z.boolean(),
@@ -77,13 +76,9 @@ function maskConfig(config: EmailConfig): Record<string, unknown> {
   }
 }
 
-async function saveOptions(db: Database, entries: [string, string][]) {
-  const rows = entries.map(([key, value]) => ({ key, value, public: false }))
-  for (const row of rows) {
-    await db
-      .insert(systemOptions)
-      .values(row)
-      .onConflictDoUpdate({ target: systemOptions.key, set: { value: row.value, public: false } })
+async function saveOptions(repo: SystemOptionsRepo, entries: [string, string][]) {
+  for (const [key, value] of entries) {
+    await repo.set(key, value, false)
   }
 }
 
@@ -98,7 +93,6 @@ const app = new Hono<Env>()
     })
   })
   .put('/', zValidator('json', emailConfigSchema), async (c) => {
-    const db = c.get('platform').db
     const body = c.req.valid('json')
 
     const entries: [string, string][] = [
@@ -119,7 +113,7 @@ const app = new Hono<Env>()
       entries.push(['email_http_url', body.http.url], ['email_http_api_key', body.http.apiKey])
     }
 
-    await saveOptions(db, entries)
+    await saveOptions(c.get('deps').systemOptions, entries)
     return c.json({ success: true })
   })
   .post('/test-messages', zValidator('json', testEmailSchema), async (c) => {

@@ -1,5 +1,4 @@
 import { zValidator } from '@hono/zod-validator'
-import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import {
@@ -11,7 +10,6 @@ import {
 } from '../../shared/captcha'
 import { SignupMode } from '../../shared/constants'
 import { compareSemver } from '../../shared/semver'
-import { systemOptions } from '../db/schema'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { buildInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { requireAdmin } from '../middleware/auth'
@@ -41,24 +39,18 @@ const app = new Hono<Env>()
     return c.json({ currentVersion, latestVersion, updateAvailable, markdown })
   })
   .get('/options', async (c) => {
-    const db = c.get('platform').db
     const isAdmin = c.get('userRole') === 'admin'
-    const rows = isAdmin
-      ? await db.select().from(systemOptions)
-      : await db.select().from(systemOptions).where(eq(systemOptions.public, true))
-    const items = rows.map((r) => ({ key: r.key, value: r.value, public: !!r.public }))
+    const items = isAdmin ? await c.get('deps').systemOptions.list() : await c.get('deps').systemOptions.listPublic()
     return c.json({ items, total: items.length })
   })
   .get('/options/:key', async (c) => {
-    const db = c.get('platform').db
     const key = c.req.param('key')
-    const rows = await db.select().from(systemOptions).where(eq(systemOptions.key, key))
-    const row = rows[0]
+    const row = await c.get('deps').systemOptions.get(key)
     if (!row) return c.json({ error: 'Option not found' }, 404)
     if (!row.public && c.get('userRole') !== 'admin') {
       return c.json({ error: 'Forbidden' }, 403)
     }
-    return c.json({ key: row.key, value: row.value, public: !!row.public })
+    return c.json({ key: row.key, value: row.value, public: row.public })
   })
   .put('/options/:key', requireAdmin, zValidator('json', setOptionSchema), async (c) => {
     const db = c.get('platform').db
@@ -114,13 +106,10 @@ const app = new Hono<Env>()
       }
     }
 
-    const existing = await db
-      .select({ key: systemOptions.key, public: systemOptions.public })
-      .from(systemOptions)
-      .where(eq(systemOptions.key, key))
-    if (existing.length > 0) {
-      const nextPublic = isPublic ?? existing[0].public
-      await db.update(systemOptions).set({ value, public: nextPublic }).where(eq(systemOptions.key, key))
+    const existing = await c.get('deps').systemOptions.get(key)
+    if (existing) {
+      const nextPublic = isPublic ?? existing.public
+      await c.get('deps').systemOptions.set(key, value, nextPublic)
       await c.get('deps').activity.record({
         orgId,
         userId,
@@ -132,7 +121,7 @@ const app = new Hono<Env>()
       return c.json({ key, value, public: !!nextPublic })
     }
     const nextPublic = isPublic ?? false
-    await db.insert(systemOptions).values({ key, value, public: nextPublic })
+    await c.get('deps').systemOptions.set(key, value, nextPublic)
     await c.get('deps').activity.record({
       orgId,
       userId,
@@ -144,11 +133,10 @@ const app = new Hono<Env>()
     return c.json({ key, value, public: !!nextPublic }, 201)
   })
   .delete('/options/:key', requireAdmin, async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const key = c.req.param('key')
-    await db.delete(systemOptions).where(eq(systemOptions.key, key))
+    await c.get('deps').systemOptions.delete(key)
     await c.get('deps').activity.record({
       orgId,
       userId,

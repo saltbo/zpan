@@ -1,5 +1,4 @@
 import { zValidator } from '@hono/zod-validator'
-import { eq, like } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { FREE_SOCIAL_LOGIN_LIMIT } from '../../shared/constants'
@@ -11,7 +10,6 @@ import {
   OAuthProviderMeta,
   parseProviderConfig,
 } from '../../shared/oauth-providers'
-import { systemOptions } from '../db/schema'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
@@ -36,8 +34,7 @@ const upsertSchema = z.object({
 
 // Public: enabled providers only, no secrets (for login page buttons)
 export const publicAuthProviders = new Hono<Env>().get('/', async (c) => {
-  const db = c.get('platform').db
-  const rows = await db.select().from(systemOptions).where(like(systemOptions.key, OAUTH_PROVIDER_KEY_PATTERN))
+  const rows = await c.get('deps').systemOptions.listByKeyLike(OAUTH_PROVIDER_KEY_PATTERN)
   const items = rows
     .map((r) => {
       const config = parseProviderConfig(r.value)
@@ -58,8 +55,7 @@ export const publicAuthProviders = new Hono<Env>().get('/', async (c) => {
 export const adminAuthProviders = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => {
-    const db = c.get('platform').db
-    const rows = await db.select().from(systemOptions).where(like(systemOptions.key, OAUTH_PROVIDER_KEY_PATTERN))
+    const rows = await c.get('deps').systemOptions.listByKeyLike(OAUTH_PROVIDER_KEY_PATTERN)
     const items = rows
       .map((r) => {
         const config = parseProviderConfig(r.value)
@@ -88,15 +84,12 @@ export const adminAuthProviders = new Hono<Env>()
     const key = optionKey(providerId)
     const value = JSON.stringify(config)
 
-    const existing = await db.select({ key: systemOptions.key }).from(systemOptions).where(eq(systemOptions.key, key))
-    if (existing.length > 0) {
-      await db.update(systemOptions).set({ value, public: false }).where(eq(systemOptions.key, key))
+    const existing = await c.get('deps').systemOptions.get(key)
+    if (existing) {
+      await c.get('deps').systemOptions.set(key, value, false)
     } else {
       const [configured, state] = await Promise.all([
-        db
-          .select({ key: systemOptions.key })
-          .from(systemOptions)
-          .where(like(systemOptions.key, OAUTH_PROVIDER_KEY_PATTERN)),
+        c.get('deps').systemOptions.listByKeyLike(OAUTH_PROVIDER_KEY_PATTERN),
         loadBindingState(db),
       ])
       if (!hasFeature('social_login_unlimited', state) && configured.length >= FREE_SOCIAL_LOGIN_LIMIT) {
@@ -111,17 +104,16 @@ export const adminAuthProviders = new Hono<Env>()
           402,
         )
       }
-      await db.insert(systemOptions).values({ key, value, public: false })
+      await c.get('deps').systemOptions.set(key, value, false)
     }
 
     return c.json({ ...config, clientSecret: maskSecret(config.clientSecret) })
   })
   .delete('/:providerId', async (c) => {
-    const db = c.get('platform').db
     const providerId = c.req.param('providerId')
     if (!isValidProviderId(providerId)) {
       return c.json({ error: 'Provider ID must contain only lowercase letters, numbers, and hyphens' }, 400)
     }
-    await db.delete(systemOptions).where(eq(systemOptions.key, optionKey(providerId)))
+    await c.get('deps').systemOptions.delete(optionKey(providerId))
     return c.json({ providerId, deleted: true })
   })
