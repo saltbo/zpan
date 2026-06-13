@@ -125,5 +125,9 @@ export function createTeamRepo(db: Database): TeamRepo {
         createdAt: org.createdAt.getTime(),
       } satisfies TeamSummary
     },
+
+    async setLogo(orgId, logo) {
+      await db.update(organization).set({ logo }).where(eq(organization.id, orgId))
+    },
   }
 }

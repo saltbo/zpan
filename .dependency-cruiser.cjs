@@ -20,7 +20,7 @@
 // --- RATCHET: not-yet-migrated drizzle importers (shrink me) -----------------
 const MIGRATION_PENDING = [
   '^server/services', // the whole legacy services/ dir; deleted when migration completes
-  '^server/http/(auth-providers|ihost|ihost-config|shares|teams|webdav)\\.ts',
+  '^server/http/(auth-providers|ihost|ihost-config|shares|webdav)\\.ts',
   '^server/middleware/(auth|image-hosting-domain)\\.ts',
 ].join('|')
 // -----------------------------------------------------------------------------

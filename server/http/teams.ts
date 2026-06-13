@@ -1,8 +1,6 @@
 import { zValidator } from '@hono/zod-validator'
-import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { organization } from '../db/auth-schema'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deletePublicImageVariants, uploadPublicImage } from '../services/image-upload'
@@ -27,7 +25,6 @@ export const publicTeams = new Hono<Env>().get(
   '/invite-info',
   zValidator('query', z.object({ token: z.string().min(1) })),
   async (c) => {
-    const db = c.get('platform').db
     const { token } = c.req.valid('query')
     const info = await c.get('deps').teamInvites.getInviteLinkInfo(token)
     if (!info) return c.json({ error: 'Invalid or expired invite link' }, 404)
@@ -38,7 +35,6 @@ export const publicTeams = new Hono<Env>().get(
 export const teams = new Hono<Env>()
   .use(requireAuth)
   .post('/:teamId/invite-link', zValidator('json', createLinkSchema), async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const { teamId } = c.req.param()
     const { role, expiresIn } = c.req.valid('json')
@@ -61,7 +57,6 @@ export const teams = new Hono<Env>()
     return c.json({ token: link.token, expiresAt: link.expiresAt }, 201)
   })
   .get('/:teamId/invitations', async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const { teamId } = c.req.param()
 
@@ -72,7 +67,6 @@ export const teams = new Hono<Env>()
     return c.json({ invitations })
   })
   .post('/:teamId/members', zValidator('json', joinSchema), async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const { token } = c.req.valid('json')
     const { teamId } = c.req.param()
@@ -96,7 +90,6 @@ export const teams = new Hono<Env>()
   .get('/:teamId/activity', zValidator('query', activityQuerySchema), async (c) => {
     const userId = c.get('userId')!
     const teamId = c.req.param('teamId')
-    const db = c.get('platform').db
 
     const role = await c.get('deps').org.getMemberRole(teamId, userId)
     if (role === null && !(await c.get('deps').org.isPersonalOrg(teamId))) {
@@ -126,7 +119,7 @@ export const teams = new Hono<Env>()
     const result = await uploadPublicImage(platform, LOGO_PREFIX, teamId, file)
     if (!result.ok) return c.json({ error: result.error }, result.status)
 
-    await platform.db.update(organization).set({ logo: result.url }).where(eq(organization.id, teamId))
+    await c.get('deps').teams.setLogo(teamId, result.url)
 
     await c.get('deps').activity.record({
       orgId: teamId,
@@ -147,7 +140,7 @@ export const teams = new Hono<Env>()
     const role = await c.get('deps').org.getMemberRole(teamId, userId)
     if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
 
-    await platform.db.update(organization).set({ logo: null }).where(eq(organization.id, teamId))
+    await c.get('deps').teams.setLogo(teamId, null)
     await deletePublicImageVariants(platform, LOGO_PREFIX, teamId)
 
     await c.get('deps').activity.record({

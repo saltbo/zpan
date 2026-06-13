@@ -13,4 +13,5 @@ export interface TeamSummary {
 export interface TeamRepo {
   listTeams(): Promise<TeamSummary[]>
   getTeam(orgId: string): Promise<TeamSummary | null>
+  setLogo(orgId: string, logo: string | null): Promise<void>
 }
