@@ -34,7 +34,7 @@ async function signUpAndGetUser(app: TestApp, email: string) {
 // ─── Auth guard ───────────────────────────────────────────────────────────────
 
 describe('GET /api/notifications (auth guard)', () => {
-  it('returns 401 without auth', async () => {
+  it('returns 401 without auth [spec: notifications/auth]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/notifications')
     expect(res.status).toBe(401)
@@ -56,7 +56,7 @@ describe('GET /api/notifications', () => {
     expect(body.unreadCount).toBe(0)
   })
 
-  it('returns notifications with pagination', async () => {
+  it('returns notifications with pagination [spec: notifications/list]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 
@@ -73,7 +73,7 @@ describe('GET /api/notifications', () => {
     expect(body.pageSize).toBe(3)
   })
 
-  it('filters unread notifications', async () => {
+  it('filters unread notifications [spec: notifications/unread-filter]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 
@@ -93,7 +93,7 @@ describe('GET /api/notifications', () => {
     expect(body.items[0].title).toBe('Unread')
   })
 
-  it('does not return other users notifications', async () => {
+  it('does not return other users notifications [spec: notifications/isolation]', async () => {
     const { app, db } = await createTestApp()
     const { headers } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
     const otherId = await insertUser(db)
@@ -109,7 +109,7 @@ describe('GET /api/notifications', () => {
 // ─── GET /api/notifications/stats ─────────────────────────────────────
 
 describe('GET /api/notifications/stats', () => {
-  it('returns correct count', async () => {
+  it('returns correct count [spec: notifications/stats]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 
@@ -126,7 +126,7 @@ describe('GET /api/notifications/stats', () => {
 // ─── PATCH /api/notifications/:id ────────────────────────────────────────
 
 describe('PATCH /api/notifications/:id', () => {
-  it('marks notification as read and returns 204', async () => {
+  it('marks notification as read and returns 204 [spec: notifications/mark-read]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
     const n = await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'Test' })
@@ -161,7 +161,7 @@ describe('PATCH /api/notifications/:id', () => {
     expect(res.status).toBe(204)
   })
 
-  it('returns 404 for a notification owned by another user', async () => {
+  it('returns 404 for a notification owned by another user [spec: notifications/mark-read-foreign]', async () => {
     const { app, db } = await createTestApp()
     const { headers } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
     const otherId = await insertUser(db)
@@ -191,7 +191,7 @@ describe('PATCH /api/notifications/:id', () => {
 // ─── PATCH /api/notifications ────────────────────────────────────────
 
 describe('PATCH /api/notifications', () => {
-  it('marks all notifications as read and returns count', async () => {
+  it('marks all notifications as read and returns count [spec: notifications/mark-all]', async () => {
     const { app, db } = await createTestApp()
     const { headers, userId } = await signUpAndGetUser(app, `${nanoid()}@example.com`)
 

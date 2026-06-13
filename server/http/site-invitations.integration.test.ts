@@ -21,13 +21,13 @@ describe('Admin Site Invitations API — auth guards', () => {
     vi.unstubAllGlobals()
   })
 
-  it('GET / returns 401 without auth', async () => {
+  it('GET / returns 401 without auth [spec: site-invitations/admin-auth]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/admin/site-invitations')
     expect(res.status).toBe(401)
   })
 
-  it('POST / returns 403 for a non-admin user', async () => {
+  it('POST / returns 403 for a non-admin user [spec: site-invitations/admin-only]', async () => {
     const { app } = await createTestApp()
     stubEmailProvider()
     await adminHeaders(app)
@@ -57,7 +57,7 @@ describe('Admin Site Invitations API', () => {
     ])
   }
 
-  it('creates an invitation and returns 201', async () => {
+  it('creates an invitation and returns 201 [spec: site-invitations/create]', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -76,7 +76,7 @@ describe('Admin Site Invitations API', () => {
     expect(body.status).toBe('pending')
   })
 
-  it('lists invitations with total count', async () => {
+  it('lists invitations with total count [spec: site-invitations/list]', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -95,7 +95,7 @@ describe('Admin Site Invitations API', () => {
     expect(body.items[0]?.email).toBe('invitee@example.com')
   })
 
-  it('resends an invitation and rotates the token', async () => {
+  it('resends an invitation and rotates the token [spec: site-invitations/resend]', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -118,7 +118,7 @@ describe('Admin Site Invitations API', () => {
     expect(resent.token).not.toBe(created.token)
   })
 
-  it('revokes an invitation', async () => {
+  it('revokes an invitation [spec: site-invitations/revoke]', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -141,7 +141,7 @@ describe('Admin Site Invitations API', () => {
     expect(body.revoked).toBe(true)
   })
 
-  it('returns 409 when creating a duplicate pending invitation', async () => {
+  it('returns 409 when creating a duplicate pending invitation [spec: site-invitations/duplicate]', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -168,7 +168,7 @@ describe('Public Site Invitations API', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns an invitation by token', async () => {
+  it('returns an invitation by token [spec: site-invitations/by-token]', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await ctx.db.insert(systemOptions).values([

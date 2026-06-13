@@ -15,13 +15,13 @@ const validStorage = {
 }
 
 describe('Admin Storages API', () => {
-  it('returns 401 without auth', async () => {
+  it('returns 401 without auth [spec: storages/auth-required]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/admin/storages')
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 for non-admin user', async () => {
+  it('returns 403 for non-admin user [spec: storages/admin-only]', async () => {
     const { app } = await createTestApp()
     // First user becomes admin
     await authedHeaders(app, 'admin@example.com')
@@ -46,7 +46,7 @@ describe('Admin Storages API', () => {
     expect(body).toEqual({ items: [], total: 0 })
   })
 
-  it('POST / creates a storage', async () => {
+  it('POST / creates a storage [spec: storages/create]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/storages', {
@@ -65,7 +65,7 @@ describe('Admin Storages API', () => {
     expect(body.id).toBeTruthy()
   })
 
-  it('POST / returns 402 when Community storage limit is reached', async () => {
+  it('POST / returns 402 when Community storage limit is reached [spec: storages/community-limit]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -91,7 +91,7 @@ describe('Admin Storages API', () => {
     expect(body.limit).toBe(FREE_STORAGE_LIMIT)
   })
 
-  it('GET / lists created storages', async () => {
+  it('GET / lists created storages [spec: storages/list]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -109,7 +109,7 @@ describe('Admin Storages API', () => {
     expect(body.items[0].title).toBe('Test S3')
   })
 
-  it('GET /:id returns storage detail', async () => {
+  it('GET /:id returns storage detail [spec: storages/detail]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -134,7 +134,7 @@ describe('Admin Storages API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PUT /:id updates a storage', async () => {
+  it('PUT /:id updates a storage [spec: storages/update]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -167,7 +167,7 @@ describe('Admin Storages API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /:id deletes a storage', async () => {
+  it('DELETE /:id deletes a storage [spec: storages/delete]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -197,7 +197,7 @@ describe('Admin Storages API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /:id returns 409 when matters reference the storage', async () => {
+  it('DELETE /:id returns 409 when matters reference the storage [spec: storages/delete-in-use]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -246,7 +246,7 @@ async function insertStorage(
 }
 
 describe('selectStorage service', () => {
-  it('returns the single active storage when capacity is unlimited (0)', async () => {
+  it('returns the single active storage when capacity is unlimited (0) [spec: storages/select-active]', async () => {
     const { db } = await createTestApp()
     await insertStorage(db, { id: 's1', mode: 'private', capacity: 0, used: 0 })
 

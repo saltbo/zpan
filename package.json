@@ -32,6 +32,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "lint:arch": "depcruise server/ shared/ --config .dependency-cruiser.cjs",
+    "lint:spec": "node scripts/lint-spec.mjs",
     "prepare": "husky",
     "format": "biome format --write .",
     "e2e": "playwright test",

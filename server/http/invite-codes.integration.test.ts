@@ -5,13 +5,13 @@ import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 // ─── Admin routes ─────────────────────────────────────────────────────────────
 
 describe('Admin Invite Codes API — auth guards', () => {
-  it('GET / returns 401 without auth', async () => {
+  it('GET / returns 401 without auth [spec: invite-codes/admin-auth]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/admin/invite-codes')
     expect(res.status).toBe(401)
   })
 
-  it('GET / returns 403 for a non-admin user', async () => {
+  it('GET / returns 403 for a non-admin user [spec: invite-codes/admin-only]', async () => {
     const { app } = await createTestApp()
     await adminHeaders(app) // first user becomes admin
     const headers = await authedHeaders(app, 'regular@example.com')
@@ -46,7 +46,7 @@ describe('Admin Invite Codes API — GET /', () => {
     expect(body).toEqual({ items: [], total: 0 })
   })
 
-  it('returns created codes with correct total', async () => {
+  it('returns created codes with correct total [spec: invite-codes/list]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -82,7 +82,7 @@ describe('Admin Invite Codes API — GET /', () => {
 })
 
 describe('Admin Invite Codes API — POST /', () => {
-  it('creates the requested number of codes and returns 201', async () => {
+  it('creates the requested number of codes and returns 201 [spec: invite-codes/generate]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes', {
@@ -95,7 +95,7 @@ describe('Admin Invite Codes API — POST /', () => {
     expect(body.codes).toHaveLength(4)
   })
 
-  it('creates codes with an expiry when expiresInDays is provided', async () => {
+  it('creates codes with an expiry when expiresInDays is provided [spec: invite-codes/generate-expiry]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes', {
@@ -119,7 +119,7 @@ describe('Admin Invite Codes API — POST /', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when count exceeds maximum of 100', async () => {
+  it('returns 400 when count exceeds maximum of 100 [spec: invite-codes/generate-limit]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/invite-codes', {
@@ -143,7 +143,7 @@ describe('Admin Invite Codes API — POST /', () => {
 })
 
 describe('Admin Invite Codes API — DELETE /:id', () => {
-  it('deletes an unused code and returns deleted:true', async () => {
+  it('deletes an unused code and returns deleted:true [spec: invite-codes/delete]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const [row] = await createInviteRepo(db).generate('admin-user', 1)
@@ -168,7 +168,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 400 when trying to delete an already-used code', async () => {
+  it('returns 400 when trying to delete an already-used code [spec: invite-codes/delete-used]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const [row] = await createInviteRepo(db).generate('admin-user', 1)
@@ -185,7 +185,7 @@ describe('Admin Invite Codes API — DELETE /:id', () => {
 // ─── Public routes ────────────────────────────────────────────────────────────
 
 describe('Public Invite Codes API — POST /validate', () => {
-  it('returns valid:true for a valid unused code', async () => {
+  it('returns valid:true for a valid unused code [spec: invite-codes/validate]', async () => {
     const { app, db } = await createTestApp()
     const [row] = await createInviteRepo(db).generate('admin-1', 1)
 

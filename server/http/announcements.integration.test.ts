@@ -28,7 +28,7 @@ describe('Admin Announcements API', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 for non-admin users', async () => {
+  it('returns 403 for non-admin users [spec: announcements/admin-only]', async () => {
     const { app } = await createTestApp()
     await adminHeaders(app)
     const headers = await authedHeaders(app, 'user@example.com')
@@ -47,7 +47,7 @@ describe('Admin Announcements API', () => {
     expect(body.feature).toBe('site_announcements')
   })
 
-  it('creates, lists, updates, and deletes an announcement', async () => {
+  it('creates, lists, updates, and deletes an announcement [spec: announcements/crud]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedBusinessLicense(db)
@@ -100,7 +100,7 @@ describe('User Announcements API', () => {
     expect(body.feature).toBe('site_announcements')
   })
 
-  it('returns active announcements', async () => {
+  it('returns active announcements [spec: announcements/user-active]', async () => {
     const ctx = await createTestApp()
     const { app } = ctx
     const created = await createPublishedAnnouncement(ctx)
@@ -113,7 +113,7 @@ describe('User Announcements API', () => {
     expect(active.items[0].id).toBe(created.id)
   })
 
-  it('keeps archived announcements in history but not active list', async () => {
+  it('keeps archived announcements in history but not active list [spec: announcements/archived-history]', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
     await seedBusinessLicense(db)
@@ -142,7 +142,7 @@ describe('User Announcements API', () => {
     expect(history.items[0]).toMatchObject({ id: created.id, status: 'archived' })
   })
 
-  it('does not include draft announcements in history', async () => {
+  it('does not include draft announcements in history [spec: announcements/no-drafts]', async () => {
     const { app, db } = await createTestApp()
     const admin = await adminHeaders(app)
     await seedBusinessLicense(db)
@@ -159,7 +159,7 @@ describe('User Announcements API', () => {
     expect(body.total).toBe(0)
   })
 
-  it('rejects invalid pagination query values', async () => {
+  it('rejects invalid pagination query values [spec: announcements/pagination-validation]', async () => {
     const ctx = await createTestApp()
     const { app } = ctx
     await createPublishedAnnouncement(ctx)

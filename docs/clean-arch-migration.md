@@ -104,6 +104,14 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
       When the list is empty the architecture is fully locked.
 - [x] `platform/` (Database driver type) + `auth.ts` are permanent named exceptions.
 
+### Product specs (BDD-lite) — established, grows with migration
+- [x] `spec/` Gherkin `.feature` files (one per capability) + `spec/README.md`
+- [x] `[spec: <id>]` breadcrumbs on home tests; `pnpm lint:spec` (in CI) enforces
+      spec↔test traceability both ways (orphan scenarios AND stale breadcrumbs fail)
+- [x] Specced so far: storages, announcements, notifications, invite-codes,
+      site-invitations (41 scenarios). **Each migrated capability adds its
+      `.feature` + breadcrumbs** — keep `lint:spec` green.
+
 ### Final cleanup (when ratchet empty)
 - [ ] Delete emptied `services/`; remove transitional shims + the ratchet allowlist
 - [ ] Remove dead `const db` locals; (optional) move `Database` type into `db/`

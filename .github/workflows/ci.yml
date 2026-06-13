@@ -56,6 +56,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm lint:arch
+      - run: pnpm lint:spec
       - run: pnpm typecheck
       - run: pnpm openapi:downloader:check
       - run: pnpm exec vitest run --project unit --coverage --coverage.reportsDirectory=coverage/unit
