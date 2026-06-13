@@ -213,13 +213,13 @@ func (e GetApiDownloadTasksParamsStatus) Valid() bool {
 
 // Defines values for GetApiDownloadTasksParamsAssignedTo.
 const (
-	GetApiDownloadTasksParamsAssignedToMe GetApiDownloadTasksParamsAssignedTo = "me"
+	Me GetApiDownloadTasksParamsAssignedTo = "me"
 )
 
 // Valid indicates whether the value is a known member of the GetApiDownloadTasksParamsAssignedTo enum.
 func (e GetApiDownloadTasksParamsAssignedTo) Valid() bool {
 	switch e {
-	case GetApiDownloadTasksParamsAssignedToMe:
+	case Me:
 		return true
 	default:
 		return false
@@ -228,31 +228,31 @@ func (e GetApiDownloadTasksParamsAssignedTo) Valid() bool {
 
 // Defines values for GetApiDownloadTasksParamsSortBy.
 const (
-	GetApiDownloadTasksParamsSortByCategory  GetApiDownloadTasksParamsSortBy = "category"
-	GetApiDownloadTasksParamsSortByCreatedAt GetApiDownloadTasksParamsSortBy = "createdAt"
-	GetApiDownloadTasksParamsSortByEta       GetApiDownloadTasksParamsSortBy = "eta"
-	GetApiDownloadTasksParamsSortByProgress  GetApiDownloadTasksParamsSortBy = "progress"
-	GetApiDownloadTasksParamsSortBySource    GetApiDownloadTasksParamsSortBy = "source"
-	GetApiDownloadTasksParamsSortByStatus    GetApiDownloadTasksParamsSortBy = "status"
-	GetApiDownloadTasksParamsSortByTags      GetApiDownloadTasksParamsSortBy = "tags"
+	Category  GetApiDownloadTasksParamsSortBy = "category"
+	CreatedAt GetApiDownloadTasksParamsSortBy = "createdAt"
+	Eta       GetApiDownloadTasksParamsSortBy = "eta"
+	Progress  GetApiDownloadTasksParamsSortBy = "progress"
+	Source    GetApiDownloadTasksParamsSortBy = "source"
+	Status    GetApiDownloadTasksParamsSortBy = "status"
+	Tags      GetApiDownloadTasksParamsSortBy = "tags"
 )
 
 // Valid indicates whether the value is a known member of the GetApiDownloadTasksParamsSortBy enum.
 func (e GetApiDownloadTasksParamsSortBy) Valid() bool {
 	switch e {
-	case GetApiDownloadTasksParamsSortByCategory:
+	case Category:
 		return true
-	case GetApiDownloadTasksParamsSortByCreatedAt:
+	case CreatedAt:
 		return true
-	case GetApiDownloadTasksParamsSortByEta:
+	case Eta:
 		return true
-	case GetApiDownloadTasksParamsSortByProgress:
+	case Progress:
 		return true
-	case GetApiDownloadTasksParamsSortBySource:
+	case Source:
 		return true
-	case GetApiDownloadTasksParamsSortByStatus:
+	case Status:
 		return true
-	case GetApiDownloadTasksParamsSortByTags:
+	case Tags:
 		return true
 	default:
 		return false
@@ -261,16 +261,16 @@ func (e GetApiDownloadTasksParamsSortBy) Valid() bool {
 
 // Defines values for GetApiDownloadTasksParamsSortDir.
 const (
-	GetApiDownloadTasksParamsSortDirAsc  GetApiDownloadTasksParamsSortDir = "asc"
-	GetApiDownloadTasksParamsSortDirDesc GetApiDownloadTasksParamsSortDir = "desc"
+	Asc  GetApiDownloadTasksParamsSortDir = "asc"
+	Desc GetApiDownloadTasksParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the GetApiDownloadTasksParamsSortDir enum.
 func (e GetApiDownloadTasksParamsSortDir) Valid() bool {
 	switch e {
-	case GetApiDownloadTasksParamsSortDirAsc:
+	case Asc:
 		return true
-	case GetApiDownloadTasksParamsSortDirDesc:
+	case Desc:
 		return true
 	default:
 		return false
@@ -574,120 +574,6 @@ func (e PostApiDownloadTasks201JSONResponseBodyStatusState) Valid() bool {
 	case PostApiDownloadTasks201JSONResponseBodyStatusStateSuspended:
 		return true
 	case PostApiDownloadTasks201JSONResponseBodyStatusStateUploading:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetApiDownloadTasksEventsParamsStatus.
-const (
-	GetApiDownloadTasksEventsParamsStatusAssigned    GetApiDownloadTasksEventsParamsStatus = "assigned"
-	GetApiDownloadTasksEventsParamsStatusCanceled    GetApiDownloadTasksEventsParamsStatus = "canceled"
-	GetApiDownloadTasksEventsParamsStatusCanceling   GetApiDownloadTasksEventsParamsStatus = "canceling"
-	GetApiDownloadTasksEventsParamsStatusCompleted   GetApiDownloadTasksEventsParamsStatus = "completed"
-	GetApiDownloadTasksEventsParamsStatusDownloading GetApiDownloadTasksEventsParamsStatus = "downloading"
-	GetApiDownloadTasksEventsParamsStatusFailed      GetApiDownloadTasksEventsParamsStatus = "failed"
-	GetApiDownloadTasksEventsParamsStatusInterrupted GetApiDownloadTasksEventsParamsStatus = "interrupted"
-	GetApiDownloadTasksEventsParamsStatusPaused      GetApiDownloadTasksEventsParamsStatus = "paused"
-	GetApiDownloadTasksEventsParamsStatusPausing     GetApiDownloadTasksEventsParamsStatus = "pausing"
-	GetApiDownloadTasksEventsParamsStatusQueued      GetApiDownloadTasksEventsParamsStatus = "queued"
-	GetApiDownloadTasksEventsParamsStatusSuspended   GetApiDownloadTasksEventsParamsStatus = "suspended"
-	GetApiDownloadTasksEventsParamsStatusUploading   GetApiDownloadTasksEventsParamsStatus = "uploading"
-)
-
-// Valid indicates whether the value is a known member of the GetApiDownloadTasksEventsParamsStatus enum.
-func (e GetApiDownloadTasksEventsParamsStatus) Valid() bool {
-	switch e {
-	case GetApiDownloadTasksEventsParamsStatusAssigned:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusCanceled:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusCanceling:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusCompleted:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusDownloading:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusFailed:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusInterrupted:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusPaused:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusPausing:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusQueued:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusSuspended:
-		return true
-	case GetApiDownloadTasksEventsParamsStatusUploading:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetApiDownloadTasksEventsParamsAssignedTo.
-const (
-	GetApiDownloadTasksEventsParamsAssignedToMe GetApiDownloadTasksEventsParamsAssignedTo = "me"
-)
-
-// Valid indicates whether the value is a known member of the GetApiDownloadTasksEventsParamsAssignedTo enum.
-func (e GetApiDownloadTasksEventsParamsAssignedTo) Valid() bool {
-	switch e {
-	case GetApiDownloadTasksEventsParamsAssignedToMe:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetApiDownloadTasksEventsParamsSortBy.
-const (
-	GetApiDownloadTasksEventsParamsSortByCategory  GetApiDownloadTasksEventsParamsSortBy = "category"
-	GetApiDownloadTasksEventsParamsSortByCreatedAt GetApiDownloadTasksEventsParamsSortBy = "createdAt"
-	GetApiDownloadTasksEventsParamsSortByEta       GetApiDownloadTasksEventsParamsSortBy = "eta"
-	GetApiDownloadTasksEventsParamsSortByProgress  GetApiDownloadTasksEventsParamsSortBy = "progress"
-	GetApiDownloadTasksEventsParamsSortBySource    GetApiDownloadTasksEventsParamsSortBy = "source"
-	GetApiDownloadTasksEventsParamsSortByStatus    GetApiDownloadTasksEventsParamsSortBy = "status"
-	GetApiDownloadTasksEventsParamsSortByTags      GetApiDownloadTasksEventsParamsSortBy = "tags"
-)
-
-// Valid indicates whether the value is a known member of the GetApiDownloadTasksEventsParamsSortBy enum.
-func (e GetApiDownloadTasksEventsParamsSortBy) Valid() bool {
-	switch e {
-	case GetApiDownloadTasksEventsParamsSortByCategory:
-		return true
-	case GetApiDownloadTasksEventsParamsSortByCreatedAt:
-		return true
-	case GetApiDownloadTasksEventsParamsSortByEta:
-		return true
-	case GetApiDownloadTasksEventsParamsSortByProgress:
-		return true
-	case GetApiDownloadTasksEventsParamsSortBySource:
-		return true
-	case GetApiDownloadTasksEventsParamsSortByStatus:
-		return true
-	case GetApiDownloadTasksEventsParamsSortByTags:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetApiDownloadTasksEventsParamsSortDir.
-const (
-	GetApiDownloadTasksEventsParamsSortDirAsc  GetApiDownloadTasksEventsParamsSortDir = "asc"
-	GetApiDownloadTasksEventsParamsSortDirDesc GetApiDownloadTasksEventsParamsSortDir = "desc"
-)
-
-// Valid indicates whether the value is a known member of the GetApiDownloadTasksEventsParamsSortDir enum.
-func (e GetApiDownloadTasksEventsParamsSortDir) Valid() bool {
-	switch e {
-	case GetApiDownloadTasksEventsParamsSortDirAsc:
-		return true
-	case GetApiDownloadTasksEventsParamsSortDirDesc:
 		return true
 	default:
 		return false
@@ -1434,19 +1320,19 @@ func (e PatchApiObjectsIdUploadsUploadSessionIdJSONBody1Action) Valid() bool {
 
 // Defines values for PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus.
 const (
-	PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusAborted   PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus = "aborted"
-	PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusActive    PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus = "active"
-	PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusCompleted PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus = "completed"
+	Aborted   PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus = "aborted"
+	Active    PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus = "active"
+	Completed PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus = "completed"
 )
 
 // Valid indicates whether the value is a known member of the PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus enum.
 func (e PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusAborted:
+	case Aborted:
 		return true
-	case PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusActive:
+	case Active:
 		return true
-	case PatchApiObjectsIdUploadsUploadSessionId200JSONResponseBodyStatusCompleted:
+	case Completed:
 		return true
 	default:
 		return false
@@ -1605,30 +1491,6 @@ type PostApiDownloadTasks201JSONResponseBodyStatusRuntimePhase string
 
 // PostApiDownloadTasks201JSONResponseBodyStatusState defines parameters for PostApiDownloadTasks.
 type PostApiDownloadTasks201JSONResponseBodyStatusState string
-
-// GetApiDownloadTasksEventsParams defines parameters for GetApiDownloadTasksEvents.
-type GetApiDownloadTasksEventsParams struct {
-	Status     *GetApiDownloadTasksEventsParamsStatus     `form:"status,omitempty" json:"status,omitempty"`
-	AssignedTo *GetApiDownloadTasksEventsParamsAssignedTo `form:"assignedTo,omitempty" json:"assignedTo,omitempty"`
-	Category   *string                                    `form:"category,omitempty" json:"category,omitempty"`
-	Tag        *string                                    `form:"tag,omitempty" json:"tag,omitempty"`
-	SortBy     *GetApiDownloadTasksEventsParamsSortBy     `form:"sortBy,omitempty" json:"sortBy,omitempty"`
-	SortDir    *GetApiDownloadTasksEventsParamsSortDir    `form:"sortDir,omitempty" json:"sortDir,omitempty"`
-	Page       *int                                       `form:"page,omitempty" json:"page,omitempty"`
-	PageSize   *int                                       `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-}
-
-// GetApiDownloadTasksEventsParamsStatus defines parameters for GetApiDownloadTasksEvents.
-type GetApiDownloadTasksEventsParamsStatus string
-
-// GetApiDownloadTasksEventsParamsAssignedTo defines parameters for GetApiDownloadTasksEvents.
-type GetApiDownloadTasksEventsParamsAssignedTo string
-
-// GetApiDownloadTasksEventsParamsSortBy defines parameters for GetApiDownloadTasksEvents.
-type GetApiDownloadTasksEventsParamsSortBy string
-
-// GetApiDownloadTasksEventsParamsSortDir defines parameters for GetApiDownloadTasksEvents.
-type GetApiDownloadTasksEventsParamsSortDir string
 
 // GetApiDownloadTasksId200JSONResponseBodySpecSourceType defines parameters for GetApiDownloadTasksId.
 type GetApiDownloadTasksId200JSONResponseBodySpecSourceType string
@@ -2264,9 +2126,6 @@ type ClientInterface interface {
 
 	PostApiDownloadTasks(ctx context.Context, body PostApiDownloadTasksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiDownloadTasksEvents request
-	GetApiDownloadTasksEvents(ctx context.Context, params *GetApiDownloadTasksEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetApiDownloadTasksId request
 	GetApiDownloadTasksId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2457,18 +2316,6 @@ func (c *Client) PostApiDownloadTasksWithBody(ctx context.Context, contentType s
 
 func (c *Client) PostApiDownloadTasks(ctx context.Context, body PostApiDownloadTasksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiDownloadTasksRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetApiDownloadTasksEvents(ctx context.Context, params *GetApiDownloadTasksEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiDownloadTasksEventsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3089,144 +2936,6 @@ func NewPostApiDownloadTasksRequestWithBody(server string, contentType string, b
 	return req, nil
 }
 
-// NewGetApiDownloadTasksEventsRequest generates requests for GetApiDownloadTasksEvents
-func NewGetApiDownloadTasksEventsRequest(server string, params *GetApiDownloadTasksEventsParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/download-tasks/events")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Status != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.AssignedTo != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "assignedTo", *params.AssignedTo, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Category != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "category", *params.Category, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Tag != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "tag", *params.Tag, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.SortBy != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sortBy", *params.SortBy, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.SortDir != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sortDir", *params.SortDir, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.PageSize != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetApiDownloadTasksIdRequest generates requests for GetApiDownloadTasksId
 func NewGetApiDownloadTasksIdRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -3713,9 +3422,6 @@ type ClientWithResponsesInterface interface {
 	PostApiDownloadTasksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiDownloadTasksResponse, error)
 
 	PostApiDownloadTasksWithResponse(ctx context.Context, body PostApiDownloadTasksJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiDownloadTasksResponse, error)
-
-	// GetApiDownloadTasksEventsWithResponse request
-	GetApiDownloadTasksEventsWithResponse(ctx context.Context, params *GetApiDownloadTasksEventsParams, reqEditors ...RequestEditorFn) (*GetApiDownloadTasksEventsResponse, error)
 
 	// GetApiDownloadTasksIdWithResponse request
 	GetApiDownloadTasksIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetApiDownloadTasksIdResponse, error)
@@ -4323,38 +4029,6 @@ func (r PostApiDownloadTasksResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostApiDownloadTasksResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type GetApiDownloadTasksEventsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *struct {
-		Error string `json:"error"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r GetApiDownloadTasksEventsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetApiDownloadTasksEventsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetApiDownloadTasksEventsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5075,15 +4749,6 @@ func (c *ClientWithResponses) PostApiDownloadTasksWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParsePostApiDownloadTasksResponse(rsp)
-}
-
-// GetApiDownloadTasksEventsWithResponse request returning *GetApiDownloadTasksEventsResponse
-func (c *ClientWithResponses) GetApiDownloadTasksEventsWithResponse(ctx context.Context, params *GetApiDownloadTasksEventsParams, reqEditors ...RequestEditorFn) (*GetApiDownloadTasksEventsResponse, error) {
-	rsp, err := c.GetApiDownloadTasksEvents(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetApiDownloadTasksEventsResponse(rsp)
 }
 
 // GetApiDownloadTasksIdWithResponse request returning *GetApiDownloadTasksIdResponse
@@ -5821,34 +5486,6 @@ func ParsePostApiDownloadTasksResponse(rsp *http.Response) (*PostApiDownloadTask
 			return nil, err
 		}
 		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetApiDownloadTasksEventsResponse parses an HTTP response from a GetApiDownloadTasksEventsWithResponse call
-func ParseGetApiDownloadTasksEventsResponse(rsp *http.Response) (*GetApiDownloadTasksEventsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetApiDownloadTasksEventsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest struct {
-			Error string `json:"error"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	}
 

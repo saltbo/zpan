@@ -7,6 +7,7 @@ import { MusicPlayerButton } from '@/components/music/music-player-button'
 import { NotificationBell } from '@/components/notifications/notification-bell'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { UploadStatusButton } from '@/components/upload/upload-queue'
+import { useServerEvents } from '@/hooks/useServerEvents'
 import { getSession } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated')({
@@ -24,6 +25,7 @@ export const Route = createFileRoute('/_authenticated')({
 })
 
 function AuthenticatedLayout() {
+  useServerEvents()
   const matchRoute = useMatchRoute()
   const isAdmin = matchRoute({ to: '/admin', fuzzy: true })
 

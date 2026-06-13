@@ -6,16 +6,14 @@ import { getUnreadCount } from '@/lib/api'
 import { useSession } from '@/lib/auth-client'
 import { NotificationDropdown } from './notification-dropdown'
 
-const UNREAD_POLL_INTERVAL = 30_000
-
 export function NotificationBell() {
   const { data: session } = useSession()
 
+  // Unread count is kept fresh by the unified SSE stream (useServerEvents).
   const { data } = useQuery({
     queryKey: ['notifications', 'unread-count'],
     queryFn: getUnreadCount,
     enabled: !!session,
-    refetchInterval: UNREAD_POLL_INTERVAL,
   })
 
   const count = data?.count ?? 0

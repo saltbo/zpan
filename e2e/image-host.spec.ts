@@ -161,7 +161,6 @@ test.describe('Image Host gallery golden path @all', () => {
 
     // Reload to see the seeded image
     await page.reload()
-    await page.waitForLoadState('networkidle')
 
     await openImageRowActions(page, 'e2e-copy-test.png')
     await page.getByRole('menuitem', { name: /copy url/i }).hover()
@@ -188,7 +187,6 @@ test.describe('Image Host gallery golden path @all', () => {
     await expectApiOk(confirmResp, 'Confirm seeded image')
 
     await page.reload()
-    await page.waitForLoadState('networkidle')
 
     await openImageRowActions(page, 'e2e-delete-undo.png')
     const deleteMenuItem = page.getByRole('menuitem', { name: /delete/i }).first()
@@ -223,7 +221,6 @@ test.describe('Image Host gallery golden path @all', () => {
     await expectApiOk(confirmResp, 'Confirm seeded image')
 
     await page.reload()
-    await page.waitForLoadState('networkidle')
 
     await openImageRowActions(page, 'e2e-delete-perm.png')
     const deleteMenuItem = page.getByRole('menuitem', { name: /delete/i }).first()

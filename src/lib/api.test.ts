@@ -42,7 +42,6 @@ import {
   deleteTeamLogo,
   deleteUser,
   disconnectCloud,
-  downloadTaskEventsUrl,
   emptyTrash,
   enableIhostFeature,
   generateInviteCodes,
@@ -124,6 +123,7 @@ import {
   saveEmailConfig,
   saveShareToDrive,
   sendDownloaderHeartbeat,
+  serverEventsUrl,
   setSystemOption,
   testEmail,
   transferObject,
@@ -1054,20 +1054,14 @@ describe('api', () => {
       await expect(runDownloadTaskAction('task-1', 'pause')).rejects.toThrow('Only active tasks can be paused')
     })
 
-    it('builds the download task events URL from RPC client', () => {
-      const url = downloadTaskEventsUrl({
-        status: 'downloading',
-        category: 'movies',
-        tag: '4k',
-        sortBy: 'status',
-        sortDir: 'desc',
-      })
-      expect(url.pathname).toBe('/api/download-tasks/events')
-      expect(url.searchParams.get('status')).toBe('downloading')
-      expect(url.searchParams.get('category')).toBe('movies')
-      expect(url.searchParams.get('tag')).toBe('4k')
-      expect(url.searchParams.get('sortBy')).toBe('status')
-      expect(url.searchParams.get('sortDir')).toBe('desc')
+    it('builds the unified server events URL from RPC client', () => {
+      expect(serverEventsUrl().pathname).toBe('/api/events')
+
+      const url = serverEventsUrl({ downloadTasks: '1', dtStatus: 'downloading', dtSortDir: 'desc' })
+      expect(url.pathname).toBe('/api/events')
+      expect(url.searchParams.get('downloadTasks')).toBe('1')
+      expect(url.searchParams.get('dtStatus')).toBe('downloading')
+      expect(url.searchParams.get('dtSortDir')).toBe('desc')
     })
 
     it('lists admin downloaders', async () => {
