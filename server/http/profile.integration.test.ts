@@ -24,7 +24,7 @@ async function insertUser(
 }
 
 describe('GET /api/profiles/:username', () => {
-  it('returns 404 when user does not exist', async () => {
+  it('returns 404 when user does not exist [spec: profile/user-not-found]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/profiles/nonexistent')
     expect(res.status).toBe(404)
@@ -32,7 +32,7 @@ describe('GET /api/profiles/:username', () => {
     expect(body).toEqual({ error: 'User not found' })
   })
 
-  it('returns user info and empty shares', async () => {
+  it('returns user info and empty shares [spec: profile/user-info]', async () => {
     const { app, db } = await createTestApp()
     await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
 
@@ -43,7 +43,7 @@ describe('GET /api/profiles/:username', () => {
     expect(body.shares).toEqual([])
   })
 
-  it('works without authentication', async () => {
+  it('works without authentication [spec: profile/public]', async () => {
     const { app, db } = await createTestApp()
     await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
 
@@ -51,7 +51,7 @@ describe('GET /api/profiles/:username', () => {
     expect(res.status).toBe(200)
   })
 
-  it('returns user info when user exists but has no personal org', async () => {
+  it('returns user info when user exists but has no personal org [spec: profile/no-personal-org]', async () => {
     const { app, db } = await createTestApp()
     const now = Date.now()
     await db.run(sql`
@@ -68,7 +68,7 @@ describe('GET /api/profiles/:username', () => {
 })
 
 describe('GET /api/profiles/:username/browse', () => {
-  it('returns 404 for unknown username', async () => {
+  it('returns 404 for unknown username [spec: profile/unknown-username]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/profiles/nonexistent/browse')
     expect(res.status).toBe(404)
@@ -76,7 +76,7 @@ describe('GET /api/profiles/:username/browse', () => {
     expect(body).toEqual({ error: 'User not found' })
   })
 
-  it('returns empty items and breadcrumb for known user', async () => {
+  it('returns empty items and breadcrumb for known user [spec: profile/empty-listing]', async () => {
     const { app, db } = await createTestApp()
     await insertUser(db, { id: 'user-1', username: 'testuser', email: 'test@example.com' })
 
@@ -97,7 +97,7 @@ describe('buildBreadcrumb', () => {
     expect(buildBreadcrumb('photos')).toEqual(['photos'])
   })
 
-  it('splits nested path into segments', () => {
+  it('splits nested path into segments [spec: profile/breadcrumb-segments]', () => {
     expect(buildBreadcrumb('a/b/c')).toEqual(['a', 'b', 'c'])
   })
 

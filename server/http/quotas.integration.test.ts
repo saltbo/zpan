@@ -15,13 +15,13 @@ async function adminHeaders(app: ReturnType<typeof import('../app')['createApp']
 }
 
 describe('Admin Quotas API', () => {
-  it('returns 401 without auth', async () => {
+  it('returns 401 without auth [spec: quotas/admin-auth-required]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/admin/quotas')
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 for non-admin', async () => {
+  it('returns 403 for non-admin [spec: quotas/admin-only]', async () => {
     const { app } = await createTestApp()
     await authedHeaders(app, 'admin@example.com')
     await authedHeaders(app, 'regular@example.com')
@@ -35,7 +35,7 @@ describe('Admin Quotas API', () => {
     expect(res.status).toBe(403)
   })
 
-  it('GET /api/admin/quotas returns the default quota row created at signup', async () => {
+  it('GET /api/admin/quotas returns the default quota row created at signup [spec: quotas/default-row]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
     const res = await app.request('/api/admin/quotas', { headers })
@@ -49,7 +49,7 @@ describe('Admin Quotas API', () => {
     expect(body.items[0].trafficPeriod).toMatch(/^\d{4}-\d{2}$/)
   })
 
-  it('GET /api/admin/quotas normalizes stale monthly traffic period in the response without writing', async () => {
+  it('GET /api/admin/quotas normalizes stale monthly traffic period in the response without writing [spec: quotas/normalizes-stale-period]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await db.run(sql`UPDATE org_quotas SET traffic_quota = 1000, traffic_used = 900, traffic_period = '1970-01'`)
@@ -69,7 +69,7 @@ describe('Admin Quotas API', () => {
     expect(rows[0].trafficPeriod).toBe('1970-01')
   })
 
-  it('GET /api/admin/quotas lists quotas with org info', async () => {
+  it('GET /api/admin/quotas lists quotas with org info [spec: quotas/list-with-org]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -91,7 +91,7 @@ describe('Admin Quotas API', () => {
     expect(body.items[0].orgType).toBe('personal')
   })
 
-  it('GET /api/admin/quotas lists effective quota with active entitlements', async () => {
+  it('GET /api/admin/quotas lists effective quota with active entitlements [spec: quotas/effective-with-entitlements]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const orgs = await db.all<{ id: string }>(
@@ -126,7 +126,7 @@ describe('Admin Quotas API', () => {
     })
   })
 
-  it('GET /api/admin/quotas exposes active plan and extra quota labels', async () => {
+  it('GET /api/admin/quotas exposes active plan and extra quota labels [spec: quotas/plan-labels]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     const orgs = await db.all<{ id: string }>(
@@ -167,13 +167,13 @@ describe('Admin Quotas API', () => {
 })
 
 describe('User Quotas API — /api/quotas', () => {
-  it('GET /api/quotas/me returns 401 without auth', async () => {
+  it('GET /api/quotas/me returns 401 without auth [spec: quotas/me-auth-required]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/quotas/me')
     expect(res.status).toBe(401)
   })
 
-  it('GET /api/quotas/me returns the built-in default quota of 10MB when no system option is set', async () => {
+  it('GET /api/quotas/me returns the built-in default quota of 10MB when no system option is set [spec: quotas/me-default]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/quotas/me', { headers })
@@ -187,7 +187,7 @@ describe('User Quotas API — /api/quotas', () => {
     expect(body.orgId).toBeTruthy()
   })
 
-  it('GET /api/quotas/me returns 404 when user has no org', async () => {
+  it('GET /api/quotas/me returns 404 when user has no org [spec: quotas/me-no-org]', async () => {
     const { app, db } = await createTestApp()
     const _headers = await authedHeaders(app, 'noorg@example.com')
     // Delete the user's org membership and org to simulate no org
@@ -204,7 +204,7 @@ describe('User Quotas API — /api/quotas', () => {
     expect(res.status).toBe(404)
   })
 
-  it('GET /api/quotas/me returns base quota plus active entitlements and labels', async () => {
+  it('GET /api/quotas/me returns base quota plus active entitlements and labels [spec: quotas/me-effective]', async () => {
     const { app, db } = await createTestApp()
     const adminH = await adminHeaders(app)
     const orgs = await db.all<{ id: string }>(

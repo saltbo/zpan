@@ -4,7 +4,7 @@ import { cloudTrafficReports } from '../db/schema.js'
 import { createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
 
 describe('GET /api/licensing/status', () => {
-  it('returns { bound: false } when no binding row exists', async () => {
+  it('returns { bound: false } when no binding row exists [spec: licensing/state-unbound]', async () => {
     const { app } = await createTestApp()
 
     const res = await app.request('/api/licensing/status')
@@ -17,7 +17,7 @@ describe('GET /api/licensing/status', () => {
     })
   })
 
-  it('returns bound state with plan and features when binding row exists with cert', async () => {
+  it('returns bound state with plan and features when binding row exists with cert [spec: licensing/state-bound]', async () => {
     const { app, db } = await createTestApp()
 
     await createLicenseBindingRepo(db).createLicenseBinding({
@@ -43,7 +43,7 @@ describe('GET /api/licensing/status', () => {
     expect(body.refreshToken).toBeUndefined()
   })
 
-  it('returns bound:true with no plan/features when cachedCert is null', async () => {
+  it('returns bound:true with no plan/features when cachedCert is null [spec: licensing/state-bound-no-cert]', async () => {
     const { app, db } = await createTestApp()
 
     await createLicenseBindingRepo(db).createLicenseBinding({
@@ -64,7 +64,7 @@ describe('GET /api/licensing/status', () => {
     expect(body.bound).toBe(true)
   })
 
-  it('is accessible without authentication', async () => {
+  it('is accessible without authentication [spec: licensing/public]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/licensing/status')
     expect(res.status).toBe(200)
@@ -90,7 +90,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns 401 when REFRESH_CRON_SECRET env is not set', async () => {
+  it('returns 401 when REFRESH_CRON_SECRET env is not set [spec: licensing/refresh-auth]', async () => {
     const { app } = await createTestApp()
 
     const res = await app.request('/api/licensing/refresh-cron?secret=anything', { method: 'POST' })
@@ -118,7 +118,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 200 with { ok: true } when secret is correct and no binding exists', async () => {
+  it('returns 200 with { ok: true } when secret is correct and no binding exists [spec: licensing/refresh-noop]', async () => {
     const { app } = await createTestApp({ REFRESH_CRON_SECRET: 'correct-secret' })
 
     const res = await app.request('/api/licensing/refresh-cron?secret=correct-secret', { method: 'POST' })
@@ -128,7 +128,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     expect(body.ok).toBe(true)
   })
 
-  it('returns 200 with { ok: true } and calls refresh when binding exists with old lastRefreshAt', async () => {
+  it('returns 200 with { ok: true } and calls refresh when binding exists with old lastRefreshAt [spec: licensing/refresh-runs]', async () => {
     const { app, db } = await createTestApp({ REFRESH_CRON_SECRET: 'cron-secret' })
 
     await seedProLicense(db)
@@ -147,7 +147,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     expect(body.ok).toBe(true)
   })
 
-  it('returns 200 with { ok: true } even when performRefresh throws (error is swallowed)', async () => {
+  it('returns 200 with { ok: true } even when performRefresh throws (error is swallowed) [spec: licensing/refresh-error-swallowed]', async () => {
     const { app, db } = await createTestApp({ REFRESH_CRON_SECRET: 'cron-secret' })
 
     await seedProLicense(db)
@@ -163,7 +163,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     expect(body.ok).toBe(true)
   })
 
-  it('is accessible without authentication (public route)', async () => {
+  it('is accessible without authentication (public route) [spec: licensing/traffic-cron-public]', async () => {
     const { app } = await createTestApp({ REFRESH_CRON_SECRET: 'my-secret' })
 
     const res = await app.request('/api/licensing/refresh-cron?secret=my-secret', { method: 'POST' })
@@ -172,7 +172,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     expect(res.status).toBe(200)
   })
 
-  it('syncs pending traffic reports from the dedicated traffic cron endpoint', async () => {
+  it('syncs pending traffic reports from the dedicated traffic cron endpoint [spec: licensing/traffic-sync]', async () => {
     const { app, db } = await createTestApp({
       REFRESH_CRON_SECRET: 'traffic-secret',
       ZPAN_CLOUD_URL: 'https://cloud.example',
@@ -205,7 +205,7 @@ describe('POST /api/licensing/refresh-cron', () => {
     await expect(db.select().from(cloudTrafficReports)).resolves.toMatchObject([{ status: 'reported' }])
   })
 
-  it('requires the cron secret for the dedicated traffic cron endpoint', async () => {
+  it('requires the cron secret for the dedicated traffic cron endpoint [spec: licensing/traffic-cron-secret]', async () => {
     const { app } = await createTestApp({ REFRESH_CRON_SECRET: 'traffic-secret' })
 
     const res = await app.request('/api/licensing/traffic-sync-runs?secret=wrong-secret', { method: 'POST' })
