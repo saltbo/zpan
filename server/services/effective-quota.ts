@@ -37,50 +37,10 @@ export function currentTrafficPeriod(now = new Date()): string {
 }
 
 export async function getEffectiveQuota(db: Database, orgId: string, now = new Date()): Promise<EffectiveQuota> {
-  const period = currentTrafficPeriod(now)
-
-  const quotaRows = await db
-    .select({
-      id: orgQuotas.id,
-      baseQuota: orgQuotas.quota,
-      used: orgQuotas.used,
-      trafficQuota: orgQuotas.trafficQuota,
-      trafficUsed: orgQuotas.trafficUsed,
-      trafficPeriod: orgQuotas.trafficPeriod,
-    })
-    .from(orgQuotas)
-    .where(eq(orgQuotas.orgId, orgId))
-    .limit(1)
-  const quotaRow = quotaRows[0]
-
-  const storagePlan = await activePlanEntitlement(db, orgId, 'storage', now)
-  const entitlementQuota = await activeExtraEntitlementBytes(db, orgId, 'storage', now)
-  const storageExtraNames = await activeExtraEntitlementNames(db, orgId, 'storage', now)
-  const entitlementTrafficQuota = await activeExtraEntitlementBytes(db, orgId, 'traffic', now)
-  const trafficExtraNames = await activeExtraEntitlementNames(db, orgId, 'traffic', now)
-  const trafficUsed = quotaRow && quotaRow.trafficPeriod === period ? quotaRow.trafficUsed : 0
-  const trafficPeriod = quotaRow?.trafficPeriod === period ? quotaRow.trafficPeriod : period
-  const trafficPlan = await activePlanEntitlement(db, orgId, 'traffic', now)
-  const currentPlan = buildCurrentPlan(storagePlan, trafficPlan)
-  const baseQuota = storagePlan?.bytes ?? 0
-  const baseTrafficQuota = trafficPlan?.bytes ?? 0
-  return {
-    orgId,
-    baseQuota,
-    entitlementQuota,
-    quota: baseQuota + entitlementQuota,
-    used: quotaRow?.used ?? 0,
-    baseTrafficQuota,
-    entitlementTrafficQuota,
-    trafficQuota: baseTrafficQuota + entitlementTrafficQuota,
-    trafficUsed,
-    trafficPeriod,
-    storagePlanName: storagePlan?.name ?? null,
-    storageExtraNames,
-    trafficPlanName: trafficPlan?.name ?? null,
-    trafficExtraNames,
-    currentPlan,
-  }
+  // Delegate to the batch path's single in-memory aggregation. It always
+  // returns an entry for every requested orgId (zero-filled when absent).
+  const byOrg = await getEffectiveQuotasByOrg(db, [orgId], now)
+  return byOrg.get(orgId) as EffectiveQuota
 }
 
 // Batch variant of getEffectiveQuota for list views. Resolves every org with two
@@ -424,44 +384,8 @@ function toPlanEntitlement(row: {
   }
 }
 
-async function activeExtraEntitlementBytes(
-  db: Database,
-  orgId: string,
-  resourceType: 'storage' | 'traffic',
-  now: Date,
-): Promise<number> {
-  const rows = await db
-    .select({ bytes: sql<number>`COALESCE(SUM(${orgQuotaEntitlements.bytes}), 0)` })
-    .from(orgQuotaEntitlements)
-    .where(activeExtraEntitlementWhere(orgId, resourceType, now))
-
-  return rows[0]?.bytes ?? 0
-}
-
-async function activeExtraEntitlementNames(
-  db: Database,
-  orgId: string,
-  resourceType: 'storage' | 'traffic',
-  now: Date,
-): Promise<string[]> {
-  const rows = await db
-    .select({ metadata: orgQuotaEntitlements.metadata })
-    .from(orgQuotaEntitlements)
-    .where(activeExtraEntitlementWhere(orgId, resourceType, now))
-
-  const names = rows.flatMap((row) => {
-    const name = entitlementName(row.metadata)
-    return name ? [name] : []
-  })
-  return Array.from(new Set(names))
-}
-
 function activePlanEntitlementWhere(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
   return activeEntitlementWhere(orgId, resourceType, now, sql`${orgQuotaEntitlements.entitlementType} = 'plan'`)
-}
-
-function activeExtraEntitlementWhere(orgId: string, resourceType: 'storage' | 'traffic', now: Date) {
-  return activeEntitlementWhere(orgId, resourceType, now, sql`${orgQuotaEntitlements.entitlementType} != 'plan'`)
 }
 
 function activeEntitlementWhere(
