@@ -1,8 +1,8 @@
 import type { Downloader, DownloadTask } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3.js'
 import { remoteDownloadUsageReports } from '../db/schema'
-import { S3Service } from '../services/s3.js'
 import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
 
 type DownloadTaskList = { items: DownloadTask[] }

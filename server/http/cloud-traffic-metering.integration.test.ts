@@ -1,10 +1,10 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3'
 import { createShareRepo } from '../adapters/repos/share'
 import { cloudTrafficReports } from '../db/schema'
 import { currentTrafficPeriod } from '../domain/quota'
 import type { Database } from '../platform/interface'
-import { S3Service } from '../services/s3'
 import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup'
 import { encodeChildRef } from './share-utils'
 

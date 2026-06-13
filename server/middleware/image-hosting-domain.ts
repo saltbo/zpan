@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono'
-import { PRESIGN_TTL_SECS, s3 } from '../http/share-utils'
+import { PRESIGN_TTL_SECS } from '../http/share-utils'
 import { reportTrafficForDownload } from '../http/traffic-metering-utils'
 import type { Env } from '../middleware/platform'
 
@@ -58,7 +58,7 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
 
   let url: string
   try {
-    url = await s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
+    url = await c.get('deps').s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
   } catch (e) {
     await c.get('deps').quota.refundTraffic(image.orgId, image.size)
     throw e

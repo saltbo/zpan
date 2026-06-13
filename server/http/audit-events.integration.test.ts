@@ -6,9 +6,9 @@
  */
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3.js'
 import { createShareRepo } from '../adapters/repos/share'
 import { activityEvents } from '../db/schema.js'
-import { S3Service } from '../services/s3.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']

@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3.js'
 import { createShareRepo } from '../adapters/repos/share'
 import { currentTrafficPeriod } from '../domain/quota.js'
-import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 const MOCK_PRESIGN_URL = 'https://presigned-download.example.com/file'

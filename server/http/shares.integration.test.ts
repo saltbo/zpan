@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3.js'
 import { shareRecipients, shares } from '../db/schema.js'
-import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']

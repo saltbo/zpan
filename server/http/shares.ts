@@ -20,7 +20,6 @@ import {
   folderRootPath,
   PRESIGN_TTL_SECS,
   readUserId,
-  s3,
   viewCookieName,
 } from './share-utils'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
@@ -252,7 +251,7 @@ export const publicShares = new Hono<Env>()
     const actorId = viewerId ?? share.creatorId
     let url: string
     try {
-      url = await s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
+      url = await c.get('deps').s3.presignDownload(storage, targetMatter.object, targetMatter.name, PRESIGN_TTL_SECS)
     } catch (e) {
       await c.get('deps').quota.refundTraffic(share.orgId, targetMatter.size ?? 0)
       await c.get('deps').share.decrementDownloads(share.id)

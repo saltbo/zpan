@@ -1,11 +1,11 @@
 import { env } from 'cloudflare:workers'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3'
 import { createShareRepo } from '../adapters/repos/share'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { createCloudflarePlatform } from '../platform/cloudflare'
-import { S3Service } from '../services/s3'
 
 const STORAGE_ID = 'st-cf-redirect'
 const MOCK_PRESIGN_URL = 'https://presigned-cf.example.com/file'

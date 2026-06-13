@@ -17,11 +17,13 @@
  *  - server/test          : test harness/helpers (the suites are exempt anyway)
  */
 
-// --- RATCHET: not-yet-migrated drizzle importers (shrink me) -----------------
+// --- RATCHET: the last two files that still touch drizzle outside adapters/repos.
+// The legacy services/ dir is fully migrated and gone. These two are deliberate
+// deferrals, each a self-contained slice; drop the entry when its drizzle moves
+// into a repo and the architecture is then fully locked.
 const MIGRATION_PENDING = [
-  '^server/services', // the legacy services/ dir; only the matter crown + s3 shim remain
-  '^server/http/webdav\\.ts', // inline drizzle (listDescendants) pending the matter crown
-  '^server/middleware/auth\\.ts', // session/disabled-user lookup pending its own slice
+  '^server/http/webdav\\.ts', // inline listDescendants/proppatch drizzle in the WebDAV route
+  '^server/middleware/auth\\.ts', // session + disabled-user lookup in the auth middleware
 ].join('|')
 // -----------------------------------------------------------------------------
 
@@ -32,11 +34,10 @@ module.exports = {
   forbidden: [
     {
       name: 'no-circular',
-      // RATCHET: the legacy services/ dir has a pre-existing user ↔ org-entitlements
-      // cycle that dissolves when those two migrate. Cycles in migrated layers are
-      // still caught. Tighten by dropping the pathNot once services/ is gone.
+      // Fully enforced: the legacy services/ dir (which carried a pre-existing
+      // user <-> org-entitlements cycle) is migrated and gone, so no path is exempt.
       severity: 'error',
-      from: { pathNot: '^server/services' },
+      from: {},
       to: { circular: true },
     },
     {

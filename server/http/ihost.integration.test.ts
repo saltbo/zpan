@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { S3Service } from '../services/s3.js'
+import { S3Service } from '../adapters/gateways/s3.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 import { confirmImageHosting, deleteImageHosting } from '../usecases/image-hosting.js'
 

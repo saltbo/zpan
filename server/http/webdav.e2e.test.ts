@@ -5,8 +5,8 @@ import { serve } from '@hono/node-server'
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createClient } from 'webdav'
+import { S3Service } from '../adapters/gateways/s3.js'
 import { storages } from '../db/schema.js'
-import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>

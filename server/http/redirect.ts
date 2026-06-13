@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import type { Env } from '../middleware/platform'
-import { PRESIGN_TTL_SECS, s3 } from './share-utils'
+import { PRESIGN_TTL_SECS } from './share-utils'
 import { consumeAndReportDownloadTraffic, reportTrafficForDownload } from './traffic-metering-utils'
 
 // Strip optional file extension from token (e.g. "ih_aB3xK9.png" → "ih_aB3xK9")
@@ -58,7 +58,7 @@ async function handleDirectShare(c: Context<Env>, token: string): Promise<Respon
 
   let url: string
   try {
-    url = await s3.presignDownload(storage, matter.object, matter.name, PRESIGN_TTL_SECS)
+    url = await c.get('deps').s3.presignDownload(storage, matter.object, matter.name, PRESIGN_TTL_SECS)
   } catch (e) {
     await c.get('deps').quota.refundTraffic(share.orgId, matter.size ?? 0)
     await c.get('deps').share.decrementDownloads(share.id)
@@ -93,7 +93,7 @@ async function handleImageHosting(c: Context<Env>, token: string): Promise<Respo
 
   let url: string
   try {
-    url = await s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
+    url = await c.get('deps').s3.presignInline(storage, image.storageKey, image.mime, PRESIGN_TTL_SECS)
   } catch (e) {
     await c.get('deps').quota.refundTraffic(image.orgId, image.size)
     throw e

@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ARCHIVE_QUEUE_BINDING, createArchiveJobsGateway } from '../adapters/gateways/archive-jobs'
+import { S3Service } from '../adapters/gateways/s3'
 import { createBackgroundJobRepo } from '../adapters/repos/background-job'
-import { S3Service } from '../services/s3'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 import type { ArchiveJobMessage } from '../usecases/ports'
 

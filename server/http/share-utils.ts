@@ -2,10 +2,8 @@ import { createHmac } from 'node:crypto'
 import type { Context } from 'hono'
 import { isAccessibleByUser } from '../domain/share'
 import type { Env } from '../middleware/platform'
-import { S3Service } from '../services/s3'
 import type { ShareRecipientRecord } from '../usecases/ports'
 
-export const s3 = new S3Service()
 export const PRESIGN_TTL_SECS = 5 * 60
 
 export function cookieName(token: string): string {

@@ -24,10 +24,10 @@ import {
 import { mapDomainError } from '../lib/http-errors'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import type { Env } from '../middleware/platform'
-import { S3Service } from '../services/s3'
 import {
   ApiKeyRateLimitError,
   type MatterRepo,
+  type S3Gateway,
   type StorageRecord as S3Storage,
   WebDavPathError,
   type WebDavTarget,
@@ -35,7 +35,6 @@ import {
 import { withStorageUsageReservation } from '../usecases/storage-usage'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
-const s3 = new S3Service()
 const READ_METHODS = new Set(['OPTIONS', 'PROPFIND', 'GET', 'HEAD'])
 const WRITE_METHODS = new Set(['PUT', 'DELETE', 'MKCOL', 'MOVE', 'COPY', 'PROPPATCH', 'LOCK', 'UNLOCK'])
 const WEBDAV_RESOURCE = 'webdav'
@@ -312,6 +311,7 @@ function finalMultipartBoundary(boundary: string): Uint8Array {
 }
 
 function multipartRangeBody(
+  s3: S3Gateway,
   storage: S3Storage,
   matter: NonNullable<WebDavTarget['matter']>,
   boundary: string,
@@ -323,7 +323,7 @@ function multipartRangeBody(
       try {
         for (const range of ranges) {
           controller.enqueue(multipartRangeHeader(boundary, matter.type, range, size))
-          await enqueueObjectRange(controller, storage, matter.object, range)
+          await enqueueObjectRange(s3, controller, storage, matter.object, range)
           controller.enqueue(new Uint8Array([13, 10]))
         }
         controller.enqueue(finalMultipartBoundary(boundary))
@@ -336,6 +336,7 @@ function multipartRangeBody(
 }
 
 async function enqueueObjectRange(
+  s3: S3Gateway,
   controller: ReadableStreamDefaultController<Uint8Array>,
   storage: S3Storage,
   object: string,
@@ -763,7 +764,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
       const trafficError = await reserveWebDavTraffic(c, workspace.id, matter.id, storage, size)
       if (trafficError) return trafficError
       try {
-        const body = await s3.getObjectBody(storage, matter.object)
+        const body = await c.get('deps').s3.getObjectBody(storage, matter.object)
         return new Response(fixedLengthResponseBody(body, size), { headers })
       } catch (e) {
         await c.get('deps').quota.refundTraffic(workspace.id, size)
@@ -779,7 +780,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (rangeRequest.ranges.length > 1) {
       const boundary = `zpan-webdav-${matter.id}`
       const contentLength = multipartRangeContentLength(boundary, matter.type, rangeRequest.ranges, size)
-      const body = multipartRangeBody(storage, matter, boundary, rangeRequest.ranges, size)
+      const body = multipartRangeBody(c.get('deps').s3, storage, matter, boundary, rangeRequest.ranges, size)
       headers.set('Content-Type', `multipart/byteranges; boundary=${boundary}`)
       headers.set('Content-Length', String(contentLength))
       headers.delete('Content-Range')
@@ -790,7 +791,7 @@ async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
     const contentLength = range.end - range.start + 1
     let body: BodyInit
     try {
-      body = await s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
+      body = await c.get('deps').s3.getObjectBody(storage, matter.object, `bytes=${range.start}-${range.end}`)
     } catch (e) {
       await c.get('deps').quota.refundTraffic(workspace.id, contentLength)
       throw e
@@ -859,6 +860,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
         c.get('deps'),
         { orgId: workspace.id, storageId: storage.id, bytes: Math.max(0, knownSizeDelta) },
         async (ctx) => {
+          const s3 = c.get('deps').s3
           const uploadedSize = await s3.putObject(storage, objectKey, body, contentType, contentLength ?? undefined)
           const sizeDelta = target.matter ? uploadedSize - (target.matter.size ?? 0) : uploadedSize
 
@@ -872,6 +874,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
               { orgId: workspace.id, storageId: storage.id, bytes: sizeDelta },
               async () => {
                 return persistWebDavUpload(
+                  s3,
                   db,
                   c.get('deps').matter,
                   workspace.id,
@@ -887,6 +890,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
           }
 
           const response = await persistWebDavUpload(
+            s3,
             db,
             c.get('deps').matter,
             workspace.id,
@@ -912,6 +916,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
 }
 
 async function persistWebDavUpload(
+  s3: S3Gateway,
   db: Env['Variables']['platform']['db'],
   matterRepo: MatterRepo,
   orgId: string,
@@ -1089,6 +1094,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
         { orgId: sourceWorkspace.id, storageId: sourceMatter.storageId, bytes },
         async (ctx) => {
           if (sourceMatter.object && storage) {
+            const s3 = c.get('deps').s3
             newObject = buildObjectKey({ uid: auth.userId, orgId: sourceWorkspace.id, rawExt: fileExt(target.name) })
             await s3.copyObject(storage, sourceMatter.object, storage, newObject)
             ctx.onRollback(() => s3.deleteObject(storage, newObject))
@@ -1174,6 +1180,7 @@ async function copyCollection(
         if (item.dirtype === DirType.FILE && item.object) {
           const storage = await c.get('deps').storages.get(item.storageId)
           if (!storage) return c.text('Storage not found', 404)
+          const s3 = c.get('deps').s3
           objectKey = buildObjectKey({ uid: auth.userId, orgId: targetWorkspace.id, rawExt: fileExt(item.name) })
           await s3.copyObject(storage, item.object, storage, objectKey)
           ctx.onRollback(() => s3.deleteObject(storage, objectKey))
@@ -1267,7 +1274,7 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       await ensureParentCollection(c, auth.userId, workspace.slug, target.parent)
       const storage = await c.get('deps').storages.select('private')
       const objectKey = buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
-      await s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
+      await c.get('deps').s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
       target.matter = await c.get('deps').matter.create({
         orgId: workspace.id,
         userId: auth.userId,

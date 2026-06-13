@@ -1,11 +1,11 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3.js'
 import { createActivityRepo } from '../adapters/repos/activity.js'
 import { createMatterRepo } from '../adapters/repos/matter.js'
 import { createQuotaRepo } from '../adapters/repos/quota.js'
 import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
 import { cloudTrafficReports } from '../db/schema.js'
-import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp, seedBusinessLicense } from '../test/setup.js'
 import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/matter.js'
 import type {
@@ -142,13 +142,13 @@ async function getOrgId(db: Awaited<ReturnType<typeof createTestApp>>['db']): Pr
 }
 
 describe('Objects API', () => {
-  it('returns 401 without auth', async () => {
+  it('returns 401 without auth [spec: objects/auth-required]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/objects')
     expect(res.status).toBe(401)
   })
 
-  it('GET /api/objects returns empty list', async () => {
+  it('GET /api/objects returns empty list [spec: objects/list-empty]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', { headers })
@@ -157,7 +157,7 @@ describe('Objects API', () => {
     expect(body).toEqual({ items: [], total: 0, page: 1, pageSize: 20 })
   })
 
-  it('GET /api/objects respects pagination params', async () => {
+  it('GET /api/objects respects pagination params [spec: objects/list-pagination]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects?page=2&pageSize=10', { headers })
@@ -167,7 +167,7 @@ describe('Objects API', () => {
     expect(body.pageSize).toBe(10)
   })
 
-  it('POST /api/objects creates a folder', async () => {
+  it('POST /api/objects creates a folder [spec: objects/create-folder]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -185,7 +185,7 @@ describe('Objects API', () => {
     expect(body.id).toBeTruthy()
   })
 
-  it('POST /api/objects returns 400 for invalid input', async () => {
+  it('POST /api/objects returns 400 for invalid input [spec: objects/create-invalid]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
@@ -196,7 +196,7 @@ describe('Objects API', () => {
     expect(res.status).toBe(400)
   })
 
-  it('POST /api/objects returns 500 when no storage available', async () => {
+  it('POST /api/objects returns 500 when no storage available [spec: objects/create-no-storage]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects', {
@@ -227,7 +227,7 @@ describe('Objects API', () => {
     expect(body.items[1].name).toBe('file.txt')
   })
 
-  it('GET /api/objects filters by parent', async () => {
+  it('GET /api/objects filters by parent [spec: objects/list-by-parent]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -243,7 +243,7 @@ describe('Objects API', () => {
     expect(body.items[0].name).toBe('nested.txt')
   })
 
-  it('GET /api/objects filters by status', async () => {
+  it('GET /api/objects filters by status [spec: objects/list-by-status]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -258,7 +258,7 @@ describe('Objects API', () => {
     expect(body.items[0].name).toBe('draft.txt')
   })
 
-  it('GET /api/objects/:id returns folder detail', async () => {
+  it('GET /api/objects/:id returns folder detail [spec: objects/detail]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -274,14 +274,14 @@ describe('Objects API', () => {
     expect(body).not.toHaveProperty('downloadUrl')
   })
 
-  it('GET /api/objects/:id returns 404 for missing object', async () => {
+  it('GET /api/objects/:id returns 404 for missing object [spec: objects/detail-missing]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
     const res = await app.request('/api/objects/nonexistent', { headers })
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/objects/:id renames an object', async () => {
+  it('PATCH /api/objects/:id renames an object [spec: objects/rename]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -298,7 +298,7 @@ describe('Objects API', () => {
     expect(body.name).toBe('New Name')
   })
 
-  it('PATCH /api/objects/:id moves an object', async () => {
+  it('PATCH /api/objects/:id moves an object [spec: objects/move]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -327,7 +327,7 @@ describe('Objects API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/objects/:id (action: confirm) confirms upload', async () => {
+  it('PATCH /api/objects/:id (action: confirm) confirms upload [spec: objects/confirm-upload]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -344,7 +344,7 @@ describe('Objects API', () => {
     expect(body.status).toBe('active')
   })
 
-  it('PATCH /api/objects/:id (action: confirm) returns 404 for non-draft object', async () => {
+  it('PATCH /api/objects/:id (action: confirm) returns 404 for non-draft object [spec: objects/confirm-non-draft]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -359,7 +359,7 @@ describe('Objects API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/objects/:id (action: cancel) deletes a draft upload and cleans up S3', async () => {
+  it('PATCH /api/objects/:id (action: cancel) deletes a draft upload and cleans up S3 [spec: objects/cancel-draft]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -400,7 +400,7 @@ describe('Objects API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /api/objects/:id rejects active object (must trash first)', async () => {
+  it('DELETE /api/objects/:id rejects active object (must trash first) [spec: objects/delete-requires-trash]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -411,7 +411,7 @@ describe('Objects API', () => {
     expect(res.status).toBe(409)
   })
 
-  it('DELETE /api/objects/:id permanently deletes a trashed folder', async () => {
+  it('DELETE /api/objects/:id permanently deletes a trashed folder [spec: objects/purge-folder]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -460,7 +460,7 @@ describe('Objects API', () => {
     expect(await getMatter(db, 'movie-file', orgId)).toBeNull()
   })
 
-  it('PATCH /api/objects/:id (action: trash) trashes a file', async () => {
+  it('PATCH /api/objects/:id (action: trash) trashes a file [spec: objects/trash]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -482,7 +482,7 @@ describe('Objects API', () => {
     expect(listBody.total).toBe(1)
   })
 
-  it('PATCH /api/objects/:id (action: restore) restores a trashed file', async () => {
+  it('PATCH /api/objects/:id (action: restore) restores a trashed file [spec: objects/restore]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -499,7 +499,7 @@ describe('Objects API', () => {
     expect(body.status).toBe('active')
   })
 
-  it('PATCH /api/objects/:id (action: trash) cascades to folder children', async () => {
+  it('PATCH /api/objects/:id (action: trash) cascades to folder children [spec: objects/trash-cascade]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -532,7 +532,7 @@ describe('Objects API', () => {
     expect(childBody.status).toBe('active')
   })
 
-  it('GET /api/objects?status=trashed returns trashed folder roots nested under active parents', async () => {
+  it('GET /api/objects?status=trashed returns trashed folder roots nested under active parents [spec: objects/list-trashed]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -557,7 +557,7 @@ describe('Objects API', () => {
     expect(body.items.map((item) => item.id)).toEqual(['album'])
   })
 
-  it('DELETE /api/trash purges all trashed items', async () => {
+  it('DELETE /api/trash purges all trashed items [spec: objects/purge-all]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -584,7 +584,7 @@ describe('Objects API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('POST /api/objects/copy copies a folder', async () => {
+  it('POST /api/objects/copy copies a folder [spec: objects/copy-folder]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -627,7 +627,7 @@ describe('Objects API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('POST /api/objects creates a file with upload URL', async () => {
+  it('POST /api/objects creates a file with upload URL [spec: objects/create-file-presign]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -643,7 +643,7 @@ describe('Objects API', () => {
     expect(body.object).toBeTruthy()
   })
 
-  it('POST /api/objects/copy copies a file with S3', async () => {
+  it('POST /api/objects/copy copies a file with S3 [spec: objects/copy-file]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -659,7 +659,7 @@ describe('Objects API', () => {
     expect(S3Service.prototype.copyObject).toHaveBeenCalled()
   })
 
-  it('DELETE /api/objects/:id permanently deletes a trashed file with S3 cleanup', async () => {
+  it('DELETE /api/objects/:id permanently deletes a trashed file with S3 cleanup [spec: objects/purge-file-s3]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -796,7 +796,7 @@ describe('Objects API', () => {
     expect(body.purged).toBe(0)
   })
 
-  it('GET /api/objects/:id returns downloadUrl for files', async () => {
+  it('GET /api/objects/:id returns downloadUrl for files [spec: objects/download-url]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -809,7 +809,7 @@ describe('Objects API', () => {
     expect(body.downloadUrl).toBe('https://presigned-download.example.com')
   })
 
-  it('GET /api/objects/:id reports Cloud traffic for bound instances before returning the URL', async () => {
+  it('GET /api/objects/:id reports Cloud traffic for bound instances before returning the URL [spec: objects/download-traffic]', async () => {
     const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
     const headers = await authedHeaders(app)
     await insertStorage(db, { metered: true })
@@ -1031,7 +1031,7 @@ describe('Matter service', () => {
 // ─── Name-conflict route layer ────────────────────────────────────────────────
 
 describe('Objects API — name conflict (409 responses)', () => {
-  it('POST /api/objects returns 409 with NAME_CONFLICT code when folder name is already taken', async () => {
+  it('POST /api/objects returns 409 with NAME_CONFLICT code when folder name is already taken [spec: objects/create-conflict]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1051,7 +1051,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     expect(typeof body.conflictingId).toBe('string')
   })
 
-  it('POST /api/objects with onConflict: rename succeeds and returns auto-renamed folder', async () => {
+  it('POST /api/objects with onConflict: rename succeeds and returns auto-renamed folder [spec: objects/create-conflict-rename]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1069,7 +1069,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     expect(body.name).toBe('Reports (1)')
   })
 
-  it('PATCH /api/objects/:id rename conflict returns 409 with NAME_CONFLICT code', async () => {
+  it('PATCH /api/objects/:id rename conflict returns 409 with NAME_CONFLICT code [spec: objects/rename-conflict]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1108,7 +1108,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     expect(body.name).toBe('beta (1).txt')
   })
 
-  it('PATCH /api/objects/:id move with collision and no onConflict returns 409', async () => {
+  it('PATCH /api/objects/:id move with collision and no onConflict returns 409 [spec: objects/move-conflict]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1167,7 +1167,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     expect(body.code).toBe('NAME_CONFLICT')
   })
 
-  it('PATCH /api/objects/:id (action: restore) returns 409 when restore name is already taken', async () => {
+  it('PATCH /api/objects/:id (action: restore) returns 409 when restore name is already taken [spec: objects/restore-conflict]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1297,7 +1297,7 @@ function transferRequest(
 }
 
 describe('POST /api/objects/:id/transfers', () => {
-  it('copies a file into a team space the user can edit', async () => {
+  it('copies a file into a team space the user can edit [spec: objects/transfer-copy]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1319,7 +1319,7 @@ describe('POST /api/objects/:id/transfers', () => {
     expect(source?.status).toBe('active')
   })
 
-  it('moves a file into a team space, deleting the source and releasing its quota', async () => {
+  it('moves a file into a team space, deleting the source and releasing its quota [spec: objects/transfer-move]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1346,7 +1346,7 @@ describe('POST /api/objects/:id/transfers', () => {
     expect(targetList.items.map((m) => m.name)).toContain('photo.jpg')
   })
 
-  it('copies a folder recursively into the target space', async () => {
+  it('copies a folder recursively into the target space [spec: objects/transfer-folder]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1364,7 +1364,7 @@ describe('POST /api/objects/:id/transfers', () => {
     expect(body.saved.map((m) => m.name)).toEqual(expect.arrayContaining(['Album', 'pic.png']))
   })
 
-  it('rejects transfer into a team the user is not a member of', async () => {
+  it('rejects transfer into a team the user is not a member of [spec: objects/transfer-permission]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1392,7 +1392,7 @@ describe('POST /api/objects/:id/transfers', () => {
     expect(res.status).toBe(403)
   })
 
-  it('rejects transfer when the target space quota is exceeded', async () => {
+  it('rejects transfer when the target space quota is exceeded [spec: objects/transfer-quota]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -1409,7 +1409,7 @@ describe('POST /api/objects/:id/transfers', () => {
     expect(body.code).toBe('QUOTA_EXCEEDED')
   })
 
-  it('rejects transfer to the same space', async () => {
+  it('rejects transfer to the same space [spec: objects/transfer-same-space]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)

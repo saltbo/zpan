@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Service } from '../adapters/gateways/s3.js'
 import { createTeamInviteRepo } from '../adapters/repos/team-invite.js'
 import * as authSchema from '../db/auth-schema.js'
-import { S3Service } from '../services/s3.js'
 import { createTestApp } from '../test/setup.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']

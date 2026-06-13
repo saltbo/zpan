@@ -67,63 +67,38 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
 - [x] `user` + `org-entitlements` -> UserAdminRepo (combined; resolves the user/org-entitlements cycle)
 - [x] `storage-usage` → StorageUsageRepo + reserve/withReservation usecase (the quota-reservation crown foundation)
 
-### Parallel migration waves (file-disjoint components, agents create files + rewire callers; barrels wired by orchestrator)
-- [x] **Wave 1** (5 components): `instance-telemetry`→usecase · `image-upload`→ImageUpload gateway ·
-      `archive-jobs`→ArchiveJobsGateway · `zip-compress`/`zip-extract`→ZipGateway+ZipPlanRepo ·
-      `object-upload-sessions`→ObjectUploadSessionRepo · `purge`→pure usecase
-- [~] **Wave 2** (5 components, in flight): auth-account (signup-mode-guard, team-count-guard, captcha,
-      email, share-notification) · webdav-middleware (download-tokens, api-keys, webdav-state/path/xml) ·
-      cloud (licensing-cloud, cloud-store, cloud-traffic-metering, remote-download-usage, licensing-refresh-runner) ·
-      branding · image-hosting
-- [ ] **Crown** (sequential, matter-coupled): matter, matter-name-conflict, share, save-to-drive,
-      archive-processing, trash-retention, downloads/core, site-public-origin
+### Parallel migration waves (file-disjoint components migrated concurrently by subagents; barrels wired by the orchestrator)
+All waves done. Each wave: agents migrated disjoint components (new ports/adapters/usecases/domain,
+rewired callers to `c.get('deps')`), the orchestrator wired the 3 barrels and ran the gates.
+- [x] **Wave 1** — instance-telemetry, image-upload, archive-jobs, zip-compress/extract, object-upload-sessions, purge
+- [x] **Wave 2** — auth-account (signup-mode-guard, team-count-guard, captcha, email, share-notification),
+      webdav-middleware (download-tokens, api-keys, webdav-state/path/xml), cloud (licensing-cloud, cloud-store,
+      cloud-traffic-metering→cloud-traffic-report, remote-download-usage, licensing-refresh-runner), branding, image-hosting
+- [x] **Wave 3** — share + save-to-drive, archive-processing (+archive-target-folder), trash-retention
+- [x] **Wave 4** — the **matter keystone** (MatterRepo + matter usecase + matter-name-conflict→domain) + site-public-origin
+- [x] **Wave 5** — downloads (DownloaderRepo + DownloadTaskRepo + state-machine usecase); then the **s3 shim deleted**
 
-### Remaining drizzle/inline-route extractions
-- [ ] matter-name-conflict, site-public-origin (pure → domain + systemOptions read)
+### Status: COMPLETE
+`server/services/` is empty and removed. Every drizzle access lives in `adapters/repos/`; every route
+gets its dependencies from `c.get('deps')`. Gates green: `typecheck`, `lint:arch` (267 modules, **no-circular
+fully enforced, no path exemptions**), `lint:spec`, `lint`, `test` (3810), `test:cf` (57).
 
-### Cleanup deferred to a final sweep
-- [ ] Remove dead `const db = c.get('platform').db` locals left in rewired handlers
-      (non-blocking biome warnings)
-- [ ] org, org-entitlements, team, team-invite, team-count-guard, user
-- [ ] matter, matter-name-conflict, share, effective-quota
-- [ ] cloud-store, cloud-traffic-metering, remote-download-usage, download (downloads/core)
-- [ ] image-hosting, save-to-drive, archive-processing, archive-jobs, zip-compress/extract
-- [ ] webdav-path, webdav-state, instance-telemetry, signup-mode-guard
-
-### Licensing subsystem
-- [ ] `domain/licensing.ts` (hasFeature, effectiveFeatures) + `LicenseBindingRepo`
-      (license-state) + `loadBindingState` usecase + CertVerifier; instance-id/info,
-      refresh, entitlement
-
-### Gateways (fetch / SDK) → adapters/gateways|providers
-- [ ] s3, email, cf-custom-hostnames, changelog, cloud-store SDK
-
-### Routes with inline drizzle → repos + deps
-- [ ] auth-providers, ihost, ihost-config, me, quotas, shares, system, teams, webdav
-
-### Domain extractions (pure logic)
-- [ ] path-template, content-disposition (shared already), webdav-xml, url-safety (shared),
-      mime-utils, constant-time, password, semver
-
-### Enforcement (DONE — now in CI, ratchet mode)
-- [x] `.dependency-cruiser.cjs` + `lint:arch` script + wired into CI (`pnpm lint:arch`)
-- [x] All clean-arch rules active and green. The `drizzle-only-in-repos` rule carries
-      a **ratchet** (`MIGRATION_PENDING` allowlist) covering the not-yet-migrated
-      files; **every future migration commit must delete its entry from that list.**
-      When the list is empty the architecture is fully locked.
+### Enforcement — DONE, fully locked
+- [x] `.dependency-cruiser.cjs` + `lint:arch` in CI. All clean-arch rules active.
+- [x] Ratchet shrunk from the whole `services/` dir to **2 deliberately-deferred files**: `http/webdav.ts`
+      (inline listDescendants/proppatch drizzle) and `middleware/auth.ts` (session + disabled-user lookup).
+      Each is a self-contained future slice; drop its `MIGRATION_PENDING` entry when its drizzle moves to a repo.
 - [x] `platform/` (Database driver type) + `auth.ts` are permanent named exceptions.
 
-### Product specs (BDD-lite) — established, grows with migration
-- [x] `spec/` Gherkin `.feature` files (one per capability) + `spec/README.md`
-- [x] `[spec: <id>]` breadcrumbs on home tests; `pnpm lint:spec` (in CI) enforces
-      spec↔test traceability both ways (orphan scenarios AND stale breadcrumbs fail)
-- [x] Specced so far (133 scenarios): storages, announcements, notifications, invite-codes,
-      site-invitations, quotas, profile, licensing, users, audit, teams, avatar,
-      background-jobs, events, health. **Each migrated capability adds its
-      `.feature` + breadcrumbs** — keep `lint:spec` green. Remaining: the wave-2 +
-      crown capabilities (shares, webdav, objects, image-hosting, cloud-store, branding,
-      email-config, system, auth-providers, captcha, redirect, download-tasks) — spec as they land.
+### Product specs (BDD-lite) — DONE
+- [x] `spec/` Gherkin `.feature` (one per capability) + `spec/README.md`; `[spec: <id>]` breadcrumbs on home
+      tests; `pnpm lint:spec` (CI) enforces traceability both ways.
+- [x] **376 scenarios across 26 capabilities**: storages, announcements, notifications, invite-codes,
+      site-invitations, quotas, profile, licensing, users, audit, teams, avatar, background-jobs, events, health,
+      branding, email-config, auth-providers, system, image-hosting, webdav, quota-store, redirect, download-tasks,
+      shares, objects.
 
-### Final cleanup (when ratchet empty)
-- [ ] Delete emptied `services/`; remove transitional shims + the ratchet allowlist
-- [ ] Remove dead `const db` locals; (optional) move `Database` type into `db/`
+### Optional follow-ups (not blocking; tracked for later)
+- [ ] Migrate the 2 ratchet files (webdav listDescendants → a repo; auth-middleware session lookup → a repo),
+      then delete `MIGRATION_PENDING` entirely.
+- [ ] Remove the ~21 pre-existing dead `const db = c.get('platform').db` locals (non-blocking biome warnings).

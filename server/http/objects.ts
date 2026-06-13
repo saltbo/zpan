@@ -17,7 +17,6 @@ import { mapDomainError } from '../lib/http-errors'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { S3Service } from '../services/s3'
 import { assertTaskUploadAllowed } from '../usecases/downloads'
 import { confirmUpload } from '../usecases/matter'
 import {
@@ -31,8 +30,6 @@ import { purgeRecursively } from '../usecases/purge'
 import { copyMatterToOrg } from '../usecases/save-to-drive'
 import { withStorageUsageReservation } from '../usecases/storage-usage'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
-
-const s3 = new S3Service()
 
 function normalizeMatterPath(path: string): string {
   return path
@@ -160,7 +157,7 @@ const app = new Hono<Env>()
       })
       if (isFolder) return c.json(matter, 201)
       const contentDisposition = attachmentContentDisposition(name)
-      const uploadUrl = await s3.presignUpload(storage, objectKey, type, name)
+      const uploadUrl = await c.get('deps').s3.presignUpload(storage, objectKey, type, name)
       return c.json({ ...matter, uploadUrl, contentDisposition }, 201)
     } catch (e) {
       const mapped = mapDomainError(e)
@@ -270,7 +267,7 @@ const app = new Hono<Env>()
 
     let downloadUrl: string
     try {
-      downloadUrl = await s3.presignDownload(storage, matter.object, matter.name)
+      downloadUrl = await c.get('deps').s3.presignDownload(storage, matter.object, matter.name)
     } catch (e) {
       await c.get('deps').quota.refundTraffic(orgId, matter.size ?? 0)
       throw e
@@ -332,7 +329,7 @@ const app = new Hono<Env>()
           const storage = await c.get('deps').storages.get(matter.storageId)
           if (storage) {
             try {
-              await s3.deleteObject(storage, matter.object)
+              await c.get('deps').s3.deleteObject(storage, matter.object)
             } catch {
               // Best-effort cleanup: the browser may abort before S3 writes anything.
             }
@@ -407,8 +404,8 @@ const app = new Hono<Env>()
               orgId,
               rawExt: fileExt(source.name),
             })
-            await s3.copyObject(objectStorage, source.object, objectStorage, newObject)
-            ctx.onRollback(() => s3.deleteObject(objectStorage, newObject))
+            await c.get('deps').s3.copyObject(objectStorage, source.object, objectStorage, newObject)
+            ctx.onRollback(() => c.get('deps').s3.deleteObject(objectStorage, newObject))
           }
           return c.get('deps').matter.copy(source, parent, newObject, { onConflict, userId })
         },
