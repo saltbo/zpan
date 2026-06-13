@@ -2,7 +2,7 @@ import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createInstanceRepo } from '../adapters/repos/instance.js'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding.js'
-import { PUBLIC_KEYS } from '../licensing/public-keys.js'
+import { PUBLIC_KEYS } from '../domain/license-keys.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
 
 function makeCloudResponse(body: unknown, status = 200): Response {

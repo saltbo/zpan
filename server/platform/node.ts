@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as authSchema from '../db/auth-schema'
 import * as schema from '../db/schema'
-import { registerEnvPublicKeys } from '../licensing/public-keys'
+import { registerEnvPublicKeys } from '../domain/license-keys'
 import type { Platform } from './interface'
 
 export function createNodePlatform(): Platform {

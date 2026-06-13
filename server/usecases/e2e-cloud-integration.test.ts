@@ -16,7 +16,7 @@
  * the poll-pending stage against the live API, then use locally-signed PASETO
  * certs to test the full feature-gate chain end-to-end.
  *
- * Run with: pnpm exec vitest run server/licensing/e2e-cloud-integration.test.ts
+ * Run with: pnpm exec vitest run server/usecases/e2e-cloud-integration.test.ts
  */
 
 import { generateKeys, sign } from 'paseto-ts/v4'
@@ -25,11 +25,11 @@ import { SignupMode } from '../../shared/constants'
 import { createPairing, pollPairing, refreshEntitlement } from '../adapters/gateways/licensing-cloud'
 import { createInstanceRepo } from '../adapters/repos/instance'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
+import { PUBLIC_KEYS } from '../domain/license-keys'
 import { hasFeature } from '../domain/licensing'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup'
-import { loadBindingState } from '../usecases/licensing'
-import { CloudUnboundError, type PairingResponse } from '../usecases/ports'
-import { PUBLIC_KEYS } from './public-keys'
+import { loadBindingState } from './licensing'
+import { CloudUnboundError, type PairingResponse } from './ports'
 
 const CLOUD_BASE_URL = process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev'
 const CLOUD_BASE_ORIGIN = new URL(CLOUD_BASE_URL).origin

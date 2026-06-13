@@ -8,11 +8,11 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 import { createQuotaRepo } from './adapters/repos/quota'
 import { createBootstrap } from './bootstrap'
 import { createDeps } from './composition'
-import { buildCloudInstanceInfo, runtimeInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
 import { syncPendingCloudTrafficReports } from './usecases/cloud-traffic-metering'
+import { buildCloudInstanceInfo, runtimeInfo } from './usecases/instance-info'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
 import { runLicensingRefresh } from './usecases/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './usecases/remote-download-usage'
@@ -85,12 +85,12 @@ setInterval(() => {
   void (async () => {
     const instanceUrl = await getSitePublicOrigin(deps)
     const instance = instanceUrl
-      ? await buildCloudInstanceInfo(platform.db, {
+      ? await buildCloudInstanceInfo(deps, {
           url: instanceUrl,
           runtime: runtimeInfo(platform),
         })
       : undefined
-    await runLicensingRefresh(deps, platform.db, cloudBaseUrl, instance)
+    await runLicensingRefresh(deps, cloudBaseUrl, instance)
   })()
 }, REFRESH_INTERVAL_MS)
 

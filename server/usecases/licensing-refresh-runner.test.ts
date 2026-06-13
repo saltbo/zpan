@@ -1,12 +1,17 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createLicensingCloudGateway } from '../adapters/gateways/licensing-cloud.js'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding.js'
 import { licenseBindings } from '../db/schema.js'
-import * as refreshModule from '../licensing/refresh.js'
 import { createTestApp } from '../test/setup.js'
+import * as refreshModule from './license-refresh.js'
 import { runLicensingRefresh } from './licensing-refresh-runner.js'
 
 const CLOUD_URL = 'https://cloud.zpan.space'
+
+function makeDeps(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
+  return { licenseBinding: createLicenseBindingRepo(db), licensingCloud: createLicensingCloudGateway() }
+}
 
 async function seedLicenseBinding(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
@@ -41,9 +46,7 @@ describe('runLicensingRefresh', () => {
   it('returns immediately with no-op when no license binding exists', async () => {
     const { db } = await createTestApp()
 
-    await expect(
-      runLicensingRefresh({ licenseBinding: createLicenseBindingRepo(db) }, db, CLOUD_URL),
-    ).resolves.toBeUndefined()
+    await expect(runLicensingRefresh(makeDeps(db), CLOUD_URL)).resolves.toBeUndefined()
     expect(performRefreshSpy).not.toHaveBeenCalled()
   })
 
@@ -53,7 +56,7 @@ describe('runLicensingRefresh', () => {
     const recentRefresh = Math.floor(Date.now() / 1000) - 120
     await seedLicenseBinding(db, { lastRefreshAt: recentRefresh })
 
-    await runLicensingRefresh({ licenseBinding: createLicenseBindingRepo(db) }, db, CLOUD_URL)
+    await runLicensingRefresh(makeDeps(db), CLOUD_URL)
 
     expect(performRefreshSpy).not.toHaveBeenCalled()
   })
@@ -66,10 +69,11 @@ describe('runLicensingRefresh', () => {
 
     performRefreshSpy.mockResolvedValueOnce(undefined)
 
-    await runLicensingRefresh({ licenseBinding: createLicenseBindingRepo(db) }, db, CLOUD_URL)
+    const deps = makeDeps(db)
+    await runLicensingRefresh(deps, CLOUD_URL)
 
     expect(performRefreshSpy).toHaveBeenCalledOnce()
-    expect(performRefreshSpy).toHaveBeenCalledWith(db, CLOUD_URL)
+    expect(performRefreshSpy).toHaveBeenCalledWith(deps, CLOUD_URL)
   })
 
   it('calls performRefresh when lastRefreshAt is null', async () => {
@@ -79,7 +83,7 @@ describe('runLicensingRefresh', () => {
 
     performRefreshSpy.mockResolvedValueOnce(undefined)
 
-    await runLicensingRefresh({ licenseBinding: createLicenseBindingRepo(db) }, db, CLOUD_URL)
+    await runLicensingRefresh(makeDeps(db), CLOUD_URL)
 
     expect(performRefreshSpy).toHaveBeenCalledOnce()
   })
@@ -92,7 +96,7 @@ describe('runLicensingRefresh', () => {
 
     performRefreshSpy.mockResolvedValueOnce(undefined)
 
-    await runLicensingRefresh({ licenseBinding: createLicenseBindingRepo(db) }, db, CLOUD_URL)
+    await runLicensingRefresh(makeDeps(db), CLOUD_URL)
 
     expect(consoleSpy).toHaveBeenCalledWith('licensing.refresh.ok')
   })
@@ -105,7 +109,7 @@ describe('runLicensingRefresh', () => {
 
     performRefreshSpy.mockRejectedValueOnce(new Error('network timeout'))
 
-    await runLicensingRefresh({ licenseBinding: createLicenseBindingRepo(db) }, db, CLOUD_URL)
+    await runLicensingRefresh(makeDeps(db), CLOUD_URL)
 
     expect(consoleSpy).toHaveBeenCalledWith('licensing.refresh.error code=network timeout')
   })
@@ -118,7 +122,7 @@ describe('runLicensingRefresh', () => {
 
     performRefreshSpy.mockRejectedValueOnce('plain string error')
 
-    await runLicensingRefresh({ licenseBinding: createLicenseBindingRepo(db) }, db, CLOUD_URL)
+    await runLicensingRefresh(makeDeps(db), CLOUD_URL)
 
     expect(consoleSpy).toHaveBeenCalledWith('licensing.refresh.error code=plain string error')
   })
@@ -131,8 +135,6 @@ describe('runLicensingRefresh', () => {
 
     performRefreshSpy.mockRejectedValueOnce(new Error('unexpected'))
 
-    await expect(
-      runLicensingRefresh({ licenseBinding: createLicenseBindingRepo(db) }, db, CLOUD_URL),
-    ).resolves.toBeUndefined()
+    await expect(runLicensingRefresh(makeDeps(db), CLOUD_URL)).resolves.toBeUndefined()
   })
 })

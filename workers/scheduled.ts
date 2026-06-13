@@ -64,5 +64,5 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
     return
   }
 
-  await runLicensingRefresh(deps, platform.db, cloudBaseUrl)
+  await runLicensingRefresh(deps, cloudBaseUrl)
 }

@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { originFromRequestUrl } from '../domain/site-public-origin'
-import { invalidateEntitlementCache } from '../licensing/entitlement'
-import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
-import { performRefresh } from '../licensing/refresh'
-import { normalizeHost, verifyCertificateResult } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { buildCloudInstanceInfo, runtimeInfo } from '../usecases/instance-info'
+import { normalizeHost, verifyCertificateResult } from '../usecases/license-certificate'
+import { invalidateEntitlementCache } from '../usecases/license-entitlement'
+import { performRefresh } from '../usecases/license-refresh'
 import type { PairingPollResponse } from '../usecases/ports'
 import { getSitePublicOrigin } from '../usecases/site-public-origin'
 
@@ -55,10 +55,9 @@ const app = new Hono<Env>()
   .use(requireAdmin)
 
   .post('/pair', async (c) => {
-    const db = c.get('platform').db
     const baseUrl = getCloudBaseUrl(c)
 
-    const instance = await buildCloudInstanceInfo(db, {
+    const instance = await buildCloudInstanceInfo(c.get('deps'), {
       url: await getInstanceOrigin(c),
       runtime: runtimeInfo(c.get('platform')),
     })
@@ -140,16 +139,15 @@ const app = new Hono<Env>()
   })
 
   .post('/refresh', async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const baseUrl = getCloudBaseUrl(c)
-    const instance = await buildCloudInstanceInfo(db, {
+    const instance = await buildCloudInstanceInfo(c.get('deps'), {
       url: await getInstanceOrigin(c),
       runtime: runtimeInfo(c.get('platform')),
     })
 
-    await performRefresh(db, baseUrl, instance)
+    await performRefresh(c.get('deps'), baseUrl, instance)
 
     const state = await c.get('deps').licenseBinding.loadLicenseState()
 

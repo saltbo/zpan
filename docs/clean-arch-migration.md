@@ -100,6 +100,15 @@ trashByIds,restoreActiveByIds,touch,applyUpload} + UserAdminRepo.{isBanned,match
       branding, email-config, auth-providers, system, image-hosting, webdav, quota-store, redirect, download-tasks,
       shares, objects, image-hosting-config, licensing-admin, teams-admin, auth-username.
 
+### Structure cleanup — DONE
+- [x] Dissolved the unclassified `server/licensing/` feature dir into the layers (it had escaped
+      `domain-stays-pure` / `usecases-no-infrastructure`): `public-keys`→`domain/license-keys`;
+      `verify`+`cloud-event-token`→`usecases/license-certificate`; `entitlement`/`instance-info`/`refresh`→
+      deps-first usecases (`license-entitlement`/`instance-info`/`license-refresh`, using existing
+      `deps.{licenseBinding,instance,licensingCloud}` — no barrel changes). 11 consumers rewired to `deps`.
+      Remaining non-layer dirs are intentional: `platform/`+`test/`+`auth.ts` (named exceptions),
+      `lib/` (framework-free utils), `middleware/` (Hono delivery convention).
+
 ### Post-review follow-ups — DONE
 - [x] Deduped the transitional matter-row DTOs: `ShareMatterRow` / `WebDavMatterRow` now reference the
       canonical `Matter` port DTO (removed the hand-copied duplicates + their schema-drift risk).

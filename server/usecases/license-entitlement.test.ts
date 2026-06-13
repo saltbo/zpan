@@ -6,9 +6,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
+import { PUBLIC_KEYS } from '../domain/license-keys'
 import { effectiveFeatures } from '../domain/licensing'
-import { invalidateEntitlementCache, loadEntitlement } from './entitlement'
-import { PUBLIC_KEYS } from './public-keys'
+import { invalidateEntitlementCache, loadEntitlement } from './license-entitlement'
 
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS license_bindings (
@@ -107,7 +107,7 @@ describe('loadEntitlement', () => {
 
   it('returns null when no binding exists', async () => {
     const db = makeDb()
-    const result = await loadEntitlement(db)
+    const result = await loadEntitlement({ licenseBinding: createLicenseBindingRepo(db) })
     expect(result).toBeNull()
   })
 
@@ -115,7 +115,7 @@ describe('loadEntitlement', () => {
     const db = makeDb()
     await seedBinding(db, null)
 
-    const result = await loadEntitlement(db)
+    const result = await loadEntitlement({ licenseBinding: createLicenseBindingRepo(db) })
     expect(result).toBeNull()
   })
 
@@ -133,7 +133,7 @@ describe('loadEntitlement', () => {
       }),
     )
 
-    const result = await loadEntitlement(db)
+    const result = await loadEntitlement({ licenseBinding: createLicenseBindingRepo(db) })
     expect(result).not.toBeNull()
     expect(result?.edition).toBe('pro')
     expect(result?.features).toEqual(effectiveFeatures('pro'))
@@ -153,7 +153,7 @@ describe('loadEntitlement', () => {
       }),
     )
 
-    const result = await loadEntitlement(db)
+    const result = await loadEntitlement({ licenseBinding: createLicenseBindingRepo(db) })
     expect(result).toMatchObject({
       edition: 'business',
       features: effectiveFeatures('business'),
@@ -167,12 +167,12 @@ describe('loadEntitlement', () => {
       const db = makeDb()
       await seedBinding(db, signAssertion({ expiresAt: nowSec() + 30 }))
 
-      const first = await loadEntitlement(db)
+      const first = await loadEntitlement({ licenseBinding: createLicenseBindingRepo(db) })
       expect(first?.edition).toBe('pro')
 
       // Advance past the cert's 30s expiry but within the 60s cache TTL.
       vi.advanceTimersByTime(40_000)
-      const second = await loadEntitlement(db)
+      const second = await loadEntitlement({ licenseBinding: createLicenseBindingRepo(db) })
       expect(second).toBeNull()
     } finally {
       vi.useRealTimers()
@@ -187,7 +187,7 @@ describe('loadEntitlement', () => {
       signAssertion({ issuedAt: nowSec() - 100, notBefore: nowSec() - 100, expiresAt: nowSec() - 1 }),
     )
 
-    const result = await loadEntitlement(db)
+    const result = await loadEntitlement({ licenseBinding: createLicenseBindingRepo(db) })
     expect(result).toBeNull()
   })
 })
@@ -196,13 +196,13 @@ describe('invalidateEntitlementCache', () => {
   it('clears cached state so next call re-reads from DB', async () => {
     const db = makeDb()
 
-    await loadEntitlement(db)
+    await loadEntitlement({ licenseBinding: createLicenseBindingRepo(db) })
 
     await seedBinding(db, signAssertion())
 
     invalidateEntitlementCache()
 
-    const result = await loadEntitlement(db)
+    const result = await loadEntitlement({ licenseBinding: createLicenseBindingRepo(db) })
     expect(result?.edition).toBe('pro')
   })
 })

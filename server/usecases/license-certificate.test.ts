@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { PUBLIC_KEYS } from './public-keys'
-import { verifyCertificate, verifyCertificateResult } from './verify'
+import { PUBLIC_KEYS } from '../domain/license-keys'
+import { verifyCertificate, verifyCertificateResult } from './license-certificate'
 
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
 const originalKeys: string[] = []

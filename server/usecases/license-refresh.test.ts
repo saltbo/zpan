@@ -3,13 +3,14 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createLicensingCloudGateway } from '../adapters/gateways/licensing-cloud'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
-import type { CreateLicenseBindingInput } from '../usecases/ports'
-import { invalidateEntitlementCache } from './entitlement'
-import { PUBLIC_KEYS } from './public-keys'
-import { performRefresh } from './refresh'
+import { PUBLIC_KEYS } from '../domain/license-keys'
+import { invalidateEntitlementCache } from './license-entitlement'
+import { performRefresh } from './license-refresh'
+import type { CreateLicenseBindingInput } from './ports'
 
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS license_bindings (
@@ -111,7 +112,12 @@ describe('performRefresh', () => {
 
   it('is a no-op when no binding exists', async () => {
     const db = makeDb()
-    await expect(performRefresh(db, 'https://cloud.zpan.space')).resolves.toBeUndefined()
+    await expect(
+      performRefresh(
+        { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
+        'https://cloud.zpan.space',
+      ),
+    ).resolves.toBeUndefined()
   })
 
   it('rotates refreshToken and stores PASETO certificate from cloud', async () => {
@@ -133,7 +139,10 @@ describe('performRefresh', () => {
       text: async () => '',
     } as unknown as Response)
 
-    await performRefresh(db, 'https://cloud.zpan.space')
+    await performRefresh(
+      { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
+      'https://cloud.zpan.space',
+    )
 
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('new-rt')
@@ -163,7 +172,10 @@ describe('performRefresh', () => {
       text: async () => '',
     } as unknown as Response)
 
-    await performRefresh(db, 'https://cloud.zpan.space')
+    await performRefresh(
+      { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
+      'https://cloud.zpan.space',
+    )
 
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('new-rt-paseto')
@@ -182,7 +194,10 @@ describe('performRefresh', () => {
       text: async () => '',
     } as unknown as Response)
 
-    await performRefresh(db, 'https://cloud.zpan.space')
+    await performRefresh(
+      { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
+      'https://cloud.zpan.space',
+    )
 
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBeNull()
@@ -194,7 +209,10 @@ describe('performRefresh', () => {
 
     vi.mocked(fetch).mockRejectedValueOnce(new Error('Connection timeout'))
 
-    await performRefresh(db, 'https://cloud.zpan.space')
+    await performRefresh(
+      { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
+      'https://cloud.zpan.space',
+    )
 
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
@@ -222,7 +240,10 @@ describe('performRefresh', () => {
       text: async () => '',
     } as unknown as Response)
 
-    await performRefresh(db, 'https://cloud.zpan.space')
+    await performRefresh(
+      { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
+      'https://cloud.zpan.space',
+    )
 
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
@@ -246,7 +267,10 @@ describe('performRefresh', () => {
       text: async () => '',
     } as unknown as Response)
 
-    await performRefresh(db, 'https://cloud.zpan.space')
+    await performRefresh(
+      { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
+      'https://cloud.zpan.space',
+    )
 
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')

@@ -68,7 +68,7 @@ describe('handleScheduled', () => {
   it('refreshes licensing on the licensing cron only', async () => {
     await handleScheduled({ cron: '0 */6 * * *' }, { DB: {} as D1Database, ZPAN_CLOUD_URL: 'https://cloud.example' })
 
-    expect(runLicensingRefresh).toHaveBeenCalledWith(fakeDeps, 'db', 'https://cloud.example')
+    expect(runLicensingRefresh).toHaveBeenCalledWith(fakeDeps, 'https://cloud.example')
     expect(syncPendingCloudTrafficReports).not.toHaveBeenCalled()
     expect(syncPendingRemoteDownloadUsageReports).not.toHaveBeenCalled()
     expect(reportInstanceTelemetry).not.toHaveBeenCalled()

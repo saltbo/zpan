@@ -4,10 +4,10 @@ import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { BindingState } from '../../shared/types'
 import { originFromRequestUrl } from '../domain/site-public-origin'
-import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
-import { normalizeHost } from '../licensing/verify'
 import type { Env } from '../middleware/platform'
 import { syncPendingCloudTrafficReports } from '../usecases/cloud-traffic-metering'
+import { buildCloudInstanceInfo, runtimeInfo } from '../usecases/instance-info'
+import { normalizeHost } from '../usecases/license-certificate'
 import { loadBindingState } from '../usecases/licensing'
 import { runLicensingRefresh } from '../usecases/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from '../usecases/remote-download-usage'
@@ -53,16 +53,15 @@ const app = new Hono<Env>()
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const db = c.get('platform').db
     const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
     const origin = await getInstanceOrigin(c)
     const instance = origin
-      ? await buildCloudInstanceInfo(db, {
+      ? await buildCloudInstanceInfo(c.get('deps'), {
           url: origin,
           runtime: runtimeInfo(c.get('platform')),
         })
       : undefined
-    await runLicensingRefresh(c.get('deps'), db, cloudBaseUrl, instance)
+    await runLicensingRefresh(c.get('deps'), cloudBaseUrl, instance)
 
     return c.json({ ok: true })
   })

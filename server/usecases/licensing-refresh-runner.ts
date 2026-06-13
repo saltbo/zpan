@@ -1,14 +1,12 @@
-import { performRefresh } from '../licensing/refresh'
-import type { Database } from '../platform/interface'
-import type { CloudInstanceInfo, LicenseBindingRepo } from './ports'
+import { performRefresh } from './license-refresh'
+import type { CloudInstanceInfo, LicenseBindingRepo, LicensingCloudGateway } from './ports'
 
 const DEDUP_WINDOW_SEC = 5 * 60
 
-export type LicensingRefreshDeps = { licenseBinding: LicenseBindingRepo }
+export type LicensingRefreshDeps = { licenseBinding: LicenseBindingRepo; licensingCloud: LicensingCloudGateway }
 
 export async function runLicensingRefresh(
   deps: LicensingRefreshDeps,
-  db: Database,
   cloudBaseUrl: string,
   instance?: CloudInstanceInfo,
 ): Promise<void> {
@@ -20,9 +18,9 @@ export async function runLicensingRefresh(
 
   try {
     if (instance) {
-      await performRefresh(db, cloudBaseUrl, instance)
+      await performRefresh(deps, cloudBaseUrl, instance)
     } else {
-      await performRefresh(db, cloudBaseUrl)
+      await performRefresh(deps, cloudBaseUrl)
     }
     console.log('licensing.refresh.ok')
   } catch (err) {

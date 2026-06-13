@@ -631,7 +631,7 @@ async function seedLicense(
     edition: LicenseEdition
   },
 ) {
-  const { PUBLIC_KEYS } = await import('../licensing/public-keys.js')
+  const { PUBLIC_KEYS } = await import('../domain/license-keys.js')
   if (!PUBLIC_KEYS.includes(TEST_LICENSE_PUBLIC)) {
     PUBLIC_KEYS.unshift(TEST_LICENSE_PUBLIC)
   }

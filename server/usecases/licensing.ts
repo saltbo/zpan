@@ -1,6 +1,6 @@
 import type { BindingState } from '@shared/types'
 import { effectiveFeatures } from '../domain/licensing'
-import { verifyCertificate } from '../licensing/verify'
+import { verifyCertificate } from './license-certificate'
 import type { LicenseBindingRepo } from './ports'
 
 export interface BindingStateOptions {

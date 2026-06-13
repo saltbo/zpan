@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it } from 'vitest'
-import { getTrustedPublicKeys, PUBLIC_KEYS, registerEnvPublicKeys } from './public-keys'
+import { getTrustedPublicKeys, PUBLIC_KEYS, registerEnvPublicKeys } from './license-keys'
 
 describe('public keys', () => {
   afterEach(() => {

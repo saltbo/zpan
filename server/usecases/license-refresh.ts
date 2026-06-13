@@ -1,14 +1,13 @@
-import { refreshEntitlement } from '../adapters/gateways/licensing-cloud'
-import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
-import type { Database } from '../platform/interface'
+import { verifyCertificate } from './license-certificate'
+import { invalidateEntitlementCache } from './license-entitlement'
 import {
   type CloudInstanceInfo,
   CloudInvalidResponseError,
   CloudNetworkError,
   CloudUnboundError,
-} from '../usecases/ports'
-import { invalidateEntitlementCache } from './entitlement'
-import { verifyCertificate } from './verify'
+  type LicenseBindingRepo,
+  type LicensingCloudGateway,
+} from './ports'
 
 const INVALID_CERTIFICATE_ERROR = 'Invalid certificate from cloud'
 const INVALID_ENTITLEMENT_RESPONSE_ERROR = 'Invalid entitlement response from cloud'
@@ -21,26 +20,30 @@ function normaliseCert(
   return { cert: raw, certificateExpiresAt: assertion?.expiresAt ?? null }
 }
 
-export async function performRefresh(db: Database, baseUrl: string, instance?: CloudInstanceInfo): Promise<void> {
-  const state = await createLicenseBindingRepo(db).loadLicenseState()
+export async function performRefresh(
+  deps: { licensingCloud: LicensingCloudGateway; licenseBinding: LicenseBindingRepo },
+  baseUrl: string,
+  instance?: CloudInstanceInfo,
+): Promise<void> {
+  const state = await deps.licenseBinding.loadLicenseState()
   if (!state.refreshToken || !state.instanceId) return
 
   try {
-    const data = await refreshEntitlement(baseUrl, state.refreshToken, instance)
+    const data = await deps.licensingCloud.refreshEntitlement(baseUrl, state.refreshToken, instance)
     const { cert, certificateExpiresAt } = normaliseCert(data.certificate, {
       instanceId: state.instanceId,
       cloudBaseUrl: baseUrl,
     })
     if (!certificateExpiresAt) {
-      await createLicenseBindingRepo(db).setLicenseRefreshError(state.id, INVALID_CERTIFICATE_ERROR)
+      await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_CERTIFICATE_ERROR)
       return
     }
     if (!data.binding?.storeId || !data.account) {
-      await createLicenseBindingRepo(db).setLicenseRefreshError(state.id, INVALID_ENTITLEMENT_RESPONSE_ERROR)
+      await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_ENTITLEMENT_RESPONSE_ERROR)
       return
     }
 
-    await createLicenseBindingRepo(db).updateLicenseBindingAfterRefresh({
+    await deps.licenseBinding.updateLicenseBindingAfterRefresh({
       id: state.id,
       refreshToken: data.refreshToken,
       cloudStoreId: data.binding.storeId,
@@ -53,13 +56,13 @@ export async function performRefresh(db: Database, baseUrl: string, instance?: C
     invalidateEntitlementCache()
   } catch (err) {
     if (err instanceof CloudUnboundError) {
-      await createLicenseBindingRepo(db).clearLicenseBinding('revoked')
+      await deps.licenseBinding.clearLicenseBinding('revoked')
       invalidateEntitlementCache()
       return
     }
 
     if (err instanceof CloudInvalidResponseError || err instanceof CloudNetworkError || err instanceof Error) {
-      await createLicenseBindingRepo(db).setLicenseRefreshError(state.id, err.message)
+      await deps.licenseBinding.setLicenseRefreshError(state.id, err.message)
       return
     }
 

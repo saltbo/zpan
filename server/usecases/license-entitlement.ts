@@ -1,8 +1,7 @@
 import type { LicenseFeature } from '@shared/types'
-import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import { effectiveFeatures } from '../domain/licensing'
-import type { Database } from '../platform/interface'
-import { verifyCertificate } from './verify'
+import { verifyCertificate } from './license-certificate'
+import type { LicenseBindingRepo } from './ports'
 
 export interface EntitlementSummary {
   edition: 'pro' | 'business'
@@ -17,7 +16,9 @@ const CACHE_TTL_MS = 60_000
 let cachedSummary: EntitlementSummary | null = null
 let cachedAt = 0
 
-export async function loadEntitlement(db: Database): Promise<EntitlementSummary | null> {
+export async function loadEntitlement(deps: {
+  licenseBinding: LicenseBindingRepo
+}): Promise<EntitlementSummary | null> {
   const now = Date.now()
   if (cachedAt > 0 && now - cachedAt < CACHE_TTL_MS) {
     // The 60s TTL must not outlive the certificate itself: a cert that expires
@@ -30,7 +31,7 @@ export async function loadEntitlement(db: Database): Promise<EntitlementSummary 
     // Cached cert has since expired — fall through to re-verify (yields null).
   }
 
-  const state = await createLicenseBindingRepo(db).loadLicenseState()
+  const state = await deps.licenseBinding.loadLicenseState()
   if (!state.cachedCert || !state.instanceId) {
     cachedSummary = null
     cachedAt = now

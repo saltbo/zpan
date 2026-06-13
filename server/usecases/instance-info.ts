@@ -1,10 +1,9 @@
 import { release as osRelease } from 'node:os'
 import type { InstanceInfo } from '../../shared/types'
-import { createInstanceRepo } from '../adapters/repos/instance'
-import type { Database, Platform } from '../platform/interface'
+import type { Platform } from '../platform/interface'
 import { getDeployPlatform } from '../runtime-platform'
-import type { CloudInstanceInfo } from '../usecases/ports'
 import { getAppCommit, getAppVersion } from '../version'
+import type { CloudInstanceInfo, InstanceRepo } from './ports'
 
 type RuntimeInfo = Pick<InstanceInfo, 'runtime' | 'platform' | 'server' | 'node'>
 
@@ -22,12 +21,12 @@ export function runtimeInfo(platform: Platform): RuntimeInfo {
 
 // Shown on the admin About page: flat runtime engine + deployment platform.
 export async function buildInstanceInfo(
-  db: Database,
+  deps: { instance: InstanceRepo },
   params: { url: string; runtime?: RuntimeInfo },
 ): Promise<InstanceInfo> {
   return {
-    id: await createInstanceRepo(db).getOrCreateInstanceId(),
-    name: await createInstanceRepo(db).getInstanceDisplayName(),
+    id: await deps.instance.getOrCreateInstanceId(),
+    name: await deps.instance.getInstanceDisplayName(),
     url: params.url,
     version: getAppVersion(),
     commit: getAppCommit(),
@@ -51,12 +50,12 @@ function toCloudRuntime(info?: RuntimeInfo): Pick<CloudInstanceInfo, 'runtime' |
 }
 
 export async function buildCloudInstanceInfo(
-  db: Database,
+  deps: { instance: InstanceRepo },
   params: { url: string; runtime?: RuntimeInfo },
 ): Promise<CloudInstanceInfo> {
   return {
-    id: await createInstanceRepo(db).getOrCreateInstanceId(),
-    name: await createInstanceRepo(db).getInstanceDisplayName(),
+    id: await deps.instance.getOrCreateInstanceId(),
+    name: await deps.instance.getInstanceDisplayName(),
     url: params.url,
     version: getAppVersion(),
     commit: getAppCommit(),

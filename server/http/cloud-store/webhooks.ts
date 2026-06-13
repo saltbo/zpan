@@ -1,8 +1,8 @@
 import { cloudOrderQuotaChangeSchema } from '@shared/schemas'
 import { Hono } from 'hono'
-import { verifyCloudEventToken } from '../../licensing/cloud-event-token'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
+import { verifyCloudEventToken } from '../../usecases/license-certificate'
 import { getCloudBaseUrl, parseJson, sha256Hex } from '../cloud-store-helpers'
 
 export const cloudStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).post('/webhook', async (c) => {
