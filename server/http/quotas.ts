@@ -1,26 +1,13 @@
-import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { organization } from '../db/auth-schema'
-import { orgQuotas } from '../db/schema'
 import { requireAdmin, requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 
 // Quota overview across all orgs (personal + team), used by the admin dashboard.
 // Per-team entitlement management lives under /api/admin/teams.
 const adminQuotas = new Hono<Env>().use(requireAdmin).get('/', async (c) => {
-  const db = c.get('platform').db
   const now = new Date()
 
-  const rows = await db
-    .select({
-      id: orgQuotas.id,
-      orgId: orgQuotas.orgId,
-      orgName: organization.name,
-      orgMetadata: organization.metadata,
-    })
-    .from(orgQuotas)
-    .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
-    .orderBy(organization.name)
+  const rows = await c.get('deps').quota.listOrgQuotaOverview()
 
   const quotas = await c.get('deps').quota.getEffectiveQuotasByOrg(
     rows.map((r) => r.orgId),
@@ -38,7 +25,6 @@ const adminQuotas = new Hono<Env>().use(requireAdmin).get('/', async (c) => {
 })
 
 const userQuotas = new Hono<Env>().use(requireAuth).get('/me', async (c) => {
-  const db = c.get('platform').db
   const userId = c.get('userId')!
   const orgId = c.get('orgId') ?? (await c.get('deps').org.findPersonalOrg(userId))
 

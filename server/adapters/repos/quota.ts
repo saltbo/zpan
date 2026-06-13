@@ -1,4 +1,5 @@
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { organization } from '../../db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, storages } from '../../db/schema'
 import { currentTrafficPeriod } from '../../domain/quota'
 import type { Database } from '../../platform/interface'
@@ -447,8 +448,22 @@ function isSubscriptionSourceId(sourceId: string) {
   return sourceId.startsWith('stripe_subscription:')
 }
 
+async function listOrgQuotaOverview(db: Database) {
+  return db
+    .select({
+      id: orgQuotas.id,
+      orgId: orgQuotas.orgId,
+      orgName: organization.name,
+      orgMetadata: organization.metadata,
+    })
+    .from(orgQuotas)
+    .innerJoin(organization, eq(organization.id, orgQuotas.orgId))
+    .orderBy(organization.name)
+}
+
 export function createQuotaRepo(db: Database): QuotaRepo {
   return {
+    listOrgQuotaOverview: () => listOrgQuotaOverview(db),
     getEffectiveQuota: (orgId, now) => getEffectiveQuota(db, orgId, now),
     getEffectiveQuotasByOrg: (orgIds, now) => getEffectiveQuotasByOrg(db, orgIds, now),
     resetExpiredTrafficQuotas: (now) => resetExpiredTrafficQuotas(db, now),

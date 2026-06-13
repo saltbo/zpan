@@ -27,7 +27,15 @@ export interface CurrentStoragePlan {
   subscription: boolean
 }
 
+export interface OrgQuotaOverviewRow {
+  id: string
+  orgId: string
+  orgName: string
+  orgMetadata: string | null
+}
+
 export interface QuotaRepo {
+  listOrgQuotaOverview(): Promise<OrgQuotaOverviewRow[]>
   getEffectiveQuota(orgId: string, now?: Date): Promise<EffectiveQuota>
   getEffectiveQuotasByOrg(orgIds: string[], now?: Date): Promise<Map<string, EffectiveQuota>>
   resetExpiredTrafficQuotas(now?: Date): Promise<void>
