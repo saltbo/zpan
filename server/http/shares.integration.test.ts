@@ -91,7 +91,7 @@ async function getShareIdByToken(db: TestDb, token: string): Promise<string> {
 // ─── POST /api/shares auth guard ─────────────────────────────────────────────
 
 describe('POST /api/shares (auth guard)', () => {
-  it('returns 401 without auth', async () => {
+  it('returns 401 without auth [spec: shares/auth-required]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/shares', {
       method: 'POST',
@@ -109,7 +109,7 @@ describe('POST /api/shares', () => {
     vi.restoreAllMocks()
   })
 
-  it('creates a landing share without password and returns 201 with correct shape', async () => {
+  it('creates a landing share without password and returns 201 with correct shape [spec: shares/create-landing]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -128,7 +128,7 @@ describe('POST /api/shares', () => {
     expect(body.id).toBeUndefined()
   })
 
-  it('creates a landing share with password and stores passwordHash in DB', async () => {
+  it('creates a landing share with password and stores passwordHash in DB [spec: shares/create-password]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -146,7 +146,7 @@ describe('POST /api/shares', () => {
     expect(rows[0]?.passwordHash).not.toBe('')
   })
 
-  it('creates a landing share with recipients and inserts share_recipients rows', async () => {
+  it('creates a landing share with recipients and inserts share_recipients rows [spec: shares/create-recipients]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -165,7 +165,7 @@ describe('POST /api/shares', () => {
     expect(rows).toHaveLength(2)
   })
 
-  it('creates a direct share for a file and returns direct url', async () => {
+  it('creates a direct share for a file and returns direct url [spec: shares/create-direct]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -181,7 +181,7 @@ describe('POST /api/shares', () => {
     expect((body.urls as Record<string, string>).landing).toBeUndefined()
   })
 
-  it('returns 400 with DIRECT_NO_FOLDER when creating direct share for a folder', async () => {
+  it('returns 400 with DIRECT_NO_FOLDER when creating direct share for a folder [spec: shares/direct-no-folder]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -195,7 +195,7 @@ describe('POST /api/shares', () => {
     expect(body.code).toBe('DIRECT_NO_FOLDER')
   })
 
-  it('returns 400 with DIRECT_NO_PASSWORD when creating direct share with password', async () => {
+  it('returns 400 with DIRECT_NO_PASSWORD when creating direct share with password [spec: shares/direct-no-password]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -209,7 +209,7 @@ describe('POST /api/shares', () => {
     expect(body.code).toBe('DIRECT_NO_PASSWORD')
   })
 
-  it('returns 404 when matterId does not belong to current org', async () => {
+  it('returns 404 when matterId does not belong to current org [spec: shares/create-cross-org]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
 
@@ -220,7 +220,7 @@ describe('POST /api/shares', () => {
     expect(body.code).toBe('MATTER_NOT_FOUND')
   })
 
-  it('sets expiresAt when provided in request', async () => {
+  it('sets expiresAt when provided in request [spec: shares/create-expiry]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -239,7 +239,7 @@ describe('POST /api/shares', () => {
     expect(body.expiresAt).not.toBeNull()
   })
 
-  it('sets downloadLimit when provided in request', async () => {
+  it('sets downloadLimit when provided in request [spec: shares/create-download-limit]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -257,7 +257,7 @@ describe('POST /api/shares', () => {
     expect(body.downloadLimit).toBe(5)
   })
 
-  it('returns 400 with DIRECT_NO_RECIPIENTS when creating direct share with recipients', async () => {
+  it('returns 400 with DIRECT_NO_RECIPIENTS when creating direct share with recipients [spec: shares/direct-no-recipients]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
@@ -287,7 +287,7 @@ describe('POST /api/shares', () => {
     expect(res.status).toBe(500)
   })
 
-  it('returns 201 even when dispatchShareCreated rejects', async () => {
+  it('returns 201 even when dispatchShareCreated rejects [spec: shares/create-notify-best-effort]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
@@ -323,7 +323,7 @@ describe('GET /api/shares', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns empty list for a new user with no shares', async () => {
+  it('returns empty list for a new user with no shares [spec: shares/list-empty]', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
 
@@ -335,7 +335,7 @@ describe('GET /api/shares', () => {
     expect(body.total).toBe(0)
   })
 
-  it('returns shares with pagination fields in response', async () => {
+  it('returns shares with pagination fields in response [spec: shares/list-pagination]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -356,7 +356,7 @@ describe('GET /api/shares', () => {
     expect(body.total).toBe(2)
   })
 
-  it('does not return shares belonging to another user', async () => {
+  it('does not return shares belonging to another user [spec: shares/list-isolation]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
 
@@ -403,7 +403,7 @@ describe('GET /api/shares', () => {
     expect(item.recipientCount).toBe(1)
   })
 
-  it('filters shares by status=active', async () => {
+  it('filters shares by status=active [spec: shares/list-filter-status]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -435,7 +435,7 @@ describe('GET /api/shares/:token', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns full detail including recipients when viewer is the creator', async () => {
+  it('returns full detail including recipients when viewer is the creator [spec: shares/detail-creator]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -463,7 +463,7 @@ describe('GET /api/shares/:token', () => {
     expect(typeof body.rootRef).toBe('string')
   })
 
-  it('returns landing view without recipients or internal ids for non-creator', async () => {
+  it('returns landing view without recipients or internal ids for non-creator [spec: shares/detail-non-creator]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
 
@@ -487,7 +487,7 @@ describe('GET /api/shares/:token', () => {
     expect(body.creatorId).toBeUndefined()
   })
 
-  it('returns 404 for a non-existent token', async () => {
+  it('returns 404 for a non-existent token [spec: shares/detail-not-found]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/shares/does-not-exist')
     expect(res.status).toBe(404)
@@ -529,7 +529,7 @@ describe('GET /api/shares/:token', () => {
     expect(Array.isArray(body.recipients)).toBe(true)
   })
 
-  it('does not increment views when viewer is the creator', async () => {
+  it('does not increment views when viewer is the creator [spec: shares/no-self-view-count]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -569,7 +569,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 400 with DIRECT_SAVE_FORBIDDEN for direct shares', async () => {
+  it('returns 400 with DIRECT_SAVE_FORBIDDEN for direct shares [spec: shares/save-direct-forbidden]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -590,7 +590,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(body.code).toBe('DIRECT_SAVE_FORBIDDEN')
   })
 
-  it('returns 410 when the shared matter has been trashed', async () => {
+  it('returns 410 when the shared matter has been trashed [spec: shares/save-trashed-gone]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -610,7 +610,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(res.status).toBe(410)
   })
 
-  it('saves a landing share file to personal drive and returns 201', async () => {
+  it('saves a landing share file to personal drive and returns 201 [spec: shares/save-to-drive]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -638,7 +638,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 400 QUOTA_EXCEEDED when target org quota is exhausted', async () => {
+  it('returns 400 QUOTA_EXCEEDED when target org quota is exhausted [spec: shares/save-quota-exceeded]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await authedHeaders(app)
@@ -663,7 +663,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(body.code).toBe('QUOTA_EXCEEDED')
   })
 
-  it('returns 403 when targetOrgId is not a personal org and user has no member role', async () => {
+  it('returns 403 when targetOrgId is not a personal org and user has no member role [spec: shares/save-target-permission]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -711,7 +711,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(res.status).toBe(403)
   })
 
-  it('allows password-protected share save when the user is a listed recipient', async () => {
+  it('allows password-protected share save when the user is a listed recipient [spec: shares/save-recipient-bypass]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -770,7 +770,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(res.status).toBe(401)
   })
 
-  it('bypasses 401 for password-protected share when non-recipient has valid sharetk cookie', async () => {
+  it('bypasses 401 for password-protected share when non-recipient has valid sharetk cookie [spec: shares/save-cookie-bypass]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -818,7 +818,7 @@ describe('POST /api/shares/:token/objects', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 when user has a viewer role in the target org', async () => {
+  it('returns 403 when user has a viewer role in the target org [spec: shares/save-viewer-forbidden]', async () => {
     const { app, db } = await createTestApp()
     const ownerHeaders = await authedHeaders(app)
     await insertStorage(db)
@@ -872,7 +872,7 @@ describe('DELETE /api/shares/:token', () => {
     vi.restoreAllMocks()
   })
 
-  it('creator can delete their share and share status becomes revoked in DB', async () => {
+  it('creator can delete their share and share status becomes revoked in DB [spec: shares/delete]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
@@ -889,7 +889,7 @@ describe('DELETE /api/shares/:token', () => {
     expect(rows[0]?.status).toBe('revoked')
   })
 
-  it('returns 403 when non-creator tries to delete a share', async () => {
+  it('returns 403 when non-creator tries to delete a share [spec: shares/delete-non-creator]', async () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
 
@@ -920,7 +920,7 @@ describe('GET /api/shares?box=received', () => {
     return rows[0].id
   }
 
-  it('lists shares addressed to the user by id and by email, hiding unrelated shares', async () => {
+  it('lists shares addressed to the user by id and by email, hiding unrelated shares [spec: shares/received-list]', async () => {
     const { app, db } = await createTestApp()
     const creatorHeaders = await authedHeaders(app)
     const recipientHeaders = await authedHeaders(app, 'recipient@example.com')
@@ -963,7 +963,7 @@ describe('GET /api/shares?box=received', () => {
     expect(bystanderBody.total).toBe(0)
   })
 
-  it('excludes revoked shares from the received list', async () => {
+  it('excludes revoked shares from the received list [spec: shares/received-excludes-revoked]', async () => {
     const { app, db } = await createTestApp()
     const creatorHeaders = await authedHeaders(app)
     const recipientHeaders = await authedHeaders(app, 'revoked-recipient@example.com')
