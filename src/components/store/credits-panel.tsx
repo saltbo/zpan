@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { cloudProductIncludedCredits } from '@/lib/cloud-product'
+import { formatCurrency } from '@/lib/format'
 import { StorageActions } from './storage-dialogs'
 
 export function CreditBalanceButton({
@@ -96,7 +97,7 @@ function CreditProducts({
                 </div>
               </div>
               <div className="shrink-0 text-sm font-semibold tabular-nums">
-                {formatMoney(price.amount, price.currency, language)}
+                {formatCurrency(price.amount, price.currency, language)}
               </div>
             </div>
             <Button className="mt-3 h-8 w-full" disabled={disabled} onClick={() => onCheckout(product.id, price.id)}>
@@ -182,10 +183,6 @@ function CreditEmptyState({ label }: { label: string }) {
 
 function formatCredits(amount: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(amount)
-}
-
-function formatMoney(amount: number, currency: string, language: string) {
-  return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
 }
 
 function oneTimeUsdPrice(pricesProduct: CloudProduct) {

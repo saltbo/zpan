@@ -15,6 +15,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ApiError, createDiscountQuote } from '@/lib/api'
+import { formatCurrency } from '@/lib/format'
 
 export type CheckoutSelection = {
   packageId: string
@@ -89,7 +90,7 @@ export function CheckoutConfirmDialog({
                 <>
                   <Row
                     label={t('storage.discountLabel')}
-                    value={`-${formatMoney(quote.discount, selection.currency, language)}`}
+                    value={`-${formatCurrency(quote.discount, selection.currency, language)}`}
                     accent
                   />
                   <Row
@@ -159,17 +160,13 @@ function Row({ label, value, accent, strong }: { label: string; value: string; a
   )
 }
 
-function formatMoney(amount: number, currency: string, language: string) {
-  return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
-}
-
 function periodPrice(
   amount: number,
   selection: CheckoutSelection,
   language: string,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
-  const label = formatMoney(amount, selection.currency, language)
+  const label = formatCurrency(amount, selection.currency, language)
   if (selection.interval === 'month') return t('storage.priceMonthly', { amount: label })
   if (selection.interval === 'year') return t('storage.priceYearly', { amount: label })
   return label

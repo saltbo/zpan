@@ -8,8 +8,9 @@ import { mimeFromExt } from '@/components/preview/media-preview'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { getObject } from '@/lib/api'
+import { formatSize } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { formatTrackSize, toPreviewFile } from './music-player-model'
+import { toPreviewFile } from './music-player-model'
 import { type MusicTrack, useMusicPlayer } from './music-player-provider'
 
 function TrackCover({ track, large }: { track: MusicTrack; large?: boolean }) {
@@ -61,7 +62,7 @@ function TrackButton({
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{track.name}</span>
         <span className="block truncate text-xs text-muted-foreground">
-          {[track.artist, track.album, formatTrackSize(track.size)].filter(Boolean).join(' · ')}
+          {[track.artist, track.album, formatSize(track.size)].filter(Boolean).join(' · ')}
         </span>
       </span>
     </button>

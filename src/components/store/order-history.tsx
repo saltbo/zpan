@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cloudOrderItemStorageBytes, cloudOrderItemTrafficBytes } from '@/lib/cloud-order'
-import { formatSize } from '@/lib/format'
+import { formatCurrency, formatSize } from '@/lib/format'
 
 export function StorageOrderHistoryDialog({
   orders,
@@ -131,12 +131,12 @@ function OrderRow({
       <div className="flex items-center gap-3 self-center">
         <div className="text-right">
           <div className="text-sm font-medium tabular-nums">
-            {formatMoney(order.totalAmount, order.currency, i18n.resolvedLanguage ?? 'en')}
+            {formatCurrency(order.totalAmount, order.currency, i18n.resolvedLanguage ?? 'en')}
           </div>
           {order.discountAmount > 0 && (
             <div className="text-xs text-muted-foreground">
               {t('storage.creditDiscount', {
-                amount: formatMoney(order.discountAmount, order.currency, i18n.resolvedLanguage ?? 'en'),
+                amount: formatCurrency(order.discountAmount, order.currency, i18n.resolvedLanguage ?? 'en'),
               })}
             </div>
           )}
@@ -202,10 +202,6 @@ function OrderIconButton({
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   )
-}
-
-function formatMoney(amount: number, currency: string, language: string) {
-  return new Intl.NumberFormat(language, { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
 }
 
 function isActionableOrder(order: CloudOrder) {
