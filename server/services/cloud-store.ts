@@ -4,9 +4,9 @@ import { and, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { member, organization, user } from '../db/auth-schema'
 import { activityEvents, orgQuotaEntitlements, orgQuotas, webhookEvents } from '../db/schema'
+import { type AtomicQuery, executeRows, executeWriteTransaction } from '../db/transaction'
 import { loadActiveLicenseBinding } from '../licensing/license-state'
 import type { Database } from '../platform/interface'
-import { type AtomicQuery, executeRows, executeWriteTransaction } from './db-transaction'
 
 export async function getAccessibleTargets(db: Database, userId: string): Promise<CloudStoreTarget[]> {
   const rows = await db

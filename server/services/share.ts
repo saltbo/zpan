@@ -3,9 +3,9 @@ import { nanoid } from 'nanoid'
 import { DirType } from '../../shared/constants'
 import type { CreateShareInput } from '../../shared/schemas/share'
 import { matters, shareRecipients, shares } from '../db/schema'
+import { type AtomicQuery, executeWriteTransaction } from '../db/transaction'
 import { hashPassword, verifyPassword as verifyPasswordHash } from '../lib/password'
 import type { Database } from '../platform/interface'
-import { type AtomicQuery, executeWriteTransaction } from './db-transaction'
 import type { Matter } from './matter'
 
 export type Share = typeof shares.$inferSelect

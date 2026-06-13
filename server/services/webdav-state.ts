@@ -1,8 +1,8 @@
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { webdavDeadProperties, webdavLocks } from '../db/schema'
+import { type AtomicQuery, executeWriteTransaction } from '../db/transaction'
 import type { Database } from '../platform/interface'
-import { type AtomicQuery, executeWriteTransaction } from './db-transaction'
 
 export interface DavPropertyName {
   namespace: string

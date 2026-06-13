@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { licenseBindings } from '../db/schema'
+import { executeWriteTransaction } from '../db/transaction'
 import type { Database } from '../platform/interface'
-import { executeWriteTransaction } from '../services/db-transaction'
 
 export type LicenseBindingStatus = 'active' | 'disconnected' | 'revoked'
 

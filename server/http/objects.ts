@@ -14,6 +14,7 @@ import {
   transferMatterSchema,
 } from '../../shared/schemas'
 import { mapDomainError } from '../lib/http-errors'
+import { buildObjectKey, fileExt } from '../lib/path-template'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { assertTaskUploadAllowed } from '../services/downloads'
@@ -35,7 +36,6 @@ import {
   patchObjectUploadSession,
   presignObjectUploadParts,
 } from '../services/object-upload-sessions'
-import { buildObjectKey, fileExt } from '../services/path-template'
 import { purgeRecursively } from '../services/purge'
 import { S3Service } from '../services/s3'
 import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
