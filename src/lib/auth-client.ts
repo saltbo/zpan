@@ -9,7 +9,7 @@ export const authClient = createAuthClient({
 
 import { clearSessionCache } from './api'
 
-export const { signIn, signUp, useSession } = authClient
+export const { signIn, signUp, useSession, requestPasswordReset, resetPassword } = authClient
 
 // biome-ignore lint/suspicious/noExplicitAny: generic wrapping requires any
 function wrapAuthFunction<T extends (...args: any[]) => any>(fn: T): T {

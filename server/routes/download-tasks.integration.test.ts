@@ -148,6 +148,37 @@ describe('Download tasks API integration', () => {
     expect(created.token).toBeTruthy()
   })
 
+  it('rejects download tasks whose source URL targets an internal host', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const user = await authedHeaders(app, 'ssrf-user@example.com')
+    for (const uri of [
+      'http://169.254.169.254/latest/meta-data/',
+      'http://localhost:8080/admin',
+      'http://10.0.0.5/secret',
+      'file:///etc/passwd',
+    ]) {
+      const res = await app.request('/api/download-tasks', {
+        method: 'POST',
+        headers: { ...user, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: { type: 'http', uri }, targetFolder: '' }),
+      })
+      expect(res.status, `expected ${uri} to be rejected`).toBe(400)
+    }
+  })
+
+  it('rejects a magnet task whose URI is not a magnet link', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const user = await authedHeaders(app, 'magnet-user@example.com')
+    const res = await app.request('/api/download-tasks', {
+      method: 'POST',
+      headers: { ...user, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: { type: 'magnet', uri: 'https://example.com/not-a-magnet' }, targetFolder: '' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
   it('deletes a downloader and returns unfinished tasks to the queue', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)

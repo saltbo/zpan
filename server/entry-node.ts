@@ -16,11 +16,13 @@ import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/ins
 import { runLicensingRefresh } from './services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
 import { getSitePublicOrigin } from './services/site-public-origin'
+import { purgeExpiredTrash, resolveTrashRetentionDays } from './services/trash-retention'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 const INSTANCE_TELEMETRY_INTERVAL_MS = 12 * 60 * 60 * 1000 // 12 hours
 const QUOTA_RESET_INTERVAL_MS = 24 * 60 * 60 * 1000 // daily; idempotent, resets only stale periods
+const TRASH_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000 // daily; purges trash past the retention window
 const appVersionGlobalKey = '__ZPAN_APP_VERSION__'
 const appCommitGlobalKey = '__ZPAN_APP_COMMIT__'
 
@@ -134,3 +136,20 @@ void resetExpiredTrafficQuotas(platform.db)
 setInterval(() => {
   void resetExpiredTrafficQuotas(platform.db)
 }, QUOTA_RESET_INTERVAL_MS)
+
+console.log('trash.purge.scheduler.started interval=24h')
+function purgeExpiredTrashJob(): void {
+  void (async () => {
+    try {
+      const purged = await purgeExpiredTrash(
+        platform.db,
+        resolveTrashRetentionDays(process.env.ZPAN_TRASH_RETENTION_DAYS),
+      )
+      if (purged > 0) console.log(`trash.purge.done count=${purged}`)
+    } catch (err) {
+      console.error(`trash.purge.error code=${err instanceof Error ? err.message : String(err)}`)
+    }
+  })()
+}
+purgeExpiredTrashJob()
+setInterval(purgeExpiredTrashJob, TRASH_PURGE_INTERVAL_MS)

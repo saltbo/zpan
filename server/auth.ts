@@ -32,6 +32,7 @@ import { executeWriteTransaction } from './services/db-transaction'
 import { currentTrafficPeriod } from './services/effective-quota'
 import { isEmailConfigured, sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
+import { createNotification } from './services/notification'
 import { findPersonalOrg } from './services/org'
 import { getEffectiveSignupMode } from './services/signup-mode-guard'
 import { acceptSiteInvitation, validateSiteInvitation } from './services/site-invitations'
@@ -134,6 +135,18 @@ function buildVerificationEmailHtml(url: string): string {
 </div>`
 }
 
+function buildResetPasswordEmailHtml(url: string): string {
+  if (!url.startsWith('https://') && !url.startsWith('http://')) {
+    throw new Error(`Reset password URL has unsafe protocol: ${url}`)
+  }
+  return `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+<h2 style="margin:0 0 16px">Reset your password</h2>
+<p style="color:#555;line-height:1.5">Click the button below to choose a new password. This link expires in 1 hour.</p>
+<a href="${url}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Reset Password</a>
+<p style="color:#999;font-size:13px">If you didn't request a password reset, you can safely ignore this email.</p>
+</div>`
+}
+
 export async function createAuth(
   initialSource: Database | Platform,
   secret: string,
@@ -174,6 +187,14 @@ export async function createAuth(
       password: {
         hash: authHashPassword,
         verify: authVerifyPassword,
+      },
+      sendResetPassword: async ({ user, url }) => {
+        if (!(await isEmailConfigured(source))) return
+        await sendEmail(source, {
+          to: user.email,
+          subject: 'Reset your password - ZPan',
+          html: buildResetPasswordEmailHtml(url),
+        })
       },
     },
     emailVerification: {
@@ -241,6 +262,15 @@ export async function createAuth(
               targetId: organization.id,
               targetName: organization.name,
               metadata: { role: member.role },
+            })
+            await createNotification(db, {
+              userId: user.id,
+              type: 'team_join',
+              title: `You joined ${organization.name}`,
+              body: "You now have access to this team's space.",
+              refType: 'team',
+              refId: organization.id,
+              metadata: JSON.stringify({ teamName: organization.name }),
             })
           },
           afterRemoveMember: async ({ member, organization }) => {

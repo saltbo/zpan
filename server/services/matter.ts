@@ -1,5 +1,5 @@
 import type { SQL } from 'drizzle-orm'
-import { and, asc, count, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNotNull, like, lt, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { DirType } from '../../shared/constants'
 import { matters } from '../db/schema'
@@ -571,6 +571,15 @@ export async function purgeMatters(db: Database, orgId: string, ids: string[]): 
   for (const id of ids) {
     await db.delete(matters).where(and(eq(matters.id, id), eq(matters.orgId, orgId)))
   }
+}
+
+/** Distinct orgIds that hold at least one trashed matter older than the cutoff (epoch ms). */
+export async function listOrgIdsWithExpiredTrash(db: Database, cutoff: number): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ orgId: matters.orgId })
+    .from(matters)
+    .where(and(eq(matters.status, 'trashed'), isNotNull(matters.trashedAt), lt(matters.trashedAt, cutoff)))
+  return rows.map((r) => r.orgId)
 }
 
 export async function listTrashedRoots(db: Database, orgId: string): Promise<Matter[]> {

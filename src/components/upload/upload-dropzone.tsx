@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import type { Prompt } from '@/components/files/hooks/use-conflict-resolver'
 import { withConflictRetry } from '@/components/files/hooks/use-conflict-resolver'
 import { cancelUpload, confirmUpload, createObject, isNameConflictError, uploadToS3 } from '../../lib/api'
+import { MULTIPART_THRESHOLD, uploadFileInParts } from './multipart-upload'
 import { type UploadRunnerContext, useUploadQueue } from './upload-queue'
 
 type DirectoryFile = File & {
@@ -153,18 +154,24 @@ async function uploadFile(
         dirtype: DirType.FILE,
       })
   if (!created) return 'cancelled'
-  if (!created.uploadUrl) throw new Error('No upload URL returned')
-  ctx.registerCleanup(async () => {
-    await cancelUpload(created.id)
-  })
   if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
 
   ctx.setStatus('uploading')
-  await uploadToS3(created.uploadUrl, file, {
-    onProgress: ctx.onProgress,
-    signal: ctx.signal,
-    contentDisposition: created.contentDisposition,
-  })
+  if (file.size > MULTIPART_THRESHOLD) {
+    // Large files: chunked, resumable multipart. Single-PUT caps at 5 GiB and
+    // fails the whole transfer on any network blip.
+    await uploadFileInParts(created.id, file, ctx)
+  } else {
+    if (!created.uploadUrl) throw new Error('No upload URL returned')
+    ctx.registerCleanup(async () => {
+      await cancelUpload(created.id)
+    })
+    await uploadToS3(created.uploadUrl, file, {
+      onProgress: ctx.onProgress,
+      signal: ctx.signal,
+      contentDisposition: created.contentDisposition,
+    })
+  }
   if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
 
   // Step 2: confirm. Another client may have activated the same name during our

@@ -1,3 +1,4 @@
+import type { NotificationType } from '@shared/types'
 import { and, count, desc, eq, isNull } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { notifications } from '../db/schema'
@@ -7,7 +8,7 @@ export type Notification = typeof notifications.$inferSelect
 
 export type CreateNotificationInput = {
   userId: string
-  type: string
+  type: NotificationType
   title: string
   body?: string
   refType?: string
