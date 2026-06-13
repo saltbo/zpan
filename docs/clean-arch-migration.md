@@ -60,9 +60,11 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
       team / storage-usage / matter / cloud-traffic-metering. 14 callers + entry-node
       + workers/scheduled rewired.
 
+- [x] `team` → TeamRepo (uses QuotaRepo internally) · `team-invite` → TeamInviteRepo
+
 ### Repos to extract (drizzle services → adapters/repos)
-- [ ] background-jobs, branding, captcha, site-invitations, site-public-origin
-- [ ] team, team-invite, matter-name-conflict
+- [ ] captcha, site-invitations, site-public-origin
+- [ ] matter-name-conflict, user, org-entitlements, instance-telemetry, purge
 
 ### Deferred (not plain repos — handled with their cluster)
 - `download-tokens` (crypto+zod+db), `api-keys` (better-auth) → auth cluster

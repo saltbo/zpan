@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import * as authSchema from '../db/auth-schema.js'
-import { createTestApp } from '../test/setup.js'
-import { acceptInviteLink, createInviteLink, getInviteLinkInfo, listPendingInvitations } from './team-invite.js'
+import * as authSchema from '../../db/auth-schema.js'
+import { createTestApp } from '../../test/setup.js'
+import { createTeamInviteRepo } from './team-invite.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -66,7 +66,7 @@ describe('createInviteLink', () => {
     const orgId = await insertOrg(db)
     const inviterId = await insertUser(db)
 
-    const link = await createInviteLink(db, orgId, inviterId, 'viewer')
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer')
     expect(link.token).toBeTruthy()
     expect(link.organizationId).toBe(orgId)
     expect(link.role).toBe('viewer')
@@ -81,7 +81,7 @@ describe('createInviteLink', () => {
 
     const oneHour = 60 * 60 * 1000
     const before = Date.now()
-    const link = await createInviteLink(db, orgId, inviterId, 'editor', oneHour)
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'editor', oneHour)
     const after = Date.now()
 
     expect(link.expiresAt!.getTime()).toBeGreaterThan(before + oneHour - 1000)
@@ -94,8 +94,8 @@ describe('createInviteLink', () => {
     const inviterId = await insertUser(db)
 
     const [a, b] = await Promise.all([
-      createInviteLink(db, orgId, inviterId, 'viewer'),
-      createInviteLink(db, orgId, inviterId, 'viewer'),
+      createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer'),
+      createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer'),
     ])
     expect(a.token).not.toBe(b.token)
   })
@@ -107,8 +107,8 @@ describe('getInviteLinkInfo', () => {
     const orgId = await insertOrg(db, { name: 'My Team' })
     const inviterId = await insertUser(db)
 
-    const link = await createInviteLink(db, orgId, inviterId, 'editor')
-    const info = await getInviteLinkInfo(db, link.token)
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'editor')
+    const info = await createTeamInviteRepo(db).getInviteLinkInfo(link.token)
 
     expect(info).not.toBeNull()
     expect(info!.organizationId).toBe(orgId)
@@ -118,7 +118,7 @@ describe('getInviteLinkInfo', () => {
 
   it('returns null for an unknown token', async () => {
     const { db } = await createTestApp()
-    const info = await getInviteLinkInfo(db, 'nonexistent-token')
+    const info = await createTeamInviteRepo(db).getInviteLinkInfo('nonexistent-token')
     expect(info).toBeNull()
   })
 
@@ -127,8 +127,8 @@ describe('getInviteLinkInfo', () => {
     const orgId = await insertOrg(db)
     const inviterId = await insertUser(db)
 
-    const link = await createInviteLink(db, orgId, inviterId, 'viewer', -1000) // already expired
-    const info = await getInviteLinkInfo(db, link.token)
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer', -1000) // already expired
+    const info = await createTeamInviteRepo(db).getInviteLinkInfo(link.token)
     expect(info).toBeNull()
   })
 })
@@ -140,15 +140,15 @@ describe('acceptInviteLink', () => {
     const inviterId = await insertUser(db)
     const userId = await insertUser(db)
 
-    const link = await createInviteLink(db, orgId, inviterId, 'viewer')
-    const result = await acceptInviteLink(db, link.token, userId)
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer')
+    const result = await createTeamInviteRepo(db).acceptInviteLink(link.token, userId)
     expect(result).toBe('ok')
   })
 
   it('returns invalid for a nonexistent token', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
-    const result = await acceptInviteLink(db, 'bad-token', userId)
+    const result = await createTeamInviteRepo(db).acceptInviteLink('bad-token', userId)
     expect(result).toBe('invalid')
   })
 
@@ -158,8 +158,8 @@ describe('acceptInviteLink', () => {
     const inviterId = await insertUser(db)
     const userId = await insertUser(db)
 
-    const link = await createInviteLink(db, orgId, inviterId, 'viewer', -1000)
-    const result = await acceptInviteLink(db, link.token, userId)
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer', -1000)
+    const result = await createTeamInviteRepo(db).acceptInviteLink(link.token, userId)
     expect(result).toBe('expired')
   })
 
@@ -170,8 +170,8 @@ describe('acceptInviteLink', () => {
     const userId = await insertUser(db)
     await insertMember(db, orgId, userId, 'viewer')
 
-    const link = await createInviteLink(db, orgId, inviterId, 'viewer')
-    const result = await acceptInviteLink(db, link.token, userId)
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer')
+    const result = await createTeamInviteRepo(db).acceptInviteLink(link.token, userId)
     expect(result).toBe('already_member')
   })
 
@@ -182,9 +182,9 @@ describe('acceptInviteLink', () => {
     const user1 = await insertUser(db)
     const user2 = await insertUser(db)
 
-    const link = await createInviteLink(db, orgId, inviterId, 'viewer')
-    const r1 = await acceptInviteLink(db, link.token, user1)
-    const r2 = await acceptInviteLink(db, link.token, user2)
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer')
+    const r1 = await createTeamInviteRepo(db).acceptInviteLink(link.token, user1)
+    const r2 = await createTeamInviteRepo(db).acceptInviteLink(link.token, user2)
     expect(r1).toBe('ok')
     expect(r2).toBe('ok')
   })
@@ -194,7 +194,7 @@ describe('listPendingInvitations', () => {
   it('returns empty list when no pending invitations', async () => {
     const { db } = await createTestApp()
     const orgId = await insertOrg(db)
-    const result = await listPendingInvitations(db, orgId)
+    const result = await createTeamInviteRepo(db).listPendingInvitations(orgId)
     expect(result).toEqual([])
   })
 
@@ -204,7 +204,7 @@ describe('listPendingInvitations', () => {
     const inviterId = await insertUser(db)
     await insertInvitation(db, orgId, inviterId, 'test@example.com')
 
-    const result = await listPendingInvitations(db, orgId)
+    const result = await createTeamInviteRepo(db).listPendingInvitations(orgId)
     expect(result).toHaveLength(1)
     expect(result[0].email).toBe('test@example.com')
     expect(result[0].role).toBe('viewer')
@@ -217,7 +217,7 @@ describe('listPendingInvitations', () => {
     await insertInvitation(db, orgId, inviterId, 'accepted@example.com', 'accepted')
     await insertInvitation(db, orgId, inviterId, 'pending@example.com', 'pending')
 
-    const result = await listPendingInvitations(db, orgId)
+    const result = await createTeamInviteRepo(db).listPendingInvitations(orgId)
     expect(result).toHaveLength(1)
     expect(result[0].email).toBe('pending@example.com')
   })
@@ -230,7 +230,7 @@ describe('listPendingInvitations', () => {
     await insertInvitation(db, org1, inviterId, 'org1@example.com')
     await insertInvitation(db, org2, inviterId, 'org2@example.com')
 
-    const result = await listPendingInvitations(db, org1)
+    const result = await createTeamInviteRepo(db).listPendingInvitations(org1)
     expect(result).toHaveLength(1)
     expect(result[0].email).toBe('org1@example.com')
   })

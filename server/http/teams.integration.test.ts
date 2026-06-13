@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTeamInviteRepo } from '../adapters/repos/team-invite.js'
 import * as authSchema from '../db/auth-schema.js'
 import { S3Service } from '../services/s3.js'
-import { createInviteLink } from '../services/team-invite.js'
 import { createTestApp } from '../test/setup.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -73,7 +73,7 @@ describe('GET /api/teams/invite-info', () => {
     const { app, db } = await createTestApp()
     const orgId = await insertOrg(db, { name: 'My Team' })
     const inviterId = await insertUser(db)
-    const link = await createInviteLink(db, orgId, inviterId, 'viewer')
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer')
 
     const res = await app.request(`/api/teams/invite-info?token=${link.token}`)
     expect(res.status).toBe(200)
@@ -198,7 +198,7 @@ describe('POST /api/teams/:teamId/members', () => {
     const { app, db } = await createTestApp()
     const orgId = await insertOrg(db)
     const inviterId = await insertUser(db)
-    const link = await createInviteLink(db, orgId, inviterId, 'viewer')
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer')
 
     const email = `newmember-${nanoid()}@example.com`
     const { headers } = await signUpAndGetUser(app, email)
@@ -215,7 +215,7 @@ describe('POST /api/teams/:teamId/members', () => {
     const { app, db } = await createTestApp()
     const orgId = await insertOrg(db)
     const inviterId = await insertUser(db)
-    const link = await createInviteLink(db, orgId, inviterId, 'viewer')
+    const link = await createTeamInviteRepo(db).createInviteLink(orgId, inviterId, 'viewer')
 
     const email = `existing-${nanoid()}@example.com`
     const { headers, userId } = await signUpAndGetUser(app, email)

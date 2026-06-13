@@ -13,6 +13,8 @@ import { createOrgRepo } from './adapters/repos/org'
 import { createProfileRepo } from './adapters/repos/profile'
 import { createQuotaRepo } from './adapters/repos/quota'
 import { createStorageRepo } from './adapters/repos/storage'
+import { createTeamRepo } from './adapters/repos/team'
+import { createTeamInviteRepo } from './adapters/repos/team-invite'
 import type { Platform } from './platform/interface'
 import type { Deps } from './usecases/deps'
 
@@ -28,5 +30,7 @@ export function createDeps(platform: Platform): Deps {
     profiles: createProfileRepo(db),
     quota: createQuotaRepo(db),
     storages: createStorageRepo(db),
+    teams: createTeamRepo(db),
+    teamInvites: createTeamInviteRepo(db),
   }
 }

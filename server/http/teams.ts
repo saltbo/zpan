@@ -6,7 +6,6 @@ import { organization } from '../db/auth-schema'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { deletePublicImageVariants, uploadPublicImage } from '../services/image-upload'
-import { acceptInviteLink, createInviteLink, getInviteLinkInfo, listPendingInvitations } from '../services/team-invite'
 
 const LOGO_PREFIX = '_system/org-logos'
 
@@ -30,7 +29,7 @@ export const publicTeams = new Hono<Env>().get(
   async (c) => {
     const db = c.get('platform').db
     const { token } = c.req.valid('query')
-    const info = await getInviteLinkInfo(db, token)
+    const info = await c.get('deps').teamInvites.getInviteLinkInfo(token)
     if (!info) return c.json({ error: 'Invalid or expired invite link' }, 404)
     return c.json(info)
   },
@@ -47,7 +46,7 @@ export const teams = new Hono<Env>()
     const memberRole = await c.get('deps').org.getMemberRole(teamId, userId)
     if (memberRole !== 'owner') return c.json({ error: 'Forbidden' }, 403)
 
-    const link = await createInviteLink(db, teamId, userId, role, expiresIn)
+    const link = await c.get('deps').teamInvites.createInviteLink(teamId, userId, role, expiresIn)
 
     await c.get('deps').activity.record({
       orgId: teamId,
@@ -69,7 +68,7 @@ export const teams = new Hono<Env>()
     const memberRole = await c.get('deps').org.getMemberRole(teamId, userId)
     if (memberRole !== 'owner') return c.json({ error: 'Forbidden' }, 403)
 
-    const invitations = await listPendingInvitations(db, teamId)
+    const invitations = await c.get('deps').teamInvites.listPendingInvitations(teamId)
     return c.json({ invitations })
   })
   .post('/:teamId/members', zValidator('json', joinSchema), async (c) => {
@@ -78,7 +77,7 @@ export const teams = new Hono<Env>()
     const { token } = c.req.valid('json')
     const { teamId } = c.req.param()
 
-    const result = await acceptInviteLink(db, token, userId)
+    const result = await c.get('deps').teamInvites.acceptInviteLink(token, userId)
     if (result === 'invalid') return c.json({ error: 'Invalid invite link' }, 404)
     if (result === 'expired') return c.json({ error: 'Invite link has expired' }, 410)
     if (result === 'already_member') return c.json({ error: 'Already a member of this team' }, 409)

@@ -9,7 +9,6 @@ import {
   revokeOrgEntitlement,
   updateOrgEntitlement,
 } from '../services/org-entitlements'
-import { getTeam, listTeams } from '../services/team'
 
 const grantEntitlementSchema = z.object({
   resourceType: z.literal('storage'),
@@ -31,11 +30,11 @@ const updateEntitlementSchema = z.object({
 export const adminTeams = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => {
-    const items = await listTeams(c.get('platform').db)
+    const items = await c.get('deps').teams.listTeams()
     return c.json({ items, total: items.length })
   })
   .get('/:orgId', async (c) => {
-    const team = await getTeam(c.get('platform').db, c.req.param('orgId'))
+    const team = await c.get('deps').teams.getTeam(c.req.param('orgId'))
     if (!team) return c.json({ error: 'Team not found' }, 404)
     return c.json(team)
   })
