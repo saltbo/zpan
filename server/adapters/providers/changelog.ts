@@ -1,12 +1,5 @@
-import { ZPAN_CHANGELOG_RAW_URL, ZPAN_RELEASES_LATEST_API_URL } from '../../shared/constants'
-
-export interface ChangelogSource {
-  // Newest published release version (without the leading "v"), or null when the
-  // GitHub API is unreachable/rate-limited.
-  latestVersion: string | null
-  // Raw, product-facing CHANGELOG.md markdown for the drawer.
-  markdown: string
-}
+import { ZPAN_CHANGELOG_RAW_URL, ZPAN_RELEASES_LATEST_API_URL } from '@shared/constants'
+import type { ChangelogProvider, ChangelogSource } from '../../usecases/ports'
 
 async function fetchLatestReleaseVersion(): Promise<string | null> {
   // Best-effort: the unauthenticated GitHub API is rate-limited (60/hr/IP), so a
@@ -50,4 +43,8 @@ export async function fetchChangelog(
   const value: ChangelogSource = { latestVersion, markdown }
   cache = { at: now, value }
   return value
+}
+
+export function createChangelogProvider(): ChangelogProvider {
+  return { fetchChangelog }
 }

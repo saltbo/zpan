@@ -1,19 +1,17 @@
+import type { CfHostnameStatus, CfHostnamesProvider } from '../../usecases/ports'
+import { CfConflictError } from '../../usecases/ports'
+
 interface CfConfig {
   apiToken: string
   zoneId: string
   cnameTarget: string
 }
 
-interface CfHostnameStatus {
-  status: 'pending' | 'active' | 'moved' | 'deleted' | 'blocked'
-  ssl_status: string
-}
-
 // CfCustomHostnamesClient is a thin wrapper around the Cloudflare Custom
 // Hostnames API (CF for SaaS). When env vars are absent (Node self-hosted),
 // register/delete are no-ops and getStatus always returns 'pending' so
 // domains never auto-verify without crashing the server.
-export class CfCustomHostnamesClient {
+export class CfCustomHostnamesClient implements CfHostnamesProvider {
   private readonly cfg: CfConfig | null
 
   constructor(cfg: CfConfig | null) {
@@ -78,8 +76,6 @@ export class CfCustomHostnamesClient {
     }
   }
 }
-
-export class CfConflictError extends Error {}
 
 export function createCfClient(getEnv: (key: string) => string | undefined): CfCustomHostnamesClient {
   const apiToken = getEnv('CF_API_TOKEN')

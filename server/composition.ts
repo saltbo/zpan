@@ -4,6 +4,8 @@
 // entrypoints can reuse it; request-bound capabilities are passed to usecases as
 // function parameters, never stored here.
 
+import { createCfClient } from './adapters/providers/cf-custom-hostnames'
+import { createChangelogProvider } from './adapters/providers/changelog'
 import { createActivityRepo } from './adapters/repos/activity'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
 import { createBackgroundJobRepo } from './adapters/repos/background-job'
@@ -26,6 +28,8 @@ export function createDeps(platform: Platform): Deps {
     activity: createActivityRepo(db),
     announcements: createAnnouncementRepo(db),
     backgroundJobs: createBackgroundJobRepo(db),
+    cfHostnames: createCfClient((key) => platform.getEnv(key)),
+    changelog: createChangelogProvider(),
     invites: createInviteRepo(db),
     notifications: createNotificationRepo(db),
     org: createOrgRepo(db),

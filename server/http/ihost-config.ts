@@ -6,7 +6,7 @@ import type { IhostConfigResponse } from '../../shared/types'
 import { imageHostingConfigs } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { CfConflictError, createCfClient } from '../services/cf-custom-hostnames'
+import { CfConflictError } from '../usecases/ports'
 
 function toUnixMs(d: Date | null | undefined): number | null {
   if (!d) return null
@@ -66,7 +66,7 @@ const app = new Hono<Env>()
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
     const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
-    const cfClient = createCfClient(getEnv)
+    const cfClient = c.get('deps').cfHostnames
     const isCfConfigured = !!getEnv('CF_API_TOKEN')
     const cnameTarget = getEnv('CF_CNAME_TARGET') ?? ''
 
@@ -100,7 +100,7 @@ const app = new Hono<Env>()
 
     const body = c.req.valid('json')
     const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
-    const cfClient = createCfClient(getEnv)
+    const cfClient = c.get('deps').cfHostnames
     const isCfConfigured = !!getEnv('CF_API_TOKEN')
     const cnameTarget = getEnv('CF_CNAME_TARGET') ?? ''
     const appHost = getEnv('APP_HOST')
@@ -249,7 +249,7 @@ const app = new Hono<Env>()
 
     const row = existing[0]
     const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
-    const cfClient = createCfClient(getEnv)
+    const cfClient = c.get('deps').cfHostnames
 
     // Best-effort CF cleanup — do not fail if CF call errors.
     if (row.cfHostnameId) {

@@ -17,7 +17,6 @@ import { buildInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { loadCaptchaOptionValues, readCaptchaConfig } from '../services/captcha'
-import { fetchChangelog } from '../services/changelog'
 import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
 import { getAppVersion } from '../version'
 
@@ -36,7 +35,7 @@ const app = new Hono<Env>()
   })
   .get('/changelog', requireAdmin, zValidator('query', z.object({ refresh: z.string().optional() })), async (c) => {
     const force = c.req.valid('query').refresh === 'true'
-    const { latestVersion, markdown } = await fetchChangelog(Date.now(), { force })
+    const { latestVersion, markdown } = await c.get('deps').changelog.fetchChangelog(Date.now(), { force })
     const currentVersion = getAppVersion()
     const updateAvailable = latestVersion ? compareSemver(latestVersion, currentVersion) > 0 : false
     return c.json({ currentVersion, latestVersion, updateAvailable, markdown })

@@ -6,6 +6,8 @@ import type {
   ActivityRepo,
   AnnouncementRepo,
   BackgroundJobRepo,
+  CfHostnamesProvider,
+  ChangelogProvider,
   InviteRepo,
   NotificationRepo,
   OrgRepo,
@@ -22,6 +24,8 @@ export interface Deps {
   activity: ActivityRepo
   announcements: AnnouncementRepo
   backgroundJobs: BackgroundJobRepo
+  cfHostnames: CfHostnamesProvider
+  changelog: ChangelogProvider
   invites: InviteRepo
   notifications: NotificationRepo
   org: OrgRepo

@@ -5,7 +5,7 @@ import {
   CAPTCHA_SECRET_OPTION_KEY,
   CAPTCHA_SITE_KEY_KEY,
 } from '../../shared/captcha.js'
-import { resetChangelogCache } from '../services/changelog.js'
+import { resetChangelogCache } from '../adapters/providers/changelog.js'
 import { adminHeaders, createTestApp } from '../test/setup.js'
 
 async function putOption(

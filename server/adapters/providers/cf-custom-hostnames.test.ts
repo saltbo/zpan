@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CfConflictError, CfCustomHostnamesClient, createCfClient } from './cf-custom-hostnames.js'
+import { CfConflictError } from '../../usecases/ports'
+import { CfCustomHostnamesClient, createCfClient } from './cf-custom-hostnames.js'
 
 const TEST_CONFIG = {
   apiToken: 'test-token',
