@@ -22,18 +22,13 @@
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SignupMode } from '../../shared/constants'
+import { createPairing, pollPairing, refreshEntitlement } from '../adapters/gateways/licensing-cloud'
 import { createInstanceRepo } from '../adapters/repos/instance'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import { hasFeature } from '../domain/licensing'
-import {
-  CloudUnboundError,
-  createPairing,
-  type PairingResponse,
-  pollPairing,
-  refreshEntitlement,
-} from '../services/licensing-cloud'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup'
 import { loadBindingState } from '../usecases/licensing'
+import { CloudUnboundError, type PairingResponse } from '../usecases/ports'
 import { PUBLIC_KEYS } from './public-keys'
 
 const CLOUD_BASE_URL = process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev'

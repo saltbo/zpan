@@ -12,7 +12,6 @@ import { z } from 'zod'
 import { requireAuth, requireTeamRole } from '../../middleware/auth'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { getAccessibleTargets, getCustomerLabel } from '../../services/cloud-store'
 import {
   cloudBillingPortalSessionResponseSchema,
   cloudCheckoutResponseSchema,
@@ -33,7 +32,7 @@ export const cloudStore = new Hono<Env>()
   .use(requireAuth)
   .use(requireFeature('quota_store'))
   .get('/packages', async (c) => {
-    const store = await getUserStoreSettings(c.get('platform').db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
@@ -49,7 +48,7 @@ export const cloudStore = new Hono<Env>()
     return c.json({ ...result, items, total: items.length })
   })
   .get('/credits/products', async (c) => {
-    const store = await getUserStoreSettings(c.get('platform').db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
@@ -65,16 +64,15 @@ export const cloudStore = new Hono<Env>()
     return c.json({ ...result, items, total: items.length })
   })
   .get('/targets', async (c) => {
-    const db = c.get('platform').db
-    const store = await getUserStoreSettings(db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
-    const items = await getAccessibleTargets(db, c.get('userId')!)
+    const items = await c.get('deps').cloudStore.getAccessibleTargets(c.get('userId')!)
     return c.json({ items, total: items.length })
   })
   .get('/credits', requireTeamRole('owner'), async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
-    const store = await getUserStoreSettings(c.get('platform').db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
@@ -90,7 +88,7 @@ export const cloudStore = new Hono<Env>()
   .get('/credits/ledger-entries', requireTeamRole('owner'), async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
-    const store = await getUserStoreSettings(c.get('platform').db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
@@ -107,7 +105,7 @@ export const cloudStore = new Hono<Env>()
   .post('/credits/redemptions', requireTeamRole('owner'), zValidator('json', redeemGiftCardInputSchema), async (c) => {
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
-    const store = await getUserStoreSettings(c.get('platform').db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const result = await cloudRequest(c, async ({ client, storeId }) =>
       unwrapCloudResponse(
@@ -123,12 +121,11 @@ export const cloudStore = new Hono<Env>()
   })
   .post('/checkouts', requireTeamRole('owner'), zValidator('json', checkoutInputSchema), async (c) => {
     const body = c.req.valid('json')
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
 
-    const store = await getUserStoreSettings(db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const currency = 'usd'
     const product = await cloudRequest(c, async ({ client, storeId }) =>
@@ -162,7 +159,7 @@ export const cloudStore = new Hono<Env>()
             target: {
               orgId: targetOrgId,
               customerId: targetOrgId,
-              customerLabel: await getCustomerLabel(db, userId, targetOrgId),
+              customerLabel: await c.get('deps').cloudStore.getCustomerLabel(userId, targetOrgId),
             },
           },
         }),
@@ -187,7 +184,7 @@ export const cloudStore = new Hono<Env>()
     return c.json(payment)
   })
   .post('/discount-quotes', zValidator('json', discountQuoteInputSchema), async (c) => {
-    const store = await getUserStoreSettings(c.get('platform').db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const body = c.req.valid('json')
     const result = await cloudRequest(c, async ({ client, storeId }) =>
@@ -203,11 +200,10 @@ export const cloudStore = new Hono<Env>()
     return c.json(result)
   })
   .post('/billing-portal-sessions', requireTeamRole('owner'), async (c) => {
-    const db = c.get('platform').db
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
 
-    const store = await getUserStoreSettings(db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const origin = await getInstanceOrigin(c)
     const result = await cloudRequest(c, async ({ client, storeId }) =>
@@ -223,8 +219,7 @@ export const cloudStore = new Hono<Env>()
     return c.json(result)
   })
   .get('/orders', requireTeamRole('owner'), zValidator('query', cloudStoreOrdersQuerySchema), async (c) => {
-    const db = c.get('platform').db
-    const store = await getUserStoreSettings(db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
@@ -234,8 +229,7 @@ export const cloudStore = new Hono<Env>()
     return c.json(result)
   })
   .post('/orders/:orderId/payments', requireTeamRole('owner'), async (c) => {
-    const db = c.get('platform').db
-    const store = await getUserStoreSettings(db)
+    const store = await getUserStoreSettings(c.get('deps').cloudStore)
     if ('error' in store) return c.json({ error: store.error }, 403)
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)
@@ -265,8 +259,7 @@ export const cloudStore = new Hono<Env>()
     requireTeamRole('owner'),
     zValidator('json', z.object({ status: z.literal('canceled') })),
     async (c) => {
-      const db = c.get('platform').db
-      const store = await getUserStoreSettings(db)
+      const store = await getUserStoreSettings(c.get('deps').cloudStore)
       if ('error' in store) return c.json({ error: store.error }, 403)
       const targetOrgId = c.get('orgId')
       if (!targetOrgId) return c.json({ error: 'No active organization' }, 400)

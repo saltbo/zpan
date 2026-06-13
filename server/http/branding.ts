@@ -10,7 +10,7 @@ import {
   resetBrandingTheme,
   setBrandingField,
   uploadBrandingImage,
-} from '../services/branding'
+} from '../usecases/branding'
 
 type StoredBrandingField = keyof typeof BRANDING_KEYS
 type ThemeField =
@@ -84,8 +84,7 @@ function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | {
 
 // Public — no auth required. Used on sign-in/sign-up pages too.
 export const publicBranding = new Hono<Env>().get('/', async (c) => {
-  const db = c.get('platform').db
-  const config = await readBranding(db)
+  const config = await readBranding(c.get('deps'))
   return c.json(config)
 })
 
@@ -94,7 +93,7 @@ export const brandingAdmin = new Hono<Env>()
   .use(requireAdmin)
   .use(requireFeature('white_label'))
   .put('/', async (c) => {
-    const platform = c.get('platform')
+    const deps = c.get('deps')
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
 
@@ -111,14 +110,14 @@ export const brandingAdmin = new Hono<Env>()
 
     const logoFile = form.get('logo')
     if (logoFile instanceof File && logoFile.size > 0) {
-      const result = await uploadBrandingImage(platform, 'logo', logoFile)
+      const result = await uploadBrandingImage(deps, 'logo', logoFile)
       if (!result.ok) return c.json({ error: result.error }, result.status)
       changedFields.push('logo')
     }
 
     const faviconFile = form.get('favicon')
     if (faviconFile instanceof File && faviconFile.size > 0) {
-      const result = await uploadBrandingImage(platform, 'favicon', faviconFile)
+      const result = await uploadBrandingImage(deps, 'favicon', faviconFile)
       if (!result.ok) return c.json({ error: result.error }, result.status)
       changedFields.push('favicon')
     }
@@ -126,24 +125,24 @@ export const brandingAdmin = new Hono<Env>()
     const wordmarkRaw = form.get('wordmark_text')
     if (typeof wordmarkRaw === 'string') {
       if (wordmarkRaw.length > 24) return c.json({ error: 'wordmark_text must be 24 characters or fewer' }, 422)
-      await setBrandingField(platform.db, 'wordmark_text', wordmarkRaw)
+      await setBrandingField(deps, 'wordmark_text', wordmarkRaw)
       changedFields.push('wordmark_text')
     }
 
     const hidePoweredByRaw = form.get('hide_powered_by')
     if (hidePoweredByRaw !== null) {
       const value = hidePoweredByRaw === 'true' || hidePoweredByRaw === '1' ? 'true' : 'false'
-      await setBrandingField(platform.db, 'hide_powered_by', value)
+      await setBrandingField(deps, 'hide_powered_by', value)
       changedFields.push('hide_powered_by')
     }
 
     for (const [field, value] of Object.entries(themeUpdate.values) as [ThemeField, string][]) {
-      await setBrandingField(platform.db, field, value)
+      await setBrandingField(deps, field, value)
       changedFields.push(field)
     }
 
     if (changedFields.length > 0) {
-      await c.get('deps').activity.record({
+      await deps.activity.record({
         orgId,
         userId,
         action: 'branding_update',
@@ -153,10 +152,10 @@ export const brandingAdmin = new Hono<Env>()
       })
     }
 
-    return c.json(await readBranding(platform.db))
+    return c.json(await readBranding(deps))
   })
   .delete('/:field', async (c) => {
-    const platform = c.get('platform')
+    const deps = c.get('deps')
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const rawField = c.req.param('field')
@@ -164,11 +163,11 @@ export const brandingAdmin = new Hono<Env>()
       return c.json({ error: `Invalid field. Valid fields: ${[...VALID_RESET_FIELDS].join(', ')}` }, 400)
     }
     if (rawField.startsWith('theme')) {
-      await resetBrandingTheme(platform.db)
+      await resetBrandingTheme(deps)
     } else {
-      await resetBrandingField(platform.db, rawField as StoredBrandingField)
+      await resetBrandingField(deps, rawField as StoredBrandingField)
     }
-    await c.get('deps').activity.record({
+    await deps.activity.record({
       orgId,
       userId,
       action: 'branding_reset',

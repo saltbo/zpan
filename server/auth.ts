@@ -1,6 +1,7 @@
 import { apiKey } from '@better-auth/api-key'
 import { APIError, type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import type { CaptchaOptions } from 'better-auth/plugins'
 import { admin, bearer, captcha, deviceAuthorization, organization, username } from 'better-auth/plugins'
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
@@ -20,23 +21,27 @@ import {
   type OAuthProviderConfig,
   parseProviderConfig,
 } from '../shared/oauth-providers'
+import { createEmailGateway } from './adapters/gateways/email'
 import { createActivityRepo } from './adapters/repos/activity'
 import { createInviteRepo } from './adapters/repos/invite'
+import { createLicenseBindingRepo } from './adapters/repos/license-binding'
+import { createMemberCountRepo } from './adapters/repos/member-count'
 import { createNotificationRepo } from './adapters/repos/notification'
 import { createOrgRepo } from './adapters/repos/org'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
+import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
+import { CAPTCHA_AUTH_ENDPOINTS, type CaptchaConfig } from './domain/captcha'
 import { currentTrafficPeriod } from './domain/quota'
 import { isLocalNetworkOrigin } from './lib/local-origin'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import { createDbProxy, createPlatformProxy } from './platform/context'
 import type { Database, Platform } from './platform/interface'
-import { CAPTCHA_AUTH_ENDPOINTS, loadCaptchaConfig, toBetterAuthCaptchaOptions } from './services/captcha'
-import { isEmailConfigured, sendEmail } from './services/email'
-import { getEffectiveSignupMode } from './services/signup-mode-guard'
-import { checkTeamLimit } from './services/team-count-guard'
+import { loadCaptchaConfig } from './usecases/captcha'
+import { getEffectiveSignupMode } from './usecases/signup-mode'
+import { checkTeamLimit } from './usecases/team-count'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
 // which blows past Cloudflare Workers' CPU budget and triggers error 1102.
@@ -83,6 +88,27 @@ async function loadProviderConfigs(db: Database): Promise<ProviderConfigs> {
   return configs
 }
 
+// Maps stored captcha config to the better-auth captcha plugin options. Lives
+// here because better-auth's CaptchaOptions type is delivery-framework-specific
+// and may not leak into the framework-free usecases/ layer.
+export function toBetterAuthCaptchaOptions(config: CaptchaConfig): CaptchaOptions {
+  const base = {
+    provider: config.provider,
+    secretKey: config.secretKey,
+    endpoints: [...CAPTCHA_AUTH_ENDPOINTS],
+  }
+
+  if (config.provider === 'google-recaptcha') {
+    return config.minScore === undefined ? base : { ...base, minScore: config.minScore }
+  }
+
+  if (config.provider === 'hcaptcha' || config.provider === 'captchafox') {
+    return { ...base, siteKey: config.siteKey }
+  }
+
+  return base
+}
+
 function dynamicCaptcha(db: Database): BetterAuthPlugin {
   return {
     id: 'dynamic-captcha',
@@ -91,7 +117,7 @@ function dynamicCaptcha(db: Database): BetterAuthPlugin {
       // for everything else (notably get-session, the hottest auth route).
       const path = new URL(request.url).pathname
       if (!CAPTCHA_AUTH_ENDPOINTS.some((endpoint) => path.endsWith(endpoint))) return
-      const config = await loadCaptchaConfig(db)
+      const config = await loadCaptchaConfig({ systemOptions: createSystemOptionsRepo(db) })
       if (!config) return
       const plugin = captcha(toBetterAuthCaptchaOptions(config))
       return plugin.onRequest?.(request, ctx)
@@ -161,7 +187,12 @@ export async function createAuth(
   const dbProxy = platformProxy ? platformProxy.db : createDbProxy(rawDb)
 
   const db = dbProxy
-  const source = platformProxy || dbProxy
+  // The email gateway needs a Platform for the Cloudflare EMAIL binding. On the
+  // bare-Database path (tests, Node fallbacks) there is no platform, so wrap the
+  // db proxy in a binding-free Platform — matching the previous behaviour where
+  // a Database source had no CF binding available.
+  const authPlatform: Platform = platformProxy ?? { db: dbProxy, getEnv: () => undefined, getBinding: () => undefined }
+  const email = createEmailGateway(createSystemOptionsRepo(db))
   const providerConfigs = await loadProviderConfigs(rawDb)
   const auth = betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
@@ -189,8 +220,8 @@ export async function createAuth(
         verify: authVerifyPassword,
       },
       sendResetPassword: async ({ user, url }) => {
-        if (!(await isEmailConfigured(source))) return
-        await sendEmail(source, {
+        if (!(await email.isConfigured(authPlatform))) return
+        await email.send(authPlatform, {
           to: user.email,
           subject: 'Reset your password - ZPan',
           html: buildResetPasswordEmailHtml(url),
@@ -199,8 +230,8 @@ export async function createAuth(
     },
     emailVerification: {
       sendVerificationEmail: async ({ user, url }) => {
-        if (!(await isEmailConfigured(source))) return
-        await sendEmail(source, {
+        if (!(await email.isConfigured(authPlatform))) return
+        await email.send(authPlatform, {
           to: user.email,
           subject: 'Verify your email - ZPan',
           html: buildVerificationEmailHtml(url),
@@ -228,8 +259,8 @@ export async function createAuth(
           viewer: memberAc,
         },
         sendInvitationEmail: async (data) => {
-          if (!(await isEmailConfigured(source))) return
-          await sendEmail(source, {
+          if (!(await email.isConfigured(authPlatform))) return
+          await email.send(authPlatform, {
             to: data.email,
             subject: `You've been invited to join ${data.organization.name} - ZPan`,
             html: buildInvitationEmailHtml(data),
@@ -237,7 +268,14 @@ export async function createAuth(
         },
         organizationHooks: {
           beforeCreateOrganization: async ({ user }) => {
-            const { allowed, count: current_count, limit } = await checkTeamLimit(db, user.id)
+            const {
+              allowed,
+              count: current_count,
+              limit,
+            } = await checkTeamLimit(
+              { memberCount: createMemberCountRepo(db), licenseBinding: createLicenseBindingRepo(db) },
+              user.id,
+            )
             if (!allowed) {
               throw new APIError('PAYMENT_REQUIRED', {
                 message:
@@ -386,7 +424,10 @@ export async function createAuth(
 
             // Registration gate: skip for the very first user so bootstrap works
             if (!firstUser) {
-              const mode = await getEffectiveSignupMode(db)
+              const mode = await getEffectiveSignupMode({
+                systemOptions: createSystemOptionsRepo(db),
+                licenseBinding: createLicenseBindingRepo(db),
+              })
               const email = String(user.email ?? '')
               const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
               if (mode === SignupMode.CLOSED) {
@@ -429,7 +470,10 @@ export async function createAuth(
           },
           after: async (user, context) => {
             // Redeem invite code after user is created (user.id is now available)
-            const mode = await getEffectiveSignupMode(db)
+            const mode = await getEffectiveSignupMode({
+              systemOptions: createSystemOptionsRepo(db),
+              licenseBinding: createLicenseBindingRepo(db),
+            })
             if (mode === SignupMode.INVITE_ONLY) {
               const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
               if (inviteCode) {

@@ -2,7 +2,6 @@ import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { shareRecipients, shares } from '../db/schema.js'
-import * as emailService from '../services/email.js'
 import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
 
@@ -108,7 +107,6 @@ describe('POST /api/shares (auth guard)', () => {
 describe('POST /api/shares', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(emailService, 'sendEmail').mockResolvedValue(undefined)
   })
 
   it('creates a landing share without password and returns 201 with correct shape', async () => {
@@ -297,7 +295,7 @@ describe('POST /api/shares', () => {
     const matterId = nanoid()
     await insertFile(db, orgId, { id: matterId, name: 'file.txt' })
 
-    const notifService = await import('../services/share-notification.js')
+    const notifService = await import('../usecases/share-notification.js')
     vi.spyOn(notifService, 'dispatchShareCreated').mockRejectedValueOnce(new Error('dispatch failed'))
 
     const res = await createShare(app, headers, {
@@ -324,7 +322,6 @@ describe('GET /api/shares (auth guard)', () => {
 describe('GET /api/shares', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(emailService, 'sendEmail').mockResolvedValue(undefined)
   })
 
   it('returns empty list for a new user with no shares', async () => {
@@ -437,7 +434,6 @@ describe('GET /api/shares', () => {
 describe('GET /api/shares/:token', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(emailService, 'sendEmail').mockResolvedValue(undefined)
   })
 
   it('returns full detail including recipients when viewer is the creator', async () => {
@@ -557,7 +553,6 @@ describe('GET /api/shares/:token', () => {
 describe('POST /api/shares/:token/objects', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(emailService, 'sendEmail').mockResolvedValue(undefined)
     vi.spyOn(S3Service.prototype, 'copyObject').mockResolvedValue(undefined)
     vi.spyOn(S3Service.prototype, 'streamCopy').mockResolvedValue(undefined)
   })
@@ -876,7 +871,6 @@ describe('DELETE /api/shares/:token (auth guard)', () => {
 describe('DELETE /api/shares/:token', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.spyOn(emailService, 'sendEmail').mockResolvedValue(undefined)
   })
 
   it('creator can delete their share and share status becomes revoked in DB', async () => {

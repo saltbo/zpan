@@ -4,8 +4,8 @@ import { z } from 'zod'
 import type { SiteInvitation } from '../../shared/types'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import type { Database } from '../platform/interface'
-import { getEmailConfig, sendEmail } from '../services/email'
+import type { Platform } from '../platform/interface'
+import type { EmailGateway } from '../usecases/ports'
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -26,17 +26,18 @@ function buildSignupInviteEmailHtml(data: { siteName: string; inviteLink: string
 }
 
 async function sendSiteInvitationEmail(
-  db: Database,
+  email: EmailGateway,
+  platform: Platform,
   siteName: string,
   requestUrl: string,
-  email: string,
+  to: string,
   token: string,
   expiresAt: string,
 ) {
   const inviteLink = new URL('/sign-up', requestUrl)
   inviteLink.searchParams.set('invite', token)
-  await sendEmail(db, {
-    to: email,
+  await email.send(platform, {
+    to,
     subject: `You're invited to register on ${siteName}`,
     html: buildSignupInviteEmailHtml({ siteName, inviteLink: inviteLink.toString(), expiresAt }),
   })
@@ -45,19 +46,18 @@ async function sendSiteInvitationEmail(
 export const adminSiteInvitations = new Hono<Env>()
   .use(requireAdmin)
   .get('/', zValidator('query', paginationSchema), async (c) => {
-    const db = c.get('platform').db
     const { page, pageSize } = c.req.valid('query')
     const result = await c.get('deps').siteInvitations.listSiteInvitations(page, pageSize)
     return c.json(result)
   })
   .post('/', zValidator('json', createSchema), async (c) => {
-    const db = c.get('platform').db
+    const platform = c.get('platform')
     const userId = c.get('userId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
     const orgId = c.get('orgId')!
 
     const { email } = c.req.valid('json')
-    await getEmailConfig(db)
+    await c.get('deps').email.getConfig(platform)
     let invitation: SiteInvitation
     try {
       invitation = await c.get('deps').siteInvitations.createSiteInvitation(userId, email)
@@ -66,7 +66,8 @@ export const adminSiteInvitations = new Hono<Env>()
       return c.json({ error: message }, 409)
     }
     await sendSiteInvitationEmail(
-      db,
+      c.get('deps').email,
+      platform,
       await c.get('deps').siteInvitations.getSiteName(),
       c.req.url,
       invitation.email,
@@ -84,7 +85,7 @@ export const adminSiteInvitations = new Hono<Env>()
     return c.json(invitation, 201)
   })
   .post('/:id/resend', async (c) => {
-    const db = c.get('platform').db
+    const platform = c.get('platform')
     const id = c.req.param('id')
     const invitation = await c.get('deps').siteInvitations.resendSiteInvitation(id)
 
@@ -92,9 +93,10 @@ export const adminSiteInvitations = new Hono<Env>()
     if (invitation === 'already_accepted') return c.json({ error: 'Invitation has already been used' }, 400)
     if (invitation === 'already_revoked') return c.json({ error: 'Invitation has been revoked' }, 400)
 
-    await getEmailConfig(db)
+    await c.get('deps').email.getConfig(platform)
     await sendSiteInvitationEmail(
-      db,
+      c.get('deps').email,
+      platform,
       await c.get('deps').siteInvitations.getSiteName(),
       c.req.url,
       invitation.email,
@@ -104,7 +106,6 @@ export const adminSiteInvitations = new Hono<Env>()
     return c.json(invitation)
   })
   .delete('/:id', async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
     const orgId = c.get('orgId')!
@@ -126,7 +127,6 @@ export const adminSiteInvitations = new Hono<Env>()
   })
 
 export const publicSiteInvitations = new Hono<Env>().get('/:token', async (c) => {
-  const db = c.get('platform').db
   const token = c.req.param('token')
   const invitation = await c.get('deps').siteInvitations.getSiteInvitationByToken(token)
   if (!invitation) return c.json({ error: 'Invitation not found' }, 404)

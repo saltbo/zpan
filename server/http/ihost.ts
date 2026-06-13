@@ -1,6 +1,6 @@
 import { zValidator } from '@hono/zod-validator'
-import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { nanoid } from 'nanoid'
 import {
   ALLOWED_IMAGE_MIMES,
   createIhostImageSchema,
@@ -8,28 +8,23 @@ import {
   MAX_IMAGE_SIZE,
   patchIhostImageSchema,
 } from '../../shared/schemas'
-import { imageHostings } from '../db/schema'
+import { buildImageUrl, validatePath } from '../domain/image-hosting'
 import { mapDomainError } from '../lib/http-errors'
+import { mimeToExt } from '../lib/mime-utils'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import { requirePermission } from '../middleware/authz'
 import type { Env } from '../middleware/platform'
-import {
-  buildImageUrl,
-  confirmImageHosting,
-  createImageHosting,
-  deleteImageHosting,
-  deriveDefaultPath,
-  getImageHosting,
-  getImageHostingConfig,
-  listImageHostings,
-  validatePath,
-} from '../services/image-hosting'
-import { S3Service } from '../services/s3'
+import { confirmImageHosting, deleteImageHosting, finalizeImageHostingUpload } from '../usecases/image-hosting'
 import type { StorageRecord as S3Storage } from '../usecases/ports'
-import { withStorageUsageReservation } from '../usecases/storage-usage'
 import { PRESIGN_TTL_SECS } from './share-utils'
 
-const s3 = new S3Service()
+// Derive a storage path from the upload's filename, falling back to a random
+// name when the client sends an opaque blob.
+function deriveDefaultPath(filename: string, mime: string): string {
+  if (!filename || filename === 'blob') return `image-${nanoid(8)}.${mimeToExt(mime)}`
+  // Strip path separators from the filename for safety
+  return filename.replace(/[/\\]/g, '_')
+}
 
 // Detect image MIME type from the first few bytes (magic numbers)
 function detectMimeFromBytes(bytes: Uint8Array): string | null {
@@ -67,13 +62,12 @@ function detectMimeFromBytes(bytes: Uint8Array): string | null {
 
 const app = new Hono<Env>()
   .post('/images', requirePermission('ihost', 'upload'), async (c) => {
-    const db = c.get('platform').db
-    const contentType = c.req.header('Content-Type') ?? ''
-
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
-    const config = await getImageHostingConfig(db, orgId)
+    const contentType = c.req.header('Content-Type') ?? ''
+
+    const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
     if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
     let storage: S3Storage
@@ -163,34 +157,13 @@ const app = new Hono<Env>()
     if (pathErr) return c.json(pathErr, 400)
 
     try {
-      const row = await withStorageUsageReservation(
-        c.get('deps'),
-        { orgId, storageId: storage.id, bytes: fileBytes.byteLength },
-        async (ctx) => {
-          const row = await createImageHosting(db, {
-            orgId,
-            path: requestedPath,
-            mime: mime as (typeof ALLOWED_IMAGE_MIMES)[number],
-            size: fileBytes.byteLength,
-            storageId: storage.id,
-            status: 'draft',
-          })
-
-          ctx.onRollback(async () => {
-            await db.delete(imageHostings).where(and(eq(imageHostings.id, row.id), eq(imageHostings.orgId, orgId)))
-            await s3.deleteObject(storage, row.storageKey)
-          })
-
-          await s3.putObject(storage, row.storageKey, fileBytes, mime)
-
-          await db
-            .update(imageHostings)
-            .set({ status: 'active' })
-            .where(and(eq(imageHostings.id, row.id), eq(imageHostings.orgId, orgId)))
-
-          return row
-        },
-      )
+      const row = await finalizeImageHostingUpload(c.get('deps'), {
+        orgId,
+        storage,
+        path: requestedPath,
+        mime: mime as (typeof ALLOWED_IMAGE_MIMES)[number],
+        bytes: fileBytes,
+      })
 
       const origin = new URL(c.req.url).origin
       const tokenUrl = `${origin}/r/${row.token}`
@@ -228,8 +201,7 @@ const app = new Hono<Env>()
       const orgId = c.get('orgId')
       if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-      const db = c.get('platform').db
-      const config = await getImageHostingConfig(db, orgId)
+      const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
       if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
       const { path: requestedPath, mime, size } = c.req.valid('json')
@@ -248,7 +220,7 @@ const app = new Hono<Env>()
         return c.json({ error: 'No storage configured' }, 503)
       }
 
-      const row = await createImageHosting(db, {
+      const row = await c.get('deps').imageHosting.create({
         orgId,
         path: requestedPath,
         mime,
@@ -257,7 +229,7 @@ const app = new Hono<Env>()
         status: 'draft',
       })
 
-      const uploadUrl = await s3.presignUpload(storage, row.storageKey, mime, PRESIGN_TTL_SECS)
+      const uploadUrl = await c.get('deps').s3.presignUpload(storage, row.storageKey, mime, PRESIGN_TTL_SECS)
 
       return c.json(
         {
@@ -278,12 +250,11 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const db = c.get('platform').db
-    const config = await getImageHostingConfig(db, orgId)
+    const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
     if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
     const { pathPrefix, cursor, limit } = c.req.valid('query')
-    const result = await listImageHostings(db, orgId, { pathPrefix, cursor, limit })
+    const result = await c.get('deps').imageHosting.list(orgId, { pathPrefix, cursor, limit })
     return c.json(result)
   })
 
@@ -291,11 +262,10 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const db = c.get('platform').db
-    const config = await getImageHostingConfig(db, orgId)
+    const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
     if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
-    const row = await getImageHosting(db, c.req.param('id'), orgId)
+    const row = await c.get('deps').imageHosting.get(c.req.param('id'), orgId)
     if (!row) return c.json({ error: 'Not found' }, 404)
     return c.json(row)
   })
@@ -309,12 +279,11 @@ const app = new Hono<Env>()
       const orgId = c.get('orgId')
       if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-      const db = c.get('platform').db
-      const config = await getImageHostingConfig(db, orgId)
+      const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
       if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
       // action === 'confirm' is the only value the discriminated union allows
-      const { row, quotaExceeded } = await confirmImageHosting(db, c.req.param('id'), orgId)
+      const { row, quotaExceeded } = await confirmImageHosting(c.get('deps'), c.req.param('id'), orgId)
       if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
       if (!row) return c.json({ error: 'Not found or not in draft status' }, 404)
       return c.json(row)
@@ -325,23 +294,15 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No active organization' }, 400)
 
-    const db = c.get('platform').db
-    const config = await getImageHostingConfig(db, orgId)
+    const config = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
     if (!config) return c.json({ error: 'image hosting not enabled for this organization' }, 403)
 
-    const existing = await getImageHosting(db, c.req.param('id'), orgId)
+    const existing = await c.get('deps').imageHosting.get(c.req.param('id'), orgId)
     if (!existing) return c.json({ error: 'Not found' }, 404)
 
     const storage = await c.get('deps').storages.get(existing.storageId)
-    if (storage) {
-      try {
-        await s3.deleteObject(storage, existing.storageKey)
-      } catch {
-        // Best-effort S3 delete — proceed with DB cleanup regardless
-      }
-    }
-
-    await deleteImageHosting(db, existing.id, orgId)
+    const deleted = await deleteImageHosting(c.get('deps'), existing.id, orgId, storage)
+    if (!deleted) return c.json({ error: 'Not found' }, 404)
 
     return new Response(null, { status: 204 })
   })

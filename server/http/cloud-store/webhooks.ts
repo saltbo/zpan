@@ -3,12 +3,10 @@ import { Hono } from 'hono'
 import { verifyCloudEventToken } from '../../licensing/cloud-event-token'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { getCloudStoreBinding, processCloudOrderQuotaChange } from '../../services/cloud-store'
 import { getCloudBaseUrl, parseJson, sha256Hex } from '../cloud-store-helpers'
 
 export const cloudStoreWebhooks = new Hono<Env>().use(requireFeature('quota_store')).post('/webhook', async (c) => {
-  const db = c.get('platform').db
-  const binding = await getCloudStoreBinding(db)
+  const binding = await c.get('deps').cloudStore.getCloudStoreBinding()
   const rawPayload = await c.req.text()
   const payloadHash = await sha256Hex(rawPayload)
   const eventToken = c.req.header('x-commerce-event-token') ?? ''
@@ -28,7 +26,7 @@ export const cloudStoreWebhooks = new Hono<Env>().use(requireFeature('quota_stor
   if (parsed.data.eventId !== eventAuth.eventId) return c.json({ error: 'invalid_event_token' }, 401)
 
   try {
-    const result = await processCloudOrderQuotaChange(db, parsed.data, rawPayload, payloadHash)
+    const result = await c.get('deps').cloudStore.processCloudOrderQuotaChange(parsed.data, rawPayload, payloadHash)
     return c.json({ success: true, duplicate: result.duplicate, eventId: result.eventId })
   } catch (error) {
     return c.json({ error: (error as Error).message }, 400)

@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrandingConfig } from '../../shared/types'
-import { S3Service } from '../services/s3.js'
+import { S3Service } from '../adapters/gateways/s3.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense as seedProLicenseRow } from '../test/setup.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

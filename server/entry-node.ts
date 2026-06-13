@@ -12,12 +12,12 @@ import { buildCloudInstanceInfo, runtimeInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
-import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
-import { runLicensingRefresh } from './services/licensing-refresh-runner'
-import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
 import { getSitePublicOrigin } from './services/site-public-origin'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from './services/trash-retention'
+import { syncPendingCloudTrafficReports } from './usecases/cloud-traffic-metering'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
+import { runLicensingRefresh } from './usecases/licensing-refresh-runner'
+import { syncPendingRemoteDownloadUsageReports } from './usecases/remote-download-usage'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
@@ -56,6 +56,7 @@ const platform = process.env.TURSO_DATABASE_URL
     })
   : createNodePlatform()
 
+const deps = createDeps(platform)
 const app = await createBootstrap(platform)
 
 const server = new Hono()
@@ -89,14 +90,14 @@ setInterval(() => {
           runtime: runtimeInfo(platform),
         })
       : undefined
-    await runLicensingRefresh(platform.db, cloudBaseUrl, instance)
+    await runLicensingRefresh(deps, platform.db, cloudBaseUrl, instance)
   })()
 }, REFRESH_INTERVAL_MS)
 
 console.log('traffic.sync.scheduler.started interval=10m')
 setInterval(() => {
-  void syncPendingCloudTrafficReports({ db: platform.db, cloudBaseUrl })
-  void syncPendingRemoteDownloadUsageReports({ db: platform.db, cloudBaseUrl })
+  void syncPendingCloudTrafficReports(deps, { cloudBaseUrl })
+  void syncPendingRemoteDownloadUsageReports(deps, { cloudBaseUrl })
 }, TRAFFIC_SYNC_INTERVAL_MS)
 
 function reportNodeInstanceTelemetry(): void {
@@ -104,7 +105,7 @@ function reportNodeInstanceTelemetry(): void {
 
   void (async () => {
     try {
-      await reportInstanceTelemetry(createDeps(platform), {
+      await reportInstanceTelemetry(deps, {
         config: {
           allowIp: envAllowsIp(process.env.ZPAN_TELEMETRY_ALLOW_IP),
         },

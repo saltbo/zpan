@@ -3,8 +3,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { type EmailConfig, getEmailSettings, sendEmail } from '../services/email'
-import type { SystemOptionsRepo } from '../usecases/ports'
+import type { EmailConfig, SystemOptionsRepo } from '../usecases/ports'
 
 const smtpConfigSchema = z.object({
   enabled: z.boolean(),
@@ -86,7 +85,7 @@ const app = new Hono<Env>()
   .use(requireAdmin)
   .get('/', async (c) => {
     const platform = c.get('platform')
-    const settings = await getEmailSettings(platform)
+    const settings = await c.get('deps').email.getSettings(platform)
     return c.json({
       enabled: settings.enabled,
       ...(settings.config ? maskConfig(settings.config) : { provider: null }),
@@ -120,7 +119,7 @@ const app = new Hono<Env>()
     const platform = c.get('platform')
     const { to } = c.req.valid('json')
     try {
-      await sendEmail(platform, {
+      await c.get('deps').email.send(platform, {
         to,
         subject: 'ZPan Test Email',
         html: '<h1>Test Email</h1><p>Your email configuration is working correctly.</p>',

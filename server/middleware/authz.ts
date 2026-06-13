@@ -1,5 +1,4 @@
 import { createMiddleware } from 'hono/factory'
-import { hasApiKeyPermission } from '../services/api-keys'
 import type { Env } from './platform'
 
 const ROLE_LEVELS: Record<string, number> = {
@@ -26,7 +25,7 @@ export function requirePermission(
     if (principal.kind === 'download-task-upload') return c.json({ error: 'Unauthorized' }, 401)
 
     if (principal.kind === 'api-key') {
-      if (!hasApiKeyPermission(principal.permissions, resource, action)) {
+      if (!c.get('deps').apiKeys.hasApiKeyPermission(principal.permissions, resource, action)) {
         return c.json({ error: 'Forbidden' }, 403)
       }
       return next()
@@ -39,7 +38,6 @@ export function requirePermission(
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = c.get('platform').db
     const role = await c.get('deps').org.getMemberRole(orgId, userId)
     if (role !== null) {
       if ((ROLE_LEVELS[role] ?? 0) < ROLE_LEVELS[opts.minTeamRole]) return c.json({ error: 'Forbidden' }, 403)

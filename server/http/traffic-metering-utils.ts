@@ -1,10 +1,11 @@
 import type { Context } from 'hono'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
 import {
   CloudTrafficBlockedError,
   reportTrafficEgress,
   type TrafficReportSource,
-} from '../services/cloud-traffic-metering'
+} from '../usecases/cloud-traffic-metering'
 
 interface DownloadTrafficParams {
   orgId: string
@@ -65,8 +66,8 @@ export async function reportTrafficForDownload(
   },
 ): Promise<Response | null> {
   try {
-    await reportTrafficEgress({
-      platform: c.get('platform'),
+    await reportTrafficEgress(c.get('deps'), {
+      cloudBaseUrl: c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT,
       orgId: params.orgId,
       bytes: params.bytes,
       storageId: params.storage.id,

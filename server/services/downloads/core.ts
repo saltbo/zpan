@@ -10,13 +10,18 @@ import { downloadTaskRuntimeSchema } from '@shared/schemas'
 import type { Downloader, DownloadTask, DownloadTaskRuntime } from '@shared/types'
 import { and, asc, count, desc, eq, gt, gte, inArray, like, lt, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
+import { createLicensingCloudGateway } from '../../adapters/gateways/licensing-cloud'
+import { createDownloadTokenGateway } from '../../adapters/repos/download-tokens'
+import { createLicenseBindingRepo } from '../../adapters/repos/license-binding'
+import { createRemoteDownloadUsageRepo } from '../../adapters/repos/remote-download-usage'
 import { downloaders, downloadTasks } from '../../db/schema'
 import type { Platform } from '../../platform/interface'
-import { hashDownloadToken, signDownloadToken } from '../download-tokens'
-import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from '../remote-download-usage'
+import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from '../../usecases/remote-download-usage'
 import { parseCapabilities, toDownloader, toDownloadTask } from './mappers'
 import { DownloadError, type DownloaderRow, type DownloadTaskRow } from './types'
 
+const downloadTokens = createDownloadTokenGateway()
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
 const UPLOAD_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 const DOWNLOADER_HEARTBEAT_LEASE_MS = 30_000
@@ -53,7 +58,7 @@ export async function createDownloader(
   const now = new Date()
   const id = nanoid()
   const jti = nanoid()
-  const token = await signDownloadToken(platform, {
+  const token = await downloadTokens.signDownloadToken(platform, {
     v: 1,
     typ: 'downloader',
     downloaderId: id,
@@ -63,7 +68,7 @@ export async function createDownloader(
   await platform.db.insert(downloaders).values({
     id,
     name: input.name,
-    tokenHash: await hashDownloadToken(platform, token),
+    tokenHash: await downloadTokens.hashDownloadToken(platform, token),
     tokenJti: jti,
     status: 'offline',
     enabled: true,
@@ -377,10 +382,16 @@ export async function updateDownloadTask(
     const downloader = await loadDownloaderRow(platform, actor.downloaderId)
     const targetUnits = Math.ceil(nextDownloadedBytes / downloader.remoteDownloadCreditUnitBytes)
     const currentUnits = Math.ceil(task.billingChargedBytes / downloader.remoteDownloadCreditUnitBytes)
+    const remoteDownloadDeps = {
+      licenseBinding: createLicenseBindingRepo(platform.db),
+      licensingCloud: createLicensingCloudGateway(),
+      remoteDownloadUsage: createRemoteDownloadUsageRepo(platform.db),
+    }
+    const cloudBaseUrl = platform.getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
     try {
       for (let unit = currentUnits + 1; unit <= targetUnits; unit += 1) {
-        await reportRemoteDownloadUnit({
-          platform,
+        await reportRemoteDownloadUnit(remoteDownloadDeps, {
+          cloudBaseUrl,
           orgId: task.orgId,
           downloaderId: actor.downloaderId,
           taskId: task.id,
@@ -750,7 +761,7 @@ async function createTaskUploadToken(
 ): Promise<string> {
   const issuedAt = Math.floor(params.assignedAt.getTime() / 1000)
   const exp = issuedAt + UPLOAD_TOKEN_TTL_SECONDS
-  return signDownloadToken(platform, {
+  return downloadTokens.signDownloadToken(platform, {
     v: 1,
     typ: 'download-task-upload',
     taskId: params.taskId,

@@ -1,10 +1,7 @@
-import { eq } from 'drizzle-orm'
 import type { Context, Next } from 'hono'
-import { imageHostingConfigs } from '../db/schema'
 import { PRESIGN_TTL_SECS, s3 } from '../http/share-utils'
 import { reportTrafficForDownload } from '../http/traffic-metering-utils'
 import type { Env } from '../middleware/platform'
-import { getImageByOrgPath, incrementAccessCount, resolveCustomDomain } from '../services/image-hosting'
 
 function stripPort(host: string): string {
   const lastColon = host.lastIndexOf(':')
@@ -43,16 +40,10 @@ function checkReferer(refererAllowlist: string[], refererHeader: string | null):
 }
 
 async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: string): Promise<Response> {
-  const db = c.get('platform').db
+  const resolved = await c.get('deps').imageHosting.resolveActiveByOrgPath(orgId, virtualPath)
+  if (!resolved) return c.json({ error: 'Not found' }, 404)
 
-  const image = await getImageByOrgPath(db, orgId, virtualPath)
-  if (!image) return c.json({ error: 'Not found' }, 404)
-
-  const configRows = await db.select().from(imageHostingConfigs).where(eq(imageHostingConfigs.orgId, orgId)).limit(1)
-  if (configRows.length === 0) return c.json({ error: 'Not found' }, 404)
-
-  const config = configRows[0]
-  const refererAllowlist = config.refererAllowlist ? (JSON.parse(config.refererAllowlist) as string[]) : []
+  const { image, refererAllowlist } = resolved
 
   const refererHeader = c.req.header('Referer') ?? null
   if (!checkReferer(refererAllowlist, refererHeader)) {
@@ -83,7 +74,7 @@ async function handleImageByPath(c: Context<Env>, orgId: string, virtualPath: st
   if (trafficReportError) return trafficReportError
 
   try {
-    await incrementAccessCount(db, image.id)
+    await c.get('deps').imageHosting.incrementAccessCount(image.id)
   } catch (error) {
     console.error('[image-hosting-domain] incrementAccessCount failed:', error)
   }
@@ -105,8 +96,7 @@ export async function imageHostingDomain(c: Context<Env>, next: Next): Promise<R
     return next()
   }
 
-  const db = c.get('platform').db
-  const orgId = await resolveCustomDomain(db, host)
+  const orgId = await c.get('deps').imageHosting.resolveCustomDomain(host)
   if (!orgId) return next()
 
   const virtualPath = c.req.path.replace(/^\/+/, '')

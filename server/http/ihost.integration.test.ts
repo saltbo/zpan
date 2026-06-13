@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { confirmImageHosting, deleteImageHosting } from '../services/image-hosting.js'
 import { S3Service } from '../services/s3.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
+import { confirmImageHosting, deleteImageHosting } from '../usecases/image-hosting.js'
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -1291,15 +1291,15 @@ describe('POST /api/ihost/images — API key auth error paths', () => {
 
 // ─── Service unit tests (direct calls) ───────────────────────────────────────
 
-describe('image-hosting service — direct calls', () => {
+describe('image-hosting usecase — direct calls', () => {
   it('deleteImageHosting returns null for nonexistent image', async () => {
-    const { db } = await createTestApp()
-    const result = await deleteImageHosting(db, 'no-such-id', 'no-such-org')
+    const { deps } = await createTestApp()
+    const result = await deleteImageHosting(deps, 'no-such-id', 'no-such-org', null)
     expect(result).toBeNull()
   })
 
   it('confirmImageHosting with size=0 skips quota and confirms successfully', async () => {
-    const { db } = await createTestApp()
+    const { db, deps } = await createTestApp()
     const orgId = `org-sz0-${nanoid(6)}`
     const now = Date.now()
     await db.run(
@@ -1313,7 +1313,7 @@ describe('image-hosting service — direct calls', () => {
       VALUES (${id}, ${orgId}, ${token}, 'sz0.png', 'st1', 'ih/x/y.png', 0, 'image/png', 'draft', 0, ${now})
     `)
 
-    const result = await confirmImageHosting(db, id, orgId)
+    const result = await confirmImageHosting(deps, id, orgId)
     expect(result.row).toBeTruthy()
     expect(result.row?.status).toBe('active')
   })

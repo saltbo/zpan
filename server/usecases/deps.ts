@@ -5,21 +5,31 @@
 import type {
   ActivityRepo,
   AnnouncementRepo,
+  ApiKeyGateway,
   ArchiveJobsGateway,
   BackgroundJobRepo,
   CfHostnamesProvider,
   ChangelogProvider,
+  CloudStoreRepo,
+  CloudTrafficReportRepo,
+  DownloadTokenGateway,
+  EmailGateway,
   ImageHostingConfigRepo,
+  ImageHostingRepo,
   ImageUpload,
   InstanceRepo,
   InviteRepo,
   LicenseBindingRepo,
+  LicensingCloudGateway,
+  MemberCountRepo,
   NotificationRepo,
   ObjectUploadSessionRepo,
   OrgRepo,
   ProfileRepo,
   QuotaRepo,
+  RemoteDownloadUsageRepo,
   S3Gateway,
+  ShareNotificationRepo,
   SiteInvitationRepo,
   StorageRepo,
   StorageUsageRepo,
@@ -27,6 +37,8 @@ import type {
   TeamInviteRepo,
   TeamRepo,
   UserAdminRepo,
+  WebDavPathRepo,
+  WebDavStateRepo,
   ZipGateway,
   ZipPlanRepo,
 } from './ports'
@@ -34,21 +46,31 @@ import type {
 export interface Deps {
   activity: ActivityRepo
   announcements: AnnouncementRepo
+  apiKeys: ApiKeyGateway
   archiveJobs: ArchiveJobsGateway
   backgroundJobs: BackgroundJobRepo
   cfHostnames: CfHostnamesProvider
   changelog: ChangelogProvider
+  cloudStore: CloudStoreRepo
+  cloudTrafficReports: CloudTrafficReportRepo
+  downloadTokens: DownloadTokenGateway
+  email: EmailGateway
   invites: InviteRepo
   imageHostingConfigs: ImageHostingConfigRepo
+  imageHosting: ImageHostingRepo
   imageUpload: ImageUpload
   instance: InstanceRepo
   licenseBinding: LicenseBindingRepo
+  licensingCloud: LicensingCloudGateway
+  memberCount: MemberCountRepo
   notifications: NotificationRepo
   objectUploadSessions: ObjectUploadSessionRepo
   org: OrgRepo
   profiles: ProfileRepo
   quota: QuotaRepo
+  remoteDownloadUsage: RemoteDownloadUsageRepo
   s3: S3Gateway
+  shareNotifications: ShareNotificationRepo
   siteInvitations: SiteInvitationRepo
   storages: StorageRepo
   storageUsage: StorageUsageRepo
@@ -56,6 +78,8 @@ export interface Deps {
   teams: TeamRepo
   teamInvites: TeamInviteRepo
   userAdmin: UserAdminRepo
+  webdavPath: WebDavPathRepo
+  webdavState: WebDavStateRepo
   zip: ZipGateway
   zipPlan: ZipPlanRepo
 }

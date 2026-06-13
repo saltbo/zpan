@@ -13,14 +13,13 @@ import {
 } from 'zpan-cloud-sdk'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { Env } from '../middleware/platform'
-import type { Database } from '../platform/interface'
-import { getCloudStoreBinding } from '../services/cloud-store'
-import { createBoundCloudClient } from '../services/licensing-cloud'
+import type { CloudStoreRepo } from '../usecases/ports'
 
 const CLOUD_STORE_REQUEST_TIMEOUT_MS = 10_000
 
 export type RouteContext = {
   get(key: 'platform'): Env['Variables']['platform']
+  get(key: 'deps'): Env['Variables']['deps']
   req: { url: string; header(name: string): string | undefined }
 }
 
@@ -65,9 +64,9 @@ export const cloudGiftCardCreateResponseSchema = z
   .transform((response) => (Array.isArray(response) ? response : response.items))
 export const giftCardListQuerySchema = z.object({ status: giftCardStatusSchema.optional() })
 
-export async function getUserStoreSettings(db: Database) {
+export async function getUserStoreSettings(cloudStore: CloudStoreRepo) {
   try {
-    await getCloudStoreBinding(db)
+    await cloudStore.getCloudStoreBinding()
     return { ready: true }
   } catch (error) {
     const message = (error as Error).message
@@ -77,9 +76,9 @@ export async function getUserStoreSettings(db: Database) {
 }
 
 export async function getBoundCloudClient(c: RouteContext) {
-  const binding = await getCloudStoreBinding(c.get('platform').db)
+  const binding = await c.get('deps').cloudStore.getCloudStoreBinding()
   return {
-    client: createBoundCloudClient(getCloudBaseUrl(c), binding.refreshToken),
+    client: c.get('deps').licensingCloud.createBoundCloudClient(getCloudBaseUrl(c), binding.refreshToken),
     storeId: binding.storeId,
   }
 }

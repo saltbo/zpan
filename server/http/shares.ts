@@ -29,7 +29,7 @@ import {
   revokeShareByToken,
   verifyPassword,
 } from '../services/share'
-import { dispatchShareCreated } from '../services/share-notification'
+import { dispatchShareCreated } from '../usecases/share-notification'
 import {
   buildBreadcrumb,
   checkAccessGate,
@@ -383,9 +383,14 @@ export const authedShares = new Hono<Env>()
 
     const recipients = body.recipients ?? []
     if (recipients.length > 0) {
-      dispatchShareCreated(c.get('platform'), share, recipients, creatorName, resolvedMatterName).catch((err) =>
-        console.error('[shares] dispatchShareCreated failed:', err),
-      )
+      dispatchShareCreated(
+        c.get('deps'),
+        c.get('platform'),
+        { id: share.id, token: share.token, kind: share.kind as 'landing' | 'direct', expiresAt: share.expiresAt },
+        recipients,
+        creatorName,
+        resolvedMatterName,
+      ).catch((err) => console.error('[shares] dispatchShareCreated failed:', err))
     }
 
     await c.get('deps').activity.record({

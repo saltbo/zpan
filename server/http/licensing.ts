@@ -6,11 +6,11 @@ import type { BindingState } from '../../shared/types'
 import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { normalizeHost } from '../licensing/verify'
 import type { Env } from '../middleware/platform'
-import { syncPendingCloudTrafficReports } from '../services/cloud-traffic-metering'
-import { runLicensingRefresh } from '../services/licensing-refresh-runner'
-import { syncPendingRemoteDownloadUsageReports } from '../services/remote-download-usage'
 import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
+import { syncPendingCloudTrafficReports } from '../usecases/cloud-traffic-metering'
 import { loadBindingState } from '../usecases/licensing'
+import { runLicensingRefresh } from '../usecases/licensing-refresh-runner'
+import { syncPendingRemoteDownloadUsageReports } from '../usecases/remote-download-usage'
 
 async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
   const origin = await getInstanceOrigin(c)
@@ -33,7 +33,6 @@ function secretsMatch(provided: string, expected: string): boolean {
 
 const app = new Hono<Env>()
   .get('/status', async (c) => {
-    const db = c.get('platform').db
     const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
     const currentHost =
       (await configuredPublicHost(c)) ??
@@ -62,7 +61,7 @@ const app = new Hono<Env>()
           runtime: runtimeInfo(c.get('platform')),
         })
       : undefined
-    await runLicensingRefresh(db, cloudBaseUrl, instance)
+    await runLicensingRefresh(c.get('deps'), db, cloudBaseUrl, instance)
 
     return c.json({ ok: true })
   })
@@ -72,11 +71,10 @@ const app = new Hono<Env>()
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const db = c.get('platform').db
     const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
     const [traffic, remoteDownload] = await Promise.all([
-      syncPendingCloudTrafficReports({ db, cloudBaseUrl }),
-      syncPendingRemoteDownloadUsageReports({ db, cloudBaseUrl }),
+      syncPendingCloudTrafficReports(c.get('deps'), { cloudBaseUrl }),
+      syncPendingRemoteDownloadUsageReports(c.get('deps'), { cloudBaseUrl }),
     ])
 
     return c.json({ ok: true, ...traffic, remoteDownload })

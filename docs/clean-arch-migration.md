@@ -61,16 +61,25 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
       + workers/scheduled rewired.
 
 - [x] `team` → TeamRepo (uses QuotaRepo internally) · `team-invite` → TeamInviteRepo
-
-### Repos to extract (drizzle services → adapters/repos)
-- [ ] captcha, site-invitations, site-public-origin
+- [x] `site-invitations` → SiteInvitationRepo · `cf-custom-hostnames` → CfHostnamesProvider
+      · `changelog` → ChangelogProvider · `instance`/license-binding → InstanceRepo/LicenseBindingRepo
+      · `s3` → S3Gateway (shim) · `system-options` → SystemOptionsRepo · `image-hosting-config` → ImageHostingConfigRepo
 - [x] `user` + `org-entitlements` -> UserAdminRepo (combined; resolves the user/org-entitlements cycle)
-- [ ] matter-name-conflict, instance-telemetry, purge
+- [x] `storage-usage` → StorageUsageRepo + reserve/withReservation usecase (the quota-reservation crown foundation)
 
-### Deferred (not plain repos — handled with their cluster)
-- `download-tokens` (crypto+zod+db), `api-keys` (better-auth) → auth cluster
-- `object-upload-sessions`, `storage-usage` (s3/quota orchestration + error class) → upload/quota cluster
-- `signup-mode-guard`, `team-count-guard` (licensing dep) → after licensing port
+### Parallel migration waves (file-disjoint components, agents create files + rewire callers; barrels wired by orchestrator)
+- [x] **Wave 1** (5 components): `instance-telemetry`→usecase · `image-upload`→ImageUpload gateway ·
+      `archive-jobs`→ArchiveJobsGateway · `zip-compress`/`zip-extract`→ZipGateway+ZipPlanRepo ·
+      `object-upload-sessions`→ObjectUploadSessionRepo · `purge`→pure usecase
+- [~] **Wave 2** (5 components, in flight): auth-account (signup-mode-guard, team-count-guard, captcha,
+      email, share-notification) · webdav-middleware (download-tokens, api-keys, webdav-state/path/xml) ·
+      cloud (licensing-cloud, cloud-store, cloud-traffic-metering, remote-download-usage, licensing-refresh-runner) ·
+      branding · image-hosting
+- [ ] **Crown** (sequential, matter-coupled): matter, matter-name-conflict, share, save-to-drive,
+      archive-processing, trash-retention, downloads/core, site-public-origin
+
+### Remaining drizzle/inline-route extractions
+- [ ] matter-name-conflict, site-public-origin (pure → domain + systemOptions read)
 
 ### Cleanup deferred to a final sweep
 - [ ] Remove dead `const db = c.get('platform').db` locals left in rewired handlers
@@ -108,9 +117,12 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
 - [x] `spec/` Gherkin `.feature` files (one per capability) + `spec/README.md`
 - [x] `[spec: <id>]` breadcrumbs on home tests; `pnpm lint:spec` (in CI) enforces
       spec↔test traceability both ways (orphan scenarios AND stale breadcrumbs fail)
-- [x] Specced so far: storages, announcements, notifications, invite-codes,
-      site-invitations (41 scenarios). **Each migrated capability adds its
-      `.feature` + breadcrumbs** — keep `lint:spec` green.
+- [x] Specced so far (133 scenarios): storages, announcements, notifications, invite-codes,
+      site-invitations, quotas, profile, licensing, users, audit, teams, avatar,
+      background-jobs, events, health. **Each migrated capability adds its
+      `.feature` + breadcrumbs** — keep `lint:spec` green. Remaining: the wave-2 +
+      crown capabilities (shares, webdav, objects, image-hosting, cloud-store, branding,
+      email-config, system, auth-providers, captcha, redirect, download-tasks) — spec as they land.
 
 ### Final cleanup (when ratchet empty)
 - [ ] Delete emptied `services/`; remove transitional shims + the ratchet allowlist

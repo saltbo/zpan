@@ -5,35 +5,7 @@ import { ApiKeyTemplate } from '../../shared/api-key-templates'
 import { DirType, ObjectStatus } from '../../shared/constants'
 import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
-import { mapDomainError } from '../lib/http-errors'
-import { buildObjectKey, fileExt } from '../lib/path-template'
-import type { Env } from '../middleware/platform'
-import { ApiKeyRateLimitError, verifyApiKeyForPermission } from '../services/api-keys'
-import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
-import { S3Service } from '../services/s3'
-import {
-  ensureFolder,
-  joinMatterPath,
-  listChildren,
-  listUserWorkspaces,
-  resolveExistingWebDavPath,
-  resolveWebDavPath,
-  WebDavPathError,
-  type WebDavTarget,
-} from '../services/webdav-path'
-import {
-  activeLocks,
-  activeLocksForResources,
-  applyDeadPropertyUpdate,
-  conflictingLocks,
-  copyDeadProperties,
-  createLock,
-  deleteWebDavState,
-  listDeadPropertiesForResources,
-  moveWebDavState,
-  refreshLock,
-  removeLock,
-} from '../services/webdav-state'
+import { joinMatterPath } from '../domain/webdav'
 import {
   type DavEntry,
   davEtag,
@@ -48,8 +20,18 @@ import {
   proppatchMultistatus,
   workspaceEntry,
   xmlResponse,
-} from '../services/webdav-xml'
-import type { StorageRecord as S3Storage } from '../usecases/ports'
+} from '../domain/webdav-xml'
+import { mapDomainError } from '../lib/http-errors'
+import { buildObjectKey, fileExt } from '../lib/path-template'
+import type { Env } from '../middleware/platform'
+import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
+import { S3Service } from '../services/s3'
+import {
+  ApiKeyRateLimitError,
+  type StorageRecord as S3Storage,
+  WebDavPathError,
+  type WebDavTarget,
+} from '../usecases/ports'
 import { withStorageUsageReservation } from '../usecases/storage-usage'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
@@ -72,14 +54,16 @@ async function requireWebDavApiKey(c: DavContext): Promise<DavAuth | Response> {
 
   try {
     const db = c.get('platform').db
-    const key = await verifyApiKeyForPermission(
-      c.get('auth'),
-      db,
-      credentials.password,
-      WEBDAV_RESOURCE,
-      action,
-      ApiKeyTemplate.WEBDAV,
-    )
+    const key = await c
+      .get('deps')
+      .apiKeys.verifyApiKeyForPermission(
+        c.get('auth'),
+        db,
+        credentials.password,
+        WEBDAV_RESOURCE,
+        action,
+        ApiKeyTemplate.WEBDAV,
+      )
     if (!key) return unauthorized()
     if (!(await usernameMatches(db, key.referenceId, credentials.username))) return unauthorized()
     c.set('userId', key.referenceId)
@@ -159,14 +143,15 @@ function destinationPath(c: DavContext): string | Response {
 }
 
 async function ensureParentCollection(
-  db: Env['Variables']['platform']['db'],
+  c: DavContext,
   userId: string,
   workspaceSlug: string,
   parent: string,
 ): Promise<void> {
   if (!parent) return
-  const target = await resolveWebDavPath(db, userId, `/dav/${workspaceSlug}/${parent}`)
-  ensureFolder(target)
+  const target = await c.get('deps').webdavPath.resolveWebDavPath(userId, `/dav/${workspaceSlug}/${parent}`)
+  if (!target.matter) throw new WebDavPathError('Parent collection not found', 409)
+  if (target.matter.dirtype === DirType.FILE) throw new WebDavPathError('Not a collection', 405)
 }
 
 function requireWorkspace(target: WebDavTarget) {
@@ -504,7 +489,7 @@ function lockRefreshToken(c: DavContext): string | Response | null {
 
 async function lockPrecondition(c: DavContext, target: WebDavTarget): Promise<Response | null> {
   const workspace = requireWorkspace(target)
-  const locks = await activeLocks(c.get('platform').db, workspace.id, resourcePath(target))
+  const locks = await c.get('deps').webdavState.activeLocks(workspace.id, resourcePath(target))
   if (locks.length === 0) return null
   const tokens = submittedLockTokens(c)
   if (locks.every((lock) => tokens.has(lock.token))) return null
@@ -531,7 +516,7 @@ async function evaluateIfHeader(
     if (!target) continue
     const workspace = target.workspace
     const etag = target.matter ? matterEtag(target.matter) : null
-    const locks = workspace ? await activeLocks(c.get('platform').db, workspace.id, resourcePath(target)) : []
+    const locks = workspace ? await c.get('deps').webdavState.activeLocks(workspace.id, resourcePath(target)) : []
     const lockTokens = new Set(locks.map((lock) => lock.token))
     const list = clause[2]
     const conditions = [...list.matchAll(/(Not\s+)?(?:\[([^\]]+)\]|<([^>]+)>)/gi)]
@@ -555,7 +540,7 @@ async function ifTaggedTarget(c: DavContext, auth: DavAuth, tag: string): Promis
   try {
     const url = new URL(tag, c.req.url)
     if (url.origin !== new URL(c.req.url).origin) return null
-    return await resolveWebDavPath(c.get('platform').db, auth.userId, normalizeDavMountPath(url.pathname))
+    return await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, normalizeDavMountPath(url.pathname))
   } catch {
     return null
   }
@@ -579,12 +564,12 @@ async function davEntries(c: DavContext, targets: WebDavTarget[]): Promise<DavEn
     }
   }
 
-  const db = c.get('platform').db
+  const webdavState = c.get('deps').webdavState
   for (const { workspace, targets: workspaceTargets } of byWorkspace.values()) {
     const paths = workspaceTargets.map(resourcePath)
     const [deadPropertiesByPath, locksByPath] = await Promise.all([
-      listDeadPropertiesForResources(db, workspace.id, paths),
-      activeLocksForResources(db, workspace.id, paths),
+      webdavState.listDeadPropertiesForResources(workspace.id, paths),
+      webdavState.activeLocksForResources(workspace.id, paths),
     ])
     for (const target of workspaceTargets) {
       const path = resourcePath(target)
@@ -667,9 +652,9 @@ const app = new Hono<Env>().on(
 )
 
 async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
+  const webdavPath = c.get('deps').webdavPath
   try {
-    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
+    const target = await webdavPath.resolveWebDavPath(auth.userId, davPath(c))
     const depth = c.req.header('Depth') ?? '1'
     if (depth !== '0' && depth !== '1') {
       return xmlResponse(errorXml('propfind-finite-depth', 'Depth infinity is not supported for PROPFIND.'), 403)
@@ -680,7 +665,7 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
     if (target.mountRoot) {
       targets.push(target)
       if (depth !== '0') {
-        for (const workspace of await listUserWorkspaces(db, auth.userId)) {
+        for (const workspace of await webdavPath.listUserWorkspaces(auth.userId)) {
           const workspaceTarget = { workspace, mountRoot: false, parent: '', name: '', matter: null }
           targets.push(workspaceTarget)
         }
@@ -690,7 +675,7 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
       const workspace = requireWorkspace(target)
       targets.push(target)
       if (depth !== '0') {
-        for (const matter of await listChildren(db, workspace.id, '')) {
+        for (const matter of await webdavPath.listChildren(workspace.id, '')) {
           targets.push({ workspace, mountRoot: false, parent: matter.parent, name: matter.name, matter })
         }
       }
@@ -699,7 +684,7 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
       targets.push(target)
       if (depth !== '0' && target.matter.dirtype !== DirType.FILE) {
         const parent = joinMatterPath(target.matter.parent, target.matter.name)
-        for (const matter of await listChildren(db, workspace.id, parent)) {
+        for (const matter of await webdavPath.listChildren(workspace.id, parent)) {
           targets.push({ workspace, mountRoot: false, parent: matter.parent, name: matter.name, matter })
         }
       }
@@ -718,7 +703,7 @@ async function propfind(c: DavContext, auth: DavAuth): Promise<Response> {
 async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
+    const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, davPath(c))
     if (target.name && !target.matter) throw new WebDavPathError('Not found', 404)
     const workspace = requireWorkspace(target)
     const locked = await lockPrecondition(c, target)
@@ -726,7 +711,7 @@ async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
     const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
     const operations = parseProppatchXml(await c.req.text())
-    await applyDeadPropertyUpdate(db, workspace.id, resourcePath(target), operations)
+    await c.get('deps').webdavState.applyDeadPropertyUpdate(workspace.id, resourcePath(target), operations)
     if (target.matter) {
       await db
         .update(matters)
@@ -747,9 +732,8 @@ async function proppatch(c: DavContext, auth: DavAuth): Promise<Response> {
 }
 
 async function readFile(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
   try {
-    const { matter, workspace } = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const { matter, workspace } = await c.get('deps').webdavPath.resolveExistingWebDavPath(auth.userId, davPath(c))
     if (!matter) throw new WebDavPathError('Not found', 404)
     if (!workspace) throw new WebDavPathError('Workspace not found', 404)
     if (matter.dirtype !== DirType.FILE) return c.text('Cannot read collection as file', 405)
@@ -840,7 +824,7 @@ async function reserveWebDavTraffic(
 async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
+    const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
     if (!target.name) return c.text('Cannot PUT a collection root', 405)
     if (target.matter && target.matter.dirtype !== DirType.FILE)
@@ -851,7 +835,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
     if (ifFailed) return ifFailed
     const precondition = target.matter ? preconditionResponse(c, target.matter) : missingPreconditionResponse(c)
     if (precondition) return precondition
-    await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
+    await ensureParentCollection(c, auth.userId, workspace.slug, target.parent)
 
     const contentLength = parseContentLength(c.req.header('Content-Length'))
     if (contentLength instanceof Response) return contentLength
@@ -963,7 +947,7 @@ async function persistWebDavUpload(
 async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
+    const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
     if (!target.name) return c.text('Cannot create collection root', 405)
     if (target.matter) return c.text('Already exists', 405)
@@ -975,7 +959,7 @@ async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
     if (locked) return locked
     const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
-    await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
+    await ensureParentCollection(c, auth.userId, workspace.slug, target.parent)
     const storage = await c.get('deps').storages.select('private')
     await createMatter(db, {
       orgId: workspace.id,
@@ -998,7 +982,7 @@ async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
 async function deleteMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const target = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const target = await c.get('deps').webdavPath.resolveExistingWebDavPath(auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
     const matter = target.matter
     if (!matter) throw new WebDavPathError('Not found', 404)
@@ -1006,7 +990,7 @@ async function deleteMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     if (locked) return locked
     const ifFailed = await ifHeaderPrecondition(c, auth, target)
     if (ifFailed) return ifFailed
-    await deleteWebDavState(db, workspace.id, resourcePath(target))
+    await c.get('deps').webdavState.deleteWebDavState(workspace.id, resourcePath(target))
     await trashMatter(db, workspace.id, matter.id, auth.userId)
     return new Response(null, { status: 204 })
   } catch (e) {
@@ -1017,7 +1001,7 @@ async function deleteMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const source = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const source = await c.get('deps').webdavPath.resolveExistingWebDavPath(auth.userId, davPath(c))
     const sourceWorkspace = requireWorkspace(source)
     if (!source.matter) throw new WebDavPathError('Not found', 404)
     const locked = await lockPrecondition(c, source)
@@ -1028,7 +1012,7 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     if (precondition) return precondition
     const destination = destinationPath(c)
     if (destination instanceof Response) return destination
-    const target = await resolveWebDavPath(db, auth.userId, destination)
+    const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, destination)
     const targetWorkspace = requireWorkspace(target)
     if (sourceWorkspace.id !== targetWorkspace.id) return c.text('Cross-workspace MOVE is not supported', 403)
     if (!target.name) return c.text('Cannot move to collection root', 405)
@@ -1046,11 +1030,11 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       if (target.matter.id === source.matter.id) return new Response(null, { status: 204 })
       if (!overwriteAllowed(c)) return c.text('Already exists', 412)
     }
-    await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
+    await ensureParentCollection(c, auth.userId, targetWorkspace.slug, target.parent)
     const oldPath = resourcePath(source)
     const newPath = joinMatterPath(target.parent, target.name)
     if (target.matter) {
-      await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
+      await c.get('deps').webdavState.deleteWebDavState(targetWorkspace.id, resourcePath(target))
       await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
     }
     await updateMatter(
@@ -1060,7 +1044,7 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       { name: target.name, parent: target.parent },
       auth.userId,
     )
-    await moveWebDavState(db, sourceWorkspace.id, oldPath, newPath)
+    await c.get('deps').webdavState.moveWebDavState(sourceWorkspace.id, oldPath, newPath)
     return new Response(null, { status: replacingTarget ? 204 : 201 })
   } catch (e) {
     return davError(c, e)
@@ -1070,7 +1054,7 @@ async function moveMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
   try {
-    const source = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const source = await c.get('deps').webdavPath.resolveExistingWebDavPath(auth.userId, davPath(c))
     const sourceWorkspace = requireWorkspace(source)
     if (!source.matter) throw new WebDavPathError('Not found', 404)
     const sourceMatter = source.matter
@@ -1080,7 +1064,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
     if (precondition) return precondition
     const destination = destinationPath(c)
     if (destination instanceof Response) return destination
-    const target = await resolveWebDavPath(db, auth.userId, destination)
+    const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, destination)
     const targetWorkspace = requireWorkspace(target)
     if (sourceWorkspace.id !== targetWorkspace.id) return c.text('Cross-workspace COPY is not supported', 403)
     if (!target.name) return c.text('Cannot copy to collection root', 405)
@@ -1093,7 +1077,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
     if (targetLocked) return targetLocked
     if (target.matter && !overwriteAllowed(c)) return c.text('Already exists', 412)
     const replacingTarget = Boolean(target.matter)
-    await ensureParentCollection(db, auth.userId, targetWorkspace.slug, target.parent)
+    await ensureParentCollection(c, auth.userId, targetWorkspace.slug, target.parent)
 
     if (sourceMatter.dirtype !== DirType.FILE) {
       return copyCollection(c, auth, source, target, replacingTarget)
@@ -1116,14 +1100,20 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
           }
 
           if (target.matter) {
-            await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
+            await c.get('deps').webdavState.deleteWebDavState(targetWorkspace.id, resourcePath(target))
             await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
           }
           const copy = await copyMatter(db, { ...sourceMatter, name: target.name }, target.parent, newObject, {
             onConflict: 'fail',
             userId: auth.userId,
           })
-          await copyDeadProperties(db, sourceWorkspace.id, resourcePath(source), joinMatterPath(copy.parent, copy.name))
+          await c
+            .get('deps')
+            .webdavState.copyDeadProperties(
+              sourceWorkspace.id,
+              resourcePath(source),
+              joinMatterPath(copy.parent, copy.name),
+            )
           c.header('Location', matterLocation(c.req.url, targetWorkspace.slug, joinMatterPath(copy.parent, copy.name)))
           return c.body(null, replacingTarget ? 204 : 201)
         },
@@ -1154,9 +1144,11 @@ async function copyCollection(
   const depth = c.req.header('Depth') ?? 'infinity'
   if (depth !== '0' && depth !== 'infinity') return xmlResponse(errorXml('bad-depth'), 400)
 
+  const webdavPath = c.get('deps').webdavPath
+  const webdavState = c.get('deps').webdavState
   const sourceRoot = joinMatterPath(sourceMatter.parent, sourceMatter.name)
   const targetRoot = joinMatterPath(target.parent, target.name)
-  const children = await listChildren(db, sourceWorkspace.id, sourceRoot)
+  const children = await webdavPath.listChildren(sourceWorkspace.id, sourceRoot)
   const descendants = await listDescendants(db, sourceWorkspace.id, sourceRoot)
   const ordered =
     depth === 'infinity' ? [...children, ...descendants].sort((a, b) => a.parent.length - b.parent.length) : []
@@ -1166,7 +1158,7 @@ async function copyCollection(
     target.matter && target.matter.dirtype !== DirType.FILE
       ? [
           target.matter,
-          ...(await listChildren(db, targetWorkspace.id, resourcePath(target))),
+          ...(await webdavPath.listChildren(targetWorkspace.id, resourcePath(target))),
           ...(await listDescendants(db, targetWorkspace.id, resourcePath(target))),
         ]
       : target.matter
@@ -1193,7 +1185,7 @@ async function copyCollection(
       }
 
       if (target.matter) {
-        await deleteWebDavState(db, targetWorkspace.id, resourcePath(target))
+        await webdavState.deleteWebDavState(targetWorkspace.id, resourcePath(target))
         await trashMatter(db, targetWorkspace.id, target.matter.id, auth.userId)
       }
 
@@ -1202,7 +1194,11 @@ async function copyCollection(
         userId: auth.userId,
       })
       createdIds.push(rootCopy.id)
-      await copyDeadProperties(db, sourceWorkspace.id, sourceRoot, joinMatterPath(rootCopy.parent, rootCopy.name))
+      await webdavState.copyDeadProperties(
+        sourceWorkspace.id,
+        sourceRoot,
+        joinMatterPath(rootCopy.parent, rootCopy.name),
+      )
 
       for (const prepared of preparedCopies) {
         const copy = await copyMatter(db, prepared.item, prepared.targetParent, prepared.objectKey, {
@@ -1210,8 +1206,7 @@ async function copyCollection(
           userId: auth.userId,
         })
         createdIds.push(copy.id)
-        await copyDeadProperties(
-          db,
+        await webdavState.copyDeadProperties(
           sourceWorkspace.id,
           joinMatterPath(prepared.item.parent, prepared.item.name),
           joinMatterPath(copy.parent, copy.name),
@@ -1230,7 +1225,7 @@ async function copyCollection(
         .update(matters)
         .set({ status: ObjectStatus.TRASHED, trashedAt: Date.now(), updatedAt: new Date() })
         .where(and(eq(matters.orgId, targetWorkspace.id), or(...createdIds.map((id) => eq(matters.id, id)))))
-      await deleteWebDavState(db, targetWorkspace.id, targetRoot)
+      await webdavState.deleteWebDavState(targetWorkspace.id, targetRoot)
     }
     if (targetRows.length > 0) await restoreActiveMatterRows(db, targetRows)
     const mapped = mapDomainError(e)
@@ -1241,16 +1236,16 @@ async function copyCollection(
 
 async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
   const db = c.get('platform').db
+  const webdavState = c.get('deps').webdavState
   try {
-    const target = await resolveWebDavPath(db, auth.userId, davPath(c))
+    const target = await c.get('deps').webdavPath.resolveWebDavPath(auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
     const body = await c.req.text()
     const existingToken = lockRefreshToken(c)
     if (existingToken instanceof Response) return existingToken
     if (existingToken) {
       if (body.length > 0) return xmlResponse(errorXml('lock-token-submitted'), 400)
-      const refreshed = await refreshLock(
-        db,
+      const refreshed = await webdavState.refreshLock(
         workspace.id,
         resourcePath(target),
         existingToken,
@@ -1263,7 +1258,7 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     const depth = c.req.header('Depth') ?? 'infinity'
     if (depth !== '0' && depth !== 'infinity') return xmlResponse(errorXml('bad-depth'), 400)
     const path = resourcePath(target)
-    const conflicts = await conflictingLocks(db, workspace.id, path)
+    const conflicts = await webdavState.conflictingLocks(workspace.id, path)
     if (conflicts.length > 0) return xmlResponse(errorXml('no-conflicting-lock'), 423)
     let lockInfo: { owner: string }
     try {
@@ -1273,7 +1268,7 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
     }
     const created = !target.matter && Boolean(target.name)
     if (created) {
-      await ensureParentCollection(db, auth.userId, workspace.slug, target.parent)
+      await ensureParentCollection(c, auth.userId, workspace.slug, target.parent)
       const storage = await c.get('deps').storages.select('private')
       const objectKey = buildObjectKey({ uid: auth.userId, orgId: workspace.id, rawExt: fileExt(target.name) })
       await s3.putObject(storage, objectKey, new Uint8Array(), 'application/octet-stream')
@@ -1290,7 +1285,7 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
         status: ObjectStatus.ACTIVE,
       })
     }
-    const lock = await createLock(db, {
+    const lock = await webdavState.createLock({
       orgId: workspace.id,
       resourcePath: path,
       owner: lockInfo.owner,
@@ -1304,13 +1299,12 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
 }
 
 async function unlockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
-  const db = c.get('platform').db
   try {
-    const target = await resolveExistingWebDavPath(db, auth.userId, davPath(c))
+    const target = await c.get('deps').webdavPath.resolveExistingWebDavPath(auth.userId, davPath(c))
     const workspace = requireWorkspace(target)
     const token = lockTokenHeader(c)
     if (!token) return xmlResponse(errorXml('lock-token-submitted'), 400)
-    const removed = await removeLock(db, workspace.id, resourcePath(target), token)
+    const removed = await c.get('deps').webdavState.removeLock(workspace.id, resourcePath(target), token)
     if (!removed) return xmlResponse(errorXml('lock-token-matches-request-uri'), 409)
     return new Response(null, { status: 204 })
   } catch (e) {

@@ -2,7 +2,6 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import type { Env } from '../middleware/platform'
 import type { Database } from '../platform/interface'
-import { incrementAccessCount, resolveActiveImageByToken } from '../services/image-hosting'
 import {
   decrementDownloads,
   hasDownloadsAvailable,
@@ -77,8 +76,8 @@ async function handleDirectShare(c: Context<Env>, db: Database, token: string): 
   return res
 }
 
-async function handleImageHosting(c: Context<Env>, db: Database, token: string): Promise<Response> {
-  const resolved = await resolveActiveImageByToken(db, token)
+async function handleImageHosting(c: Context<Env>, token: string): Promise<Response> {
+  const resolved = await c.get('deps').imageHosting.resolveActiveByToken(token)
   if (!resolved) return c.json({ error: 'Not found' }, 404)
 
   const { image, refererAllowlist } = resolved
@@ -116,7 +115,7 @@ async function handleImageHosting(c: Context<Env>, db: Database, token: string):
   if (trafficReportError) return trafficReportError
 
   try {
-    await incrementAccessCount(db, image.id)
+    await c.get('deps').imageHosting.incrementAccessCount(image.id)
   } catch (error) {
     console.error('[redirect] incrementAccessCount failed:', error)
   }
@@ -131,7 +130,7 @@ const app = new Hono<Env>().get('/:token', async (c) => {
   const db = c.get('platform').db
 
   if (token.startsWith('ds_')) return handleDirectShare(c, db, token)
-  if (token.startsWith('ih_')) return handleImageHosting(c, db, token)
+  if (token.startsWith('ih_')) return handleImageHosting(c, token)
 
   return c.json({ error: 'Not found' }, 404)
 })

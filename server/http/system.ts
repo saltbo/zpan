@@ -10,12 +10,13 @@ import {
 } from '../../shared/captcha'
 import { SignupMode } from '../../shared/constants'
 import { compareSemver } from '../../shared/semver'
+import { readCaptchaConfig } from '../domain/captcha'
 import { hasFeature } from '../domain/licensing'
 import { buildInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { loadCaptchaOptionValues, readCaptchaConfig } from '../services/captcha'
 import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
+import { loadCaptchaOptionValues } from '../usecases/captcha'
 import { loadBindingState } from '../usecases/licensing'
 import { getAppVersion } from '../version'
 
@@ -54,7 +55,6 @@ const app = new Hono<Env>()
     return c.json({ key: row.key, value: row.value, public: row.public })
   })
   .put('/options/:key', requireAdmin, zValidator('json', setOptionSchema), async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const key = c.req.param('key')
@@ -81,7 +81,7 @@ const app = new Hono<Env>()
     }
 
     if (key === CAPTCHA_PROVIDER_KEY || key === CAPTCHA_MIN_SCORE_KEY || key.startsWith('captcha_')) {
-      const captchaValues = await loadCaptchaOptionValues(db)
+      const captchaValues = await loadCaptchaOptionValues(c.get('deps'))
       captchaValues[key] = value
       try {
         readCaptchaConfig(captchaValues)

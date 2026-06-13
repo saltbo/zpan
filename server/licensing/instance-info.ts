@@ -3,7 +3,7 @@ import type { InstanceInfo } from '../../shared/types'
 import { createInstanceRepo } from '../adapters/repos/instance'
 import type { Database, Platform } from '../platform/interface'
 import { getDeployPlatform } from '../runtime-platform'
-import type { CloudInstanceInfo } from '../services/licensing-cloud'
+import type { CloudInstanceInfo } from '../usecases/ports'
 import { getAppCommit, getAppVersion } from '../version'
 
 type RuntimeInfo = Pick<InstanceInfo, 'runtime' | 'platform' | 'server' | 'node'>

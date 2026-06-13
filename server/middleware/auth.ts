@@ -1,7 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { createMiddleware } from 'hono/factory'
-import { ApiKeyRateLimitError, isOrgApiKey, verifyApiKey } from '../services/api-keys'
-import { resolveDownloaderToken, resolveTaskUploadToken } from '../services/download-tokens'
+import { ApiKeyRateLimitError } from '../usecases/ports'
 import type { Env } from './platform'
 
 // 'member' is the better-auth schema default; map it to viewer level so
@@ -23,7 +22,8 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice('Bearer '.length).trim()
     const platform = c.get('platform')
-    const taskUpload = await resolveTaskUploadToken(platform.db, platform, token)
+    const deps = c.get('deps')
+    const taskUpload = await deps.downloadTokens.resolveTaskUploadToken(platform.db, platform, token)
     if (taskUpload) {
       c.set('principal', { ...taskUpload, kind: 'download-task-upload', authMethod: 'bearer' })
       c.set('userId', null)
@@ -32,7 +32,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       await next()
       return
     }
-    const downloader = await resolveDownloaderToken(platform, token)
+    const downloader = await deps.downloadTokens.resolveDownloaderToken(platform, token)
     if (downloader) {
       c.set('principal', { kind: 'downloader', downloaderId: downloader.downloaderId, authMethod: 'bearer' })
       c.set('userId', null)
@@ -41,9 +41,9 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       await next()
       return
     }
-    let apiKey: Awaited<ReturnType<typeof verifyApiKey>>
+    let apiKey: Awaited<ReturnType<typeof deps.apiKeys.verifyApiKey>>
     try {
-      apiKey = await verifyApiKey(c.get('auth'), platform.db, token)
+      apiKey = await deps.apiKeys.verifyApiKey(c.get('auth'), platform.db, token)
     } catch (error) {
       if (error instanceof ApiKeyRateLimitError) {
         const res = c.json({ error: error.message }, 429)
@@ -54,8 +54,8 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       throw error
     }
     if (apiKey) {
-      const orgId = isOrgApiKey(apiKey.configId) ? apiKey.referenceId : null
-      const userId = isOrgApiKey(apiKey.configId) ? null : apiKey.referenceId
+      const orgId = deps.apiKeys.isOrgApiKey(apiKey.configId) ? apiKey.referenceId : null
+      const userId = deps.apiKeys.isOrgApiKey(apiKey.configId) ? null : apiKey.referenceId
       c.set('principal', {
         kind: 'api-key',
         keyId: apiKey.id,
@@ -141,8 +141,6 @@ export function requireTeamRole(minRole: 'viewer' | 'editor' | 'owner') {
     if (!orgId || !userId) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
-
-    const db = c.get('platform').db
 
     // Query member role first — avoids an extra DB round trip for the common case.
     // Personal org owners always have a member row (guaranteed by findPersonalOrg),

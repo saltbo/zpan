@@ -1,3 +1,4 @@
+import { refreshEntitlement } from '../adapters/gateways/licensing-cloud'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import type { Database } from '../platform/interface'
 import {
@@ -5,8 +6,7 @@ import {
   CloudInvalidResponseError,
   CloudNetworkError,
   CloudUnboundError,
-  refreshEntitlement,
-} from '../services/licensing-cloud'
+} from '../usecases/ports'
 import { invalidateEntitlementCache } from './entitlement'
 import { verifyCertificate } from './verify'
 
