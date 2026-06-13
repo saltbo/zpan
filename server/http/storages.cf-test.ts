@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { FREE_STORAGE_LIMIT } from '../../shared/constants'
+import { createStorageRepo } from '../adapters/repos/storage'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
 import { user } from '../db/auth-schema'
@@ -114,7 +115,7 @@ describe('[CF] Admin Storages API', () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
     const platform = createCloudflarePlatform(env)
-    const created = await insertStorage(platform.db, {
+    const created = await createStorageRepo(platform.db).create({
       ...validStorage,
       title: `CF Detail ${Date.now()}`,
       bucket: `cf-detail-${Date.now()}`,
@@ -130,7 +131,7 @@ describe('[CF] Admin Storages API', () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
     const platform = createCloudflarePlatform(env)
-    const created = await insertStorage(platform.db, {
+    const created = await createStorageRepo(platform.db).create({
       ...validStorage,
       title: `CF Update ${Date.now()}`,
       bucket: `cf-update-${Date.now()}`,
@@ -150,7 +151,7 @@ describe('[CF] Admin Storages API', () => {
     const app = await buildApp()
     const headers = await adminHeaders(app)
     const platform = createCloudflarePlatform(env)
-    const created = await insertStorage(platform.db, {
+    const created = await createStorageRepo(platform.db).create({
       ...validStorage,
       title: `CF Delete ${Date.now()}`,
       bucket: `cf-delete-${Date.now()}`,
