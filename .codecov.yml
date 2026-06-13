@@ -6,6 +6,9 @@ coverage:
   ignore:
     - "src/routes/**"
     - "src/components/**"
+    # EventSource + React-effect glue; not unit-testable without a DOM. Its pure
+    # logic lives in server-events-store.ts, which is covered.
+    - "src/hooks/useServerEvents.ts"
 
   status:
     patch:
@@ -15,3 +18,4 @@ coverage:
         paths:
           - "!src/routes/**"
           - "!src/components/**"
+          - "!src/hooks/useServerEvents.ts"
