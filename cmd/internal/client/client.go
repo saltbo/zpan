@@ -321,7 +321,7 @@ func (c *Client) assignedTasks(ctx context.Context, statuses []openapi.GetApiDow
 	for _, status := range statuses {
 		page := 1
 		pageSize := 20
-		assignedTo := openapi.GetApiDownloadTasksParamsAssignedToMe
+		assignedTo := openapi.Me
 		res, err := c.api.GetApiDownloadTasksWithResponse(ctx, &openapi.GetApiDownloadTasksParams{
 			AssignedTo: &assignedTo,
 			Status:     &status,
