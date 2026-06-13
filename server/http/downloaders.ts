@@ -10,7 +10,7 @@ import {
 } from '@shared/schemas'
 import type { Context } from 'hono'
 import { FREE_DOWNLOADER_LIMIT } from '../../shared/constants'
-import { hasFeature, loadBindingState } from '../licensing/has-feature'
+import { hasFeature } from '../domain/licensing'
 import { requireAdmin, requireDownloader } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import {
@@ -21,6 +21,7 @@ import {
   recordDownloaderHeartbeat,
   updateDownloader,
 } from '../services/downloads'
+import { loadBindingState } from '../usecases/licensing'
 
 const errorSchema = z.object({ error: z.string() })
 
@@ -102,7 +103,7 @@ const downloadersRoute = new OpenAPIHono<Env>()
     const userId = c.get('userId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
     const platform = c.get('platform')
-    const [existing, state] = await Promise.all([listDownloaders(platform), loadBindingState(platform.db)])
+    const [existing, state] = await Promise.all([listDownloaders(platform), loadBindingState(c.get('deps'))])
     if (!hasFeature('downloaders_unlimited', state) && existing.length >= FREE_DOWNLOADER_LIMIT) {
       return c.json(
         {
@@ -126,7 +127,7 @@ const downloadersRoute = new OpenAPIHono<Env>()
     const id = c.req.param('id') as string
     const input = c.req.valid('json') as z.infer<typeof updateDownloaderSchema>
     if (input.remoteDownloadCreditBillingEnabled === true) {
-      const state = await loadBindingState(c.get('platform').db)
+      const state = await loadBindingState(c.get('deps'))
       if (!hasFeature('quota_store', state)) {
         return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
       }

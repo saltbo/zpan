@@ -2,9 +2,10 @@ import type { ProFeature } from '@shared/types'
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { hasFeature, loadBindingState } from '../licensing/has-feature'
+import { hasFeature } from '../domain/licensing'
 import { normalizeHost } from '../licensing/verify'
 import { getSitePublicOrigin } from '../services/site-public-origin'
+import { loadBindingState } from '../usecases/licensing'
 import type { Env } from './platform'
 
 async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
@@ -18,7 +19,7 @@ export function requireFeature(name: ProFeature) {
     const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
     const currentHost =
       (await configuredPublicHost(c)) ?? normalizeHost(c.req.header('host')) ?? new URL(c.req.url).host
-    const state = await loadBindingState(db, { currentHost, cloudBaseUrl })
+    const state = await loadBindingState(c.get('deps'), { currentHost, cloudBaseUrl })
     if (!hasFeature(name, state)) {
       return c.json({ error: 'feature_not_available', feature: name, upgrade_url: '/settings/billing' }, 402)
     }

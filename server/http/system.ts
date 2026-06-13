@@ -10,12 +10,13 @@ import {
 } from '../../shared/captcha'
 import { SignupMode } from '../../shared/constants'
 import { compareSemver } from '../../shared/semver'
-import { hasFeature, loadBindingState } from '../licensing/has-feature'
+import { hasFeature } from '../domain/licensing'
 import { buildInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { loadCaptchaOptionValues, readCaptchaConfig } from '../services/captcha'
 import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
+import { loadBindingState } from '../usecases/licensing'
 import { getAppVersion } from '../version'
 
 const setOptionSchema = z.object({
@@ -62,7 +63,7 @@ const app = new Hono<Env>()
     let isPublic = body.public
 
     if (key === 'auth_signup_mode' && body.value === SignupMode.OPEN) {
-      const state = await loadBindingState(db)
+      const state = await loadBindingState(c.get('deps'))
       if (!hasFeature('open_registration', state)) {
         return c.json(
           { error: 'feature_not_available', feature: 'open_registration', upgrade_url: '/settings/billing' },

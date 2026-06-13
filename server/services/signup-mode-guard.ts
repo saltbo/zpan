@@ -1,8 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { SignupMode } from '../../shared/constants'
+import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import { systemOptions } from '../db/schema'
-import { hasFeature, loadBindingState } from '../licensing/has-feature'
+import { hasFeature } from '../domain/licensing'
 import type { Database } from '../platform/interface'
+import { loadBindingState } from '../usecases/licensing'
 
 /**
  * Returns the effective signup mode.
@@ -23,6 +25,6 @@ export async function getEffectiveSignupMode(db: Database): Promise<SignupMode> 
   if (raw !== SignupMode.OPEN) return SignupMode.OPEN // unknown/empty → open (existing behaviour)
 
   // Stored value is explicitly 'open' — gate behind Pro feature
-  const state = await loadBindingState(db)
+  const state = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
   return hasFeature('open_registration', state) ? SignupMode.OPEN : SignupMode.INVITE_ONLY
 }

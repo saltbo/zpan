@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BindingState } from '../../shared/types'
-import { hasFeature } from './has-feature'
+import { hasFeature } from './licensing'
 
 describe('hasFeature', () => {
   it('returns false when state is null', () => {

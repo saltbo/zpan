@@ -1,7 +1,7 @@
 import type { LicenseFeature } from '@shared/types'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
+import { effectiveFeatures } from '../domain/licensing'
 import type { Database } from '../platform/interface'
-import { effectiveFeatures } from './has-feature'
 import { verifyCertificate } from './verify'
 
 export interface EntitlementSummary {

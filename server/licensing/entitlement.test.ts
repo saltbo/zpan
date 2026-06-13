@@ -6,8 +6,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import * as authSchema from '../db/auth-schema'
 import * as appSchema from '../db/schema'
+import { effectiveFeatures } from '../domain/licensing'
 import { invalidateEntitlementCache, loadEntitlement } from './entitlement'
-import { effectiveFeatures } from './has-feature'
 import { PUBLIC_KEYS } from './public-keys'
 
 const SCHEMA_SQL = `

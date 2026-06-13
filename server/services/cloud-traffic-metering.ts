@@ -4,9 +4,10 @@ import { z } from 'zod'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
 import { cloudTrafficReports } from '../db/schema'
+import { hasFeature } from '../domain/licensing'
 import { currentTrafficPeriod } from '../domain/quota'
-import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import type { Database, Platform } from '../platform/interface'
+import { loadBindingState } from '../usecases/licensing'
 import { createBoundCloudClient, requestCloudJson } from './licensing-cloud'
 
 export type TrafficReportSource =
@@ -49,7 +50,7 @@ export async function reportTrafficEgress(params: {
   const { platform, orgId, bytes, source, sourceId, now = new Date() } = params
   if (bytes <= 0) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
   if (!params.egressCreditBillingEnabled) return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
-  if (!hasFeature('quota_store', await loadBindingState(platform.db))) {
+  if (!hasFeature('quota_store', await loadBindingState({ licenseBinding: createLicenseBindingRepo(platform.db) }))) {
     return { status: 'reported', eventId: params.eventId ?? '', duplicate: false }
   }
   if (!params.storageId || !params.egressCreditUnitBytes || !params.egressCreditPerUnit) {
@@ -115,7 +116,7 @@ export async function syncPendingCloudTrafficReports(params: {
   now?: Date
 }): Promise<{ attempted: number; reported: number; blocked: number; failed: number }> {
   const { db, cloudBaseUrl, limit = 100, now = new Date() } = params
-  if (!hasFeature('quota_store', await loadBindingState(db)))
+  if (!hasFeature('quota_store', await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })))
     return { attempted: 0, reported: 0, blocked: 0, failed: 0 }
   const binding = await createLicenseBindingRepo(db).loadActiveLicenseBinding()
   if (!binding?.refreshToken || !binding.cloudStoreId) return { attempted: 0, reported: 0, blocked: 0, failed: 0 }

@@ -3,7 +3,6 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { BindingState } from '../../shared/types'
-import { loadBindingState } from '../licensing/has-feature'
 import { buildCloudInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { normalizeHost } from '../licensing/verify'
 import type { Env } from '../middleware/platform'
@@ -11,6 +10,7 @@ import { syncPendingCloudTrafficReports } from '../services/cloud-traffic-meteri
 import { runLicensingRefresh } from '../services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from '../services/remote-download-usage'
 import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
+import { loadBindingState } from '../usecases/licensing'
 
 async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
   const origin = await getInstanceOrigin(c)
@@ -39,7 +39,7 @@ const app = new Hono<Env>()
       (await configuredPublicHost(c)) ??
       normalizeHost(c.req.header('x-forwarded-host') ?? c.req.header('host')) ??
       new URL(c.req.url).host
-    const state = await loadBindingState(db, { currentHost, cloudBaseUrl })
+    const state = await loadBindingState(c.get('deps'), { currentHost, cloudBaseUrl })
     return c.json({ ...state, cloud_dashboard_url: cloudDashboardUrl(cloudBaseUrl) } satisfies BindingState)
   })
 

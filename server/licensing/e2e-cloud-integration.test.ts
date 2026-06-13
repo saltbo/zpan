@@ -24,6 +24,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SignupMode } from '../../shared/constants'
 import { createInstanceRepo } from '../adapters/repos/instance'
 import { createLicenseBindingRepo } from '../adapters/repos/license-binding'
+import { hasFeature } from '../domain/licensing'
 import {
   CloudUnboundError,
   createPairing,
@@ -32,7 +33,7 @@ import {
   refreshEntitlement,
 } from '../services/licensing-cloud'
 import { adminHeaders, createTestApp, seedProLicense } from '../test/setup'
-import { hasFeature, loadBindingState } from './has-feature'
+import { loadBindingState } from '../usecases/licensing'
 import { PUBLIC_KEYS } from './public-keys'
 
 const CLOUD_BASE_URL = process.env.ZPAN_CLOUD_URL ?? 'https://zpan-cloud-staging.saltbo.workers.dev'
@@ -160,7 +161,7 @@ describe('E2E: zpan-cloud API contract', () => {
 describe('E2E: Feature gates — Community (unbound)', () => {
   it('loadBindingState returns { bound: false } when no license', async () => {
     const { db } = await createTestApp()
-    const state = await loadBindingState(db)
+    const state = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
 
     expect(state.bound).toBe(false)
     expect(state.active).toBeUndefined()
@@ -171,7 +172,7 @@ describe('E2E: Feature gates — Community (unbound)', () => {
 
   it('hasFeature returns false for all Pro features when unbound', async () => {
     const { db } = await createTestApp()
-    const state = await loadBindingState(db)
+    const state = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
 
     expect(hasFeature('open_registration', state)).toBe(false)
     expect(hasFeature('white_label', state)).toBe(false)
@@ -203,7 +204,7 @@ describe('E2E: Feature gates — Pro (active binding)', () => {
     const { db } = await createTestApp()
     await seedProLicense(db)
 
-    const state = await loadBindingState(db)
+    const state = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
 
     expect(state.bound).toBe(true)
     expect(state.active).toBe(true)
@@ -216,7 +217,7 @@ describe('E2E: Feature gates — Pro (active binding)', () => {
     const { db } = await createTestApp()
     await seedProLicense(db)
 
-    const state = await loadBindingState(db)
+    const state = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
 
     expect(hasFeature('open_registration', state)).toBe(true)
     expect(hasFeature('white_label', state)).toBe(true)
@@ -242,7 +243,7 @@ describe('E2E: Feature gates — Pro (active binding)', () => {
     const { db } = await createTestApp()
     await seedProLicense(db)
 
-    const state = await loadBindingState(db)
+    const state = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
 
     expect(hasFeature('white_label', state)).toBe(true)
     expect(hasFeature('open_registration', state)).toBe(true)
@@ -269,7 +270,7 @@ describe('E2E: Feature gates — expired certificate', () => {
       lastRefreshAt: nowSec(),
     })
 
-    const state = await loadBindingState(db)
+    const state = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
 
     expect(state.bound).toBe(true)
     expect(state.active).toBe(false)
@@ -299,7 +300,10 @@ describe('E2E: Unbind flow', () => {
     expect(pollBody.status).toBe('approved')
     expect(pollBody.edition).toBe('pro')
 
-    let state = await loadBindingState(db, { cloudBaseUrl: CLOUD_BASE_URL, currentHost: 'localhost' })
+    let state = await loadBindingState(
+      { licenseBinding: createLicenseBindingRepo(db) },
+      { cloudBaseUrl: CLOUD_BASE_URL, currentHost: 'localhost' },
+    )
     expect(state.bound).toBe(true)
     expect(hasFeature('open_registration', state)).toBe(true)
 
@@ -310,7 +314,10 @@ describe('E2E: Unbind flow', () => {
     expect(res.status).toBe(200)
 
     // Verify features are revoked after unbind
-    state = await loadBindingState(db, { cloudBaseUrl: CLOUD_BASE_URL, currentHost: 'localhost' })
+    state = await loadBindingState(
+      { licenseBinding: createLicenseBindingRepo(db) },
+      { cloudBaseUrl: CLOUD_BASE_URL, currentHost: 'localhost' },
+    )
     expect(state.bound).toBe(false)
     expect(hasFeature('open_registration', state)).toBe(false)
   })
@@ -405,7 +412,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     expect(state2.cachedCert).toBeTruthy()
 
     // Step 5: Verify features are now active
-    const state = await loadBindingState(db)
+    const state = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
     expect(state.bound).toBe(true)
     expect(state.active).toBe(true)
     expect(state.edition).toBe('pro')
@@ -431,7 +438,7 @@ describe('E2E: Full pairing-to-activation flow (mocked cloud approval)', () => {
     })
     expect(unbindRes.status).toBe(200)
 
-    const stateAfter = await loadBindingState(db)
+    const stateAfter = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
     expect(stateAfter.bound).toBe(false)
     expect(hasFeature('open_registration', stateAfter)).toBe(false)
 
@@ -466,7 +473,7 @@ describe('E2E: PASETO cert verification chain', () => {
       lastRefreshAt: nowSec(),
     })
 
-    const state = await loadBindingState(db)
+    const state = await loadBindingState({ licenseBinding: createLicenseBindingRepo(db) })
 
     // Should be bound but inactive (PASETO verification fails)
     expect(state.bound).toBe(true)

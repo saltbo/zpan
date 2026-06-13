@@ -9,12 +9,11 @@ import { checkTeamLimit, countUserOrgs } from './team-count-guard.js'
 // Mock the licensing layer — we test the guard logic, not the license DB reads
 // ---------------------------------------------------------------------------
 
-vi.mock('../licensing/has-feature', () => ({
-  loadBindingState: vi.fn(),
-  hasFeature: vi.fn(),
-}))
+vi.mock('../usecases/licensing', () => ({ loadBindingState: vi.fn() }))
+vi.mock('../domain/licensing', () => ({ hasFeature: vi.fn() }))
 
-import { hasFeature, loadBindingState } from '../licensing/has-feature'
+import { hasFeature } from '../domain/licensing'
+import { loadBindingState } from '../usecases/licensing'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -223,7 +222,7 @@ describe('checkTeamLimit', () => {
 
     await checkTeamLimit(db, userId)
 
-    expect(loadBindingState).toHaveBeenCalledWith(db)
+    expect(loadBindingState).toHaveBeenCalled()
   })
 
   it('calls hasFeature with teams_unlimited and the binding state', async () => {

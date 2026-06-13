@@ -10,9 +10,10 @@ import {
   OAuthProviderMeta,
   parseProviderConfig,
 } from '../../shared/oauth-providers'
-import { hasFeature, loadBindingState } from '../licensing/has-feature'
+import { hasFeature } from '../domain/licensing'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
+import { loadBindingState } from '../usecases/licensing'
 
 function optionKey(providerId: string): string {
   return `${OAUTH_PROVIDER_KEY_PREFIX}${providerId}`
@@ -90,7 +91,7 @@ export const adminAuthProviders = new Hono<Env>()
     } else {
       const [configured, state] = await Promise.all([
         c.get('deps').systemOptions.listByKeyLike(OAUTH_PROVIDER_KEY_PATTERN),
-        loadBindingState(db),
+        loadBindingState(c.get('deps')),
       ])
       if (!hasFeature('social_login_unlimited', state) && configured.length >= FREE_SOCIAL_LOGIN_LIMIT) {
         return c.json(

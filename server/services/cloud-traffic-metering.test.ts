@@ -6,8 +6,10 @@ import { CloudTrafficBlockedError, reportTrafficEgress, syncPendingCloudTrafficR
 
 const hasFeatureMock = vi.hoisted(() => vi.fn(() => true))
 
-vi.mock('../licensing/has-feature', () => ({
+vi.mock('../domain/licensing', () => ({
   hasFeature: hasFeatureMock,
+}))
+vi.mock('../usecases/licensing', () => ({
   loadBindingState: vi.fn(async () => ({ bound: true, active: true, edition: 'business', features: ['quota_store'] })),
 }))
 
