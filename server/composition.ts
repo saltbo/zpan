@@ -52,6 +52,10 @@ import type { Deps } from './usecases/deps'
 
 export function createDeps(platform: Platform): Deps {
   const { db } = platform
+  // Shared stateless instances reused by multiple ports below.
+  const s3 = new S3Service()
+  const storages = createStorageRepo(db)
+  const systemOptions = createSystemOptionsRepo(db)
   return {
     activity: createActivityRepo(db),
     announcements: createAnnouncementRepo(db),
@@ -66,11 +70,11 @@ export function createDeps(platform: Platform): Deps {
     downloaders: createDownloaderRepo(db),
     downloadTasks: createDownloadTaskRepo(db),
     downloadTokens: createDownloadTokenGateway(),
-    email: createEmailGateway(createSystemOptionsRepo(db)),
+    email: createEmailGateway(systemOptions),
     invites: createInviteRepo(db),
     imageHostingConfigs: createImageHostingConfigRepo(db),
     imageHosting: createImageHostingRepo(db),
-    imageUpload: createImageUploadGateway(new S3Service(), createStorageRepo(db)),
+    imageUpload: createImageUploadGateway(s3, storages),
     instance: createInstanceRepo(db),
     licenseBinding: createLicenseBindingRepo(db),
     licensingCloud: createLicensingCloudGateway(),
@@ -82,13 +86,13 @@ export function createDeps(platform: Platform): Deps {
     profiles: createProfileRepo(db),
     quota: createQuotaRepo(db),
     remoteDownloadUsage: createRemoteDownloadUsageRepo(db),
-    s3: new S3Service(),
+    s3,
     shareNotifications: createShareNotificationRepo(db),
     share: createShareRepo(db),
     siteInvitations: createSiteInvitationRepo(db),
-    storages: createStorageRepo(db),
+    storages,
     storageUsage: createStorageUsageRepo(db),
-    systemOptions: createSystemOptionsRepo(db),
+    systemOptions,
     teams: createTeamRepo(db),
     teamInvites: createTeamInviteRepo(db),
     userAdmin: createUserAdminRepo(db),

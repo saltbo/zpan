@@ -67,7 +67,6 @@ export const adminAuthProviders = new Hono<Env>()
     return c.json({ items })
   })
   .put('/:providerId', zValidator('json', upsertSchema), async (c) => {
-    const db = c.get('platform').db
     const providerId = c.req.param('providerId')
     const body = c.req.valid('json')
 

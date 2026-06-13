@@ -100,5 +100,9 @@ trashByIds,restoreActiveByIds,touch,applyUpload} + UserAdminRepo.{isBanned,match
       branding, email-config, auth-providers, system, image-hosting, webdav, quota-store, redirect, download-tasks,
       shares, objects, image-hosting-config, licensing-admin, teams-admin, auth-username.
 
-### Optional follow-ups (not blocking; tracked for later)
-- [ ] Remove the ~21 pre-existing dead `const db = c.get('platform').db` locals (non-blocking biome warnings).
+### Post-review follow-ups — DONE
+- [x] Deduped the transitional matter-row DTOs: `ShareMatterRow` / `WebDavMatterRow` now reference the
+      canonical `Matter` port DTO (removed the hand-copied duplicates + their schema-drift risk).
+- [x] Hoisted shared stateless instances in `composition.ts` (single `s3` / `storages` / `systemOptions`).
+- [x] Removed the 21 dead `const db = c.get('platform').db` locals — biome is now warning-free.
+- [x] `MatterRepo.listActiveDescendants` uses SUBSTR exact-prefix (not LIKE) — correctness for names with `_`/`%`.

@@ -15,7 +15,6 @@ async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
 
 export function requireFeature(name: ProFeature) {
   return createMiddleware<Env>(async (c, next) => {
-    const db = c.get('platform').db
     const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
     const currentHost =
       (await configuredPublicHost(c)) ?? normalizeHost(c.req.header('host')) ?? new URL(c.req.url).host

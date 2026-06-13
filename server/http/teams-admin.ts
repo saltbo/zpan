@@ -38,7 +38,6 @@ export const adminTeams = new Hono<Env>()
     return c.json(result)
   })
   .post('/:orgId/entitlements', zValidator('json', grantEntitlementSchema), async (c) => {
-    const db = c.get('platform').db
     const adminUserId = c.get('userId')!
     const adminOrgId = c.get('orgId')!
     const targetOrgId = c.req.param('orgId')
@@ -72,7 +71,6 @@ export const adminTeams = new Hono<Env>()
     return c.json(result, 201)
   })
   .patch('/:orgId/entitlements/:eid', zValidator('json', updateEntitlementSchema), async (c) => {
-    const db = c.get('platform').db
     const adminUserId = c.get('userId')!
     const adminOrgId = c.get('orgId')!
     const targetOrgId = c.req.param('orgId')
@@ -105,7 +103,6 @@ export const adminTeams = new Hono<Env>()
     return c.json(result)
   })
   .delete('/:orgId/entitlements/:eid', async (c) => {
-    const db = c.get('platform').db
     const adminUserId = c.get('userId')!
     const adminOrgId = c.get('orgId')!
     const targetOrgId = c.req.param('orgId')

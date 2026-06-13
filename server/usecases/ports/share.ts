@@ -1,4 +1,5 @@
 import type { CreateShareInput } from '@shared/schemas/share'
+import type { Matter } from './matter'
 
 // ─── DTOs ──────────────────────────────────────────────────────────────────
 // Plain records mirroring the shares / share_recipients tables. Timestamps stay
@@ -46,29 +47,8 @@ export interface ShareListItem {
   creatorName?: string
 }
 
-// Transitional matter-row DTO. Mirrors the `matters` table exactly so the
-// still-unmigrated matter service (createMatter/...) accepts values of this type
-// structurally. Replace with the MatterRepo port DTO when matter migrates — at
-// which point a port carrying a service's row shape is gone.
-export interface ShareMatterRow {
-  id: string
-  orgId: string
-  alias: string
-  name: string
-  type: string
-  size: number | null
-  dirtype: number | null
-  parent: string
-  object: string
-  storageId: string
-  status: string
-  trashedAt: number | null
-  createdAt: Date
-  updatedAt: Date
-}
-
 export type ShareResolution =
-  | { status: 'ok'; share: ShareRecord; matter: ShareMatterRow; recipients: ShareRecipientRecord[] }
+  | { status: 'ok'; share: ShareRecord; matter: Matter; recipients: ShareRecipientRecord[] }
   | { status: 'not_found' | 'revoked' | 'matter_trashed' }
 
 // Thrown by createShare on invalid share-shape combinations. Carries a stable
@@ -101,8 +81,8 @@ export interface ShareRepo {
   ): Promise<{ items: ShareListItem[]; total: number }>
   // Matter reads supporting the save-to-drive flow. They read the matters table
   // and are co-located in the share repo while matter remains unmigrated.
-  computeSourceBytes(matter: ShareMatterRow): Promise<number>
-  listDirectActiveChildren(orgId: string, folderPath: string): Promise<ShareMatterRow[]>
+  computeSourceBytes(matter: Matter): Promise<number>
+  listDirectActiveChildren(orgId: string, folderPath: string): Promise<Matter[]>
   hasQuotaForBytes(orgId: string, bytes: number): Promise<boolean>
   // Lookups the share routes need; co-located here while user/matter are
   // unmigrated so the share http layer holds no drizzle.
@@ -112,5 +92,5 @@ export interface ShareRepo {
   findShareChildMatter(
     rootMatter: { id: string; orgId: string; parent: string; name: string },
     childId: string,
-  ): Promise<ShareMatterRow | null>
+  ): Promise<Matter | null>
 }

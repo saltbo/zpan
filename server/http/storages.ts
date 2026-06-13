@@ -18,7 +18,6 @@ const app = new Hono<Env>()
     return c.json(result)
   })
   .post('/', zValidator('json', createStorageSchema), async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const [total, state] = await Promise.all([c.get('deps').storages.count(), loadBindingState(c.get('deps'))])
@@ -56,7 +55,6 @@ const app = new Hono<Env>()
     return c.json(storage)
   })
   .put('/:id', zValidator('json', updateStorageSchema), async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const id = c.req.param('id')

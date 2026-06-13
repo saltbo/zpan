@@ -6,7 +6,6 @@ import type {
   MatterRepo,
   QuotaRepo,
   S3Gateway,
-  ShareMatterRow,
   ShareRepo,
   StorageRecord,
   StorageRepo,
@@ -31,7 +30,7 @@ export type SaveToDriveDeps = {
 
 export interface SaveShareInput {
   share: { id: string }
-  matter: ShareMatterRow
+  matter: Matter
   currentUserId: string
   targetOrgId: string
   targetParent: string
@@ -49,7 +48,7 @@ interface CopyActivity {
 }
 
 export interface CopyMatterToOrgInput {
-  sourceMatter: ShareMatterRow
+  sourceMatter: Matter
   currentUserId: string
   targetOrgId: string
   targetParent: string
@@ -63,7 +62,7 @@ function buildPath(parent: string, name: string): string {
 
 async function saveFile(
   deps: SaveToDriveDeps,
-  sourceMatter: ShareMatterRow,
+  sourceMatter: Matter,
   sourceStorage: StorageRecord,
   targetStorage: StorageRecord,
   currentUserId: string,
@@ -116,7 +115,7 @@ async function saveFile(
 
 async function saveFolderRecursive(
   deps: SaveToDriveDeps,
-  sourceFolderMatter: ShareMatterRow,
+  sourceFolderMatter: Matter,
   sourceStorage: StorageRecord,
   targetStorage: StorageRecord,
   currentUserId: string,

@@ -13,7 +13,7 @@ import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
 import { activityEvents, matters, orgQuotaEntitlements, orgQuotas, shares } from '../db/schema'
 import type { Database } from '../platform/interface'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
-import type { ShareMatterRow } from './ports'
+import type { Matter } from './ports'
 import {
   type SaveShareInput,
   type SaveToDriveDeps,
@@ -22,7 +22,7 @@ import {
 
 const createShare = (db: Database, input: CreateShareInput) => createShareRepo(db).create(input)
 const resolveShareByToken = (db: Database, token: string) => createShareRepo(db).resolveByToken(token)
-const computeSourceBytes = (db: Database, matter: ShareMatterRow) => createShareRepo(db).computeSourceBytes(matter)
+const computeSourceBytes = (db: Database, matter: Matter) => createShareRepo(db).computeSourceBytes(matter)
 const isQuotaSufficient = (db: Database, orgId: string, bytes: number) =>
   createShareRepo(db).hasQuotaForBytes(orgId, bytes)
 // The usecase reaches the world through deps; build the subset it needs from the

@@ -24,13 +24,11 @@ const paginationSchema = z.object({
 export const adminInviteCodes = new Hono<Env>()
   .use(requireAdmin)
   .get('/', zValidator('query', paginationSchema), async (c) => {
-    const db = c.get('platform').db
     const { page, pageSize } = c.req.valid('query')
     const result = await c.get('deps').invites.list(page, pageSize)
     return c.json(result)
   })
   .post('/', zValidator('json', generateSchema), async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')
     if (!userId) return c.json({ error: 'Unauthorized' }, 401)
     const orgId = c.get('orgId')!
@@ -48,7 +46,6 @@ export const adminInviteCodes = new Hono<Env>()
     return c.json({ codes }, 201)
   })
   .delete('/:id', async (c) => {
-    const db = c.get('platform').db
     const userId = c.get('userId')!
     const orgId = c.get('orgId')!
     const id = c.req.param('id')
@@ -67,7 +64,6 @@ export const adminInviteCodes = new Hono<Env>()
   })
 
 export const publicInviteCodes = new Hono<Env>().post('/validations', zValidator('json', validateSchema), async (c) => {
-  const db = c.get('platform').db
   const { code } = c.req.valid('json')
   const result = await c.get('deps').invites.validate(code)
   return c.json(result)

@@ -9,8 +9,8 @@ import { hashPassword } from '../../lib/password'
 import type { Database } from '../../platform/interface'
 import {
   CreateShareError,
+  type Matter,
   type ShareListItem,
-  type ShareMatterRow,
   type ShareRecord,
   type ShareRepo,
   type ShareResolution,
@@ -292,7 +292,7 @@ export function createShareRepo(db: Database): ShareRepo {
       return { items, total }
     },
 
-    async computeSourceBytes(matter: ShareMatterRow): Promise<number> {
+    async computeSourceBytes(matter: Matter): Promise<number> {
       if (matter.dirtype === DirType.FILE) return matter.size ?? 0
 
       const folderPath = buildPath(matter.parent, matter.name)
@@ -310,7 +310,7 @@ export function createShareRepo(db: Database): ShareRepo {
       return rows.reduce((acc, r) => acc + (r.size ?? 0), 0)
     },
 
-    async listDirectActiveChildren(orgId: string, folderPath: string): Promise<ShareMatterRow[]> {
+    async listDirectActiveChildren(orgId: string, folderPath: string): Promise<Matter[]> {
       return db
         .select()
         .from(matters)
@@ -339,7 +339,7 @@ export function createShareRepo(db: Database): ShareRepo {
     async findShareChildMatter(
       rootMatter: { id: string; orgId: string; parent: string; name: string },
       childId: string,
-    ): Promise<ShareMatterRow | null> {
+    ): Promise<Matter | null> {
       const root = buildPath(rootMatter.parent, rootMatter.name)
       const likePattern = `${escapeLike(root)}/%`
       const rows = await db
