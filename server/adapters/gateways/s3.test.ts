@@ -1,5 +1,5 @@
+import type { Storage } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Storage } from '../../shared/types'
 import { S3Service } from './s3.js'
 
 const mockSend = vi.fn()

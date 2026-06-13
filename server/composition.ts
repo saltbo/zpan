@@ -4,6 +4,7 @@
 // entrypoints can reuse it; request-bound capabilities are passed to usecases as
 // function parameters, never stored here.
 
+import { S3Service } from './adapters/gateways/s3'
 import { createCfClient } from './adapters/providers/cf-custom-hostnames'
 import { createChangelogProvider } from './adapters/providers/changelog'
 import { createActivityRepo } from './adapters/repos/activity'
@@ -39,6 +40,7 @@ export function createDeps(platform: Platform): Deps {
     org: createOrgRepo(db),
     profiles: createProfileRepo(db),
     quota: createQuotaRepo(db),
+    s3: new S3Service(),
     siteInvitations: createSiteInvitationRepo(db),
     storages: createStorageRepo(db),
     teams: createTeamRepo(db),

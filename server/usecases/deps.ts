@@ -15,6 +15,7 @@ import type {
   OrgRepo,
   ProfileRepo,
   QuotaRepo,
+  S3Gateway,
   SiteInvitationRepo,
   StorageRepo,
   TeamInviteRepo,
@@ -35,6 +36,7 @@ export interface Deps {
   org: OrgRepo
   profiles: ProfileRepo
   quota: QuotaRepo
+  s3: S3Gateway
   siteInvitations: SiteInvitationRepo
   storages: StorageRepo
   teams: TeamRepo
