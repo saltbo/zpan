@@ -16,7 +16,6 @@ import {
 import { mapDomainError } from '../lib/http-errors'
 import { requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { recordActivity } from '../services/activity'
 import { assertTaskUploadAllowed } from '../services/downloads'
 import { refundTraffic } from '../services/effective-quota'
 import {
@@ -387,7 +386,7 @@ const app = new Hono<Env>()
       return c.json({ error: 'Object must be trashed before permanent deletion' }, 409)
     }
     const purged = await purgeRecursively(db, orgId, ms)
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'object_purge',
@@ -487,7 +486,7 @@ const app = new Hono<Env>()
       const subtree = await collectForPurge(db, orgId, source)
       await purgeRecursively(db, orgId, subtree)
       sourceDeleted = true
-      await recordActivity(db, {
+      await c.get('deps').activity.record({
         orgId,
         userId,
         action: 'moved_to_org',

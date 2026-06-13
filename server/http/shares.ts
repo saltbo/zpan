@@ -9,7 +9,6 @@ import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { recordActivity } from '../services/activity'
 import { refundTraffic } from '../services/effective-quota'
 import { listMatters } from '../services/matter'
 import { canWriteToOrg } from '../services/org'
@@ -300,7 +299,7 @@ export const publicShares = new Hono<Env>()
     }
 
     try {
-      await recordActivity(db, {
+      await c.get('deps').activity.record({
         orgId: share.orgId,
         userId: actorId,
         action: 'share_download',
@@ -392,7 +391,7 @@ export const authedShares = new Hono<Env>()
       )
     }
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'share_create',
@@ -429,7 +428,7 @@ export const authedShares = new Hono<Env>()
     const revoked = await revokeShareByToken(db, token, userId)
     if (!revoked) return c.json({ error: 'Not found' }, 404)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'share_revoke',

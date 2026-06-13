@@ -2,9 +2,9 @@ import type { SQL } from 'drizzle-orm'
 import { and, asc, count, desc, eq, inArray, isNotNull, like, lt, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { DirType } from '../../shared/constants'
+import { createActivityRepo } from '../adapters/repos/activity'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
-import { recordActivity } from './activity'
 import {
   applyConflictResolution,
   type ConflictStrategy,
@@ -73,7 +73,7 @@ export async function createMatter(db: Database, input: CreateMatterInput): Prom
   await db.insert(matters).values(row)
 
   if (input.userId) {
-    await recordActivity(db, {
+    await createActivityRepo(db).record({
       orgId: input.orgId,
       userId: input.userId,
       action: isFolder ? 'create' : 'upload',
@@ -229,7 +229,7 @@ export async function updateMatter(
     // Compare the final persisted state so auto-renames (from conflict resolution)
     // are recorded even when the user only asked to move.
     if (newName !== existing.name) {
-      await recordActivity(db, {
+      await createActivityRepo(db).record({
         orgId,
         userId,
         action: 'rename',
@@ -240,7 +240,7 @@ export async function updateMatter(
       })
     }
     if (newParent !== existing.parent) {
-      await recordActivity(db, {
+      await createActivityRepo(db).record({
         orgId,
         userId,
         action: 'move',
@@ -318,7 +318,7 @@ export async function confirmUpload(
         if (plan.toTrash && opts.purgeReplaced) {
           await opts.purgeReplaced(plan.toTrash)
           if (opts.userId) {
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId,
               userId: opts.userId,
               action: 'replace',
@@ -349,7 +349,7 @@ export async function confirmUpload(
         const confirmed = { ...existing, name: plan.finalName, status: 'active', updatedAt: now }
 
         if (opts.userId) {
-          await recordActivity(db, {
+          await createActivityRepo(db).record({
             orgId,
             userId: opts.userId,
             action: 'upload_confirm',
@@ -410,7 +410,7 @@ export async function copyMatter(
   await db.insert(matters).values(row)
 
   if (opts.userId) {
-    await recordActivity(db, {
+    await createActivityRepo(db).record({
       orgId: source.orgId,
       userId: opts.userId,
       action: 'object_copy',
@@ -444,7 +444,7 @@ export async function cancelDraftMatter(
   await db.delete(matters).where(and(eq(matters.id, id), eq(matters.orgId, orgId), eq(matters.status, 'draft')))
 
   if (userId) {
-    await recordActivity(db, {
+    await createActivityRepo(db).record({
       orgId,
       userId,
       action: 'upload_cancel',
@@ -509,7 +509,7 @@ export async function trashMatter(db: Database, orgId: string, id: string, userI
   const trashed = { ...existing, status: 'trashed', trashedAt: nowTs, updatedAt: now }
 
   if (userId) {
-    await recordActivity(db, {
+    await createActivityRepo(db).record({
       orgId,
       userId,
       action: 'delete',
@@ -578,7 +578,7 @@ export async function restoreMatter(
   const restored = { ...existing, name: finalName, status: 'active', trashedAt: null, updatedAt: now }
 
   if (userId) {
-    await recordActivity(db, {
+    await createActivityRepo(db).record({
       orgId,
       userId,
       action: 'restore',

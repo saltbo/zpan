@@ -1,8 +1,8 @@
 import { and, eq, ne, sql } from 'drizzle-orm'
 import { DirType, ObjectStatus } from '../../shared/constants'
+import { createActivityRepo } from '../adapters/repos/activity'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
-import { recordActivity } from './activity'
 
 export type ConflictStrategy = 'fail' | 'rename' | 'replace'
 
@@ -166,7 +166,7 @@ async function trashForReplace(
     .where(and(eq(matters.id, existing.id), eq(matters.orgId, orgId)))
 
   if (userId) {
-    await recordActivity(db, {
+    await createActivityRepo(db).record({
       orgId,
       userId,
       action: 'replace',

@@ -5,7 +5,6 @@ import { createStorageSchema, updateStorageSchema } from '../../shared/schemas'
 import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { recordActivity } from '../services/activity'
 import {
   countStorages,
   createStorage,
@@ -47,7 +46,7 @@ const app = new Hono<Env>()
       return c.json({ error: 'feature_not_available', feature: 'quota_store' }, 402)
     }
     const storage = await createStorage(db, input)
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'storage_create',
@@ -76,7 +75,7 @@ const app = new Hono<Env>()
     }
     const storage = await updateStorage(db, id, input)
     if (!storage) return c.json({ error: 'Storage not found' }, 404)
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'storage_update',
@@ -96,7 +95,7 @@ const app = new Hono<Env>()
     const result = await deleteStorage(db, id)
     if (result === 'not_found') return c.json({ error: 'Storage not found' }, 404)
     if (result === 'in_use') return c.json({ error: 'Storage is referenced by existing files' }, 409)
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'storage_delete',

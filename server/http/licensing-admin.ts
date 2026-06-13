@@ -8,7 +8,6 @@ import { performRefresh } from '../licensing/refresh'
 import { normalizeHost, verifyCertificateResult } from '../licensing/verify'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { recordActivity } from '../services/activity'
 import {
   confirmCloudLicense,
   createPairing,
@@ -125,7 +124,7 @@ const app = new Hono<Env>()
 
       const userId = c.get('userId')!
       const orgId = c.get('orgId')!
-      await recordActivity(db, {
+      await c.get('deps').activity.record({
         orgId,
         userId,
         action: 'license_pair',
@@ -158,7 +157,7 @@ const app = new Hono<Env>()
 
     const state = await loadLicenseState(db)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'license_refresh',
@@ -188,7 +187,7 @@ const app = new Hono<Env>()
     await clearLicenseBinding(db)
     invalidateEntitlementCache()
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'license_disconnect',

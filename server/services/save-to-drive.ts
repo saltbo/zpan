@@ -1,8 +1,8 @@
 import { and, eq, like, or } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
+import { createActivityRepo } from '../adapters/repos/activity'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
-import { recordActivity } from './activity'
 import { hasQuotaForBytes } from './effective-quota'
 import type { Matter } from './matter'
 import { createMatter } from './matter'
@@ -125,7 +125,7 @@ async function saveFile(
         onConflict: 'rename',
       })
 
-      await recordActivity(db, {
+      await createActivityRepo(db).record({
         orgId: targetOrgId,
         userId: currentUserId,
         action: activity.action,

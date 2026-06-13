@@ -5,7 +5,6 @@ import type { SiteInvitation } from '../../shared/types'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import type { Database } from '../platform/interface'
-import { recordActivity } from '../services/activity'
 import { getEmailConfig, sendEmail } from '../services/email'
 import {
   createSiteInvitation,
@@ -75,7 +74,7 @@ export const adminSiteInvitations = new Hono<Env>()
       return c.json({ error: message }, 409)
     }
     await sendSiteInvitationEmail(db, c.req.url, invitation.email, invitation.token, invitation.expiresAt)
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'site_invitation_create',
@@ -109,7 +108,7 @@ export const adminSiteInvitations = new Hono<Env>()
     if (result === 'not_found') return c.json({ error: 'Invitation not found' }, 404)
     if (result === 'already_accepted') return c.json({ error: 'Invitation has already been used' }, 400)
     if (result === 'already_revoked') return c.json({ error: 'Invitation has already been revoked' }, 400)
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'site_invitation_revoke',

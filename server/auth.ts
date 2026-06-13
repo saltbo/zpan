@@ -20,13 +20,13 @@ import {
   type OAuthProviderConfig,
   parseProviderConfig,
 } from '../shared/oauth-providers'
+import { createActivityRepo } from './adapters/repos/activity'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { isLocalNetworkOrigin } from './lib/local-origin'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import { createDbProxy, createPlatformProxy } from './platform/context'
 import type { Database, Platform } from './platform/interface'
-import { recordActivity } from './services/activity'
 import { CAPTCHA_AUTH_ENDPOINTS, loadCaptchaConfig, toBetterAuthCaptchaOptions } from './services/captcha'
 import { executeWriteTransaction } from './services/db-transaction'
 import { currentTrafficPeriod } from './services/effective-quota'
@@ -254,7 +254,7 @@ export async function createAuth(
             await createOrgQuota(db, organization.id, new Date(), isTeam)
           },
           afterAcceptInvitation: async ({ member, user, organization }) => {
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: user.id,
               action: 'team_member_join',
@@ -276,7 +276,7 @@ export async function createAuth(
           afterRemoveMember: async ({ member, organization }) => {
             // Better Auth does not expose the actor (initiator) in this hook;
             // member.userId is the removed user — used here as the attributed userId.
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: member.userId,
               action: 'team_member_remove',
@@ -289,7 +289,7 @@ export async function createAuth(
           afterUpdateMemberRole: async ({ member, previousRole, organization }) => {
             // Better Auth does not expose the actor in this hook;
             // member.userId is the user whose role changed.
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: member.userId,
               action: 'team_member_role_update',
@@ -301,7 +301,7 @@ export async function createAuth(
           },
           afterUpdateOrganization: async ({ organization, user }) => {
             if (!organization?.id || !user?.id) return
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: user.id,
               action: 'team_settings_update',
@@ -311,7 +311,7 @@ export async function createAuth(
             })
           },
           afterDeleteOrganization: async ({ organization, user }) => {
-            await recordActivity(db, {
+            await createActivityRepo(db).record({
               orgId: organization.id,
               userId: user.id,
               action: 'team_delete',

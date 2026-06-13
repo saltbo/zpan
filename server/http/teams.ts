@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { organization } from '../db/auth-schema'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { listActivities, recordActivity } from '../services/activity'
 import { deletePublicImageVariants, uploadPublicImage } from '../services/image-upload'
 import { getMemberRole, isPersonalOrg } from '../services/org'
 import { acceptInviteLink, createInviteLink, getInviteLinkInfo, listPendingInvitations } from '../services/team-invite'
@@ -51,7 +50,7 @@ export const teams = new Hono<Env>()
 
     const link = await createInviteLink(db, teamId, userId, role, expiresIn)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId: teamId,
       userId,
       action: 'team_invite_link_create',
@@ -85,7 +84,7 @@ export const teams = new Hono<Env>()
     if (result === 'expired') return c.json({ error: 'Invite link has expired' }, 410)
     if (result === 'already_member') return c.json({ error: 'Already a member of this team' }, 409)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId: teamId,
       userId,
       action: 'team_member_join',
@@ -109,7 +108,7 @@ export const teams = new Hono<Env>()
     const { page: pageStr, pageSize: pageSizeStr } = c.req.valid('query')
     const page = Number(pageStr ?? '1')
     const pageSize = Number(pageSizeStr ?? '20')
-    const result = await listActivities(db, teamId, { page, pageSize })
+    const result = await c.get('deps').activity.list(teamId, { page, pageSize })
     return c.json({ ...result, page, pageSize })
   })
   // ── Org logo (public-bucket image) ───────────────────────────────────────────
@@ -131,7 +130,7 @@ export const teams = new Hono<Env>()
 
     await platform.db.update(organization).set({ logo: result.url }).where(eq(organization.id, teamId))
 
-    await recordActivity(platform.db, {
+    await c.get('deps').activity.record({
       orgId: teamId,
       userId,
       action: 'team_logo_update',
@@ -153,7 +152,7 @@ export const teams = new Hono<Env>()
     await platform.db.update(organization).set({ logo: null }).where(eq(organization.id, teamId))
     await deletePublicImageVariants(platform, LOGO_PREFIX, teamId)
 
-    await recordActivity(platform.db, {
+    await c.get('deps').activity.record({
       orgId: teamId,
       userId,
       action: 'team_logo_delete',

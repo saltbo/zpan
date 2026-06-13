@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { recordActivity } from '../services/activity'
 import { collectForPurge, listTrashedRoots } from '../services/matter'
 import { purgeRecursively } from '../services/purge'
 
@@ -18,7 +17,7 @@ const app = new Hono<Env>().use(requireAuth).delete('/', requireTeamRole('editor
     purgedCount += await purgeRecursively(db, orgId, ms)
   }
   if (purgedCount > 0) {
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'trash_empty',

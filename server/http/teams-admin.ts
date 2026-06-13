@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { recordActivity } from '../services/activity'
 import {
   grantOrgEntitlement,
   listOrgEntitlements,
@@ -61,7 +60,7 @@ export const adminTeams = new Hono<Env>()
     })
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId: adminOrgId,
       userId: adminUserId,
       action: 'quota_entitlement_grant',
@@ -95,7 +94,7 @@ export const adminTeams = new Hono<Env>()
     })
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId: adminOrgId,
       userId: adminUserId,
       action: 'quota_entitlement_update',
@@ -124,7 +123,7 @@ export const adminTeams = new Hono<Env>()
     })
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId: adminOrgId,
       userId: adminUserId,
       action: 'quota_entitlement_revoke',

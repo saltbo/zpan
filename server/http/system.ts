@@ -16,7 +16,6 @@ import { hasFeature, loadBindingState } from '../licensing/has-feature'
 import { buildInstanceInfo, runtimeInfo } from '../licensing/instance-info'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { recordActivity } from '../services/activity'
 import { loadCaptchaOptionValues, readCaptchaConfig } from '../services/captcha'
 import { fetchChangelog } from '../services/changelog'
 import { getSitePublicOrigin, originFromRequestUrl } from '../services/site-public-origin'
@@ -123,7 +122,7 @@ const app = new Hono<Env>()
     if (existing.length > 0) {
       const nextPublic = isPublic ?? existing[0].public
       await db.update(systemOptions).set({ value, public: nextPublic }).where(eq(systemOptions.key, key))
-      await recordActivity(db, {
+      await c.get('deps').activity.record({
         orgId,
         userId,
         action: 'system_option_set',
@@ -135,7 +134,7 @@ const app = new Hono<Env>()
     }
     const nextPublic = isPublic ?? false
     await db.insert(systemOptions).values({ key, value, public: nextPublic })
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'system_option_set',
@@ -151,7 +150,7 @@ const app = new Hono<Env>()
     const orgId = c.get('orgId')!
     const key = c.req.param('key')
     await db.delete(systemOptions).where(eq(systemOptions.key, key))
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'system_option_delete',

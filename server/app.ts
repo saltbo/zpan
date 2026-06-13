@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
+import { createDeps } from './composition'
 import { adminAnnouncements, announcements } from './http/announcements'
 import { adminAudit } from './http/audit'
 import { adminAuthProviders, publicAuthProviders } from './http/auth-providers'
@@ -49,8 +50,13 @@ import { ensureSitePublicOrigin } from './services/site-public-origin'
 export function createApp(platform: Platform, auth: Auth) {
   const app = new Hono<Env>()
   const corsOrigins = getCorsOrigins(platform)
+  const deps = createDeps(platform)
 
   app.use('/*', platformMiddleware(platform, auth))
+  app.use('/*', async (c, next) => {
+    c.set('deps', deps)
+    await next()
+  })
   app.use('/*', async (c, next) => {
     const result = await ensureSitePublicOrigin(platform.db, c.req.url).catch((err) => {
       console.error(`site.public_origin.detect.error code=${formatError(err)}`)

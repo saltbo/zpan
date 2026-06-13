@@ -3,7 +3,6 @@ import { type BrandingField, type BrandingThemeMode, isBrandingThemePresetId } f
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
-import { recordActivity } from '../services/activity'
 import {
   type BRANDING_KEYS,
   readBranding,
@@ -144,7 +143,7 @@ export const brandingAdmin = new Hono<Env>()
     }
 
     if (changedFields.length > 0) {
-      await recordActivity(platform.db, {
+      await c.get('deps').activity.record({
         orgId,
         userId,
         action: 'branding_update',
@@ -169,7 +168,7 @@ export const brandingAdmin = new Hono<Env>()
     } else {
       await resetBrandingField(platform.db, rawField as StoredBrandingField)
     }
-    await recordActivity(platform.db, {
+    await c.get('deps').activity.record({
       orgId,
       userId,
       action: 'branding_reset',

@@ -1,11 +1,13 @@
 import { createMiddleware } from 'hono/factory'
 import type { Auth } from '../auth'
 import type { Platform } from '../platform/interface'
+import type { Deps } from '../usecases/deps'
 
 export type Env = {
   Variables: {
     platform: Platform
     auth: Auth
+    deps: Deps
     principal: AuthPrincipal | null
     userId: string | null
     userRole: string | null

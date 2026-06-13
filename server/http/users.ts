@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { recordActivity } from '../services/activity'
 import {
   deleteUser,
   deleteUsers,
@@ -73,7 +72,7 @@ const app = new Hono<Env>()
     const result = await setUsersStatus(db, body.ids, status)
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId: adminUserId,
       action: status === 'disabled' ? 'user_disable' : 'user_enable',
@@ -106,7 +105,7 @@ const app = new Hono<Env>()
     })
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId: adminOrgId,
       userId: adminUserId,
       action: 'quota_entitlement_grant',
@@ -141,7 +140,7 @@ const app = new Hono<Env>()
     })
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId: adminOrgId,
       userId: adminUserId,
       action: 'quota_entitlement_update',
@@ -167,7 +166,7 @@ const app = new Hono<Env>()
     const result = await revokeUserPersonalEntitlement(db, { adminUserId, targetUserId, entitlementId })
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId: adminOrgId,
       userId: adminUserId,
       action: 'quota_entitlement_revoke',
@@ -192,7 +191,7 @@ const app = new Hono<Env>()
     const result = await deleteUsers(db, ids)
     if ('error' in result) return c.json({ error: result.error }, result.status)
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId: adminUserId,
       action: 'user_delete',
@@ -215,7 +214,7 @@ const app = new Hono<Env>()
     }
 
     const action = status === 'disabled' ? 'user_disable' : 'user_enable'
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId: adminUserId,
       action,
@@ -238,7 +237,7 @@ const app = new Hono<Env>()
       return c.json({ error: 'User not found' }, 404)
     }
 
-    await recordActivity(db, {
+    await c.get('deps').activity.record({
       orgId,
       userId: adminUserId,
       action: 'user_delete',
