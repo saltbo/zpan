@@ -5,19 +5,15 @@ import { ApiKeyTemplate } from '../../shared/api-key-templates'
 import { DirType, ObjectStatus } from '../../shared/constants'
 import { user } from '../db/auth-schema'
 import { matters } from '../db/schema'
+import { mapDomainError } from '../lib/http-errors'
 import type { Env } from '../middleware/platform'
 import { ApiKeyRateLimitError, verifyApiKeyForPermission } from '../services/api-keys'
 import { refundTraffic } from '../services/effective-quota'
 import { copyMatter, createMatter, trashMatter, updateMatter } from '../services/matter'
-import { NameConflictError } from '../services/matter-name-conflict'
 import { buildObjectKey, fileExt } from '../services/path-template'
 import { S3Service } from '../services/s3'
 import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
-import {
-  reconcileStorageUsage,
-  StorageQuotaExceededError,
-  withStorageUsageReservation,
-} from '../services/storage-usage'
+import { reconcileStorageUsage, withStorageUsageReservation } from '../services/storage-usage'
 import {
   ensureFolder,
   joinMatterPath,
@@ -150,8 +146,8 @@ function normalizeDavMountPath(pathname: string): string {
 }
 
 function davError(c: DavContext, error: unknown): Response {
-  if (error instanceof WebDavPathError) return new Response(error.message, { status: error.status })
-  if (error instanceof NameConflictError) return c.text(error.message, 409)
+  const mapped = mapDomainError(error)
+  if (mapped) return c.text(mapped.message, mapped.status)
   throw error
 }
 
@@ -919,7 +915,8 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
         },
       )
     } catch (e) {
-      if (e instanceof StorageQuotaExceededError) return c.text('Quota exceeded', 422)
+      const mapped = mapDomainError(e)
+      if (mapped) return c.text(mapped.message, mapped.status)
       throw e
     }
   } catch (e) {
@@ -1131,7 +1128,8 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
         },
       )
     } catch (e) {
-      if (e instanceof StorageQuotaExceededError) return c.text('Quota exceeded', 422)
+      const mapped = mapDomainError(e)
+      if (mapped) return c.text(mapped.message, mapped.status)
       throw e
     }
   } catch (e) {
@@ -1234,7 +1232,8 @@ async function copyCollection(
       await deleteWebDavState(db, targetWorkspace.id, targetRoot)
     }
     if (targetRows.length > 0) await restoreActiveMatterRows(db, targetRows)
-    if (e instanceof StorageQuotaExceededError) return c.text('Quota exceeded', 422)
+    const mapped = mapDomainError(e)
+    if (mapped) return c.text(mapped.message, mapped.status)
     throw e
   }
 }

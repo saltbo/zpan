@@ -9,6 +9,7 @@ import {
   patchIhostImageSchema,
 } from '../../shared/schemas'
 import { imageHostings } from '../db/schema'
+import { mapDomainError } from '../lib/http-errors'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import { requirePermission } from '../middleware/authz'
 import type { Env } from '../middleware/platform'
@@ -25,7 +26,7 @@ import {
 } from '../services/image-hosting'
 import { S3Service } from '../services/s3'
 import { getStorage, type Storage as S3Storage, selectStorage } from '../services/storage'
-import { StorageQuotaExceededError, withStorageUsageReservation } from '../services/storage-usage'
+import { withStorageUsageReservation } from '../services/storage-usage'
 import { PRESIGN_TTL_SECS } from './share-utils'
 
 const s3 = new S3Service()
@@ -208,7 +209,8 @@ const app = new Hono<Env>()
         201,
       )
     } catch (err) {
-      if (err instanceof StorageQuotaExceededError) return c.json({ error: 'Quota exceeded' }, 422)
+      const mapped = mapDomainError(err)
+      if (mapped) return c.json(mapped.json, mapped.status)
       throw err
     }
   })
