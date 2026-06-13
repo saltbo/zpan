@@ -1,10 +1,11 @@
+import { DEFAULT_SITE_NAME } from '@shared/constants'
+import type { SiteInvitation } from '@shared/types'
 import { and, count, desc, eq, gt, isNull } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { DEFAULT_SITE_NAME } from '../../shared/constants'
-import type { SiteInvitation } from '../../shared/types'
-import * as authSchema from '../db/auth-schema'
-import { siteInvitations, systemOptions } from '../db/schema'
-import type { Database } from '../platform/interface'
+import * as authSchema from '../../db/auth-schema'
+import { siteInvitations, systemOptions } from '../../db/schema'
+import type { Database } from '../../platform/interface'
+import type { SiteInvitationRepo } from '../../usecases/ports'
 
 const SITE_INVITE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7
 
@@ -37,12 +38,12 @@ function mapInvitation(row: typeof siteInvitations.$inferSelect & { invitedByNam
   }
 }
 
-export async function getSiteName(db: Database): Promise<string> {
+async function getSiteName(db: Database): Promise<string> {
   const rows = await db.select().from(systemOptions).where(eq(systemOptions.key, 'site_name')).limit(1)
   return rows[0]?.value?.trim() || DEFAULT_SITE_NAME
 }
 
-export async function listSiteInvitations(
+async function listSiteInvitations(
   db: Database,
   page: number,
   pageSize: number,
@@ -77,11 +78,7 @@ export async function listSiteInvitations(
   }
 }
 
-export async function createSiteInvitation(
-  db: Database,
-  adminUserId: string,
-  rawEmail: string,
-): Promise<SiteInvitation> {
+async function createSiteInvitation(db: Database, adminUserId: string, rawEmail: string): Promise<SiteInvitation> {
   const email = normalizeEmail(rawEmail)
   const now = new Date()
 
@@ -138,7 +135,7 @@ export async function createSiteInvitation(
   })
 }
 
-export async function resendSiteInvitation(
+async function resendSiteInvitation(
   db: Database,
   invitationId: string,
 ): Promise<SiteInvitation | 'not_found' | 'already_accepted' | 'already_revoked'> {
@@ -181,7 +178,7 @@ export async function resendSiteInvitation(
   return mapInvitation(updated)
 }
 
-export async function revokeSiteInvitation(
+async function revokeSiteInvitation(
   db: Database,
   invitationId: string,
   adminUserId: string,
@@ -203,7 +200,7 @@ export async function revokeSiteInvitation(
   return 'ok'
 }
 
-export async function getSiteInvitationByToken(db: Database, token: string): Promise<SiteInvitation | null> {
+async function getSiteInvitationByToken(db: Database, token: string): Promise<SiteInvitation | null> {
   const [row] = await db
     .select({
       id: siteInvitations.id,
@@ -226,7 +223,7 @@ export async function getSiteInvitationByToken(db: Database, token: string): Pro
   return row ? mapInvitation(row) : null
 }
 
-export async function validateSiteInvitation(
+async function validateSiteInvitation(
   db: Database,
   token: string,
   rawEmail: string,
@@ -241,7 +238,7 @@ export async function validateSiteInvitation(
   return { valid: true }
 }
 
-export async function acceptSiteInvitation(
+async function acceptSiteInvitation(
   db: Database,
   token: string,
   rawEmail: string,
@@ -281,4 +278,17 @@ export async function acceptSiteInvitation(
   if (updated?.acceptedBy === userId && updated.acceptedAt) return 'ok'
   if (updated?.acceptedBy) return 'accepted'
   return 'accepted'
+}
+
+export function createSiteInvitationRepo(db: Database): SiteInvitationRepo {
+  return {
+    getSiteName: () => getSiteName(db),
+    listSiteInvitations: (page, pageSize) => listSiteInvitations(db, page, pageSize),
+    createSiteInvitation: (adminUserId, rawEmail) => createSiteInvitation(db, adminUserId, rawEmail),
+    resendSiteInvitation: (invitationId) => resendSiteInvitation(db, invitationId),
+    revokeSiteInvitation: (invitationId, adminUserId) => revokeSiteInvitation(db, invitationId, adminUserId),
+    getSiteInvitationByToken: (token) => getSiteInvitationByToken(db, token),
+    validateSiteInvitation: (token, rawEmail) => validateSiteInvitation(db, token, rawEmail),
+    acceptSiteInvitation: (token, rawEmail, userId) => acceptSiteInvitation(db, token, rawEmail, userId),
+  }
 }

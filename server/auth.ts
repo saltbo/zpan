@@ -24,6 +24,7 @@ import { createActivityRepo } from './adapters/repos/activity'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createNotificationRepo } from './adapters/repos/notification'
 import { createOrgRepo } from './adapters/repos/org'
+import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { currentTrafficPeriod } from './domain/quota'
@@ -35,7 +36,6 @@ import { CAPTCHA_AUTH_ENDPOINTS, loadCaptchaConfig, toBetterAuthCaptchaOptions }
 import { executeWriteTransaction } from './services/db-transaction'
 import { isEmailConfigured, sendEmail } from './services/email'
 import { getEffectiveSignupMode } from './services/signup-mode-guard'
-import { acceptSiteInvitation, validateSiteInvitation } from './services/site-invitations'
 import { checkTeamLimit } from './services/team-count-guard'
 
 // better-auth's default password hasher is pure-JS scrypt from @noble/hashes,
@@ -393,7 +393,7 @@ export async function createAuth(
                 if (!siteInvitationToken) {
                   throw new Error('An invitation is required to register')
                 }
-                const validation = await validateSiteInvitation(db, siteInvitationToken, email)
+                const validation = await createSiteInvitationRepo(db).validateSiteInvitation(siteInvitationToken, email)
                 if (!validation.valid) {
                   throw new Error(validation.error ?? 'Invalid invitation')
                 }
@@ -439,7 +439,11 @@ export async function createAuth(
 
             const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
             if (siteInvitationToken) {
-              const result = await acceptSiteInvitation(db, siteInvitationToken, user.email, user.id)
+              const result = await createSiteInvitationRepo(db).acceptSiteInvitation(
+                siteInvitationToken,
+                user.email,
+                user.id,
+              )
               if (result !== 'ok' && result !== 'accepted') {
                 throw new Error(`Failed to redeem site invitation: ${result}`)
               }

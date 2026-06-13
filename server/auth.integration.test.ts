@@ -1,12 +1,12 @@
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
+import { createSiteInvitationRepo } from './adapters/repos/site-invitations.js'
 import { createApp } from './app.js'
 import { createAuth } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
 import { inviteCodes, siteInvitations } from './db/schema.js'
-import { createSiteInvitation } from './services/site-invitations.js'
 import { createTestApp, seedProLicense } from './test/setup.js'
 
 type TestCtx = Awaited<ReturnType<typeof createTestApp>>
@@ -126,7 +126,7 @@ describe('registration gate — closed mode', () => {
       .from(authSchema.user)
       .where(eq(authSchema.user.email, 'first@example.com'))
       .limit(1)
-    const invitation = await createSiteInvitation(ctx.db, admin.id, 'invited@example.com')
+    const invitation = await createSiteInvitationRepo(ctx.db).createSiteInvitation(admin.id, 'invited@example.com')
 
     const res = await signUp(ctx, 'invited@example.com', { siteInvitationToken: invitation.token })
 
@@ -142,7 +142,7 @@ describe('registration gate — closed mode', () => {
       .from(authSchema.user)
       .where(eq(authSchema.user.email, 'first@example.com'))
       .limit(1)
-    const invitation = await createSiteInvitation(ctx.db, admin.id, 'invited@example.com')
+    const invitation = await createSiteInvitationRepo(ctx.db).createSiteInvitation(admin.id, 'invited@example.com')
 
     const res = await signUp(ctx, 'invited@example.com', { siteInvitationToken: invitation.token })
     const body = (await res.json()) as { user: { id: string } }
@@ -165,7 +165,7 @@ describe('registration gate — closed mode', () => {
       .from(authSchema.user)
       .where(eq(authSchema.user.email, 'first@example.com'))
       .limit(1)
-    const invitation = await createSiteInvitation(ctx.db, admin.id, 'invited@example.com')
+    const invitation = await createSiteInvitationRepo(ctx.db).createSiteInvitation(admin.id, 'invited@example.com')
 
     const res = await signUp(ctx, 'other@example.com', { siteInvitationToken: invitation.token })
 

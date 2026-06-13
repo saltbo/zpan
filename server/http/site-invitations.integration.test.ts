@@ -186,8 +186,8 @@ describe('Public Site Invitations API', () => {
       .where(eq(authSchema.user.email, 'admin@example.com'))
       .limit(1)
 
-    const { createSiteInvitation } = await import('../services/site-invitations.js')
-    const invitation = await createSiteInvitation(ctx.db, admin.id, 'invitee@example.com')
+    const { createSiteInvitationRepo } = await import('../adapters/repos/site-invitations.js')
+    const invitation = await createSiteInvitationRepo(ctx.db).createSiteInvitation(admin.id, 'invitee@example.com')
 
     const res = await ctx.app.request(`/api/site-invitations/${invitation.token}`, { headers })
     expect(res.status).toBe(200)

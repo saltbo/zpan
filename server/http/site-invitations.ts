@@ -6,14 +6,6 @@ import { requireAdmin } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import type { Database } from '../platform/interface'
 import { getEmailConfig, sendEmail } from '../services/email'
-import {
-  createSiteInvitation,
-  getSiteInvitationByToken,
-  getSiteName,
-  listSiteInvitations,
-  resendSiteInvitation,
-  revokeSiteInvitation,
-} from '../services/site-invitations'
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -35,12 +27,12 @@ function buildSignupInviteEmailHtml(data: { siteName: string; inviteLink: string
 
 async function sendSiteInvitationEmail(
   db: Database,
+  siteName: string,
   requestUrl: string,
   email: string,
   token: string,
   expiresAt: string,
 ) {
-  const siteName = await getSiteName(db)
   const inviteLink = new URL('/sign-up', requestUrl)
   inviteLink.searchParams.set('invite', token)
   await sendEmail(db, {
@@ -55,7 +47,7 @@ export const adminSiteInvitations = new Hono<Env>()
   .get('/', zValidator('query', paginationSchema), async (c) => {
     const db = c.get('platform').db
     const { page, pageSize } = c.req.valid('query')
-    const result = await listSiteInvitations(db, page, pageSize)
+    const result = await c.get('deps').siteInvitations.listSiteInvitations(page, pageSize)
     return c.json(result)
   })
   .post('/', zValidator('json', createSchema), async (c) => {
@@ -68,12 +60,19 @@ export const adminSiteInvitations = new Hono<Env>()
     await getEmailConfig(db)
     let invitation: SiteInvitation
     try {
-      invitation = await createSiteInvitation(db, userId, email)
+      invitation = await c.get('deps').siteInvitations.createSiteInvitation(userId, email)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create invitation'
       return c.json({ error: message }, 409)
     }
-    await sendSiteInvitationEmail(db, c.req.url, invitation.email, invitation.token, invitation.expiresAt)
+    await sendSiteInvitationEmail(
+      db,
+      await c.get('deps').siteInvitations.getSiteName(),
+      c.req.url,
+      invitation.email,
+      invitation.token,
+      invitation.expiresAt,
+    )
     await c.get('deps').activity.record({
       orgId,
       userId,
@@ -87,14 +86,21 @@ export const adminSiteInvitations = new Hono<Env>()
   .post('/:id/resend', async (c) => {
     const db = c.get('platform').db
     const id = c.req.param('id')
-    const invitation = await resendSiteInvitation(db, id)
+    const invitation = await c.get('deps').siteInvitations.resendSiteInvitation(id)
 
     if (invitation === 'not_found') return c.json({ error: 'Invitation not found' }, 404)
     if (invitation === 'already_accepted') return c.json({ error: 'Invitation has already been used' }, 400)
     if (invitation === 'already_revoked') return c.json({ error: 'Invitation has been revoked' }, 400)
 
     await getEmailConfig(db)
-    await sendSiteInvitationEmail(db, c.req.url, invitation.email, invitation.token, invitation.expiresAt)
+    await sendSiteInvitationEmail(
+      db,
+      await c.get('deps').siteInvitations.getSiteName(),
+      c.req.url,
+      invitation.email,
+      invitation.token,
+      invitation.expiresAt,
+    )
     return c.json(invitation)
   })
   .delete('/:id', async (c) => {
@@ -104,7 +110,7 @@ export const adminSiteInvitations = new Hono<Env>()
     const orgId = c.get('orgId')!
 
     const id = c.req.param('id')
-    const result = await revokeSiteInvitation(db, id, userId)
+    const result = await c.get('deps').siteInvitations.revokeSiteInvitation(id, userId)
     if (result === 'not_found') return c.json({ error: 'Invitation not found' }, 404)
     if (result === 'already_accepted') return c.json({ error: 'Invitation has already been used' }, 400)
     if (result === 'already_revoked') return c.json({ error: 'Invitation has already been revoked' }, 400)
@@ -122,7 +128,7 @@ export const adminSiteInvitations = new Hono<Env>()
 export const publicSiteInvitations = new Hono<Env>().get('/:token', async (c) => {
   const db = c.get('platform').db
   const token = c.req.param('token')
-  const invitation = await getSiteInvitationByToken(db, token)
+  const invitation = await c.get('deps').siteInvitations.getSiteInvitationByToken(token)
   if (!invitation) return c.json({ error: 'Invitation not found' }, 404)
   return c.json(invitation)
 })

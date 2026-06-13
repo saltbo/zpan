@@ -11,6 +11,7 @@ import type {
   OrgRepo,
   ProfileRepo,
   QuotaRepo,
+  SiteInvitationRepo,
   StorageRepo,
   TeamInviteRepo,
   TeamRepo,
@@ -26,6 +27,7 @@ export interface Deps {
   org: OrgRepo
   profiles: ProfileRepo
   quota: QuotaRepo
+  siteInvitations: SiteInvitationRepo
   storages: StorageRepo
   teams: TeamRepo
   teamInvites: TeamInviteRepo

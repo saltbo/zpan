@@ -12,6 +12,7 @@ import { createNotificationRepo } from './adapters/repos/notification'
 import { createOrgRepo } from './adapters/repos/org'
 import { createProfileRepo } from './adapters/repos/profile'
 import { createQuotaRepo } from './adapters/repos/quota'
+import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { createStorageRepo } from './adapters/repos/storage'
 import { createTeamRepo } from './adapters/repos/team'
 import { createTeamInviteRepo } from './adapters/repos/team-invite'
@@ -30,6 +31,7 @@ export function createDeps(platform: Platform): Deps {
     org: createOrgRepo(db),
     profiles: createProfileRepo(db),
     quota: createQuotaRepo(db),
+    siteInvitations: createSiteInvitationRepo(db),
     storages: createStorageRepo(db),
     teams: createTeamRepo(db),
     teamInvites: createTeamInviteRepo(db),
