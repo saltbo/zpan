@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { collectForPurge, listTrashedRoots } from '../services/matter'
-import { purgeRecursively } from '../services/purge'
+import { purgeRecursively } from '../usecases/purge'
 
 const app = new Hono<Env>().use(requireAuth).delete('/', requireTeamRole('editor'), async (c) => {
   const orgId = c.get('orgId')
@@ -14,7 +14,7 @@ const app = new Hono<Env>().use(requireAuth).delete('/', requireTeamRole('editor
   for (const root of roots) {
     const ms = await collectForPurge(db, orgId, root.id)
     if (!ms) continue
-    purgedCount += await purgeRecursively(db, orgId, ms)
+    purgedCount += await purgeRecursively(c.get('deps'), db, orgId, ms)
   }
   if (purgedCount > 0) {
     await c.get('deps').activity.record({

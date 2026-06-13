@@ -1,14 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { syncPendingCloudTrafficReports } from '../server/services/cloud-traffic-metering'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/services/instance-telemetry'
 import { runLicensingRefresh } from '../server/services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from '../server/services/remote-download-usage'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/instance-telemetry'
 import { handleScheduled } from '../workers/scheduled'
 
 vi.mock('../server/platform/cloudflare', () => ({
   createCloudflarePlatform: () => ({
     db: 'db',
   }),
+}))
+
+const fakeDeps = { instance: 'instance', systemOptions: 'system-options' }
+vi.mock('../server/composition', () => ({
+  createDeps: vi.fn(() => fakeDeps),
 }))
 
 vi.mock('../server/services/cloud-traffic-metering', () => ({
@@ -27,7 +32,7 @@ vi.mock('../server/adapters/repos/quota', () => ({
   createQuotaRepo: mockCreateQuotaRepo,
 }))
 
-vi.mock('../server/services/instance-telemetry', () => ({
+vi.mock('../server/usecases/instance-telemetry', () => ({
   INSTANCE_TELEMETRY_CRON: '0 */12 * * *',
   reportInstanceTelemetry: vi.fn(),
 }))
@@ -91,8 +96,7 @@ describe('handleScheduled', () => {
     )
 
     expect(reportInstanceTelemetry).toHaveBeenCalledTimes(1)
-    expect(reportInstanceTelemetry).toHaveBeenCalledWith({
-      db: 'db',
+    expect(reportInstanceTelemetry).toHaveBeenCalledWith(fakeDeps, {
       config: {
         allowIp: true,
       },

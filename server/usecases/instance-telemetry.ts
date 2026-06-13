@@ -1,15 +1,16 @@
 import { PostHog } from 'posthog-node'
-import { createInstanceRepo } from '../adapters/repos/instance'
-import type { Database } from '../platform/interface'
 import type { DeployPlatform } from '../runtime-platform'
+import { normalizePublicOrigin, SITE_PUBLIC_ORIGIN_KEY } from '../services/site-public-origin'
 import { getAppVersion } from '../version'
-import { getSitePublicOrigin, normalizePublicOrigin } from './site-public-origin'
+import type { InstanceRepo, SystemOptionsRepo } from './ports'
 
 export const INSTANCE_TELEMETRY_CRON = '0 */12 * * *'
 export const INSTANCE_TELEMETRY_EVENT = 'heartbeat'
 export const INSTANCE_TELEMETRY_INTERVAL = '12h'
 export const INSTANCE_TELEMETRY_POSTHOG_HOST = 'https://e.zpan.space'
 export const INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN = 'phc_uh9AB5AqnpXpFfW2Ns7bDGHaofSTLcA7TeatP6HzmtpF'
+
+export type InstanceTelemetryDeps = { instance: InstanceRepo; systemOptions: SystemOptionsRepo }
 
 export interface InstanceTelemetryConfig {
   posthogHost?: string
@@ -28,7 +29,6 @@ export interface InstanceTelemetryRuntime {
 }
 
 export interface InstanceTelemetryParams {
-  db: Database
   config: InstanceTelemetryConfig
   cron: string
   trigger?: 'deploy' | 'scheduled' | 'runtime'
@@ -41,15 +41,17 @@ export interface InstanceTelemetryResult {
   reason?: 'disabled'
 }
 
-export async function reportInstanceTelemetry(params: InstanceTelemetryParams): Promise<InstanceTelemetryResult> {
+export async function reportInstanceTelemetry(
+  deps: InstanceTelemetryDeps,
+  params: InstanceTelemetryParams,
+): Promise<InstanceTelemetryResult> {
   const posthogHost = (params.config.posthogHost ?? INSTANCE_TELEMETRY_POSTHOG_HOST).trim()
   const posthogProjectToken = (params.config.posthogProjectToken ?? INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN).trim()
   if (!posthogHost || !posthogProjectToken) return { reported: false, reason: 'disabled' }
 
-  const instanceId = await createInstanceRepo(params.db).getOrCreateInstanceId()
-  const instanceName = await createInstanceRepo(params.db).getInstanceDisplayName()
-  const instanceUrl =
-    normalizePublicOrigin(params.config.siteUrl) ?? (await getSitePublicOrigin(params.db)) ?? undefined
+  const instanceId = await deps.instance.getOrCreateInstanceId()
+  const instanceName = await deps.instance.getInstanceDisplayName()
+  const instanceUrl = normalizePublicOrigin(params.config.siteUrl) ?? (await resolveSitePublicOrigin(deps)) ?? undefined
   const appVersion = getAppVersion()
   const timestamp = (params.now ?? new Date()).toISOString()
   const disableGeoip = params.config.allowIp === false
@@ -80,6 +82,10 @@ export async function reportInstanceTelemetry(params: InstanceTelemetryParams): 
   await client.shutdown()
 
   return { reported: true }
+}
+
+async function resolveSitePublicOrigin(deps: InstanceTelemetryDeps): Promise<string | null> {
+  return normalizePublicOrigin(await deps.systemOptions.getValue(SITE_PUBLIC_ORIGIN_KEY))
 }
 
 function buildTelemetryProperties(params: {

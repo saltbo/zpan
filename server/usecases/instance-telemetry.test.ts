@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Database } from '../platform/interface'
 import {
   INSTANCE_TELEMETRY_CRON,
   INSTANCE_TELEMETRY_EVENT,
   INSTANCE_TELEMETRY_POSTHOG_HOST,
   INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN,
+  type InstanceTelemetryDeps,
   reportInstanceTelemetry,
 } from './instance-telemetry'
+import type { InstanceRepo, SystemOptionsRepo } from './ports'
 
 const posthogMocks = vi.hoisted(() => {
   const captureImmediateMock = vi.fn()
@@ -20,37 +21,37 @@ const posthogMocks = vi.hoisted(() => {
   return { PostHog, captureImmediate: captureImmediateMock, shutdown: shutdownMock }
 })
 
-const instanceMocks = vi.hoisted(() => ({
-  getOrCreateInstanceId: vi.fn(),
-  getInstanceDisplayName: vi.fn(),
-}))
-
-vi.mock('../adapters/repos/instance', () => ({
-  createInstanceRepo: () => ({
-    getOrCreateInstanceId: instanceMocks.getOrCreateInstanceId,
-    getInstanceDisplayName: instanceMocks.getInstanceDisplayName,
-  }),
-}))
-
 vi.mock('posthog-node', () => ({
   PostHog: posthogMocks.PostHog,
 }))
 
+const getOrCreateInstanceId = vi.fn()
+const getInstanceDisplayName = vi.fn()
+const getValue = vi.fn()
+
+function makeDeps(): InstanceTelemetryDeps {
+  return {
+    instance: { getOrCreateInstanceId, getInstanceDisplayName } as unknown as InstanceRepo,
+    systemOptions: { getValue } as unknown as SystemOptionsRepo,
+  }
+}
+
 describe('instance telemetry', () => {
   beforeEach(() => {
-    instanceMocks.getOrCreateInstanceId.mockReset()
-    instanceMocks.getInstanceDisplayName.mockReset()
+    getOrCreateInstanceId.mockReset()
+    getInstanceDisplayName.mockReset()
+    getValue.mockReset()
+    getValue.mockResolvedValue(null)
     posthogMocks.PostHog.mockClear()
     posthogMocks.captureImmediate.mockReset()
     posthogMocks.shutdown.mockReset()
     posthogMocks.captureImmediate.mockResolvedValue(undefined)
     posthogMocks.shutdown.mockResolvedValue(undefined)
-    instanceMocks.getInstanceDisplayName.mockResolvedValue('Test Instance')
+    getInstanceDisplayName.mockResolvedValue('Test Instance')
   })
 
   it('does not call the telemetry endpoint when PostHog project token is disabled', async () => {
-    const result = await reportInstanceTelemetry({
-      db: {} as Database,
+    const result = await reportInstanceTelemetry(makeDeps(), {
       config: { posthogProjectToken: '' },
       cron: INSTANCE_TELEMETRY_CRON,
       runtime: { runtime: 'workerd', platform: 'cloudflare-workers' },
@@ -58,15 +59,14 @@ describe('instance telemetry', () => {
 
     expect(result).toEqual({ reported: false, reason: 'disabled' })
     expect(posthogMocks.PostHog).not.toHaveBeenCalled()
-    expect(instanceMocks.getOrCreateInstanceId).not.toHaveBeenCalled()
-    expect(instanceMocks.getInstanceDisplayName).not.toHaveBeenCalled()
+    expect(getOrCreateInstanceId).not.toHaveBeenCalled()
+    expect(getInstanceDisplayName).not.toHaveBeenCalled()
   })
 
   it('captures the expected telemetry event with built-in PostHog host and project token', async () => {
-    instanceMocks.getOrCreateInstanceId.mockResolvedValue('inst-1')
+    getOrCreateInstanceId.mockResolvedValue('inst-1')
 
-    const result = await reportInstanceTelemetry({
-      db: {} as Database,
+    const result = await reportInstanceTelemetry(makeDeps(), {
       config: {
         siteUrl: 'https://zpan.example.com/path',
       },
@@ -83,8 +83,8 @@ describe('instance telemetry', () => {
     })
 
     expect(result).toEqual({ reported: true })
-    expect(instanceMocks.getOrCreateInstanceId).toHaveBeenCalled()
-    expect(instanceMocks.getInstanceDisplayName).toHaveBeenCalled()
+    expect(getOrCreateInstanceId).toHaveBeenCalled()
+    expect(getInstanceDisplayName).toHaveBeenCalled()
     expect(posthogMocks.PostHog).toHaveBeenCalledWith(INSTANCE_TELEMETRY_POSTHOG_PROJECT_TOKEN, {
       host: INSTANCE_TELEMETRY_POSTHOG_HOST,
       flushAt: 1,
@@ -170,10 +170,9 @@ describe('instance telemetry', () => {
   })
 
   it('disables GeoIP when IP reporting is explicitly disabled', async () => {
-    instanceMocks.getOrCreateInstanceId.mockResolvedValue('inst-1')
+    getOrCreateInstanceId.mockResolvedValue('inst-1')
 
-    await reportInstanceTelemetry({
-      db: {} as Database,
+    await reportInstanceTelemetry(makeDeps(), {
       config: {
         siteUrl: 'https://zpan.example.com',
         allowIp: false,
@@ -196,6 +195,27 @@ describe('instance telemetry', () => {
     expect(posthogMocks.captureImmediate).toHaveBeenCalledWith(
       expect.objectContaining({
         disableGeoip: true,
+      }),
+    )
+  })
+
+  it('falls back to the stored site public origin when no siteUrl is configured', async () => {
+    getOrCreateInstanceId.mockResolvedValue('inst-1')
+    getValue.mockResolvedValue('https://stored.example.com')
+
+    await reportInstanceTelemetry(makeDeps(), {
+      config: {},
+      cron: INSTANCE_TELEMETRY_CRON,
+      runtime: { runtime: 'workerd', platform: 'cloudflare-workers' },
+      now: new Date('2026-06-08T12:00:00.000Z'),
+    })
+
+    expect(getValue).toHaveBeenCalled()
+    expect(posthogMocks.captureImmediate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        properties: expect.objectContaining({
+          $current_url: 'https://stored.example.com',
+        }),
       }),
     )
   })

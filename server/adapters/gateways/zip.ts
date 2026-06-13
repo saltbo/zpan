@@ -1,19 +1,17 @@
-import { Unzip, UnzipInflate, unzipSync } from 'fflate'
+import { Unzip, UnzipInflate, unzipSync, Zip, ZipDeflate, ZipPassThrough, type Zippable, zipSync } from 'fflate'
+import type {
+  CompressionSourceDirectory,
+  StreamingZipExtraction,
+  StreamingZipFile,
+  ValidatedZip,
+  ZipDirectoryPlan,
+  ZipGateway,
+  ZipSourceObject,
+  ZipSourceStream,
+} from '../../usecases/ports'
+import { ZIP_EXTRACT_LIMITS } from '../../usecases/ports'
 
-export const ZIP_EXTRACT_LIMITS = {
-  totalOutputBytes: 1024 * 1024 * 1024,
-  singleFileBytes: 1024 * 1024 * 1024,
-  fileCount: 1000,
-  directoryDepth: 10,
-} as const
-
-export interface ExtractedZipEntry {
-  path: string
-  name: string
-  parentPath: string
-  bytes: Uint8Array
-  size: number
-}
+const textDecoder = new TextDecoder()
 
 interface CentralDirectoryEntry {
   name: string
@@ -24,34 +22,78 @@ interface CentralDirectoryEntry {
   externalAttributes: number
 }
 
-export interface ZipDirectoryPlan {
-  folders: string[]
-  totalBytes: number
-  fileCount: number
+function createZipArchive(objects: ZipSourceObject[], directories: CompressionSourceDirectory[] = []): Uint8Array {
+  const zippable: Zippable = {}
+  for (const directory of directories) zippable[`${directory.archivePath}/`] = new Uint8Array()
+  for (const object of objects) zippable[object.archivePath] = object.bytes
+  return zipSync(zippable, { level: 6 })
 }
 
-export interface ValidatedZip {
-  files: ExtractedZipEntry[]
-  folders: string[]
-  totalBytes: number
+function createZipArchiveStream(
+  sources: ZipSourceStream[],
+  directories: CompressionSourceDirectory[] = [],
+): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const zip = new Zip()
+      zip.ondata = (error, chunk, final) => {
+        if (error) {
+          controller.error(error)
+          return
+        }
+        if (chunk) controller.enqueue(new Uint8Array(chunk))
+        if (final) controller.close()
+      }
+
+      void streamZipEntries(zip, sources, directories, async () => {}).catch((error) => {
+        zip.terminate()
+        controller.error(error)
+      })
+    },
+  })
 }
 
-export interface StreamingZipFile {
-  path: string
-  name: string
-  parentPath: string
-  stream: ReadableStream<Uint8Array>
-  size: Promise<number>
+async function streamZipEntries(
+  zip: Zip,
+  sources: ZipSourceStream[],
+  directories: CompressionSourceDirectory[],
+  waitForWrites: () => Promise<void>,
+): Promise<void> {
+  for (const directory of directories) {
+    const entry = new ZipPassThrough(`${directory.archivePath}/`)
+    zip.add(entry)
+    entry.push(new Uint8Array(), true)
+    await waitForWrites()
+  }
+
+  for (const source of sources) {
+    const entry = new ZipDeflate(source.archivePath, { level: 6 })
+    zip.add(entry)
+    await pushStreamToZipEntry(await source.openStream(), entry, waitForWrites)
+  }
+
+  zip.end()
 }
 
-export interface StreamingZipExtraction {
-  folders: string[]
-  totalBytes: number
+async function pushStreamToZipEntry(
+  stream: ReadableStream<Uint8Array>,
+  entry: ZipDeflate,
+  waitForWrites: () => Promise<void>,
+): Promise<void> {
+  const reader = stream.getReader()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) {
+      entry.push(new Uint8Array(), true)
+      await waitForWrites()
+      return
+    }
+    entry.push(value, false)
+    await waitForWrites()
+  }
 }
 
-const textDecoder = new TextDecoder()
-
-export function validateAndExtractZip(data: Uint8Array): ValidatedZip {
+function validateAndExtractZip(data: Uint8Array): ValidatedZip {
   const entries = readCentralDirectory(data)
   validateEntries(entries)
 
@@ -77,7 +119,7 @@ export function validateAndExtractZip(data: Uint8Array): ValidatedZip {
   return { files, folders, totalBytes }
 }
 
-export async function validateZipDirectory(
+async function validateZipDirectory(
   size: number,
   readRange: (start: number, end: number) => Promise<Uint8Array>,
 ): Promise<ZipDirectoryPlan> {
@@ -103,7 +145,7 @@ export async function validateZipDirectory(
   }
 }
 
-export async function streamValidatedZip(
+async function streamValidatedZip(
   data: ReadableStream<Uint8Array>,
   onFile: (file: StreamingZipFile) => Promise<void>,
 ): Promise<StreamingZipExtraction> {
@@ -334,4 +376,14 @@ function uint16(data: Uint8Array, offset: number): number {
 
 function uint32(data: Uint8Array, offset: number): number {
   return (data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | (data[offset + 3] << 24)) >>> 0
+}
+
+export function createZipGateway(): ZipGateway {
+  return {
+    createZipArchive,
+    createZipArchiveStream,
+    validateAndExtractZip,
+    validateZipDirectory,
+    streamValidatedZip,
+  }
 }

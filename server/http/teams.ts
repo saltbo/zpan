@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { deletePublicImageVariants, uploadPublicImage } from '../services/image-upload'
 
 const LOGO_PREFIX = '_system/org-logos'
 
@@ -116,7 +115,7 @@ export const teams = new Hono<Env>()
     const file = form.get('file')
     if (!(file instanceof File)) return c.json({ error: 'file field is required' }, 400)
 
-    const result = await uploadPublicImage(platform, LOGO_PREFIX, teamId, file)
+    const result = await c.get('deps').imageUpload.uploadPublicImage(platform, LOGO_PREFIX, teamId, file)
     if (!result.ok) return c.json({ error: result.error }, result.status)
 
     await c.get('deps').teams.setLogo(teamId, result.url)
@@ -141,7 +140,7 @@ export const teams = new Hono<Env>()
     if (role !== 'owner' && role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
 
     await c.get('deps').teams.setLogo(teamId, null)
-    await deletePublicImageVariants(platform, LOGO_PREFIX, teamId)
+    await c.get('deps').imageUpload.deletePublicImageVariants(platform, LOGO_PREFIX, teamId)
 
     await c.get('deps').activity.record({
       orgId: teamId,

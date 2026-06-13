@@ -1,6 +1,9 @@
+import { S3Service } from '../adapters/gateways/s3'
+import { createStorageRepo } from '../adapters/repos/storage'
+import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
 import type { Database } from '../platform/interface'
+import { purgeRecursively } from '../usecases/purge'
 import { collectForPurge, listOrgIdsWithExpiredTrash, listTrashedRoots } from './matter'
-import { purgeRecursively } from './purge'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 export const DEFAULT_TRASH_RETENTION_DAYS = 30
@@ -23,6 +26,12 @@ export async function purgeExpiredTrash(db: Database, retentionDays: number, now
   const cutoff = now - retentionDays * DAY_MS
   const orgIds = await listOrgIdsWithExpiredTrash(db, cutoff)
 
+  const purgeDeps = {
+    s3: new S3Service(),
+    storages: createStorageRepo(db),
+    storageUsage: createStorageUsageRepo(db),
+  }
+
   let purged = 0
   for (const orgId of orgIds) {
     const roots = await listTrashedRoots(db, orgId)
@@ -30,7 +39,7 @@ export async function purgeExpiredTrash(db: Database, retentionDays: number, now
       if ((root.trashedAt ?? 0) >= cutoff) continue
       const matters = await collectForPurge(db, orgId, root.id)
       if (!matters) continue
-      purged += await purgeRecursively(db, orgId, matters)
+      purged += await purgeRecursively(purgeDeps, db, orgId, matters)
     }
   }
   return purged

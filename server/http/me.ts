@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { deletePublicImageVariants, uploadPublicImage } from '../services/image-upload'
 
 const AVATAR_PREFIX = '_system/avatars'
 
@@ -20,7 +19,7 @@ export const me = new Hono<Env>()
     const file = form.get('file')
     if (!(file instanceof File)) return c.json({ error: 'file field is required' }, 400)
 
-    const result = await uploadPublicImage(platform, AVATAR_PREFIX, userId, file)
+    const result = await c.get('deps').imageUpload.uploadPublicImage(platform, AVATAR_PREFIX, userId, file)
     if (!result.ok) return c.json({ error: result.error }, result.status)
 
     await c.get('deps').profiles.setAvatar(userId, result.url)
@@ -32,6 +31,6 @@ export const me = new Hono<Env>()
 
     // Clear DB first (authoritative); storage cleanup below is best-effort.
     await c.get('deps').profiles.setAvatar(userId, null)
-    await deletePublicImageVariants(platform, AVATAR_PREFIX, userId)
+    await c.get('deps').imageUpload.deletePublicImageVariants(platform, AVATAR_PREFIX, userId)
     return c.json({ ok: true })
   })

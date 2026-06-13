@@ -30,16 +30,16 @@ import {
   trashMatter,
   updateMatter,
 } from '../services/matter'
+import { S3Service } from '../services/s3'
+import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
 import {
   createObjectUploadSession,
   ObjectUploadSessionError,
   patchObjectUploadSession,
   presignObjectUploadParts,
-} from '../services/object-upload-sessions'
-import { purgeRecursively } from '../services/purge'
-import { S3Service } from '../services/s3'
-import { computeSourceBytes, copyMatterToOrg, isQuotaSufficient } from '../services/save-to-drive'
+} from '../usecases/object-upload-session'
 import type { StorageRecord as S3Storage } from '../usecases/ports'
+import { purgeRecursively } from '../usecases/purge'
 import { withStorageUsageReservation } from '../usecases/storage-usage'
 import { consumeAndReportDownloadTraffic } from './traffic-metering-utils'
 
@@ -202,7 +202,7 @@ const app = new Hono<Env>()
             downloaderId: principal.downloaderId,
           })
         }
-        return createObjectUploadSession(c.get('platform').db, s3, {
+        return createObjectUploadSession(c.get('deps'), {
           orgId,
           objectId: matter.id,
           storage,
@@ -227,7 +227,7 @@ const app = new Hono<Env>()
         if (!matter) throw new ObjectUploadSessionError('not_found')
         const storage = await c.get('deps').storages.get(matter.storageId)
         if (!storage) throw new ObjectUploadSessionError('not_found')
-        return presignObjectUploadParts(c.get('platform').db, s3, {
+        return presignObjectUploadParts(c.get('deps'), {
           orgId,
           objectId: matter.id,
           sessionId: c.req.param('uploadSessionId'),
@@ -248,7 +248,7 @@ const app = new Hono<Env>()
         if (!matter) throw new ObjectUploadSessionError('not_found')
         const storage = await c.get('deps').storages.get(matter.storageId)
         if (!storage) throw new ObjectUploadSessionError('not_found')
-        return patchObjectUploadSession(c.get('platform').db, s3, {
+        return patchObjectUploadSession(c.get('deps'), {
           orgId,
           objectId: matter.id,
           sessionId: c.req.param('uploadSessionId'),
@@ -329,7 +329,7 @@ const app = new Hono<Env>()
           const { matter, quotaExceeded } = await confirmUpload(db, c.req.param('id'), orgId, {
             onConflict: body.onConflict,
             userId,
-            purgeReplaced: (incumbent) => purgeRecursively(db, orgId, [incumbent]).then(() => undefined),
+            purgeReplaced: (incumbent) => purgeRecursively(c.get('deps'), db, orgId, [incumbent]).then(() => undefined),
           })
           if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
           if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
@@ -383,7 +383,7 @@ const app = new Hono<Env>()
     if (ms[0].status !== 'trashed') {
       return c.json({ error: 'Object must be trashed before permanent deletion' }, 409)
     }
-    const purged = await purgeRecursively(db, orgId, ms)
+    const purged = await purgeRecursively(c.get('deps'), db, orgId, ms)
     await c.get('deps').activity.record({
       orgId,
       userId,
@@ -482,7 +482,7 @@ const app = new Hono<Env>()
     let sourceDeleted = false
     if (mode === 'move' && result.skipped.length === 0) {
       const subtree = await collectForPurge(db, orgId, source)
-      await purgeRecursively(db, orgId, subtree)
+      await purgeRecursively(c.get('deps'), db, orgId, subtree)
       sourceDeleted = true
       await c.get('deps').activity.record({
         orgId,

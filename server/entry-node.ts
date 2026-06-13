@@ -7,16 +7,17 @@ import { resolveAppCommit, resolveAppVersion } from '../scripts/app-version.mjs'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 import { createQuotaRepo } from './adapters/repos/quota'
 import { createBootstrap } from './bootstrap'
+import { createDeps } from './composition'
 import { buildCloudInstanceInfo, runtimeInfo } from './licensing/instance-info'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
 import { syncPendingCloudTrafficReports } from './services/cloud-traffic-metering'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
 import { runLicensingRefresh } from './services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from './services/remote-download-usage'
 import { getSitePublicOrigin } from './services/site-public-origin'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from './services/trash-retention'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
@@ -103,8 +104,7 @@ function reportNodeInstanceTelemetry(): void {
 
   void (async () => {
     try {
-      await reportInstanceTelemetry({
-        db: platform.db,
+      await reportInstanceTelemetry(createDeps(platform), {
         config: {
           allowIp: envAllowsIp(process.env.ZPAN_TELEMETRY_ALLOW_IP),
         },

@@ -1,12 +1,13 @@
 // CF Workers scheduled() handler.
 
 import { createQuotaRepo } from '../server/adapters/repos/quota'
+import { createDeps } from '../server/composition'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { syncPendingCloudTrafficReports } from '../server/services/cloud-traffic-metering'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/services/instance-telemetry'
 import { runLicensingRefresh } from '../server/services/licensing-refresh-runner'
 import { syncPendingRemoteDownloadUsageReports } from '../server/services/remote-download-usage'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/services/trash-retention'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/instance-telemetry'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 
 // Subset of the worker Env used by the scheduled handler.
@@ -48,8 +49,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
   }
 
   if (event.cron === INSTANCE_TELEMETRY_CRON) {
-    await reportInstanceTelemetry({
-      db: platform.db,
+    await reportInstanceTelemetry(createDeps(platform), {
       config: {
         allowIp: envAllowsIp(env.ZPAN_TELEMETRY_ALLOW_IP),
       },

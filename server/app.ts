@@ -44,9 +44,9 @@ import { platformMiddleware } from './middleware/platform'
 import { downloaderOpenAPIDocument } from './openapi/downloader'
 import type { Platform } from './platform/interface'
 import { getDeployPlatform } from './runtime-platform'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
 import { ensureSitePublicOrigin } from './services/site-public-origin'
 import type { Deps } from './usecases/deps'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/instance-telemetry'
 
 export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
   const app = new Hono<Env>()
@@ -64,8 +64,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     })
 
     if (result.created && result.origin && shouldReportInitialTelemetry(c.req.url)) {
-      const task = reportInstanceTelemetry({
-        db: platform.db,
+      const task = reportInstanceTelemetry(deps, {
         config: {
           siteUrl: result.origin,
           allowIp: envAllowsIp(platform.getEnv('ZPAN_TELEMETRY_ALLOW_IP')),

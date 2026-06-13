@@ -1,10 +1,11 @@
+import { createArchiveJobsGateway } from '../server/adapters/gateways/archive-jobs'
 import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { platformContext } from '../server/platform/context'
-import { type ArchiveJobMessage, runArchiveJobMessage } from '../server/services/archive-jobs'
 import { resolveShareByToken } from '../server/services/share'
+import type { ArchiveJobMessage } from '../server/usecases/ports'
 import { DirType } from '../shared/constants'
 import { handleScheduled } from './scheduled'
 
@@ -62,8 +63,9 @@ export default {
 
   async queue(batch: MessageBatch<ArchiveJobMessage>, env: Env): Promise<void> {
     const platform = createCloudflarePlatform(env)
+    const archiveJobs = createArchiveJobsGateway(platform)
     for (const message of batch.messages) {
-      await runArchiveJobMessage(platform, message.body)
+      await archiveJobs.runMessage(message.body)
       message.ack()
     }
   },

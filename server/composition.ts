@@ -4,7 +4,10 @@
 // entrypoints can reuse it; request-bound capabilities are passed to usecases as
 // function parameters, never stored here.
 
+import { createArchiveJobsGateway } from './adapters/gateways/archive-jobs'
+import { createImageUploadGateway } from './adapters/gateways/image-upload'
 import { S3Service } from './adapters/gateways/s3'
+import { createZipGateway } from './adapters/gateways/zip'
 import { createCfClient } from './adapters/providers/cf-custom-hostnames'
 import { createChangelogProvider } from './adapters/providers/changelog'
 import { createActivityRepo } from './adapters/repos/activity'
@@ -15,6 +18,7 @@ import { createInstanceRepo } from './adapters/repos/instance'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createLicenseBindingRepo } from './adapters/repos/license-binding'
 import { createNotificationRepo } from './adapters/repos/notification'
+import { createObjectUploadSessionRepo } from './adapters/repos/object-upload-session'
 import { createOrgRepo } from './adapters/repos/org'
 import { createProfileRepo } from './adapters/repos/profile'
 import { createQuotaRepo } from './adapters/repos/quota'
@@ -25,6 +29,7 @@ import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { createTeamRepo } from './adapters/repos/team'
 import { createTeamInviteRepo } from './adapters/repos/team-invite'
 import { createUserAdminRepo } from './adapters/repos/user-admin'
+import { createZipPlanRepo } from './adapters/repos/zip'
 import type { Platform } from './platform/interface'
 import type { Deps } from './usecases/deps'
 
@@ -33,14 +38,17 @@ export function createDeps(platform: Platform): Deps {
   return {
     activity: createActivityRepo(db),
     announcements: createAnnouncementRepo(db),
+    archiveJobs: createArchiveJobsGateway(platform),
     backgroundJobs: createBackgroundJobRepo(db),
     cfHostnames: createCfClient((key) => platform.getEnv(key)),
     changelog: createChangelogProvider(),
     invites: createInviteRepo(db),
     imageHostingConfigs: createImageHostingConfigRepo(db),
+    imageUpload: createImageUploadGateway(new S3Service(), createStorageRepo(db)),
     instance: createInstanceRepo(db),
     licenseBinding: createLicenseBindingRepo(db),
     notifications: createNotificationRepo(db),
+    objectUploadSessions: createObjectUploadSessionRepo(db),
     org: createOrgRepo(db),
     profiles: createProfileRepo(db),
     quota: createQuotaRepo(db),
@@ -52,5 +60,7 @@ export function createDeps(platform: Platform): Deps {
     teams: createTeamRepo(db),
     teamInvites: createTeamInviteRepo(db),
     userAdmin: createUserAdminRepo(db),
+    zip: createZipGateway(),
+    zipPlan: createZipPlanRepo(db),
   }
 }

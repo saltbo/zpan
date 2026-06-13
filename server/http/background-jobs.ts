@@ -5,14 +5,12 @@ import { Hono } from 'hono'
 import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
-import { dispatchArchiveJob } from '../services/archive-jobs'
 import { enqueueArchiveJob } from '../services/archive-processing'
 import { BackgroundJobError } from '../usecases/ports'
 
 const backgroundJobs = new Hono<Env>()
   .use(requireAuth)
   .get('/', zValidator('query', listBackgroundJobsQuerySchema), async (c) => {
-    const db = c.get('platform').db
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'No organization found' }, 404)
 
@@ -34,7 +32,7 @@ const backgroundJobs = new Hono<Env>()
           userId,
           request,
         })
-        await dispatchArchiveJob(c.get('platform'), { orgId, userId, request, jobId: job.id })
+        await c.get('deps').archiveJobs.dispatch({ orgId, userId, request, jobId: job.id })
         return job
       },
       201,
@@ -57,11 +55,10 @@ const backgroundJobs = new Hono<Env>()
       c,
       async () => {
         const orgId = requireOrg(c)
-        const db = c.get('platform').db
         const job = await c.get('deps').backgroundJobs.retry(orgId, c.req.param('id'))
         const request = createBackgroundJobRequestSchema.safeParse(job.metadata)
         if (request.success) {
-          await dispatchArchiveJob(c.get('platform'), {
+          await c.get('deps').archiveJobs.dispatch({
             orgId,
             userId: job.userId,
             request: request.data,

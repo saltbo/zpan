@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { reportInstanceTelemetry } from '../services/instance-telemetry'
 import { createTestApp } from '../test/setup.js'
+import { reportInstanceTelemetry } from '../usecases/instance-telemetry'
 
-vi.mock('../services/instance-telemetry', () => ({
+vi.mock('../usecases/instance-telemetry', () => ({
   INSTANCE_TELEMETRY_CRON: '0 */12 * * *',
   reportInstanceTelemetry: vi.fn(),
 }))
@@ -38,7 +38,7 @@ describe('POST /api/internal/instance-telemetry/report', () => {
   })
 
   it('reports telemetry with the configured internal token', async () => {
-    const { app, db } = await createTestApp({
+    const { app, deps } = await createTestApp({
       ZPAN_INTERNAL_API_TOKEN: 'test-token',
     })
 
@@ -49,8 +49,7 @@ describe('POST /api/internal/instance-telemetry/report', () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ reported: true })
-    expect(reportInstanceTelemetry).toHaveBeenCalledWith({
-      db,
+    expect(reportInstanceTelemetry).toHaveBeenCalledWith(deps, {
       config: {
         allowIp: true,
       },

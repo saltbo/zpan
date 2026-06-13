@@ -5,14 +5,17 @@
 import type {
   ActivityRepo,
   AnnouncementRepo,
+  ArchiveJobsGateway,
   BackgroundJobRepo,
   CfHostnamesProvider,
   ChangelogProvider,
   ImageHostingConfigRepo,
+  ImageUpload,
   InstanceRepo,
   InviteRepo,
   LicenseBindingRepo,
   NotificationRepo,
+  ObjectUploadSessionRepo,
   OrgRepo,
   ProfileRepo,
   QuotaRepo,
@@ -24,19 +27,24 @@ import type {
   TeamInviteRepo,
   TeamRepo,
   UserAdminRepo,
+  ZipGateway,
+  ZipPlanRepo,
 } from './ports'
 
 export interface Deps {
   activity: ActivityRepo
   announcements: AnnouncementRepo
+  archiveJobs: ArchiveJobsGateway
   backgroundJobs: BackgroundJobRepo
   cfHostnames: CfHostnamesProvider
   changelog: ChangelogProvider
   invites: InviteRepo
   imageHostingConfigs: ImageHostingConfigRepo
+  imageUpload: ImageUpload
   instance: InstanceRepo
   licenseBinding: LicenseBindingRepo
   notifications: NotificationRepo
+  objectUploadSessions: ObjectUploadSessionRepo
   org: OrgRepo
   profiles: ProfileRepo
   quota: QuotaRepo
@@ -48,4 +56,6 @@ export interface Deps {
   teams: TeamRepo
   teamInvites: TeamInviteRepo
   userAdmin: UserAdminRepo
+  zip: ZipGateway
+  zipPlan: ZipPlanRepo
 }

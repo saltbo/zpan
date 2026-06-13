@@ -1,12 +1,15 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { BackgroundJob } from '../../shared/types'
+import { createZipGateway } from '../adapters/gateways/zip'
 import { createBackgroundJobRepo } from '../adapters/repos/background-job'
+import { createZipPlanRepo } from '../adapters/repos/zip'
 import { createTestApp } from '../test/setup.js'
+import { ZIP_COMPRESS_LIMITS, ZIP_EXTRACT_LIMITS } from '../usecases/ports'
 import { createArchiveJob, enqueueArchiveJob, processArchiveJob } from './archive-processing'
 import type { S3Service } from './s3'
-import { collectCompressionPlan, createZipArchiveStream, ZIP_COMPRESS_LIMITS } from './zip-compress'
-import { validateAndExtractZip, ZIP_EXTRACT_LIMITS } from './zip-extract'
+
+const zip = createZipGateway()
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -216,7 +219,7 @@ describe('archive processing', () => {
     await seedStorage(db)
     const size = 128 * 1024 * 1024
     const archive = await streamToBytes(
-      createZipArchiveStream([{ archivePath: 'large.bin', openStream: async () => generatedBytes(size) }]),
+      zip.createZipArchiveStream([{ archivePath: 'large.bin', openStream: async () => generatedBytes(size) }]),
     )
     await seedMatter(db, { id: 'large-zip', name: 'large.zip', object: 'source/large.zip', size: archive.byteLength })
 
@@ -383,7 +386,7 @@ describe('archive processing', () => {
       SELECT object FROM matters
       WHERE org_id = ${ORG_ID} AND name = 'Empty.zip' AND status = 'active'
     `)
-    const archive = validateAndExtractZip(s3.objects.get(zipMatter[0].object)!)
+    const archive = zip.validateAndExtractZip(s3.objects.get(zipMatter[0].object)!)
     expect(archive.folders).toEqual(['Empty'])
     expect(archive.files).toEqual([])
   })
@@ -408,7 +411,7 @@ describe('archive processing', () => {
       SELECT object FROM matters
       WHERE org_id = ${ORG_ID} AND name = 'Parent.zip' AND status = 'active'
     `)
-    const archive = validateAndExtractZip(s3.objects.get(zipMatter[0].object)!)
+    const archive = zip.validateAndExtractZip(s3.objects.get(zipMatter[0].object)!)
     expect(archive.folders).toEqual(['Parent', 'Parent/Child'])
     expect(archive.files).toEqual([])
   })
@@ -701,19 +704,20 @@ describe('archive processing', () => {
     await seedMatter(db, { id: 'same-a', name: 'same.txt', parent: 'a', object: 'objects/same-a.txt', size: 1 })
     await seedMatter(db, { id: 'same-b', name: 'same.txt', parent: 'b', object: 'objects/same-b.txt', size: 1 })
 
-    await expect(collectCompressionPlan(db, ORG_ID, ['missing'])).rejects.toThrow(
+    const zipPlan = createZipPlanRepo(db)
+    await expect(zipPlan.collectCompressionPlan(ORG_ID, ['missing'])).rejects.toThrow(
       'Some archive source IDs do not belong to this organization',
     )
-    await expect(collectCompressionPlan(db, ORG_ID, ['inactive-file'])).rejects.toThrow(
+    await expect(zipPlan.collectCompressionPlan(ORG_ID, ['inactive-file'])).rejects.toThrow(
       'Only active matters can be archived',
     )
-    await expect(collectCompressionPlan(db, ORG_ID, ['large-file'])).rejects.toThrow(
+    await expect(zipPlan.collectCompressionPlan(ORG_ID, ['large-file'])).rejects.toThrow(
       `Compression source file exceeds ${ZIP_COMPRESS_LIMITS.singleFileBytes} bytes`,
     )
-    await expect(collectCompressionPlan(db, ORG_ID, ['deep-file'])).rejects.toThrow(
+    await expect(zipPlan.collectCompressionPlan(ORG_ID, ['deep-file'])).rejects.toThrow(
       'Compression directory depth exceeds 10',
     )
-    await expect(collectCompressionPlan(db, ORG_ID, ['same-a', 'same-b'])).rejects.toThrow(
+    await expect(zipPlan.collectCompressionPlan(ORG_ID, ['same-a', 'same-b'])).rejects.toThrow(
       'Duplicate archive path: same.txt',
     )
   })
@@ -724,7 +728,7 @@ describe('archive processing', () => {
     await seedMatter(db, { id: 'photos', name: 'Photos', object: '', size: 0, dirtype: 1 })
     await seedMatter(db, { id: 'photo-a', name: 'a.jpg', parent: 'Photos', object: 'objects/a.jpg', size: 1 })
 
-    const plan = await collectCompressionPlan(db, ORG_ID, ['photos'], { outputName: 'backup' })
+    const plan = await createZipPlanRepo(db).collectCompressionPlan(ORG_ID, ['photos'], { outputName: 'backup' })
 
     expect(plan).toMatchObject({ outputName: 'backup.zip', targetFolder: '' })
     expect(plan.directories.map((directory) => directory.archivePath)).toEqual(['Photos'])
@@ -741,32 +745,36 @@ describe('archive processing', () => {
       await seedMatter(db, { id, name: `${id}.txt`, object: `objects/${id}.txt`, size: 1 })
     }
 
-    await expect(collectCompressionPlan(db, ORG_ID, ids)).rejects.toThrow(
+    await expect(createZipPlanRepo(db).collectCompressionPlan(ORG_ID, ids)).rejects.toThrow(
       `Compression file count exceeds ${ZIP_COMPRESS_LIMITS.fileCount}`,
     )
   })
 
   it('rejects unsafe and unsupported ZIP entries during validation', () => {
-    expect(() => validateAndExtractZip(new Uint8Array())).toThrow('Invalid ZIP archive')
-    expect(() => validateAndExtractZip(createZip({ '/abs.txt': bytes('x') }))).toThrow('ZIP contains an absolute path')
-    expect(() => validateAndExtractZip(createZip({ 'a\\b.txt': bytes('x') }))).toThrow(
+    expect(() => zip.validateAndExtractZip(new Uint8Array())).toThrow('Invalid ZIP archive')
+    expect(() => zip.validateAndExtractZip(createZip({ '/abs.txt': bytes('x') }))).toThrow(
+      'ZIP contains an absolute path',
+    )
+    expect(() => zip.validateAndExtractZip(createZip({ 'a\\b.txt': bytes('x') }))).toThrow(
       'ZIP paths must use forward slashes',
     )
-    expect(() => validateAndExtractZip(createZip({ 'a//b.txt': bytes('x') }))).toThrow(
+    expect(() => zip.validateAndExtractZip(createZip({ 'a//b.txt': bytes('x') }))).toThrow(
       'ZIP contains an empty path segment',
     )
     expect(() =>
-      validateAndExtractZip(createZip({ 'secret.txt': bytes('x') }, { flags: { 'secret.txt': 1 } })),
+      zip.validateAndExtractZip(createZip({ 'secret.txt': bytes('x') }, { flags: { 'secret.txt': 1 } })),
     ).toThrow('Encrypted ZIP archives are not supported')
     expect(() =>
-      validateAndExtractZip(createZip({ 'unsupported.txt': bytes('x') }, { compression: { 'unsupported.txt': 14 } })),
+      zip.validateAndExtractZip(
+        createZip({ 'unsupported.txt': bytes('x') }, { compression: { 'unsupported.txt': 14 } }),
+      ),
     ).toThrow('ZIP contains unsupported compression method')
     expect(() =>
-      validateAndExtractZip(
+      zip.validateAndExtractZip(
         createZip({ 'link.txt': bytes('x') }, { externalAttributes: { 'link.txt': 0o120000 << 16 } }),
       ),
     ).toThrow('ZIP contains unsupported entry type')
-    expect(() => validateAndExtractZip(createZip({ 'a/b/c/d/e/f/g/h/i/j/k/file.txt': bytes('x') }))).toThrow(
+    expect(() => zip.validateAndExtractZip(createZip({ 'a/b/c/d/e/f/g/h/i/j/k/file.txt': bytes('x') }))).toThrow(
       'ZIP directory depth exceeds 10',
     )
   })
@@ -775,7 +783,7 @@ describe('archive processing', () => {
     const manyEntries = Object.fromEntries(
       Array.from({ length: ZIP_EXTRACT_LIMITS.fileCount + 1 }, (_, index) => [`file-${index}.txt`, bytes('x')]),
     )
-    expect(() => validateAndExtractZip(createZip(manyEntries))).toThrow(
+    expect(() => zip.validateAndExtractZip(createZip(manyEntries))).toThrow(
       `ZIP file count exceeds ${ZIP_EXTRACT_LIMITS.fileCount}`,
     )
     const totalLimitEntries = Object.fromEntries(
@@ -784,7 +792,7 @@ describe('archive processing', () => {
     const totalLimitSizes = Object.fromEntries(
       Array.from({ length: 5 }, (_, index) => [`total-${index}`, 256 * 1024 * 1024]),
     )
-    expect(() => validateAndExtractZip(createZip(totalLimitEntries, { declaredSizes: totalLimitSizes }))).toThrow(
+    expect(() => zip.validateAndExtractZip(createZip(totalLimitEntries, { declaredSizes: totalLimitSizes }))).toThrow(
       `ZIP extraction output exceeds ${ZIP_EXTRACT_LIMITS.totalOutputBytes} bytes`,
     )
   })

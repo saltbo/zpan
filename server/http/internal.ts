@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { constantTimeEqual } from '../lib/constant-time'
 import type { Env } from '../middleware/platform'
 import { getDeployPlatform } from '../runtime-platform'
-import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../services/instance-telemetry'
+import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../usecases/instance-telemetry'
 
 const INTERNAL_API_TOKEN_ENV = 'ZPAN_INTERNAL_API_TOKEN'
 
@@ -35,8 +35,7 @@ internal.post('/instance-telemetry/report', async (c) => {
         nodeVersion: process.version,
       }
 
-  const result = await reportInstanceTelemetry({
-    db: platform.db,
+  const result = await reportInstanceTelemetry(c.get('deps'), {
     config: {
       allowIp: envAllowsIp(platform.getEnv('ZPAN_TELEMETRY_ALLOW_IP')),
     },

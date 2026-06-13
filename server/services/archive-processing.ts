@@ -2,11 +2,13 @@ import type { CreateBackgroundJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
 import { and, eq } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
+import { createZipGateway } from '../adapters/gateways/zip'
 import { createBackgroundJobRepo } from '../adapters/repos/background-job'
 import { createNotificationRepo } from '../adapters/repos/notification'
 import { createQuotaRepo } from '../adapters/repos/quota'
 import { createStorageRepo } from '../adapters/repos/storage'
 import { createStorageUsageRepo } from '../adapters/repos/storage-usage'
+import { createZipPlanRepo } from '../adapters/repos/zip'
 import { matters } from '../db/schema'
 import { buildObjectKey } from '../lib/path-template'
 import type { Database } from '../platform/interface'
@@ -14,8 +16,6 @@ import type { StorageRecord as S3StorageType } from '../usecases/ports'
 import { StorageQuotaExceededError, withStorageUsageReservation } from '../usecases/storage-usage'
 import { createMatter, getMatter, purgeMatters } from './matter'
 import { S3Service } from './s3'
-import { collectCompressionPlan, createZipArchiveStream } from './zip-compress'
-import { streamValidatedZip, validateZipDirectory } from './zip-extract'
 
 export interface CreateArchiveJobInput {
   orgId: string
@@ -80,7 +80,7 @@ async function runCompressionJob(
   request: Extract<CreateBackgroundJobRequest, { type: 'archive_compress' }>,
 ): Promise<BackgroundJob> {
   if (request.targetFolder !== undefined) await requireTargetFolder(db, orgId, request.targetFolder)
-  const plan = await collectCompressionPlan(db, orgId, request.matterIds, {
+  const plan = await createZipPlanRepo(db).collectCompressionPlan(orgId, request.matterIds, {
     targetFolder: request.targetFolder,
     outputName: request.outputName,
   })
@@ -106,7 +106,12 @@ async function runCompressionJob(
   let objectWritten = false
   let outputBytes = 0
   try {
-    outputBytes = await s3.putObject(targetStorage, key, createZipArchiveStream(sources, plan.directories), ZIP_MIME)
+    outputBytes = await s3.putObject(
+      targetStorage,
+      key,
+      createZipGateway().createZipArchiveStream(sources, plan.directories),
+      ZIP_MIME,
+    )
     objectWritten = true
     const job = await withStorageUsageReservation(
       { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) },
@@ -166,8 +171,9 @@ async function runExtractionJob(
 
   if (request.targetFolder !== undefined) await requireTargetFolder(db, orgId, request.targetFolder)
   const sourceStorage = await requireStorage(db, zipMatter.storageId)
+  const zip = createZipGateway()
   const sourceHead = await s3.headObject(sourceStorage, zipMatter.object)
-  const plan = await validateZipDirectory(sourceHead.size, (start, end) =>
+  const plan = await zip.validateZipDirectory(sourceHead.size, (start, end) =>
     s3.getObjectBytes(sourceStorage, zipMatter.object, `bytes=${start}-${end}`),
   )
   const progress = createArchiveProgressReporter(db, orgId, jobId, sourceHead.size, plan.fileCount)
@@ -194,7 +200,7 @@ async function runExtractionJob(
         const zipStream = trackReadableStream(await s3.getObjectStream(sourceStorage, zipMatter.object), (chunk) =>
           progress.addProcessedBytes(chunk.byteLength),
         )
-        const archive = await streamValidatedZip(zipStream, async (file) => {
+        const archive = await zip.streamValidatedZip(zipStream, async (file) => {
           await progress.setCurrentFilename(file.path)
           const parent = file.parentPath ? await ensureExtractedFolder(file.parentPath) : targetFolder
           const key = buildObjectKey({ uid: userId, orgId, rawExt: extension(file.name) })

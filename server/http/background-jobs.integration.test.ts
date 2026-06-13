@@ -1,9 +1,10 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ARCHIVE_QUEUE_BINDING, createArchiveJobsGateway } from '../adapters/gateways/archive-jobs'
 import { createBackgroundJobRepo } from '../adapters/repos/background-job'
-import { ARCHIVE_QUEUE_BINDING, type ArchiveJobMessage, runArchiveJobMessage } from '../services/archive-jobs'
 import { S3Service } from '../services/s3'
 import { authedHeaders, createTestApp } from '../test/setup.js'
+import type { ArchiveJobMessage } from '../usecases/ports'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -144,7 +145,7 @@ describe('background jobs API', () => {
     expect(messages).toHaveLength(1)
     await expect(createBackgroundJobRepo(db).get(orgId, created.id)).resolves.toMatchObject({ status: 'queued' })
 
-    await runArchiveJobMessage(platform, messages[0])
+    await createArchiveJobsGateway(platform).runMessage(messages[0])
 
     await expect(createBackgroundJobRepo(db).get(orgId, created.id)).resolves.toMatchObject({
       status: 'completed',
