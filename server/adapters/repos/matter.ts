@@ -599,15 +599,13 @@ export function createMatterRepo(db: Database): MatterRepo {
     },
 
     async listActiveDescendants(orgId, parentPath): Promise<Matter[]> {
+      // Exact-prefix match (SUBSTR), not LIKE — folder names can contain `_`/`%`,
+      // which LIKE would treat as wildcards and over-match. Matches the rest of this repo.
       const rows = await db
         .select()
         .from(matters)
         .where(
-          and(
-            eq(matters.orgId, orgId),
-            eq(matters.status, ObjectStatus.ACTIVE),
-            like(matters.parent, `${parentPath}/%`),
-          ),
+          and(eq(matters.orgId, orgId), eq(matters.status, ObjectStatus.ACTIVE), descendantParentCondition(parentPath)),
         )
       return rows.map(toMatter)
     },
