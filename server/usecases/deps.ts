@@ -8,6 +8,7 @@ import type {
   BackgroundJobRepo,
   CfHostnamesProvider,
   ChangelogProvider,
+  ImageHostingConfigRepo,
   InstanceRepo,
   InviteRepo,
   LicenseBindingRepo,
@@ -31,6 +32,7 @@ export interface Deps {
   cfHostnames: CfHostnamesProvider
   changelog: ChangelogProvider
   invites: InviteRepo
+  imageHostingConfigs: ImageHostingConfigRepo
   instance: InstanceRepo
   licenseBinding: LicenseBindingRepo
   notifications: NotificationRepo

@@ -1,9 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
-import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { putIhostConfigSchema } from '../../shared/schemas'
 import type { IhostConfigResponse } from '../../shared/types'
-import { imageHostingConfigs } from '../db/schema'
 import { requireAuth, requireTeamRole } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { CfConflictError } from '../usecases/ports'
@@ -61,7 +59,6 @@ function catchUniqueViolation(e: unknown): boolean {
 const app = new Hono<Env>()
   .use(requireAuth)
   .get('/', async (c) => {
-    const db = c.get('platform').db
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
@@ -70,23 +67,17 @@ const app = new Hono<Env>()
     const isCfConfigured = !!getEnv('CF_API_TOKEN')
     const cnameTarget = getEnv('CF_CNAME_TARGET') ?? ''
 
-    const rows = await db.select().from(imageHostingConfigs).where(eq(imageHostingConfigs.orgId, orgId)).limit(1)
-
-    if (rows.length === 0) {
+    const row = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
+    if (!row) {
       return c.json({ enabled: false })
     }
-
-    const row = rows[0]
 
     // Lazily refresh verification status when domain is unverified and CF is configured.
     if (row.customDomain && !row.domainVerifiedAt && row.cfHostnameId && isCfConfigured) {
       const status = await cfClient.getStatus(row.cfHostnameId)
       if (status.status === 'active') {
         const now = new Date()
-        await db
-          .update(imageHostingConfigs)
-          .set({ domainVerifiedAt: now, updatedAt: now })
-          .where(eq(imageHostingConfigs.orgId, orgId))
+        await c.get('deps').imageHostingConfigs.update(orgId, { domainVerifiedAt: now })
         row.domainVerifiedAt = now
       }
     }
@@ -94,7 +85,6 @@ const app = new Hono<Env>()
     return c.json(buildResponse(row, cnameTarget, isCfConfigured))
   })
   .put('/', requireTeamRole('owner'), zValidator('json', putIhostConfigSchema), async (c) => {
-    const db = c.get('platform').db
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
@@ -110,13 +100,13 @@ const app = new Hono<Env>()
       return c.json({ error: 'Custom domain cannot be the application default host' }, 400)
     }
 
-    const existing = await db.select().from(imageHostingConfigs).where(eq(imageHostingConfigs.orgId, orgId)).limit(1)
+    const existing = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
 
     const now = new Date()
     const newDomain = body.customDomain ?? null
     const newReferers = body.refererAllowlist !== undefined ? body.refererAllowlist : null
 
-    if (existing.length === 0) {
+    if (!existing) {
       // Insert new config row.
       let cfHostnameId: string | null = null
       if (newDomain && isCfConfigured) {
@@ -132,14 +122,11 @@ const app = new Hono<Env>()
       }
 
       try {
-        await db.insert(imageHostingConfigs).values({
+        await c.get('deps').imageHostingConfigs.create({
           orgId,
           customDomain: newDomain,
           cfHostnameId,
-          domainVerifiedAt: null,
           refererAllowlist: newReferers ? JSON.stringify(newReferers) : null,
-          createdAt: now,
-          updatedAt: now,
         })
       } catch (e) {
         if (catchUniqueViolation(e)) {
@@ -164,7 +151,7 @@ const app = new Hono<Env>()
     }
 
     // Update existing config row.
-    const old = existing[0]
+    const old = existing
     const oldDomain = old.customDomain
     let cfHostnameId = old.cfHostnameId
     let domainVerifiedAt = old.domainVerifiedAt
@@ -205,16 +192,12 @@ const app = new Hono<Env>()
         : old.refererAllowlist
 
     try {
-      await db
-        .update(imageHostingConfigs)
-        .set({
-          customDomain: newDomain,
-          cfHostnameId,
-          domainVerifiedAt,
-          refererAllowlist: refererAllowlistValue,
-          updatedAt: now,
-        })
-        .where(eq(imageHostingConfigs.orgId, orgId))
+      await c.get('deps').imageHostingConfigs.update(orgId, {
+        customDomain: newDomain,
+        cfHostnameId,
+        domainVerifiedAt,
+        refererAllowlist: refererAllowlistValue,
+      })
     } catch (e) {
       if (catchUniqueViolation(e)) {
         return c.json({ error: 'Domain already registered by another organization' }, 409)
@@ -237,18 +220,14 @@ const app = new Hono<Env>()
     )
   })
   .delete('/', requireTeamRole('owner'), async (c) => {
-    const db = c.get('platform').db
     const orgId = c.get('orgId')
     if (!orgId) return c.json({ error: 'Unauthorized' }, 401)
 
-    const existing = await db.select().from(imageHostingConfigs).where(eq(imageHostingConfigs.orgId, orgId)).limit(1)
-
-    if (existing.length === 0) {
+    const row = await c.get('deps').imageHostingConfigs.getByOrg(orgId)
+    if (!row) {
       return c.body(null, 204)
     }
 
-    const row = existing[0]
-    const getEnv = c.get('platform').getEnv.bind(c.get('platform'))
     const cfClient = c.get('deps').cfHostnames
 
     // Best-effort CF cleanup — do not fail if CF call errors.
@@ -260,7 +239,7 @@ const app = new Hono<Env>()
       }
     }
 
-    await db.delete(imageHostingConfigs).where(eq(imageHostingConfigs.orgId, orgId))
+    await c.get('deps').imageHostingConfigs.delete(orgId)
 
     return c.body(null, 204)
   })
