@@ -332,6 +332,7 @@ const app = new Hono<Env>()
           const { matter, quotaExceeded } = await confirmUpload(db, c.req.param('id'), orgId, {
             onConflict: body.onConflict,
             userId,
+            purgeReplaced: (incumbent) => purgeRecursively(db, orgId, [incumbent]).then(() => undefined),
           })
           if (quotaExceeded) return c.json({ error: 'Quota exceeded' }, 422)
           if (!matter) return c.json({ error: 'Not found or not in draft status' }, 404)
