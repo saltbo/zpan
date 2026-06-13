@@ -24,7 +24,6 @@ export async function signInAsAdmin(page: Page) {
   ])
   expect(resp.status()).toBe(200)
   await expect(page).toHaveURL(/files/, { timeout: 10000 })
-  await page.waitForLoadState('networkidle')
   await page.goto('/admin/storages')
   await expect(page).toHaveURL(/admin\/storages/, { timeout: 10000 })
 }
