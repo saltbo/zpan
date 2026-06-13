@@ -2,13 +2,13 @@ import type { CreateBackgroundJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
 import { and, eq } from 'drizzle-orm'
 import { DirType } from '../../shared/constants'
+import { createNotificationRepo } from '../adapters/repos/notification'
 import { createStorageRepo } from '../adapters/repos/storage'
 import { matters } from '../db/schema'
 import type { Database } from '../platform/interface'
 import type { StorageRecord as S3StorageType } from '../usecases/ports'
 import { createBackgroundJob, updateBackgroundJob } from './background-jobs'
 import { createMatter, getMatter, purgeMatters } from './matter'
-import { createNotification } from './notification'
 import { buildObjectKey } from './path-template'
 import { S3Service } from './s3'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
@@ -370,7 +370,7 @@ function extension(name: string): string {
 async function notifyArchiveJobFinished(db: Database, job: BackgroundJob): Promise<void> {
   const completed = job.status === 'completed'
   const action = job.type === 'archive_extract' ? 'extraction' : 'compression'
-  await createNotification(db, {
+  await createNotificationRepo(db).create({
     userId: job.userId,
     type: completed ? 'archive_job_completed' : 'archive_job_failed',
     title: completed ? `File ${action} completed` : `File ${action} failed`,

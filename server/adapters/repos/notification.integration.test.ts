@@ -1,14 +1,8 @@
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
-import * as authSchema from '../db/auth-schema.js'
-import {
-  createNotification,
-  listNotifications,
-  markAllAsRead,
-  markAsRead,
-  unreadCount,
-} from '../services/notification.js'
-import { createTestApp } from '../test/setup.js'
+import * as authSchema from '../../db/auth-schema.js'
+import { createTestApp } from '../../test/setup.js'
+import { createNotificationRepo } from './notification.js'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -30,7 +24,7 @@ describe('createNotification', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    const n = await createNotification(db, { userId, type: 'share_received', title: 'You got a share' })
+    const n = await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'You got a share' })
 
     expect(n.id).toBeDefined()
     expect(n.userId).toBe(userId)
@@ -45,7 +39,7 @@ describe('createNotification', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    const n = await createNotification(db, {
+    const n = await createNotificationRepo(db).create({
       userId,
       type: 'share_received',
       title: 'Test',
@@ -67,7 +61,7 @@ describe('listNotifications', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    const result = await listNotifications(db, userId, { page: 1, pageSize: 20 })
+    const result = await createNotificationRepo(db).list(userId, { page: 1, pageSize: 20 })
 
     expect(result.items).toHaveLength(0)
     expect(result.total).toBe(0)
@@ -79,14 +73,14 @@ describe('listNotifications', () => {
     const userId = await insertUser(db)
 
     for (let i = 0; i < 5; i++) {
-      await createNotification(db, { userId, type: 'share_received', title: `Notification ${i}` })
+      await createNotificationRepo(db).create({ userId, type: 'share_received', title: `Notification ${i}` })
     }
 
-    const page1 = await listNotifications(db, userId, { page: 1, pageSize: 3 })
+    const page1 = await createNotificationRepo(db).list(userId, { page: 1, pageSize: 3 })
     expect(page1.items).toHaveLength(3)
     expect(page1.total).toBe(5)
 
-    const page2 = await listNotifications(db, userId, { page: 2, pageSize: 3 })
+    const page2 = await createNotificationRepo(db).list(userId, { page: 2, pageSize: 3 })
     expect(page2.items).toHaveLength(2)
   })
 
@@ -94,11 +88,11 @@ describe('listNotifications', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    const n1 = await createNotification(db, { userId, type: 'share_received', title: 'A' })
-    await createNotification(db, { userId, type: 'share_received', title: 'B' })
-    await markAsRead(db, userId, n1.id)
+    const n1 = await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'A' })
+    await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'B' })
+    await createNotificationRepo(db).markAsRead(userId, n1.id)
 
-    const result = await listNotifications(db, userId, { page: 1, pageSize: 20 })
+    const result = await createNotificationRepo(db).list(userId, { page: 1, pageSize: 20 })
     expect(result.total).toBe(2)
     expect(result.unreadCount).toBe(1)
   })
@@ -107,11 +101,11 @@ describe('listNotifications', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    const n1 = await createNotification(db, { userId, type: 'share_received', title: 'A' })
-    await createNotification(db, { userId, type: 'share_received', title: 'B' })
-    await markAsRead(db, userId, n1.id)
+    const n1 = await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'A' })
+    await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'B' })
+    await createNotificationRepo(db).markAsRead(userId, n1.id)
 
-    const result = await listNotifications(db, userId, { page: 1, pageSize: 20, unreadOnly: true })
+    const result = await createNotificationRepo(db).list(userId, { page: 1, pageSize: 20, unreadOnly: true })
     expect(result.items).toHaveLength(1)
     expect(result.items[0].title).toBe('B')
   })
@@ -121,9 +115,9 @@ describe('listNotifications', () => {
     const user1 = await insertUser(db)
     const user2 = await insertUser(db)
 
-    await createNotification(db, { userId: user1, type: 'share_received', title: 'For user1' })
+    await createNotificationRepo(db).create({ userId: user1, type: 'share_received', title: 'For user1' })
 
-    const result = await listNotifications(db, user2, { page: 1, pageSize: 20 })
+    const result = await createNotificationRepo(db).list(user2, { page: 1, pageSize: 20 })
     expect(result.items).toHaveLength(0)
   })
 })
@@ -132,15 +126,15 @@ describe('markAsRead', () => {
   it('marks a notification as read (idempotent)', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
-    const n = await createNotification(db, { userId, type: 'share_received', title: 'Test' })
+    const n = await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'Test' })
 
-    const first = await markAsRead(db, userId, n.id)
+    const first = await createNotificationRepo(db).markAsRead(userId, n.id)
     expect(first).toBe(true)
 
-    const second = await markAsRead(db, userId, n.id)
+    const second = await createNotificationRepo(db).markAsRead(userId, n.id)
     expect(second).toBe(true)
 
-    const count = await unreadCount(db, userId)
+    const count = await createNotificationRepo(db).unreadCount(userId)
     expect(count).toBe(0)
   })
 
@@ -148,12 +142,12 @@ describe('markAsRead', () => {
     const { db } = await createTestApp()
     const owner = await insertUser(db)
     const other = await insertUser(db)
-    const n = await createNotification(db, { userId: owner, type: 'share_received', title: 'Test' })
+    const n = await createNotificationRepo(db).create({ userId: owner, type: 'share_received', title: 'Test' })
 
-    const result = await markAsRead(db, other, n.id)
+    const result = await createNotificationRepo(db).markAsRead(other, n.id)
     expect(result).toBe(false)
 
-    const count = await unreadCount(db, owner)
+    const count = await createNotificationRepo(db).unreadCount(owner)
     expect(count).toBe(1)
   })
 })
@@ -163,13 +157,13 @@ describe('markAllAsRead', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    await createNotification(db, { userId, type: 'share_received', title: 'A' })
-    await createNotification(db, { userId, type: 'share_received', title: 'B' })
+    await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'A' })
+    await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'B' })
 
-    const result = await markAllAsRead(db, userId)
+    const result = await createNotificationRepo(db).markAllAsRead(userId)
     expect(result.count).toBe(2)
 
-    const count = await unreadCount(db, userId)
+    const count = await createNotificationRepo(db).unreadCount(userId)
     expect(count).toBe(0)
   })
 
@@ -178,20 +172,20 @@ describe('markAllAsRead', () => {
     const user1 = await insertUser(db)
     const user2 = await insertUser(db)
 
-    await createNotification(db, { userId: user1, type: 'share_received', title: 'A' })
-    await createNotification(db, { userId: user2, type: 'share_received', title: 'B' })
+    await createNotificationRepo(db).create({ userId: user1, type: 'share_received', title: 'A' })
+    await createNotificationRepo(db).create({ userId: user2, type: 'share_received', title: 'B' })
 
-    await markAllAsRead(db, user1)
+    await createNotificationRepo(db).markAllAsRead(user1)
 
-    expect(await unreadCount(db, user1)).toBe(0)
-    expect(await unreadCount(db, user2)).toBe(1)
+    expect(await createNotificationRepo(db).unreadCount(user1)).toBe(0)
+    expect(await createNotificationRepo(db).unreadCount(user2)).toBe(1)
   })
 
   it('returns 0 when nothing to mark', async () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    const result = await markAllAsRead(db, userId)
+    const result = await createNotificationRepo(db).markAllAsRead(userId)
     expect(result.count).toBe(0)
   })
 })
@@ -201,14 +195,14 @@ describe('unreadCount', () => {
     const { db } = await createTestApp()
     const userId = await insertUser(db)
 
-    expect(await unreadCount(db, userId)).toBe(0)
+    expect(await createNotificationRepo(db).unreadCount(userId)).toBe(0)
 
-    const n = await createNotification(db, { userId, type: 'share_received', title: 'A' })
-    await createNotification(db, { userId, type: 'share_received', title: 'B' })
+    const n = await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'A' })
+    await createNotificationRepo(db).create({ userId, type: 'share_received', title: 'B' })
 
-    expect(await unreadCount(db, userId)).toBe(2)
+    expect(await createNotificationRepo(db).unreadCount(userId)).toBe(2)
 
-    await markAsRead(db, userId, n.id)
-    expect(await unreadCount(db, userId)).toBe(1)
+    await createNotificationRepo(db).markAsRead(userId, n.id)
+    expect(await createNotificationRepo(db).unreadCount(userId)).toBe(1)
   })
 })

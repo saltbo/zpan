@@ -5,6 +5,7 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import type { LicenseEdition } from '../../shared/types'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
+import { createDeps } from '../composition'
 import * as authSchema from '../db/auth-schema'
 import * as schema from '../db/schema'
 import type { Platform } from '../platform/interface'
@@ -570,9 +571,10 @@ export async function createTestApp(
     getBinding: <T = unknown>(key: string) => bindingOverrides[key] as T | undefined,
   }
   const auth = await createAuth(platform, 'test-secret', 'http://localhost:3000')
-  const app = createApp(platform, auth)
+  const deps = createDeps(platform)
+  const app = createApp(platform, auth, deps)
 
-  return { app, db, auth, platform }
+  return { app, db, auth, platform, deps }
 }
 
 export async function adminHeaders(app: ReturnType<typeof createApp>) {

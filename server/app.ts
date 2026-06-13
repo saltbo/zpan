@@ -46,11 +46,11 @@ import type { Platform } from './platform/interface'
 import { getDeployPlatform } from './runtime-platform'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './services/instance-telemetry'
 import { ensureSitePublicOrigin } from './services/site-public-origin'
+import type { Deps } from './usecases/deps'
 
-export function createApp(platform: Platform, auth: Auth) {
+export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
   const app = new Hono<Env>()
   const corsOrigins = getCorsOrigins(platform)
-  const deps = createDeps(platform)
 
   app.use('/*', platformMiddleware(platform, auth))
   app.use('/*', async (c, next) => {

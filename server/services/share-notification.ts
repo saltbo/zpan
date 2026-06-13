@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
+import { createNotificationRepo } from '../adapters/repos/notification'
 import { user } from '../db/auth-schema'
 import type { Database, Platform } from '../platform/interface'
 import { isEmailConfigured, sendEmail } from './email'
-import { createNotification } from './notification'
 import type { Share } from './share'
 
 async function getUserEmail(db: Database, userId: string): Promise<string | null> {
@@ -45,7 +45,7 @@ export async function dispatchShareCreated(
 
   for (const r of recipients) {
     if (r.recipientUserId) {
-      await createNotification(db, {
+      await createNotificationRepo(db).create({
         userId: r.recipientUserId,
         type: 'share_received',
         title: `${creatorName} shared "${matterName}" with you`,

@@ -21,6 +21,7 @@ import {
   parseProviderConfig,
 } from '../shared/oauth-providers'
 import { createActivityRepo } from './adapters/repos/activity'
+import { createNotificationRepo } from './adapters/repos/notification'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { isLocalNetworkOrigin } from './lib/local-origin'
@@ -32,7 +33,6 @@ import { executeWriteTransaction } from './services/db-transaction'
 import { currentTrafficPeriod } from './services/effective-quota'
 import { isEmailConfigured, sendEmail } from './services/email'
 import { redeemInviteCode, validateInviteCode } from './services/invite'
-import { createNotification } from './services/notification'
 import { findPersonalOrg } from './services/org'
 import { getEffectiveSignupMode } from './services/signup-mode-guard'
 import { acceptSiteInvitation, validateSiteInvitation } from './services/site-invitations'
@@ -263,7 +263,7 @@ export async function createAuth(
               targetName: organization.name,
               metadata: { role: member.role },
             })
-            await createNotification(db, {
+            await createNotificationRepo(db).create({
               userId: user.id,
               type: 'team_join',
               title: `You joined ${organization.name}`,

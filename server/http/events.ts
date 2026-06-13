@@ -4,7 +4,6 @@ import { requireAuth } from '../middleware/auth'
 import type { Env } from '../middleware/platform'
 import { listBackgroundJobs } from '../services/background-jobs'
 import { listDownloadTasks } from '../services/downloads'
-import { unreadCount } from '../services/notification'
 
 const encoder = new TextEncoder()
 // How often the stream re-reads each subscribed domain to detect changes. Kept
@@ -47,6 +46,7 @@ const eventsQuerySchema = z.object({
 // a pure change-notifier with no pub/sub.
 export const events = new Hono<Env>().use(requireAuth).get('/', (c) => {
   const platform = c.get('platform')
+  const deps = c.get('deps')
   const orgId = c.get('orgId')
   const userId = c.get('userId')
   const query = eventsQuerySchema.parse(c.req.query())
@@ -86,7 +86,7 @@ export const events = new Hono<Env>().use(requireAuth).get('/', (c) => {
           }
 
           if (userId) {
-            const count = await unreadCount(platform.db, userId)
+            const count = await deps.notifications.unreadCount(userId)
             const fingerprint = String(count)
             if (fingerprint !== unreadFingerprint) {
               unreadFingerprint = fingerprint

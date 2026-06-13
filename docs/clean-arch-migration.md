@@ -47,11 +47,17 @@ Imports: relative within `server/` (matches existing code); `@shared/*` for shar
 - [x] **Backbone** `composition.ts` + `usecases/deps.ts` + `usecases/ports/` + deps middleware
 - [x] `activity` → `adapters/repos/activity.ts` (ActivityRepo)
 - [x] `storage` → `adapters/repos/storage.ts` (StorageRepo)
+- [x] `profile` → ProfileRepo; `buildBreadcrumb` → `domain/breadcrumb.ts`
+- [x] `announcement` → AnnouncementRepo
+- [x] `notification` → NotificationRepo
+- [x] **test infra**: `createApp(platform, auth, deps?)` + `createTestApp` returns
+      `deps`, so tests fake a port by spying on `testApp.deps.<x>` (replaces
+      cross-boundary module spies, e.g. events SSE unread-count failure)
 
 ### Repos to extract (drizzle services → adapters/repos)
-- [ ] announcement, api-keys, background-jobs, branding, captcha
-- [ ] download-tokens, object-upload-sessions, storage-usage, profile
-- [ ] notification, share-notification, invite, site-invitations, site-public-origin
+- [ ] api-keys, background-jobs, branding, captcha
+- [ ] download-tokens, object-upload-sessions, storage-usage
+- [ ] share-notification, invite, site-invitations, site-public-origin
 - [ ] org, org-entitlements, team, team-invite, team-count-guard, user
 - [ ] matter, matter-name-conflict, share, effective-quota
 - [ ] cloud-store, cloud-traffic-metering, remote-download-usage, download (downloads/core)

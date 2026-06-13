@@ -2,7 +2,6 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
 import { createBackgroundJob } from '../services/background-jobs.js'
-import * as notificationService from '../services/notification.js'
 import { findPersonalOrg } from '../services/org.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
@@ -80,7 +79,7 @@ describe('GET /api/events', () => {
   it('emits an error event when a domain query fails', async () => {
     const testApp = await createTestApp()
     const { headers } = await authedOrg(testApp)
-    vi.spyOn(notificationService, 'unreadCount').mockRejectedValueOnce(new Error('boom'))
+    vi.spyOn(testApp.deps.notifications, 'unreadCount').mockRejectedValueOnce(new Error('boom'))
 
     const res = await testApp.app.request('/api/events', { headers })
     const text = await readSome(res, ['event: error'])

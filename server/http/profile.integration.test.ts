@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { buildBreadcrumb } from '../services/profile.js'
+import { buildBreadcrumb } from '../domain/breadcrumb.js'
 import { createTestApp } from '../test/setup.js'
 
 async function insertUser(

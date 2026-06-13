@@ -4,4 +4,7 @@
 // resource owns its own file under ports/.
 
 export * from './ports/activity'
+export * from './ports/announcement'
+export * from './ports/notification'
+export * from './ports/profile'
 export * from './ports/storage'
